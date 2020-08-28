@@ -1,5 +1,6 @@
 package com.linkedin.metadata.restli;
 
+import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.StringArray;
 import com.linkedin.metadata.query.SortCriterion;
 import com.linkedin.r2.RemoteInvocationException;
@@ -8,7 +9,9 @@ import com.linkedin.restli.common.CollectionMetadata;
 import com.linkedin.restli.common.CollectionResponse;
 import com.linkedin.testing.EntityValue;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import org.testng.annotations.BeforeMethod;
@@ -21,7 +24,7 @@ public class BaseSearchableClientTest {
 
   private Client _mockRestClient;
 
-  public static class TestSearchableClient extends BaseSearchableClient<EntityValue> {
+  public static class TestSearchableClient extends BaseSearchableClient<EntityValue, Urn> {
 
     public TestSearchableClient(@Nonnull Client restliClient) {
       super(restliClient);
@@ -34,6 +37,12 @@ public class BaseSearchableClientTest {
       CollectionResponse<EntityValue> collectionResponse = new CollectionResponse<>(EntityValue.class);
       collectionResponse.setPaging(new CollectionMetadata().setTotal(100));
       return collectionResponse;
+    }
+
+    @Override
+    @Nonnull
+    public BackfillResult backfill(@Nonnull Set<Urn> urnSet, @Nullable List<String> aspects) throws RemoteInvocationException {
+      return new BackfillResult();
     }
   }
 

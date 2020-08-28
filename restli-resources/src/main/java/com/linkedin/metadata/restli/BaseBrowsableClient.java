@@ -16,7 +16,7 @@ import javax.annotation.Nullable;
  * @param <VALUE> the client's value type
  * @param <URN> urn type of the entity
  */
-public abstract class BaseBrowsableClient<VALUE extends RecordTemplate, URN extends Urn> extends BaseSearchableClient<VALUE> {
+public abstract class BaseBrowsableClient<VALUE extends RecordTemplate, URN extends Urn> extends BaseSearchableClient<VALUE, URN> {
 
   public BaseBrowsableClient(@Nonnull Client restliClient) {
     super(restliClient);
@@ -48,5 +48,4 @@ public abstract class BaseBrowsableClient<VALUE extends RecordTemplate, URN exte
   public StringArray getBrowsePaths(@Nonnull URN urn) throws RemoteInvocationException {
     throw new UnsupportedOperationException("Not implemented yet.");
   }
-
 }
