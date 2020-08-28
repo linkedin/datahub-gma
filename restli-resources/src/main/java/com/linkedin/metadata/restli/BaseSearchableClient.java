@@ -1,5 +1,6 @@
 package com.linkedin.metadata.restli;
 
+import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.StringArray;
 import com.linkedin.metadata.query.AutoCompleteResult;
@@ -16,8 +17,10 @@ import javax.annotation.Nullable;
  * Base client that all entities supporting search should implement in their respective restli MPs.
  *
  * @param <VALUE> the client's value type
+ * @param <URN> urn type of the entity
  */
-public abstract class BaseSearchableClient<VALUE extends RecordTemplate> extends BaseClient {
+public abstract class BaseSearchableClient<VALUE extends RecordTemplate, URN extends Urn>
+    extends BaseBackfillableClient<URN> {
 
   public BaseSearchableClient(@Nonnull Client restliClient) {
     super(restliClient);
