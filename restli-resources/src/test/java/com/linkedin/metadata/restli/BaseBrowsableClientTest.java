@@ -13,7 +13,9 @@ import com.linkedin.restli.common.CollectionResponse;
 import com.linkedin.testing.EntityValue;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import org.testng.annotations.BeforeMethod;
@@ -52,6 +54,12 @@ public class BaseBrowsableClientTest {
       CollectionResponse<EntityValue> collectionResponse = new CollectionResponse<>(EntityValue.class);
       collectionResponse.setPaging(new CollectionMetadata().setTotal(200));
       return collectionResponse;
+    }
+
+    @Override
+    @Nonnull
+    public BackfillResult backfill(@Nonnull Set<Urn> urnSet, @Nullable List<String> aspects) throws RemoteInvocationException {
+      return new BackfillResult();
     }
   }
 
