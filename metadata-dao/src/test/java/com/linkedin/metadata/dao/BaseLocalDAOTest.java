@@ -1,6 +1,7 @@
 package com.linkedin.metadata.dao;
 
 import com.linkedin.common.AuditStamp;
+import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
@@ -151,7 +152,7 @@ public class BaseLocalDAOTest {
     _mockGetLatestFunction = mock(BiFunction.class);
     _mockEventProducer = mock(BaseMetadataEventProducer.class);
     _dummyLocalDAO = new DummyLocalDAO(_mockGetLatestFunction, _mockEventProducer);
-    _dummyAuditStamp = makeAuditStamp("foo", 1234);
+    _dummyAuditStamp = new AuditStamp().setActor(new Urn("testUser", "foo")).setTime(1234L);
   }
 
   private <T extends RecordTemplate> BaseLocalDAO.AspectEntry<T> makeAspectEntry(T aspect, AuditStamp auditStamp) {

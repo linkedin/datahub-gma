@@ -2,7 +2,6 @@ apply plugin: 'java'
 
 dependencies {
   compile project(':metadata-dao')
-  compile project(':metadata-models')
   compile externalDependency.neo4jJavaDriver
 
   compileOnly externalDependency.lombok

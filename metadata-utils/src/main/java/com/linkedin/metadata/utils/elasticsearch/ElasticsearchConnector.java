@@ -1,6 +1,5 @@
 package com.linkedin.metadata.utils.elasticsearch;
 
-import com.linkedin.events.metadata.ChangeType;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.HttpHost;
 import org.apache.http.impl.nio.reactor.IOReactorConfig;
@@ -88,11 +87,11 @@ public class ElasticsearchConnector {
   }
 
   public void feedElasticEvent(@Nonnull ElasticEvent event) {
-    if (event.getActionType().equals(ChangeType.DELETE)) {
+    if (event.getActionType().equals(ElasticEvent.ChangeType.DELETE)) {
       _bulkProcessor.add(createDeleteRequest(event));
-    } else if (event.getActionType().equals(ChangeType.CREATE)) {
+    } else if (event.getActionType().equals(ElasticEvent.ChangeType.CREATE)) {
       _bulkProcessor.add(createIndexRequest(event));
-    } else if (event.getActionType().equals(ChangeType.UPDATE)) {
+    } else if (event.getActionType().equals(ElasticEvent.ChangeType.UPDATE)) {
       _bulkProcessor.add(createUpsertRequest(event));
     }
   }

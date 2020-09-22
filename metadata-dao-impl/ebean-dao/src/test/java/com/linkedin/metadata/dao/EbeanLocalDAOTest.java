@@ -4,7 +4,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.linkedin.common.AuditStamp;
-import com.linkedin.common.urn.CorpuserUrn;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.backfill.BackfillMode;
@@ -97,8 +96,8 @@ public class EbeanLocalDAOTest {
     FooUrn urn = makeFooUrn(1);
     String aspectName = ModelUtils.getAspectName(AspectFoo.class);
     AspectFoo expected = new AspectFoo().setValue("foo");
-    CorpuserUrn actor = new CorpuserUrn("actor");
-    CorpuserUrn impersonator = new CorpuserUrn("impersonator");
+    Urn actor = new Urn("test", "actor");
+    Urn impersonator = new Urn("test", "impersonator");
 
     dao.add(urn, expected, makeAuditStamp(actor, impersonator, 1234));
 
@@ -109,8 +108,8 @@ public class EbeanLocalDAOTest {
     assertEquals(aspect.getKey().getAspect(), aspectName);
     assertEquals(aspect.getKey().getVersion(), 0);
     assertEquals(aspect.getCreatedOn(), new Timestamp(1234));
-    assertEquals(aspect.getCreatedBy(), "urn:li:corpuser:actor");
-    assertEquals(aspect.getCreatedFor(), "urn:li:corpuser:impersonator");
+    assertEquals(aspect.getCreatedBy(), "urn:li:test:actor");
+    assertEquals(aspect.getCreatedFor(), "urn:li:test:impersonator");
 
     AspectFoo actual = RecordUtils.toRecordTemplate(AspectFoo.class, aspect.getMetadata());
     assertEquals(actual, expected);
@@ -887,8 +886,8 @@ public class EbeanLocalDAOTest {
     assertNotNull(results.getMetadata());
     List<Long> expectedVersions = Arrays.asList(0L, 1L, 2L, 3L, 4L);
     List<Urn> expectedUrns = Arrays.asList(makeFooUrn(0), makeFooUrn(1), makeFooUrn(2), makeFooUrn(3), makeFooUrn(4));
-    assertVersionMetadata(results.getMetadata(), expectedVersions, expectedUrns, 1234L, new CorpuserUrn("foo"),
-        new CorpuserUrn("bar"));
+    assertVersionMetadata(results.getMetadata(), expectedVersions, expectedUrns, 1234L, new Urn("test", "foo"),
+        new Urn("test", "bar"));
 
     // List next page
     results = dao.list(AspectFoo.class, urn0, 5, 9);
@@ -971,7 +970,7 @@ public class EbeanLocalDAOTest {
 
     assertNotNull(results.getMetadata());
     assertVersionMetadata(results.getMetadata(), Arrays.asList(0L), Arrays.asList(makeFooUrn(0)), 1234L,
-        new CorpuserUrn("foo"), new CorpuserUrn("bar"));
+        new Urn("test", "foo"), new Urn("test", "bar"));
 
     // Test list latest aspects
     ListResult<AspectFoo> latestResults = dao.list(AspectFoo.class, 0, 2);
@@ -998,7 +997,7 @@ public class EbeanLocalDAOTest {
 
     assertNotNull(results.getMetadata());
     assertVersionMetadata(results.getMetadata(), Arrays.asList(1L), Arrays.asList(makeUrn(2)), 1234L,
-        new CorpuserUrn("foo"), new CorpuserUrn("bar"));
+        new Urn("test", "foo"), new Urn("test", "bar"));
   }
 
   @Test
@@ -1484,10 +1483,10 @@ public class EbeanLocalDAOTest {
         new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, _server, FooUrn.class);
     FooUrn urn = makeFooUrn(1);
     AspectFoo v0 = new AspectFoo().setValue("foo");
-    CorpuserUrn creator1 = new CorpuserUrn("testCreator1");
-    CorpuserUrn impersonator1 = new CorpuserUrn("testImpersonator1");
-    CorpuserUrn creator2 = new CorpuserUrn("testCreator2");
-    CorpuserUrn impersonator2 = new CorpuserUrn("testImpersonator2");
+    Urn creator1 = new Urn("test", "testCreator1");
+    Urn impersonator1 = new Urn("test", "testImpersonator1");
+    Urn creator2 = new Urn("test", "testCreator2");
+    Urn impersonator2 = new Urn("test", "testImpersonator2");
     addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 0, v0, 123, creator1.toString(),
         impersonator1.toString());
     AspectFoo v1 = new AspectFoo().setValue("bar");
@@ -1507,10 +1506,10 @@ public class EbeanLocalDAOTest {
         new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, _server, FooUrn.class);
     FooUrn urn = makeFooUrn(1);
     AspectFoo v0 = new AspectFoo().setValue("foo");
-    CorpuserUrn creator1 = new CorpuserUrn("testCreator1");
-    CorpuserUrn impersonator1 = new CorpuserUrn("testImpersonator1");
-    CorpuserUrn creator2 = new CorpuserUrn("testCreator2");
-    CorpuserUrn impersonator2 = new CorpuserUrn("testImpersonator2");
+    Urn creator1 = new Urn("test", "testCreator1");
+    Urn impersonator1 = new Urn("test", "testImpersonator1");
+    Urn creator2 = new Urn("test", "testCreator2");
+    Urn impersonator2 = new Urn("test", "testImpersonator2");
     addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 0, v0, 123, creator1.toString(),
         impersonator1.toString());
     AspectFoo v1 = new AspectFoo().setValue("bar");
@@ -1529,12 +1528,12 @@ public class EbeanLocalDAOTest {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao =
         new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, _server, FooUrn.class);
     FooUrn urn = makeFooUrn(1);
-    CorpuserUrn creator1 = new CorpuserUrn("testCreator1");
-    CorpuserUrn impersonator1 = new CorpuserUrn("testImpersonator1");
-    CorpuserUrn creator2 = new CorpuserUrn("testCreator2");
-    CorpuserUrn impersonator2 = new CorpuserUrn("testImpersonator2");
-    CorpuserUrn creator3 = new CorpuserUrn("testCreator3");
-    CorpuserUrn impersonator3 = new CorpuserUrn("testImpersonator3");
+    Urn creator1 = new Urn("test", "testCreator1");
+    Urn impersonator1 = new Urn("test", "testImpersonator1");
+    Urn creator2 = new Urn("test", "testCreator2");
+    Urn impersonator2 = new Urn("test", "testImpersonator2");
+    Urn creator3 = new Urn("test", "testCreator3");
+    Urn impersonator3 = new Urn("test", "testImpersonator3");
     AspectFoo fooV0 = new AspectFoo().setValue("foo");
     addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 0, fooV0, 123, creator1.toString(),
         impersonator1.toString());
@@ -1573,8 +1572,8 @@ public class EbeanLocalDAOTest {
     aspect.setKey(new EbeanMetadataAspect.PrimaryKey(urn.toString(), aspectName, version));
     aspect.setMetadata(RecordUtils.toJsonString(metadata));
     aspect.setCreatedOn(new Timestamp(1234));
-    aspect.setCreatedBy("urn:li:corpuser:foo");
-    aspect.setCreatedFor("urn:li:corpuser:bar");
+    aspect.setCreatedBy("urn:li:test:foo");
+    aspect.setCreatedFor("urn:li:test:bar");
     _server.save(aspect);
   }
 

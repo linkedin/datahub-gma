@@ -12,8 +12,6 @@ dependencies {
 
   compile project(':li-utils')
   compile project(':metadata-dao')
-  compile project(':metadata-events:mxe-avro-1.7')
-  compile project(':metadata-events:mxe-utils-avro-1.7')
 
   compileOnly externalDependency.lombok
 
