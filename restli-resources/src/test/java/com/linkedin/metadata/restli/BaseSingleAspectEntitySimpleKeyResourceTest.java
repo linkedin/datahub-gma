@@ -36,6 +36,7 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import static com.linkedin.metadata.dao.BaseReadDAO.LATEST_VERSION;
+import static com.linkedin.metadata.utils.AuditStamps.*;
 import static com.linkedin.testing.TestUtils.*;
 import static org.mockito.Mockito.*;
 import static org.testng.Assert.*;
@@ -194,20 +195,16 @@ public class BaseSingleAspectEntitySimpleKeyResourceTest extends BaseEngineTest 
   @Test
   public void testGetAll() {
     List<AspectBar> bars = ImmutableList.of(new AspectBar().setValue("e1"), new AspectBar().setValue("e2"));
-    ExtraInfo extraInfo1 =
-        makeExtraInfo(makeUrn(1), LATEST_VERSION, new AuditStamp().setActor(new Urn("testUser", "bar1")).setTime(0L));
-    ExtraInfo extraInfo2 =
-        makeExtraInfo(makeUrn(2), LATEST_VERSION, new AuditStamp().setActor(new Urn("testUser", "bar2")).setTime(0L));
+    ExtraInfo extraInfo1 = makeExtraInfo(makeUrn(1), LATEST_VERSION, makeAuditStamp("bar1"));
+    ExtraInfo extraInfo2 = makeExtraInfo(makeUrn(2), LATEST_VERSION, makeAuditStamp("bar2"));
     ListResultMetadata listResultMetadata =
         new ListResultMetadata().setExtraInfos(new ExtraInfoArray(ImmutableList.of(extraInfo1, extraInfo2)));
     ListResult listResult = ListResult.<AspectBar>builder().values(bars).metadata(listResultMetadata).build();
 
     PagingContext pagingContext = new PagingContext(0, 2);
-    when(_mockLocalDao.list(AspectBar.class, pagingContext.getStart(), pagingContext.getCount())).thenReturn(
-        listResult);
+    when(_mockLocalDao.list(AspectBar.class, pagingContext.getStart(), pagingContext.getCount())).thenReturn(listResult);
 
-    CollectionResult<EntityValue, ListResultMetadata> entities =
-        runAndWait(_resource.getAllWithMetadata(pagingContext));
+    CollectionResult<EntityValue, ListResultMetadata> entities = runAndWait(_resource.getAllWithMetadata(pagingContext));
     assertEquals(entities.getElements(), bars);
     assertEquals(entities.getMetadata(), listResultMetadata);
   }
@@ -220,7 +217,7 @@ public class BaseSingleAspectEntitySimpleKeyResourceTest extends BaseEngineTest 
    * Test implementation of BaseSingleAspectEntitySimpleKeyResource.
    * */
   private class TestResource extends
-                             BaseSingleAspectEntitySimpleKeyResource<Long, EntityValue, SingleAspectEntityUrn, AspectBar, EntityAspectUnion, EntitySnapshot> {
+                             BaseSingleAspectEntityResource<Long, EntityValue, SingleAspectEntityUrn, AspectBar, EntityAspectUnion, EntitySnapshot> {
 
     TestResource() {
       super(AspectBar.class, EntityAspectUnion.class, EntityValue.class, EntitySnapshot.class);
@@ -246,6 +243,12 @@ public class BaseSingleAspectEntitySimpleKeyResourceTest extends BaseEngineTest 
       } catch (URISyntaxException e) {
         throw new RuntimeException(e);
       }
+    }
+
+    @Nonnull
+    @Override
+    protected Long toKey(@Nonnull SingleAspectEntityUrn urn) {
+      return urn.getIdAsLong();
     }
 
     @Override
