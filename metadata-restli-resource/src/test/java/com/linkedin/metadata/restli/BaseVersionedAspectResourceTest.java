@@ -82,8 +82,10 @@ public class BaseVersionedAspectResourceTest extends BaseEngineTest {
   @Test
   public void testGetAllWithMetadata() {
     List<AspectFoo> foos = ImmutableList.of(new AspectFoo().setValue("v1"), new AspectFoo().setValue("v2"));
-    ExtraInfo extraInfo1 = makeExtraInfo(ENTITY_URN, 1L, makeAuditStamp("bar"));
-    ExtraInfo extraInfo2 = makeExtraInfo(ENTITY_URN, 2L, makeAuditStamp("baz"));
+    ExtraInfo extraInfo1 =
+        makeExtraInfo(ENTITY_URN, 1L, new AuditStamp().setActor(new Urn("testUser", "bar1")).setTime(0L));
+    ExtraInfo extraInfo2 =
+        makeExtraInfo(ENTITY_URN, 2L, new AuditStamp().setActor(new Urn("testUser", "bar2")).setTime(0L));
     ListResultMetadata listResultMetadata =
         new ListResultMetadata().setExtraInfos(new ExtraInfoArray(ImmutableList.of(extraInfo1, extraInfo2)));
     ListResult listResult = ListResult.<AspectFoo>builder().values(foos).metadata(listResultMetadata).build();
@@ -137,12 +139,14 @@ public class BaseVersionedAspectResourceTest extends BaseEngineTest {
   @Test
   public void testCreateIfAbsentWithoutExistingValue() {
     AspectFoo defaultValue = new AspectFoo().setValue("foo");
-    when(_mockLocalDAO.add(eq(ENTITY_URN), eq(AspectFoo.class), any(), any())).thenAnswer((InvocationOnMock invocation) -> {
-        Object[] args = invocation.getArguments();
-        assertTrue(args[2] instanceof Function);
-        Function<Optional<RecordTemplate>, RecordTemplate> lambda = (Function<Optional<RecordTemplate>, RecordTemplate>) args[2];
-        return lambda.apply(Optional.empty());
-    });
+    when(_mockLocalDAO.add(eq(ENTITY_URN), eq(AspectFoo.class), any(), any())).thenAnswer(
+        (InvocationOnMock invocation) -> {
+          Object[] args = invocation.getArguments();
+          assertTrue(args[2] instanceof Function);
+          Function<Optional<RecordTemplate>, RecordTemplate> lambda =
+              (Function<Optional<RecordTemplate>, RecordTemplate>) args[2];
+          return lambda.apply(Optional.empty());
+        });
 
     CreateKVResponse<Long, AspectFoo> response = runAndWait(_resource.createIfAbsent(defaultValue));
 
@@ -155,12 +159,14 @@ public class BaseVersionedAspectResourceTest extends BaseEngineTest {
   public void testCreateIfAbsentWithExistingValue() {
     AspectFoo oldVal = new AspectFoo().setValue("foo");
     AspectFoo defaultValue = new AspectFoo().setValue("defaultFoo");
-    when(_mockLocalDAO.add(eq(ENTITY_URN), eq(AspectFoo.class), any(), any())).thenAnswer((InvocationOnMock invocation) -> {
-      Object[] args = invocation.getArguments();
-      assertTrue(args[2] instanceof Function);
-      Function<Optional<RecordTemplate>, RecordTemplate> lambda = (Function<Optional<RecordTemplate>, RecordTemplate>) args[2];
-      return lambda.apply(Optional.of(oldVal));
-    });
+    when(_mockLocalDAO.add(eq(ENTITY_URN), eq(AspectFoo.class), any(), any())).thenAnswer(
+        (InvocationOnMock invocation) -> {
+          Object[] args = invocation.getArguments();
+          assertTrue(args[2] instanceof Function);
+          Function<Optional<RecordTemplate>, RecordTemplate> lambda =
+              (Function<Optional<RecordTemplate>, RecordTemplate>) args[2];
+          return lambda.apply(Optional.of(oldVal));
+        });
 
     CreateKVResponse<Long, AspectFoo> response = runAndWait(_resource.createIfAbsent(defaultValue));
 

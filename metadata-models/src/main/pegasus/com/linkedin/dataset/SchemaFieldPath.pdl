@@ -1,6 +1,0 @@
-namespace com.linkedin.dataset
-
-/**
- * Schema field path as described by schema normalizations rules: http://go/tms-schema
- */
-typeref SchemaFieldPath = string
