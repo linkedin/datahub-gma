@@ -6,20 +6,16 @@ import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.backfill.BackfillMode;
 import com.linkedin.metadata.dao.AspectKey;
 import com.linkedin.metadata.dao.BaseLocalDAO;
-import com.linkedin.metadata.dao.ListResult;
 import com.linkedin.metadata.dao.UrnAspectEntry;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
-import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
-import com.linkedin.metadata.query.ListResultMetadata;
 import com.linkedin.parseq.BaseEngineTest;
 import com.linkedin.restli.common.ComplexResourceKey;
 import com.linkedin.restli.common.EmptyRecord;
 import com.linkedin.restli.common.HttpStatus;
-import com.linkedin.restli.server.CollectionResult;
 import com.linkedin.restli.server.PagingContext;
 import com.linkedin.restli.server.ResourceContext;
 import com.linkedin.restli.server.RestLiServiceException;
@@ -433,23 +429,21 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     FooUrn urn2 = makeFooUrn(2);
     FooUrn urn3 = makeFooUrn(3);
     List<FooUrn> urns1 = Arrays.asList(urn2, urn3);
-    ListResult<FooUrn> listResult1 = ListResult.<FooUrn>builder().values(urns1).totalCount(100).build();
 
-    when(_mockLocalDAO.listUrns(indexFilter1, urn1, 2)).thenReturn(listResult1);
+    when(_mockLocalDAO.listUrns(indexFilter1, urn1, 2)).thenReturn(urns1);
     String[] actual = runAndWait(_resource.listUrnsFromIndex(indexFilter1, urn1.toString(), 2));
     assertEquals(actual, new String[]{urn2.toString(), urn3.toString()});
 
     // case 2: indexFilter is null
     IndexCriterion indexCriterion2 = new IndexCriterion().setAspect(FooUrn.class.getCanonicalName());
     IndexFilter indexFilter2 = new IndexFilter().setCriteria(new IndexCriterionArray(indexCriterion2));
-    when(_mockLocalDAO.listUrns(indexFilter2, urn1, 2)).thenReturn(listResult1);
+    when(_mockLocalDAO.listUrns(indexFilter2, urn1, 2)).thenReturn(urns1);
     actual = runAndWait(_resource.listUrnsFromIndex(null, urn1.toString(), 2));
     assertEquals(actual, new String[]{urn2.toString(), urn3.toString()});
 
     // case 3: lastUrn is null
     List<FooUrn> urns3 = Arrays.asList(urn1, urn2);
-    ListResult<FooUrn> listResult3 = ListResult.<FooUrn>builder().values(urns3).totalCount(100).build();
-    when(_mockLocalDAO.listUrns(indexFilter2, null, 2)).thenReturn(listResult3);
+    when(_mockLocalDAO.listUrns(indexFilter2, null, 2)).thenReturn(urns3);
     actual = runAndWait(_resource.listUrnsFromIndex(null, null, 2));
     assertEquals(actual, new String[]{urn1.toString(), urn2.toString()});
   }
@@ -464,32 +458,24 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     FooUrn urn3 = makeFooUrn(3);
 
     List<FooUrn> urns1 = Arrays.asList(urn2, urn3);
-    ListResult<FooUrn> listResult1 = ListResult.<FooUrn>builder().values(urns1).totalCount(100).build();
 
-    when(_mockLocalDAO.listUrns(indexFilter1, urn1, 2)).thenReturn(listResult1);
-    CollectionResult<EntityValue, ListResultMetadata> actual =
+    when(_mockLocalDAO.listUrns(indexFilter1, urn1, 2)).thenReturn(urns1);
+    List<EntityValue> actual =
         runAndWait(_resource.filter(indexFilter1, new String[0], urn1.toString(), new PagingContext(1, 2)));
 
-    assertEquals(actual.getElements().size(), 2);
-    assertEquals(actual.getElements().get(0), new EntityValue());
-    assertEquals(actual.getElements().get(1), new EntityValue());
-    assertEquals(actual.getTotal().intValue(), 100);
-    assertEquals(actual.getMetadata().getExtraInfos().stream().map(ExtraInfo::getUrn).collect(Collectors.toList()),
-        Arrays.asList(urn2, urn3));
+    assertEquals(actual.size(), 2);
+    assertEquals(actual.get(0), new EntityValue());
+    assertEquals(actual.get(1), new EntityValue());
 
     // case 2: lastUrn is null
     List<FooUrn> urns2 = Arrays.asList(urn1, urn2);
     IndexCriterion indexCriterion2 = new IndexCriterion().setAspect(FooUrn.class.getCanonicalName());
     IndexFilter indexFilter2 = new IndexFilter().setCriteria(new IndexCriterionArray(indexCriterion2));
-    ListResult<FooUrn> listResult2 = ListResult.<FooUrn>builder().values(urns2).totalCount(500).build();
-    when(_mockLocalDAO.listUrns(indexFilter2, null, 2)).thenReturn(listResult2);
+    when(_mockLocalDAO.listUrns(indexFilter2, null, 2)).thenReturn(urns2);
     actual = runAndWait(_resource.filter(null, new String[0], null, new PagingContext(0, 2)));
-    assertEquals(actual.getElements().size(), 2);
-    assertEquals(actual.getElements().get(0), new EntityValue());
-    assertEquals(actual.getElements().get(1), new EntityValue());
-    assertEquals(actual.getTotal().intValue(), 500);
-    assertEquals(actual.getMetadata().getExtraInfos().stream().map(ExtraInfo::getUrn).collect(Collectors.toList()),
-        Arrays.asList(urn1, urn2));
+    assertEquals(actual.size(), 2);
+    assertEquals(actual.get(0), new EntityValue());
+    assertEquals(actual.get(1), new EntityValue());
   }
 
   @Test
@@ -510,39 +496,28 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     String[] aspectNames = {ModelUtils.getAspectName(AspectFoo.class), ModelUtils.getAspectName(AspectBar.class)};
 
     // case 1: aspect list is provided, null last urn
-    ListResult<UrnAspectEntry<FooUrn>> listResult1 =
-        ListResult.<UrnAspectEntry<FooUrn>>builder().values(
-            Arrays.asList(entry1, entry2)).totalCount(5).build();
+    List<UrnAspectEntry<FooUrn>> listResult1 = Arrays.asList(entry1, entry2);
 
     when(_mockLocalDAO.getAspects(ImmutableSet.of(AspectFoo.class, AspectBar.class), indexFilter, null, 2)).thenReturn(
         listResult1);
 
-    CollectionResult<EntityValue, ListResultMetadata> actual1 =
+    List<EntityValue> actual1 =
         runAndWait(_resource.filter(indexFilter, aspectNames, null, new PagingContext(0, 2)));
 
-    assertEquals(actual1.getElements().size(), 2);
-    assertEquals(actual1.getElements().get(0), new EntityValue().setFoo(foo1).setBar(bar1));
-    assertEquals(actual1.getElements().get(1), new EntityValue().setFoo(foo2).setBar(bar2));
-    assertEquals(actual1.getTotal().intValue(), 5);
-    assertEquals(actual1.getMetadata().getExtraInfos().stream().map(ExtraInfo::getUrn).collect(Collectors.toList()),
-        Arrays.asList(urn1, urn2));
+    assertEquals(actual1.size(), 2);
+    assertEquals(actual1.get(0), new EntityValue().setFoo(foo1).setBar(bar1));
+    assertEquals(actual1.get(1), new EntityValue().setFoo(foo2).setBar(bar2));
 
     // case 2: null aspects is provided i.e. all aspects in the aspect union will be returned, non-null last urn
-    ListResult<UrnAspectEntry<FooUrn>> listResult2 =
-        ListResult.<UrnAspectEntry<FooUrn>>builder().values(Collections.singletonList(entry2))
-            .totalCount(10)
-            .build();
+    List<UrnAspectEntry<FooUrn>> listResult2 = Collections.singletonList(entry2);
 
     when(_mockLocalDAO.getAspects(ImmutableSet.of(AspectFoo.class, AspectBar.class), indexFilter, urn1, 2)).thenReturn(
         listResult2);
 
-    CollectionResult<EntityValue, ListResultMetadata> actual2 =
+    List<EntityValue> actual2 =
         runAndWait(_resource.filter(indexFilter, null, urn1.toString(), new PagingContext(0, 2)));
-    assertEquals(actual2.getElements().size(), 1);
-    assertEquals(actual2.getElements().get(0), new EntityValue().setFoo(foo2).setBar(bar2));
-    assertEquals(actual2.getTotal().intValue(), 10);
-    assertEquals(actual2.getMetadata().getExtraInfos().stream().map(ExtraInfo::getUrn).collect(Collectors.toList()),
-        Collections.singleton(urn2));
+    assertEquals(actual2.size(), 1);
+    assertEquals(actual2.get(0), new EntityValue().setFoo(foo2).setBar(bar2));
   }
 
   @Test

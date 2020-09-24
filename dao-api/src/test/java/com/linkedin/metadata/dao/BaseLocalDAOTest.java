@@ -1,7 +1,6 @@
 package com.linkedin.metadata.dao;
 
 import com.linkedin.common.AuditStamp;
-import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
@@ -27,7 +26,7 @@ import org.mockito.stubbing.OngoingStubbing;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import static com.linkedin.common.AuditStamps.*;
+import static com.linkedin.metadata.utils.AuditStamps.*;
 import static org.mockito.Mockito.*;
 import static org.testng.Assert.*;
 
@@ -101,7 +100,7 @@ public class BaseLocalDAOTest {
     }
 
     @Override
-    public ListResult<FooUrn> listUrns(@Nonnull IndexFilter indexFilter, @Nullable FooUrn lastUrn, int pageSize) {
+    public List<FooUrn> listUrns(@Nonnull IndexFilter indexFilter, @Nullable FooUrn lastUrn, int pageSize) {
       return null;
     }
 
@@ -152,7 +151,7 @@ public class BaseLocalDAOTest {
     _mockGetLatestFunction = mock(BiFunction.class);
     _mockEventProducer = mock(BaseMetadataEventProducer.class);
     _dummyLocalDAO = new DummyLocalDAO(_mockGetLatestFunction, _mockEventProducer);
-    _dummyAuditStamp = new AuditStamp().setActor(new Urn("testUser", "foo")).setTime(1234L);
+    _dummyAuditStamp = makeAuditStamp("foo", 1234);
   }
 
   private <T extends RecordTemplate> BaseLocalDAO.AspectEntry<T> makeAspectEntry(T aspect, AuditStamp auditStamp) {
