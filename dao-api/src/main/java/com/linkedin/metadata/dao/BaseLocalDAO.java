@@ -390,23 +390,23 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param indexFilter {@link IndexFilter} containing filter conditions to be applied
    * @param lastUrn last urn of the previous fetched page. For the first page, this should be set as NULL
    * @param pageSize maximum number of distinct urns to return
-   * @return {@link ListResult} of urns from local secondary index that satisfy the given filter conditions
+   * @return List of urns from local secondary index that satisfy the given filter conditions
    */
   @Nonnull
-  public abstract ListResult<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable URN lastUrn, int pageSize);
+  public abstract List<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable URN lastUrn, int pageSize);
 
   /**
    * Similar to {@link #listUrns(IndexFilter, URN, int)}. This is to get all urns with type URN.
    */
   @Nonnull
-  public ListResult<URN> listUrns(@Nonnull Class<URN> urnClazz, @Nullable URN lastUrn, int pageSize) {
+  public List<URN> listUrns(@Nonnull Class<URN> urnClazz, @Nullable URN lastUrn, int pageSize) {
     final IndexFilter indexFilter = new IndexFilter()
             .setCriteria(new IndexCriterionArray(new IndexCriterion().setAspect(urnClazz.getCanonicalName())));
     return listUrns(indexFilter, lastUrn, pageSize);
   }
 
   /**
-   * Retrieves {@link ListResult} of {@link UrnAspectEntry} containing latest version of aspects along with the urn for the list of urns
+   * Retrieves list of {@link UrnAspectEntry} containing latest version of aspects along with the urn for the list of urns
    * returned from local secondary index that satisfy given filter conditions. The returned list is ordered lexicographically by the string
    * representation of the URN.
    *
@@ -414,19 +414,19 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param indexFilter {@link IndexFilter} containing filter conditions to be applied
    * @param lastUrn last urn of the previous fetched page. For the first page, this should be set as NULL
    * @param pageSize maximum number of distinct urns whose aspects need to be retrieved
-   * @return {@link ListResult} containing ordered list of latest versions of aspects along with urns returned from local secondary index
+   * @return ordered list of latest versions of aspects along with urns returned from local secondary index
    *        satisfying given filter conditions
    */
   @Nonnull
-  public ListResult<UrnAspectEntry<URN>> getAspects(@Nonnull Set<Class<? extends RecordTemplate>> aspectClasses,
+  public List<UrnAspectEntry<URN>> getAspects(@Nonnull Set<Class<? extends RecordTemplate>> aspectClasses,
       @Nonnull IndexFilter indexFilter, @Nullable URN lastUrn, int pageSize) {
 
-    final ListResult<URN> urns = listUrns(indexFilter, lastUrn, pageSize);
+    final List<URN> urns = listUrns(indexFilter, lastUrn, pageSize);
     final Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> urnAspectMap =
-        get(aspectClasses, new HashSet<>(urns.getValues()));
+        get(aspectClasses, new HashSet<>(urns));
 
     final Map<URN, List<RecordTemplate>> urnListAspectMap = new LinkedHashMap<>();
-    for (URN urn : urns.getValues()) {
+    for (URN urn : urns) {
       final Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> aspectMap = urnAspectMap.get(urn);
       urnListAspectMap.compute(urn, (k, v) -> {
         if (v == null) {
@@ -439,18 +439,10 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       }
     }
 
-    final List<UrnAspectEntry<URN>> urnAspectEntries = urnListAspectMap.entrySet()
+    return urnListAspectMap.entrySet()
         .stream()
         .map(entry -> new UrnAspectEntry<>(entry.getKey(), entry.getValue()))
         .collect(Collectors.toList());
-
-    return ListResult.<UrnAspectEntry<URN>>builder().values(urnAspectEntries)
-        .havingMore(urns.isHavingMore())
-        .nextStart(urns.getNextStart())
-        .pageSize(urns.getPageSize())
-        .totalCount(urns.getTotalCount())
-        .totalPageCount(urns.getTotalPageCount())
-        .build();
   }
 
   /**
@@ -592,8 +584,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nonnull BackfillMode mode, @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses,
       @Nonnull Class<URN> urnClazz, @Nullable URN lastUrn, int pageSize) {
 
-    final ListResult<URN> urnList = listUrns(urnClazz, lastUrn, pageSize);
-    return backfill(mode, aspectClasses, new HashSet(urnList.getValues()));
+    final List<URN> urnList = listUrns(urnClazz, lastUrn, pageSize);
+    return backfill(mode, aspectClasses, new HashSet(urnList));
   }
 
   /**

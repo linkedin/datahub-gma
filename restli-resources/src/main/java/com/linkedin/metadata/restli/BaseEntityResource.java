@@ -8,11 +8,8 @@ import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.backfill.BackfillMode;
 import com.linkedin.metadata.dao.AspectKey;
 import com.linkedin.metadata.dao.BaseLocalDAO;
-import com.linkedin.metadata.dao.ListResult;
 import com.linkedin.metadata.dao.UrnAspectEntry;
 import com.linkedin.metadata.dao.utils.ModelUtils;
-import com.linkedin.metadata.query.ExtraInfo;
-import com.linkedin.metadata.query.ExtraInfoArray;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
@@ -331,7 +328,6 @@ public abstract class BaseEntityResource<
     return RestliUtils.toTask(() ->
         getLocalDAO()
             .listUrns(filter, parseUrnParam(lastUrn), limit)
-            .getValues()
             .stream()
             .map(Urn::toString)
             .collect(Collectors.toList())
@@ -339,7 +335,7 @@ public abstract class BaseEntityResource<
   }
 
   /**
-   * Returns {@link CollectionResult} containing ordered list of values of multiple entities obtained after filtering urns
+   * Returns ordered list of values of multiple entities obtained after filtering urns
    * from local secondary index. The returned list is ordered lexicographically by the string representation of the URN.
    * The list of values is in the same order as the list of urns contained in {@link ListResultMetadata}.
    *
@@ -347,18 +343,18 @@ public abstract class BaseEntityResource<
    * @param filter {@link IndexFilter} that defines the filter conditions
    * @param lastUrn last urn of the previous fetched page. For the first page, this should be set as NULL
    * @param pagingContext {@link PagingContext} defining the paging parameters of the request
-   * @return {@link CollectionResult} containing ordered list of values of multiple entities
+   * @return ordered list of values of multiple entities
    */
   @Nonnull
-  private CollectionResult<VALUE, ListResultMetadata> filterAspects(
+  private List<VALUE> filterAspects(
       @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nonnull IndexFilter filter,
       @Nullable String lastUrn, @Nonnull PagingContext pagingContext) {
 
-    final ListResult<UrnAspectEntry<URN>> urnAspectEntries =
+    final List<UrnAspectEntry<URN>> urnAspectEntries =
         getLocalDAO().getAspects(aspectClasses, filter, parseUrnParam(lastUrn), pagingContext.getCount());
 
     final Map<URN, List<UnionTemplate>> urnAspectsMap = new LinkedHashMap<>();
-    for (UrnAspectEntry<URN> entry : urnAspectEntries.getValues()) {
+    for (UrnAspectEntry<URN> entry : urnAspectEntries) {
       urnAspectsMap.compute(entry.getUrn(), (k, v) -> {
         if (v == null) {
           v = new ArrayList<>();
@@ -371,18 +367,14 @@ public abstract class BaseEntityResource<
       });
     }
 
-    final List<VALUE> values = urnAspectsMap.entrySet()
+    return urnAspectsMap.entrySet()
         .stream()
         .map(e -> toValue(newSnapshot(e.getKey(), e.getValue())))
         .collect(Collectors.toList());
-    final ListResultMetadata resultMetadata = new ListResultMetadata().setExtraInfos(new ExtraInfoArray(
-        urnAspectsMap.keySet().stream().map(urn -> new ExtraInfo().setUrn(urn)).collect(Collectors.toList())));
-
-    return new CollectionResult<>(new ArrayList<>(values), urnAspectEntries.getTotalCount(), resultMetadata);
   }
 
   /**
-   * Returns {@link CollectionResult} containing ordered list of values of multiple entities obtained after filtering urns
+   * Returns ordered list of values of multiple entities obtained after filtering urns
    * from local secondary index. The returned list is ordered lexicographically by the string representation of the URN.
    * The values returned do not contain any metadata aspect, only parts of the urn (if applicable).
    * The list of values is in the same order as the list of urns contained in {@link ListResultMetadata}.
@@ -390,19 +382,14 @@ public abstract class BaseEntityResource<
    * @param filter {@link IndexFilter} that defines the filter conditions
    * @param lastUrn last urn of the previous fetched page
    * @param pagingContext {@link PagingContext} defining the paging parameters of the request
-   * @return {@link CollectionResult} containing ordered list of values of multiple entities
+   * @return ordered list of values of multiple entities
    */
   @Nonnull
-  private CollectionResult<VALUE, ListResultMetadata> filterUrns(@Nonnull IndexFilter filter, @Nullable String lastUrn,
+  private List<VALUE> filterUrns(@Nonnull IndexFilter filter, @Nullable String lastUrn,
       @Nonnull PagingContext pagingContext) {
 
-    final ListResult<URN> urns = getLocalDAO().listUrns(filter, parseUrnParam(lastUrn), pagingContext.getCount());
-    final List<VALUE> values =
-        urns.getValues().stream().map(urn -> toValue(newSnapshot(urn))).collect(Collectors.toList());
-    final ListResultMetadata resultMetadata = new ListResultMetadata().setExtraInfos(new ExtraInfoArray(
-        urns.getValues().stream().map(urn -> new ExtraInfo().setUrn(urn)).collect(Collectors.toList())));
-
-    return new CollectionResult<>(new ArrayList<>(values), urns.getTotalCount(), resultMetadata);
+    final List<URN> urns = getLocalDAO().listUrns(filter, parseUrnParam(lastUrn), pagingContext.getCount());
+    return urns.stream().map(urn -> toValue(newSnapshot(urn))).collect(Collectors.toList());
   }
 
   /**
@@ -420,7 +407,7 @@ public abstract class BaseEntityResource<
    */
   @Finder(FINDER_FILTER)
   @Nonnull
-  public Task<CollectionResult<VALUE, ListResultMetadata>> filter(
+  public Task<List<VALUE>> filter(
       @QueryParam(PARAM_FILTER) @Optional @Nullable IndexFilter indexFilter,
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
       @QueryParam(PARAM_URN) @Optional @Nullable String lastUrn,

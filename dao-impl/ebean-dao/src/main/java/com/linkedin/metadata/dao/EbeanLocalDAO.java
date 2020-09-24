@@ -780,11 +780,11 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * @param lastUrn last urn of the previous fetched page. This eliminates the need to use offset which
    *                 is known to slow down performance of MySQL queries. For the first page, this should be set as NULL
    * @param pageSize maximum number of distinct urns to return
-   * @return {@link ListResult} of urns from strongly consistent secondary index that satisfy the given filter conditions
+   * @return list of urns from strongly consistent secondary index that satisfy the given filter conditions
    */
   @Override
   @Nonnull
-  public ListResult<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable URN lastUrn, int pageSize) {
+  public List<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable URN lastUrn, int pageSize) {
     if (!isLocalSecondaryIndexEnabled()) {
       throw new UnsupportedOperationException("Local secondary index isn't supported");
     }
@@ -802,16 +802,14 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         .setTimeout(INDEX_QUERY_TIMEOUT_IN_SEC);
     setParameters(indexCriterionArray, query, lastUrn == null ? "" : lastUrn.toString());
 
-    final PagedList<EbeanMetadataIndex> pagedList = query
+    final List<EbeanMetadataIndex> pagedList = query
         .orderBy()
         .asc(EbeanMetadataIndex.URN_COLUMN)
         .setMaxRows(pageSize)
-        .findPagedList();
+        .findList();
 
-    final List<URN> urns = pagedList.getList()
-        .stream()
+    return pagedList.stream()
         .map(entry -> getUrn(entry.getUrn()))
         .collect(Collectors.toList());
-    return toListResult(urns, null, pagedList, null);
   }
 }
