@@ -4,7 +4,7 @@ URN ([Uniform Resource Name](https://en.wikipedia.org/wiki/Uniform_Resource_Name
 ```
 urn:<Namespace>:<Entity Type>:<ID>
 ```
-[Onboarding a new entity](../how/entity-onboarding.md) to [GMA](gma.md) starts with modelling an URN specific to that entity.
+Onboarding an entity to [GMA](gma.md) starts with modelling an URN specific to that entity.
 You can use the existing [URN models](../../li-utils/src/main/java/com/linkedin/common/urn) for built-in entities as a reference.
 
 ## Namespace

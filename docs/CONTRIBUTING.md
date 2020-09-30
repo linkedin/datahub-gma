@@ -1,6 +1,6 @@
 # Contributing
 
-We always welcome contributions to help make DataHub better. Take a moment to read this document if you would like to contribute.
+We always welcome contributions to help make GMA better. Take a moment to read this document if you would like to contribute.
 
 ## Reporting issues
 
