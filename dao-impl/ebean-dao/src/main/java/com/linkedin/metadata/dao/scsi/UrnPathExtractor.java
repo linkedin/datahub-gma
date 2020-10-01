@@ -15,10 +15,10 @@ import javax.annotation.Nonnull;
  * an implementation that parses datset URNs may return a map like:
  *
  * <pre>
- *   /platform -> urn:li:platform:%PLATFORM_NAME%
- *   /platform/platformName -> %PLATFORM_NAME%
- *   /datasetName -> %NAME%
- *   /origin -> %ORIGIN%
+ *   /platform -&gt; urn:li:platform:%PLATFORM_NAME%
+ *   /platform/platformName -&gt; %PLATFORM_NAME%
+ *   /datasetName -&gt; %NAME%
+ *   /origin -&gt; %ORIGIN%
  * </pre>
  *
  * @param <URN> the concrete URN type this can extract paths from

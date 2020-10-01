@@ -515,7 +515,7 @@ public class ModelUtils {
   }
 
   /**
-   * Get aspect specific kafka topic name from urn & aspect classes.
+   * Get aspect specific kafka topic name from urn and aspect classes.
    */
   @Nonnull
   public static <URN extends Urn, ASPECT extends RecordTemplate> String getAspectSpecificMAETopicName(@Nonnull URN urn,

@@ -13,6 +13,14 @@ task sourcesJar(type: Jar, dependsOn: classes) {
   from sourceSets.main.allSource
 }
 
+javadoc {
+  // TODO Don't generate javadoc for some PDL Java files for now. https://github.com/linkedin/rest.li/issues/432
+  exclude 'com/linkedin/metadata/query/**'
+
+  // We don't care about most of these warnings; we're fine with no @return or missing @param if they don't add value.
+  javadoc.options.addStringOption('Xdoclint:none', '-quiet')
+}
+
 task javadocJar(type: Jar, dependsOn: javadoc) {
   classifier = 'javadoc'
   from javadoc.destinationDir
@@ -28,8 +36,7 @@ publishing {
     maven(MavenPublication) {
       from components.java
 
-      // TODO our javadoc needs fixing
-      //artifact javadocJar
+      artifact javadocJar
 
       artifact sourcesJar
 

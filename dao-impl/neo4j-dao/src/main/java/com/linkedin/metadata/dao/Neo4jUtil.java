@@ -169,7 +169,7 @@ public class Neo4jUtil {
   }
 
   /**
-   * Converts path segment (field:value map) list of {@link RecordTemplate}s of nodes & edges.
+   * Converts path segment (field:value map) list of {@link RecordTemplate}s of nodes and edges.
    *
    * @param segment The segment of a path containing nodes & edges
    */
@@ -187,7 +187,7 @@ public class Neo4jUtil {
   }
 
   /**
-   * Converts edge (source-relationship->destination) to RELATIONSHIP.
+   * Converts edge (source-relationship-&gt;destination) to RELATIONSHIP.
    *
    * @param relationshipClass Class of RELATIONSHIP
    * @param source Neo4j source Node
@@ -205,7 +205,7 @@ public class Neo4jUtil {
   }
 
   /**
-   * Converts edge (source-relationship->destination) to RELATIONSHIP RecordTemplate.
+   * Converts edge (source-relationship-&gt;destination) to RELATIONSHIP RecordTemplate.
    *
    * @param source Neo4j source Node
    * @param destination Neo4j destination Node
