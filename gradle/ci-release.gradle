@@ -1,0 +1,29 @@
+// TODO actually hook up to a CI. Until we hook up a CI follow these steps:
+// 1. Check out the repo and sync to the commit you want to release.
+// 2. Tag the commit by running `git tag -a -m "Release v$version" "v$version"`, replacing $version with the semver.
+// 3. Push the tag by running `git push --tags`
+// 4. Upload to bintray by running `./gradlew bintrayUploadAll`.
+// 5. Go to GitHub and make a release from the tag.
+
+// Task to fail fast and clearly if required properties are not set.
+task verifyBintrayProperties {
+  doFirst {
+    if (System.getenv('BINTRAY_USER') == null) {
+      throw new Exception("Environment variable BINTRAY_USER not set.");
+    }
+    if (System.getenv('BINTRAY_KEY') == null) {
+      throw new Exception("Environment variable BINTRAY_USER not set.");
+    }
+  }
+}
+
+task bintrayUploadAll {
+  description = "Runs 'bintrayUpload' tasks from all projects"
+}
+
+allprojects {
+  tasks.matching { it.name == "bintrayUpload" }.all {
+    it.dependsOn verifyBintrayProperties
+    bintrayUploadAll.dependsOn it
+  }
+}
