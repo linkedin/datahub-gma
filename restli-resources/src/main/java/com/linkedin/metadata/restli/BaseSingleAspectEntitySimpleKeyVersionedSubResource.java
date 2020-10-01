@@ -68,7 +68,7 @@ public abstract class BaseSingleAspectEntitySimpleKeyVersionedSubResource<
   protected abstract URN getUrn(@Nonnull PathKeys entityPathKeys);
 
   /**
-   * Takes a partial entity created by {@link #createPartialEntityFromAspect(ASPECT)} and the urn and
+   * Takes a partial entity created by {@link #createPartialEntityFromAspect(RecordTemplate)} and the urn and
    * creates the complete entity value.
    *
    * @param partialEntity the partial entity.
