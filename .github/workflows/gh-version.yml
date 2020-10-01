@@ -1,0 +1,23 @@
+name: Create GitHub Release
+on:
+  push:
+    branches:
+      - 'release/**'
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          # Needed to get all tags
+          fetch-depth: 0
+      - name: Release
+        uses: ./.github/actions/gh-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BINTRAY_USER: ${{ secrets.BINTRAY_USER }}
+          BINTRAY_KEY: ${{ secrets.BINTRAY_KEY }}

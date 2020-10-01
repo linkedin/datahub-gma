@@ -1,0 +1,44 @@
+apply plugin: 'org.shipkit.shipkit-auto-version'
+apply plugin: 'org.shipkit.shipkit-changelog'
+apply plugin: 'org.shipkit.shipkit-gh-release'
+
+
+if (!project.hasProperty('disableShipkit')) {
+  task checkGitHubToken {
+    doFirst {
+      if (System.getenv("GITHUB_TOKEN") == null) {
+        throw new Exception("Environment variable GITHUB_TOKEN not set.");
+      }
+      println "Using repository " + System.getenv("GITHUB_REPOSITORY")
+    }
+  }
+
+  tasks.named("generateChangelog") {
+    dependsOn checkGitHubToken
+    previousRevision = "v" + project.ext.'shipkit-auto-version.previous-version'
+    readOnlyToken = System.getenv("GITHUB_TOKEN")
+    repository = System.getenv("GITHUB_REPOSITORY")
+  }
+
+  tasks.named("githubRelease") {
+    dependsOn tasks.named("generateChangelog")
+    dependsOn checkGitHubToken
+    repository = System.getenv("GITHUB_REPOSITORY")
+    changelog = tasks.named("generateChangelog").get().outputFile
+    writeToken = System.getenv("GITHUB_TOKEN")
+  }
+}
+
+allprojects { p ->
+  group = "com.linkedin.datahub-gma"
+
+  plugins.withId("java") {
+    if (!project.hasProperty('disableShipkit')) {
+      p.apply from: "$rootDir/gradle/java-publishing.gradle"
+    }
+  }
+}
+
+if (!project.hasProperty('disableShipkit')) {
+  apply from: file("gradle/ci-release.gradle")
+}
