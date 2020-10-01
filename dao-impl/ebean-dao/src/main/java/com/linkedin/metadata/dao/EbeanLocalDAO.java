@@ -14,6 +14,7 @@ import com.linkedin.metadata.dao.scsi.EmptyPathExtractor;
 import com.linkedin.metadata.dao.scsi.UrnPathExtractor;
 import com.linkedin.metadata.dao.storage.LocalDAOStorageConfig;
 import com.linkedin.metadata.dao.utils.ModelUtils;
+import com.linkedin.metadata.dao.utils.QueryUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.ExtraInfo;
@@ -36,6 +37,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URISyntaxException;
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -60,14 +62,14 @@ import static com.linkedin.metadata.dao.EbeanMetadataAspect.*;
 public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     extends BaseLocalDAO<ASPECT_UNION, URN> {
 
+  private static final int INDEX_QUERY_TIMEOUT_IN_SEC = 5;
   private static final String EBEAN_MODEL_PACKAGE = EbeanMetadataAspect.class.getPackage().getName();
   private static final String EBEAN_INDEX_PACKAGE = EbeanMetadataIndex.class.getPackage().getName();
 
   protected final EbeanServer _server;
   protected final Class<URN> _urnClass;
   private UrnPathExtractor<URN> _urnPathExtractor;
-
-  private static final int INDEX_QUERY_TIMEOUT_IN_SEC = 5;
+  private int _queryKeysCount = 0; // 0 means no pagination on keys
 
   @Value
   static class GMAIndexPair {
@@ -416,7 +418,14 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       return Collections.emptyMap();
     }
 
-    final List<EbeanMetadataAspect> records = batchGet(keys);
+    final List<EbeanMetadataAspect> records;
+
+    if (_queryKeysCount == 0) {
+      records = batchGet(keys);
+    } else {
+      records = batchGet(keys, _queryKeysCount);
+    }
+
     // TODO: Improve this O(n^2) search
     return keys.stream()
         .collect(Collectors.toMap(Function.identity(), key -> records.stream()
@@ -451,6 +460,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         .exists();
   }
 
+  // Will be migrated to use {@link #batchGet(Set<AspectKey<URN, ? extends RecordTemplate>>, int)}
   @Nonnull
   private List<EbeanMetadataAspect> batchGet(@Nonnull Set<AspectKey<URN, ? extends RecordTemplate>> keys) {
 
@@ -464,6 +474,58 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
           .eq(URN_COLUMN, key.getUrn().toString())
           .eq(ASPECT_COLUMN, ModelUtils.getAspectName(key.getAspectClass()))
           .eq(VERSION_COLUMN, key.getVersion())
+          .endAnd();
+    }
+
+    return query.findList();
+  }
+
+  /**
+   * Sets the max keys allowed for each single query.
+   */
+  public void setQueryKeysCount(int keysCount) {
+    if (keysCount < 0) {
+      throw new IllegalArgumentException("Query keys count must be non-negative: " + keysCount);
+    }
+    _queryKeysCount = keysCount;
+  }
+
+  /**
+   * BatchGet that allows pagination on keys to avoid large queries.
+   * TODO: can further improve by running the sub queries in parallel
+   *
+   * @param keys a set of keys with urn, aspect and version
+   * @param keysCount the max number of keys for each sub query
+   */
+  @Nonnull
+  private List<EbeanMetadataAspect> batchGet(@Nonnull Set<AspectKey<URN, ? extends RecordTemplate>> keys, int keysCount) {
+
+    int position = 0;
+    final int totalPageCount = QueryUtils.getTotalPageCount(keys.size(), keysCount);
+
+    List<EbeanMetadataAspect> finalResult = batchGetHelper(new ArrayList<>(keys), keysCount, position);
+    while (QueryUtils.isHavingMore(position, keysCount, totalPageCount)) {
+      position += keysCount;
+      final List<EbeanMetadataAspect> oneStatementResult = batchGetHelper(new ArrayList<>(keys), keysCount, position);
+      finalResult.addAll(oneStatementResult);
+    }
+    return finalResult;
+  }
+
+  @Nonnull
+  private List<EbeanMetadataAspect> batchGetHelper(@Nonnull List<AspectKey<URN, ? extends RecordTemplate>> keys, int keysCount, int position) {
+    ExpressionList<EbeanMetadataAspect> query = _server.find(EbeanMetadataAspect.class).select(ALL_COLUMNS).where();
+
+    // add or if it is not the last element
+    if (position != keys.size() - 1) {
+      query = query.or();
+    }
+
+    for (int index = position; index < keys.size() && index < position + keysCount; index++) {
+      query = query.and()
+          .eq(URN_COLUMN, keys.get(index).getUrn().toString())
+          .eq(ASPECT_COLUMN, ModelUtils.getAspectName(keys.get(index).getAspectClass()))
+          .eq(VERSION_COLUMN, keys.get(index).getVersion())
           .endAnd();
     }
 
