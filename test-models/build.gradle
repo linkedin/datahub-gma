@@ -1,0 +1,10 @@
+apply plugin: 'pegasus'
+
+dependencies {
+  compile project(':core-models')
+  dataModel project(':core-models')
+
+  compile spec.product.pegasus.restliCommon
+}
+
+sourceSets.mainGeneratedDataTemplate.java.srcDirs('src/main/java/com/linkedin/testing/urn')
