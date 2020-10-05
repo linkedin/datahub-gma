@@ -92,12 +92,22 @@ a field in a metadata aspect. One way to think of it is using the concept of
 [Third Normal Form](https://en.wikipedia.org/wiki/Third_normal_form). We'll use the example from the Wikipedia entry to
 illustrate the idea.
 
-**Tournament Table** | Tournament | Year | Winner | | ------- | --------- | --------- | | Indiana Invitational | 1998 |
-Al Fredrickson | Cleveland Open | 1999 | Bob Albertson | Des Moines Masters | 1999 | Al Fredrickson | Indiana
-Invitational | 1999 | Chip Masterson
+**Tournament Table**
 
-**Winner Table** | Winner | Date of birth | | ------- | --------- | | Chip Masterson | 14 March 1977 | Al Fredrickson |
-21 July 1975 | Bob Albertson | 28 September 1968
+| Tournament           | Year | Winner         |
+| -------------------- | ---- | -------------- |
+| Indiana Invitational | 1998 | Al Fredrickson |
+| Cleveland Open       | 1999 | Bob Albertson  |
+| Des Moines Masters   | 1999 | Al Fredrickson |
+| Indiana Invitational | 1999 | Chip Masterson |
+
+**Winner Table**
+
+| Winner         | Date of birth     |
+| -------------- | ----------------- |
+| Chip Masterson | 14 March 1977     |
+| Al Fredrickson | 21 July 1975      |
+| Bob Albertson  | 28 September 1968 |
 
 When fully normalized, it becomes clear that each table corresponds to an entity (`Tournament` and `Winner`) and is
 identifiable by its respective key (`{Tournament, Year}` and `Winner`). `Date of birth` column in the second table is
