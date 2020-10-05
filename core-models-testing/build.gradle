@@ -1,0 +1,6 @@
+apply plugin: 'java'
+
+dependencies {
+  compile project(':core-models')
+  compile project(path: ':core-models', configuration: 'dataTemplate')
+}

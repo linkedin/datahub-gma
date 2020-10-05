@@ -1,0 +1,18 @@
+apply plugin: 'java'
+apply plugin: 'pegasus'
+
+dependencies {
+  dataModel project(':core-models')
+
+  compile project(':core-models')
+  compile project(':dao-api')
+  compile spec.product.pegasus.restliServer
+  compile spec.product.pegasus.restliClient
+
+  compileOnly externalDependency.lombok
+
+  testCompile project(':test-models')
+  testCompile externalDependency.parseqTest
+  testCompile externalDependency.mockito
+  testCompile externalDependency.testng
+}
