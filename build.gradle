@@ -4,9 +4,10 @@ buildscript {
   apply from: './repositories.gradle'
   buildscript.repositories.addAll(project.repositories)
   dependencies {
-    classpath 'com.linkedin.pegasus:gradle-plugins:' + pegasusVersion
-    classpath 'com.github.node-gradle:gradle-node-plugin:2.2.4'
     classpath 'com.commercehub.gradle.plugin:gradle-avro-plugin:0.8.1'
+    classpath 'com.diffplug.spotless:spotless-plugin-gradle:5.6.1'
+    classpath 'com.github.node-gradle:gradle-node-plugin:2.2.4'
+    classpath 'com.linkedin.pegasus:gradle-plugins:' + pegasusVersion
     classpath 'org.springframework.boot:spring-boot-gradle-plugin:2.1.2.RELEASE'
     classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.+'
     classpath "org.shipkit:shipkit-auto-version:0.0.22"
@@ -85,8 +86,8 @@ project.ext.externalDependency = [
     'testng': 'org.testng:testng:6.9.9'
 ]
 
+apply plugin: 'com.diffplug.spotless'
 apply plugin: 'org.shipkit.shipkit-auto-version'
-println "Building version $version"
 
 allprojects {
   group = "com.linkedin.datahub-gma"
@@ -144,5 +145,14 @@ subprojects { sp ->
         restClientCompile spec.product.pegasus.restliClient
       }
     }
+  }
+}
+
+spotless {
+  // TODO Format Java
+
+  format 'md', {
+    target '**/*.md'
+    prettier().config([printWidth: 120, proseWrap: 'always'])
   }
 }
