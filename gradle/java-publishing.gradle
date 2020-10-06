@@ -1,0 +1,102 @@
+assert plugins.hasPlugin(JavaPlugin)
+
+apply plugin: 'maven-publish'
+apply plugin: 'com.jfrog.bintray'
+
+tasks.withType(Jar) {
+  from "$rootDir/LICENSE"
+  from "$rootDir/NOTICE"
+}
+
+task sourcesJar(type: Jar, dependsOn: classes) {
+  classifier = 'sources'
+  from sourceSets.main.allSource
+}
+
+javadoc {
+  // TODO Don't generate javadoc for some PDL Java files for now. https://github.com/linkedin/rest.li/issues/432
+  exclude 'com/linkedin/metadata/query/**'
+
+  // We don't care about most of these warnings; we're fine with no @return or missing @param if they don't add value.
+  javadoc.options.addStringOption('Xdoclint:none', '-quiet')
+}
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+  classifier = 'javadoc'
+  from javadoc.destinationDir
+}
+
+artifacts {
+  archives sourcesJar
+  archives javadocJar
+}
+
+publishing {
+  publications {
+    maven(MavenPublication) {
+      from components.java
+
+      artifact javadocJar
+
+      artifact sourcesJar
+
+      pom {
+        licenses {
+          license {
+            name = 'The Apache License, Version 2.0'
+            url = 'https://github.com/linkedin/datahub-gma/blob/master/LICENSE'
+            distribution = 'repo'
+          }
+        }
+        scm {
+          url = 'https://github.com/linkedin/datahub-gma.git'
+        }
+        issueManagement {
+          url = 'https://github.com/linkedin/datahub-gma/issues'
+          system = 'GitHub issues'
+        }
+      }
+    }
+  }
+}
+
+// Enable a single, top level publishToMavenLocal which publishes everything.
+publishToMavenLocal.dependsOn(project.rootProject.publishToMavenLocal)
+
+
+bintray {
+  user = System.getenv('BINTRAY_USER')
+  key = System.getenv('BINTRAY_KEY')
+
+  // TODO enable auto publish and CI/CD
+  // publish = true
+
+  dryRun = project.hasProperty("bintray.dryRun") //useful for testing
+
+  publications = ['maven']
+
+  pkg {
+    repo = 'maven'
+    userOrg = 'linkedin'
+    name = 'datahub-gma'
+
+    licenses = ['Apache-2.0']
+    labels = ['metadata', 'datahub', 'gma']
+    version {
+      // disable gpg signing to speed up publishing
+      gpg {
+        sign = false
+      }
+      // disable upload to maven central
+      mavenCentralSync {
+        sync = false
+      }
+    }
+  }
+}
+
+bintrayUpload {
+  doFirst {
+    println "Publishing $jar.baseName to Bintray (dryRun: $dryRun, repo: $repoName, publish: $publish)"
+  }
+}

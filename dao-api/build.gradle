@@ -1,0 +1,25 @@
+apply plugin: 'pegasus'
+
+dependencies {
+  compile project(':core-models')
+  compile project(':validators')
+  compile externalDependency.javatuples
+  compile externalDependency.reflections
+  compile externalDependency.commonsLang
+
+  dataModel project(':core-models')
+
+  compileOnly externalDependency.lombok
+
+  annotationProcessor externalDependency.lombok
+
+  testCompile project(':test-models')
+  testCompile project(':core-models-testing')
+  testCompile externalDependency.guava
+  testCompile externalDependency.mockito
+  testCompile externalDependency.commonsIo
+}
+
+// Force the main artifact to include the data template classes. Clients will no longer need to separately depend on the
+// data template artifact.
+sourceSets.main.java.srcDirs += 'src/mainGeneratedDataTemplate/java'
