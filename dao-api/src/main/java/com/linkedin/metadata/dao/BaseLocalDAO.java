@@ -99,9 +99,6 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   // Flag for enabling reads and writes to local secondary index
   private boolean _enableLocalSecondaryIndex = false;
 
-  // Flag for backfilling local secondary index
-  private boolean _backfillLocalSecondaryIndex = false;
-
   private Clock _clock = Clock.systemUTC();
 
   /**
@@ -239,13 +236,6 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    */
   public boolean isLocalSecondaryIndexEnabled() {
     return _enableLocalSecondaryIndex;
-  }
-
-  /**
-   * Sets if local secondary index backfilling is enabled.
-   */
-  public void setBackfillLocalSecondaryIndex(boolean backfillLocalSecondaryIndex) {
-    _backfillLocalSecondaryIndex = backfillLocalSecondaryIndex;
   }
 
   /**
