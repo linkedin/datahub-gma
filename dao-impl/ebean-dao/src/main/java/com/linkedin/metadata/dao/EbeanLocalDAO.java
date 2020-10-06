@@ -587,8 +587,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     try {
       final Method getUrn = _urnClass.getMethod("createFromString", String.class);
       return _urnClass.cast(getUrn.invoke(null, urn));
-    } catch (NoSuchMethodException |  IllegalAccessException | InvocationTargetException e) {
-      throw new IllegalArgumentException("URN Conversion error ", e);
+    } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
+      throw new IllegalArgumentException("URN conversion error for " + urn, e);
     }
   }
 
