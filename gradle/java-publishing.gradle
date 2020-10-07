@@ -29,6 +29,29 @@ task javadocJar(type: Jar, dependsOn: javadoc) {
 artifacts {
   archives sourcesJar
   archives javadocJar
+
+  project.afterEvaluate {
+    if (plugins.hasPlugin('pegasus')) {
+      archives mainDataTemplateJar
+    }
+  }
+}
+
+def pomConfig = {
+  licenses {
+    license {
+      name = 'The Apache License, Version 2.0'
+      url = 'https://github.com/linkedin/datahub-gma/blob/master/LICENSE'
+      distribution = 'repo'
+    }
+  }
+  scm {
+    url = 'https://github.com/linkedin/datahub-gma.git'
+  }
+  issueManagement {
+    url = 'https://github.com/linkedin/datahub-gma/issues'
+    system = 'GitHub issues'
+  }
 }
 
 publishing {
@@ -37,23 +60,19 @@ publishing {
       from components.java
 
       artifact javadocJar
-
       artifact sourcesJar
 
-      pom {
-        licenses {
-          license {
-            name = 'The Apache License, Version 2.0'
-            url = 'https://github.com/linkedin/datahub-gma/blob/master/LICENSE'
-            distribution = 'repo'
-          }
-        }
-        scm {
-          url = 'https://github.com/linkedin/datahub-gma.git'
-        }
-        issueManagement {
-          url = 'https://github.com/linkedin/datahub-gma/issues'
-          system = 'GitHub issues'
+      pom pomConfig
+    }
+
+
+    project.afterEvaluate {
+      if (plugins.hasPlugin('pegasus')) {
+        dataTemplate(MavenPublication) {
+          artifact mainDataTemplateJar
+          artifactId "$project.name-data-template"
+
+          pom pomConfig
         }
       }
     }
@@ -74,6 +93,12 @@ bintray {
   dryRun = project.hasProperty("bintray.dryRun") //useful for testing
 
   publications = ['maven']
+
+  project.afterEvaluate {
+    if (plugins.hasPlugin('pegasus')) {
+      publications += 'dataTemplate'
+    }
+  }
 
   pkg {
     repo = 'maven'

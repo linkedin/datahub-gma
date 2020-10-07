@@ -7,4 +7,11 @@ dependencies {
   compile spec.product.pegasus.restliCommon
 }
 
-sourceSets.mainGeneratedDataTemplate.java.srcDirs('src/main/java/com/linkedin/testing/urn')
+idea {
+  module {
+    sourceDirs += file('src/main/javaPegasus')
+  }
+}
+
+// Need to compile backing java definitions with the data template.
+sourceSets.mainGeneratedDataTemplate.java.srcDirs('src/main/javaPegasus/')

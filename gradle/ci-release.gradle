@@ -8,11 +8,13 @@
 // Task to fail fast and clearly if required properties are not set.
 task verifyBintrayProperties {
   doFirst {
-    if (System.getenv('BINTRAY_USER') == null) {
-      throw new Exception("Environment variable BINTRAY_USER not set.");
-    }
-    if (System.getenv('BINTRAY_KEY') == null) {
-      throw new Exception("Environment variable BINTRAY_USER not set.");
+    if (!project.hasProperty('bintray.dryRun')) {
+      if (System.getenv('BINTRAY_USER') == null) {
+        throw new Exception("Environment variable BINTRAY_USER not set.");
+      }
+      if (System.getenv('BINTRAY_KEY') == null) {
+        throw new Exception("Environment variable BINTRAY_USER not set.");
+      }
     }
   }
 }
