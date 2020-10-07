@@ -704,24 +704,26 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   /**
    * Sets the values of parameters in metadata index query based on its position, values obtained from
-   * {@link IndexCriterionArray} and last urn.
+   * {@link IndexCriterionArray} and last urn. Also sets the LIMIT of SQL query using the page size input.
    *
    * @param indexCriterionArray {@link IndexCriterionArray} whose values will be used to set parameters in metadata
    *                                                       index query based on its position
    * @param indexQuery {@link Query} whose ordered parameters need to be set, based on it's position
-   * @param lastUrn String representation of the urn whose value is used to set the last urn parameter in index query
+   * @param lastUrn string representation of the urn whose value is used to set the last urn parameter in index query
+   * @param pageSize maximum number of distinct urns to return which is essentially the LIMIT clause of SQL query
    */
   private static void setParameters(@Nonnull IndexCriterionArray indexCriterionArray, @Nonnull Query<EbeanMetadataIndex> indexQuery,
-      @Nonnull String lastUrn) {
+      @Nonnull String lastUrn, int pageSize) {
     indexQuery.setParameter(1, lastUrn);
     int pos = 2;
     for (IndexCriterion criterion : indexCriterionArray) {
       indexQuery.setParameter(pos++, criterion.getAspect());
-      if (criterion.hasPathParams()) {
+      if (criterion.getPathParams() != null) {
         indexQuery.setParameter(pos++, criterion.getPathParams().getPath());
         indexQuery.setParameter(pos++, getGMAIndexPair(criterion.getPathParams().getValue()).value);
       }
     }
+    indexQuery.setParameter(pos, pageSize);
   }
 
   @Nonnull
@@ -749,7 +751,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       final IndexCriterion criterion = indexCriterionArray.get(i);
 
       whereClause.append(" AND t").append(i).append(".aspect = ?");
-      if (criterion.hasPathParams()) {
+      if (criterion.getPathParams() != null) {
         whereClause.append(" AND t")
             .append(i)
             .append(".path = ? AND t")
@@ -760,7 +762,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
             .append("?");
       }
     });
-    return selectClause + " " + whereClause;
+    final String orderByClause = "ORDER BY urn ASC";
+    final String limitClause = "LIMIT ?";
+    return String.join(" ", selectClause, whereClause, orderByClause, limitClause);
   }
 
   void addEntityTypeFilter(@Nonnull IndexFilter indexFilter) {
@@ -798,15 +802,12 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
     addEntityTypeFilter(indexFilter);
 
-    final Query<EbeanMetadataIndex> query = _server.findNative(EbeanMetadataIndex.class, constructSQLQuery(indexCriterionArray))
-        .setTimeout(INDEX_QUERY_TIMEOUT_IN_SEC);
-    setParameters(indexCriterionArray, query, lastUrn == null ? "" : lastUrn.toString());
+    final Query<EbeanMetadataIndex> query =
+        _server.findNative(EbeanMetadataIndex.class, constructSQLQuery(indexCriterionArray))
+            .setTimeout(INDEX_QUERY_TIMEOUT_IN_SEC);
+    setParameters(indexCriterionArray, query, lastUrn == null ? "" : lastUrn.toString(), pageSize);
 
-    final List<EbeanMetadataIndex> pagedList = query
-        .orderBy()
-        .asc(EbeanMetadataIndex.URN_COLUMN)
-        .setMaxRows(pageSize)
-        .findList();
+    final List<EbeanMetadataIndex> pagedList = query.findList();
 
     return pagedList.stream()
         .map(entry -> getUrn(entry.getUrn()))
