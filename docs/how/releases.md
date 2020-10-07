@@ -3,7 +3,9 @@
 We create [GitHub releases](https://github.com/linkedin/datahub-gma/releases) and publish our artifacts to
 [Bintray](https://bintray.com/linkedin/maven/datahub-gma).
 
-We use shipkit to help create our releases and auto-increment our versions.
+We use [shipkit-auto-version](https://github.com/shipkit/shipkit-auto-version),
+[shipkit-changelog](https://github.com/shipkit/shipkit-changelog), and shipkit-gh-release (part of shipkit-changelog) to
+help create our releases.
 
 We automatically create releases for every commit on a branch that starts with `release/%semver%`, where semver is the
 wildcard semantic version of that branch (e.g. `release/1.0.x`).
