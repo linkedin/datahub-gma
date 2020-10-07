@@ -151,7 +151,7 @@ subprojects { sp ->
 spotless {
   format 'md', {
     target '**/*.md'
-    targetExclude '.github' // GitHub renders these documents differently...
+    targetExclude '.github/**' // GitHub renders these documents differently...
     prettier().config([printWidth: 120, proseWrap: 'always'])
   }
 }
