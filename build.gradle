@@ -149,10 +149,9 @@ subprojects { sp ->
 }
 
 spotless {
-  // TODO Format Java
-
   format 'md', {
     target '**/*.md'
+    targetExclude '.github/**' // GitHub renders these documents differently...
     prettier().config([printWidth: 120, proseWrap: 'always'])
   }
 }
