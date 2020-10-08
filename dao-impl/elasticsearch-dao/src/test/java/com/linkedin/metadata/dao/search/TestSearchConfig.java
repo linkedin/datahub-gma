@@ -28,7 +28,7 @@ public class TestSearchConfig extends BaseSearchConfig<EntityDocument> {
   @Override
   @Nonnull
   public String getSearchQueryTemplate() {
-    return "";
+    return "{}";
   }
 
   @Override

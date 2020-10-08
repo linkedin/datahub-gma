@@ -5,6 +5,7 @@ import com.linkedin.common.UrnArray;
 import com.linkedin.data.DataList;
 import com.linkedin.data.DataMap;
 import com.linkedin.data.template.StringArray;
+import com.linkedin.metadata.dao.utils.QueryUtils;
 import com.linkedin.metadata.query.AggregationMetadataArray;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.Criterion;
@@ -15,14 +16,12 @@ import com.linkedin.metadata.query.SortCriterion;
 import com.linkedin.metadata.query.SortOrder;
 import com.linkedin.testing.EntityDocument;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.apache.commons.io.IOUtils;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.SearchHit;
@@ -31,6 +30,7 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import static com.linkedin.metadata.dao.utils.QueryUtils.*;
+import static com.linkedin.metadata.utils.TestUtils.*;
 import static com.linkedin.testing.TestUtils.*;
 import static org.testng.Assert.*;
 import static org.mockito.Mockito.*;
@@ -41,10 +41,6 @@ public class ESSearchDAOTest {
   private ESSearchDAO<EntityDocument> _searchDAO;
   private ESAutoCompleteQueryForHighCardinalityFields _esAutoCompleteQuery;
   private TestSearchConfig _testSearchConfig;
-
-  private static String loadJsonFromResource(String resourceName) throws IOException {
-    return IOUtils.toString(ClassLoader.getSystemResourceAsStream(resourceName), StandardCharsets.UTF_8);
-  }
 
   @BeforeMethod
   public void setup() throws Exception {
@@ -199,6 +195,16 @@ public class ESSearchDAOTest {
     )));
     SortCriterion sortCriterion = new SortCriterion().setOrder(SortOrder.ASCENDING).setField("urn");
     assertThrows(UnsupportedOperationException.class, () -> _searchDAO.getFilteredSearchQuery(filter2, sortCriterion, from, size));
+  }
+
+  @Test
+  public void testPreferenceInSearchQuery() {
+    String input = "test";
+    Map<String, String> requestMap = Collections.singletonMap("key", "value");
+    Filter filter = QueryUtils.newFilter(requestMap);
+    String preference = "urn:li:servicePrincipal:appName";
+    SearchRequest searchRequest = _searchDAO.constructSearchQuery(input, filter, null, preference, 0, 10);
+    assertEquals(searchRequest.preference(), preference);
   }
 
   private static SearchHit makeSearchHit(int id) {

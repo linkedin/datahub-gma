@@ -113,10 +113,36 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
   @Nonnull
   public SearchResult<DOCUMENT> search(@Nonnull String input, @Nullable Filter postFilters,
       @Nullable SortCriterion sortCriterion, int from, int size) {
+    return search(input, postFilters, sortCriterion, null, from, size);
+  }
+
+  /**
+   * Gets a list of documents that match given search request. The results are aggregated and filters are applied to the
+   * search hits and not the aggregation results.
+   *
+   * <p>This method uses preference parameter to control the shard copy on which to execute the search operation.
+   * The string used as preference can be a user ID or session ID for instance. This ensures that all queries of a
+   * given user are always going to hit the same shards, so scores can remain more consistent across queries. Using a
+   * preference value that identifies the current user or session could help optimize usage of the caches.
+   *
+   * <p>WARNING: using a preference parameter that is same for all queries will lead to hot spots that could
+   * potentially impact latency, hence choose this parameter judiciously.
+   *
+   * @param input the search input text
+   * @param postFilters the request map with fields and values as filters to be applied to search hits
+   * @param sortCriterion {@link SortCriterion} to be applied to search results
+   * @param preference controls a preference of the shard copy on which to execute the search
+   * @param from index to start the search from
+   * @param size the number of search hits to return
+   * @return a {@link SearchResult} that contains a list of matched documents and related search result metadata
+   */
+  @Nonnull
+  public SearchResult<DOCUMENT> search(@Nonnull String input, @Nullable Filter postFilters,
+      @Nullable SortCriterion sortCriterion, @Nullable String preference, int from, int size) {
 
     // Step 0: TODO: Add type casting if needed and  add request params validation against the model
     // Step 1: construct the query
-    final SearchRequest req = constructSearchQuery(input, postFilters, sortCriterion, from, size);
+    final SearchRequest req = constructSearchQuery(input, postFilters, sortCriterion, preference, from, size);
     // Step 2: execute the query and extract results, validated against document model as well
     return executeAndExtract(req, from, size);
   }
@@ -172,12 +198,35 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
    * @param from index to start the search from
    * @param size the number of search hits to return
    * @return a valid search request
+   * @deprecated  please use {@link #constructSearchQuery(String, Filter, SortCriterion, String, int, int)} instead
    */
   @Nonnull
   public SearchRequest constructSearchQuery(@Nonnull String input, @Nullable Filter filter,
       @Nullable SortCriterion sortCriterion, int from, int size) {
 
+    return constructSearchQuery(input, filter, sortCriterion, null, from, size);
+  }
+
+  /**
+   * Constructs the search query based on the query request.
+   *
+   * <p>TODO: This part will be replaced by searchTemplateAPI when the elastic is upgraded to 6.4 or later
+   *
+   * @param input the search input text
+   * @param filter the search filter
+   * @param preference controls a preference of the shard copy on which to execute the search
+   * @param from index to start the search from
+   * @param size the number of search hits to return
+   * @return a valid search request
+   */
+  @Nonnull
+  SearchRequest constructSearchQuery(@Nonnull String input, @Nullable Filter filter,
+      @Nullable SortCriterion sortCriterion, @Nullable String preference, int from, int size) {
+
     SearchRequest searchRequest = new SearchRequest(_config.getIndexName());
+    if (preference != null) {
+      searchRequest.preference(preference);
+    }
     SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
     searchSourceBuilder.from(from);
