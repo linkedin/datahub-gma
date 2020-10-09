@@ -48,7 +48,7 @@ breaking changes where possible; consider the following workflow:
 
 1. Add a new API (method, class, or interface). This isn't breaking and can be committed to the latest release branch.
 2. Mark the old API(s) as deprecated. Use both the JavaDoc `@deprecated` (and document the replacement), as well as the
-`@Deprecated` annotation. Again, this isn't breaking and so can be committed to the latest releae branch.
+   `@Deprecated` annotation. Again, this isn't breaking and so can be committed to the latest releae branch.
 3. In the next major release, we can consider deleting APIs marked as `@Deprected`.
 
 When following this process, at step #1 your feature may not be final with your initial PR. You may need to add more to
@@ -60,5 +60,5 @@ breaking changes, and really are meant to be a beta for that full release. If we
 get booted to the next beta come release, which is fine, but requires work to rip them out, so keeping incubating APIs
 out will save us work long run. But separate feature branches are not great either, because we don't really want to
 publish versions for them. We could suggest feature branches, and they'd work fine for
-this-is-pretty-final-but-over-many-PRs. Wouldn't work for this-really-is-incubating-and-subject-to-change. We could
-just say submit them to the latest release with some Java annotation (`@Beta` or `@Experimental`), but non are standard.
+this-is-pretty-final-but-over-many-PRs. Wouldn't work for this-really-is-incubating-and-subject-to-change. We could just
+say submit them to the latest release with some Java annotation (`@Beta` or `@Experimental`), but non are standard.
