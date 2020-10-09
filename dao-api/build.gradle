@@ -19,7 +19,3 @@ dependencies {
   testCompile externalDependency.mockito
   testCompile externalDependency.commonsIo
 }
-
-// Force the main artifact to include the data template classes. Clients will no longer need to separately depend on the
-// data template artifact.
-sourceSets.main.java.srcDirs += 'src/mainGeneratedDataTemplate/java'

@@ -29,32 +29,49 @@ task javadocJar(type: Jar, dependsOn: javadoc) {
 artifacts {
   archives sourcesJar
   archives javadocJar
+
+  if (plugins.hasPlugin('pegasus')) {
+    archives mainDataTemplateJar
+  }
+}
+
+def pomConfig = {
+  licenses {
+    license {
+      name = 'The Apache License, Version 2.0'
+      url = 'https://github.com/linkedin/datahub-gma/blob/master/LICENSE'
+      distribution = 'repo'
+    }
+  }
+  scm {
+    url = 'https://github.com/linkedin/datahub-gma.git'
+  }
+  issueManagement {
+    url = 'https://github.com/linkedin/datahub-gma/issues'
+    system = 'GitHub issues'
+  }
 }
 
 publishing {
   publications {
-    maven(MavenPublication) {
-      from components.java
+    if (!project.ext.has('publications') || project.ext.publications.contains('jar')) {
+      jar(MavenPublication) {
+        from components.java
 
-      artifact javadocJar
+        artifact javadocJar
+        artifact sourcesJar
 
-      artifact sourcesJar
+        pom pomConfig
+      }
+    }
 
-      pom {
-        licenses {
-          license {
-            name = 'The Apache License, Version 2.0'
-            url = 'https://github.com/linkedin/datahub-gma/blob/master/LICENSE'
-            distribution = 'repo'
-          }
-        }
-        scm {
-          url = 'https://github.com/linkedin/datahub-gma.git'
-        }
-        issueManagement {
-          url = 'https://github.com/linkedin/datahub-gma/issues'
-          system = 'GitHub issues'
-        }
+    if (plugins.hasPlugin('pegasus') &&
+        (!project.ext.has('publications') || project.ext.publications.contains('dataTemplate'))) {
+      dataTemplate(MavenPublication) {
+        artifact mainDataTemplateJar
+        artifactId "$project.name-data-template"
+
+        pom pomConfig
       }
     }
   }
@@ -62,7 +79,6 @@ publishing {
 
 // Enable a single, top level publishToMavenLocal which publishes everything.
 publishToMavenLocal.dependsOn(project.rootProject.publishToMavenLocal)
-
 
 bintray {
   user = System.getenv('BINTRAY_USER')
@@ -73,7 +89,15 @@ bintray {
 
   dryRun = project.hasProperty("bintray.dryRun") //useful for testing
 
-  publications = ['maven']
+  if (project.ext.has('publications')) {
+    publications = project.ext.publications
+  } else {
+    publications = ['jar']
+
+    if (plugins.hasPlugin('pegasus')) {
+      publications += 'dataTemplate'
+    }
+  }
 
   pkg {
     repo = 'maven'

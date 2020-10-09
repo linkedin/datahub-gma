@@ -111,7 +111,9 @@ subprojects { sp ->
 
   plugins.withType(JavaPlugin) {
     if (!project.hasProperty('disableShipkit')) {
-      sp.apply from: "$rootDir/gradle/java-publishing.gradle"
+      sp.afterEvaluate {
+        sp.apply from: "$rootDir/gradle/java-publishing.gradle"
+      }
     }
 
     dependencies {

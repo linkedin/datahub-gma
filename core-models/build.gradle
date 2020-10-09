@@ -1,8 +1,18 @@
 apply plugin: 'java'
 apply plugin: 'pegasus'
 
+// Don't publish the "normal" jar since it'd be empty anyway
+project.ext.publications = ['dataTemplate']
+
 dependencies {
     compile spec.product.pegasus.data
 }
 
-sourceSets.mainGeneratedDataTemplate.java.srcDirs('src/main/java/')
+idea {
+    module {
+        sourceDirs += file('src/main/javaPegasus')
+    }
+}
+
+// Need to compile backing java definitions with the data template.
+sourceSets.mainGeneratedDataTemplate.java.srcDirs('src/main/javaPegasus/')
