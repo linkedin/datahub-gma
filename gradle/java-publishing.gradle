@@ -30,10 +30,8 @@ artifacts {
   archives sourcesJar
   archives javadocJar
 
-  project.afterEvaluate {
-    if (plugins.hasPlugin('pegasus')) {
-      archives mainDataTemplateJar
-    }
+  if (plugins.hasPlugin('pegasus')) {
+    archives mainDataTemplateJar
   }
 }
 
@@ -56,24 +54,24 @@ def pomConfig = {
 
 publishing {
   publications {
-    maven(MavenPublication) {
-      from components.java
+    if (!project.ext.has('publications') || project.ext.publications.contains('jar')) {
+      jar(MavenPublication) {
+        from components.java
 
-      artifact javadocJar
-      artifact sourcesJar
+        artifact javadocJar
+        artifact sourcesJar
 
-      pom pomConfig
+        pom pomConfig
+      }
     }
 
+    if (plugins.hasPlugin('pegasus') &&
+        (!project.ext.has('publications') || project.ext.publications.contains('dataTemplate'))) {
+      dataTemplate(MavenPublication) {
+        artifact mainDataTemplateJar
+        artifactId "$project.name-data-template"
 
-    project.afterEvaluate {
-      if (plugins.hasPlugin('pegasus')) {
-        dataTemplate(MavenPublication) {
-          artifact mainDataTemplateJar
-          artifactId "$project.name-data-template"
-
-          pom pomConfig
-        }
+        pom pomConfig
       }
     }
   }
@@ -81,7 +79,6 @@ publishing {
 
 // Enable a single, top level publishToMavenLocal which publishes everything.
 publishToMavenLocal.dependsOn(project.rootProject.publishToMavenLocal)
-
 
 bintray {
   user = System.getenv('BINTRAY_USER')
@@ -92,9 +89,11 @@ bintray {
 
   dryRun = project.hasProperty("bintray.dryRun") //useful for testing
 
-  publications = ['maven']
+  if (project.ext.has('publications')) {
+    publications = project.ext.publications
+  } else {
+    publications = ['jar']
 
-  project.afterEvaluate {
     if (plugins.hasPlugin('pegasus')) {
       publications += 'dataTemplate'
     }

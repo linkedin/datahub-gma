@@ -1,6 +1,9 @@
 apply plugin: 'java'
 apply plugin: 'pegasus'
 
+// Don't publish the "normal" jar since it'd be empty anyway
+project.ext.publications = ['dataTemplate']
+
 dependencies {
     compile spec.product.pegasus.data
 }
