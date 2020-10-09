@@ -1,29 +1,32 @@
-# Releases
+# GMA Continuous Releases
 
 We create [GitHub releases](https://github.com/linkedin/datahub-gma/releases) and publish our artifacts to
 [Bintray](https://bintray.com/linkedin/maven/datahub-gma).
 
 We use [shipkit-auto-version](https://github.com/shipkit/shipkit-auto-version),
 [shipkit-changelog](https://github.com/shipkit/shipkit-changelog), and shipkit-gh-release (part of shipkit-changelog) to
-help create our releases.
+help create our continuous releases.
 
-We automatically create releases for every commit on a branch that starts with `release/%semver%`, where semver is the
-wildcard semantic version of that branch (e.g. `release/1.0.x`).
+We automatically create releases for every commit on a branch that starts with `release/`. See
+[versioning](./versioning.md) for more details on branch names.
 
-## Versioning
+## Automatic Versioning
 
-As stated above, we use shipkit for automatically creating version tags. See
-[shipkit-auto-version for details](https://github.com/shipkit/shipkit-auto-version).
+As stated above, we use shipkit for automatically creating version tags. This relies on the
+[version.properties](../../../version.properties) file to determine the version to tag the commit. Please help us ensure
+it is correct!
 
-We follow the [semantic versioning 2.0.0 convention](https://semver.org/). When bumping the major or minor version,
-please make a new `release` branch for it.
+We, for the most part, follow the [semantic versioning 2.0.0 convention](https://semver.org/). See
+[versioning](./versioning.md) for more details, including the exception.
 
-## Changelog
+See [shipkit-auto-version for details](https://github.com/shipkit/shipkit-auto-version) for more details.
+
+## Automatic Changelog
 
 We use shipkit changelog to create the release notes of each version. See
 [shipkit-changelog](https://github.com/shipkit/shipkit-changelog) for more details.
 
-## Automation
+## Automatic Publishing
 
 Automation is done with a [GitHub workflow](../../.github/workflows/gh-version.yml) that will create the GitHub release
 and then publish to bintray for every commit on a `release` branch.
