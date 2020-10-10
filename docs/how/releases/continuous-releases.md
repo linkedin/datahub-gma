@@ -16,8 +16,8 @@ As stated above, we use shipkit for automatically creating version tags. This re
 [version.properties](../../../version.properties) file to determine the version to tag the commit. Please help us ensure
 it is correct!
 
-We, for the most part, follow the [semantic versioning 2.0.0 convention](https://semver.org/). See
-[versioning](./versioning.md) for more details, including the exception.
+We follow the [semantic versioning 2.0.0 convention](https://semver.org/). See [versioning](./versioning.md) for more
+details.
 
 See [shipkit-auto-version for details](https://github.com/shipkit/shipkit-auto-version) for more details.
 

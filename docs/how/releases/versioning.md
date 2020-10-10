@@ -1,6 +1,6 @@
 # GMA Versioning
 
-We, for the most part, follow the semantic versioning 2.0 scheme as defined at [https://semver.org](https://semver.org).
+We follow the semantic versioning 2.0 scheme as defined at [https://semver.org](https://semver.org).
 
 We have an automatic release pipeline as detailed [here](./continuous-releases.md).
 

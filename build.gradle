@@ -11,7 +11,7 @@ buildscript {
     classpath 'com.linkedin.pegasus:gradle-plugins:' + pegasusVersion
     classpath 'org.springframework.boot:spring-boot-gradle-plugin:2.1.2.RELEASE'
     classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.+'
-    classpath "org.shipkit:shipkit-auto-version:0.0.44"
+    classpath "org.shipkit:shipkit-auto-version:0.0.48"
     classpath "org.shipkit:shipkit-changelog:0.0.45"
   }
 }
@@ -138,5 +138,52 @@ spotless {
     target '**/*.md'
     targetExclude '.github/**' // GitHub renders these documents differently...
     prettier().config([printWidth: 120, proseWrap: 'always'])
+  }
+}
+
+task getBranchName() {
+  doLast {
+    new ByteArrayOutputStream().withStream { os ->
+      def result = exec {
+        commandLine 'git', 'branch', '--show-current'
+        standardOutput = os
+      }
+      ext.branchName = os.toString()
+    }
+  }
+}
+
+/**
+ * Validates that the version.properties file matches the branch name for release branches.
+ */
+task validateVersion() {
+  dependsOn getBranchName
+  def branchPattern = ~/^release\/(?<major>[0-9]+)\.x$/
+  def versionPropertiesPattern = ~/^version=(?<major>[0-9]+)\.(?<minor>[0-9]+)\.[\*|0]$/
+  doLast {
+    def branchName = getBranchName.branchName
+
+    if (!branchName.startsWith("release/")) {
+      return
+    }
+
+    def branchMatcher = branchName =~ branchPattern
+
+    if (!branchMatcher.find()) {
+      throw new Exception("Release branches must follow the pattern release/major.x[-tag.tagVersion]")
+    }
+
+    def version = file("version.properties").text
+    def versionMatcher = version =~ versionPropertiesPattern
+
+    if (!versionMatcher.find()) {
+      throw new Exception("Unexpected version.properties file format: " + version)
+    }
+
+    if (versionMatcher.group("major") != branchMatcher.group("major")) {
+      throw new Exception(
+          String.format("Release branch name has major version %s, but properties file has %s", branchMatcher.group(
+              "major"), versionMatcher.group("major")))
+    }
   }
 }
