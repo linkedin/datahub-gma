@@ -97,11 +97,6 @@ allprojects {
   apply plugin: 'checkstyle'
 }
 
-// Marker task which does nothing on its own, but all other sub-publishToMavenLocal tasks can be dependants, so you can
-// run this top level task to publish everything. See java-publishing.gradle.
-task publishToMavenLocal {
-}
-
 if (!project.hasProperty('disableShipkit')) {
   apply from: file("gradle/ci-release.gradle")
 }
@@ -110,12 +105,6 @@ subprojects { sp ->
   apply plugin: 'maven'
 
   plugins.withType(JavaPlugin) {
-    if (!project.hasProperty('disableShipkit')) {
-      sp.afterEvaluate {
-        sp.apply from: "$rootDir/gradle/java-publishing.gradle"
-      }
-    }
-
     dependencies {
       testCompile externalDependency.testng
     }

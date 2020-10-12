@@ -1,5 +1,7 @@
 apply plugin: 'pegasus'
 
+apply from: "$rootDir/gradle/java-publishing.gradle"
+
 dependencies {
   compile project(':core-models')
   compile project(':validators')

@@ -1,5 +1,9 @@
 assert plugins.hasPlugin(JavaPlugin)
 
+if (project.hasProperty('disableShipkit')) {
+  return
+}
+
 apply plugin: 'maven-publish'
 apply plugin: 'com.jfrog.bintray'
 
@@ -76,9 +80,6 @@ publishing {
     }
   }
 }
-
-// Enable a single, top level publishToMavenLocal which publishes everything.
-publishToMavenLocal.dependsOn(project.rootProject.publishToMavenLocal)
 
 bintray {
   user = System.getenv('BINTRAY_USER')
