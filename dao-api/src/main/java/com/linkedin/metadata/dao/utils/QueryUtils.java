@@ -89,7 +89,7 @@ public class QueryUtils {
    * @param totalPageCount total page count
    * @return whether there's more results
    */
-  public static boolean isHavingMore(int from, int size, int totalPageCount) {
+  public static boolean hasMore(int from, int size, int totalPageCount) {
     if (size <= 0) {
       return false;
     }
