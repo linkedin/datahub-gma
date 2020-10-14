@@ -288,7 +288,7 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
         .searchResultMetadata(extractSearchResultMetadata(searchResponse))
         .from(from)
         .pageSize(size)
-        .havingMore(QueryUtils.isHavingMore(from, size, totalPageCount))
+        .havingMore(QueryUtils.hasMore(from, size, totalPageCount))
         .totalCount(totalCount)
         .totalPageCount(totalPageCount)
         .build();

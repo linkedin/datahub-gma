@@ -504,7 +504,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     final int totalPageCount = QueryUtils.getTotalPageCount(keys.size(), keysCount);
 
     List<EbeanMetadataAspect> finalResult = batchGetHelper(new ArrayList<>(keys), keysCount, position);
-    while (QueryUtils.isHavingMore(position, keysCount, totalPageCount)) {
+    while (QueryUtils.hasMore(position, keysCount, totalPageCount)) {
       position += keysCount;
       final List<EbeanMetadataAspect> oneStatementResult = batchGetHelper(new ArrayList<>(keys), keysCount, position);
       finalResult.addAll(oneStatementResult);
