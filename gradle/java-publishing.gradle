@@ -121,6 +121,11 @@ bintray {
 }
 
 bintrayUpload {
+  // Bintray normally doesn't depend on POM generation, but we need it.
+  tasks.withType(GenerateMavenPom) {
+    bintrayUpload.dependsOn it
+  }
+
   doFirst {
     println "Publishing $jar.baseName to Bintray (dryRun: $dryRun, repo: $repoName, publish: $publish)"
   }
