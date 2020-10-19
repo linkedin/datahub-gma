@@ -27,9 +27,9 @@ An RFC goes through the following stages:
 
 ## When to follow this process
 
-You need to follow this process if you intend to make "substantial" changes to any components in the GMA git repo,
-their documentation, or any other projects under the purview of the GMA core teams. What constitutes a "substantial"
-change is evolving based on community norms, but may include the following:
+You need to follow this process if you intend to make "substantial" changes to any components in the GMA git repo, their
+documentation, or any other projects under the purview of the GMA core teams. What constitutes a "substantial" change is
+evolving based on community norms, but may include the following:
 
 - A new feature that creates new API surface area, and would require a feature flag if introduced.
 - The removal of features that already shipped as part of the release channel.
@@ -53,8 +53,8 @@ pull request with the specific implementation design. We also highly recommend s
 
 ## The process
 
-In short, to get a major feature added to GMA, one must first get the RFC merged into the RFC repo as a markdown
-file. At that point the RFC is 'active' and may be implemented with the goal of eventual inclusion into GMA.
+In short, to get a major feature added to GMA, one must first get the RFC merged into the RFC repo as a markdown file.
+At that point the RFC is 'active' and may be implemented with the goal of eventual inclusion into GMA.
 
 - Fork the GMA repository.
 - Copy the `000-template.md` template file to `docs/rfc/active/000-my-feature.md`, where `my-feature` is more
@@ -70,11 +70,11 @@ file. At that point the RFC is 'active' and may be implemented with the goal of 
 - RFCs that are candidates for inclusion will entire a "final comment period" lasting 7 days. The beginning of this
   period will be signaled with a comment and tag on the pull request. Furthermore, an announcement will be made in the
   \#rfc Slack channel for further visibility.
-- An RFC acan be modified based upon feedback from the GMA team and community. Significant modifications may trigger
-  a new final comment period.
-- An RFC may be rejected by the GMA team after public discussion has settled and comments have been made summarizing
-  the rationale for rejection. The RFC will enter a "final comment period to close" lasting 7 days. At the end of the
-  "FCP to close" period, the PR will be closed.
+- An RFC acan be modified based upon feedback from the GMA team and community. Significant modifications may trigger a
+  new final comment period.
+- An RFC may be rejected by the GMA team after public discussion has settled and comments have been made summarizing the
+  rationale for rejection. The RFC will enter a "final comment period to close" lasting 7 days. At the end of the "FCP
+  to close" period, the PR will be closed.
 - An RFC author may withdraw their own RFC by closing it themselves. Please state the reason for the withdrawal.
 - An RFC may be accepted at the close of its final comment period. A GMA team member will merge the RFC's associated
   pull request, at which point the RFC will become 'active'.
@@ -111,9 +111,9 @@ track the status of the RFC, please make one final PR to move the RFC from `docs
 
 ## Reviewing RFCs
 
-Most of the GMA team will attempt to review some set of open RFC pull requests on a regular basis. If a GMA team
-member believes an RFC PR is ready to be accepted into active status, they can approve the PR using GitHub's review
-feature to signal their approval of the RFCs.
+Most of the GMA team will attempt to review some set of open RFC pull requests on a regular basis. If a GMA team member
+believes an RFC PR is ready to be accepted into active status, they can approve the PR using GitHub's review feature to
+signal their approval of the RFCs.
 
 _GMA's RFC process is inspired by many others, including [Vue.js](https://github.com/vuejs/rfcs) and
 [Ember](https://github.com/emberjs/rfcs)._

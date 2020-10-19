@@ -10,8 +10,8 @@
 GMA has an [Elasticsearch](https://www.elastic.co/) implementation of its search DAO.
 
 Today, any changes made to settings / mappings / queries must be done using manual testing. This can lead to brittle
-infrastructure and unintentional bugs. We should add a small framework to make it easy to write integration tests of
-GMA with Elasticsearch.
+infrastructure and unintentional bugs. We should add a small framework to make it easy to write integration tests of GMA
+with Elasticsearch.
 
 ## Basic example
 
@@ -27,7 +27,7 @@ public class DatasetSearchIntegrationTest {
   @SearchIndexSettings("datasetSettings.json")
   @SearchIndexMappings("datasetMappings.json")
   public SearchIndex<DatasetDocument> searchIndex;
-  
+
   @Test
   public void canWriteData() {
     // given
@@ -40,7 +40,7 @@ public class DatasetSearchIntegrationTest {
     // then
     assertThat(searchIndex).wroteDocuments("myid");
   }
-  
+
   @Test
   public void canReadData() {
     // given
@@ -54,7 +54,7 @@ public class DatasetSearchIntegrationTest {
     // then
     assertThat(allDocuments).containsExactly(document);
   }
-  
+
   /*
    * The above are simple sanity tests (may not hurt even to have some common code to create/run those tests!). Users
    * should also write more specific tests to verify their settings / mappings / queries / rankings, etc.
@@ -80,8 +80,8 @@ To increase test coverage and reliability of GMA's search stack.
 The design should be open enough so that the logic to start and stop the cluster is abstracted away.
 
 We can ship a default implementation that uses [Testcontainers](https://www.testcontainers.org/) (which, in turn, uses
-docker), however this may not work for everyone (e.g. internally at LinkedIn), so we should make it easy to provide
-some other mechanism to control the cluster.
+docker), however this may not work for everyone (e.g. internally at LinkedIn), so we should make it easy to provide some
+other mechanism to control the cluster.
 
 ## Non-Requirements
 
@@ -95,6 +95,7 @@ Similarly, we can use assertj for assertions.
 ## Detailed design
 
 As stated above, we will:
+
 - Use JUnit 5.
 - Use assertj.
 - Provide a _default_ implementation that uses the Testcontainers framework.
@@ -105,7 +106,7 @@ We can add two new modules to the project:
    Tries to load the implementation via reflection (can look for some specific annotation in a specific namespace).
 2. `dao-impl/elasticsearch-dao-integ-testing-testcontainers`: Contains the Testcontainers implementation.
 
-Note that as the second module will depend on the first, users need only  add the second module as a dependency, if they
+Note that as the second module will depend on the first, users need only add the second module as a dependency, if they
 plan to use the default implementation.
 
 JUnit has an [extension model](https://junit.org/junit5/docs/current/user-guide/#extensions) we can use. It gives us
@@ -168,8 +169,8 @@ Commonly used assertions that we should provide helpers for will include:
 - Asserting the index contains documents with the given id(s) and content(s).
 
 We _could_ also provide assertions to assert that a query for on a `ESSearchDAO` returns some results, however, it may
-be clearer to just query the DAO and assert the results in the test. We should debate this before finalizing the list
-of assertions we wish to provide.
+be clearer to just query the DAO and assert the results in the test. We should debate this before finalizing the list of
+assertions we wish to provide.
 
 ```java
 @Test
@@ -189,10 +190,10 @@ public void withAssertionLibrary() {
 public void withoutAssertionLibrary() {
   // given
   final ESSearchDAO<Document> dao = searchIndex.createReaderDAO(config);
- 
+
   // when
   final SearchResult<DOCUMENT> result = dao.search("stuff", null, null, 0, 1);
-  
+
   // then
   // Code is somewhat clearer here, however the failure will be less clear, as it will not include the query that was
   // performed.
