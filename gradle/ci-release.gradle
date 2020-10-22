@@ -1,9 +1,13 @@
 // TODO actually hook up to a CI. Until we hook up a CI follow these steps:
 // 1. Check out the repo and sync to the commit you want to release.
-// 2. Tag the commit by running `git tag -a -m "Release v$version" "v$version"`, replacing $version with the semver.
-// 3. Push the tag by running `git push --tags`
-// 4. Upload to bintray by running `./gradlew bintrayUploadAll`.
-// 5. Go to GitHub and make a release from the tag.
+// 2. Build with `./gradlew build`.
+// 3. Publish to your local maven with `./gradlew publishToMavenLocal`.
+// 4. Verify the version is correct (inspect generated poms or the contents of your ~/.m2 directory).
+// 5. Publish to bintray with `./gradlew bintrayUploadAll`.
+// 6. Tag the commit by running `git tag "v$version"`, replacing $version with the semver.
+// 7. Push the tag by running `git push --tags`
+// 8. Go to GitHub and make a release from the tag.
+// 9. Go to bintray and click "publish" on the newly uploaded version.
 
 // Task to fail fast and clearly if required properties are not set.
 task verifyBintrayProperties {
