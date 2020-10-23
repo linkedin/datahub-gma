@@ -1,4 +1,4 @@
-# GMA RFC
+# DataHub RFC
 
 ## What is an RFC?
 
@@ -23,17 +23,17 @@ An RFC goes through the following stages:
 - _Landed_: when an RFC's proposed changes are shipped in an actual release.
 - _Rejected_: when an RFC PR is closed without being merged.
 
-[Pending RFC List](https://github.com/linkedin/datahub-gma/pulls?q=is%3Apr+is%3Aopen+label%3Arfc+)
+[Pending RFC List](https://github.com/linkedin/datahub/pulls?q=is%3Apr+is%3Aopen+label%3Arfc+)
 
 ## When to follow this process
 
-You need to follow this process if you intend to make "substantial" changes to any components in the GMA git repo, their
-documentation, or any other projects under the purview of the GMA core teams. What constitutes a "substantial" change is
-evolving based on community norms, but may include the following:
+You need to follow this process if you intend to make "substantial" changes to any components in the DataHub git repo,
+their documentation, or any other projects under the purview of the DataHub core teams. What constitutes a "substantial"
+change is evolving based on community norms, but may include the following:
 
 - A new feature that creates new API surface area, and would require a feature flag if introduced.
 - The removal of features that already shipped as part of the release channel.
-- The introduction of new idiomatic usage or conventions, even if they do not include code changes to GMA itself.
+- The introduction of new idiomatic usage or conventions, even if they do not include code changes to DataHub itself.
 
 Some changes do not require an RFC:
 
@@ -53,10 +53,10 @@ pull request with the specific implementation design. We also highly recommend s
 
 ## The process
 
-In short, to get a major feature added to GMA, one must first get the RFC merged into the RFC repo as a markdown file.
-At that point the RFC is 'active' and may be implemented with the goal of eventual inclusion into GMA.
+In short, to get a major feature added to DataHub, one must first get the RFC merged into the RFC repo as a markdown
+file. At that point the RFC is 'active' and may be implemented with the goal of eventual inclusion into DataHub.
 
-- Fork the GMA repository.
+- Fork the DataHub repository.
 - Copy the `000-template.md` template file to `docs/rfc/active/000-my-feature.md`, where `my-feature` is more
   descriptive. Don't assign an RFC number yet.
 - Fill in the RFC. Put care into the details. _RFCs that do not present convincing motivation, demonstrate understanding
@@ -66,22 +66,22 @@ At that point the RFC is 'active' and may be implemented with the goal of eventu
 - Update the pull request to add the number of the PR to the filename and add a link to the PR in the header of the RFC.
 - Build consensus and integrate feedback. RFCs that have broad support are much more likely to make progress than those
   that don't receive any comments.
-- Eventually, the GMA team will decide whether the RFC is a candidate for inclusion.
+- Eventually, the DataHub team will decide whether the RFC is a candidate for inclusion.
 - RFCs that are candidates for inclusion will entire a "final comment period" lasting 7 days. The beginning of this
   period will be signaled with a comment and tag on the pull request. Furthermore, an announcement will be made in the
   \#rfc Slack channel for further visibility.
-- An RFC acan be modified based upon feedback from the GMA team and community. Significant modifications may trigger a
-  new final comment period.
-- An RFC may be rejected by the GMA team after public discussion has settled and comments have been made summarizing the
-  rationale for rejection. The RFC will enter a "final comment period to close" lasting 7 days. At the end of the "FCP
-  to close" period, the PR will be closed.
+- An RFC acan be modified based upon feedback from the DataHub team and community. Significant modifications may trigger
+  a new final comment period.
+- An RFC may be rejected by the DataHub team after public discussion has settled and comments have been made summarizing
+  the rationale for rejection. The RFC will enter a "final comment period to close" lasting 7 days. At the end of the
+  "FCP to close" period, the PR will be closed.
 - An RFC author may withdraw their own RFC by closing it themselves. Please state the reason for the withdrawal.
-- An RFC may be accepted at the close of its final comment period. A GMA team member will merge the RFC's associated
+- An RFC may be accepted at the close of its final comment period. A DataHub team member will merge the RFC's associated
   pull request, at which point the RFC will become 'active'.
 
 ## Details on Active RFCs
 
-Once an RFC becomes active then authors may implement it and submit the feature as a pull request to the GMA repo.
+Once an RFC becomes active then authors may implement it and submit the feature as a pull request to the DataHub repo.
 Becoming 'active' is not a rubber stamp, and in particular still does not mean the feature will ultimately be merged; it
 does mean that the core team has agreed to it in principle and are amenable to merging it.
 
@@ -111,9 +111,9 @@ track the status of the RFC, please make one final PR to move the RFC from `docs
 
 ## Reviewing RFCs
 
-Most of the GMA team will attempt to review some set of open RFC pull requests on a regular basis. If a GMA team member
-believes an RFC PR is ready to be accepted into active status, they can approve the PR using GitHub's review feature to
-signal their approval of the RFCs.
+Most of the DataHub team will attempt to review some set of open RFC pull requests on a regular basis. If a DataHub team
+member believes an RFC PR is ready to be accepted into active status, they can approve the PR using GitHub's review
+feature to signal their approval of the RFCs.
 
-_GMA's RFC process is inspired by many others, including [Vue.js](https://github.com/vuejs/rfcs) and
+_DataHub's RFC process is inspired by many others, including [Vue.js](https://github.com/vuejs/rfcs) and
 [Ember](https://github.com/emberjs/rfcs)._
