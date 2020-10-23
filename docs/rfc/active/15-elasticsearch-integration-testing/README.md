@@ -1,7 +1,7 @@
 - Start Date: 2020-10-19
-- RFC PR: (after opening the RFC PR, update this with a link to it and update the file name)
-- Discussion Issue: (GitHub issue this was discussed in before the RFC, if any)
-- Implementation PR(s):
+- RFC PR: https://github.com/linkedin/datahub-gma/pull/15
+- Discussion Issue: n/a
+- Implementation PR(s): TODO
 
 # Elasticsearch Integration Testing
 
@@ -69,7 +69,8 @@ To increase test coverage and reliability of GMA's search stack.
 ## Requirements
 
 - Must be able to easily start an Elasticsearch instance for testing at test start up, and then clean it up at test tear
-  down.
+  down, where start up is before _all_ tests, and tear down is after _all_ tests. Starting/stopping can be expensive
+  and so the number of times it is done should be minimized.
 - Must be able to easily create indexes for testing on the cluster. These ideally are given unique names for each test
   run, and should be cleaned up when the test is over.
 - Must be able to easily create search DAO objects for use with GMA.
