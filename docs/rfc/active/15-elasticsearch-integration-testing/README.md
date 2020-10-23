@@ -103,9 +103,9 @@ As stated above, we will:
 
 We can add two new modules to the project:
 
-1. `dao-impl/elasticsearch-dao-integ-testing`: Contains JUnit 5 extension and interfaces, as well as assertj assertions.
+1. `testing/elasticsearch-dao-integ-testing`: Contains JUnit 5 extension and interfaces, as well as assertj assertions.
    Tries to load the implementation via reflection (can look for some specific annotation in a specific namespace).
-2. `dao-impl/elasticsearch-dao-integ-testing-testcontainers`: Contains the Testcontainers implementation.
+2. `testing/elasticsearch-dao-integ-testing-testcontainers`: Contains the Testcontainers implementation.
 
 Note that as the second module will depend on the first, users need only add the second module as a dependency, if they
 plan to use the default implementation.
