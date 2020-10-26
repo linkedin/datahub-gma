@@ -1,6 +1,6 @@
 # General Metadata Architecture
 
-[![Version](https://img.shields.io/github/v/release/linkedin/datahub-gma?include_prereleases)](https://github.com/linkedin/datahub-gma/releases)
+[![Version](https://img.shields.io/bintray/v/linkedin/maven/datahub-gma)](https://bintray.com/linkedin/maven/datahub-gma)
 [![build & test](https://github.com/linkedin/datahub-gma/workflows/build%20&%20test/badge.svg?branch=master&event=push)](https://github.com/linkedin/datahub-gma/actions?query=workflow%3A%22build+%26+test%22+branch%3Amaster+event%3Apush)
 [![Get on Slack](https://img.shields.io/badge/slack-join-orange.svg)](https://join.slack.com/t/datahubspace/shared_invite/zt-dkzbxfck-dzNl96vBzB06pJpbRwP6RA)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/linkedin/datahub-gma/blob/master/docs/CONTRIBUTING.md)
