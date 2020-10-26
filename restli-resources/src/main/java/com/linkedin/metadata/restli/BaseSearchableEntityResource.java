@@ -117,7 +117,8 @@ public abstract class BaseSearchableEntityResource<
   @Action(name = ACTION_AUTOCOMPLETE)
   @Nonnull
   public Task<AutoCompleteResult> autocomplete(@ActionParam(PARAM_QUERY) @Nonnull String query,
-      @ActionParam(PARAM_FIELD) @Nullable String field, @ActionParam(PARAM_FILTER) @Nullable Filter filter,
+      @ActionParam(PARAM_FIELD) @Optional @Nullable String field,
+      @ActionParam(PARAM_FILTER) @Optional @Nullable Filter filter,
       @ActionParam(PARAM_LIMIT) int limit) {
     return RestliUtils.toTask(() -> getSearchDAO().autoComplete(query, field, filter, limit));
   }
