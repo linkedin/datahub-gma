@@ -522,7 +522,7 @@ public class EbeanLocalDAOTest {
     }
     IndexFilter indexFilter = new IndexFilter().setCriteria(
         new IndexCriterionArray(new IndexCriterion().setAspect(AspectFoo.class.getCanonicalName())));
-    assertEquals(dao.listUrns(indexFilter, null, 3).getValues().size(), 3);
+    assertEquals(dao.listUrns(indexFilter, null, 3).size(), 3);
 
     // Backfill in MAE_ONLY mode
     backfilledAspects =
@@ -537,7 +537,7 @@ public class EbeanLocalDAOTest {
 
     indexFilter = new IndexFilter().setCriteria(
         new IndexCriterionArray(new IndexCriterion().setAspect(AspectBar.class.getCanonicalName())));
-    assertEquals(dao.listUrns(indexFilter, null, 3).getValues().size(), 0);
+    assertEquals(dao.listUrns(indexFilter, null, 3).size(), 0);
 
     // Backfill in BACKFILL_ALL mode
     backfilledAspects =
@@ -549,7 +549,7 @@ public class EbeanLocalDAOTest {
       verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, aspect, aspect);
     }
     verifyNoMoreInteractions(_mockProducer);
-    assertEquals(dao.listUrns(indexFilter, null, 3).getValues().size(), 3);
+    assertEquals(dao.listUrns(indexFilter, null, 3).size(), 3);
   }
 
   @Test
@@ -687,77 +687,49 @@ public class EbeanLocalDAOTest {
     // 1. with two filter conditions
     IndexCriterionArray indexCriterionArray1 = new IndexCriterionArray(Arrays.asList(criterion1, criterion2));
     final IndexFilter indexFilter1 = new IndexFilter().setCriteria(indexCriterionArray1);
-    ListResult<FooUrn> urns1 = dao.listUrns(indexFilter1, null, 3);
+    List<FooUrn> urns1 = dao.listUrns(indexFilter1, null, 3);
 
-    assertEquals(urns1.getValues(), Arrays.asList(urn1, urn2, urn3));
-    assertEquals(urns1.getTotalCount(), 3);
-    assertEquals(urns1.getTotalPageCount(), 1);
-    assertEquals(urns1.getPageSize(), 3);
-    assertFalse(urns1.isHavingMore());
+    assertEquals(urns1, Arrays.asList(urn1, urn2, urn3));
 
     // 2. with two filter conditions, check if LIMIT is working as desired i.e. totalCount is more than the page size
-    ListResult<FooUrn> urns2 = dao.listUrns(indexFilter1, null, 2);
-    assertEquals(urns2.getValues(), Arrays.asList(urn1, urn2));
-    assertEquals(urns2.getTotalCount(), 3);
-    assertEquals(urns2.getTotalPageCount(), 2);
-    assertEquals(urns2.getPageSize(), 2);
-    assertTrue(urns2.isHavingMore());
+    List<FooUrn> urns2 = dao.listUrns(indexFilter1, null, 2);
+    assertEquals(urns2, Arrays.asList(urn1, urn2));
 
     // 3. with six filter conditions covering all different data types that value can take
     IndexCriterionArray indexCriterionArray3 =
         new IndexCriterionArray(Arrays.asList(criterion1, criterion2, criterion3, criterion4, criterion5, criterion6));
     final IndexFilter indexFilter3 = new IndexFilter().setCriteria(indexCriterionArray3);
-    ListResult<FooUrn> urns3 = dao.listUrns(indexFilter3, urn1, 5);
-    assertEquals(urns3.getValues(), Collections.singletonList(urn3));
-    assertEquals(urns3.getTotalCount(), 1);
-    assertEquals(urns3.getTotalPageCount(), 1);
-    assertEquals(urns3.getPageSize(), 5);
-    assertFalse(urns3.isHavingMore());
+    List<FooUrn> urns3 = dao.listUrns(indexFilter3, urn1, 5);
+    assertEquals(urns3, Collections.singletonList(urn3));
 
     // 4. GREATER_THAN criterion
     IndexCriterionArray indexCriterionArray4 = new IndexCriterionArray(
         Arrays.asList(criterion1, criterion2, criterion3, criterion4, criterion5, criterion6, criterion7));
     final IndexFilter indexFilter4 = new IndexFilter().setCriteria(indexCriterionArray4);
-    ListResult<FooUrn> urns4 = dao.listUrns(indexFilter4, null, 5);
-    assertEquals(urns4.getValues(), Arrays.asList(urn1, urn3));
-    assertEquals(urns4.getTotalCount(), 2);
-    assertEquals(urns4.getTotalPageCount(), 1);
-    assertEquals(urns4.getPageSize(), 5);
-    assertFalse(urns4.isHavingMore());
+    List<FooUrn> urns4 = dao.listUrns(indexFilter4, null, 5);
+    assertEquals(urns4, Arrays.asList(urn1, urn3));
 
     // 5. GREATER_THAN_EQUAL_TO criterion
     IndexCriterionArray indexCriterionArray5 = new IndexCriterionArray(
         Arrays.asList(criterion1, criterion2, criterion3, criterion4, criterion5, criterion6, criterion7, criterion8));
     final IndexFilter indexFilter5 = new IndexFilter().setCriteria(indexCriterionArray5);
-    ListResult<FooUrn> urns5 = dao.listUrns(indexFilter5, null, 10);
-    assertEquals(urns5.getValues(), Arrays.asList(urn1, urn3));
-    assertEquals(urns5.getTotalCount(), 2);
-    assertEquals(urns5.getTotalPageCount(), 1);
-    assertEquals(urns5.getPageSize(), 10);
-    assertFalse(urns5.isHavingMore());
+    List<FooUrn> urns5 = dao.listUrns(indexFilter5, null, 10);
+    assertEquals(urns5, Arrays.asList(urn1, urn3));
 
     // 6. LESS_THAN criterion
     IndexCriterionArray indexCriterionArray6 = new IndexCriterionArray(
         Arrays.asList(criterion1, criterion3, criterion4, criterion5, criterion6, criterion7, criterion8, criterion9));
     final IndexFilter indexFilter6 = new IndexFilter().setCriteria(indexCriterionArray6);
-    ListResult<FooUrn> urns6 = dao.listUrns(indexFilter6, urn1, 8);
-    assertEquals(urns6.getValues(), Collections.singletonList(urn3));
-    assertEquals(urns6.getTotalCount(), 1);
-    assertEquals(urns6.getTotalPageCount(), 1);
-    assertEquals(urns6.getPageSize(), 8);
-    assertFalse(urns6.isHavingMore());
+    List<FooUrn> urns6 = dao.listUrns(indexFilter6, urn1, 8);
+    assertEquals(urns6, Collections.singletonList(urn3));
 
     // 7. LESS_THAN_EQUAL_TO
     IndexCriterionArray indexCriterionArray7 = new IndexCriterionArray(
         Arrays.asList(criterion1, criterion3, criterion4, criterion5, criterion6, criterion7, criterion8, criterion9,
             criterion10));
     final IndexFilter indexFilter7 = new IndexFilter().setCriteria(indexCriterionArray7);
-    ListResult<FooUrn> urns7 = dao.listUrns(indexFilter7, null, 4);
-    assertEquals(urns7.getValues(), Collections.emptyList());
-    assertEquals(urns7.getTotalCount(), 0);
-    assertEquals(urns7.getTotalPageCount(), 0);
-    assertEquals(urns7.getPageSize(), 4);
-    assertFalse(urns7.isHavingMore());
+    List<FooUrn> urns7 = dao.listUrns(indexFilter7, null, 4);
+    assertEquals(urns7, Collections.emptyList());
   }
 
   @Test
@@ -843,16 +815,12 @@ public class EbeanLocalDAOTest {
     IndexCriterionArray indexCriterionArray = new IndexCriterionArray(Collections.singletonList(criterion));
     IndexFilter indexFilter = new IndexFilter().setCriteria(indexCriterionArray);
 
-    ListResult<UrnAspectEntry<FooUrn>> actual = dao.getAspects(aspectClasses, indexFilter, null, 5);
+    List<UrnAspectEntry<FooUrn>> actual = dao.getAspects(aspectClasses, indexFilter, null, 5);
 
     UrnAspectEntry<FooUrn> entry1 = new UrnAspectEntry<>(urn1, Arrays.asList(e1foo1, e1bar1));
     UrnAspectEntry<FooUrn> entry2 = new UrnAspectEntry<>(urn2, Arrays.asList(e2foo1, e2bar1));
 
-    assertEquals(actual.getValues(), Arrays.asList(entry1, entry2));
-    assertEquals(actual.getPageSize(), 5);
-    assertEquals(actual.getTotalPageCount(), 1);
-    assertEquals(actual.getTotalCount(), 2);
-    assertNull(actual.getMetadata());
+    assertEquals(actual, Arrays.asList(entry1, entry2));
   }
 
   @Test
@@ -1369,10 +1337,9 @@ public class EbeanLocalDAOTest {
     indexCriterion = new IndexCriterion().setAspect(aspect);
     final IndexFilter indexFilter4 = new IndexFilter().setCriteria(new IndexCriterionArray(indexCriterion));
 
-    ListResult<FooUrn> urns = dao.listUrns(indexFilter4, null, 2);
+    List<FooUrn> urns = dao.listUrns(indexFilter4, null, 2);
 
-    assertEquals(urns.getValues(), Arrays.asList(urn1, urn2));
-    assertEquals(urns.getTotalCount(), 3);
+    assertEquals(urns, Arrays.asList(urn1, urn2));
 
     // 5. aspect with path and value is provided in index filter
     IndexValue indexValue = new IndexValue();
@@ -1383,7 +1350,7 @@ public class EbeanLocalDAOTest {
 
     urns = dao.listUrns(indexFilter5, urn1, 2);
 
-    assertEquals(urns.getValues(), Arrays.asList(urn2, urn3));
+    assertEquals(urns, Arrays.asList(urn2, urn3));
 
     // 6. aspect with correct path but incorrect value
     indexValue.setString("valX");
@@ -1393,7 +1360,30 @@ public class EbeanLocalDAOTest {
 
     urns = dao.listUrns(indexFilter6, urn1, 2);
 
-    assertEquals(urns.getTotalCount(), 0);
+    assertEquals(urns, Collections.emptyList());
+  }
+
+  @Test
+  void testListUrnsFromIndexZeroSize() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao =
+        new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, _server, FooUrn.class);
+    FooUrn urn1 = makeFooUrn(1);
+    FooUrn urn2 = makeFooUrn(2);
+    String aspect = "aspect" + System.currentTimeMillis();
+    addIndex(urn1, aspect, "/path1", "val1");
+    addIndex(urn1, aspect, "/path2", "val2");
+    addIndex(urn1, FooUrn.class.getCanonicalName(), "/fooId", 1);
+    addIndex(urn2, aspect, "/path1", "val1");
+    addIndex(urn2, FooUrn.class.getCanonicalName(), "/fooId", 2);
+
+    dao.enableLocalSecondaryIndex(true);
+
+    IndexCriterion indexCriterion = new IndexCriterion().setAspect(aspect);
+    final IndexFilter indexFilter = new IndexFilter().setCriteria(new IndexCriterionArray(indexCriterion));
+
+    List<FooUrn> urns = dao.listUrns(indexFilter, null, 0);
+
+    assertEquals(urns, Collections.emptyList());
   }
 
   @Test
@@ -1448,14 +1438,12 @@ public class EbeanLocalDAOTest {
     dao2.updateLocalIndex(urn4, aspectBar, 0);
 
     // List foo urns
-    ListResult<FooUrn> urns1 = dao1.listUrns(FooUrn.class, null, 2);
-    assertEquals(urns1.getValues(), Arrays.asList(urn1, urn2));
-    assertEquals(urns1.getTotalCount(), 3);
+    List<FooUrn> urns1 = dao1.listUrns(FooUrn.class, null, 2);
+    assertEquals(urns1, Arrays.asList(urn1, urn2));
 
     // List bar urns
-    ListResult<BarUrn> urns2 = dao2.listUrns(BarUrn.class, null, 1);
-    assertEquals(urns2.getValues(), Arrays.asList(urn4));
-    assertEquals(urns2.getTotalCount(), 1);
+    List<BarUrn> urns2 = dao2.listUrns(BarUrn.class, null, 1);
+    assertEquals(urns2, Collections.singletonList(urn4));
   }
 
   @Test
@@ -1565,6 +1553,79 @@ public class EbeanLocalDAOTest {
     assertEquals(result.keySet().size(), 1);
     assertEquals(result.get(aspectKey1), new AspectWithExtraInfo<>(fooV1,
         new ExtraInfo().setAudit(makeAuditStamp(creator2, impersonator2, 456)).setVersion(1).setUrn(urn)));
+  }
+
+  @Test
+  public void testGetWithKeysCount() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao =
+        new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, _server, FooUrn.class);
+
+    FooUrn fooUrn = makeFooUrn(1);
+
+    // both aspect keys exist
+    AspectKey<FooUrn, AspectFoo> aspectKey1 = new AspectKey<>(AspectFoo.class, fooUrn, 1L);
+    AspectKey<FooUrn, AspectBar> aspectKey2 = new AspectKey<>(AspectBar.class, fooUrn, 0L);
+
+    // add metadata
+    AspectFoo fooV1 = new AspectFoo().setValue("foo");
+    addMetadata(fooUrn, AspectFoo.class.getCanonicalName(), 1, fooV1);
+    AspectBar barV0 = new AspectBar().setValue("bar");
+    addMetadata(fooUrn, AspectBar.class.getCanonicalName(), 0, barV0);
+
+    // batch get without query keys count set
+    Map<AspectKey<FooUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> records =
+        dao.get(new HashSet<>(Arrays.asList(aspectKey1, aspectKey2)));
+    assertEquals(records.size(), 2);
+
+    FooUrn fooUrn2 = makeFooUrn(2);
+    AspectKey<FooUrn, AspectFoo> aspectKey3 = new AspectKey<>(AspectFoo.class, fooUrn2, 0L);
+    AspectKey<FooUrn, AspectFoo> aspectKey4 = new AspectKey<>(AspectFoo.class, fooUrn2, 1L);
+    AspectKey<FooUrn, AspectBar> aspectKey5 = new AspectKey<>(AspectBar.class, fooUrn2, 0L);
+
+    // add metadata
+    AspectFoo fooV3 = new AspectFoo().setValue("foo3");
+    addMetadata(fooUrn2, AspectFoo.class.getCanonicalName(), 0, fooV3);
+    AspectFoo fooV4 = new AspectFoo().setValue("foo4");
+    addMetadata(fooUrn2, AspectFoo.class.getCanonicalName(), 1, fooV4);
+    AspectBar barV5 = new AspectBar().setValue("bar5");
+    addMetadata(fooUrn2, AspectBar.class.getCanonicalName(), 0, barV5);
+
+    assertThrows(IllegalArgumentException.class, () -> dao.setQueryKeysCount(-1));
+
+    dao.setQueryKeysCount(0);
+    Map<AspectKey<FooUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> fiveRecords =
+        dao.get(new HashSet<>(Arrays.asList(aspectKey1, aspectKey2, aspectKey3, aspectKey4, aspectKey5)));
+    assertEquals(fiveRecords.size(), 5);
+
+    dao.setQueryKeysCount(1);
+    Map<AspectKey<FooUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> fiveRecords1 =
+        dao.get(new HashSet<>(Arrays.asList(aspectKey1, aspectKey2, aspectKey3, aspectKey4, aspectKey5)));
+    assertEquals(fiveRecords1, fiveRecords);
+
+    dao.setQueryKeysCount(2);
+    Map<AspectKey<FooUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> fiveRecords2 =
+        dao.get(new HashSet<>(Arrays.asList(aspectKey1, aspectKey2, aspectKey3, aspectKey4, aspectKey5)));
+    assertEquals(fiveRecords2, fiveRecords);
+
+    dao.setQueryKeysCount(3);
+    Map<AspectKey<FooUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> fiveRecords3 =
+        dao.get(new HashSet<>(Arrays.asList(aspectKey1, aspectKey2, aspectKey3, aspectKey4, aspectKey5)));
+    assertEquals(fiveRecords3, fiveRecords);
+
+    dao.setQueryKeysCount(4);
+    Map<AspectKey<FooUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> fiveRecords4 =
+        dao.get(new HashSet<>(Arrays.asList(aspectKey1, aspectKey2, aspectKey3, aspectKey4, aspectKey5)));
+    assertEquals(fiveRecords4, fiveRecords);
+
+    dao.setQueryKeysCount(5);
+    Map<AspectKey<FooUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> fiveRecords5 =
+        dao.get(new HashSet<>(Arrays.asList(aspectKey1, aspectKey2, aspectKey3, aspectKey4, aspectKey5)));
+    assertEquals(fiveRecords5, fiveRecords);
+
+    dao.setQueryKeysCount(1000);
+    Map<AspectKey<FooUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> fiveRecord1000 =
+        dao.get(new HashSet<>(Arrays.asList(aspectKey1, aspectKey2, aspectKey3, aspectKey4, aspectKey5)));
+    assertEquals(fiveRecord1000, fiveRecords);
   }
 
   private void addMetadata(Urn urn, String aspectName, long version, RecordTemplate metadata) {
