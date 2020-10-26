@@ -144,8 +144,8 @@ With helper class stubs:
  * Keeps track of all bulk requests made to Elasticsearch while testing.
  */
 class BulkRequestsContainer {
-  Colleciton<BulkRequest> getAllRequests();
-  Colleciton<BulkRequest> getExecutingRequests();
+  Collection<BulkRequest> getAllRequests();
+  Collection<BulkRequest> getExecutingRequests();
   Map<BulkRequest, BulkRequest> getResponses();
   Map<BulkRequest, Throwable> getErrors();
 }
