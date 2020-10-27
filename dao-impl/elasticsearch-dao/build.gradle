@@ -16,6 +16,6 @@ dependencies {
 
   annotationProcessor externalDependency.lombok
 
-  testCompile project(':test-models')
+  testCompile project(':testing:test-models')
   testCompile externalDependency.mockito
 }

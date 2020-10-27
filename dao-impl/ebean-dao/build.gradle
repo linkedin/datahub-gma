@@ -17,8 +17,8 @@ dependencies {
 
   annotationProcessor externalDependency.lombok
 
-  testCompile project(':test-models')
-  testCompile project(':core-models-testing')
+  testCompile project(':testing:core-models-testing')
+  testCompile project(':testing:test-models')
   testCompile externalDependency.h2
   testCompile externalDependency.mockito
 
