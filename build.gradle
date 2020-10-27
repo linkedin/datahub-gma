@@ -1,5 +1,6 @@
 buildscript {
   ext.pegasusVersion = '28.3.7'
+  ext.junitJupiterVersion = '5.6.1'
 
   apply from: './repositories.gradle'
   buildscript.repositories.addAll(project.repositories)
@@ -28,8 +29,6 @@ project.ext.spec = [
         ]
     ]
 ]
-
-def junitJupiterVersion = '5.6.1'
 
 project.ext.externalDependency = [
     'assertJ': 'org.assertj:assertj-core:3.11.1',
