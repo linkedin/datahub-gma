@@ -29,10 +29,7 @@ project.ext.spec = [
     ]
 ]
 
-def junitJupiterVersion = '5.6.1'
-
 project.ext.externalDependency = [
-    'assertJ': 'org.assertj:assertj-core:3.11.1',
     'avro_1_7': 'org.apache.avro:avro:1.7.7',
     'avroCompiler_1_7': 'org.apache.avro:avro-compiler:1.7.7',
     'cacheApi' : 'javax.cache:cache-api:1.1.0',
@@ -55,9 +52,6 @@ project.ext.externalDependency = [
     'jerseyCore': 'org.glassfish.jersey.core:jersey-client:2.25.1',
     'jerseyGuava': 'org.glassfish.jersey.bundles.repackaged:jersey-guava:2.25.1',
     'jsonSimple': 'com.googlecode.json-simple:json-simple:1.1.1',
-    'junitJupiterApi': "org.junit.jupiter:junit-jupiter-api:$junitJupiterVersion",
-    'junitJupiterParams': "org.junit.jupiter:junit-jupiter-params:$junitJupiterVersion",
-    'junitJupiterEngine': "org.junit.jupiter:junit-jupiter-engine:$junitJupiterVersion",
     'junit': 'junit:junit:4.12',
     // avro-serde includes dependencies for `kafka-avro-serializer` `kafka-schema-registry-client` and `avro`
     'kafkaAvroSerde': 'io.confluent:kafka-streams-avro-serde:5.2.2',
@@ -89,8 +83,6 @@ project.ext.externalDependency = [
     'springBootStarterJetty': 'org.springframework.boot:spring-boot-starter-jetty:2.1.2.RELEASE',
     'springKafka': 'org.springframework.kafka:spring-kafka:2.2.14.RELEASE',
     'springActuator': 'org.springframework.boot:spring-boot-starter-actuator:2.1.2.RELEASE',
-    'testContainers': 'org.testcontainers:testcontainers:1.14.3',
-    'testContainersJunit': 'org.testcontainers:junit-jupiter:1.14.3',
     'testng': 'org.testng:testng:6.9.9'
 ]
 
