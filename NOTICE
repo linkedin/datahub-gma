@@ -23,10 +23,6 @@ This product includes/uses Apache Kafka (https://kafka.apache.org/)
 Copyright (c) 2017 The Apache Software Foundation.
 License: Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0
 
-This product includes/uses Apache HttpComponents (https://hc.apache.org/)
-Copyright (c) 2017 The Apache Software Foundation.
-License: Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0
-
 This product includes/uses Apache Commons IO (https://commons.apache.org/proper/commons-io/)
 Copyright (c) 2020 The Apache Software Foundation.
 License: Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0
@@ -58,14 +54,6 @@ License: Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0
 This product includes/uses Mockito (http://mockito.org/)
 Copyright (c) 2007 Mockito contributors
 License: MIT - http://www.opensource.org/licenses/mit-license.php
-
-This product includes/uses Play Framework (https://www.playframework.com/)
-Copyright (c) 2009- Typesafe
-License: Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0
-
-This product includes/uses Spring Framework (http://projects.spring.io/spring-framework/)
-Copyright (c) 2002- the original author or authors
-License: Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0
 
 
 ========================================================================
