@@ -99,6 +99,11 @@ public class Urn {
     }
   }
 
+  public static void validateUrn(@Nonnull String rawUrn, @Nonnull String entityType) throws URISyntaxException {
+    final Urn urn = new Urn(rawUrn);
+    validateUrn(urn, entityType);
+  }
+
   static {
     Custom.registerCoercer(new DirectCoercer<Urn>() {
       public Object coerceInput(Urn object) throws ClassCastException {
