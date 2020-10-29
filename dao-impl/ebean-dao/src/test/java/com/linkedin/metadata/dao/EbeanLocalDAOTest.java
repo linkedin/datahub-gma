@@ -5,6 +5,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
+import com.linkedin.common.urn.Urns;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.backfill.BackfillMode;
 import com.linkedin.metadata.dao.equality.AlwaysFalseEqualityTester;
@@ -96,8 +97,8 @@ public class EbeanLocalDAOTest {
     FooUrn urn = makeFooUrn(1);
     String aspectName = ModelUtils.getAspectName(AspectFoo.class);
     AspectFoo expected = new AspectFoo().setValue("foo");
-    Urn actor = new Urn("test", "actor");
-    Urn impersonator = new Urn("test", "impersonator");
+    Urn actor = Urns.createFromTypeSpecificString("test", "actor");
+    Urn impersonator = Urns.createFromTypeSpecificString("test", "impersonator");
 
     dao.add(urn, expected, makeAuditStamp(actor, impersonator, 1234));
 
@@ -854,8 +855,8 @@ public class EbeanLocalDAOTest {
     assertNotNull(results.getMetadata());
     List<Long> expectedVersions = Arrays.asList(0L, 1L, 2L, 3L, 4L);
     List<Urn> expectedUrns = Arrays.asList(makeFooUrn(0), makeFooUrn(1), makeFooUrn(2), makeFooUrn(3), makeFooUrn(4));
-    assertVersionMetadata(results.getMetadata(), expectedVersions, expectedUrns, 1234L, new Urn("test", "foo"),
-        new Urn("test", "bar"));
+    assertVersionMetadata(results.getMetadata(), expectedVersions, expectedUrns, 1234L, Urns.createFromTypeSpecificString("test", "foo"),
+        Urns.createFromTypeSpecificString("test", "bar"));
 
     // List next page
     results = dao.list(AspectFoo.class, urn0, 5, 9);
@@ -938,7 +939,7 @@ public class EbeanLocalDAOTest {
 
     assertNotNull(results.getMetadata());
     assertVersionMetadata(results.getMetadata(), Arrays.asList(0L), Arrays.asList(makeFooUrn(0)), 1234L,
-        new Urn("test", "foo"), new Urn("test", "bar"));
+        Urns.createFromTypeSpecificString("test", "foo"), Urns.createFromTypeSpecificString("test", "bar"));
 
     // Test list latest aspects
     ListResult<AspectFoo> latestResults = dao.list(AspectFoo.class, 0, 2);
@@ -965,7 +966,7 @@ public class EbeanLocalDAOTest {
 
     assertNotNull(results.getMetadata());
     assertVersionMetadata(results.getMetadata(), Arrays.asList(1L), Arrays.asList(makeUrn(2)), 1234L,
-        new Urn("test", "foo"), new Urn("test", "bar"));
+        Urns.createFromTypeSpecificString("test", "foo"), Urns.createFromTypeSpecificString("test", "bar"));
   }
 
   @Test
@@ -1471,10 +1472,10 @@ public class EbeanLocalDAOTest {
         new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, _server, FooUrn.class);
     FooUrn urn = makeFooUrn(1);
     AspectFoo v0 = new AspectFoo().setValue("foo");
-    Urn creator1 = new Urn("test", "testCreator1");
-    Urn impersonator1 = new Urn("test", "testImpersonator1");
-    Urn creator2 = new Urn("test", "testCreator2");
-    Urn impersonator2 = new Urn("test", "testImpersonator2");
+    Urn creator1 = Urns.createFromTypeSpecificString("test", "testCreator1");
+    Urn impersonator1 = Urns.createFromTypeSpecificString("test", "testImpersonator1");
+    Urn creator2 = Urns.createFromTypeSpecificString("test", "testCreator2");
+    Urn impersonator2 = Urns.createFromTypeSpecificString("test", "testImpersonator2");
     addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 0, v0, 123, creator1.toString(),
         impersonator1.toString());
     AspectFoo v1 = new AspectFoo().setValue("bar");
@@ -1494,10 +1495,10 @@ public class EbeanLocalDAOTest {
         new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, _server, FooUrn.class);
     FooUrn urn = makeFooUrn(1);
     AspectFoo v0 = new AspectFoo().setValue("foo");
-    Urn creator1 = new Urn("test", "testCreator1");
-    Urn impersonator1 = new Urn("test", "testImpersonator1");
-    Urn creator2 = new Urn("test", "testCreator2");
-    Urn impersonator2 = new Urn("test", "testImpersonator2");
+    Urn creator1 = Urns.createFromTypeSpecificString("test", "testCreator1");
+    Urn impersonator1 = Urns.createFromTypeSpecificString("test", "testImpersonator1");
+    Urn creator2 = Urns.createFromTypeSpecificString("test", "testCreator2");
+    Urn impersonator2 = Urns.createFromTypeSpecificString("test", "testImpersonator2");
     addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 0, v0, 123, creator1.toString(),
         impersonator1.toString());
     AspectFoo v1 = new AspectFoo().setValue("bar");
@@ -1516,12 +1517,12 @@ public class EbeanLocalDAOTest {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao =
         new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, _server, FooUrn.class);
     FooUrn urn = makeFooUrn(1);
-    Urn creator1 = new Urn("test", "testCreator1");
-    Urn impersonator1 = new Urn("test", "testImpersonator1");
-    Urn creator2 = new Urn("test", "testCreator2");
-    Urn impersonator2 = new Urn("test", "testImpersonator2");
-    Urn creator3 = new Urn("test", "testCreator3");
-    Urn impersonator3 = new Urn("test", "testImpersonator3");
+    Urn creator1 = Urns.createFromTypeSpecificString("test", "testCreator1");
+    Urn impersonator1 = Urns.createFromTypeSpecificString("test", "testImpersonator1");
+    Urn creator2 = Urns.createFromTypeSpecificString("test", "testCreator2");
+    Urn impersonator2 = Urns.createFromTypeSpecificString("test", "testImpersonator2");
+    Urn creator3 = Urns.createFromTypeSpecificString("test", "testCreator3");
+    Urn impersonator3 = Urns.createFromTypeSpecificString("test", "testImpersonator3");
     AspectFoo fooV0 = new AspectFoo().setValue("foo");
     addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 0, fooV0, 123, creator1.toString(),
         impersonator1.toString());
