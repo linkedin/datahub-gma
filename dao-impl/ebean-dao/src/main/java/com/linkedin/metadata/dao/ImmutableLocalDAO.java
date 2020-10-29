@@ -4,6 +4,7 @@ import com.google.common.base.Charsets;
 import com.google.common.io.Resources;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
+import com.linkedin.common.urn.Urns;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.producer.DummyMetadataEventProducer;
@@ -33,7 +34,7 @@ public class ImmutableLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends U
   private static final JSONParser JSON_PARSER = new JSONParser();
 
   private static final AuditStamp DUMMY_AUDIT_STAMP =
-      new AuditStamp().setActor(new Urn("dummy", "unknown")).setTime(0L);
+      new AuditStamp().setActor(Urns.createFromTypeSpecificString("dummy", "unknown")).setTime(0L);
 
   private static final String GMA_CREATE_ALL_SQL = "gma-create-all.sql";
 
