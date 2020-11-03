@@ -7,6 +7,7 @@ configurations {
 }
 
 dependencies {
+  compile project(':core-models-utils')
   compile project(':dao-api')
   compile externalDependency.ebean
   compile externalDependency.jsonSimple
