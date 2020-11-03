@@ -3,6 +3,7 @@ package com.linkedin.metadata.restli;
 import com.google.common.collect.ImmutableList;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
+import com.linkedin.common.urn.Urns;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.AspectKey;
 import com.linkedin.metadata.dao.BaseLocalDAO;
@@ -81,10 +82,10 @@ public class BaseVersionedAspectResourceTest extends BaseEngineTest {
   @Test
   public void testGetAllWithMetadata() {
     List<AspectFoo> foos = ImmutableList.of(new AspectFoo().setValue("v1"), new AspectFoo().setValue("v2"));
-    ExtraInfo extraInfo1 =
-        makeExtraInfo(ENTITY_URN, 1L, new AuditStamp().setActor(new Urn("testUser", "bar1")).setTime(0L));
-    ExtraInfo extraInfo2 =
-        makeExtraInfo(ENTITY_URN, 2L, new AuditStamp().setActor(new Urn("testUser", "bar2")).setTime(0L));
+    ExtraInfo extraInfo1 = makeExtraInfo(ENTITY_URN, 1L,
+        new AuditStamp().setActor(Urns.createFromTypeSpecificString("testUser", "bar1")).setTime(0L));
+    ExtraInfo extraInfo2 = makeExtraInfo(ENTITY_URN, 2L,
+        new AuditStamp().setActor(Urns.createFromTypeSpecificString("testUser", "bar2")).setTime(0L));
     ListResultMetadata listResultMetadata =
         new ListResultMetadata().setExtraInfos(new ExtraInfoArray(ImmutableList.of(extraInfo1, extraInfo2)));
     ListResult listResult = ListResult.<AspectFoo>builder().values(foos).metadata(listResultMetadata).build();
