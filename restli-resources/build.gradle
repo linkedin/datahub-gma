@@ -13,6 +13,7 @@ dependencies {
 
   compileOnly externalDependency.lombok
 
+  testCompile project(':core-models-utils')
   testCompile project(':testing:core-models-testing')
   testCompile project(':testing:test-models')
   testCompile externalDependency.parseqTest

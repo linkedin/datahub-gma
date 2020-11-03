@@ -17,7 +17,7 @@ public final class Urns {
    *
    * <p>This differs from the {@link Urn#Urn(String, String)} (and {@link
    * Urn#createFromTypeSpecificString(String, String)}) in that this does not have a checked {@link
-   * java.net.URISyntaxException}, and instead will throw an {@link IllegalArgumentException} if the {@code
+   * URISyntaxException}, and instead will throw an {@link IllegalArgumentException} if the {@code
    * typeSpecificString} fails to parse.
    *
    * <p>The ideal usage for this is when calling this method with compile time constant strings that are known to be

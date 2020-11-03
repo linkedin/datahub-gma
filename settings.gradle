@@ -1,4 +1,5 @@
 include 'core-models'
+include 'core-models-utils'
 include 'dao-api'
 include 'dao-impl:ebean-dao'
 include 'dao-impl:elasticsearch-dao'
