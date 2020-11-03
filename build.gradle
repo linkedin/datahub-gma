@@ -55,12 +55,34 @@ project.ext.externalDependency = [
 apply plugin: 'com.diffplug.spotless'
 apply plugin: 'org.shipkit.shipkit-auto-version'
 
+// TODO expand this to all projects and then delete this allow list. This list is letting us fix errors over time rather
+// than in one big change.
+def wErrorProjects = [
+    project(':core-models'),
+    // project(':dao-api'),
+    // project(':dao-api-impl'),
+    // project(':restli-resources'),
+    project(':testing'),
+    project(':validators')
+]
+
 allprojects {
   group = "com.linkedin.datahub-gma"
 
   apply plugin: 'idea'
   apply plugin: 'eclipse'
   apply plugin: 'checkstyle'
+
+  gradle.projectsEvaluated {
+    if (wErrorProjects.contains(project)) {
+      tasks.withType(JavaCompile) {
+        options.compilerArgs << "-Xlint:all" << "-Werror" <<
+            "-Xlint:-deprecation" << // TODO
+            "-Xlint:-processing" << // TODO we have annotations like @Nonnull that need a processor
+            "-Xlint:-serial" // I don't think we care about having custom Exception subclasses be serializable...
+      }
+    }
+  }
 }
 
 if (!project.hasProperty('disableShipkit')) {

@@ -155,10 +155,7 @@ public class TupleKey {
     } else if (Long.TYPE.equals(clazz) || Long.class.equals(clazz)) {
       result = Long.valueOf(value);
     } else if (Enum.class.isAssignableFrom(clazz)) {
-      final Class<? extends Enum> enumClazz = clazz.asSubclass(Enum.class);
-      @SuppressWarnings("unchecked")
-      Enum<?> enumValue = Enum.valueOf(enumClazz, value);
-      result = enumValue;
+      result = getEnumValue(clazz, value);
     } else if (DataTemplateUtil.hasCoercer(clazz)) {
       result = DataTemplateUtil.coerceOutput(value, clazz);
     } else {
@@ -167,6 +164,15 @@ public class TupleKey {
     @SuppressWarnings("unchecked")
     T rv = (T) result;
     return rv;
+  }
+
+  /**
+   * Helper method to capture E.
+   */
+  private <E extends Enum<E>> Enum<E> getEnumValue(Class<?> clazz, String value) {
+    @SuppressWarnings("unchecked")
+    final Class<E> enumClazz = (Class<E>) clazz.asSubclass(Enum.class);
+    return Enum.valueOf(enumClazz, value);
   }
 
   public int size() {
