@@ -46,13 +46,13 @@ public class BaseBrowsableEntityResourceTest extends BaseEngineTest {
     @Nonnull
     @Override
     protected BaseLocalDAO<EntityAspectUnion, Urn> getLocalDAO() {
-      throw new RuntimeException("Not implemented");
+      throw new UnsupportedOperationException("Not implemented");
     }
 
     @Nonnull
     @Override
-    protected BaseSearchDAO getSearchDAO() {
-      throw new RuntimeException("Not implemented");
+    protected BaseSearchDAO<EntityDocument> getSearchDAO() {
+      throw new UnsupportedOperationException("Not implemented");
     }
 
     @Nonnull
@@ -74,25 +74,25 @@ public class BaseBrowsableEntityResourceTest extends BaseEngineTest {
     @Nonnull
     @Override
     protected Urn toUrn(@Nonnull ComplexResourceKey<EntityKey, EmptyRecord> key) {
-      throw new RuntimeException("Not implemented");
+      throw new UnsupportedOperationException("Not implemented");
     }
 
     @Nonnull
     @Override
     protected ComplexResourceKey<EntityKey, EmptyRecord> toKey(@Nonnull Urn urn) {
-      throw new RuntimeException("Not implemented");
+      throw new UnsupportedOperationException("Not implemented");
     }
 
     @Nonnull
     @Override
     protected EntityValue toValue(@Nonnull EntitySnapshot snapshot) {
-      throw new RuntimeException("Not implemented");
+      throw new UnsupportedOperationException("Not implemented");
     }
 
     @Nonnull
     @Override
     protected EntitySnapshot toSnapshot(@Nonnull EntityValue value, @Nonnull Urn urn) {
-      throw new RuntimeException("Not implemented");
+      throw new UnsupportedOperationException("Not implemented");
     }
   }
 

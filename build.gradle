@@ -78,7 +78,7 @@ def wErrorProjects = [
     // project(':dao-impl:ebean-dao'),
     // project(':dao-impl:elasticsearch-dao'),
     // project(':dao-impl:neo4j-dao'),
-    // project(':restli-resources'),
+    project(':restli-resources'),
     project(':testing'),
     project(':validators')
 ]

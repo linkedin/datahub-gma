@@ -68,7 +68,7 @@ public class BaseSearchableEntityResourceTest extends BaseEngineTest {
 
     @Nonnull
     @Override
-    protected BaseSearchDAO getSearchDAO() {
+    protected BaseSearchDAO<EntityDocument> getSearchDAO() {
       return _mockSearchDAO;
     }
 
@@ -130,6 +130,7 @@ public class BaseSearchableEntityResourceTest extends BaseEngineTest {
   }
 
   @BeforeMethod
+  @SuppressWarnings("unchecked")
   public void setup() {
     _mockLocalDAO = mock(BaseLocalDAO.class);
     _mockSearchDAO = mock(BaseSearchDAO.class);
