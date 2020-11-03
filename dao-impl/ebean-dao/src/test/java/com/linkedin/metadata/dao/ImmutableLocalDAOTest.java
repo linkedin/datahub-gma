@@ -8,7 +8,7 @@ import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import org.json.simple.parser.ParseException;
+import java.util.stream.Collectors;
 import org.testng.annotations.Test;
 
 import static com.linkedin.common.AuditStamps.*;
@@ -57,8 +57,17 @@ public class ImmutableLocalDAOTest {
 
   private Map<FooUrn, AspectFoo> loadAspectsFromResource(String name) {
     try {
-      return ImmutableLocalDAO.loadAspects(AspectFoo.class, getClass().getClassLoader().getResourceAsStream(name));
-    } catch (ParseException | IOException | URISyntaxException e) {
+      return ImmutableLocalDAO.loadAspects(AspectFoo.class, getClass().getClassLoader().getResourceAsStream(name))
+          .entrySet()
+          .stream()
+          .collect(Collectors.toMap(e -> {
+            try {
+              return FooUrn.createFromString(e.getKey().toString());
+            } catch (URISyntaxException ex) {
+              throw new RuntimeException(ex);
+            }
+          }, Map.Entry::getValue));
+    } catch (IOException | URISyntaxException e) {
       throw new RuntimeException(e);
     }
   }
