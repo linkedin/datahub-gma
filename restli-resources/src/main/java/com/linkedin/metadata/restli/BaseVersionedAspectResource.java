@@ -150,6 +150,7 @@ public abstract class BaseVersionedAspectResource<URN extends Urn, ASPECT_UNION 
    */
   @RestMethod.Create
   @ReturnEntity
+  @SuppressWarnings("unchecked")
   @Nonnull
   public Task<CreateKVResponse<Long, ASPECT>> createIfAbsent(@Nonnull ASPECT defaultValue) {
     return createAndGet((Class<ASPECT>) defaultValue.getClass(), ignored -> ignored.orElse(defaultValue));

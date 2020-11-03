@@ -63,6 +63,7 @@ public class BaseVersionedAspectResourceTest extends BaseEngineTest {
   }
 
   @BeforeMethod
+  @SuppressWarnings("unchecked")
   public void setup() {
     _mockLocalDAO = mock(BaseLocalDAO.class);
   }
@@ -88,7 +89,8 @@ public class BaseVersionedAspectResourceTest extends BaseEngineTest {
         new AuditStamp().setActor(Urns.createFromTypeSpecificString("testUser", "bar2")).setTime(0L));
     ListResultMetadata listResultMetadata =
         new ListResultMetadata().setExtraInfos(new ExtraInfoArray(ImmutableList.of(extraInfo1, extraInfo2)));
-    ListResult listResult = ListResult.<AspectFoo>builder().values(foos).metadata(listResultMetadata).build();
+    ListResult<AspectFoo> listResult =
+        ListResult.<AspectFoo>builder().values(foos).metadata(listResultMetadata).build();
     when(_mockLocalDAO.list(AspectFoo.class, ENTITY_URN, 1, 2)).thenReturn(listResult);
 
     CollectionResult<AspectFoo, ListResultMetadata> collectionResult =
@@ -137,6 +139,7 @@ public class BaseVersionedAspectResourceTest extends BaseEngineTest {
   }
 
   @Test
+  @SuppressWarnings("unchecked")
   public void testCreateIfAbsentWithoutExistingValue() {
     AspectFoo defaultValue = new AspectFoo().setValue("foo");
     when(_mockLocalDAO.add(eq(ENTITY_URN), eq(AspectFoo.class), any(), any())).thenAnswer(
@@ -156,6 +159,7 @@ public class BaseVersionedAspectResourceTest extends BaseEngineTest {
   }
 
   @Test
+  @SuppressWarnings("unchecked")
   public void testCreateIfAbsentWithExistingValue() {
     AspectFoo oldVal = new AspectFoo().setValue("foo");
     AspectFoo defaultValue = new AspectFoo().setValue("defaultFoo");

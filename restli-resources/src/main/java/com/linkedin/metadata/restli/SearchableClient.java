@@ -16,6 +16,7 @@ import javax.annotation.Nullable;
  * @param <VALUE> the client's value type.
  * @deprecated Use {@link BaseSearchableClient} instead
  */
+@Deprecated
 public interface SearchableClient<VALUE extends RecordTemplate> {
 
   @Nonnull
