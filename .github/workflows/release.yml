@@ -1,8 +1,8 @@
-name: Create GitHub Release
+name: Create GitHub & Bintray Release
 on:
   push:
     branches:
-      - 'release/**'
+      - 'master'
     paths-ignore:
       - 'docs/**'
       - '**.md'
@@ -16,7 +16,7 @@ jobs:
           # Needed to get all tags
           fetch-depth: 0
       - name: Release
-        uses: ./.github/actions/gh-release
+        uses: ./.github/actions/release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BINTRAY_USER: ${{ secrets.BINTRAY_USER }}

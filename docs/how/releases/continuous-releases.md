@@ -7,19 +7,19 @@ We use [shipkit-auto-version](https://github.com/shipkit/shipkit-auto-version),
 [shipkit-changelog](https://github.com/shipkit/shipkit-changelog), and shipkit-gh-release (part of shipkit-changelog) to
 help create our continuous releases.
 
-We automatically create releases for every commit on a branch that starts with `release/`. See
-[versioning](./versioning.md) for more details on branch names.
-
 ## Automatic Versioning
 
-As stated above, we use shipkit for automatically creating version tags. This relies on the
-[version.properties](../../../version.properties) file to determine the version to tag the commit. Please help us ensure
-it is correct!
+We follow the semantic versioning 2.0 scheme as defined at [https://semver.org](https://semver.org).
 
-We follow the [semantic versioning 2.0.0 convention](https://semver.org/). See [versioning](./versioning.md) for more
-details.
+Versioning is determined by the [shipkit-auto-version plugin](https://github.com/shipkit/shipkit-auto-version). The
+current version is defined in the [version.properties](../../../version.properties) file.
 
-See [shipkit-auto-version for details](https://github.com/shipkit/shipkit-auto-version) for more details.
+We automatically create a new release for every push of the master branch. We feel this simplifies development and makes
+it clear what the latest state of the repository and releases are, as well as making it very easy for contributors to
+pick up their changes once submitted. We do not currently support continuous beta releases.
+
+Note that when we make a release, we also tag the commit with the version, making it easy to go back through the git
+history to a specific version if needed.
 
 ## Automatic Changelog
 

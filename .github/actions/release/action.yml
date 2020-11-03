@@ -1,5 +1,5 @@
-name: 'GitHub Version'
-description: 'Runs the GitHub version gradle task to publish a new gradle version.'
+name: 'Publish Releases'
+description: 'Runs gradle tasks to publish versions to Bintray and GitHub.'
 outputs:
   version:
     description: "The version tag this created."
@@ -12,7 +12,7 @@ runs:
       shell: bash
     - run: echo Got version ${{ steps.get-tag.outputs.tag }}
       shell: bash
-    - run: ./gradlew build bintrayUploadAll -Pbintray.dryRun
+    - run: ./gradlew build publishToMavenLocal bintrayUploadAll -Pbintray.dryRun
       shell: bash
     - run: ./gradlew ciPerformRelease
       shell: bash
