@@ -7,7 +7,8 @@ import com.linkedin.metadata.query.RelationshipFilter;
 import java.util.List;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import org.javatuples.Triplet;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 
 import static com.linkedin.metadata.dao.utils.QueryUtils.*;
 
@@ -113,27 +114,46 @@ public abstract class BaseQueryDAO {
       int maxHops, int offset, int count);
 
   /**
+   * A path to visit.
+   */
+  @Getter
+  @AllArgsConstructor
+  public static final class TraversalPath {
+    /**
+     * Relationship type on the traverse path.
+     *
+     * <p>Must be a type defined in com.linkedin.metadata.relationship.
+     */
+    private final Class<? extends RecordTemplate> relationship;
+
+    /**
+     * The relationship filter to apply in a graph query.
+     */
+    private final RelationshipFilter relationshipFilter;
+
+    /**
+     * Intermediate entity type on the traverse path.
+     *
+     * <p>Must be a type defined in com.linkedin.metadata.entity.
+     */
+    private final Class<? extends RecordTemplate> intermediateEntity;
+  }
+
+  /**
    * Finds a list of entities based on the given traversing paths.
    *
-   * @param sourceEntityClass the source entity class as the starting point for the query
+   * @param sourceEntityClass the source entity class as the starting point for the query. Must be a type defined in
+   *    com.linkedin.metadata.entity.
    * @param sourceEntityFilter the filter to apply to the source entity when querying
    * @param traversePaths specify the traverse paths via a list of (relationship type, relationship filter,
    *     intermediate entities)
    * @param count the maximum number of entities to return. Ignored if set to a non-positive value.
    *
-   * @param <SRC_ENTITY> source ENTITY type. Starting point of the traverse path. Must be a type defined in
-   *     com.linkedin.metadata.entity.
-   * @param <INTER_ENTITY> intermediate entity type on the traverse path. Must be a type defined in
-   *     com.linkedin.metadata.entity.
-   * @param <RELATIONSHIP> relationship type on the traverse path. Must be a type defined in
-   *     com.linkedin.metadata.relationship.
    * @return a list of entities that match the conditions specified in {@code filter}
    */
   @Nonnull
-  public abstract <SRC_ENTITY extends RecordTemplate, RELATIONSHIP extends RecordTemplate, INTER_ENTITY extends RecordTemplate>
-  List<RecordTemplate> findEntities(
-      @Nullable Class<SRC_ENTITY> sourceEntityClass, @Nonnull Filter sourceEntityFilter,
-      @Nonnull List<Triplet<Class<RELATIONSHIP>, RelationshipFilter, Class<INTER_ENTITY>>> traversePaths, int offset, int count);
+  public abstract List<RecordTemplate> findEntities(@Nullable Class<? extends RecordTemplate> sourceEntityClass,
+      @Nonnull Filter sourceEntityFilter, @Nonnull List<TraversalPath> traversePaths, int offset, int count);
 
   /**
    * Finds a list of relationships of a specific type based on the given relationship filter and source entity filter.
