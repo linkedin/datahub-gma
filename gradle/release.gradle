@@ -31,12 +31,6 @@ if (!project.hasProperty('disableShipkit')) {
 
 allprojects { p ->
   group = "com.linkedin.datahub-gma"
-
-  plugins.withId("java") {
-    if (!project.hasProperty('disableShipkit')) {
-      p.apply from: "$rootDir/gradle/java-publishing.gradle"
-    }
-  }
 }
 
 if (!project.hasProperty('disableShipkit')) {

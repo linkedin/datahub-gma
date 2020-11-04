@@ -91,10 +91,6 @@ allprojects {
   }
 }
 
-if (!project.hasProperty('disableShipkit')) {
-  apply from: file("gradle/ci-release.gradle")
-}
-
 subprojects { sp ->
   apply plugin: 'maven'
 
