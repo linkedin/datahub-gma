@@ -1,5 +1,6 @@
 buildscript {
   ext.pegasusVersion = '28.3.7'
+  ext.junitJupiterVersion = '5.6.1'
 
   apply from: './repositories.gradle'
   buildscript.repositories.addAll(project.repositories)
@@ -30,6 +31,7 @@ project.ext.spec = [
 ]
 
 project.ext.externalDependency = [
+    'assertJ': 'org.assertj:assertj-core:3.11.1',
     'commonsIo': 'commons-io:commons-io:2.4',
     'commonsLang': 'commons-lang:commons-lang:2.6',
     'ebean': 'io.ebean:ebean:11.33.3',
@@ -42,6 +44,9 @@ project.ext.externalDependency = [
     'jacksonDataBind': 'com.fasterxml.jackson.core:jackson-databind:2.9.7',
     'javatuples': 'org.javatuples:javatuples:1.2',
     'jsonSimple': 'com.googlecode.json-simple:json-simple:1.1.1',
+    'junitJupiterApi': "org.junit.jupiter:junit-jupiter-api:$junitJupiterVersion",
+    'junitJupiterParams': "org.junit.jupiter:junit-jupiter-params:$junitJupiterVersion",
+    'junitJupiterEngine': "org.junit.jupiter:junit-jupiter-engine:$junitJupiterVersion",
     'lombok': 'org.projectlombok:lombok:1.18.12',
     'mockito': 'org.mockito:mockito-core:3.0.0',
     'neo4jHarness': 'org.neo4j.test:neo4j-harness:3.4.11',
@@ -49,6 +54,8 @@ project.ext.externalDependency = [
     'parseqTest': 'com.linkedin.parseq:parseq:3.0.7:test',
     'postgresql': 'org.postgresql:postgresql:42.2.14',
     'reflections': 'org.reflections:reflections:0.9.11',
+    'testContainers': 'org.testcontainers:testcontainers:1.14.3',
+    'testContainersJunit': 'org.testcontainers:junit-jupiter:1.14.3',
     'testng': 'org.testng:testng:6.9.9'
 ]
 
