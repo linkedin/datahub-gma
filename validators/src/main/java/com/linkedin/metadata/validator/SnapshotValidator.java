@@ -1,5 +1,6 @@
 package com.linkedin.metadata.validator;
 
+import com.linkedin.common.urn.Urn;
 import com.linkedin.data.schema.ArrayDataSchema;
 import com.linkedin.data.schema.DataSchema;
 import com.linkedin.data.schema.RecordDataSchema;
@@ -60,10 +61,11 @@ public class SnapshotValidator {
    *
    * @param snapshotClasses a collection of snapshot classes.
    */
-  public static void validateUniqueUrn(@Nonnull Collection<? extends Class> snapshotClasses) {
-    Set<Class> urnClasses = new HashSet<>();
+  public static void validateUniqueUrn(@Nonnull Collection<Class<? extends RecordTemplate>> snapshotClasses) {
+    final Set<Class<Urn>> urnClasses = new HashSet<>();
     snapshotClasses.forEach(snapshotClass -> {
-      Class urnClass = ValidationUtils.getUrnClass(ValidationUtils.getRecordSchema(snapshotClass).getField("urn"));
+      final Class<Urn> urnClass =
+          ValidationUtils.getUrnClass(ValidationUtils.getRecordSchema(snapshotClass).getField("urn"));
       if (urnClasses.contains(urnClass)) {
         ValidationUtils.invalidSchema("URN class %s in %s has already been claimed by another snapshot.", urnClass,
             snapshotClass);

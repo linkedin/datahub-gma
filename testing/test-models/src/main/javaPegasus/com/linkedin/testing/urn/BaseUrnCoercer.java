@@ -14,6 +14,7 @@ public abstract class BaseUrnCoercer<T extends Urn> implements DirectCoercer<T> 
     return object.toString();
   }
 
+  @SuppressWarnings("unchecked")
   public T coerceOutput(Object object) throws TemplateOutputCastException {
     try {
       return (T) Urn.createFromString((String) object);
