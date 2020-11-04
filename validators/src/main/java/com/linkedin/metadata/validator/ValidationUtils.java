@@ -95,9 +95,12 @@ public final class ValidationUtils {
   /**
    * Returns the Java class for an URN typeref field.
    */
-  public static Class getUrnClass(@Nonnull RecordDataSchema.Field field) {
+  public static Class<Urn> getUrnClass(@Nonnull RecordDataSchema.Field field) {
     try {
-      return Class.forName(((DataMap) field.getType().getProperties().get("java")).getString("class"));
+      @SuppressWarnings("unchecked")
+      final Class<Urn> clazz =
+          (Class<Urn>) Class.forName(((DataMap) field.getType().getProperties().get("java")).getString("class"));
+      return clazz;
     } catch (ClassNotFoundException e) {
       throw new RuntimeException(e);
     }
