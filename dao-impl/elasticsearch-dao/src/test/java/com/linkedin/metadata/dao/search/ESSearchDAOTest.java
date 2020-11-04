@@ -51,7 +51,7 @@ public class ESSearchDAOTest {
   @BeforeMethod
   public void setup() throws Exception {
     _testSearchConfig = new TestSearchConfig();
-    _searchDAO = new ESSearchDAO(null, EntityDocument.class, _testSearchConfig);
+    _searchDAO = new ESSearchDAO<>(null, EntityDocument.class, _testSearchConfig);
     _esAutoCompleteQuery = new ESAutoCompleteQueryForHighCardinalityFields(_testSearchConfig);
   }
 
