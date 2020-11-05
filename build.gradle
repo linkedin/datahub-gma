@@ -11,7 +11,8 @@ buildscript {
     classpath 'com.linkedin.pegasus:gradle-plugins:' + pegasusVersion
     classpath 'org.springframework.boot:spring-boot-gradle-plugin:2.1.2.RELEASE'
     classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.+'
-    classpath "org.shipkit:shipkit-auto-version:0.0.22"
+    classpath "org.shipkit:shipkit-auto-version:0.0.48"
+    classpath "org.shipkit:shipkit-changelog:0.0.45"
   }
 }
 
@@ -60,7 +61,7 @@ project.ext.externalDependency = [
 ]
 
 apply plugin: 'com.diffplug.spotless'
-apply plugin: 'org.shipkit.shipkit-auto-version'
+apply from: "./gradle/release.gradle"
 
 // TODO expand this to all projects and then delete this allow list. This list is letting us fix errors over time rather
 // than in one big change.
@@ -74,8 +75,6 @@ def wErrorProjects = [
 ]
 
 allprojects {
-  group = "com.linkedin.datahub-gma"
-
   apply plugin: 'idea'
   apply plugin: 'eclipse'
   apply plugin: 'checkstyle'
@@ -90,10 +89,6 @@ allprojects {
       }
     }
   }
-}
-
-if (!project.hasProperty('disableShipkit')) {
-  apply from: file("gradle/ci-release.gradle")
 }
 
 subprojects { sp ->
