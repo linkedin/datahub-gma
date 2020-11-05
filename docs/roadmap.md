@@ -27,18 +27,18 @@ List of features we know we want in a `1.0` release.
 
 Status: **Draft**
 
-* [ ] Metadata Events v5 support.
-    * [ ] Auto generate event definitions from PDL annotations at build time with a gradle plugin.
-    * [ ] Support for DAOs to emit MAE v5.
-    * [ ] Jobs (or job libraries) to consume MCE v5 and update GMSes.
-    * [ ] Jobs (or job libraries) to consume MAE v5 and update Elasticsearch.
-    * [ ] Jobs (or job libraries) to consume MAE v5 and update Graph.
-    * [ ] Kafka topic auto generation gradle plugin or script.
-    * [ ] Migration playbook for users to get off v4.
-* [ ] Enable `werror` for all Java code.
-* [ ] Remove use of tuples library (not idiomatic Java - replace with helper classes / POJOs).
-* [ ] Elasticsearch 7 support.
-* [ ] Java 11 support.
+- [ ] Metadata Events v5 support.
+  - [ ] Auto generate event definitions from PDL annotations at build time with a gradle plugin.
+  - [ ] Support for DAOs to emit MAE v5.
+  - [ ] Jobs (or job libraries) to consume MCE v5 and update GMSes.
+  - [ ] Jobs (or job libraries) to consume MAE v5 and update Elasticsearch.
+  - [ ] Jobs (or job libraries) to consume MAE v5 and update Graph.
+  - [ ] Kafka topic auto generation gradle plugin or script.
+  - [ ] Migration playbook for users to get off v4.
+- [ ] Enable `werror` for all Java code.
+- [ ] Remove use of tuples library (not idiomatic Java - replace with helper classes / POJOs).
+- [ ] Elasticsearch 7 support.
+- [ ] Java 11 support.
 
 ---
 
@@ -46,38 +46,37 @@ Status: **Draft**
 
 Features / improvements we need to discuss further to see if they make sense on have a `1.0` release on.
 
-* Kafka job or libraries are in GMA.
-    * The kafka jobs did not move from the DataHub repo. They're still tightly coupled to MCE and MAE v4, which are in
+- Kafka job or libraries are in GMA.
+  - The kafka jobs did not move from the DataHub repo. They're still tightly coupled to MCE and MAE v4, which are in
     turn coupled to the models that live in DataHub.
-    * We should add the jobs (or very easy to use libraries that can be invoked via a job) for MCE and MAE v5 for `1.0`.
-    * Jobs include MCE consumer (consumes MCEs and updates GMSes) and MAE consumers for ElasticSearch and Graph.
-* Index builder API should be type safe.
-    * Index builders also did not move from the DataHub repo. Are needed for jobs.
-    * The API is that you give the super constructor the list-of-snapshots you want to transform. But then
-    the transformation method gives you a generic Snapshot. Nothing enforces you have to handle those things in the
-    list you said you wanted to handle. We saw this lead to some confusion and a user did get it wrong once.
-    * Fixed by making index builders listen to one thing only, and then having the transformation method argument be that
+  - We should add the jobs (or very easy to use libraries that can be invoked via a job) for MCE and MAE v5 for `1.0`.
+  - Jobs include MCE consumer (consumes MCEs and updates GMSes) and MAE consumers for ElasticSearch and Graph.
+- Index builder API should be type safe.
+  - Index builders also did not move from the DataHub repo. Are needed for jobs.
+  - The API is that you give the super constructor the list-of-snapshots you want to transform. But then the
+    transformation method gives you a generic Snapshot. Nothing enforces you have to handle those things in the list you
+    said you wanted to handle. We saw this lead to some confusion and a user did get it wrong once.
+  - Fixed by making index builders listen to one thing only, and then having the transformation method argument be that
     type.
-* Remove extensive use of abstract "Base" classes. Prefer interfaces.
-    * Abstract classes are still okay, just not as the root of the inheritance tree.
-    * Split classes / interfaces where it makes sense, especially to avoid `UnsupportedOperationException`.
-* Improve / publish code coverage.
-* Ensure all public methods and classes are documented with Java doc.
-    * Add check to prevent regression.
-* Remove json "search templates" and instead use something in code.
-    * JSON is brittle and hard to get right. Java types make this easier. Elasticsearch already provides APIs for these.
-    * Regex replacement is not correct unless we're very careful with escaping the string.
-* Search type safety.
-    * The input today is a string that has meaning to Elasticsearch. Can be unclear to the client as to how to build
-    this.
-    * The search model is not the same as the GMA model, which can lead to confusion.
-* Rewrite DAOs for extensibility.
-    * SCSI muddled the interface quite a bit, as not all DAOs support SCSI. Part of the issue is the DAO design was not
+- Remove extensive use of abstract "Base" classes. Prefer interfaces.
+  - Abstract classes are still okay, just not as the root of the inheritance tree.
+  - Split classes / interfaces where it makes sense, especially to avoid `UnsupportedOperationException`.
+- Improve / publish code coverage.
+- Ensure all public methods and classes are documented with Java doc.
+  - Add check to prevent regression.
+- Remove json "search templates" and instead use something in code.
+  - JSON is brittle and hard to get right. Java types make this easier. Elasticsearch already provides APIs for these.
+  - Regex replacement is not correct unless we're very careful with escaping the string.
+- Search type safety.
+  - The input today is a string that has meaning to Elasticsearch. Can be unclear to the client as to how to build this.
+  - The search model is not the same as the GMA model, which can lead to confusion.
+- Rewrite DAOs for extensibility.
+  - SCSI muddled the interface quite a bit, as not all DAOs support SCSI. Part of the issue is the DAO design was not
     extensible to allow SCSI without extending the interfaces.
-* Codegen for restli GMSes.
-    * Rest.li relies on Java annotations to build IDL files. Does not look at super class annotations. So many methods
+- Codegen for restli GMSes.
+  - Rest.li relies on Java annotations to build IDL files. Does not look at super class annotations. So many methods
     must be copied / pasted / overloaded just to get annotations. Good opportunity for some code gen.
-* Codegen for URN.
-    * The URN classes in DataHub are pretty much copy and paste. We could easily generate these classes.
-* Deletion of references to snapshots and aspect unions.
-    * MXE v5 helps to enabled this. Allows more modular GMSes. Also allows models to no longer be in a single repo.
+- Codegen for URN.
+  - The URN classes in DataHub are pretty much copy and paste. We could easily generate these classes.
+- Deletion of references to snapshots and aspect unions.
+  - MXE v5 helps to enabled this. Allows more modular GMSes. Also allows models to no longer be in a single repo.
