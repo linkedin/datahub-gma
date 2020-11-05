@@ -22,6 +22,7 @@ javadoc {
   exclude 'com/linkedin/metadata/query/**'
 
   // We don't care about most of these warnings; we're fine with no @return or missing @param if they don't add value.
+  // We'll check the things we care about in checkstyle.
   javadoc.options.addStringOption('Xdoclint:none', '-quiet')
 }
 

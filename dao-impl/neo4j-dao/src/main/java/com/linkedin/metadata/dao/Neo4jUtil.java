@@ -171,7 +171,7 @@ public class Neo4jUtil {
   /**
    * Converts path segment (field:value map) list of {@link RecordTemplate}s of nodes and edges.
    *
-   * @param segment The segment of a path containing nodes & edges
+   * @param segment the segment of a path containing nodes and edges
    */
   @Nonnull
   public static List<RecordTemplate> pathSegmentToRecordList(@Nonnull Path.Segment segment) {
