@@ -150,7 +150,7 @@ public abstract class BaseEntityResource<
   }
 
   /**
-   * Similar to {@link #get(KEY, String[])} but for multiple entities.
+   * Similar to {@link #get(Object, String[])} but for multiple entities.
    */
   @RestMethod.BatchGet
   @Nonnull
