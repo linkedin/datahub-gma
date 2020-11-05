@@ -29,7 +29,7 @@ We use shipkit changelog to create the release notes of each version. See
 ## Automatic Publishing
 
 Automation is done with a [GitHub workflow](../../.github/workflows/gh-version.yml) that will create the GitHub release
-and then publish to bintray for every commit on a `release` branch.
+and then publish to bintray for every push of the `main` branch.
 
 This workflow relies on the `BINTRAY_USER` and `BINTRAY_KEY` secrets, which should be a user on Bintray with permissions
 to our project, and their api key, respectively. The exact user and key don't really matter, it is very easy to change
