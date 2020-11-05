@@ -80,3 +80,6 @@ Features / improvements we need to discuss further to see if they make sense on 
   - The URN classes in DataHub are pretty much copy and paste. We could easily generate these classes.
 - Deletion of references to snapshots and aspect unions.
   - MXE v5 helps to enabled this. Allows more modular GMSes. Also allows models to no longer be in a single repo.
+- Rename test models for a more grounded example.
+  - "Foo" and "Bar" have no meaning and can be kind of hard to read some times, and are just poor examples. Naga has
+  had some fun "foodie" examples in past presentations, maybe we just use that kind of thing for our test models?
