@@ -1,9 +1,4 @@
-// TODO actually hook up to a CI. Until we hook up a CI follow these steps:
-// 1. Check out the repo and sync to the commit you want to release.
-// 2. Tag the commit by running `git tag -a -m "Release v$version" "v$version"`, replacing $version with the semver.
-// 3. Push the tag by running `git push --tags`
-// 4. Upload to bintray by running `./gradlew bintrayUploadAll`.
-// 5. Go to GitHub and make a release from the tag.
+// CI done via ./github/workflows/gh-release.yml.
 
 // Task to fail fast and clearly if required properties are not set.
 task verifyBintrayProperties {
@@ -21,11 +16,23 @@ task verifyBintrayProperties {
 
 task bintrayUploadAll {
   description = "Runs 'bintrayUpload' tasks from all projects"
+  mustRunAfter "githubRelease" // github release is easier to rollback so we run it first
 }
 
 allprojects {
   tasks.matching { it.name == "bintrayUpload" }.all {
     it.dependsOn verifyBintrayProperties
     bintrayUploadAll.dependsOn it
+  }
+}
+
+task ciPerformRelease {
+  description = "Performs the release, intended to be ran on CI"
+  dependsOn "githubRelease", "bintrayUploadAll"
+}
+
+task getVersion() {
+  doFirst {
+    println version
   }
 }
