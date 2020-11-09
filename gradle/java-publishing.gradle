@@ -21,9 +21,9 @@ javadoc {
   // TODO Don't generate javadoc for some PDL Java files for now. https://github.com/linkedin/rest.li/issues/432
   exclude 'com/linkedin/metadata/query/**'
 
-  // We don't care about most of these warnings; we're fine with no @return or missing @param if they don't add value.
-  // We'll check the things we care about in checkstyle.
-  javadoc.options.addStringOption('Xdoclint:none', '-quiet')
+  // We don't care about missing warnings; we're fine with no @return or missing @param if they don't add value.
+  options.addStringOption('Xdoclint:all,-missing', '-quiet')
+  options.addStringOption('Xwerror', '-quiet')
 }
 
 task javadocJar(type: Jar, dependsOn: javadoc) {

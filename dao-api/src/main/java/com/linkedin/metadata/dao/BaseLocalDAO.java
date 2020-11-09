@@ -386,7 +386,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   public abstract List<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable URN lastUrn, int pageSize);
 
   /**
-   * Similar to {@link #listUrns(IndexFilter, URN, int)}. This is to get all urns with type URN.
+   * Similar to {@link #listUrns(IndexFilter, Urn, int)}. This is to get all urns with type URN.
    */
   @Nonnull
   public List<URN> listUrns(@Nonnull Class<URN> urnClazz, @Nullable URN lastUrn, int pageSize) {
@@ -468,7 +468,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nonnull Class<ASPECT> aspectClass);
 
   /**
-   * Saves an aspect for an entity with specific version & {@link AuditStamp}.
+   * Saves an aspect for an entity with specific version and {@link AuditStamp}.
    *
    * @param urn {@link Urn} for the entity
    * @param value the aspect to save
