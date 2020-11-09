@@ -1,5 +1,6 @@
 package com.linkedin.metadata.testing;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nonnull;
@@ -41,20 +42,24 @@ public final class BulkRequestsContainer {
 
   /**
    * All requests (executing, successful, and errored) that this bulk processor saw.
+   *
+   * <p>The returned set has no guaranteed order.
    */
   public Set<BulkRequest> getAllRequests() {
     return _testBulkListener.getAllRequests();
   }
 
   /**
-   * The set of currently executing requests.
+   * The currently executing requests, in the order they were kicked off.
    */
-  public Set<BulkRequest> getExecutingRequests() {
+  public List<BulkRequest> getExecutingRequests() {
     return _testBulkListener.getExecutingRequests();
   }
 
   /**
    * A map from request to the error result.
+   *
+   * <p>The entries are ordered in in the order they were received.
    */
   public Map<BulkRequest, Throwable> getErrors() {
     return _testBulkListener.getErrors();
@@ -62,6 +67,8 @@ public final class BulkRequestsContainer {
 
   /**
    * A map from the request to the successful response result.
+   *
+   * <p>The entries are ordered in in the order they were received.
    */
   public Map<BulkRequest, BulkResponse> getResponses() {
     return _testBulkListener.getResponses();

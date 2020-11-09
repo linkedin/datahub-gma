@@ -1,7 +1,9 @@
 package com.linkedin.metadata.testing;
 
-import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.elasticsearch.action.bulk.BulkProcessor;
@@ -21,9 +23,9 @@ import org.elasticsearch.action.support.WriteRequest;
  */
 final class TestBulkListener implements BulkProcessor.Listener {
   private final Object _lock = new Object();
-  private final Set<BulkRequest> _executingRequests = new HashSet<>();
-  private final Map<BulkRequest, BulkResponse> _responses = new HashMap<>();
-  private final Map<BulkRequest, Throwable> _errors = new HashMap<>();
+  private final Map<Long, BulkRequest> _executingRequests = new LinkedHashMap<>();
+  private final Map<BulkRequest, BulkResponse> _responses = new LinkedHashMap<>();
+  private final Map<BulkRequest, Throwable> _errors = new LinkedHashMap<>();
 
   /**
    * Resets the state of this bulk listener, clearing the recorded requests and responses.
@@ -39,21 +41,23 @@ final class TestBulkListener implements BulkProcessor.Listener {
   }
 
   /**
-   * The set of currently executing requests.
+   * The currently executing requests, in the order they were kicked off.
    */
-  public Set<BulkRequest> getExecutingRequests() {
+  public List<BulkRequest> getExecutingRequests() {
     synchronized (_lock) {
-      return new HashSet<>(_executingRequests);
+      return new ArrayList<>(_executingRequests.values());
     }
   }
 
   /**
    * All requests (executing, successful, and errored) that this bulk processor saw.
+   *
+   * <p>The returned set has no guaranteed order.
    */
   public Set<BulkRequest> getAllRequests() {
     synchronized (_lock) {
       Set<BulkRequest> requests = new HashSet<>();
-      requests.addAll(_executingRequests);
+      requests.addAll(_executingRequests.values());
       requests.addAll(_responses.keySet());
       requests.addAll(_errors.keySet());
       return requests;
@@ -62,19 +66,23 @@ final class TestBulkListener implements BulkProcessor.Listener {
 
   /**
    * A map from the request to the successful response result.
+   *
+   * <p>The entries are ordered in in the order they were received.
    */
   public Map<BulkRequest, BulkResponse> getResponses() {
     synchronized (_lock) {
-      return new HashMap<>(_responses);
+      return new LinkedHashMap<>(_responses);
     }
   }
 
   /**
    * A map from request to the error result.
+   *
+   * <p>The entries are ordered in in the order they were received.
    */
   public Map<BulkRequest, Throwable> getErrors() {
     synchronized (_lock) {
-      return new HashMap<>(_errors);
+      return new LinkedHashMap<>(_errors);
     }
   }
 
@@ -101,14 +109,14 @@ final class TestBulkListener implements BulkProcessor.Listener {
     synchronized (_lock) {
       // For testing purposes we want update to reflect immediately so that they can be queried.
       request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-      _executingRequests.add(request);
+      _executingRequests.put(executionId, request);
     }
   }
 
   @Override
   public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
     synchronized (_lock) {
-      _executingRequests.remove(request);
+      _executingRequests.remove(executionId);
       _responses.put(request, response);
       _lock.notifyAll();
     }
@@ -117,7 +125,7 @@ final class TestBulkListener implements BulkProcessor.Listener {
   @Override
   public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
     synchronized (_lock) {
-      _executingRequests.remove(request);
+      _executingRequests.remove(executionId);
       _errors.put(request, failure);
       _lock.notifyAll();
     }

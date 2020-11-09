@@ -13,7 +13,7 @@ import javax.annotation.Nonnull;
 class ReadAllDocumentsConfig<DOCUMENT extends RecordTemplate> extends BaseSearchConfig<DOCUMENT> {
   private final Class<DOCUMENT> _documentClass;
 
-  ReadAllDocumentsConfig(Class<DOCUMENT> documentClass) {
+  ReadAllDocumentsConfig(@Nonnull Class<DOCUMENT> documentClass) {
     _documentClass = documentClass;
   }
 
