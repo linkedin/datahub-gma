@@ -26,7 +26,6 @@ public abstract class BaseGraphWriterDAO {
    *
    * @param entity the entity to be persisted
    * @param <ENTITY> entity type. Must be a type defined in com.linkedin.metadata.entity.
-   * @throws Exception
    */
   public <ENTITY extends RecordTemplate> void addEntity(@Nonnull ENTITY entity) throws Exception {
     addEntities(Collections.singletonList(entity));
@@ -37,7 +36,6 @@ public abstract class BaseGraphWriterDAO {
    *
    * @param entities the list of entities to be persisted
    * @param <ENTITY> entity type. Must be a type defined in com.linkedin.metadata.entity.
-   * @throws Exception
    */
   public abstract <ENTITY extends RecordTemplate> void addEntities(@Nonnull List<ENTITY> entities) throws Exception;
 
@@ -46,7 +44,6 @@ public abstract class BaseGraphWriterDAO {
    *
    * @param urn the URN of the entity to be removed
    * @param <URN> URN type of the entity
-   * @throws Exception
    */
   public <URN extends Urn> void removeEntity(@Nonnull URN urn) throws Exception {
     removeEntities(Collections.singletonList(urn));
@@ -57,7 +54,6 @@ public abstract class BaseGraphWriterDAO {
    *
    * @param urns the URNs of the entities to be removed
    * @param <URN> URN type of the entity
-   * @throws Exception
    */
   public abstract <URN extends Urn> void removeEntities(@Nonnull List<URN> urns) throws Exception;
 
@@ -66,7 +62,6 @@ public abstract class BaseGraphWriterDAO {
    *
    * @param relationship the relationship to be persisted
    * @param <RELATIONSHIP> relationship type. Must be a type defined in com.linkedin.metadata.relationship.
-   * @throws Exception
    */
   public <RELATIONSHIP extends RecordTemplate> void addRelationship(@Nonnull RELATIONSHIP relationship)
       throws Exception {
@@ -79,7 +74,6 @@ public abstract class BaseGraphWriterDAO {
    * @param relationship the relationship to be persisted
    * @param removalOption whether to remove existing relationship of the same type
    * @param <RELATIONSHIP> relationship type. Must be a type defined in com.linkedin.metadata.relationship.
-   * @throws Exception
    */
   public <RELATIONSHIP extends RecordTemplate> void addRelationship(@Nonnull RELATIONSHIP relationship,
       @Nonnull RemovalOption removalOption) throws Exception {
@@ -91,7 +85,6 @@ public abstract class BaseGraphWriterDAO {
    *
    * @param relationships the list of relationships to be persisted
    * @param <RELATIONSHIP> relationship type. Must be a type defined in com.linkedin.metadata.relationship.
-   * @throws Exception
    */
   public <RELATIONSHIP extends RecordTemplate> void addRelationships(@Nonnull List<RELATIONSHIP> relationships)
       throws Exception {
@@ -104,7 +97,6 @@ public abstract class BaseGraphWriterDAO {
    * @param relationships the list of relationships to be persisted
    * @param removalOption whether to remove existing relationship of the same type
    * @param <RELATIONSHIP> relationship type. Must be a type defined in com.linkedin.metadata.relationship.
-   * @throws Exception
    */
   public abstract <RELATIONSHIP extends RecordTemplate> void addRelationships(@Nonnull List<RELATIONSHIP> relationships,
       @Nonnull RemovalOption removalOption) throws Exception;
@@ -114,7 +106,6 @@ public abstract class BaseGraphWriterDAO {
    *
    * @param relationship the relationship to be removed
    * @param <RELATIONSHIP> relationship type. Must be a type defined in com.linkedin.metadata.relationship.
-   * @throws Exception
    */
   public <RELATIONSHIP extends RecordTemplate> void removeRelationship(@Nonnull RELATIONSHIP relationship)
       throws Exception {
@@ -126,7 +117,6 @@ public abstract class BaseGraphWriterDAO {
    *
    * @param relationships the list of relationships to be removed
    * @param <RELATIONSHIP> relationship type. Must be a type defined in com.linkedin.metadata.relationship.
-   * @throws Exception
    */
   public abstract <RELATIONSHIP extends RecordTemplate> void removeRelationships(
       @Nonnull List<RELATIONSHIP> relationships) throws Exception;

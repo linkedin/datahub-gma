@@ -64,7 +64,6 @@ public class Neo4jQueryDAO extends BaseQueryDAO {
    * Similar to other free form APIs, such as findEntities, findRelationships, findMixedTypesEntities, etc.
    * findPaths should be used when there is a specific need to query the graph DB and no existing APIs could be used.
    *
-   * @param queryStatement
    * @return A list of paths, each of which should be [Node1, Edge1, Node2, Edge2, ....]
    */
   @Nonnull
