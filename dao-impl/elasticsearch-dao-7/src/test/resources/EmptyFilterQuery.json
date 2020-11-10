@@ -1,0 +1,17 @@
+{
+  "from": 0,
+  "size": 10,
+  "query": {
+    "bool": {
+      "adjust_pure_negative": true,
+      "boost": 1.0
+    }
+  },
+  "sort": [
+    {
+      "urn": {
+        "order": "asc"
+      }
+    }
+  ]
+}

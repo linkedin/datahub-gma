@@ -17,7 +17,7 @@ public abstract class BaseBackfillableClient<URN extends Urn> extends BaseClient
   }
 
   /**
-   * Similar to {@link #backfill(URN, List)} but does backfill for all available aspects.
+   * Similar to {@link #backfill(Urn, List)} but does backfill for all available aspects.
    */
   @Nonnull
   public List<String> backfill(@Nonnull URN urn) throws RemoteInvocationException {
