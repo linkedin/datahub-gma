@@ -15,14 +15,14 @@ fi
 
 VERSION=$(./gradlew -q getVersion)
 
-echo "Publishing pegasus $VERSION to ${LOCAL_REPO}..."
+echo "Publishing GMA $VERSION to ${LOCAL_REPO}..."
 
 # Publish artifacts to Maven local, but override the repo path
 # TODO might be nice to override version to include SNAPSHOT. Requires https://github.com/shipkit/shipkit-auto-version/issues/37.
 ./gradlew -Dmaven.repo.local=$LOCAL_REPO publishToMavenLocal
 
 if [ $? = 0 ]; then
-  echo "Published pegasus $VERSION to $LOCAL_REPO"
+  echo "Published GMA $VERSION to $LOCAL_REPO"
 else
   exit 1
 fi
