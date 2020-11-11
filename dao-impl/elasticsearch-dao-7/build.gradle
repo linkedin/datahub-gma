@@ -1,0 +1,21 @@
+apply plugin: 'java'
+
+apply from: "$rootDir/gradle/java-publishing.gradle"
+
+dependencies {
+  compile project(':dao-api')
+
+  compile externalDependency.elasticSearchRest
+  compile externalDependency.elasticSearchTransport
+  compile externalDependency.guava
+  compile externalDependency.lombok
+  compile externalDependency.commonsIo
+  compile externalDependency.commonsLang
+  compile externalDependency.jacksonCore
+  compile externalDependency.jacksonDataBind
+
+  annotationProcessor externalDependency.lombok
+
+  testCompile project(':testing:test-models')
+  testCompile externalDependency.mockito
+}
