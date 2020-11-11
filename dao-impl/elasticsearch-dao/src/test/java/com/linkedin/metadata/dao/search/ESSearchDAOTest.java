@@ -214,18 +214,20 @@ public class ESSearchDAOTest {
   }
 
   @Test
-  public void testSetMaxTermBucketSize() {
+  public void testDefaultMaxTermBucketSize() {
     String facetFieldName = "value";
     Filter filter = QueryUtils.newFilter(Collections.singletonMap(facetFieldName, "dummy"));
-
-    // Default max term bucket size
     SearchRequest searchRequest = _searchDAO.constructSearchQuery("dummy", filter, null, null, 0, 10);
     assertEquals(searchRequest.source().aggregations().getAggregatorFactories().get(0),
         AggregationBuilders.terms(facetFieldName).field(facetFieldName).size(100));
+  }
 
-    // Modified max term bucket size
+  @Test
+  public void testSetMaxTermBucketSize() {
+    String facetFieldName = "value";
+    Filter filter = QueryUtils.newFilter(Collections.singletonMap(facetFieldName, "dummy"));
     _searchDAO.setMaxTermBucketSize(5);
-    searchRequest = _searchDAO.constructSearchQuery("dummy", filter, null, null, 0, 10);
+    SearchRequest searchRequest = _searchDAO.constructSearchQuery("dummy", filter, null, null, 0, 10);
     assertEquals(searchRequest.source().aggregations().getAggregatorFactories().get(0),
         AggregationBuilders.terms(facetFieldName).field(facetFieldName).size(5));
   }

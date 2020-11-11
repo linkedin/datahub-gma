@@ -55,13 +55,14 @@ import static com.linkedin.metadata.dao.utils.SearchUtils.*;
 @Slf4j
 public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<DOCUMENT> {
 
+  private static final Integer DEFAULT_TERM_BUCKETS_SIZE_100 = 100;
   private static final String URN_FIELD = "urn";
 
   private RestHighLevelClient _client;
   private BaseSearchConfig<DOCUMENT> _config;
   private BaseESAutoCompleteQuery _autoCompleteQueryForLowCardFields;
   private BaseESAutoCompleteQuery _autoCompleteQueryForHighCardFields;
-  private int _maxTermBucketSize = 100;
+  private int _maxTermBucketSize = DEFAULT_TERM_BUCKETS_SIZE_100;
 
   // TODO: Currently takes elastic search client, in future, can take other clients such as galene
   // TODO: take params and settings needed to create the client
