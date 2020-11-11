@@ -28,7 +28,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
@@ -211,23 +210,6 @@ public class ESSearchDAOTest {
     String preference = "urn:li:servicePrincipal:appName";
     SearchRequest searchRequest = _searchDAO.constructSearchQuery(input, filter, null, preference, 0, 10);
     assertEquals(searchRequest.preference(), preference);
-  }
-
-  @Test
-  public void testSetMaxTermBucketSize() {
-    String facetFieldName = "value";
-    Filter filter = QueryUtils.newFilter(Collections.singletonMap(facetFieldName, "dummy"));
-
-    // Default max term bucket size
-    SearchRequest searchRequest = _searchDAO.constructSearchQuery("dummy", filter, null, null, 0, 10);
-    assertEquals(searchRequest.source().aggregations().getAggregatorFactories().get(0),
-        AggregationBuilders.terms(facetFieldName).field(facetFieldName).size(100));
-
-    // Modified max term bucket size
-    _searchDAO.setMaxTermBucketSize(5);
-    searchRequest = _searchDAO.constructSearchQuery("dummy", filter, null, null, 0, 10);
-    assertEquals(searchRequest.source().aggregations().getAggregatorFactories().get(0),
-        AggregationBuilders.terms(facetFieldName).field(facetFieldName).size(5));
   }
 
   private static SearchHit makeSearchHit(int id) {
