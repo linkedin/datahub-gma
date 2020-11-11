@@ -32,6 +32,7 @@ import javax.annotation.Nullable;
 import lombok.extern.slf4j.Slf4j;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -97,7 +98,7 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
   @Nonnull
   private SearchResult<DOCUMENT> executeAndExtract(@Nonnull SearchRequest searchRequest, int from, int size) {
     try {
-      final SearchResponse searchResponse = _client.search(searchRequest);
+      final SearchResponse searchResponse = _client.search(searchRequest, RequestOptions.DEFAULT);
       // extract results, validated against document model as well
       return extractQueryResult(searchResponse, from, size);
     } catch (Exception e) {
@@ -279,7 +280,7 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
   @Nonnull
   public SearchResult<DOCUMENT> extractQueryResult(@Nonnull SearchResponse searchResponse, int from, int size) {
 
-    int totalCount = (int) searchResponse.getHits().getTotalHits();
+    int totalCount = (int) searchResponse.getHits().getTotalHits().value;
     int totalPageCount = QueryUtils.getTotalPageCount(totalCount, size);
 
     return SearchResult.<DOCUMENT>builder()
@@ -335,7 +336,7 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
     }
     try {
       SearchRequest req = constructAutoCompleteQuery(query, field, requestParams);
-      SearchResponse searchResponse = _client.search(req);
+      SearchResponse searchResponse = _client.search(req, RequestOptions.DEFAULT);
       return extractAutoCompleteResult(searchResponse, query, field, limit);
     } catch (Exception e) {
       log.error("Auto complete query failed:" + e.getMessage());

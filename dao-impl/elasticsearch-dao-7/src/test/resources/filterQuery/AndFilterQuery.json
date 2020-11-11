@@ -14,12 +14,12 @@
                   "fuzzy_transpositions" : true,
                   "lenient" : false,
                   "zero_terms_query" : "NONE",
+                  "auto_generate_synonyms_phrase_query" : true,
                   "boost" : 1.0
                 }
               }
             }
           ],
-          "disable_coord" : false,
           "adjust_pure_negative" : true,
           "boost" : 1.0
         }
@@ -37,18 +37,17 @@
                   "fuzzy_transpositions" : true,
                   "lenient" : false,
                   "zero_terms_query" : "NONE",
+                  "auto_generate_synonyms_phrase_query" : true,
                   "boost" : 1.0
                 }
               }
             }
           ],
-          "disable_coord" : false,
           "adjust_pure_negative" : true,
           "boost" : 1.0
         }
       }
     ],
-    "disable_coord" : false,
     "adjust_pure_negative" : true,
     "boost" : 1.0
   }

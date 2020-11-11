@@ -65,7 +65,7 @@ public class ESAutoCompleteQueryForHighCardinalityFields extends BaseESAutoCompl
     SearchHit[] hits = searchResponse.getHits().getHits();
     Integer count = 0;
     for (SearchHit hit : hits) {
-      Map<String, Object> source = hit.getSource();
+      Map<String, Object> source = hit.getSourceAsMap();
       if (count >= limit) {
         break;
       }

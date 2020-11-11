@@ -25,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringUtils;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -32,9 +33,10 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
+import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -68,9 +70,9 @@ public class ESBrowseDAO extends BaseBrowseDAO {
 
     try {
       final SearchResponse groupsResponse =
-          _client.search(constructGroupsSearchRequest(path, requestMap));
+          _client.search(constructGroupsSearchRequest(path, requestMap), RequestOptions.DEFAULT);
       final SearchResponse entitiesResponse =
-          _client.search(constructEntitiesSearchRequest(path, requestMap, from, size));
+          _client.search(constructEntitiesSearchRequest(path, requestMap, from, size), RequestOptions.DEFAULT);
       final BrowseResult result = extractQueryResult(groupsResponse, entitiesResponse, path, from);
       result.getMetadata().setPath(path);
       return result;
@@ -94,7 +96,7 @@ public class ESBrowseDAO extends BaseBrowseDAO {
     return AggregationBuilders.terms("groups")
         .field(_config.getBrowsePathFieldName())
         .size(Integer.MAX_VALUE)
-        .order(Terms.Order.term(true)) // Ascending order
+        .order(BucketOrder.count(true)) // Ascending order
         .includeExclude(new IncludeExclude(includeFilter, excludeFilter));
   }
 
@@ -191,12 +193,12 @@ public class ESBrowseDAO extends BaseBrowseDAO {
     final List<BrowseResultEntity> browseResultEntityList = extractEntitiesResponse(entitiesResponse, path);
     final BrowseResultMetadata browseResultMetadata = extractGroupsResponse(groupsResponse, path);
     browseResultMetadata.setTotalNumEntities(
-        browseResultMetadata.getTotalNumEntities() + entitiesResponse.getHits().getTotalHits());
+        browseResultMetadata.getTotalNumEntities() + entitiesResponse.getHits().getTotalHits().value);
     return new BrowseResult().setEntities(new BrowseResultEntityArray(browseResultEntityList))
         .setMetadata(browseResultMetadata)
         .setFrom(from)
         .setPageSize(browseResultEntityList.size())
-        .setNumEntities((int) entitiesResponse.getHits().getTotalHits());
+        .setNumEntities((int) entitiesResponse.getHits().getTotalHits().value);
   }
 
   /**
@@ -216,7 +218,7 @@ public class ESBrowseDAO extends BaseBrowseDAO {
     }
     return new BrowseResultMetadata()
         .setGroups(groupsAgg)
-        .setTotalNumEntities(groupsResponse.getHits().getTotalHits())
+        .setTotalNumEntities(groupsResponse.getHits().getTotalHits().value)
         .setPath(path);
   }
 
@@ -287,7 +289,7 @@ public class ESBrowseDAO extends BaseBrowseDAO {
         new SearchSourceBuilder().query(QueryBuilders.termQuery(_config.getUrnFieldName(), urn.toString())));
     final SearchHit[] searchHits;
     try {
-      searchHits = _client.search(searchRequest).getHits().getHits();
+      searchHits = _client.search(searchRequest, RequestOptions.DEFAULT).getHits().getHits();
     } catch (Exception e) {
       log.error("Get paths from urn query failed: " + e.getMessage());
       throw new ESQueryException("Get paths from urn query failed: ", e);

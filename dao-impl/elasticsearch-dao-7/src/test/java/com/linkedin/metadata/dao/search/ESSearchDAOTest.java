@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.commons.io.IOUtils;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.SearchHit;
@@ -44,7 +45,8 @@ public class ESSearchDAOTest {
   private TestSearchConfig _testSearchConfig;
 
   private static String loadJsonFromResource(String resourceName) throws IOException {
-    return IOUtils.toString(ClassLoader.getSystemResourceAsStream(resourceName), StandardCharsets.UTF_8);
+    String jsonStr = IOUtils.toString(ClassLoader.getSystemResourceAsStream(resourceName), StandardCharsets.UTF_8);
+    return jsonStr.replaceAll("\\s+", "");
   }
 
   @BeforeMethod
@@ -99,7 +101,7 @@ public class ESSearchDAOTest {
     SearchHit hit2 = makeSearchHit(2);
     SearchHit hit3 = makeSearchHit(3);
     when(searchHits.getHits()).thenReturn(new SearchHit[]{hit1, hit2, hit3});
-    when(searchHits.getTotalHits()).thenReturn(10L);
+    when(searchHits.getTotalHits()).thenReturn(new TotalHits(10L, TotalHits.Relation.EQUAL_TO));
     SearchResponse searchResponse = mock(SearchResponse.class);
     when(searchResponse.getHits()).thenReturn(searchHits);
 
@@ -112,7 +114,7 @@ public class ESSearchDAOTest {
   public void testExtractSearchResultMetadata() throws Exception {
     // Test: no aggregations in search response
     SearchHits searchHits1 = mock(SearchHits.class);
-    when(searchHits1.getTotalHits()).thenReturn(10L);
+    when(searchHits1.getTotalHits()).thenReturn(new TotalHits(10L, TotalHits.Relation.EQUAL_TO));
     SearchResponse searchResponse1 = mock(SearchResponse.class);
     when(searchResponse1.getHits()).thenReturn(searchHits1);
     assertEquals(_searchDAO.extractSearchResultMetadata(searchResponse1), getDefaultSearchResultMetadata());
@@ -130,7 +132,7 @@ public class ESSearchDAOTest {
     // Test: urn field does not exist in one search document, exists in another
     SearchHits searchHits3 = mock(SearchHits.class);
     SearchHit hit3 = mock(SearchHit.class);
-    when(hit3.getField("urn")).thenReturn(null);
+    when(hit3.getFields().get("urn")).thenReturn(null);
     SearchHit hit4 = makeSearchHit(1);
     when(searchHits3.getHits()).thenReturn(new SearchHit[]{hit3, hit4});
     SearchResponse searchResponse3 = mock(SearchResponse.class);
@@ -218,7 +220,7 @@ public class ESSearchDAOTest {
     sourceMap.put("urn", makeUrn(id).toString());
     sourceMap.put("name", "test" + id);
     when(hit.getSourceAsMap()).thenReturn(sourceMap);
-    when(hit.getSource()).thenReturn(sourceMap);
+    when(hit.getSourceAsMap()).thenReturn(sourceMap);
     return hit;
   }
 
