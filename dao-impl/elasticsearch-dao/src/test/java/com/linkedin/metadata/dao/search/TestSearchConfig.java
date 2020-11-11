@@ -2,7 +2,6 @@ package com.linkedin.metadata.dao.search;
 
 import com.linkedin.testing.EntityDocument;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Set;
 import javax.annotation.Nonnull;
 
@@ -10,7 +9,7 @@ public class TestSearchConfig extends BaseSearchConfig<EntityDocument> {
   @Override
   @Nonnull
   public Set<String> getFacetFields() {
-    return Collections.unmodifiableSet(new HashSet<>());
+    return Collections.singleton("value");
   }
 
   @Override
