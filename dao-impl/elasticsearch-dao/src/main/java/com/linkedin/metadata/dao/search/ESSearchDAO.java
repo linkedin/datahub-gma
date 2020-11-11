@@ -62,6 +62,7 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
   private BaseSearchConfig<DOCUMENT> _config;
   private BaseESAutoCompleteQuery _autoCompleteQueryForLowCardFields;
   private BaseESAutoCompleteQuery _autoCompleteQueryForHighCardFields;
+  private int _maxTermBucketSize = DEFAULT_TERM_BUCKETS_SIZE_100;
 
   // TODO: Currently takes elastic search client, in future, can take other clients such as galene
   // TODO: take params and settings needed to create the client
@@ -254,7 +255,7 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
       @Nullable Filter filter) {
     Set<String> facetFields = _config.getFacetFields();
     for (String facet : facetFields) {
-      AggregationBuilder aggBuilder = AggregationBuilders.terms(facet).field(facet).size(DEFAULT_TERM_BUCKETS_SIZE_100);
+      AggregationBuilder aggBuilder = AggregationBuilders.terms(facet).field(facet).size(_maxTermBucketSize);
       Optional.ofNullable(filter).map(Filter::getCriteria).ifPresent(criteria -> {
         for (Criterion criterion : criteria) {
           if (!facetFields.contains(criterion.getField()) || criterion.getField().equals(facet)) {
@@ -445,5 +446,17 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
     } catch (URISyntaxException e) {
       throw new RuntimeException("Invalid urn in search document " + e);
     }
+  }
+
+  /**
+   * Sets max term bucket size in the aggregation results.
+   *
+   * <p>The default value might not always be good enough when aggregation happens on a high cardinality field.
+   * Using a high default instead is also not ideal because of potential query performance degradation.
+   * Instead, entities which have a rare use case of aggregating over high cardinality fields can use this method
+   * to configure the aggregation behavior.
+   */
+  public void setMaxTermBucketSize(int maxTermBucketSize) {
+    _maxTermBucketSize = maxTermBucketSize;
   }
 }
