@@ -86,8 +86,7 @@ bintray {
   user = System.getenv('BINTRAY_USER')
   key = System.getenv('BINTRAY_KEY')
 
-  // TODO enable auto publish and CI/CD
-  // publish = true
+  publish = true
 
   dryRun = project.hasProperty("bintray.dryRun") //useful for testing
 
