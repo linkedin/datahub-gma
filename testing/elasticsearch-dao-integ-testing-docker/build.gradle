@@ -3,12 +3,15 @@ apply plugin: 'java'
 apply from: "$rootDir/gradle/java-publishing.gradle"
 
 dependencies {
-  compile project(':dao-impl:elasticsearch-dao')
+  compile project(':testing:elasticsearch-dao-integ-testing')
 
   compile externalDependency.assertJ
   compile externalDependency.junitJupiterApi
   compile externalDependency.junitJupiterParams
+  compile externalDependency.testContainers
+  compile externalDependency.testContainersJunit
 
   testRuntimeOnly externalDependency.junitJupiterEngine
+
   testCompile project(':testing:test-models')
 }

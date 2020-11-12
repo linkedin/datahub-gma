@@ -1,0 +1,8 @@
+{
+  "properties": {
+    "urn": {
+      "type": "keyword",
+      "normalizer": "custom_normalizer"
+    }
+  }
+}
