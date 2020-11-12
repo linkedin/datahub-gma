@@ -33,10 +33,28 @@ final class ElasticsearchIntegrationTestExtension
   private static final ExtensionContext.Namespace NAMESPACE =
       ExtensionContext.Namespace.create(ElasticsearchIntegrationTestExtension.class);
 
-  private final static String CONTAINER_FACTORY = "containerFactory";
-  private final static String CONNECTION = "connection";
   private final static String STATIC_INDICIES = "staticIndicies";
   private final static String INDICIES = "indicies";
+  private static ElasticsearchConnection _connection = null;
+
+  private ElasticsearchConnection startElasticSearch() throws Exception {
+    if (_connection != null) {
+      return _connection;
+    }
+
+    final ElasticsearchContainerFactory factory = getContainerFactory();
+    _connection = factory.start();
+
+    Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+      try {
+        factory.close();
+      } catch (Throwable throwable) {
+        throwable.printStackTrace();
+      }
+    }));
+
+    return _connection;
+  }
 
   @Override
   public void beforeAll(ExtensionContext context) throws Exception {
@@ -46,11 +64,7 @@ final class ElasticsearchIntegrationTestExtension
 
     final ExtensionContext.Store store = context.getStore(NAMESPACE);
 
-    final ElasticsearchContainerFactory factory = getContainerFactory();
-    final ElasticsearchConnection connection = factory.start();
-
-    store.put(CONTAINER_FACTORY, factory);
-    store.put(CONNECTION, connection);
+    final ElasticsearchConnection connection = startElasticSearch();
 
     final List<Field> fields = ReflectionUtils.findFields(testClass, field -> {
       return ReflectionUtils.isStatic(field) && ReflectionUtils.isPublic(field) && ReflectionUtils.isNotFinal(field)
@@ -143,14 +157,13 @@ final class ElasticsearchIntegrationTestExtension
   @Override
   public void beforeEach(ExtensionContext context) throws Exception {
     final ExtensionContext.Store store = context.getStore(NAMESPACE);
-    final ElasticsearchConnection connection = store.get(CONNECTION, ElasticsearchConnection.class);
 
     final List<Field> fields = ReflectionUtils.findFields(context.getRequiredTestClass(), field -> {
       return ReflectionUtils.isNotStatic(field) && ReflectionUtils.isPublic(field) && ReflectionUtils.isNotFinal(field)
           && SearchIndex.class.isAssignableFrom(field.getType());
     }, ReflectionUtils.HierarchyTraversalMode.TOP_DOWN);
 
-    final SearchIndexFactory indexFactory = new SearchIndexFactory(connection);
+    final SearchIndexFactory indexFactory = new SearchIndexFactory(_connection);
     final List<SearchIndex<?>> indices = createIndices(indexFactory, context.getRequiredTestInstance(), fields,
         fieldName -> String.format("%s_%s_%s_%s", fieldName, context.getRequiredTestMethod().getName(),
             context.getRequiredTestClass().getSimpleName(), System.currentTimeMillis()));
@@ -163,9 +176,8 @@ final class ElasticsearchIntegrationTestExtension
     final ExtensionContext.Store store = context.getStore(NAMESPACE);
 
     final List<SearchIndex<?>> indices = (List<SearchIndex<?>>) store.get(STATIC_INDICIES, List.class);
-    final ElasticsearchConnection connection = store.get(CONNECTION, ElasticsearchConnection.class);
 
-    cleanUp(connection, indices);
+    cleanUp(indices);
 
     // don't need to close the factory since it implements CloseableResource, junit will close it since it is in the
     // store
@@ -177,16 +189,15 @@ final class ElasticsearchIntegrationTestExtension
     final ExtensionContext.Store store = context.getStore(NAMESPACE);
 
     final List<SearchIndex<?>> indices = (List<SearchIndex<?>>) store.get(INDICIES, List.class);
-    final ElasticsearchConnection connection = store.get(CONNECTION, ElasticsearchConnection.class);
 
     if (indices != null) {
-      cleanUp(connection, indices);
+      cleanUp(indices);
     }
   }
 
-  private void cleanUp(@Nonnull ElasticsearchConnection connection, @Nonnull List<SearchIndex<?>> indices) {
+  private void cleanUp(@Nonnull List<SearchIndex<?>> indices) {
     for (SearchIndex<?> i : indices) {
-      connection.getTransportClient().admin().indices().prepareDelete(i.getName()).get();
+      _connection.getTransportClient().admin().indices().prepareDelete(i.getName()).get();
     }
 
     indices.clear();
