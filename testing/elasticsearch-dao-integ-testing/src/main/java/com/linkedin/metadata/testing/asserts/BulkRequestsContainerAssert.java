@@ -2,7 +2,6 @@ package com.linkedin.metadata.testing.asserts;
 
 import com.linkedin.metadata.testing.BulkRequestsContainer;
 import java.util.Collection;
-import java.util.List;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
