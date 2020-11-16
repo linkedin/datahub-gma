@@ -3,9 +3,9 @@ apply plugin: 'java'
 dependencies {
   compile project(':dao-impl:elasticsearch-dao')
 
+  compile externalDependency.assertJ
   compile externalDependency.junitJupiterApi
   compile externalDependency.junitJupiterParams
-  compile externalDependency.assertJ
 
   testRuntimeOnly externalDependency.junitJupiterEngine
   testCompile project(':testing:test-models')
