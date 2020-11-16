@@ -16,12 +16,15 @@ Status: **In Development**.
 5. Begin testing by data via `SearchIndex#getWriteDao` and asserting various queries.
 
 ```java
+import com.linkedin.metadata.dao.SearchResult;
 import com.linkedin.metadata.testing.ElasticsearchIntegrationTest;
 import com.linkedin.metadata.testing.SearchIndex;
 import com.linkedin.metadata.testing.annotations.SearchIndexMappings;
 import com.linkedin.metadata.testing.annotations.SearchIndexSettings;
 import com.linkedin.metadata.testing.annotations.SearchIndexType;
 import org.junit.jupiter.api.Test;
+
+import static com.linkedin.metadata.testing.asserts.SearchResultAssert.assertThat;
 
 @ElasticsearchIntegrationTest // 2
 public class ExampleTest {
@@ -34,11 +37,19 @@ public class ExampleTest {
   public void example() {
     // 5
     // given
-    final MySearchDocument mySearchDocument = new MySearchDocument();
+    final MySearchDocumentUrn urn = new MySearchDocumentUrn("example");
+    final MySearchDocument mySearchDocument = new MySearchDocument().setUrn(urn);
+
+    // when
     index.getWriteDao().upsertDocument(mySearchDocument, "myId");
     index.getRequestContainer().flushAndSettle();
+    final SearchResult<MySearchDocument> result = index.createReadDao(new MySearchDocumentConfig()).search("stuff", null, null, 0, 1);
 
-    // TODO finish example once we've decided on how asserts look.
+    // then
+    assertThat(result).hasNoMoreResults();
+    assertThat(result).hasTotalCount(1);
+    assertThat(result.getDocumentList()).containsExactly(mySearchDocument);
+    assertThat(result.getSearchResultMetadata().getUrns()).containsExactly(urn);
   }
 }
 ```
