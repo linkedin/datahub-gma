@@ -31,11 +31,7 @@ public class TestUtils {
 
   @Nonnull
   public static BarUrn makeBarUrn(int id) {
-    try {
-      return new BarUrn(id);
-    } catch (URISyntaxException e) {
-      throw new RuntimeException(e);
-    }
+    return new BarUrn(id);
   }
 
   @Nonnull
