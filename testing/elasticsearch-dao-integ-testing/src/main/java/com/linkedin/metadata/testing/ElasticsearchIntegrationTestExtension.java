@@ -37,9 +37,9 @@ final class ElasticsearchIntegrationTestExtension
   private final static String INDICIES = "indicies";
   private static ElasticsearchConnection _connection = null;
 
-  private ElasticsearchConnection startElasticSearch() throws Exception {
+  private void startElasticSearch() throws Exception {
     if (_connection != null) {
-      return _connection;
+      return;
     }
 
     final ElasticsearchContainerFactory factory = getContainerFactory();
@@ -52,8 +52,6 @@ final class ElasticsearchIntegrationTestExtension
         throwable.printStackTrace();
       }
     }));
-
-    return _connection;
   }
 
   @Override
@@ -64,14 +62,14 @@ final class ElasticsearchIntegrationTestExtension
 
     final ExtensionContext.Store store = context.getStore(NAMESPACE);
 
-    final ElasticsearchConnection connection = startElasticSearch();
+    startElasticSearch();
 
     final List<Field> fields = ReflectionUtils.findFields(testClass, field -> {
       return ReflectionUtils.isStatic(field) && ReflectionUtils.isPublic(field) && ReflectionUtils.isNotFinal(field)
           && SearchIndex.class.isAssignableFrom(field.getType());
     }, ReflectionUtils.HierarchyTraversalMode.TOP_DOWN);
 
-    final SearchIndexFactory indexFactory = new SearchIndexFactory(connection);
+    final SearchIndexFactory indexFactory = new SearchIndexFactory(_connection);
     final List<SearchIndex<?>> indices = createIndices(indexFactory, context.getRequiredTestClass(), fields,
         fieldName -> String.format("%s_%s_%s", fieldName, testClass.getSimpleName(), System.currentTimeMillis()));
     store.put(STATIC_INDICIES, indices);
