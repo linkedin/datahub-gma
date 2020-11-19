@@ -93,7 +93,6 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   // Always emit MAE on every update regardless if there's any actual change in value
   private boolean _alwaysEmitAuditEvent = false;
 
-  // Opt in to emit Aspect Specific MAE, at initial migration stage, always emit the event
   private boolean _emitAspectSpecificAuditEvent = false;
 
   // Flag for enabling reads and writes to local secondary index
@@ -298,9 +297,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       _producer.produceMetadataAuditEvent(urn, oldValue, newValue);
     }
 
-    // TODO: Replace step 6 with step 6.1 with diff option after pipeline is fully migrated to aspect specific events.
-    // 6.1. Produce aspect specific MAE after a successful update
-    if (_emitAspectSpecificAuditEvent) {
+    // TODO: Replace step 6 with step 6.1 after pipeline is fully migrated to aspect specific events.
+    // 6.1 Produce aspect specific MAE after a successful update
+    if (_emitAspectSpecificAuditEvent || oldValue != newValue) {
       _producer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue);
     }
 
