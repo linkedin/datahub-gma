@@ -1,12 +1,10 @@
 package com.linkedin.metadata.dao.utils;
 
-import com.linkedin.common.urn.Urn;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.Criterion;
 import com.linkedin.metadata.query.Filter;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URISyntaxException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -56,12 +54,10 @@ public class SearchUtils {
   public static QueryBuilder getQueryBuilderFromCriterion(@Nonnull Criterion criterion) {
     final Condition condition = criterion.getCondition();
     if (condition == Condition.EQUAL) {
-      try {
-        Urn.createFromString(criterion.getValue());
+      if (criterion.getValue().startsWith("urn:li:")) {
         return QueryBuilders.termsQuery(criterion.getField(), criterion.getValue().trim());
-      } catch (URISyntaxException e) {
-        return QueryBuilders.termsQuery(criterion.getField(), criterion.getValue().trim().split("\\s*,\\s*"));
       }
+      return QueryBuilders.termsQuery(criterion.getField(), criterion.getValue().trim().split("\\s*,\\s*"));
     } else if (condition == Condition.GREATER_THAN) {
       return QueryBuilders.rangeQuery(criterion.getField()).gt(criterion.getValue().trim());
     } else if (condition == Condition.GREATER_THAN_OR_EQUAL_TO) {
