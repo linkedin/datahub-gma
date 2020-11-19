@@ -178,7 +178,6 @@ public class BaseLocalDAOTest {
 
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, foo, foo);
-    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo);
     verifyNoMoreInteractions(_mockEventProducer);
   }
 
@@ -195,8 +194,6 @@ public class BaseLocalDAOTest {
 
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo1);
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, foo1, foo2);
-    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo1);
-    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, foo1, foo2);
     verifyNoMoreInteractions(_mockEventProducer);
   }
 
@@ -214,7 +211,6 @@ public class BaseLocalDAOTest {
     _dummyLocalDAO.add(urn, foo3, _dummyAuditStamp);
 
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo1);
-    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo1);
     verifyNoMoreInteractions(_mockEventProducer);
   }
 

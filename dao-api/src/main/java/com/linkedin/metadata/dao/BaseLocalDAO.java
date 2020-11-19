@@ -95,6 +95,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   private boolean _emitAspectSpecificAuditEvent = false;
 
+  private boolean _alwaysEmitAspectSpecificAuditEvent = false;
+
   // Flag for enabling reads and writes to local secondary index
   private boolean _enableLocalSecondaryIndex = false;
 
@@ -208,10 +210,17 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * Sets if aspect specific MAE should be always emitted after each update even if there's no actual value change.
+   * Sets if aspect specific MAE should be enabled.
    */
   public void setEmitAspectSpecificAuditEvent(boolean emitAspectSpecificAuditEvent) {
     _emitAspectSpecificAuditEvent = emitAspectSpecificAuditEvent;
+  }
+
+  /**
+   * Sets if aspect specific MAE should be always emitted after each update even if there's no actual value change.
+   */
+  public void setAlwaysEmitAspectSpecificAuditEvent(boolean alwaysEmitAspectSpecificAuditEvent) {
+    _alwaysEmitAspectSpecificAuditEvent = alwaysEmitAspectSpecificAuditEvent;
   }
 
   /**
@@ -299,10 +308,11 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     // TODO: Replace step 6 with step 6.1 after pipeline is fully migrated to aspect specific events.
     // 6.1 Produce aspect specific MAE after a successful update
-    if (_emitAspectSpecificAuditEvent || oldValue != newValue) {
-      _producer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue);
+    if (_emitAspectSpecificAuditEvent) {
+      if (_alwaysEmitAspectSpecificAuditEvent || oldValue != newValue) {
+        _producer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue);
+      }
     }
-
     // 7. Invoke post-update hooks if there's any
     if (_aspectPostUpdateHooksMap.containsKey(aspectClass)) {
       _aspectPostUpdateHooksMap.get(aspectClass).forEach(hook -> hook.accept(urn, newValue));

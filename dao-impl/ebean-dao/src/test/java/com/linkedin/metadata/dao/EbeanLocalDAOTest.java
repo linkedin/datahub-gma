@@ -116,7 +116,6 @@ public class EbeanLocalDAOTest {
     assertEquals(actual, expected);
 
     verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, expected);
-    verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, expected);
     verifyNoMoreInteractions(_mockProducer);
   }
 
@@ -143,8 +142,6 @@ public class EbeanLocalDAOTest {
     InOrder inOrder = inOrder(_mockProducer);
     inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, v1);
     inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, v1, v0);
-    verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, v1);
-    verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, v1, v0);
     verifyNoMoreInteractions(_mockProducer);
   }
 
@@ -177,8 +174,6 @@ public class EbeanLocalDAOTest {
 
     verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
     verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, foo, bar);
-    verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo);
-    verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, foo, bar);
     verifyNoMoreInteractions(_mockProducer);
   }
 
@@ -205,8 +200,6 @@ public class EbeanLocalDAOTest {
 
     verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, foo1);
     verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, foo1, foo2);
-    verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo1);
-    verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, foo1, foo2);
     verifyNoMoreInteractions(_mockProducer);
   }
 
