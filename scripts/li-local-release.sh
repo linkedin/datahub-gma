@@ -13,13 +13,13 @@ if [ ! -d $LOCAL_REPO ]; then
   mkdir $LOCAL_REPO
 fi
 
-VERSION=$(./gradlew -q getVersion)
+VERSION="$(./gradlew -q getVersion)-SNAPSHOT"
 
 echo "Publishing GMA $VERSION to ${LOCAL_REPO}..."
 
-# Publish artifacts to Maven local, but override the repo path
-# TODO might be nice to override version to include SNAPSHOT. Requires https://github.com/shipkit/shipkit-auto-version/issues/37.
-./gradlew -Dmaven.repo.local=$LOCAL_REPO publishToMavenLocal
+# Publish artifacts to Maven local, but override the repo path and add a -SNAPSHOT suffix to avoid confusion with
+# versions published to bintray.
+./gradlew -Dmaven.repo.local=$LOCAL_REPO publishToMavenLocal -Pversion="${VERSION}-SNAPSHOT"
 
 if [ $? = 0 ]; then
   echo "Published GMA $VERSION to $LOCAL_REPO"
