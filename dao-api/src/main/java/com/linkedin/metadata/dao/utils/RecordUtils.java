@@ -231,7 +231,7 @@ public class RecordUtils {
    * @param fieldName the name of the field to update
    * @param value the value to set
    */
-  public static <T extends RecordTemplate, V extends DataTemplate> void setRecordTemplateComplexField(
+  public static <T extends RecordTemplate, V extends DataTemplate<?>> void setRecordTemplateComplexField(
       @Nonnull T recordTemplate, @Nonnull String fieldName, @Nonnull V value) {
 
     final RecordDataSchema.Field field = getRecordDataSchemaField(recordTemplate, fieldName);
@@ -250,6 +250,7 @@ public class RecordUtils {
    * @return the value for the field
    */
   @Nonnull
+  @SuppressWarnings("unchecked")
   public static <T extends RecordTemplate, V> V getRecordTemplateField(@Nonnull T recordTemplate,
       @Nonnull String fieldName, @Nonnull Class<V> valueClass) {
 
@@ -269,7 +270,8 @@ public class RecordUtils {
    * @return the value for the field
    */
   @Nonnull
-  public static <T extends RecordTemplate, V extends DataTemplate> V getRecordTemplateWrappedField(
+  @SuppressWarnings("unchecked")
+  public static <T extends RecordTemplate, V extends DataTemplate<?>> V getRecordTemplateWrappedField(
       @Nonnull T recordTemplate, @Nonnull String fieldName, @Nonnull Class<V> valueClass) {
 
     final RecordDataSchema.Field field = getRecordDataSchemaField(recordTemplate, fieldName);
@@ -286,6 +288,7 @@ public class RecordUtils {
    * @return the currently selected value in {@code unionTemplate}
    */
   @Nonnull
+  @SuppressWarnings("unchecked")
   public static <V extends RecordTemplate> RecordTemplate getSelectedRecordTemplateFromUnion(
       @Nonnull UnionTemplate unionTemplate) {
 
@@ -312,6 +315,7 @@ public class RecordUtils {
    * @return the currently selected value in {@code unionTemplate}
    */
   @Nonnull
+  @SuppressWarnings("unchecked")
   public static <V extends RecordTemplate> RecordTemplate setSelectedRecordTemplateInUnion(
       @Nonnull UnionTemplate unionTemplate, @Nonnull RecordTemplate selectedMember) {
 
@@ -323,7 +327,7 @@ public class RecordUtils {
   }
 
   @Nonnull
-  private static Method getProtectedMethod(@Nonnull Class clazz, @Nonnull String methodName,
+  private static Method getProtectedMethod(@Nonnull Class<?> clazz, @Nonnull String methodName,
       @Nonnull Class<?>... parameterTypes) {
     try {
       return clazz.getDeclaredMethod(methodName, parameterTypes);
@@ -333,10 +337,10 @@ public class RecordUtils {
   }
 
   @Nonnull
-  private static <T> T invokeProtectedMethod(Object object, Method method, Object... args) {
+  private static Object invokeProtectedMethod(Object object, Method method, Object... args) {
     try {
       method.setAccessible(true);
-      return (T) method.invoke(object, args);
+      return method.invoke(object, args);
     } catch (IllegalAccessException | InvocationTargetException e) {
       throw new RuntimeException(e);
     } finally {
@@ -427,7 +431,7 @@ public class RecordUtils {
    * @return Referenced object of the RecordTemplate corresponding to the PathSpec
    */
   @Nonnull
-  @SuppressWarnings("rawtypes")
+  @SuppressWarnings({"rawtypes", "unchecked"})
   public static Optional<Object> getFieldValue(@Nonnull RecordTemplate recordTemplate, @Nonnull PathSpec ps) {
     Object reference = recordTemplate;
     final int pathSize = ps.getPathComponents().size();

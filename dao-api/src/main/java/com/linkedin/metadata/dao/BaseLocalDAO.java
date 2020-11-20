@@ -74,15 +74,15 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   private static final int DEFAULT_MAX_TRANSACTION_RETRY = 3;
 
-  protected final BaseMetadataEventProducer _producer;
+  protected final BaseMetadataEventProducer<?, ASPECT_UNION, URN> _producer;
   protected final LocalDAOStorageConfig _storageConfig;
 
   // Maps an aspect class to the corresponding retention policy
   private final Map<Class<? extends RecordTemplate>, Retention> _aspectRetentionMap = new HashMap<>();
 
   // Maps as aspect class to a list of post-update hooks
-  private final Map<Class<? extends RecordTemplate>, List<BiConsumer<Urn, RecordTemplate>>> _aspectPostUpdateHooksMap =
-      new HashMap<>();
+  private final Map<Class<? extends RecordTemplate>, List<BiConsumer<URN, ? extends RecordTemplate>>>
+      _aspectPostUpdateHooksMap = new HashMap<>();
 
   // Maps an aspect class to the corresponding equality tester
   private final Map<Class<? extends RecordTemplate>, EqualityTester<? extends RecordTemplate>>
@@ -109,7 +109,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    *     com.linkedin.metadata.aspect
    * @param producer {@link BaseMetadataEventProducer} for the metadata event producer
    */
-  public BaseLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer) {
+  public BaseLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass,
+      @Nonnull BaseMetadataEventProducer<?, ASPECT_UNION, URN> producer) {
     super(aspectUnionClass);
     _producer = producer;
     _storageConfig = LocalDAOStorageConfig.builder().build();
@@ -121,7 +122,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param producer {@link BaseMetadataEventProducer} for the metadata event producer
    * @param storageConfig {@link LocalDAOStorageConfig} containing storage config of full list of supported aspects
    */
-  public BaseLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull LocalDAOStorageConfig storageConfig) {
+  public BaseLocalDAO(@Nonnull BaseMetadataEventProducer<?, ASPECT_UNION, URN> producer,
+      @Nonnull LocalDAOStorageConfig storageConfig) {
     super(storageConfig.getAspectStorageConfigMap().keySet());
     _producer = producer;
     _storageConfig = storageConfig;
@@ -159,20 +161,20 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * order of invocation when multiple hooks are added for a single aspect. Adding the same hook again will result in
    * {@link IllegalArgumentException} thrown. Hooks are invoked in the order they're registered.
    */
-  public <URN extends Urn, ASPECT extends RecordTemplate> void addPostUpdateHook(@Nonnull Class<ASPECT> aspectClass,
+  public <ASPECT extends RecordTemplate> void addPostUpdateHook(@Nonnull Class<ASPECT> aspectClass,
       @Nonnull BiConsumer<URN, ASPECT> postUpdateHook) {
 
     checkValidAspect(aspectClass);
     // TODO: Also validate Urn once we convert all aspect models to PDL with proper annotation
 
-    final List<BiConsumer<Urn, RecordTemplate>> hooks =
+    final List<BiConsumer<URN, ? extends RecordTemplate>> hooks =
         _aspectPostUpdateHooksMap.getOrDefault(aspectClass, new LinkedList<>());
 
     if (hooks.contains(postUpdateHook)) {
       throw new IllegalArgumentException("Adding an already-registered hook");
     }
 
-    hooks.add((BiConsumer<Urn, RecordTemplate>) postUpdateHook);
+    hooks.add(postUpdateHook);
     _aspectPostUpdateHooksMap.put(aspectClass, hooks);
   }
 
@@ -189,10 +191,11 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * Gets the {@link EqualityTester} for an aspect, or {@link DefaultEqualityTester} if none is registered.
    */
   @Nonnull
+  @SuppressWarnings("unchecked")
   public <ASPECT extends RecordTemplate> EqualityTester<ASPECT> getEqualityTester(@Nonnull Class<ASPECT> aspectClass) {
     checkValidAspect(aspectClass);
     return (EqualityTester<ASPECT>) _aspectEqualityTesterMap.computeIfAbsent(aspectClass,
-        key -> new DefaultEqualityTester<ASPECT>());
+        key -> new DefaultEqualityTester<>());
   }
 
   /**
@@ -228,6 +231,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    *
    * @deprecated Use {@link #enableLocalSecondaryIndex(boolean)} instead
    */
+  @Deprecated
   public void setWriteToLocalSecondaryIndex(boolean writeToLocalSecondaryIndex) {
     _enableLocalSecondaryIndex = writeToLocalSecondaryIndex;
   }
@@ -315,7 +319,11 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     }
     // 7. Invoke post-update hooks if there's any
     if (_aspectPostUpdateHooksMap.containsKey(aspectClass)) {
-      _aspectPostUpdateHooksMap.get(aspectClass).forEach(hook -> hook.accept(urn, newValue));
+      for (BiConsumer<URN, ? extends RecordTemplate> hook : _aspectPostUpdateHooksMap.get(aspectClass)) {
+        @SuppressWarnings("unchecked")
+        final BiConsumer<URN, ASPECT> typedHook = ((BiConsumer<URN, ASPECT>) hook);
+        typedHook.accept(urn, newValue);
+      }
     }
 
     return newValue;
@@ -334,6 +342,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * Similar to {@link #add(Urn, Class, Function, AuditStamp)} but takes the new value directly.
    */
   @Nonnull
+  @SuppressWarnings("unchecked")
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull ASPECT newValue,
       @Nonnull AuditStamp auditStamp) {
     return add(urn, (Class<ASPECT>) newValue.getClass(), ignored -> newValue, auditStamp);
@@ -378,8 +387,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param newValue {@link RecordTemplate} of the new value of aspect
    * @param version version of the aspect
    */
-  protected abstract <ASPECT extends RecordTemplate> void updateLocalIndex(@Nonnull URN urn,
-      @Nullable ASPECT newValue, long version);
+  protected abstract <ASPECT extends RecordTemplate> void updateLocalIndex(@Nonnull URN urn, @Nullable ASPECT newValue,
+      long version);
 
   /**
    * Returns list of urns from local secondary index that satisfy the given filter conditions.
@@ -399,8 +408,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    */
   @Nonnull
   public List<URN> listUrns(@Nonnull Class<URN> urnClazz, @Nullable URN lastUrn, int pageSize) {
-    final IndexFilter indexFilter = new IndexFilter()
-            .setCriteria(new IndexCriterionArray(new IndexCriterion().setAspect(urnClazz.getCanonicalName())));
+    final IndexFilter indexFilter = new IndexFilter().setCriteria(
+        new IndexCriterionArray(new IndexCriterion().setAspect(urnClazz.getCanonicalName())));
     return listUrns(indexFilter, lastUrn, pageSize);
   }
 
@@ -519,8 +528,10 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @return backfilled aspect
    * @deprecated Use {@link #backfill(Set, Set)} instead
    */
+  @Deprecated
   @Nonnull
-  public <ASPECT extends RecordTemplate> Optional<ASPECT> backfill(@Nonnull Class<ASPECT> aspectClass, @Nonnull URN urn) {
+  public <ASPECT extends RecordTemplate> Optional<ASPECT> backfill(@Nonnull Class<ASPECT> aspectClass,
+      @Nonnull URN urn) {
     return backfill(BackfillMode.BACKFILL_ALL, aspectClass, urn);
   }
 
@@ -560,7 +571,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   private Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfill(
       @Nonnull BackfillMode mode, @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nonnull Set<URN> urns) {
     checkValidAspects(aspectClasses);
-    final Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> urnToAspects = get(aspectClasses, urns);
+    final Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> urnToAspects =
+        get(aspectClasses, urns);
     urnToAspects.forEach((urn, aspects) -> {
       aspects.forEach((aspectClass, aspect) -> aspect.ifPresent(value -> backfill(mode, value, urn)));
     });
@@ -584,7 +596,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nonnull Class<URN> urnClazz, @Nullable URN lastUrn, int pageSize) {
 
     final List<URN> urnList = listUrns(urnClazz, lastUrn, pageSize);
-    return backfill(mode, aspectClasses, new HashSet(urnList));
+    return backfill(mode, aspectClasses, new HashSet<>(urnList));
   }
 
   /**
@@ -595,7 +607,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param urn {@link Urn} for the entity
    * @param <ASPECT> must be a supported aspect type in {@code ASPECT_UNION}.
    */
-  private <ASPECT extends RecordTemplate> void backfill(@Nonnull BackfillMode mode,  @Nonnull ASPECT aspect, @Nonnull URN urn) {
+  private <ASPECT extends RecordTemplate> void backfill(@Nonnull BackfillMode mode, @Nonnull ASPECT aspect,
+      @Nonnull URN urn) {
     if (_enableLocalSecondaryIndex && (mode == BackfillMode.SCSI_ONLY || mode == BackfillMode.BACKFILL_ALL)) {
       updateLocalIndex(urn, aspect, FIRST_VERSION);
     }
@@ -687,6 +700,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * Similar to {@link #getWithExtraInfo(Set)} but only using only one {@link AspectKey}.
    */
   @Nonnull
+  @SuppressWarnings("unchecked")
   public <ASPECT extends RecordTemplate> Optional<AspectWithExtraInfo<ASPECT>> getWithExtraInfo(
       @Nonnull AspectKey<URN, ASPECT> key) {
     if (getWithExtraInfo(Collections.singleton(key)).containsKey(key)) {

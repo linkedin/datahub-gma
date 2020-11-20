@@ -18,7 +18,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -33,14 +32,20 @@ import static org.testng.Assert.*;
 
 public class BaseLocalDAOTest {
 
+  interface FakeLatestAspectSupplier<ASPECT extends RecordTemplate> {
+    @Nonnull
+    BaseLocalDAO.AspectEntry<ASPECT> getLatest(@Nonnull FooUrn urn,
+        @Nonnull Class<? extends RecordTemplate> aspectClass);
+  }
+
   static class DummyLocalDAO extends BaseLocalDAO<EntityAspectUnion, FooUrn> {
 
-    private final BiFunction<FooUrn, Class<? extends RecordTemplate>, AspectEntry> _getLatestFunction;
+    private final FakeLatestAspectSupplier<?> _getLatestSupplier;
 
-    public DummyLocalDAO(BiFunction<FooUrn, Class<? extends RecordTemplate>, AspectEntry> getLatestFunction,
-        BaseMetadataEventProducer eventProducer) {
+    public DummyLocalDAO(FakeLatestAspectSupplier<?> getLatestSupplier,
+        BaseMetadataEventProducer<?, EntityAspectUnion, FooUrn> eventProducer) {
       super(EntityAspectUnion.class, eventProducer);
-      _getLatestFunction = getLatestFunction;
+      _getLatestSupplier = getLatestSupplier;
     }
 
     @Override
@@ -50,8 +55,8 @@ public class BaseLocalDAOTest {
     }
 
     @Override
-    protected <ASPECT extends RecordTemplate> void updateLocalIndex(@Nonnull FooUrn urn,
-        @Nullable ASPECT newValue, long version) {
+    protected <ASPECT extends RecordTemplate> void updateLocalIndex(@Nonnull FooUrn urn, @Nullable ASPECT newValue,
+        long version) {
 
     }
 
@@ -61,8 +66,9 @@ public class BaseLocalDAOTest {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     protected <ASPECT extends RecordTemplate> AspectEntry<ASPECT> getLatest(FooUrn urn, Class<ASPECT> aspectClass) {
-      return _getLatestFunction.apply(urn, aspectClass);
+      return (AspectEntry<ASPECT>) _getLatestSupplier.getLatest(urn, aspectClass);
     }
 
     @Override
@@ -143,24 +149,25 @@ public class BaseLocalDAOTest {
 
   private DummyLocalDAO _dummyLocalDAO;
   private AuditStamp _dummyAuditStamp;
-  private BaseMetadataEventProducer _mockEventProducer;
-  private BiFunction<FooUrn, Class<? extends RecordTemplate>, BaseLocalDAO.AspectEntry> _mockGetLatestFunction;
+  private BaseMetadataEventProducer<?, EntityAspectUnion, FooUrn> _mockEventProducer;
+  private FakeLatestAspectSupplier<?> _mockLatestSupplier;
 
   @BeforeMethod
+  @SuppressWarnings("unchecked")
   public void setup() {
-    _mockGetLatestFunction = mock(BiFunction.class);
+    _mockLatestSupplier = mock(FakeLatestAspectSupplier.class);
     _mockEventProducer = mock(BaseMetadataEventProducer.class);
-    _dummyLocalDAO = new DummyLocalDAO(_mockGetLatestFunction, _mockEventProducer);
+    _dummyLocalDAO = new DummyLocalDAO(_mockLatestSupplier, _mockEventProducer);
     _dummyAuditStamp = makeAuditStamp("foo", 1234);
   }
 
   private <T extends RecordTemplate> BaseLocalDAO.AspectEntry<T> makeAspectEntry(T aspect, AuditStamp auditStamp) {
-    return new BaseLocalDAO.AspectEntry(aspect, new ExtraInfo().setAudit(auditStamp));
+    return new BaseLocalDAO.AspectEntry<>(aspect, new ExtraInfo().setAudit(auditStamp));
   }
 
   private <T extends RecordTemplate> void expectGetLatest(FooUrn urn, Class<T> aspectClass,
       List<BaseLocalDAO.AspectEntry<T>> returnValues) {
-    OngoingStubbing<BaseLocalDAO.AspectEntry<T>> ongoing = when(_mockGetLatestFunction.apply(urn, aspectClass));
+    OngoingStubbing<BaseLocalDAO.AspectEntry<?>> ongoing = when(_mockLatestSupplier.getLatest(urn, aspectClass));
     for (BaseLocalDAO.AspectEntry<T> value : returnValues) {
       ongoing = ongoing.thenReturn(value);
     }
@@ -236,6 +243,7 @@ public class BaseLocalDAOTest {
   public void testPostUpdateHookInvoked() throws URISyntaxException {
     FooUrn urn = new FooUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");
+    @SuppressWarnings("unchecked")
     BiConsumer<FooUrn, AspectFoo> hook = mock(BiConsumer.class);
 
     _dummyLocalDAO.addPostUpdateHook(AspectFoo.class, hook);
