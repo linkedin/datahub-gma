@@ -51,7 +51,7 @@ public class ModelUtilsTest {
 
   @Test
   public void testGetAspectClass() {
-    Class aspectClass = ModelUtils.getAspectClass("com.linkedin.testing.AspectFoo");
+    Class<?> aspectClass = ModelUtils.getAspectClass("com.linkedin.testing.AspectFoo");
     assertEquals(aspectClass, AspectFoo.class);
   }
 

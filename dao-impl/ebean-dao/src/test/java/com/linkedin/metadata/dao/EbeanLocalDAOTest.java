@@ -149,7 +149,7 @@ public class EbeanLocalDAOTest {
   public void testDefaultEqualityTester() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao =
         new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, _server, FooUrn.class);
-    dao.setEqualityTester(AspectFoo.class, DefaultEqualityTester.<AspectFoo>newInstance());
+    dao.setEqualityTester(AspectFoo.class, DefaultEqualityTester.instance());
     FooUrn urn = makeFooUrn(1);
     String aspectName = ModelUtils.getAspectName(AspectFoo.class);
     AspectFoo foo = new AspectFoo().setValue("foo");
@@ -181,7 +181,7 @@ public class EbeanLocalDAOTest {
   public void testAlwaysFalseEqualityTester() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao =
         new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, _server, FooUrn.class);
-    dao.setEqualityTester(AspectFoo.class, AlwaysFalseEqualityTester.<AspectFoo>newInstance());
+    dao.setEqualityTester(AspectFoo.class, AlwaysFalseEqualityTester.instance());
     FooUrn urn = makeFooUrn(1);
     String aspectName = ModelUtils.getAspectName(AspectFoo.class);
     AspectFoo foo1 = new AspectFoo().setValue("foo");
