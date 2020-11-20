@@ -45,7 +45,16 @@ public class SearchUtils {
   }
 
   /**
-   * Builds search query using criterion.
+   * Builds search query given a {@link Criterion}, containing field, value and association/condition between the two.
+   *
+   * <p> If the condition between a field and value (specified in {@link Criterion}) is EQUAL, we construct a Terms query.
+   * In this case, a field can take multiple values, specified using comma as a delimiter - this method will split
+   * tokens accordingly. This is done because currently there is no support of associating two different {@link Criterion}
+   * in a {@link Filter} with an OR operator - default operator is AND.
+   * TODO(https://github.com/linkedin/datahub-gma/issues/51): support multiple values a field can take without using delimiters like comma.
+   *
+   * <p> If the condition between a field and value is not the same as EQUAL, a Range query is constructed. This
+   * condition does not support multiple values for the same field.
    *
    * @param criterion {@link Criterion} single criterion which contains field, value and a comparison operator
    * @return QueryBuilder
