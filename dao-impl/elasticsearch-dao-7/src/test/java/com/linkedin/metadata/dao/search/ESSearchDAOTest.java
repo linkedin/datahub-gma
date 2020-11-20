@@ -178,6 +178,18 @@ public class ESSearchDAOTest {
   }
 
   @Test
+  public void testFilteredQueryWithUrnValue() throws IOException {
+    int from = 0;
+    int size = 10;
+    Filter filter = newFilter(ImmutableMap.of("key1", "value1, value2 ", "key2", "urn:li:entity:(foo,bar,baz)"));
+    SortCriterion sortCriterion = new SortCriterion().setOrder(SortOrder.ASCENDING).setField("urn");
+
+    SearchRequest searchRequest = _searchDAO.getFilteredSearchQuery(filter, sortCriterion, from, size);
+    assertEquals(searchRequest.source().toString(), loadJsonFromResource("UrnFilterQuery.json"));
+    assertEquals(searchRequest.indices(), new String[]{_testSearchConfig.getIndexName()});
+  }
+
+  @Test
   public void testFilteredQueryWithRangeFilter() throws IOException {
     int from = 0;
     int size = 10;
