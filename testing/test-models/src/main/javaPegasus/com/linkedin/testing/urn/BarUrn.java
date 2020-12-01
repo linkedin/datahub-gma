@@ -1,5 +1,6 @@
 package com.linkedin.testing.urn;
 
+import com.linkedin.common.urn.TupleKey;
 import com.linkedin.common.urn.Urn;
 import java.net.URISyntaxException;
 
@@ -10,8 +11,8 @@ public final class BarUrn extends Urn {
   // Can be obtained via getEntityKey, but not in open source. We need to unify the internal / external URN definitions.
   private final int _id;
 
-  public BarUrn(int id) throws URISyntaxException {
-    super(ENTITY_TYPE, Integer.toString(id));
+  public BarUrn(int id) {
+    super(ENTITY_TYPE, TupleKey.create(id));
     this._id = id;
   }
 
