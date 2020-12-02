@@ -10,6 +10,7 @@ import javax.annotation.Nullable;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -63,6 +64,12 @@ public class ESUtils {
     final Condition condition = criterion.getCondition();
     if (condition == Condition.EQUAL) {
       BoolQueryBuilder filters = new BoolQueryBuilder();
+
+      if (SearchUtils.isUrn(criterion.getValue())) {
+        filters.should(QueryBuilders.matchQuery(criterion.getField(), criterion.getValue().trim()));
+        return filters;
+      }
+
       Arrays.stream(criterion.getValue().trim().split("\\s*,\\s*"))
           .forEach(elem -> filters.should(QueryBuilders.matchQuery(criterion.getField(), elem)));
       return filters;
@@ -83,13 +90,14 @@ public class ESUtils {
    * @param searchSourceBuilder {@link SearchSourceBuilder} that needs to be populated with sort order
    * @param sortCriterion {@link SortCriterion} to be applied to the search results
    */
-  public static void buildSortOrder(@Nonnull SearchSourceBuilder searchSourceBuilder, @Nullable SortCriterion sortCriterion) {
+  public static void buildSortOrder(@Nonnull SearchSourceBuilder searchSourceBuilder,
+      @Nullable SortCriterion sortCriterion) {
     if (sortCriterion == null) {
       searchSourceBuilder.sort(new ScoreSortBuilder().order(SortOrder.DESC));
     } else {
-      final SortOrder esSortOrder = (sortCriterion.getOrder() == com.linkedin.metadata.query.SortOrder.ASCENDING)
-          ? SortOrder.ASC
-          : SortOrder.DESC;
+      final SortOrder esSortOrder =
+          (sortCriterion.getOrder() == com.linkedin.metadata.query.SortOrder.ASCENDING) ? SortOrder.ASC
+              : SortOrder.DESC;
       searchSourceBuilder.sort(new FieldSortBuilder(sortCriterion.getField()).order(esSortOrder));
     }
     if (sortCriterion == null || !sortCriterion.getField().equals(DEFAULT_SEARCH_RESULTS_SORT_BY_FIELD)) {
