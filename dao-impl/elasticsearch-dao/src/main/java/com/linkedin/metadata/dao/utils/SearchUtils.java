@@ -44,6 +44,13 @@ public class SearchUtils {
     return requestParams.getCriteria().stream().collect(Collectors.toMap(Criterion::getField, Criterion::getValue));
   }
 
+  static boolean isUrn(@Nonnull String value) {
+    // TODO(https://github.com/linkedin/datahub-gma/issues/51): This method is a bit of a hack to support searching for
+    // URNs that have commas in them, while also using commas a delimiter for search. We should stop supporting commas
+    // as delimiter, and then we can stop using this hack.
+    return value.startsWith("urn:li:");
+  }
+
   /**
    * Builds search query given a {@link Criterion}, containing field, value and association/condition between the two.
    *
@@ -55,7 +62,8 @@ public class SearchUtils {
    * <p>This approach of supporting multiple values using comma as delimiter, prevents us from specifying a value that has comma
    * as one of it's characters. This is particularly true when one of the values is an urn e.g. "urn:li:example:(1,2,3)".
    * Hence we do not split the value (using comma as delimiter) if the value starts with "urn:li:".
-   * TODO(https://github.com/linkedin/datahub-gma/issues/51): support multiple values a field can take without using delimiters like comma.
+   * TODO(https://github.com/linkedin/datahub-gma/issues/51): support multiple values a field can take without using
+   * delimiters like comma.
    *
    * <p>If the condition between a field and value is not the same as EQUAL, a Range query is constructed. This
    * condition does not support multiple values for the same field.
@@ -66,7 +74,9 @@ public class SearchUtils {
   public static QueryBuilder getQueryBuilderFromCriterion(@Nonnull Criterion criterion) {
     final Condition condition = criterion.getCondition();
     if (condition == Condition.EQUAL) {
-      if (criterion.getValue().startsWith("urn:li:")) {
+      // TODO(https://github.com/linkedin/datahub-gma/issues/51): support multiple values a field can take without using
+      // delimiters like comma. This is a hack to support equals with URN that has a comma in it.
+      if (isUrn(criterion.getValue())) {
         return QueryBuilders.termsQuery(criterion.getField(), criterion.getValue().trim());
       }
       return QueryBuilders.termsQuery(criterion.getField(), criterion.getValue().trim().split("\\s*,\\s*"));
