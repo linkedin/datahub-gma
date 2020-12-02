@@ -46,13 +46,10 @@ project.ext.externalDependency = [
     'jacksonCore': 'com.fasterxml.jackson.core:jackson-core:2.9.7',
     'jacksonDataBind': 'com.fasterxml.jackson.core:jackson-databind:2.9.7',
     'javatuples': 'org.javatuples:javatuples:1.2',
-<<<<<<< HEAD
     'jsonSimple': 'com.googlecode.json-simple:json-simple:1.1.1',
     'junitJupiterApi': "org.junit.jupiter:junit-jupiter-api:$junitJupiterVersion",
     'junitJupiterParams': "org.junit.jupiter:junit-jupiter-params:$junitJupiterVersion",
     'junitJupiterEngine': "org.junit.jupiter:junit-jupiter-engine:$junitJupiterVersion",
-=======
->>>>>>> 82e47552 (fix: enable werror for ebean dao.)
     'lombok': 'org.projectlombok:lombok:1.18.12',
     'mockito': 'org.mockito:mockito-core:3.0.0',
     'mockitoInline': 'org.mockito:mockito-inline:3.0.0',
