@@ -10,7 +10,6 @@ import javax.annotation.Nullable;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -65,6 +64,8 @@ public class ESUtils {
     if (condition == Condition.EQUAL) {
       BoolQueryBuilder filters = new BoolQueryBuilder();
 
+      // TODO(https://github.com/linkedin/datahub-gma/issues/51): support multiple values a field can take without using
+      // delimiters like comma. This is a hack to support equals with URN that has a comma in it.
       if (SearchUtils.isUrn(criterion.getValue())) {
         filters.should(QueryBuilders.matchQuery(criterion.getField(), criterion.getValue().trim()));
         return filters;

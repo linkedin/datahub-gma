@@ -26,6 +26,8 @@ import java.util.Map;
 import org.apache.commons.io.IOUtils;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -34,8 +36,8 @@ import org.testng.annotations.Test;
 
 import static com.linkedin.metadata.dao.utils.QueryUtils.*;
 import static com.linkedin.testing.TestUtils.*;
-import static org.testng.Assert.*;
 import static org.mockito.Mockito.*;
+import static org.testng.Assert.*;
 
 
 public class ESSearchDAOTest {
@@ -60,35 +62,35 @@ public class ESSearchDAOTest {
     // Test empty fieldVal
     List<String> fieldValList = Collections.emptyList();
     String searchInput = "searchInput";
-    List<String> searchResult = ESAutoCompleteQueryForHighCardinalityFields
-        .decoupleArrayToGetSubstringMatch(fieldValList, searchInput);
+    List<String> searchResult =
+        ESAutoCompleteQueryForHighCardinalityFields.decoupleArrayToGetSubstringMatch(fieldValList, searchInput);
     assertEquals(searchResult.size(), 0);
 
     // Test non-list fieldVal
     String fieldValString = "fieldVal";
     searchInput = "searchInput";
-    searchResult = ESAutoCompleteQueryForHighCardinalityFields
-        .decoupleArrayToGetSubstringMatch(fieldValString, searchInput);
+    searchResult =
+        ESAutoCompleteQueryForHighCardinalityFields.decoupleArrayToGetSubstringMatch(fieldValString, searchInput);
     assertEquals(searchResult.size(), 1);
 
     // Test list fieldVal with no match
     fieldValList = Arrays.asList("fieldVal1", "fieldVal2", "fieldVal3");
     searchInput = "searchInput";
-    searchResult = ESAutoCompleteQueryForHighCardinalityFields
-        .decoupleArrayToGetSubstringMatch(fieldValList, searchInput);
+    searchResult =
+        ESAutoCompleteQueryForHighCardinalityFields.decoupleArrayToGetSubstringMatch(fieldValList, searchInput);
     assertEquals(searchResult.size(), 0);
 
     // Test list fieldVal with single match
     searchInput = "val1";
-    searchResult = ESAutoCompleteQueryForHighCardinalityFields
-        .decoupleArrayToGetSubstringMatch(fieldValList, searchInput);
+    searchResult =
+        ESAutoCompleteQueryForHighCardinalityFields.decoupleArrayToGetSubstringMatch(fieldValList, searchInput);
     assertEquals(searchResult.size(), 1);
     assertEquals(searchResult.get(0), "fieldVal1");
 
     // Test list fieldVal with multiple match
     searchInput = "val";
-    searchResult = ESAutoCompleteQueryForHighCardinalityFields
-        .decoupleArrayToGetSubstringMatch(fieldValList, searchInput);
+    searchResult =
+        ESAutoCompleteQueryForHighCardinalityFields.decoupleArrayToGetSubstringMatch(fieldValList, searchInput);
     assertEquals(searchResult.size(), 3);
     assertTrue(searchResult.equals(fieldValList));
   }
@@ -104,7 +106,7 @@ public class ESSearchDAOTest {
     SearchResponse searchResponse = mock(SearchResponse.class);
     when(searchResponse.getHits()).thenReturn(searchHits);
 
-    StringArray res  = _esAutoCompleteQuery.getSuggestionList(searchResponse, "name", "test", 2);
+    StringArray res = _esAutoCompleteQuery.getSuggestionList(searchResponse, "name", "test", 2);
 
     assertEquals(res.size(), 2);
   }
@@ -126,7 +128,8 @@ public class ESSearchDAOTest {
     SearchResponse searchResponse2 = mock(SearchResponse.class);
     when(searchResponse2.getHits()).thenReturn(searchHits2);
     UrnArray urns = new UrnArray(Arrays.asList(makeUrn(1), makeUrn(2)));
-    assertEquals(_searchDAO.extractSearchResultMetadata(searchResponse2), getDefaultSearchResultMetadata().setUrns(urns));
+    assertEquals(_searchDAO.extractSearchResultMetadata(searchResponse2),
+        getDefaultSearchResultMetadata().setUrns(urns));
 
     // Test: urn field does not exist in one search document, exists in another
     SearchHits searchHits3 = mock(SearchHits.class);
@@ -162,17 +165,17 @@ public class ESSearchDAOTest {
     // Test 1: sort order provided
     SearchRequest searchRequest = _searchDAO.getFilteredSearchQuery(filter, sortCriterion, from, size);
     assertEquals(searchRequest.source().toString(), loadJsonFromResource("SortByUrnTermsFilterQuery.json"));
-    assertEquals(searchRequest.indices(), new String[] {_testSearchConfig.getIndexName()});
+    assertEquals(searchRequest.indices(), new String[]{_testSearchConfig.getIndexName()});
 
     // Test 2: no sort order provided, default is used.
     searchRequest = _searchDAO.getFilteredSearchQuery(filter, null, from, size);
     assertEquals(searchRequest.source().toString(), loadJsonFromResource("DefaultSortTermsFilterQuery.json"));
-    assertEquals(searchRequest.indices(), new String[] {_testSearchConfig.getIndexName()});
+    assertEquals(searchRequest.indices(), new String[]{_testSearchConfig.getIndexName()});
 
     // Test 3: empty request map provided
     searchRequest = _searchDAO.getFilteredSearchQuery(EMPTY_FILTER, sortCriterion, from, size);
     assertEquals(searchRequest.source().toString(), loadJsonFromResource("EmptyFilterQuery.json"));
-    assertEquals(searchRequest.indices(), new String[] {_testSearchConfig.getIndexName()});
+    assertEquals(searchRequest.indices(), new String[]{_testSearchConfig.getIndexName()});
   }
 
   @Test
@@ -191,17 +194,16 @@ public class ESSearchDAOTest {
   public void testFilteredQueryWithRangeFilter() throws IOException {
     int from = 0;
     int size = 10;
-    final Filter filter1 = new Filter().setCriteria(new CriterionArray(Arrays.asList(
-        new Criterion().setField("field_gt").setValue("100").setCondition(Condition.GREATER_THAN),
-        new Criterion().setField("field_gte").setValue("200").setCondition(Condition.GREATER_THAN_OR_EQUAL_TO),
-        new Criterion().setField("field_lt").setValue("300").setCondition(Condition.LESS_THAN),
-        new Criterion().setField("field_lte").setValue("400").setCondition(Condition.LESS_THAN_OR_EQUAL_TO)
-    )));
+    final Filter filter1 = new Filter().setCriteria(new CriterionArray(
+        Arrays.asList(new Criterion().setField("field_gt").setValue("100").setCondition(Condition.GREATER_THAN),
+            new Criterion().setField("field_gte").setValue("200").setCondition(Condition.GREATER_THAN_OR_EQUAL_TO),
+            new Criterion().setField("field_lt").setValue("300").setCondition(Condition.LESS_THAN),
+            new Criterion().setField("field_lte").setValue("400").setCondition(Condition.LESS_THAN_OR_EQUAL_TO))));
     SortCriterion sortCriterion = new SortCriterion().setOrder(SortOrder.ASCENDING).setField("urn");
 
     SearchRequest searchRequest = _searchDAO.getFilteredSearchQuery(filter1, sortCriterion, from, size);
     assertEquals(searchRequest.source().toString(), loadJsonFromResource("RangeFilterQuery.json"));
-    assertEquals(searchRequest.indices(), new String[] {_testSearchConfig.getIndexName()});
+    assertEquals(searchRequest.indices(), new String[]{_testSearchConfig.getIndexName()});
   }
 
   @Test
@@ -209,10 +211,10 @@ public class ESSearchDAOTest {
     int from = 0;
     int size = 10;
     final Filter filter2 = new Filter().setCriteria(new CriterionArray(Arrays.asList(
-        new Criterion().setField("field_contain").setValue("value_contain").setCondition(Condition.CONTAIN)
-    )));
+        new Criterion().setField("field_contain").setValue("value_contain").setCondition(Condition.CONTAIN))));
     SortCriterion sortCriterion = new SortCriterion().setOrder(SortOrder.ASCENDING).setField("urn");
-    assertThrows(UnsupportedOperationException.class, () -> _searchDAO.getFilteredSearchQuery(filter2, sortCriterion, from, size));
+    assertThrows(UnsupportedOperationException.class,
+        () -> _searchDAO.getFilteredSearchQuery(filter2, sortCriterion, from, size));
   }
 
   @Test
@@ -242,6 +244,43 @@ public class ESSearchDAOTest {
     SearchRequest searchRequest = _searchDAO.constructSearchQuery("dummy", filter, null, null, 0, 10);
     assertEquals(searchRequest.source().aggregations().getAggregatorFactories().get(0),
         AggregationBuilders.terms(facetFieldName).field(facetFieldName).size(5));
+  }
+
+  @Test
+  public void testUrnWithComma() {
+    // TODO(https://github.com/linkedin/datahub-gma/issues/51): stop treating urns differently
+
+    // given
+    String facetFieldName = "value";
+    String urnValue = "urn:li:entity:(a,b)";
+    Map<String, String> requestMap = Collections.singletonMap(facetFieldName, urnValue);
+    Filter filter = QueryUtils.newFilter(requestMap);
+
+    // when
+    SearchRequest searchRequest = _searchDAO.constructSearchQuery("dummy", filter, null, null, 0, 10);
+
+    // then
+    assertEquals(searchRequest.source().postFilter(),
+        new BoolQueryBuilder().must(new BoolQueryBuilder().should(QueryBuilders.matchQuery(facetFieldName, urnValue))));
+  }
+
+  @Test
+  public void testNonUrnWithComma() {
+    // TODO(https://github.com/linkedin/datahub-gma/issues/51): stop splitting on commas
+
+    // given
+    String facetFieldName = "value";
+    String urnValue = "a,b";
+    Map<String, String> requestMap = Collections.singletonMap(facetFieldName, urnValue);
+    Filter filter = QueryUtils.newFilter(requestMap);
+
+    // when
+    SearchRequest searchRequest = _searchDAO.constructSearchQuery("dummy", filter, null, null, 0, 10);
+
+    // then
+    assertEquals(searchRequest.source().postFilter(), new BoolQueryBuilder().must(
+        new BoolQueryBuilder().should(QueryBuilders.matchQuery(facetFieldName, "a"))
+            .should(QueryBuilders.matchQuery(facetFieldName, "b"))));
   }
 
   private static SearchHit makeSearchHit(int id) {
