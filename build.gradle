@@ -75,7 +75,7 @@ apply from: "./gradle/release.gradle"
 def wErrorProjects = [
     project(':core-models'),
     project(':dao-api'),
-    // project(':dao-impl:ebean-dao'),
+    project(':dao-impl:ebean-dao'),
     // project(':dao-impl:elasticsearch-dao'),
     // project(':dao-impl:neo4j-dao'),
     project(':restli-resources'),
