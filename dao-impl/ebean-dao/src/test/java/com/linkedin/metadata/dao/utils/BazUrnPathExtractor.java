@@ -11,7 +11,7 @@ import javax.annotation.Nonnull;
 public class BazUrnPathExtractor implements UrnPathExtractor<BazUrn> {
   @Override
   public Map<String, Object> extractPaths(@Nonnull BazUrn urn) {
-    return Collections.unmodifiableMap(new HashMap() {
+    return Collections.unmodifiableMap(new HashMap<String, Object>() {
       {
         put("/bazId", urn.getBazIdEntity());
       }
