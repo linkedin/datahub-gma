@@ -46,7 +46,6 @@ project.ext.externalDependency = [
     'h2': 'com.h2database:h2:1.4.196',
     'jacksonCore': 'com.fasterxml.jackson.core:jackson-core:2.9.7',
     'jacksonDataBind': 'com.fasterxml.jackson.core:jackson-databind:2.9.7',
-    'javatuples': 'org.javatuples:javatuples:1.2',
     'jsonSimple': 'com.googlecode.json-simple:json-simple:1.1.1',
     'junitJupiterApi': "org.junit.jupiter:junit-jupiter-api:$junitJupiterVersion",
     'junitJupiterParams': "org.junit.jupiter:junit-jupiter-params:$junitJupiterVersion",
@@ -70,32 +69,17 @@ project.ext.externalDependency = [
 apply plugin: 'com.diffplug.spotless'
 apply from: "./gradle/release.gradle"
 
-// TODO expand this to all projects and then delete this allow list. This list is letting us fix errors over time rather
-// than in one big change.
-def wErrorProjects = [
-    project(':core-models'),
-    project(':dao-api'),
-    project(':dao-impl:ebean-dao'),
-    project(':dao-impl:elasticsearch-dao'),
-    // project(':dao-impl:neo4j-dao'),
-    project(':restli-resources'),
-    project(':testing'),
-    project(':validators')
-]
-
 allprojects {
   apply plugin: 'idea'
   apply plugin: 'eclipse'
   apply plugin: 'checkstyle'
 
   gradle.projectsEvaluated {
-    if (wErrorProjects.contains(project)) {
-      tasks.withType(JavaCompile) {
-        options.compilerArgs << "-Xlint:all" << "-Werror" <<
-            "-Xlint:-deprecation" << // TODO
-            "-Xlint:-processing" << // TODO we have annotations like @Nonnull that need a processor
-            "-Xlint:-serial" // I don't think we care about having custom Exception subclasses be serializable...
-      }
+    tasks.withType(JavaCompile) {
+      options.compilerArgs << "-Xlint:all" << "-Werror" <<
+          "-Xlint:-deprecation" << // TODO
+          "-Xlint:-processing" << // TODO we have annotations like @Nonnull that need a processor
+          "-Xlint:-serial" // I don't think we care about having custom Exception subclasses be serializable...
     }
   }
 }
