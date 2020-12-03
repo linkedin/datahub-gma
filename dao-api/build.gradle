@@ -5,7 +5,6 @@ apply from: "$rootDir/gradle/java-publishing.gradle"
 dependencies {
   compile project(':core-models')
   compile project(':validators')
-  compile externalDependency.javatuples
   compile externalDependency.reflections
   compile externalDependency.commonsLang
 
