@@ -1,0 +1,14 @@
+apply plugin: 'java'
+
+apply from: "$rootDir/gradle/java-publishing.gradle"
+
+dependencies {
+  compile project(':dao-impl:elasticsearch-dao-7')
+
+  compile externalDependency.assertJ
+  compile externalDependency.junitJupiterApi
+  compile externalDependency.junitJupiterParams
+
+  testRuntimeOnly externalDependency.junitJupiterEngine
+  testCompile project(':testing:test-models')
+}
