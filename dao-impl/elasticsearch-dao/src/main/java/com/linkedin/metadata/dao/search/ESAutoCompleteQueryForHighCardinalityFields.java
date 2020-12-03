@@ -22,9 +22,9 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 @Slf4j
 public class ESAutoCompleteQueryForHighCardinalityFields extends BaseESAutoCompleteQuery {
   private static final Integer DEFAULT_AUTOCOMPLETE_QUERY_SIZE =  100;
-  private BaseSearchConfig _config;
+  private final BaseSearchConfig<?> _config;
 
-  ESAutoCompleteQueryForHighCardinalityFields(BaseSearchConfig config) {
+  ESAutoCompleteQueryForHighCardinalityFields(BaseSearchConfig<?> config) {
     this._config = config;
   }
 
@@ -63,7 +63,7 @@ public class ESAutoCompleteQueryForHighCardinalityFields extends BaseESAutoCompl
       @Nonnull String input, int limit) {
     Set<String> autoCompletionList = new LinkedHashSet<>();
     SearchHit[] hits = searchResponse.getHits().getHits();
-    Integer count = 0;
+    int count = 0;
     for (SearchHit hit : hits) {
       Map<String, Object> source = hit.getSource();
       if (count >= limit) {
@@ -97,7 +97,7 @@ public class ESAutoCompleteQueryForHighCardinalityFields extends BaseESAutoCompl
     if (!(fieldVal instanceof List)) {
       return Collections.singletonList(fieldVal.toString());
     }
-    List<Object> stringVals = (List<Object>) fieldVal;
+    final List<?> stringVals = (List<?>) fieldVal;
     return stringVals.stream()
         .map(Object::toString)
         .filter(x -> x.toLowerCase().contains(input.toLowerCase()))
