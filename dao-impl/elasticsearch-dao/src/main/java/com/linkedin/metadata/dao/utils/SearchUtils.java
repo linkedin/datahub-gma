@@ -84,7 +84,7 @@ public class SearchUtils {
   }
 
   @Nonnull
-  public static String toEntityType(@Nonnull Class c) {
+  public static String toEntityType(@Nonnull Class<?> c) {
     String result = c.getSimpleName().toLowerCase();
     if (result.endsWith("entity")) {
       result = result.substring(0, result.length() - 6);
@@ -93,11 +93,10 @@ public class SearchUtils {
   }
 
   @Nonnull
-  public static String readResourceFile(@Nonnull Class clazz, @Nonnull String filePath) {
+  public static String readResourceFile(@Nonnull Class<?> clazz, @Nonnull String filePath) {
     try (InputStream inputStream = clazz.getClassLoader().getResourceAsStream(filePath)) {
       return IOUtils.toString(inputStream);
     } catch (IOException e) {
-      log.error("Can't read file: " + filePath);
       throw new RuntimeException("Can't read file: " + filePath);
     }
   }
