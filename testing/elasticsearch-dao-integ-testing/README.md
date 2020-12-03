@@ -2,8 +2,6 @@
 
 This module includes a framework to write integration tests against Elasticsearch using GMA, Junit 5, and assertj.
 
-Status: **In Development**.
-
 ## Creating a new integration test
 
 1. Add this module as a dependency, as well as an [implementation](#implementations).
