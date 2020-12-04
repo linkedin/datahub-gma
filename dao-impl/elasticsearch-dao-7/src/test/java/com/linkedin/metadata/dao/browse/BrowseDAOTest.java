@@ -20,7 +20,7 @@ import static org.testng.Assert.*;
 
 
 public class BrowseDAOTest {
-  private BaseBrowseConfig _browseConfig;
+  private BaseBrowseConfig<?> _browseConfig;
   private RestHighLevelClient _mockClient;
   private ESBrowseDAO _browseDAO;
 
@@ -70,29 +70,44 @@ public class BrowseDAOTest {
   }
 
   @Test
-  public void testGetBrowsePath() throws Exception {
+  public void testEmptyGetBrowsePaths() throws Exception {
     SearchResponse mockSearchResponse = mock(SearchResponse.class);
     SearchHits mockSearchHits = mock(SearchHits.class);
-    SearchHit mockSearchHit = mock(SearchHit.class);
     Urn dummyUrn = TestUtils.makeUrn(0);
-    Map<String, Object> sourceMap = new HashMap<>();
 
     // Test when there is no search hit for getBrowsePaths
     when(mockSearchHits.getHits()).thenReturn(new SearchHit[0]);
     when(mockSearchResponse.getHits()).thenReturn(mockSearchHits);
     when(_mockClient.search(any(), eq(RequestOptions.DEFAULT))).thenReturn(mockSearchResponse);
     assertEquals(_browseDAO.getBrowsePaths(dummyUrn).size(), 0);
+  }
+
+  @Test
+  public void testGetBrowsePathMissingField() throws Exception {
+    SearchResponse mockSearchResponse = mock(SearchResponse.class);
+    SearchHits mockSearchHits = mock(SearchHits.class);
+    SearchHit mockSearchHit = mock(SearchHit.class);
+    Urn dummyUrn = TestUtils.makeUrn(0);
+    Map<String, Object> sourceMap = new HashMap<>();
 
     // Test the case of single search hit & browsePaths field doesn't exist
-    sourceMap.remove(_browseConfig.getBrowsePathFieldName());
     when(mockSearchHit.getSourceAsMap()).thenReturn(sourceMap);
     when(mockSearchHits.getHits()).thenReturn(new SearchHit[]{mockSearchHit});
     when(mockSearchResponse.getHits()).thenReturn(mockSearchHits);
     when(_mockClient.search(any(), eq(RequestOptions.DEFAULT))).thenReturn(mockSearchResponse);
     assertEquals(_browseDAO.getBrowsePaths(dummyUrn).size(), 0);
+  }
+
+  @Test
+  public void testGetBrowsePathFoundField() throws Exception {
+    SearchResponse mockSearchResponse = mock(SearchResponse.class);
+    SearchHits mockSearchHits = mock(SearchHits.class);
+    SearchHit mockSearchHit = mock(SearchHit.class);
+    Urn dummyUrn = TestUtils.makeUrn(0);
+    Map<String, Object> sourceMap = new HashMap<>();
+    sourceMap.put(_browseConfig.getBrowsePathFieldName(), Collections.singletonList("foo"));
 
     // Test the case of single search hit & browsePaths field exists
-    sourceMap.put(_browseConfig.getBrowsePathFieldName(), Collections.singletonList("foo"));
     when(mockSearchHit.getSourceAsMap()).thenReturn(sourceMap);
     when(mockSearchHits.getHits()).thenReturn(new SearchHit[]{mockSearchHit});
     when(mockSearchResponse.getHits()).thenReturn(mockSearchHits);
