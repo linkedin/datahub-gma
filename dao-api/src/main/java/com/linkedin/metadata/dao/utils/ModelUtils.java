@@ -44,7 +44,6 @@ public class ModelUtils {
    * Gets the corresponding aspect name for a specific aspect type.
    *
    * @param aspectClass the aspect type
-   * @param <T> must be a valid aspect type
    * @return the corresponding aspect name, which is actually the FQCN of type
    */
   public static String getAspectName(@Nonnull Class<? extends DataTemplate<?>> aspectClass) {

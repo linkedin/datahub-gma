@@ -143,7 +143,7 @@ public abstract class BaseQueryDAO {
    * Finds a list of entities based on the given traversing paths.
    *
    * @param sourceEntityClass the source entity class as the starting point for the query. Must be a type defined in
-   *    com.linkedin.metadata.entity.
+   *     com.linkedin.metadata.entity.
    * @param sourceEntityFilter the filter to apply to the source entity when querying
    * @param traversePaths specify the traverse paths via a list of (relationship type, relationship filter,
    *     intermediate entities)

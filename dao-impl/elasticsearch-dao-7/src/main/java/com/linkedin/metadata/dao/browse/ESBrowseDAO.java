@@ -47,9 +47,9 @@ import org.elasticsearch.search.sort.SortOrder;
 @Slf4j
 public class ESBrowseDAO extends BaseBrowseDAO {
   private final RestHighLevelClient _client;
-  private final BaseBrowseConfig _config;
+  private final BaseBrowseConfig<?> _config;
 
-  public ESBrowseDAO(@Nonnull RestHighLevelClient esClient, @Nonnull BaseBrowseConfig config) {
+  public ESBrowseDAO(@Nonnull RestHighLevelClient esClient, @Nonnull BaseBrowseConfig<?> config) {
     this._client = esClient;
     this._config = config;
   }
@@ -235,7 +235,7 @@ public class ESBrowseDAO extends BaseBrowseDAO {
     final List<BrowseResultEntity> entityMetadataArray = new ArrayList<>();
     Arrays.stream(entitiesResponse.getHits().getHits()).forEach(hit -> {
       try {
-        final List<String> allPaths = (List<String>) hit.getSourceAsMap().get(_config.getBrowsePathFieldName());
+        final List<?> allPaths = (List<?>) hit.getSourceAsMap().get(_config.getBrowsePathFieldName());
         final String nextLevelPath = getNextLevelPath(allPaths, currentPath);
         if (nextLevelPath != null) {
           entityMetadataArray.add(new BrowseResultEntity().setName(getSimpleName(nextLevelPath))
@@ -263,10 +263,12 @@ public class ESBrowseDAO extends BaseBrowseDAO {
 
   @VisibleForTesting
   @Nullable
-  static String getNextLevelPath(@Nonnull List<String> paths, @Nonnull String currentPath) {
+  static String getNextLevelPath(@Nonnull List<?> paths, @Nonnull String currentPath) {
     final String normalizedCurrentPath = currentPath.toLowerCase();
     final int pathDepth = getPathDepth(currentPath);
     return paths.stream()
+        .filter(x -> x instanceof String)
+        .map(x -> (String) x)
         .filter(x -> x.toLowerCase().startsWith(normalizedCurrentPath) && getPathDepth(x) == (pathDepth + 1))
         .findFirst()
         .orElse(null);
@@ -298,10 +300,12 @@ public class ESBrowseDAO extends BaseBrowseDAO {
     if (searchHits.length == 0) {
       return Collections.emptyList();
     }
-    final Map sourceMap = searchHits[0].getSourceAsMap();
+    final Map<String, Object> sourceMap = searchHits[0].getSourceAsMap();
     if (!sourceMap.containsKey(_config.getBrowsePathFieldName())) {
       return Collections.emptyList();
     }
-    return (List<String>) sourceMap.get(_config.getBrowsePathFieldName());
+    @SuppressWarnings("unchecked")
+    final List<String> paths = (List<String>) sourceMap.get(_config.getBrowsePathFieldName());
+    return paths;
   }
 }
