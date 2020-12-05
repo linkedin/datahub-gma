@@ -1,0 +1,20 @@
+apply plugin: 'java'
+
+dependencies {
+  compile project(path: ':gradle-plugins:metadata-annotations-schema', configuration: 'dataTemplate')
+  compile externalDependency.guava
+
+  compileOnly externalDependency.lombok
+  annotationProcessor externalDependency.lombok
+
+  testCompile externalDependency.assertJ
+
+  testCompile externalDependency.junitJupiterApi
+  testCompile externalDependency.junitJupiterEngine
+  testCompile externalDependency.junitJupiterParams
+  testCompile project(':gradle-plugins:metadata-annotations-test-models')
+}
+
+test {
+  useJUnitPlatform()
+}

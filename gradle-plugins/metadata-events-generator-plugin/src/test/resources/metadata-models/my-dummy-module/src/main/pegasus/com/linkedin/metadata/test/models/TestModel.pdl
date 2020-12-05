@@ -1,0 +1,5 @@
+namespace com.linkedin.metadata.test.models
+
+record TestModel {
+  field: string
+}

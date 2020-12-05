@@ -1,0 +1,11 @@
+namespace com.linkedin.testing
+
+/**
+ * For unit tests
+ */
+@gma.aspect.entity.urn = "com.linkedin.testing.FooUrn"
+record AnnotatedAspectOtherFoo {
+
+  /** For unit tests */
+  value: string
+}
