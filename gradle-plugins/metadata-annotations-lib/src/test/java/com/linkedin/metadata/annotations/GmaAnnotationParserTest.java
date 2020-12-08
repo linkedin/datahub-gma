@@ -40,7 +40,7 @@ public class GmaAnnotationParserTest {
 
   @Test
   public void parseCommonAspectDisallowedUrn() {
-    assertThatThrownBy(() -> new GmaAnnotationParser(new DefaultGmaEntitiesAnnotationAllowList(
+    assertThatThrownBy(() -> new GmaAnnotationParser(new GmaEntitiesAnnotationAllowListImpl(
         ImmutableSetMultimap.<String, String>builder().putAll("com.linkedin.testing.CommonAspect",
             "com.linkedin.testing.FooUrn").build())).parse(
         (RecordDataSchema) DataTemplateUtil.getSchema(CommonAspect.class))).isInstanceOf(

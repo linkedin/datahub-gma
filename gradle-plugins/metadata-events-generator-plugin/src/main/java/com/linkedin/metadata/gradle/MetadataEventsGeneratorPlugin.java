@@ -90,6 +90,7 @@ public final class MetadataEventsGeneratorPlugin implements Plugin<Project> {
           task.getInputModelPaths().setFrom(extension.getInputModels());
           task.getResolverPath().setFrom(extension.getResolverPaths());
           task.getOutputDirectory().setFrom(extension.getOutputDir());
+          task.getEntitiesAnnotationAllowList().set(extension.getEntitiesAnnotationAllowList());
         });
 
     final Path baseOutputPath = project.getRootProject()

@@ -3,7 +3,6 @@ package com.linkedin.metadata.generator;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
 import com.linkedin.metadata.annotations.AlwaysAllowList;
-import com.linkedin.metadata.annotations.GmaAnnotationParser;
 import com.linkedin.metadata.annotations.testing.TestModels;
 import java.io.File;
 import java.util.List;
@@ -52,7 +51,7 @@ public class TestEventSpec {
         inputDir.toPath().resolve("com/linkedin/testing/CommonAspect.pdl").toFile());
 
     final SchemaAnnotationRetriever schemaAnnotationRetriever =
-        new SchemaAnnotationRetriever(inputDir.toString(), new GmaAnnotationParser(new AlwaysAllowList()));
+        new SchemaAnnotationRetriever(inputDir.toString(), new AlwaysAllowList());
     final String[] sources = {inputDir.toString()};
     final List<EventSpec> eventSpecs = schemaAnnotationRetriever.generate(sources);
 

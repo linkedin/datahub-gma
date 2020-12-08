@@ -1,6 +1,5 @@
 package com.linkedin.metadata.annotations;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.schema.validation.RequiredMode;
@@ -19,13 +18,12 @@ public class GmaAnnotationParser {
 
   private final GmaEntitiesAnnotationAllowList _gmaEntitiesAnnotationAllowList;
 
-  @VisibleForTesting
   public GmaAnnotationParser(@Nonnull GmaEntitiesAnnotationAllowList gmaEntitiesAnnotationAllowList) {
     _gmaEntitiesAnnotationAllowList = gmaEntitiesAnnotationAllowList;
   }
 
   public GmaAnnotationParser() {
-    this(DefaultGmaEntitiesAnnotationAllowList.DEFAULT);
+    this(GmaEntitiesAnnotationAllowListImpl.DEFAULT);
   }
 
   public static final class GmaAnnotationParseException extends RuntimeException {

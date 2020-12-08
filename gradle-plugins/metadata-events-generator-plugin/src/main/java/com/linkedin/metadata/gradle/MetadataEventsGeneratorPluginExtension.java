@@ -1,8 +1,11 @@
 package com.linkedin.metadata.gradle;
 
+import com.linkedin.metadata.annotations.GmaEntitiesAnnotationAllowList;
+import com.linkedin.metadata.annotations.GmaEntitiesAnnotationAllowListImpl;
 import javax.annotation.Nonnull;
 import org.gradle.api.Project;
 import org.gradle.api.file.ConfigurableFileCollection;
+import org.gradle.api.provider.Property;
 
 
 /**
@@ -14,6 +17,7 @@ public class MetadataEventsGeneratorPluginExtension {
   private ConfigurableFileCollection _outputDir;
   private ConfigurableFileCollection _resolverPaths;
   private ConfigurableFileCollection _inputModels;
+  private Property<GmaEntitiesAnnotationAllowList> _allowList;
 
   /**
    * Helper method to create an extension; as it has file collection properties that need initialization.
@@ -24,6 +28,8 @@ public class MetadataEventsGeneratorPluginExtension {
     extension._resolverPaths = project.files();
     extension._inputModels = project.files();
     extension._outputDir = project.files();
+    extension._allowList = project.getObjects().property(GmaEntitiesAnnotationAllowList.class);
+    extension._allowList.set(GmaEntitiesAnnotationAllowListImpl.DEFAULT);
     return extension;
   }
 
@@ -51,5 +57,12 @@ public class MetadataEventsGeneratorPluginExtension {
    */
   public ConfigurableFileCollection getInputModels() {
     return _inputModels;
+  }
+
+  /**
+   * Allow list for the {@code @gma.aspect.entities} annotation.
+   */
+  public Property<GmaEntitiesAnnotationAllowList> getEntitiesAnnotationAllowList() {
+    return _allowList;
   }
 }

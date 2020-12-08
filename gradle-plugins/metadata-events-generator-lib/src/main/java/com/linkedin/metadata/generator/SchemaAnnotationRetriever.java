@@ -1,10 +1,10 @@
 package com.linkedin.metadata.generator;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.linkedin.data.schema.DataSchema;
 import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.metadata.annotations.AspectEntityAnnotation;
 import com.linkedin.metadata.annotations.GmaAnnotationParser;
+import com.linkedin.metadata.annotations.GmaEntitiesAnnotationAllowList;
 import com.linkedin.pegasus.generator.DataSchemaParser;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -23,10 +23,13 @@ public class SchemaAnnotationRetriever {
   private final DataSchemaParser _dataSchemaParser;
   private final GmaAnnotationParser _gmaAnnotationParser;
 
-  @VisibleForTesting
-  public SchemaAnnotationRetriever(@Nonnull String resolverPath, @Nonnull GmaAnnotationParser gmaAnnotationParser) {
+  private SchemaAnnotationRetriever(@Nonnull String resolverPath, @Nonnull GmaAnnotationParser gmaAnnotationParser) {
     _dataSchemaParser = new DataSchemaParser(resolverPath);
     _gmaAnnotationParser = gmaAnnotationParser;
+  }
+
+  public SchemaAnnotationRetriever(@Nonnull String resolverPath, @Nonnull GmaEntitiesAnnotationAllowList allowList) {
+    this(resolverPath, new GmaAnnotationParser(allowList));
   }
 
   public SchemaAnnotationRetriever(@Nonnull String resolverPath) {
