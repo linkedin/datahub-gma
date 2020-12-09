@@ -1,0 +1,11 @@
+namespace com.linkedin.metadata.annotations
+
+/**
+ * Root namespace annotation for all @gma annotations.
+ */
+record GmaAnnotation {
+  /**
+   * Information about an aspect.
+   */
+  aspect: optional AspectAnnotation
+}

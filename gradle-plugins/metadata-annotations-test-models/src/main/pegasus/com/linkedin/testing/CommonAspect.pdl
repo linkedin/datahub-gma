@@ -1,0 +1,10 @@
+namespace com.linkedin.testing
+
+/**
+ * For unit tests
+ */
+@gma.aspect.entities = [{ "urn": "com.linkedin.testing.FooUrn" }, { "urn": "com.linkedin.testing.BarUrn" }]
+record CommonAspect {
+  /** For unit tests */
+  value: string
+}

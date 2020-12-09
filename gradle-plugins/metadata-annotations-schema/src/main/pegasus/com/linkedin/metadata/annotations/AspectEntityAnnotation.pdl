@@ -1,0 +1,12 @@
+namespace com.linkedin.metadata.annotations
+
+
+/**
+ * Annotation on an aspect, describing an entity.
+ */
+record AspectEntityAnnotation {
+  /**
+   * The FQCN of the URN that identifies this entity.
+   */
+  urn: string
+}

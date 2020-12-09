@@ -1,0 +1,14 @@
+namespace com.linkedin.metadata.test.aspects
+
+import com.linkedin.metadata.test.models.TestModel
+import com.linkedin.testing.FooUrn
+
+@gma.aspect.entity.urn = "com.linkedin.testing.FooUrn"
+record TestAspect {
+  urn: FooUrn
+
+  /**
+   * Reference to sibling model
+   */
+  sibling: TestModel
+}

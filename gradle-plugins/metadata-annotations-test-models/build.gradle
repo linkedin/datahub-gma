@@ -1,0 +1,32 @@
+apply plugin: 'java'
+apply plugin: 'pegasus'
+
+dependencies {
+  dataModel project(':core-models')
+
+  testCompile externalDependency.assertJ
+
+  testCompile externalDependency.junitJupiterApi
+  testCompile externalDependency.junitJupiterEngine
+  testCompile externalDependency.junitJupiterParams
+}
+
+test {
+  useJUnitPlatform()
+}
+
+// Seems like the pegasus plugin prevents us from just adding the pegasus dir directly as a resource...
+task copyPdl(type: Copy) {
+  from 'src/main/pegasus'
+  into "$buildDir/resources"
+}
+
+sourceSets {
+  main {
+    resources {
+      srcDir files("$buildDir/resources").builtBy(copyPdl)
+    }
+  }
+}
+
+sourceSets.mainGeneratedDataTemplate.java.srcDirs('src/main/java/com/linkedin/testing/urn')

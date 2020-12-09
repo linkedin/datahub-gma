@@ -1,0 +1,44 @@
+apply plugin: 'java-gradle-plugin'
+apply plugin: 'groovy'
+
+configurations {
+  testProjectCompile
+}
+
+dependencies {
+  compile project(':gradle-plugins:metadata-events-generator-lib')
+
+  compile externalDependency.guava
+  compile spec.product.pegasus.gradlePlugins
+
+  testCompile(externalDependency.spock) {
+    exclude module: 'groovy-all'
+  }
+  testImplementation externalDependency.junitJupiterApi
+  testCompile externalDependency.junitVintageEngine
+
+  testProjectCompile  project(path: ':testing:test-models', configuration: 'dataTemplate')
+}
+
+gradlePlugin {
+  plugins {
+    simplePlugin {
+      id = 'com.linkedin.metadata-events-generator'
+      implementationClass = 'com.linkedin.metadata.gradle.MetadataEventsGeneratorPlugin'
+    }
+  }
+}
+
+test {
+  useJUnitPlatform()
+  dependsOn configurations.testProjectCompile
+}
+
+
+test {
+  doFirst {
+    systemProperty 'debug-jvm', debug
+    systemProperty 'repositories', project.rootProject.file('repositories.gradle').toString()
+    systemProperty 'testProjectCompile', configurations.testProjectCompile.collect().join(',')
+  }
+}

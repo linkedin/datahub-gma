@@ -1,0 +1,26 @@
+apply plugin: 'java'
+
+dependencies {
+  compile project(':gradle-plugins:metadata-annotations-schema')
+  compile project(':gradle-plugins:metadata-annotations-lib')
+  compile spec.product.pegasus.data
+  compile spec.product.pegasus.generator
+  compile externalDependency.commonsIo
+  compile externalDependency.guava
+  compile externalDependency.rythmEngine
+
+  compileOnly externalDependency.lombok
+  annotationProcessor externalDependency.lombok
+
+  testCompile project(':gradle-plugins:metadata-annotations-test-models')
+
+  testCompile externalDependency.assertJ
+
+  testCompile externalDependency.junitJupiterApi
+  testCompile externalDependency.junitJupiterEngine
+  testCompile externalDependency.junitJupiterParams
+}
+
+test {
+  useJUnitPlatform()
+}

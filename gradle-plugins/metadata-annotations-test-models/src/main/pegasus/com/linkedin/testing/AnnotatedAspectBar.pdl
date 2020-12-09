@@ -1,0 +1,22 @@
+namespace com.linkedin.testing
+
+/**
+ * For unit tests
+ */
+@gma.aspect.entity = {
+  "urn": "com.linkedin.testing.BarUrn"
+}
+record AnnotatedAspectBar {
+
+  /** For unit tests */
+  stringField: string
+
+  /** For unit tests */
+  boolField: boolean
+
+  /** For unit tests */
+  longField: long
+
+  /** For unit tests */
+  arrayField: array[string]
+}

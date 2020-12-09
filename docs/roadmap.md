@@ -27,9 +27,10 @@ List of features we know we want in a `1.0` release.
 
 Status: **Draft**
 
-- [ ] Metadata Events v5 support.
-  - [ ] Auto generate event definitions from PDL annotations at build time with a gradle plugin.
+- [ ] [Metadata Events v5](./what/mxev5.md) support.
+  - [x] Auto generate event definitions from PDL annotations at build time with a gradle plugin.
   - [ ] Support for DAOs to emit MAE v5.
+  - [ ] Support customizing kafka topic names / name patterns.
   - [ ] Jobs (or job libraries) to consume MCE v5 and update GMSes.
   - [ ] Jobs (or job libraries) to consume MAE v5 and update Elasticsearch.
   - [ ] Jobs (or job libraries) to consume MAE v5 and update Graph.
@@ -37,7 +38,7 @@ Status: **Draft**
   - [ ] Migration playbook for users to get off v4.
 - [ ] Enable `werror` for all Java code.
 - [ ] Remove use of tuples library (not idiomatic Java - replace with helper classes / POJOs).
-- [ ] Elasticsearch 7 support.
+- [x] Elasticsearch 7 support.
 - [ ] Java 11 support.
 
 ---
