@@ -5,7 +5,7 @@ import com.linkedin.metadata.testing.annotations.SearchIndexSettings;
 import com.linkedin.metadata.testing.annotations.SearchIndexType;
 import com.linkedin.testing.BarSearchDocument;
 import com.linkedin.testing.urn.BarUrn;
-import org.jetbrains.annotations.NotNull;
+import javax.annotation.Nonnull;
 
 
 public class ExampleSanityTest extends BaseSearchSanityTests<BarSearchDocument> {
@@ -21,7 +21,7 @@ public class ExampleSanityTest extends BaseSearchSanityTests<BarSearchDocument> 
     super(URN, DOCUMENT);
   }
 
-  @NotNull
+  @Nonnull
   @Override
   public SearchIndex<BarSearchDocument> getIndex() {
     return _searchIndex;
