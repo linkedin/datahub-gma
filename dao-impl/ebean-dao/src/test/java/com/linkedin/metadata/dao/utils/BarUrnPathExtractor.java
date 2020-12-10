@@ -11,7 +11,7 @@ import javax.annotation.Nonnull;
 public class BarUrnPathExtractor implements UrnPathExtractor<BarUrn> {
   @Override
   public Map<String, Object> extractPaths(@Nonnull BarUrn urn) {
-    return Collections.unmodifiableMap(new HashMap() {
+    return Collections.unmodifiableMap(new HashMap<String, Integer>() {
       {
         put("/barId", urn.getBarIdEntity());
       }

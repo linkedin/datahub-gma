@@ -1,6 +1,5 @@
 package com.linkedin.metadata.dao;
 
-import com.google.common.base.Charsets;
 import com.google.common.io.Resources;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
@@ -15,6 +14,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URISyntaxException;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -44,7 +44,7 @@ public class ImmutableLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends U
   public ImmutableLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass,
       @Nonnull Map<URN, ? extends RecordTemplate> urnAspectMap, @Nonnull Class<URN> urnClass) {
 
-    super(aspectUnionClass, new DummyMetadataEventProducer(),
+    super(aspectUnionClass, new DummyMetadataEventProducer<>(),
         createProductionH2ServerConfig(aspectUnionClass.getCanonicalName()), urnClass);
     _server.execute(Ebean.createSqlUpdate(readSQLfromFile(GMA_CREATE_ALL_SQL)));
     urnAspectMap.forEach((key, value) -> super.save(key, value, DUMMY_AUDIT_STAMP, LATEST_VERSION, true));
@@ -54,7 +54,7 @@ public class ImmutableLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends U
   public ImmutableLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass,
       @Nonnull Map<URN, ? extends RecordTemplate> urnAspectMap, boolean ddlGenerate, @Nonnull Class<URN> urnClass) {
 
-    super(aspectUnionClass, new DummyMetadataEventProducer(), createTestingH2ServerConfig(), urnClass);
+    super(aspectUnionClass, new DummyMetadataEventProducer<>(), createTestingH2ServerConfig(), urnClass);
     urnAspectMap.forEach((key, value) -> super.save(key, value, DUMMY_AUDIT_STAMP, LATEST_VERSION, true));
   }
 
@@ -98,7 +98,7 @@ public class ImmutableLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends U
   @Nonnull
   private String readSQLfromFile(@Nonnull String resourcePath) {
     try {
-      return Resources.toString(Resources.getResource(resourcePath), Charsets.UTF_8);
+      return Resources.toString(Resources.getResource(resourcePath), StandardCharsets.UTF_8);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
