@@ -1,5 +1,7 @@
 apply plugin: 'java'
 
+apply from: "$rootDir/gradle/java-publishing.gradle"
+
 dependencies {
   compile project(path: ':gradle-plugins:metadata-annotations-schema', configuration: 'dataTemplate')
   compile externalDependency.guava

@@ -21,19 +21,19 @@ import org.gradle.jvm.tasks.Jar;
  * Gradle plugin which auto generates the schema for metadata events (change, audit, failed change, etc) based on
  * annotations of PDL metadata models.
  *
- * <p><h2>Extensions</h2></p>
+ * <p><em>Extensions</em></p>
  *
  * <p>This plugin makes one extension per source set. The main sourceset extension is "metadataEvents". Other sourcesets
  * follow a pattern of adding the sourceset as a prefix, e.g. "testMetadataEvents". See {@link
  * MetadataEventsGeneratorPluginExtension} for properties.</p>
  *
- * <p><h2>Inputs</h2></p>
+ * <p><em>Inputs</em></p>
  * <p>This plugin will, by default, find all PDL files in your src/$SOURCESET/pegasus directories. It will scan them for
  * {@code @gma} annotations, and generate metadata event (MCE, MAE, FMCE) PDL schemas based on those annotations.</p>
  *
  * <p>This will piggy back off the pegasus plugin and use the {@code dataModel} configurations for dependencies.</p>
  *
- * <p><h2>Outputs</h2></p>
+ * <p><em>Outputs</em></p>
  * <p>For every source set, this will generate metadata events for each aspect-entity relationship defined in
  * {@code @gma.aspect.entity} annotations.</p>
  */

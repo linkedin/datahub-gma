@@ -1,6 +1,11 @@
 apply plugin: 'java'
 apply plugin: 'pegasus'
 
+// Don't publish the "normal" jar since it'd be empty anyway
+project.ext.publications = ['dataTemplate']
+
+apply from: "$rootDir/gradle/java-publishing.gradle"
+
 dependencies {
   dataModel project(':core-models')
 }

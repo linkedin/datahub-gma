@@ -28,7 +28,7 @@ public class SchemaGenerator {
    * @param sourcePaths the paths to find models to generate events for
    * @param generatedFileOutput the path to write events to
    * @param allowList the list of aspects which are allowed to use the plural annotation
-   * @throws IOException
+   * @throws IOException exception on input error
    */
   public void generate(@Nonnull Collection<String> resolverPaths, @Nonnull Collection<String> sourcePaths,
       @Nonnull String generatedFileOutput, @Nonnull GmaEntitiesAnnotationAllowList allowList) throws IOException {
@@ -42,7 +42,7 @@ public class SchemaGenerator {
    * @param resolverPaths paths to use to resolve models
    * @param sourcePaths the paths to find models to generate events for
    * @param generatedFileOutput the path to write events to
-   * @throws IOException
+   * @throws IOException exception on input error
    */
   public void generate(@Nonnull Collection<String> resolverPaths, @Nonnull Collection<String> sourcePaths,
       @Nonnull String generatedFileOutput) throws IOException {
