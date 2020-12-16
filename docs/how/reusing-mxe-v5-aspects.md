@@ -73,7 +73,7 @@ However, as stated above, this is not true inheritance (in the generated Java). 
 `Ownership`). The latter two just happen to have the same fields as the former. There is no way, barring reflection
 (_which is a bad idea_), to have code reuse both `DatasetOwnership` and `MetricOwnership`.
 
-This method is *not* preferred, but is a possibility.
+This method is _not_ preferred, but is a possibility.
 
 Some snippets of the generated Java may look like:
 

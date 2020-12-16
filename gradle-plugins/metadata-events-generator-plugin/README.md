@@ -1,7 +1,7 @@
 # Metadata Events Generator Plugin
 
 > **Status**: In Development.
-> 
+>
 > This plugin generates [5th generation Metadata Events](../../docs/what/mxev5.md). This plugin is finished development,
 > however MXE v5 as a whole is still under development (see the [roadmap](../../docs/roadmap.md)).
 
@@ -42,4 +42,3 @@ What this says is that `MyAspect` is an aspect of `MyEntity`. This will generate
 entity-aspect combination.
 
 See the [MXE v5](../../docs/what/mxev5.md) document for a full example which includes the generated event definitions.
-
