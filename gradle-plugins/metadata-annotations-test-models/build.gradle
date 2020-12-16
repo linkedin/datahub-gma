@@ -1,6 +1,8 @@
 apply plugin: 'java'
 apply plugin: 'pegasus'
 
+apply from: "$rootDir/gradle/java-publishing.gradle"
+
 dependencies {
   dataModel project(':core-models')
 

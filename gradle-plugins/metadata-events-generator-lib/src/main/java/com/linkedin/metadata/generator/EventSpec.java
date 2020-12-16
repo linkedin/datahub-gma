@@ -6,7 +6,7 @@ import lombok.RequiredArgsConstructor;
 
 
 /**
- * Getter & setter class for schema event metadata.
+ * Getter and setter class for schema event metadata.
  */
 @Data
 @RequiredArgsConstructor

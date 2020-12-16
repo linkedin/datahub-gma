@@ -1,6 +1,8 @@
 apply plugin: 'java-gradle-plugin'
 apply plugin: 'groovy'
 
+apply from: "$rootDir/gradle/java-publishing.gradle"
+
 configurations {
   testProjectCompile
 }
