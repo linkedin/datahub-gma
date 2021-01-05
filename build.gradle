@@ -11,8 +11,8 @@ buildscript {
     classpath 'com.linkedin.pegasus:gradle-plugins:' + pegasusVersion
     classpath 'org.springframework.boot:spring-boot-gradle-plugin:2.1.2.RELEASE'
     classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.+'
-    classpath "org.shipkit:shipkit-auto-version:0.0.60"
-    classpath "org.shipkit:shipkit-changelog:0.0.45"
+    classpath "org.shipkit:shipkit-auto-version:1.1.1"
+    classpath "org.shipkit:shipkit-changelog:1.1.1"
   }
 }
 
