@@ -22,7 +22,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import org.javatuples.Triplet;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.GraphDatabase;
 import org.neo4j.driver.Record;
@@ -340,25 +339,21 @@ public class Neo4jQueryDAOTest {
     Filter sourceFilter = newFilter("urn", urn1.toString());
 
     // use case: return all the datasets owned by corpgroup1
-    List paths = new ArrayList();
-    paths.add(
-        Triplet.with(RelationshipFoo.class, createRelationshipFilter(EMPTY_FILTER, RelationshipDirection.OUTGOING),
-            EntityBar.class));
-    paths.add(
-        Triplet.with(RelationshipBar.class, createRelationshipFilter(EMPTY_FILTER, RelationshipDirection.INCOMING),
-            EntityBaz.class));
+    List<BaseQueryDAO.TraversalPath> paths = new ArrayList<>();
+    paths.add(new BaseQueryDAO.TraversalPath(RelationshipFoo.class,
+        createRelationshipFilter(EMPTY_FILTER, RelationshipDirection.OUTGOING), EntityBar.class));
+    paths.add(new BaseQueryDAO.TraversalPath(RelationshipBar.class,
+        createRelationshipFilter(EMPTY_FILTER, RelationshipDirection.INCOMING), EntityBaz.class));
     List<RecordTemplate> result = _dao.findEntities(EntityFoo.class, sourceFilter, paths, 0, 10);
     assertEquals(result.size(), 1);
     assertEquals(result.get(0), entity3);
 
     // use case: return all the datasets owned by corpgroup1
-    List paths2 = new ArrayList();
-    paths2.add(
-        Triplet.with(RelationshipFoo.class, createRelationshipFilter(EMPTY_FILTER, RelationshipDirection.UNDIRECTED),
-            EntityBar.class));
-    paths2.add(
-        Triplet.with(RelationshipBar.class, createRelationshipFilter(EMPTY_FILTER, RelationshipDirection.UNDIRECTED),
-            EntityBaz.class));
+    List<BaseQueryDAO.TraversalPath> paths2 = new ArrayList<>();
+    paths2.add(new BaseQueryDAO.TraversalPath(RelationshipFoo.class,
+        createRelationshipFilter(EMPTY_FILTER, RelationshipDirection.UNDIRECTED), EntityBar.class));
+    paths2.add(new BaseQueryDAO.TraversalPath(RelationshipBar.class,
+        createRelationshipFilter(EMPTY_FILTER, RelationshipDirection.UNDIRECTED), EntityBaz.class));
     List<RecordTemplate> result2 = _dao.findEntities(EntityFoo.class, sourceFilter, paths2, 0, 10);
     assertEquals(result2, result);
 
@@ -379,38 +374,37 @@ public class Neo4jQueryDAOTest {
     RelationshipFoo relationshipFoo1To4 = new RelationshipFoo().setSource(urn1).setDestination(urn4);
     _writer.addRelationship(relationshipFoo1To4);
 
-    List paths3 = new ArrayList();
-    paths3.add(
-        Triplet.with(RelationshipFoo.class, createRelationshipFilter(EMPTY_FILTER, RelationshipDirection.OUTGOING),
-            EntityBar.class));
-    paths3.add(
-        Triplet.with(RelationshipBar.class, createRelationshipFilter(EMPTY_FILTER, RelationshipDirection.INCOMING),
-            EntityBaz.class));
+    List<BaseQueryDAO.TraversalPath> paths3 = new ArrayList<>();
+    paths3.add(new BaseQueryDAO.TraversalPath(RelationshipFoo.class,
+        createRelationshipFilter(EMPTY_FILTER, RelationshipDirection.OUTGOING), EntityBar.class));
+    paths3.add(new BaseQueryDAO.TraversalPath(RelationshipBar.class,
+        createRelationshipFilter(EMPTY_FILTER, RelationshipDirection.INCOMING), EntityBaz.class));
     List<RecordTemplate> result3 = _dao.findEntities(EntityFoo.class, sourceFilter, paths3, 0, 10);
     assertEquals(result3.size(), 2);
     assertEquals(result3.get(0), entity5);
     assertEquals(result3.get(1), entity3);
 
     // test nulls
-    List paths4 = new ArrayList();
-    paths4.add(Triplet.with(null, null, null));
+    List<BaseQueryDAO.TraversalPath> paths4 = new ArrayList<>();
+    paths4.add(new BaseQueryDAO.TraversalPath(null, null, null));
     List<RecordTemplate> result4 = _dao.findEntities(EntityFoo.class, sourceFilter, paths4, 0, 10);
     assertEquals(result4.size(), 2);
     assertEquals(result4.get(0), entity4);
     assertEquals(result4.get(1), entity2);
 
     // test partial nulls with entity
-    List paths5 = new ArrayList();
+    List<BaseQueryDAO.TraversalPath> paths5 = new ArrayList<>();
     paths5.add(
-        Triplet.with(null, createRelationshipFilter(EMPTY_FILTER, RelationshipDirection.OUTGOING), EntityBar.class));
+        new BaseQueryDAO.TraversalPath(null, createRelationshipFilter(EMPTY_FILTER, RelationshipDirection.OUTGOING),
+            EntityBar.class));
     List<RecordTemplate> result5 = _dao.findEntities(EntityFoo.class, sourceFilter, paths5, 0, 10);
     assertEquals(result5.size(), 2);
     assertEquals(result5.get(0), entity4);
     assertEquals(result5.get(1), entity2);
 
     // test partial nulls with relationship
-    List paths6 = new ArrayList();
-    paths6.add(Triplet.with(null, null, EntityBar.class));
+    List<BaseQueryDAO.TraversalPath> paths6 = new ArrayList<>();
+    paths6.add(new BaseQueryDAO.TraversalPath(null, null, EntityBar.class));
     List<RecordTemplate> result6 = _dao.findEntities(EntityFoo.class, sourceFilter, paths6, 0, 10);
     assertEquals(result6.size(), 2);
     assertEquals(result6.get(0), entity4);
@@ -511,15 +505,17 @@ public class Neo4jQueryDAOTest {
     // Get reports roll-up - 2 levels
     Filter sourceFilter = newFilter("urn", urn1.toString());
     RelationshipFilter relationshipFilter = createRelationshipFilter(EMPTY_FILTER, RelationshipDirection.INCOMING);
-    List<List<RecordTemplate>> paths = _dao.findPaths(EntityFoo.class, sourceFilter, null,
-        EMPTY_FILTER, RelationshipFoo.class, relationshipFilter, 1, 2, -1, -1);
+    List<List<RecordTemplate>> paths =
+        _dao.findPaths(EntityFoo.class, sourceFilter, null, EMPTY_FILTER, RelationshipFoo.class, relationshipFilter, 1,
+            2, -1, -1);
     assertEquals(paths.size(), 5);
     assertEquals(paths.stream().filter(l -> l.size() == 3).collect(Collectors.toList()).size(), 2);
     assertEquals(paths.stream().filter(l -> l.size() == 5).collect(Collectors.toList()).size(), 3);
 
     // Get reports roll-up - 1 level
-    paths = _dao.findPaths(EntityFoo.class, sourceFilter, null,
-        EMPTY_FILTER, RelationshipFoo.class, relationshipFilter, 1, 1, -1, -1);
+    paths =
+        _dao.findPaths(EntityFoo.class, sourceFilter, null, EMPTY_FILTER, RelationshipFoo.class, relationshipFilter, 1,
+            1, -1, -1);
     assertEquals(paths.size(), 2);
     assertEquals(paths.stream().filter(l -> l.size() == 3).collect(Collectors.toList()).size(), 2);
     assertEquals(paths.stream().filter(l -> l.size() == 5).collect(Collectors.toList()).size(), 0);
@@ -601,9 +597,8 @@ public class Neo4jQueryDAOTest {
 
     String cypherQuery = "MATCH (n {value:\"foo\"}) RETURN n ORDER BY n.urn";
     List<Record> result = _dao.runFreeFormQuery(cypherQuery);
-    List<EntityFoo> nodes = result.stream()
-        .map(record -> _dao.nodeRecordToEntity(EntityFoo.class, record))
-        .collect(Collectors.toList());
+    List<EntityFoo> nodes =
+        result.stream().map(record -> _dao.nodeRecordToEntity(EntityFoo.class, record)).collect(Collectors.toList());
     assertEquals(nodes.size(), 2);
     assertEquals(nodes.get(0), entity1);
     assertEquals(nodes.get(1), entity2);

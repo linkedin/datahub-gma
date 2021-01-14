@@ -15,7 +15,6 @@ import java.util.function.Function;
 import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import org.javatuples.Triplet;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.Record;
 import org.neo4j.driver.Session;
@@ -114,10 +113,8 @@ public class Neo4jQueryDAO extends BaseQueryDAO {
 
   @Nonnull
   @Override
-  public <SRC_ENTITY extends RecordTemplate, RELATIONSHIP extends RecordTemplate, INTER_ENTITY extends RecordTemplate> List<RecordTemplate> findEntities(
-      @Nullable Class<SRC_ENTITY> sourceEntityClass, @Nonnull Filter sourceEntityFilter,
-      @Nonnull List<Triplet<Class<RELATIONSHIP>, RelationshipFilter, Class<INTER_ENTITY>>> traversePaths, int offset,
-      int count) {
+  public List<RecordTemplate> findEntities(@Nullable Class<? extends RecordTemplate> sourceEntityClass,
+      @Nonnull Filter sourceEntityFilter, @Nonnull List<TraversalPath> traversePaths, int offset, int count) {
     if (sourceEntityClass != null) {
       EntityValidator.validateEntitySchema(sourceEntityClass);
     }
@@ -128,16 +125,18 @@ public class Neo4jQueryDAO extends BaseQueryDAO {
     StringBuilder matchTemplate = new StringBuilder().append("MATCH (src%s %s)");
     int pathCounter = 0;
 
-    // for each triplet, construct substatement via relationship type + relationship filer + inter entity
-    for (Triplet<Class<RELATIONSHIP>, RelationshipFilter, Class<INTER_ENTITY>> path : traversePaths) {
+    // for each path, construct substatement via relationship type + relationship filer + inter entity
+    for (TraversalPath path : traversePaths) {
 
       pathCounter++; // Cannot use the same relationship variable 'r' or 'dest' for multiple patterns
 
-      final String edgeType = getTypeOrEmptyString(path.getValue0());
-      final String edgeCriteria = path.getValue1() == null ? "" : criterionToString(path.getValue1().getCriteria());
+      final String edgeType = getTypeOrEmptyString(path.getRelationship());
+      final String edgeCriteria =
+          path.getRelationshipFilter() == null ? "" : criterionToString(path.getRelationshipFilter().getCriteria());
       final RelationshipDirection relationshipDirection =
-          path.getValue1() == null ? RelationshipDirection.UNDIRECTED : path.getValue1().getDirection();
-      final String destType = getTypeOrEmptyString(path.getValue2());
+          path.getRelationshipFilter() == null ? RelationshipDirection.UNDIRECTED
+              : path.getRelationshipFilter().getDirection();
+      final String destType = getTypeOrEmptyString(path.getIntermediateEntity());
 
       String subTemplate = "-[r%d%s %s]-(dest%d%s)";
       if (relationshipDirection == RelationshipDirection.INCOMING) {

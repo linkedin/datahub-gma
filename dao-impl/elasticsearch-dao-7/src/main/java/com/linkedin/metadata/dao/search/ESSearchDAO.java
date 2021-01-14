@@ -19,7 +19,6 @@ import com.linkedin.metadata.query.Filter;
 import com.linkedin.metadata.query.SearchResultMetadata;
 import com.linkedin.metadata.query.SortCriterion;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -202,6 +201,7 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
    * @return a valid search request
    * @deprecated  please use {@link #constructSearchQuery(String, Filter, SortCriterion, String, int, int)} instead
    */
+  @Deprecated
   @Nonnull
   public SearchRequest constructSearchQuery(@Nonnull String input, @Nullable Filter filter,
       @Nullable SortCriterion sortCriterion, int from, int size) {
@@ -319,8 +319,19 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
 
     final DataMap dataMap = new DataMap();
     for (Map.Entry<String, Object> entry : objectMap.entrySet()) {
-      if (entry.getValue() instanceof ArrayList) {
-        dataMap.put(entry.getKey(), new DataList((ArrayList<String>) entry.getValue()));
+      if (entry.getValue() instanceof List) {
+        final List<?> values = (List<?>) entry.getValue();
+        final DataList dataList = new DataList();
+
+        for (Object value : values) {
+          if (value instanceof String) {
+            dataList.add(value);
+          } else {
+            log.error("Expected all values to be Strings, but found `{}`", value.getClass().getSimpleName());
+          }
+        }
+
+        dataMap.put(entry.getKey(), dataList);
       } else if (entry.getValue() != null) {
         dataMap.put(entry.getKey(), entry.getValue());
       }

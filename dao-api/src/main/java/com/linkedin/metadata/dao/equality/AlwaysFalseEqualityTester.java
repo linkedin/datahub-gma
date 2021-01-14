@@ -1,23 +1,25 @@
 package com.linkedin.metadata.dao.equality;
 
-import com.linkedin.data.template.DataTemplate;
+import com.linkedin.data.template.RecordTemplate;
 import javax.annotation.Nonnull;
 
 
 /**
  * A {@link EqualityTester} that always returns false.
  */
-public class AlwaysFalseEqualityTester<T extends DataTemplate> implements EqualityTester<T> {
+public class AlwaysFalseEqualityTester<T extends RecordTemplate> implements EqualityTester<T> {
+  private static final AlwaysFalseEqualityTester<?> INSTANCE = new AlwaysFalseEqualityTester<>();
 
   /**
-   * Creates a new instance of {@link AlwaysFalseEqualityTester}.
+   * Returns the singleton instance of {@link AlwaysFalseEqualityTester}.
    */
-  public static <CLASS extends DataTemplate> AlwaysFalseEqualityTester<CLASS> newInstance() {
-    return new AlwaysFalseEqualityTester<>();
+  @SuppressWarnings("unchecked")
+  public static <T extends RecordTemplate> AlwaysFalseEqualityTester<T> instance() {
+    return (AlwaysFalseEqualityTester<T>) INSTANCE;
   }
 
   @Override
-  public boolean equals(@Nonnull T o1, @Nonnull T o2) {
+  public boolean equals(@Nonnull RecordTemplate o1, @Nonnull RecordTemplate o2) {
     return false;
   }
 }

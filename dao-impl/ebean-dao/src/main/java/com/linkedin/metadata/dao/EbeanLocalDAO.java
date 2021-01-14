@@ -89,8 +89,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       });
 
   @VisibleForTesting
-  EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
-      @Nonnull EbeanServer server, @Nonnull Class<URN> urnClass) {
+  EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass,
+      @Nonnull BaseMetadataEventProducer<?, ASPECT_UNION, URN> producer, @Nonnull EbeanServer server,
+      @Nonnull Class<URN> urnClass) {
     super(aspectUnionClass, producer);
     _server = server;
     _urnClass = urnClass;
@@ -105,13 +106,14 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * @param serverConfig {@link ServerConfig} that defines the configuration of EbeanServer instances
    * @param urnClass Class of the entity URN
    */
-  public EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
-      @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass) {
+  public EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass,
+      @Nonnull BaseMetadataEventProducer<?, ASPECT_UNION, URN> producer, @Nonnull ServerConfig serverConfig,
+      @Nonnull Class<URN> urnClass) {
     this(aspectUnionClass, producer, createServer(serverConfig), urnClass);
   }
 
   @VisibleForTesting
-  EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull EbeanServer server,
+  EbeanLocalDAO(@Nonnull BaseMetadataEventProducer<?, ASPECT_UNION, URN> producer, @Nonnull EbeanServer server,
       @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass,
       @Nonnull UrnPathExtractor<URN> urnPathExtractor) {
     super(producer, storageConfig);
@@ -121,7 +123,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @VisibleForTesting
-  EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull EbeanServer server,
+  EbeanLocalDAO(@Nonnull BaseMetadataEventProducer<?, ASPECT_UNION, URN> producer, @Nonnull EbeanServer server,
       @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass) {
     this(producer, server, storageConfig, urnClass, new EmptyPathExtractor<>());
   }
@@ -135,8 +137,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * @param urnClass class of the entity URN
    * @param urnPathExtractor path extractor to index parts of URNs to the secondary index
    */
-  public EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull ServerConfig serverConfig,
-      @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass,
+  public EbeanLocalDAO(@Nonnull BaseMetadataEventProducer<?, ASPECT_UNION, URN> producer,
+      @Nonnull ServerConfig serverConfig, @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass,
       @Nonnull UrnPathExtractor<URN> urnPathExtractor) {
     this(producer, createServer(serverConfig), storageConfig, urnClass, urnPathExtractor);
   }
@@ -149,8 +151,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * @param storageConfig {@link LocalDAOStorageConfig} containing storage config of full list of supported aspects
    * @param urnClass class of the entity URN
    */
-  public EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull ServerConfig serverConfig,
-      @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass) {
+  public EbeanLocalDAO(@Nonnull BaseMetadataEventProducer<?, ASPECT_UNION, URN> producer,
+      @Nonnull ServerConfig serverConfig, @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass) {
     this(producer, createServer(serverConfig), storageConfig, urnClass, new EmptyPathExtractor<>());
   }
 
@@ -245,7 +247,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   @Override
   protected <ASPECT extends RecordTemplate> long saveLatest(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
-      @Nullable ASPECT oldValue, @Nullable AuditStamp oldAuditStamp, @Nonnull ASPECT newValue, @Nonnull AuditStamp newAuditStamp) {
+      @Nullable ASPECT oldValue, @Nullable AuditStamp oldAuditStamp, @Nonnull ASPECT newValue,
+      @Nonnull AuditStamp newAuditStamp) {
     // Save oldValue as the largest version + 1
     long largestVersion = 0;
     if (oldValue != null && oldAuditStamp != null) {
@@ -259,8 +262,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Override
-  protected <ASPECT extends RecordTemplate> void updateLocalIndex(@Nonnull URN urn,
-      @Nonnull ASPECT newValue, long version) {
+  protected <ASPECT extends RecordTemplate> void updateLocalIndex(@Nonnull URN urn, @Nonnull ASPECT newValue,
+      long version) {
     if (!isLocalSecondaryIndexEnabled()) {
       throw new UnsupportedOperationException("Local secondary index isn't supported");
     }
@@ -310,13 +313,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
   }
 
-  protected long saveSingleRecordToLocalIndex(@Nonnull URN urn, @Nonnull String aspect,
-      @Nonnull String path, @Nonnull Object value) {
+  protected long saveSingleRecordToLocalIndex(@Nonnull URN urn, @Nonnull String aspect, @Nonnull String path,
+      @Nonnull Object value) {
 
-    final EbeanMetadataIndex record = new EbeanMetadataIndex()
-        .setUrn(urn.toString())
-        .setAspect(aspect)
-        .setPath(path);
+    final EbeanMetadataIndex record = new EbeanMetadataIndex().setUrn(urn.toString()).setAspect(aspect).setPath(path);
     if (value instanceof Integer || value instanceof Long) {
       record.setLongVal(Long.valueOf(value.toString()));
     } else if (value instanceof Float || value instanceof Double) {
@@ -341,15 +341,13 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
     final Map<String, Object> pathValueMap = _urnPathExtractor.extractPaths(urn);
     pathValueMap.forEach(
-        (path, value) -> saveSingleRecordToLocalIndex(urn, urn.getClass().getCanonicalName(), path, value)
-    );
+        (path, value) -> saveSingleRecordToLocalIndex(urn, urn.getClass().getCanonicalName(), path, value));
   }
 
   private <ASPECT extends RecordTemplate> void updateAspectInLocalIndex(@Nonnull URN urn, @Nonnull ASPECT newValue) {
 
     if (!_storageConfig.getAspectStorageConfigMap().containsKey(newValue.getClass())
-        || _storageConfig.getAspectStorageConfigMap().get(newValue.getClass()) == null
-    ) {
+        || _storageConfig.getAspectStorageConfigMap().get(newValue.getClass()) == null) {
       return;
     }
     // step1: remove all rows from the index table corresponding to <urn, aspect> pair
@@ -453,11 +451,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     return result;
   }
 
-
   public boolean existsInLocalIndex(@Nonnull URN urn) {
-    return _server.find(EbeanMetadataIndex.class)
-        .where().eq(URN_COLUMN, urn.toString())
-        .exists();
+    return _server.find(EbeanMetadataIndex.class).where().eq(URN_COLUMN, urn.toString()).exists();
   }
 
   // Will be migrated to use {@link #batchGet(Set<AspectKey<URN, ? extends RecordTemplate>>, int)}
@@ -498,7 +493,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * @param keysCount the max number of keys for each sub query
    */
   @Nonnull
-  private List<EbeanMetadataAspect> batchGet(@Nonnull Set<AspectKey<URN, ? extends RecordTemplate>> keys, int keysCount) {
+  private List<EbeanMetadataAspect> batchGet(@Nonnull Set<AspectKey<URN, ? extends RecordTemplate>> keys,
+      int keysCount) {
 
     int position = 0;
     final int totalPageCount = QueryUtils.getTotalPageCount(keys.size(), keysCount);
@@ -513,7 +509,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Nonnull
-  private List<EbeanMetadataAspect> batchGetHelper(@Nonnull List<AspectKey<URN, ? extends RecordTemplate>> keys, int keysCount, int position) {
+  private List<EbeanMetadataAspect> batchGetHelper(@Nonnull List<AspectKey<URN, ? extends RecordTemplate>> keys,
+      int keysCount, int position) {
     ExpressionList<EbeanMetadataAspect> query = _server.find(EbeanMetadataAspect.class).select(ALL_COLUMNS).where();
 
     // add or if it is not the last element
@@ -583,7 +580,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         .asc(URN_COLUMN)
         .findPagedList();
 
-    final List<URN> urns = pagedList.getList().stream().map(entry -> getUrn(entry.getKey().getUrn())).collect(Collectors.toList());
+    final List<URN> urns =
+        pagedList.getList().stream().map(entry -> getUrn(entry.getKey().getUrn())).collect(Collectors.toList());
     return toListResult(urns, null, pagedList, start);
   }
 
@@ -607,8 +605,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
     final List<ASPECT> aspects =
         pagedList.getList().stream().map(a -> toRecordTemplate(aspectClass, a)).collect(Collectors.toList());
-    final ListResultMetadata listResultMetadata =
-        makeListResultMetadata(pagedList.getList().stream().map(EbeanLocalDAO::toExtraInfo).collect(Collectors.toList()));
+    final ListResultMetadata listResultMetadata = makeListResultMetadata(
+        pagedList.getList().stream().map(EbeanLocalDAO::toExtraInfo).collect(Collectors.toList()));
     return toListResult(aspects, listResultMetadata, pagedList, start);
   }
 
@@ -632,8 +630,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
     final List<ASPECT> aspects =
         pagedList.getList().stream().map(a -> toRecordTemplate(aspectClass, a)).collect(Collectors.toList());
-    final ListResultMetadata listResultMetadata =
-        makeListResultMetadata(pagedList.getList().stream().map(EbeanLocalDAO::toExtraInfo).collect(Collectors.toList()));
+    final ListResultMetadata listResultMetadata = makeListResultMetadata(
+        pagedList.getList().stream().map(EbeanLocalDAO::toExtraInfo).collect(Collectors.toList()));
     return toListResult(aspects, listResultMetadata, pagedList, start);
   }
 
@@ -670,7 +668,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Nonnull
   private <T> ListResult<T> toListResult(@Nonnull List<T> values, @Nullable ListResultMetadata listResultMetadata,
       @Nonnull PagedList<?> pagedList, @Nullable Integer start) {
-    final int nextStart = (start != null && pagedList.hasNext()) ? start.intValue() + pagedList.getList().size() : ListResult.INVALID_NEXT_START;
+    final int nextStart = (start != null && pagedList.hasNext()) ? start.intValue() + pagedList.getList().size()
+        : ListResult.INVALID_NEXT_START;
     return ListResult.<T>builder()
         // Format
         .values(values)
@@ -744,7 +743,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     if (indexValue.isBoolean()) {
       object = indexValue.getBoolean().toString();
       return new GMAIndexPair(EbeanMetadataIndex.STRING_COLUMN, object);
-    }  else if (indexValue.isDouble()) {
+    } else if (indexValue.isDouble()) {
       object = indexValue.getDouble();
       return new GMAIndexPair(EbeanMetadataIndex.DOUBLE_COLUMN, object);
     } else if (indexValue.isFloat()) {
@@ -774,8 +773,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * @param lastUrn string representation of the urn whose value is used to set the last urn parameter in index query
    * @param pageSize maximum number of distinct urns to return which is essentially the LIMIT clause of SQL query
    */
-  private static void setParameters(@Nonnull IndexCriterionArray indexCriterionArray, @Nonnull Query<EbeanMetadataIndex> indexQuery,
-      @Nonnull String lastUrn, int pageSize) {
+  private static void setParameters(@Nonnull IndexCriterionArray indexCriterionArray,
+      @Nonnull Query<EbeanMetadataIndex> indexQuery, @Nonnull String lastUrn, int pageSize) {
     indexQuery.setParameter(1, lastUrn);
     int pos = 2;
     for (IndexCriterion criterion : indexCriterionArray) {
@@ -791,7 +790,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Nonnull
   private static String getStringForOperator(@Nonnull Condition condition) {
     if (!CONDITION_STRING_MAP.containsKey(condition)) {
-      throw new UnsupportedOperationException(condition.toString() + " condition is not supported in local secondary index");
+      throw new UnsupportedOperationException(
+          condition.toString() + " condition is not supported in local secondary index");
     }
     return CONDITION_STRING_MAP.get(condition);
   }
@@ -806,8 +806,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Nonnull
   private static String constructSQLQuery(@Nonnull IndexCriterionArray indexCriterionArray) {
     String selectClause = "SELECT DISTINCT(t0.urn) FROM metadata_index t0";
-    selectClause += IntStream.range(1, indexCriterionArray.size()).mapToObj(i -> " INNER JOIN metadata_index " + "t"
-        + i + " ON t0.urn = " + "t" + i + ".urn").collect(Collectors.joining(""));
+    selectClause += IntStream.range(1, indexCriterionArray.size())
+        .mapToObj(i -> " INNER JOIN metadata_index " + "t" + i + " ON t0.urn = " + "t" + i + ".urn")
+        .collect(Collectors.joining(""));
     final StringBuilder whereClause = new StringBuilder("WHERE t0.urn > ?");
     IntStream.range(0, indexCriterionArray.size()).forEach(i -> {
       final IndexCriterion criterion = indexCriterionArray.get(i);
@@ -859,7 +860,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       throw new UnsupportedOperationException("Empty Index Filter is not supported by EbeanLocalDAO");
     }
     if (indexCriterionArray.size() > 10) {
-      throw new UnsupportedOperationException("Currently more than 10 filter conditions is not supported by EbeanLocalDAO");
+      throw new UnsupportedOperationException(
+          "Currently more than 10 filter conditions is not supported by EbeanLocalDAO");
     }
 
     addEntityTypeFilter(indexFilter);
@@ -871,8 +873,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
     final List<EbeanMetadataIndex> pagedList = query.findList();
 
-    return pagedList.stream()
-        .map(entry -> getUrn(entry.getUrn()))
-        .collect(Collectors.toList());
+    return pagedList.stream().map(entry -> getUrn(entry.getUrn())).collect(Collectors.toList());
   }
 }

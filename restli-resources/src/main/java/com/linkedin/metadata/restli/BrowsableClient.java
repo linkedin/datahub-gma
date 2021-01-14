@@ -14,6 +14,7 @@ import javax.annotation.Nullable;
  *
  * @deprecated Use {@link BaseBrowsableClient} instead
  */
+@Deprecated
 public interface BrowsableClient<URN extends Urn> {
 
   @Nonnull

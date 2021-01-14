@@ -122,6 +122,7 @@ public class BaseEntityResourceTest extends BaseEngineTest {
   }
 
   @BeforeMethod
+  @SuppressWarnings("unchecked")
   public void setup() {
     _mockLocalDAO = mock(BaseLocalDAO.class);
   }

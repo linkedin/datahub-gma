@@ -9,7 +9,6 @@ import org.assertj.core.api.AbstractAssert;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.IterableAssert;
 import org.assertj.core.api.MapAssert;
-import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 
 
@@ -28,7 +27,7 @@ public class BulkRequestsContainerAssert extends AbstractAssert<BulkRequestsCont
   private static Collection<String> getIds(Collection<BulkRequest> requests) {
     return requests.stream()
         .flatMap(request -> request.requests().stream())
-        .map(DocWriteRequest::id)
+        .map(request -> request.id())
         .collect(Collectors.toList());
   }
 

@@ -5,6 +5,8 @@ import com.google.common.io.Resources;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.common.urn.Urns;
+import com.linkedin.data.DataMap;
+import com.linkedin.data.codec.JacksonDataCodec;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.producer.DummyMetadataEventProducer;
@@ -18,20 +20,17 @@ import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
 import javax.annotation.Nonnull;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
 
 
 /**
  * An immutable implementation of {@link BaseLocalDAO}. Suitable for serving statically declared metadata.
  */
-public class ImmutableLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn> extends EbeanLocalDAO<ASPECT_UNION, URN> {
+public class ImmutableLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
+    extends EbeanLocalDAO<ASPECT_UNION, URN> {
 
-  private static final JSONParser JSON_PARSER = new JSONParser();
+  private static final JacksonDataCodec JSON_CODEC = new JacksonDataCodec();
 
   private static final AuditStamp DUMMY_AUDIT_STAMP =
       new AuditStamp().setActor(Urns.createFromTypeSpecificString("dummy", "unknown")).setTime(0L);
@@ -44,7 +43,7 @@ public class ImmutableLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends U
   public ImmutableLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass,
       @Nonnull Map<URN, ? extends RecordTemplate> urnAspectMap, @Nonnull Class<URN> urnClass) {
 
-    super(aspectUnionClass, new DummyMetadataEventProducer(),
+    super(aspectUnionClass, new DummyMetadataEventProducer<>(),
         createProductionH2ServerConfig(aspectUnionClass.getCanonicalName()), urnClass);
     _server.execute(Ebean.createSqlUpdate(readSQLfromFile(GMA_CREATE_ALL_SQL)));
     urnAspectMap.forEach((key, value) -> super.save(key, value, DUMMY_AUDIT_STAMP, LATEST_VERSION, true));
@@ -54,7 +53,7 @@ public class ImmutableLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends U
   public ImmutableLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass,
       @Nonnull Map<URN, ? extends RecordTemplate> urnAspectMap, boolean ddlGenerate, @Nonnull Class<URN> urnClass) {
 
-    super(aspectUnionClass, new DummyMetadataEventProducer(), createTestingH2ServerConfig(), urnClass);
+    super(aspectUnionClass, new DummyMetadataEventProducer<>(), createTestingH2ServerConfig(), urnClass);
     urnAspectMap.forEach((key, value) -> super.save(key, value, DUMMY_AUDIT_STAMP, LATEST_VERSION, true));
   }
 
@@ -65,16 +64,24 @@ public class ImmutableLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends U
    * specific type of metadata aspect.
    */
   @Nonnull
-  public static <URN extends Urn, ASPECT extends RecordTemplate> Map<URN, ASPECT> loadAspects(
-      @Nonnull Class<ASPECT> aspectClass, @Nonnull InputStream inputStream)
-      throws IOException, ParseException, URISyntaxException {
+  public static <ASPECT extends RecordTemplate> Map<Urn, ASPECT> loadAspects(@Nonnull Class<ASPECT> aspectClass,
+      @Nonnull InputStream inputStream) throws IOException, URISyntaxException {
 
-    final Map<URN, ASPECT> aspects = new HashMap<>();
+    final Map<Urn, ASPECT> aspects = new HashMap<>();
     try (InputStreamReader reader = new InputStreamReader(inputStream, Charset.defaultCharset())) {
-      JSONObject root = (JSONObject) JSON_PARSER.parse(reader);
-      for (Map.Entry entry : (Set<Map.Entry>) root.entrySet()) {
-        URN urn = (URN) Urn.createFromString((String) entry.getKey());
-        ASPECT aspect = RecordUtils.toRecordTemplate(aspectClass, entry.getValue().toString());
+      final DataMap dataMap = JSON_CODEC.readMap(reader);
+      for (Map.Entry<String, Object> entry : dataMap.entrySet()) {
+        final Urn urn = Urn.createFromString(entry.getKey());
+        final Object value = entry.getValue();
+
+        if (!DataMap.class.isAssignableFrom(value.getClass())) {
+          throw new IllegalArgumentException(
+              String.format("Failed to parse value for urn `%s`. Expected `DataMap` but got `%s`.", entry.getKey(),
+                  value.getClass()));
+        }
+
+        final DataMap dataMapValue = (DataMap) value;
+        final ASPECT aspect = RecordUtils.toRecordTemplate(aspectClass, dataMapValue);
         aspects.put(urn, aspect);
       }
     }

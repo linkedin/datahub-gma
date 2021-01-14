@@ -180,6 +180,7 @@ public abstract class BaseEntityResource<
   protected Task<Void> ingestInternal(@Nonnull SNAPSHOT snapshot,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore) {
     return RestliUtils.toTask(() -> {
+      @SuppressWarnings("unchecked")
       final URN urn = (URN) ModelUtils.getUrnFromSnapshot(snapshot);
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
       ModelUtils.getAspectsFromSnapshot(snapshot).stream().forEach(aspect -> {
@@ -222,6 +223,7 @@ public abstract class BaseEntityResource<
    * @deprecated Use {@link #backfill(String[], String[])} instead
    */
   @Action(name = ACTION_BACKFILL_LEGACY)
+  @Deprecated
   @Nonnull
   public Task<BackfillResult> backfill(@ActionParam(PARAM_URN) @Nonnull String urnString,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
@@ -319,6 +321,7 @@ public abstract class BaseEntityResource<
    * @deprecated Use {@link #filter(IndexFilter, String[], String, PagingContext)} instead
    */
   @Action(name = ACTION_LIST_URNS_FROM_INDEX)
+  @Deprecated
   @Nonnull
   public Task<String[]> listUrnsFromIndex(@ActionParam(PARAM_FILTER) @Optional @Nullable IndexFilter indexFilter,
       @ActionParam(PARAM_URN) @Optional @Nullable String lastUrn, @ActionParam(PARAM_LIMIT) int limit) {

@@ -123,6 +123,7 @@ public abstract class BaseSearchableEntityResource<
     return RestliUtils.toTask(() -> getSearchDAO().autoComplete(query, field, filter, limit));
   }
 
+  @SuppressWarnings("unchecked")
   @Nonnull
   private CollectionResult<VALUE, SearchResultMetadata> getSearchQueryCollectionResult(@Nonnull SearchResult<DOCUMENT> searchResult,
       @Nullable String[] aspectNames) {

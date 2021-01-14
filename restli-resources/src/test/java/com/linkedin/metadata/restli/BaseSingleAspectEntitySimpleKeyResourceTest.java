@@ -36,7 +36,7 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import static com.linkedin.common.AuditStamps.*;
-import static com.linkedin.metadata.dao.BaseReadDAO.LATEST_VERSION;
+import static com.linkedin.metadata.dao.BaseReadDAO.*;
 import static com.linkedin.testing.TestUtils.*;
 import static org.mockito.Mockito.*;
 import static org.testng.Assert.*;
@@ -199,7 +199,7 @@ public class BaseSingleAspectEntitySimpleKeyResourceTest extends BaseEngineTest 
     ExtraInfo extraInfo2 = makeExtraInfo(makeUrn(2), LATEST_VERSION, makeAuditStamp("bar2"));
     ListResultMetadata listResultMetadata =
         new ListResultMetadata().setExtraInfos(new ExtraInfoArray(ImmutableList.of(extraInfo1, extraInfo2)));
-    ListResult listResult = ListResult.<AspectBar>builder().values(bars).metadata(listResultMetadata).build();
+    ListResult<AspectBar> listResult = ListResult.<AspectBar>builder().values(bars).metadata(listResultMetadata).build();
 
     PagingContext pagingContext = new PagingContext(0, 2);
     when(_mockLocalDao.list(AspectBar.class, pagingContext.getStart(), pagingContext.getCount())).thenReturn(listResult);

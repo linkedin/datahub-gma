@@ -25,6 +25,6 @@ public class DefaultEqualityTesterTest {
     assertEquals(cloned.data().get("longField").getClass(), Long.class);
 
     // The two should still be semantically equal
-    assertTrue(new DefaultEqualityTester().equals(fromJson, cloned));
+    assertTrue(new DefaultEqualityTester<>().equals(fromJson, cloned));
   }
 }

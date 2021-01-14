@@ -23,9 +23,9 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 public class ESAutoCompleteQueryForLowCardinalityFields extends BaseESAutoCompleteQuery {
 
   private static final String DEFAULT_QUERY_ANALYZER = "lowercase_keyword";
-  private BaseSearchConfig _config;
+  private final BaseSearchConfig<?> _config;
 
-  ESAutoCompleteQueryForLowCardinalityFields(BaseSearchConfig config) {
+  ESAutoCompleteQueryForLowCardinalityFields(BaseSearchConfig<?> config) {
     this._config = config;
   }
 

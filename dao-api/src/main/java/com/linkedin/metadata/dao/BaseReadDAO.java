@@ -48,6 +48,7 @@ public abstract class BaseReadDAO<ASPECT_UNION extends UnionTemplate, URN extend
    * Similar to {@link #get(Set)} but only using only one {@link AspectKey}.
    */
   @Nonnull
+  @SuppressWarnings("unchecked")
   public <ASPECT extends RecordTemplate> Optional<ASPECT> get(@Nonnull AspectKey<URN, ASPECT> key) {
     return (Optional<ASPECT>) get(Collections.singleton(key)).get(key);
   }
@@ -116,6 +117,7 @@ public abstract class BaseReadDAO<ASPECT_UNION extends UnionTemplate, URN extend
    * Similar to {@link #get(Set, Set)} but only for one aspect.
    */
   @Nonnull
+  @SuppressWarnings("unchecked")
   public <ASPECT extends RecordTemplate> Map<URN, Optional<ASPECT>> get(
       @Nonnull Class<ASPECT> aspectClass, @Nonnull Set<URN> urns) {
 

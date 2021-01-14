@@ -44,10 +44,9 @@ public class ModelUtils {
    * Gets the corresponding aspect name for a specific aspect type.
    *
    * @param aspectClass the aspect type
-   * @param <T> must be a valid aspect type
    * @return the corresponding aspect name, which is actually the FQCN of type
    */
-  public static <T extends DataTemplate> String getAspectName(@Nonnull Class<T> aspectClass) {
+  public static String getAspectName(@Nonnull Class<? extends DataTemplate<?>> aspectClass) {
     return aspectClass.getCanonicalName();
   }
 
@@ -241,7 +240,7 @@ public class ModelUtils {
    * @return the extracted aspect
    */
   @Nonnull
-  public static <SNAPSHOT extends RecordTemplate, ASPECT extends DataTemplate> Optional<ASPECT> getAspectFromSnapshot(
+  public static <SNAPSHOT extends RecordTemplate, ASPECT extends DataTemplate<?>> Optional<ASPECT> getAspectFromSnapshot(
       @Nonnull SNAPSHOT snapshot, @Nonnull Class<ASPECT> aspectClass) {
 
     return getAspectsFromSnapshot(snapshot).stream()
@@ -260,9 +259,9 @@ public class ModelUtils {
 
   @Nonnull
   private static List<RecordTemplate> getAspects(@Nonnull RecordTemplate snapshot) {
-    final Class<? extends WrappingArrayTemplate> clazz = getAspectsArrayClass(snapshot.getClass());
+    final Class<? extends WrappingArrayTemplate<?>> clazz = getAspectsArrayClass(snapshot.getClass());
 
-    WrappingArrayTemplate aspectArray = RecordUtils.getRecordTemplateWrappedField(snapshot, "aspects", clazz);
+    WrappingArrayTemplate<?> aspectArray = RecordUtils.getRecordTemplateWrappedField(snapshot, "aspects", clazz);
 
     final List<RecordTemplate> aspects = new ArrayList<>();
     aspectArray.forEach(item -> aspects.add(RecordUtils.getSelectedRecordTemplateFromUnion((UnionTemplate) item)));
@@ -286,12 +285,14 @@ public class ModelUtils {
 
     SnapshotValidator.validateSnapshotSchema(snapshotClass);
 
-    final Class<? extends WrappingArrayTemplate> aspectArrayClass = getAspectsArrayClass(snapshotClass);
+    final Class<? extends WrappingArrayTemplate<?>> aspectArrayClass = getAspectsArrayClass(snapshotClass);
 
     try {
       final SNAPSHOT snapshot = snapshotClass.newInstance();
       RecordUtils.setRecordTemplatePrimitiveField(snapshot, "urn", urn.toString());
-      WrappingArrayTemplate aspectArray = aspectArrayClass.newInstance();
+      @SuppressWarnings("unchecked")
+      WrappingArrayTemplate<ASPECT_UNION> aspectArray =
+          (WrappingArrayTemplate<ASPECT_UNION>) aspectArrayClass.newInstance();
       aspectArray.addAll(aspects);
       RecordUtils.setRecordTemplateComplexField(snapshot, "aspects", aspectArray);
       return snapshot;
@@ -301,11 +302,14 @@ public class ModelUtils {
   }
 
   @Nonnull
-  private static <SNAPSHOT extends RecordTemplate> Class<? extends WrappingArrayTemplate> getAspectsArrayClass(
+  @SuppressWarnings("unchecked")
+  private static <SNAPSHOT extends RecordTemplate> Class<? extends WrappingArrayTemplate<?>> getAspectsArrayClass(
       @Nonnull Class<SNAPSHOT> snapshotClass) {
 
     try {
-      return snapshotClass.getMethod("getAspects").getReturnType().asSubclass(WrappingArrayTemplate.class);
+      return (Class<? extends WrappingArrayTemplate<?>>) snapshotClass.getMethod("getAspects")
+          .getReturnType()
+          .asSubclass(WrappingArrayTemplate.class);
     } catch (NoSuchMethodException | ClassCastException e) {
       throw new RuntimeException((e));
     }

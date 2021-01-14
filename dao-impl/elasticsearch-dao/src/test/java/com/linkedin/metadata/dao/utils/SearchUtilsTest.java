@@ -21,7 +21,7 @@ public class SearchUtilsTest {
     assertTrue(actual1.isEmpty());
 
     // Filter with criteria with default condition
-    final Map requestParams = Collections.unmodifiableMap(new HashMap() {
+    final Map<String, String> requestParams = Collections.unmodifiableMap(new HashMap<String, String>() {
       {
         put("key1", "value1");
         put("key2", "value2");
