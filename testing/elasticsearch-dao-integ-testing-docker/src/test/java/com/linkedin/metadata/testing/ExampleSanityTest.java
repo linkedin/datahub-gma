@@ -18,7 +18,8 @@ public class ExampleSanityTest extends BaseSearchSanityTests<BarSearchDocument> 
   private static final BarSearchDocument DOCUMENT = new BarSearchDocument().setUrn(URN).setValue("value");
 
   protected ExampleSanityTest() {
-    super(URN, DOCUMENT);
+    // Use your real search config here.
+    super(URN, DOCUMENT, new ReadAllDocumentsConfig<>(BarSearchDocument.class));
   }
 
   @Nonnull

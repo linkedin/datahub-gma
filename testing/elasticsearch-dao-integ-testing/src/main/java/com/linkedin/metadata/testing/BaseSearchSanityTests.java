@@ -3,7 +3,9 @@ package com.linkedin.metadata.testing;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.SearchResult;
+import com.linkedin.metadata.dao.search.BaseSearchConfig;
 import javax.annotation.Nonnull;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import static com.linkedin.metadata.testing.asserts.SearchIndexAssert.assertThat;
@@ -18,10 +20,12 @@ import static com.linkedin.metadata.testing.asserts.SearchResultAssert.assertTha
 public abstract class BaseSearchSanityTests<T extends RecordTemplate> {
   private final Urn _urn;
   private final T _data;
+  private final BaseSearchConfig<T> _searchConfig;
 
-  protected BaseSearchSanityTests(@Nonnull Urn urn, @Nonnull T data) {
+  protected BaseSearchSanityTests(@Nonnull Urn urn, @Nonnull T data, @Nonnull BaseSearchConfig<T> searchConfig) {
     _urn = urn;
     _data = data;
+    _searchConfig = searchConfig;
   }
 
   /**
@@ -60,5 +64,36 @@ public abstract class BaseSearchSanityTests<T extends RecordTemplate> {
     assertThat(result).hasTotalCount(1);
     assertThat(result).documents().containsExactly(_data);
     assertThat(result).urns().containsExactly(_urn);
+  }
+
+  @Test
+  public void canCreateDaoWithConfig() {
+    Assertions.assertThatCode(() -> getIndex().createReadDao(_searchConfig)).doesNotThrowAnyException();
+  }
+
+  @Test
+  public void canUseSearchQueryTemplate() throws Exception {
+    // given
+    getIndex().getWriteDao().upsertDocument(_data, _urn.toString());
+    getIndex().getRequestContainer().flushAndSettle();
+
+    Assertions.assertThatCode(() -> {
+      // when
+      getIndex().createReadDao(_searchConfig).search("", null, null, 0, 1);
+      // then
+    }).doesNotThrowAnyException();
+  }
+
+  @Test
+  public void canUseAutocompleteTemplate() throws Exception {
+    // given
+    getIndex().getWriteDao().upsertDocument(_data, _urn.toString());
+    getIndex().getRequestContainer().flushAndSettle();
+
+    Assertions.assertThatCode(() -> {
+      // when
+      getIndex().createReadDao(_searchConfig).autoComplete("", null, null, 1);
+      // then
+    }).doesNotThrowAnyException();
   }
 }

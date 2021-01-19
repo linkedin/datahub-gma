@@ -14,7 +14,7 @@ import org.testcontainers.containers.GenericContainer;
  */
 @ElasticsearchContainerFactory.Implementation
 public final class ElasticsearchContainerFactoryDockerImpl implements ElasticsearchContainerFactory {
-  private static final String IMAGE_NAME = "docker.elastic.co/elasticsearch/elasticsearch:5.6.8";
+  private static final String IMAGE_NAME = "docker.elastic.co/elasticsearch/elasticsearch:7.9.3";
   private static final int HTTP_PORT = 9200;
 
   /**
@@ -45,7 +45,8 @@ public final class ElasticsearchContainerFactoryDockerImpl implements Elasticsea
   public ElasticsearchConnection start() throws Exception {
     if (_container == null) {
       _container = new GenericContainerImpl(IMAGE_NAME).withExposedPorts(HTTP_PORT)
-          .withEnv("xpack.security.enabled", "false");
+          .withEnv("xpack.security.enabled", "false")
+          .withEnv("discovery.type", "single-node");
       _container.start();
     }
 
