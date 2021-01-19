@@ -219,6 +219,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     return serverConfig;
   }
 
+  @Nonnull
   @Override
   protected <T> T runInTransactionWithRetry(@Nonnull Supplier<T> block, int maxTransactionRetry) {
     int retryCount = 0;
@@ -670,7 +671,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Nonnull
   private <T> ListResult<T> toListResult(@Nonnull List<T> values, @Nullable ListResultMetadata listResultMetadata,
       @Nonnull PagedList<?> pagedList, @Nullable Integer start) {
-    final int nextStart = (start != null && pagedList.hasNext()) ? start.intValue() + pagedList.getList().size() : ListResult.INVALID_NEXT_START;
+    final int nextStart = (start != null && pagedList.hasNext()) ? start + pagedList.getList().size() : ListResult.INVALID_NEXT_START;
     return ListResult.<T>builder()
         // Format
         .values(values)
@@ -855,7 +856,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       throw new UnsupportedOperationException("Local secondary index isn't supported");
     }
     final IndexCriterionArray indexCriterionArray = indexFilter.getCriteria();
-    if (indexCriterionArray.size() == 0) {
+    if (indexCriterionArray.isEmpty()) {
       throw new UnsupportedOperationException("Empty Index Filter is not supported by EbeanLocalDAO");
     }
     if (indexCriterionArray.size() > 10) {

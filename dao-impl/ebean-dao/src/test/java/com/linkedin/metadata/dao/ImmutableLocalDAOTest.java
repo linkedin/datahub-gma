@@ -4,7 +4,9 @@ import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.EntityAspectUnion;
 import com.linkedin.testing.urn.FooUrn;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -56,10 +58,16 @@ public class ImmutableLocalDAOTest {
   }
 
   private Map<FooUrn, AspectFoo> loadAspectsFromResource(String name) {
-    try {
-      return ImmutableLocalDAO.loadAspects(AspectFoo.class, getClass().getClassLoader().getResourceAsStream(name));
-    } catch (ParseException | IOException | URISyntaxException e) {
-      throw new RuntimeException(e);
+    final URL res = getClass().getClassLoader().getResource(name);
+
+    if (res != null) {
+      try (final InputStream is = res.openStream()) {
+        return ImmutableLocalDAO.loadAspects(AspectFoo.class, is);
+      } catch (ParseException | IOException | URISyntaxException e) {
+        throw new RuntimeException(e);
+      }
+    } else {
+      throw new RuntimeException("This resource " +  name +  " is not exist.");
     }
   }
 }
