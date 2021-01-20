@@ -4,8 +4,8 @@ We create [GitHub releases](https://github.com/linkedin/datahub-gma/releases) an
 [Bintray](https://bintray.com/linkedin/maven/datahub-gma).
 
 We use [shipkit-auto-version](https://github.com/shipkit/shipkit-auto-version),
-[shipkit-changelog](https://github.com/shipkit/shipkit-changelog), and shipkit-gh-release (part of shipkit-changelog) to
-help create our continuous releases.
+[shipkit-changelog](https://github.com/shipkit/shipkit-changelog), and shipkit-github-release (part of
+shipkit-changelog) to help create our continuous releases.
 
 ## Automatic Versioning
 
