@@ -10,7 +10,6 @@ import com.linkedin.testing.BarSearchDocument;
 import java.util.Collections;
 import java.util.Set;
 import javax.annotation.Nonnull;
-import org.assertj.core.api.Assertions;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestStatus;
 import org.junit.jupiter.api.Test;
