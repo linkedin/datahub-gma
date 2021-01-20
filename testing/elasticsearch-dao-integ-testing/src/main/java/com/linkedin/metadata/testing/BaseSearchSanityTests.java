@@ -79,7 +79,7 @@ public abstract class BaseSearchSanityTests<T extends RecordTemplate> {
 
     Assertions.assertThatCode(() -> {
       // when
-      getIndex().createReadDao(_searchConfig).search("", null, null, 0, 1);
+      getIndex().createReadDao(_searchConfig).search("*", null, null, 0, 1);
       // then
     }).doesNotThrowAnyException();
   }
@@ -92,7 +92,7 @@ public abstract class BaseSearchSanityTests<T extends RecordTemplate> {
 
     Assertions.assertThatCode(() -> {
       // when
-      getIndex().createReadDao(_searchConfig).autoComplete("", null, null, 1);
+      getIndex().createReadDao(_searchConfig).autoComplete("*", null, null, 1);
       // then
     }).doesNotThrowAnyException();
   }
