@@ -82,8 +82,8 @@ public final class SearchIndex<DOCUMENT extends RecordTemplate> {
    * Creates a new {@link ESBrowseDAO} with the given configuration that will talk to this index.
    */
   @Nonnull
-  public ESBrowseDAO<DOCUMENT> createBrowseDao(@Nonnull BaseBrowseConfig<DOCUMENT> config) {
-    return new ESBrowseDAO<>(_connection.getRestHighLevelClient(), new TestBrowseConfig<>(config, _name));
+  public ESBrowseDAO createBrowseDao(@Nonnull BaseBrowseConfig<DOCUMENT> config) {
+    return new ESBrowseDAO(_connection.getRestHighLevelClient(), new TestBrowseConfig<>(config, _name));
   }
 
   /**
