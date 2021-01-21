@@ -2,6 +2,8 @@ package com.linkedin.metadata.testing;
 
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.SearchResult;
+import com.linkedin.metadata.dao.browse.BaseBrowseConfig;
+import com.linkedin.metadata.dao.browse.ESBrowseDAO;
 import com.linkedin.metadata.dao.search.BaseSearchConfig;
 import com.linkedin.metadata.dao.search.ESBulkWriterDAO;
 import com.linkedin.metadata.dao.search.ESSearchDAO;
@@ -74,6 +76,14 @@ public final class SearchIndex<DOCUMENT extends RecordTemplate> {
   public ESSearchDAO<DOCUMENT> createReadDao(@Nonnull BaseSearchConfig<DOCUMENT> config) {
     return new ESSearchDAO<>(_connection.getRestHighLevelClient(), _documentClass,
         new TestSearchConfig<>(config, _name));
+  }
+
+  /**
+   * Creates a new {@link ESBrowseDAO} with the given configuration that will talk to this index.
+   */
+  @Nonnull
+  public ESBrowseDAO<DOCUMENT> createBrowseDao(@Nonnull BaseBrowseConfig<DOCUMENT> config) {
+    return new ESBrowseDAO<>(_connection.getRestHighLevelClient(), new TestBrowseConfig<>(config, _name));
   }
 
   /**
