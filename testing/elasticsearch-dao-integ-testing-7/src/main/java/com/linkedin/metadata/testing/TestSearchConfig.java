@@ -7,25 +7,36 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 
+/**
+ * Search config for use in testing, which can wrap another config but use a different index name.
+ *
+ * <p>Useful for tests which want to name the index after the test, not the document.
+ */
 final class TestSearchConfig<DOCUMENT extends RecordTemplate> extends BaseSearchConfig<DOCUMENT> {
-  private final BaseSearchConfig<DOCUMENT> _wrapper;
+  private final BaseSearchConfig<DOCUMENT> _wrapped;
   private final String _indexName;
 
-  TestSearchConfig(BaseSearchConfig<DOCUMENT> wrapper, String indexName) {
-    _wrapper = wrapper;
+  /**
+   * Constructor.
+   *
+   * @param wrapped the config to wrap
+   * @param indexName the ES index to use
+   */
+  TestSearchConfig(@Nonnull BaseSearchConfig<DOCUMENT> wrapped, @Nonnull String indexName) {
+    _wrapped = wrapped;
     _indexName = indexName;
   }
 
   @Nonnull
   @Override
   public Set<String> getFacetFields() {
-    return _wrapper.getFacetFields();
+    return _wrapped.getFacetFields();
   }
 
   @Nullable
   @Override
   public Set<String> getLowCardinalityFields() {
-    return _wrapper.getLowCardinalityFields();
+    return _wrapped.getLowCardinalityFields();
   }
 
   @Nonnull
@@ -37,24 +48,24 @@ final class TestSearchConfig<DOCUMENT extends RecordTemplate> extends BaseSearch
   @Nonnull
   @Override
   public Class<DOCUMENT> getSearchDocument() {
-    return _wrapper.getSearchDocument();
+    return _wrapped.getSearchDocument();
   }
 
   @Nonnull
   @Override
   public String getDefaultAutocompleteField() {
-    return _wrapper.getDefaultAutocompleteField();
+    return _wrapped.getDefaultAutocompleteField();
   }
 
   @Nonnull
   @Override
   public String getSearchQueryTemplate() {
-    return _wrapper.getSearchQueryTemplate();
+    return _wrapped.getSearchQueryTemplate();
   }
 
   @Nonnull
   @Override
   public String getAutocompleteQueryTemplate() {
-    return _wrapper.getAutocompleteQueryTemplate();
+    return _wrapped.getAutocompleteQueryTemplate();
   }
 }
