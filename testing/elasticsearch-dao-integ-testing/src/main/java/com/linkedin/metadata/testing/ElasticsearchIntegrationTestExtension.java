@@ -1,5 +1,6 @@
 package com.linkedin.metadata.testing;
 
+import com.linkedin.metadata.testing.annotations.DocType;
 import com.linkedin.metadata.testing.annotations.SearchIndexMappings;
 import com.linkedin.metadata.testing.annotations.SearchIndexSettings;
 import com.linkedin.metadata.testing.annotations.SearchIndexType;
@@ -95,8 +96,11 @@ final class ElasticsearchIntegrationTestExtension
       final SearchIndexMappings mappings = field.getAnnotation(SearchIndexMappings.class);
       final String mappingsJson = mappings == null ? null : loadResource(testInstance.getClass(), mappings.value());
 
+      final DocType docType = field.getAnnotation(DocType.class);
+      final String docTypeStr = docType == null ? null : docType.value();
+
       final SearchIndex<?> index =
-          indexFactory.createIndex(searchIndexType.value(), indexName, settingsJson, mappingsJson);
+          indexFactory.createIndex(searchIndexType.value(), indexName, settingsJson, mappingsJson, docTypeStr);
       field.set(testInstance, index);
       indices.add(index);
     }

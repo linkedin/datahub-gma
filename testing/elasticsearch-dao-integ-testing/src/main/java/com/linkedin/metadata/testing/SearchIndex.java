@@ -29,7 +29,7 @@ public final class SearchIndex<DOCUMENT extends RecordTemplate> {
   private final BulkRequestsContainer _requestContainer;
 
   public SearchIndex(@Nonnull Class<DOCUMENT> documentClass, @Nonnull ElasticsearchConnection connection,
-      @Nonnull String name) {
+      @Nonnull String name, @Nonnull String doctype) {
     _documentClass = documentClass;
     _connection = connection;
     _name = name;
@@ -38,7 +38,7 @@ public final class SearchIndex<DOCUMENT extends RecordTemplate> {
     final BulkProcessor bulkProcessor = BulkProcessor.builder(connection.getTransportClient(), bulkListener).build();
     _requestContainer = new BulkRequestsContainer(bulkProcessor, bulkListener);
 
-    _bulkWriterDAO = new ESBulkWriterDAO<DOCUMENT>(documentClass, bulkProcessor, name);
+    _bulkWriterDAO = new ESBulkWriterDAO<DOCUMENT>(documentClass, bulkProcessor, name, doctype);
   }
 
   /**
