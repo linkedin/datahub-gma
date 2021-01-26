@@ -1,0 +1,11 @@
+{
+  "query_string" : {
+    "query" : "$INPUT~",
+    "fields" : [
+      "toppings^32",
+      "size"
+    ],
+    "default_operator": "and",
+    "analyzer": "lowercase_keyword"
+  }
+}
