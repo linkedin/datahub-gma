@@ -27,16 +27,16 @@ final class SearchIndexFactory {
    * @param name the name to use for the index
    */
   public <DOCUMENT extends RecordTemplate> SearchIndex<DOCUMENT> createIndex(@Nonnull Class<DOCUMENT> documentClass,
-      @Nonnull String name, @Nullable String settingsJson, @Nullable String mappingsJson) {
+      @Nonnull String name, @Nullable String settingsJson, @Nullable String mappingsJson, @Nullable String doctype) {
     final CreateIndexRequest createIndexRequest = new CreateIndexRequest(name);
+    doctype = doctype == null ? "doc" : doctype;
 
     if (settingsJson != null) {
       createIndexRequest.settings(settingsJson, XContentType.JSON);
     }
 
     if (mappingsJson != null) {
-      // TODO
-      createIndexRequest.mapping("doc", mappingsJson, XContentType.JSON);
+      createIndexRequest.mapping(doctype, mappingsJson, XContentType.JSON);
     }
 
     try {
@@ -45,6 +45,6 @@ final class SearchIndexFactory {
       throw new RuntimeException(e);
     }
 
-    return new SearchIndex<>(documentClass, _connection, name);
+    return new SearchIndex<>(documentClass, _connection, name, doctype);
   }
 }
