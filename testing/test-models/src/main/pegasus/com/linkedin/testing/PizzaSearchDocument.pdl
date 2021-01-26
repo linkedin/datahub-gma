@@ -23,4 +23,14 @@ record PizzaSearchDocument {
    * The shop that made this pizza.
    */
   madeBy: optional string
+
+  /**
+   * The path parts to browse for this pizza.
+   */
+  browsePaths: optional array[string]
+
+  /**
+   * Whether this pizza still exists.
+   */
+  removed: optional boolean
 }

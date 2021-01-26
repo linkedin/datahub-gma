@@ -40,12 +40,37 @@
           ],
           "tokenizer": "whitespace"
         },
+        "custom_browse_slash": {
+          "filter": [
+            "lowercase"
+          ],
+          "type": "custom",
+          "tokenizer": "path_hierarchy"
+        },
+        "slash_pattern": {
+          "filter": [
+            "lowercase"
+          ],
+          "type": "custom",
+          "tokenizer": "slash_tokenizer"
+        },
         "lowercase_keyword": {
           "filter": [
             "lowercase"
           ],
           "type": "custom",
           "tokenizer": "keyword"
+        }
+      },
+      "tokenizer": {
+        "path_hierarchy_tokenizer": {
+          "type": "path_hierarchy",
+          "replacement": "/",
+          "delimiter": "."
+        },
+        "slash_tokenizer": {
+          "pattern": "[/]",
+          "type": "pattern"
         }
       }
     }
