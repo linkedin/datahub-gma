@@ -36,7 +36,6 @@ final class SearchIndexFactory {
     }
 
     if (mappingsJson != null) {
-      // TODO
       createIndexRequest.mapping(doctype, mappingsJson, XContentType.JSON);
     }
 
