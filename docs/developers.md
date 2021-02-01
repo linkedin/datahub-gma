@@ -11,7 +11,7 @@ git clone https://github.com/{username}/datahub-gma.git
 Change into the repository's root directory
 
 ```
-cd datahub
+cd datahub-gma
 ```
 
 Use [gradle wrapper](https://docs.gradle.org/current/userguide/gradle_wrapper.html) to build the project
