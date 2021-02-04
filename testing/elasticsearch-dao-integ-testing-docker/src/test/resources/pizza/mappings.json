@@ -1,0 +1,15 @@
+{
+  "properties": {
+    "urn": {
+      "type": "keyword",
+      "normalizer": "custom_normalizer"
+    },
+    "toppings": {
+      "type": "text",
+      "fielddata": true
+    },
+    "size": {
+      "type": "keyword"
+    }
+  }
+}
