@@ -6,6 +6,8 @@ import com.linkedin.metadata.dao.browse.ESBrowseDAO;
 import com.linkedin.metadata.dao.search.ESBulkWriterDAO;
 import com.linkedin.metadata.query.BrowseResult;
 import com.linkedin.metadata.query.BrowseResultEntity;
+import com.linkedin.metadata.query.BrowseResultGroup;
+import com.linkedin.metadata.query.BrowseResultGroupArray;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.Criterion;
 import com.linkedin.metadata.query.CriterionArray;
@@ -80,7 +82,7 @@ public class ESBrowseDaoIntegTest {
   }
 
   @Test
-  public void browse() throws Exception {
+  public void browseMetadata() throws Exception {
     // given
     final PizzaUrn urn0 = new PizzaUrn(0);
     _bulkDao.upsertDocument(new PizzaSearchDocument().setUrn(urn0).setBrowsePaths(new StringArray("/nyc/Mario's")),
@@ -97,8 +99,18 @@ public class ESBrowseDaoIntegTest {
 
     final PizzaUrn urn3 = new PizzaUrn(3);
     _bulkDao.upsertDocument(
-        new PizzaSearchDocument().setUrn(urn3).setBrowsePaths(new StringArray("/sunnyvale/A Slice of New York")),
+        new PizzaSearchDocument().setUrn(urn3).setBrowsePaths(new StringArray("/nyc/manhattan/Bowser's")),
         urn3.toString());
+
+    final PizzaUrn urn4 = new PizzaUrn(4);
+    _bulkDao.upsertDocument(
+        new PizzaSearchDocument().setUrn(urn4).setBrowsePaths(new StringArray("/nyc/brooklyn/south/Toad's")),
+        urn4.toString());
+
+    final PizzaUrn urn5 = new PizzaUrn(5);
+    _bulkDao.upsertDocument(
+        new PizzaSearchDocument().setUrn(urn5).setBrowsePaths(new StringArray("/sunnyvale/A Slice of New York")),
+        urn5.toString());
 
     _searchIndex.getRequestContainer().flushAndSettle();
 
@@ -106,10 +118,11 @@ public class ESBrowseDaoIntegTest {
     final BrowseResult result = _browseDao.browse("/nyc", null, 0, 10);
 
     // then
-    assertThat(result.getEntities()).containsExactly(new BrowseResultEntity().setName("Mario's").setUrn(urn0),
-        new BrowseResultEntity().setName("Luigi's").setUrn(urn1));
-    // Does not contain peach's because it is nested another level.
-    // Does not contain a slice of new york because it is not under /nyc.
+    assertThat(result.getMetadata().getPath()).isEqualTo("/nyc");
+    assertThat(result.getMetadata().getTotalNumEntities()).isEqualTo(5); // Mario, Luigi's, Peach's, Bowser's, Toad's
+    assertThat(result.getMetadata().getGroups()).isEqualTo(
+        new BrowseResultGroupArray(new BrowseResultGroup().setName("brooklyn").setCount(2), // Peach's, Toad's
+            new BrowseResultGroup().setName("manhattan").setCount(1))); // Bowser's
   }
 
   @Test
