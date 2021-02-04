@@ -82,6 +82,39 @@ public class ESBrowseDaoIntegTest {
   }
 
   @Test
+  public void browse() throws Exception {
+    // given
+    final PizzaUrn urn0 = new PizzaUrn(0);
+    _bulkDao.upsertDocument(new PizzaSearchDocument().setUrn(urn0).setBrowsePaths(new StringArray("/nyc/Mario's")),
+        urn0.toString());
+
+    final PizzaUrn urn1 = new PizzaUrn(1);
+    _bulkDao.upsertDocument(new PizzaSearchDocument().setUrn(urn1).setBrowsePaths(new StringArray("/nyc/Luigi's")),
+        urn1.toString());
+
+    final PizzaUrn urn2 = new PizzaUrn(2);
+    _bulkDao.upsertDocument(
+        new PizzaSearchDocument().setUrn(urn2).setBrowsePaths(new StringArray("/nyc/brooklyn/Peach's")),
+        urn2.toString());
+
+    final PizzaUrn urn3 = new PizzaUrn(3);
+    _bulkDao.upsertDocument(
+        new PizzaSearchDocument().setUrn(urn3).setBrowsePaths(new StringArray("/sunnyvale/A Slice of New York")),
+        urn3.toString());
+
+    _searchIndex.getRequestContainer().flushAndSettle();
+
+    // when
+    final BrowseResult result = _browseDao.browse("/nyc", null, 0, 10);
+
+    // then
+    assertThat(result.getEntities()).containsExactly(new BrowseResultEntity().setName("Mario's").setUrn(urn0),
+        new BrowseResultEntity().setName("Luigi's").setUrn(urn1));
+    // Does not contain peach's because it is nested another level.
+    // Does not contain a slice of new york because it is not under /nyc.
+  }
+
+  @Test
   public void browseMetadata() throws Exception {
     // given
     final PizzaUrn urn0 = new PizzaUrn(0);
