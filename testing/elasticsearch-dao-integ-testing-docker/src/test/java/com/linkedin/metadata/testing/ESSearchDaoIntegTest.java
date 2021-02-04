@@ -113,7 +113,7 @@ public class ESSearchDaoIntegTest {
     _searchIndex.getRequestContainer().flushAndSettle();
 
     // when
-    final AutoCompleteResult result = _searchDao.autoComplete("Sausage", null, null, 10);
+    final AutoCompleteResult result = _searchDao.autoComplete("Sau", null, null, 10);
 
     // then
     assertThat(result.getSuggestions()).containsExactly("Sausage Links", "Sausage crumble");
