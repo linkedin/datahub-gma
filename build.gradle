@@ -62,8 +62,8 @@ project.ext.externalDependency = [
     'reflections': 'org.reflections:reflections:0.9.11',
     'rythmEngine': 'org.rythmengine:rythm-engine:1.3.0',
     'spock': 'org.spockframework:spock-core:1.3-groovy-2.4',
-    'testContainers': 'org.testcontainers:testcontainers:1.15.0',
-    'testContainersJunit': 'org.testcontainers:junit-jupiter:1.15.0',
+    'testContainers': 'org.testcontainers:testcontainers:1.15.1',
+    'testContainersJunit': 'org.testcontainers:junit-jupiter:1.15.1',
     'testng': 'org.testng:testng:6.9.9'
 ]
 
