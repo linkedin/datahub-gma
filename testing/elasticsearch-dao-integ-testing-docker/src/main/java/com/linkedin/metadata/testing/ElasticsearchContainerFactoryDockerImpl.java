@@ -59,7 +59,8 @@ public final class ElasticsearchContainerFactoryDockerImpl implements Elasticsea
   public ElasticsearchConnection start() throws Exception {
     if (_container == null) {
       _container = new GenericContainerImpl(IMAGE_NAME).withExposedPorts(HTTP_PORT, TRANSPORT_PORT)
-          .withEnv("xpack.security.enabled", "false");
+          .withEnv("xpack.security.enabled", "false")
+          .withEnv("discovery.type", "single-node");
       _container.start();
     }
 
