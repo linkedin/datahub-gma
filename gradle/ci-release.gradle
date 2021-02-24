@@ -26,9 +26,20 @@ allprojects {
   }
 }
 
+task artifactoryPublishAll {
+  description = "Runs 'artifactoryPublish' tasks from all projects"
+  mustRunAfter "githubRelease" // github release is easier to rollback so we run it first
+}
+
+allprojects {
+  tasks.matching { it.name == "artifactoryPublish" }.all {
+    artifactoryPublishAll.dependsOn it
+  }
+}
+
 task ciPerformRelease {
   description = "Performs the release, intended to be ran on CI"
-  dependsOn "githubRelease", "bintrayUploadAll"
+  dependsOn "githubRelease", "bintrayUploadAll", "artifactoryPublishAll"
 }
 
 task getVersion() {
