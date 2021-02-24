@@ -1,0 +1,6 @@
+namespace com.linkedin.testing
+
+
+typeref PizzaAspect = union[
+  PizzaInfo
+]
