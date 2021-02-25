@@ -5,12 +5,8 @@ import com.linkedin.pegasus2avro.mxe.pizza.pizzaInfo.MetadataAuditEvent;
 import com.linkedin.pegasus2avro.mxe.pizza.pizzaInfo.MetadataChangeEvent;
 import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectFoo;
-import com.linkedin.testing.Pizza;
-import com.linkedin.testing.PizzaAspect;
 import com.linkedin.testing.PizzaInfo;
-import com.linkedin.testing.urn.FooUrn;
 import com.linkedin.testing.urn.PizzaUrn;
-import java.net.URISyntaxException;
 import org.testng.annotations.Test;
 
 import static org.testng.Assert.*;
