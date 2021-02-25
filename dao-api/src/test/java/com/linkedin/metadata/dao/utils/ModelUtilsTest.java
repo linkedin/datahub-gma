@@ -5,6 +5,7 @@ import com.linkedin.common.CommonTestAspect;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.testing.EntityFoo;
 import com.linkedin.testing.EntityUnion;
+import com.linkedin.testing.urn.PizzaUrn;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.validator.InvalidSchemaException;
@@ -274,6 +275,10 @@ public class ModelUtilsTest {
     AspectFoo foo = new AspectFoo().setValue("foo");
 
     assertEquals(ModelUtils.getAspectSpecificMAETopicName(urn, foo), "METADATA_AUDIT_EVENT_FOO_ASPECTFOO");
+
+    PizzaUrn pizza = new PizzaUrn(1);
+    AspectBar bar = new AspectBar().setValue("bar");
+    assertEquals(ModelUtils.getAspectSpecificMAETopicName(pizza, bar), "METADATA_AUDIT_EVENT_PIZZA_ASPECTBAR");
   }
 
   @Test
