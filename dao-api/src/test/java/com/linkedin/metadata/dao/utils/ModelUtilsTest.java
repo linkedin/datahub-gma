@@ -22,7 +22,6 @@ import com.linkedin.testing.RelationshipFoo;
 import com.linkedin.testing.RelationshipUnion;
 import com.linkedin.testing.SnapshotUnion;
 import com.linkedin.testing.urn.FooUrn;
-import com.linkedin.testing.urn.InternalFooUrn;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.List;
@@ -292,13 +291,5 @@ public class ModelUtilsTest {
     EntityUnion entityUnion = ModelUtils.newEntityUnion(EntityUnion.class, entityFoo);
 
     assertEquals(entityUnion.getEntityFoo(), entityFoo);
-  }
-
-  @Test
-  public void testGetMAETopicNameWithInternalUrn() throws URISyntaxException {
-    InternalFooUrn urn = new InternalFooUrn(1);
-    AspectFoo foo = new AspectFoo().setValue("foo");
-
-    assertEquals(ModelUtils.getAspectSpecificMAETopicName(urn, foo), "METADATA_AUDIT_EVENT_FOO_ASPECTFOO");
   }
 }
