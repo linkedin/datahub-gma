@@ -210,7 +210,7 @@ public class Neo4jGraphWriterDAOTest {
   public void testGetNodeTypeFromUrn() {
     assertEquals(_dao.getNodeType(makeBarUrn(1)), ":`com.linkedin.testing.EntityBar`");
     assertEquals(_dao.getNodeType(makeFooUrn(1)), ":`com.linkedin.testing.EntityFoo`");
-    assertEquals(_dao.getNodeType(makeUrn(1, "entityFoo")), ":`com.linkedin.testing.EntityFoo`");
+    assertEquals(_dao.getNodeType(makeUrn(1, "foo")), ":`com.linkedin.testing.EntityFoo`");
     assertEquals(_dao.getNodeType(makeUrn("1")), ":UNKNOWN");
 
     // test consistency !!

@@ -1,11 +1,11 @@
 {
-  "urn:li:entityFoo:1": {
+  "urn:li:foo:1": {
     "value": "1"
   },
-  "urn:li:entityFoo:2": {
+  "urn:li:foo:2": {
     "value": "2"
   },
-  "urn:li:entityFoo:3": {
+  "urn:li:foo:3": {
     "value": "3"
   }
 }

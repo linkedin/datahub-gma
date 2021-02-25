@@ -6,7 +6,7 @@ import java.net.URISyntaxException;
 
 public final class BazUrn extends Urn {
 
-  public static final String ENTITY_TYPE = "entityBaz";
+  public static final String ENTITY_TYPE = "baz";
   // Can be obtained via getEntityKey, but not in open source. We need to unify the internal / external URN definitions.
   private final int _id;
 
