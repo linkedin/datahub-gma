@@ -18,7 +18,7 @@ import javax.annotation.Nonnull;
  * as placeholders for the event type (MCE, MAE, FMCE, etc), entity name, and aspect name, respectively.
  *
  * <p>The default pattern is {@code %EVENT%_%ENTITY%_%ASPECT%}. So, for example, given an URN like
- * {@code urn:li:pizza:0} and an aspect like {@code PizzaInfo}, you would ge the following topic names by defalut:
+ * {@code urn:li:pizza:0} and an aspect like {@code PizzaInfo}, you would ge the following topic names by default:
  *
  * <ul>
  *   <li>{@code MCE_Pizza_PizzaInfo}
