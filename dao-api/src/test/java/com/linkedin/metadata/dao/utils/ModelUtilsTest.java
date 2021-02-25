@@ -273,7 +273,7 @@ public class ModelUtilsTest {
     FooUrn urn = new FooUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");
 
-    assertEquals(ModelUtils.getAspectSpecificMAETopicName(urn, foo), "METADATA_AUDIT_EVENT_FOO_ASPECTFOO");
+    assertEquals(ModelUtils.getAspectSpecificMAETopicName(urn, foo), "METADATA_AUDIT_EVENT_ENTITYFOO_ASPECTFOO");
   }
 
   @Test
