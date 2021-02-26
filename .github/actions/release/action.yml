@@ -14,5 +14,5 @@ runs:
       shell: bash
     - run: ./gradlew build publishToMavenLocal bintrayUploadAll artifactoryPublish -Pbintray.dryRun -Partifactory.dryRun
       shell: bash
-    - run: ./gradlew ciPerformRelease
+    - run: ./gradlew ciPerformRelease -Pbintray.dryRun # Stop publishing to bintray
       shell: bash
