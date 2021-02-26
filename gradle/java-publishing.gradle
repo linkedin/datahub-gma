@@ -5,7 +5,12 @@ if (project.hasProperty('disableShipkit')) {
 }
 
 apply plugin: 'maven-publish'
+apply plugin: 'com.jfrog.artifactory'
 apply plugin: 'com.jfrog.bintray'
+
+////////////////////////////////////////////////
+// Artifact setup
+////////////////////////////////////////////////
 
 tasks.withType(Jar) {
   from "$rootDir/LICENSE"
@@ -81,6 +86,51 @@ publishing {
     }
   }
 }
+
+////////////////////////////////////////////////
+// Artifactory publishing
+////////////////////////////////////////////////
+
+artifactory {
+  contextUrl = 'https://linkedin.jfrog.io/artifactory'
+  publish {
+    repository {
+      repoKey = 'datahub-gma'
+      username = System.getenv('ARTIFACTORY_USER')
+      password = System.getenv('ARTIFACTORY_KEY')
+      maven = true
+    }
+
+    defaults {
+      if (project.ext.has('publications')) {
+        publications(*project.ext.publications)
+      } else {
+        publications('jar')
+
+        if (plugins.hasPlugin('pegasus')) {
+          publications('jar', 'dataTemplate')
+        }
+      }
+    }
+  }
+
+  resolve {
+    repository {
+      repoKey = 'release'
+      username = System.getenv('ARTIFACTORY_USER')
+      password = System.getenv('ARTIFACTORY_KEY')
+      maven = true
+    }
+  }
+}
+
+artifactoryPublish {
+  skip = project.hasProperty('artifactory.dryRun')
+}
+
+////////////////////////////////////////////////
+// Bintray publishing TODO remove
+////////////////////////////////////////////////
 
 bintray {
   user = System.getenv('BINTRAY_USER')

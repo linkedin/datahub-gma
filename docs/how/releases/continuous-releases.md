@@ -1,7 +1,7 @@
 # GMA Continuous Releases
 
 We create [GitHub releases](https://github.com/linkedin/datahub-gma/releases) and publish our artifacts to
-[Bintray](https://bintray.com/linkedin/maven/datahub-gma).
+[LinkedIn's open source artifactory](https://linkedin.jfrog.io/artifactory).
 
 We use [shipkit-auto-version](https://github.com/shipkit/shipkit-auto-version),
 [shipkit-changelog](https://github.com/shipkit/shipkit-changelog), and shipkit-github-release (part of
@@ -29,8 +29,8 @@ We use shipkit changelog to create the release notes of each version. See
 ## Automatic Publishing
 
 Automation is done with a [GitHub workflow](../../.github/workflows/gh-version.yml) that will create the GitHub release
-and then publish to bintray for every push of the `main` branch.
+and then publish to artifactory for every push of the `main` branch.
 
-This workflow relies on the `BINTRAY_USER` and `BINTRAY_KEY` secrets, which should be a user on Bintray with permissions
-to our project, and their api key, respectively. The exact user and key don't really matter, it is very easy to change
-in the event that we need to.
+This workflow relies on the `ARTIFACTORY_USER` and `ARTIFACTORY_KEY` secrets, which should be a user on Artifactory with
+permissions to our project, and their encoded password, respectively. The exact user and key don't really matter, it is
+very easy to change in the event that we need to.
