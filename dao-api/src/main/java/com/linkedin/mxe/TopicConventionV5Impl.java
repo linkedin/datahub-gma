@@ -18,7 +18,7 @@ import javax.annotation.Nonnull;
  * as placeholders for the event type (MCE, MAE, FMCE, etc), entity name, and aspect name, respectively.
  *
  * <p>The default pattern is {@code %EVENT%_%ENTITY%_%ASPECT%}. So, for example, given an URN like
- * {@code urn:li:pizza:0} and an aspect like {@code PizzaInfo}, you would ge the following topic names by default:
+ * {@code urn:li:pizza:0} and an aspect like {@code PizzaInfo}, you would get the following topic names by default:
  *
  * <ul>
  *   <li>{@code MCE_Pizza_PizzaInfo}
@@ -33,7 +33,7 @@ public final class TopicConventionV5Impl implements TopicConventionV5 {
   public static final String ASPECT_PLACEHOLDER = "%ASPECT%";
 
   // v5 defaults
-  public static final String DEFAULT_EVENT_PATTERN = "%EVENT%_%ENTITY%_%ASPECT%";
+  public static final String DEFAULT_TOPIC_NAME_PATTERN = "%EVENT%_%ENTITY%_%ASPECT%";
 
   // V5 event name placeholder replacements
   private static final String METADATA_CHANGE_EVENT_TYPE = "MCE";
@@ -62,7 +62,7 @@ public final class TopicConventionV5Impl implements TopicConventionV5 {
   }
 
   public TopicConventionV5Impl() {
-    this(DEFAULT_EVENT_PATTERN);
+    this(DEFAULT_TOPIC_NAME_PATTERN);
   }
 
   /**
@@ -101,7 +101,7 @@ public final class TopicConventionV5Impl implements TopicConventionV5 {
     final Map<String, String> merged = new HashMap<>(_overrides);
 
     for (Class<?> key : overrides.keySet()) {
-      final String name = getDefaultEventName(key);
+      final String name = getDefaultTopicName(key);
       merged.put(name, overrides.get(key));
     }
 
@@ -115,7 +115,7 @@ public final class TopicConventionV5Impl implements TopicConventionV5 {
   }
 
   @Nonnull
-  private String getDefaultEventName(@Nonnull Class<?> eventSchema) {
+  private String getDefaultTopicName(@Nonnull Class<?> eventSchema) {
     final Pattern pattern = Pattern.compile(
         "com\\.linkedin\\.pegasus2avro\\.mxe\\.(?<entity>[A-z]+)\\.(?<aspect>[A-z]+)\\.(?<className>[A-z]+)");
     final Matcher matcher = pattern.matcher(eventSchema.getName());
@@ -140,12 +140,12 @@ public final class TopicConventionV5Impl implements TopicConventionV5 {
       throw new IllegalArgumentException(String.format("Unrecognized MXE class name: %s", className));
     }
 
-    return buildEventName(eventType, toUpperCamelCase(matcher.group("entity")),
+    return buildTopicName(eventType, toUpperCamelCase(matcher.group("entity")),
         toUpperCamelCase(matcher.group("aspect")));
   }
 
   @Nonnull
-  private String buildEventName(@Nonnull String eventType, @Nonnull String entityName, @Nonnull String aspectName) {
+  private String buildTopicName(@Nonnull String eventType, @Nonnull String entityName, @Nonnull String aspectName) {
     final String name = _eventPattern.replace(EVENT_TYPE_PLACEHOLDER, eventType)
         .replace(ENTITY_PLACEHOLDER, entityName)
         .replace(ASPECT_PLACEHOLDER, aspectName);
@@ -179,17 +179,17 @@ public final class TopicConventionV5Impl implements TopicConventionV5 {
     return Character.toLowerCase(str.charAt(0)) + str.substring(1);
   }
 
-  private String buildEventName(@Nonnull String eventType, @Nonnull Urn urn, @Nonnull RecordTemplate aspect) {
+  private String buildTopicName(@Nonnull String eventType, @Nonnull Urn urn, @Nonnull RecordTemplate aspect) {
     final String entityType = toUpperCamelCase(urn.getEntityType());
     final String aspectName = aspect.getClass().getSimpleName();
 
-    return buildEventName(eventType, entityType, aspectName);
+    return buildTopicName(eventType, entityType, aspectName);
   }
 
   @Nonnull
   @Override
   public String getMetadataChangeEventTopicName(@Nonnull Urn urn, @Nonnull RecordTemplate aspect) {
-    return buildEventName(METADATA_CHANGE_EVENT_TYPE, urn, aspect);
+    return buildTopicName(METADATA_CHANGE_EVENT_TYPE, urn, aspect);
   }
 
   private Class<?> getClass(@Nonnull Urn urn, @Nonnull RecordTemplate aspect, @Nonnull String eventType)
@@ -211,7 +211,7 @@ public final class TopicConventionV5Impl implements TopicConventionV5 {
   @Nonnull
   @Override
   public String getMetadataAuditEventTopicName(@Nonnull Urn urn, @Nonnull RecordTemplate aspect) {
-    return buildEventName(METADATA_AUDIT_EVENT_TYPE, urn, aspect);
+    return buildTopicName(METADATA_AUDIT_EVENT_TYPE, urn, aspect);
   }
 
   @Override
@@ -223,7 +223,7 @@ public final class TopicConventionV5Impl implements TopicConventionV5 {
   @Nonnull
   @Override
   public String getFailedMetadataChangeEventTopicName(@Nonnull Urn urn, @Nonnull RecordTemplate aspect) {
-    return buildEventName(FAILED_METADATA_CHANGE_EVENT_TYPE, urn, aspect);
+    return buildTopicName(FAILED_METADATA_CHANGE_EVENT_TYPE, urn, aspect);
   }
 
   @Override
