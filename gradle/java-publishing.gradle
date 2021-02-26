@@ -6,7 +6,6 @@ if (project.hasProperty('disableShipkit')) {
 
 apply plugin: 'maven-publish'
 apply plugin: 'com.jfrog.artifactory'
-apply plugin: 'com.jfrog.bintray'
 
 ////////////////////////////////////////////////
 // Artifact setup
@@ -126,57 +125,4 @@ artifactory {
 
 artifactoryPublish {
   skip = project.hasProperty('artifactory.dryRun')
-}
-
-////////////////////////////////////////////////
-// Bintray publishing TODO remove
-////////////////////////////////////////////////
-
-bintray {
-  user = System.getenv('BINTRAY_USER')
-  key = System.getenv('BINTRAY_KEY')
-
-  publish = true
-
-  dryRun = project.hasProperty("bintray.dryRun") //useful for testing
-
-  if (project.ext.has('publications')) {
-    publications = project.ext.publications
-  } else {
-    publications = ['jar']
-
-    if (plugins.hasPlugin('pegasus')) {
-      publications += 'dataTemplate'
-    }
-  }
-
-  pkg {
-    repo = 'maven'
-    userOrg = 'linkedin'
-    name = 'datahub-gma'
-
-    licenses = ['Apache-2.0']
-    labels = ['metadata', 'datahub', 'gma']
-    version {
-      // disable gpg signing to speed up publishing
-      gpg {
-        sign = false
-      }
-      // disable upload to maven central
-      mavenCentralSync {
-        sync = false
-      }
-    }
-  }
-}
-
-bintrayUpload {
-  // Bintray normally doesn't depend on POM generation, but we need it.
-  tasks.withType(GenerateMavenPom) {
-    bintrayUpload.dependsOn it
-  }
-
-  doFirst {
-    println "Publishing $jar.baseName to Bintray (dryRun: $dryRun, repo: $repoName, publish: $publish)"
-  }
 }
