@@ -1452,7 +1452,7 @@ public class EbeanLocalDAOTest {
     // case 1: valid urn
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao =
         new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, _server, FooUrn.class);
-    String urn1 = "urn:li:entityFoo:1";
+    String urn1 = "urn:li:foo:1";
     FooUrn fooUrn = makeFooUrn(1);
 
     assertEquals(fooUrn, dao.getUrn(urn1));

@@ -520,8 +520,7 @@ public class ModelUtils {
   @Nonnull
   public static <URN extends Urn, ASPECT extends RecordTemplate> String getAspectSpecificMAETopicName(@Nonnull URN urn,
       @Nonnull ASPECT newValue) {
-    final String urnStr = urn.getClass().getSimpleName().toUpperCase();
-    return String.format("%s_%s_%s", METADATA_AUDIT_EVENT_PREFIX, urnStr.substring(0, urnStr.length() - "Urn".length()),
+    return String.format("%s_%s_%s", METADATA_AUDIT_EVENT_PREFIX, urn.getEntityType().toUpperCase(),
         newValue.getClass().getSimpleName().toUpperCase());
   }
 
