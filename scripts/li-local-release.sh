@@ -18,7 +18,7 @@ VERSION="$(./gradlew -q getVersion)-SNAPSHOT"
 echo "Publishing GMA $VERSION to ${LOCAL_REPO}..."
 
 # Publish artifacts to Maven local, but override the repo path and add a -SNAPSHOT suffix to avoid confusion with
-# versions published to bintray.
+# versions published to artifactory.
 ./gradlew -Dmaven.repo.local=$LOCAL_REPO publishToMavenLocal -Pversion="${VERSION}"
 
 if [ $? = 0 ]; then

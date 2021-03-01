@@ -1,5 +1,5 @@
 name: 'Publish Releases'
-description: 'Runs gradle tasks to publish versions to Bintray and GitHub.'
+description: 'Runs gradle tasks to publish versions to Artifactory and GitHub.'
 outputs:
   version:
     description: "The version tag this created."
@@ -12,7 +12,7 @@ runs:
       shell: bash
     - run: echo Got version ${{ steps.get-tag.outputs.tag }}
       shell: bash
-    - run: ./gradlew build publishToMavenLocal bintrayUploadAll artifactoryPublish -Pbintray.dryRun -Partifactory.dryRun
+    - run: ./gradlew build publishToMavenLocal artifactoryPublish -Partifactory.dryRun
       shell: bash
-    - run: ./gradlew ciPerformRelease -Pbintray.dryRun # Stop publishing to bintray
+    - run: ./gradlew ciPerformRelease
       shell: bash
