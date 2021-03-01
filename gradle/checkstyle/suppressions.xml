@@ -4,4 +4,6 @@
     "http://www.puppycrawl.com/dtds/suppressions_1_1.dtd">
 <suppressions>
   <suppress checks=".*" files="src/mainGeneratedDataTemplate"/>
+  <!-- Suppress camelCase package name warnings. -->
+  <suppress checks=".*" files="src/test/java/com/linkedin/pegasus2avro/mxe/pizza"/>
 </suppressions>
