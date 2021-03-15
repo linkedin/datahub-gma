@@ -1,5 +1,6 @@
 package com.linkedin.metadata.dao.search;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.linkedin.common.UrnArray;
 import com.linkedin.data.DataList;
@@ -11,6 +12,7 @@ import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.Criterion;
 import com.linkedin.metadata.query.CriterionArray;
 import com.linkedin.metadata.query.Filter;
+import com.linkedin.metadata.query.MatchedField;
 import com.linkedin.metadata.query.SearchResultMetadata;
 import com.linkedin.metadata.query.SortCriterion;
 import com.linkedin.metadata.query.SortOrder;
@@ -23,21 +25,26 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.commons.io.IOUtils;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import static com.linkedin.metadata.dao.utils.QueryUtils.*;
-import static com.linkedin.testing.TestUtils.*;
-import static org.mockito.Mockito.*;
-import static org.testng.Assert.*;
+import static com.linkedin.metadata.dao.utils.QueryUtils.EMPTY_FILTER;
+import static com.linkedin.metadata.dao.utils.QueryUtils.newFilter;
+import static com.linkedin.testing.TestUtils.makeUrn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertThrows;
+import static org.testng.Assert.assertTrue;
 
 
 public class ESSearchDAOTest {
@@ -140,6 +147,34 @@ public class ESSearchDAOTest {
     SearchResponse searchResponse3 = mock(SearchResponse.class);
     when(searchResponse3.getHits()).thenReturn(searchHits3);
     assertThrows(RuntimeException.class, () -> _searchDAO.extractSearchResultMetadata(searchResponse3));
+
+    // Test: highlights exist in one search document, and doesn't exist in another
+    SearchHits searchHits4 = mock(SearchHits.class);
+    SearchHit hit5 = makeSearchHit(5);
+    SearchHit hit6 = makeSearchHit(6, ImmutableMap.of("field1", ImmutableList.of("fieldValue1")));
+    SearchHit hit7 = makeSearchHit(7, ImmutableMap.of("field1", ImmutableList.of("fieldValue1"), "field2",
+        ImmutableList.of("fieldValue21", "fieldValue22")));
+    SearchHit hit8 = makeSearchHit(8, ImmutableMap.of("field1", ImmutableList.of("fieldValue1"), "field1.delimited",
+        ImmutableList.of("fieldValue1", "fieldValue2")));
+    when(searchHits4.getHits()).thenReturn(new SearchHit[]{hit5, hit6, hit7, hit8});
+    SearchResponse searchResponse4 = mock(SearchResponse.class);
+    when(searchResponse4.getHits()).thenReturn(searchHits4);
+    SearchResultMetadata searchResultMetadata = _searchDAO.extractSearchResultMetadata(searchResponse4);
+    assertEquals(searchResultMetadata.getMatches().size(), 4);
+    assertEquals(extractMatchedFields(searchResultMetadata, 0), ImmutableList.of());
+    assertEquals(extractMatchedFields(searchResultMetadata, 1),
+        ImmutableList.of(new MatchedField().setName("field1").setValue("fieldValue1")));
+    List<MatchedField> matchesHit7 = extractMatchedFields(searchResultMetadata, 2);
+    assertEquals(matchesHit7.size(), 3);
+    assertEquals(matchesHit7.get(0), new MatchedField().setName("field1").setValue("fieldValue1"));
+    // Note order of values are not deterministic
+    assertEquals(matchesHit7.get(1).getName(), "field2");
+    assertEquals(matchesHit7.get(2).getName(), "field2");
+    List<MatchedField> matchesHit8 = extractMatchedFields(searchResultMetadata, 3);
+    assertEquals(matchesHit8.size(), 2);
+    // Note order of values are not deterministic
+    assertEquals(matchesHit8.get(0).getName(), "field1");
+    assertEquals(matchesHit8.get(1).getName(), "field1");
   }
 
   @Test
@@ -246,43 +281,6 @@ public class ESSearchDAOTest {
         AggregationBuilders.terms(facetFieldName).field(facetFieldName).size(5));
   }
 
-  @Test
-  public void testUrnWithComma() {
-    // TODO(https://github.com/linkedin/datahub-gma/issues/51): stop treating urns differently
-
-    // given
-    String facetFieldName = "value";
-    String urnValue = "urn:li:entity:(a,b)";
-    Map<String, String> requestMap = Collections.singletonMap(facetFieldName, urnValue);
-    Filter filter = QueryUtils.newFilter(requestMap);
-
-    // when
-    SearchRequest searchRequest = _searchDAO.constructSearchQuery("dummy", filter, null, null, 0, 10);
-
-    // then
-    assertEquals(searchRequest.source().postFilter(),
-        new BoolQueryBuilder().must(new BoolQueryBuilder().should(QueryBuilders.matchQuery(facetFieldName, urnValue))));
-  }
-
-  @Test
-  public void testNonUrnWithComma() {
-    // TODO(https://github.com/linkedin/datahub-gma/issues/51): stop splitting on commas
-
-    // given
-    String facetFieldName = "value";
-    String urnValue = "a,b";
-    Map<String, String> requestMap = Collections.singletonMap(facetFieldName, urnValue);
-    Filter filter = QueryUtils.newFilter(requestMap);
-
-    // when
-    SearchRequest searchRequest = _searchDAO.constructSearchQuery("dummy", filter, null, null, 0, 10);
-
-    // then
-    assertEquals(searchRequest.source().postFilter(), new BoolQueryBuilder().must(
-        new BoolQueryBuilder().should(QueryBuilders.matchQuery(facetFieldName, "a"))
-            .should(QueryBuilders.matchQuery(facetFieldName, "b"))));
-  }
-
   private static SearchHit makeSearchHit(int id) {
     SearchHit hit = mock(SearchHit.class);
     Map<String, Object> sourceMap = new HashMap<>();
@@ -293,7 +291,26 @@ public class ESSearchDAOTest {
     return hit;
   }
 
+  private static SearchHit makeSearchHit(int id, Map<String, List<String>> highlightedFields) {
+    SearchHit hit = mock(SearchHit.class);
+    Map<String, Object> sourceMap = new HashMap<>();
+    sourceMap.put("urn", makeUrn(id).toString());
+    sourceMap.put("name", "test" + id);
+    when(hit.getSourceAsMap()).thenReturn(sourceMap);
+    when(hit.getSource()).thenReturn(sourceMap);
+    when(hit.getHighlightFields()).thenReturn(highlightedFields.entrySet()
+        .stream()
+        .collect(Collectors.toMap(Map.Entry::getKey, entry -> new HighlightField(entry.getKey(),
+            entry.getValue().stream().map(Text::new).toArray(Text[]::new)))));
+    return hit;
+  }
+
   private static SearchResultMetadata getDefaultSearchResultMetadata() {
-    return new SearchResultMetadata().setSearchResultMetadatas(new AggregationMetadataArray()).setUrns(new UrnArray());
+    return new SearchResultMetadata().setSearchResultMetadatas(new AggregationMetadataArray())
+        .setUrns(new UrnArray());
+  }
+
+  private static List<MatchedField> extractMatchedFields(SearchResultMetadata searchResultMetadata, int index) {
+    return new ArrayList<>(searchResultMetadata.getMatches().get(index).getMatchedFields());
   }
 }

@@ -1,5 +1,6 @@
 package com.linkedin.metadata.testing;
 
+import com.google.common.collect.ImmutableList;
 import com.linkedin.data.template.StringArray;
 import com.linkedin.metadata.dao.SearchResult;
 import com.linkedin.metadata.dao.search.BaseSearchConfig;
@@ -10,6 +11,7 @@ import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.Criterion;
 import com.linkedin.metadata.query.CriterionArray;
 import com.linkedin.metadata.query.Filter;
+import com.linkedin.metadata.query.MatchedField;
 import com.linkedin.metadata.query.SortCriterion;
 import com.linkedin.metadata.query.SortOrder;
 import com.linkedin.metadata.testing.annotations.SearchIndexMappings;
@@ -21,6 +23,7 @@ import com.linkedin.testing.urn.PizzaUrn;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import javax.annotation.Nonnull;
 import org.junit.jupiter.api.BeforeEach;
@@ -90,6 +93,12 @@ public class ESSearchDaoIntegTest {
     @Override
     public String getAutocompleteQueryTemplate() {
       return AUTOCOMPLETE_TEMPLATE;
+    }
+
+    @Override
+    @Nonnull
+    public List<String> getFieldsToHighlightMatch() {
+      return ImmutableList.of("size");
     }
   }
 
@@ -375,6 +384,42 @@ public class ESSearchDaoIntegTest {
     // then
     assertThat(result.getDocumentList()).containsExactly(pizza1, pizza0, pizza2);
     assertThat(result.isHavingMore()).isFalse();
+  }
+
+  @Test
+  public void searchMatches() throws Exception {
+    // given
+    final PizzaUrn urn0 = new PizzaUrn(0);
+    final PizzaSearchDocument pizza0 =
+        new PizzaSearchDocument().setSize(PizzaSize.MEDIUM).setToppings(new StringArray("Pepperoni")).setUrn(urn0);
+    _bulkDao.upsertDocument(pizza0, urn0.toString());
+
+    final PizzaUrn urn1 = new PizzaUrn(1);
+    final PizzaSearchDocument pizza1 =
+        new PizzaSearchDocument().setSize(PizzaSize.LARGE).setToppings(new StringArray("Big pepperoni")).setUrn(urn1);
+    _bulkDao.upsertDocument(pizza1, urn1.toString());
+
+    final PizzaUrn urn2 = new PizzaUrn(2);
+    final PizzaSearchDocument pizza2 =
+        new PizzaSearchDocument().setSize(PizzaSize.LARGE).setToppings(new StringArray("Pineapple")).setUrn(urn2);
+    _bulkDao.upsertDocument(pizza2, urn2.toString());
+
+    _searchIndex.getRequestContainer().flushAndSettle();
+
+    // when
+    final SearchResult<PizzaSearchDocument> result = _searchDao.search(PizzaSize.LARGE.toString(), null, null, 0, 10);
+
+    // then
+    assertThat(result.getDocumentList()).containsExactly(pizza1, pizza2);
+    assertThat(result.isHavingMore()).isFalse();
+    assertThat(result.getSearchResultMetadata().getMatches()).isNotNull();
+    assertThat(result.getSearchResultMetadata().getMatches().size()).isEqualTo(2);
+    assertThat(result.getSearchResultMetadata().getMatches().get(0).getMatchedFields().size()).isEqualTo(1);
+    assertThat(result.getSearchResultMetadata().getMatches().get(0).getMatchedFields().get(0)).isEqualTo(
+        new MatchedField().setName("size").setValue(PizzaSize.LARGE.toString()));
+    assertThat(result.getSearchResultMetadata().getMatches().get(1).getMatchedFields().size()).isEqualTo(1);
+    assertThat(result.getSearchResultMetadata().getMatches().get(1).getMatchedFields().get(0)).isEqualTo(
+        new MatchedField().setName("size").setValue(PizzaSize.LARGE.toString()));
   }
 
   @Test

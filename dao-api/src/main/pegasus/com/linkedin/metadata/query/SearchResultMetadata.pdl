@@ -27,4 +27,26 @@ record SearchResultMetadata {
    * A list of urns corresponding to search documents (in order) as returned by the search index
    */
   urns: array[Urn]
+
+  /**
+   * A list of match metadata for each search result, containing the list of fields in the search document that matched the query
+   */
+  matches: optional array[record MatchMetadata {
+
+    /**
+     * Matched field name and values
+     */
+    matchedFields: array[record MatchedField {
+
+      /**
+       * Matched field name
+       */
+      name: string
+
+      /**
+       * Matched field value
+       */
+      value: string
+    }]
+  }]
 }
