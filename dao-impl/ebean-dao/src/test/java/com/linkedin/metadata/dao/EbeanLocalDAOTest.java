@@ -413,7 +413,25 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
-  public void testLocalSecondaryIndexBackfill() {
+  public void testLocalSecondaryIndexBackfillDisabled() {
+    // given
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao =
+        new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, _server, FooUrn.class);
+    dao.setUrnPathExtractor(new FooUrnPathExtractor());
+
+    FooUrn urn = makeFooUrn(1);
+    AspectFoo expected = new AspectFoo().setValue("foo");
+    addMetadata(urn, AspectFoo.class.getCanonicalName(), 0, expected);
+    dao.backfill(AspectFoo.class, urn);
+
+    // then when
+    assertEquals(getAllRecordsFromLocalIndex(urn).size(), 0);
+  }
+
+
+  @Test
+  public void testLocalSecondaryIndexBackfillEnabled() {
+    // given
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao =
         new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, _server, FooUrn.class);
     dao.setUrnPathExtractor(new FooUrnPathExtractor());
@@ -422,14 +440,13 @@ public class EbeanLocalDAOTest {
     AspectFoo expected = new AspectFoo().setValue("foo");
     addMetadata(urn, AspectFoo.class.getCanonicalName(), 0, expected);
 
-    // Check if backfilled: _writeToLocalSecondary = false
-    dao.backfill(AspectFoo.class, urn);
-    assertEquals(getAllRecordsFromLocalIndex(urn).size(), 0);
-
-    // Check if backfilled: _writeToLocalSecondary = true
     dao.enableLocalSecondaryIndex(true);
     dao.backfill(AspectFoo.class, urn);
+
+    // when
     List<EbeanMetadataIndex> fooRecords = getAllRecordsFromLocalIndex(urn);
+
+    // then
     assertEquals(fooRecords.size(), 1);
     EbeanMetadataIndex fooRecord = fooRecords.get(0);
     assertEquals(fooRecord.getUrn(), urn.toString());
@@ -439,7 +456,8 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
-  public void testBackfillWithUrns() {
+  public void testBackfillSingleAspect() {
+    // given
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao =
         new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, _server, FooUrn.class);
     List<FooUrn> urns = ImmutableList.of(makeFooUrn(1), makeFooUrn(2), makeFooUrn(3));
@@ -454,28 +472,69 @@ public class EbeanLocalDAOTest {
       addMetadata(urn, AspectBar.class.getCanonicalName(), 0, aspectBar);
     });
 
-    // Backfill single aspect for set of urns
+    // when
     Map<FooUrn, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfilledAspects =
         dao.backfill(Collections.singleton(AspectFoo.class), new HashSet<>(urns));
+
+    // then
     for (Urn urn : urns) {
       RecordTemplate aspect = aspects.get(urn).get(AspectFoo.class);
       assertEquals(backfilledAspects.get(urn).get(AspectFoo.class).get(), aspect);
       verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, aspect, aspect);
     }
-    clearInvocations(_mockProducer);
+  }
 
-    // Backfill set of aspects for a single urn
-    backfilledAspects =
+  @Test
+  public void testBackfillMultipleAspectsOneUrn() {
+    // given
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao =
+        new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, _server, FooUrn.class);
+    List<FooUrn> urns = ImmutableList.of(makeFooUrn(1));
+
+    Map<FooUrn, Map<Class<? extends RecordTemplate>, RecordTemplate>> aspects = new HashMap<>();
+
+    urns.forEach(urn -> {
+      AspectFoo aspectFoo = new AspectFoo().setValue("foo");
+      AspectBar aspectBar = new AspectBar().setValue("bar");
+      aspects.put(urn, ImmutableMap.of(AspectFoo.class, aspectFoo, AspectBar.class, aspectBar));
+      addMetadata(urn, AspectFoo.class.getCanonicalName(), 0, aspectFoo);
+      addMetadata(urn, AspectBar.class.getCanonicalName(), 0, aspectBar);
+    });
+
+    // when
+    Map<FooUrn, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfilledAspects =
         dao.backfill(ImmutableSet.of(AspectFoo.class, AspectBar.class), Collections.singleton(urns.get(0)));
+
+    // then
     for (Class<? extends RecordTemplate> clazz : aspects.get(urns.get(0)).keySet()) {
       RecordTemplate aspect = aspects.get(urns.get(0)).get(clazz);
       assertEquals(backfilledAspects.get(urns.get(0)).get(clazz).get(), aspect);
       verify(_mockProducer, times(1)).produceMetadataAuditEvent(urns.get(0), aspect, aspect);
     }
-    clearInvocations(_mockProducer);
+  }
 
-    // Backfill set of aspects for set of urns
-    backfilledAspects = dao.backfill(ImmutableSet.of(AspectFoo.class, AspectBar.class), new HashSet<>(urns));
+  @Test
+  public void testBackfillMultipleAspectsMultipleUrns() {
+    // given
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao =
+        new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, _server, FooUrn.class);
+    List<FooUrn> urns = ImmutableList.of(makeFooUrn(1), makeFooUrn(2), makeFooUrn(3));
+
+    Map<FooUrn, Map<Class<? extends RecordTemplate>, RecordTemplate>> aspects = new HashMap<>();
+
+    urns.forEach(urn -> {
+      AspectFoo aspectFoo = new AspectFoo().setValue("foo");
+      AspectBar aspectBar = new AspectBar().setValue("bar");
+      aspects.put(urn, ImmutableMap.of(AspectFoo.class, aspectFoo, AspectBar.class, aspectBar));
+      addMetadata(urn, AspectFoo.class.getCanonicalName(), 0, aspectFoo);
+      addMetadata(urn, AspectBar.class.getCanonicalName(), 0, aspectBar);
+    });
+
+    // when
+    Map<FooUrn, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfilledAspects =
+        dao.backfill(ImmutableSet.of(AspectFoo.class, AspectBar.class), new HashSet<>(urns));
+
+    // then
     for (Urn urn : urns) {
       for (Class<? extends RecordTemplate> clazz : aspects.get(urn).keySet()) {
         RecordTemplate aspect = aspects.get(urn).get(clazz);
@@ -1558,6 +1617,7 @@ public class EbeanLocalDAOTest {
 
   @Test
   public void testGetWithKeysCount() {
+    // given
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao =
         new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, _server, FooUrn.class);
 
@@ -1574,9 +1634,39 @@ public class EbeanLocalDAOTest {
     addMetadata(fooUrn, AspectBar.class.getCanonicalName(), 0, barV0);
 
     // batch get without query keys count set
+    // when
     Map<AspectKey<FooUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> records =
         dao.get(new HashSet<>(Arrays.asList(aspectKey1, aspectKey2)));
+
+    // then
     assertEquals(records.size(), 2);
+  }
+
+  @Test
+  public void testNegativeIsInvalidKeyCount() {
+    // given
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao =
+        new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, _server, FooUrn.class);
+
+    // expect
+    assertThrows(IllegalArgumentException.class, () -> dao.setQueryKeysCount(-1));
+  }
+
+  public void testGetWithQuerySize(int querySize) {
+    // given
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao =
+        new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, _server, FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(1);
+
+    // both aspect keys exist
+    AspectKey<FooUrn, AspectFoo> aspectKey1 = new AspectKey<>(AspectFoo.class, fooUrn, 1L);
+    AspectKey<FooUrn, AspectBar> aspectKey2 = new AspectKey<>(AspectBar.class, fooUrn, 0L);
+
+    // add metadata
+    AspectFoo fooV1 = new AspectFoo().setValue("foo");
+    addMetadata(fooUrn, AspectFoo.class.getCanonicalName(), 1, fooV1);
+    AspectBar barV0 = new AspectBar().setValue("bar");
+    addMetadata(fooUrn, AspectBar.class.getCanonicalName(), 0, barV0);
 
     FooUrn fooUrn2 = makeFooUrn(2);
     AspectKey<FooUrn, AspectFoo> aspectKey3 = new AspectKey<>(AspectFoo.class, fooUrn2, 0L);
@@ -1591,42 +1681,42 @@ public class EbeanLocalDAOTest {
     AspectBar barV5 = new AspectBar().setValue("bar5");
     addMetadata(fooUrn2, AspectBar.class.getCanonicalName(), 0, barV5);
 
-    assertThrows(IllegalArgumentException.class, () -> dao.setQueryKeysCount(-1));
+    dao.setQueryKeysCount(querySize);
 
-    dao.setQueryKeysCount(0);
+    // when
     Map<AspectKey<FooUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> fiveRecords =
         dao.get(new HashSet<>(Arrays.asList(aspectKey1, aspectKey2, aspectKey3, aspectKey4, aspectKey5)));
+
+    // then
     assertEquals(fiveRecords.size(), 5);
+  }
 
-    dao.setQueryKeysCount(1);
-    Map<AspectKey<FooUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> fiveRecords1 =
-        dao.get(new HashSet<>(Arrays.asList(aspectKey1, aspectKey2, aspectKey3, aspectKey4, aspectKey5)));
-    assertEquals(fiveRecords1, fiveRecords);
+  @Test
+  public void testNoPaging() {
+    testGetWithQuerySize(0);
+  }
 
-    dao.setQueryKeysCount(2);
-    Map<AspectKey<FooUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> fiveRecords2 =
-        dao.get(new HashSet<>(Arrays.asList(aspectKey1, aspectKey2, aspectKey3, aspectKey4, aspectKey5)));
-    assertEquals(fiveRecords2, fiveRecords);
+  @Test
+  public void testPageSizeOfOne() {
+    testGetWithQuerySize(1);
+  }
 
-    dao.setQueryKeysCount(3);
-    Map<AspectKey<FooUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> fiveRecords3 =
-        dao.get(new HashSet<>(Arrays.asList(aspectKey1, aspectKey2, aspectKey3, aspectKey4, aspectKey5)));
-    assertEquals(fiveRecords3, fiveRecords);
+  @Test
+  public void testPageSizeNonDivisor() {
+    // test has 5 pieces of data; not divisible 2, 3, or 4
+    testGetWithQuerySize(2);
+    testGetWithQuerySize(3);
+    testGetWithQuerySize(4);
+  }
 
-    dao.setQueryKeysCount(4);
-    Map<AspectKey<FooUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> fiveRecords4 =
-        dao.get(new HashSet<>(Arrays.asList(aspectKey1, aspectKey2, aspectKey3, aspectKey4, aspectKey5)));
-    assertEquals(fiveRecords4, fiveRecords);
+  @Test
+  public void testPageSizeSameAsResultSize() {
+    testGetWithQuerySize(5);
+  }
 
-    dao.setQueryKeysCount(5);
-    Map<AspectKey<FooUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> fiveRecords5 =
-        dao.get(new HashSet<>(Arrays.asList(aspectKey1, aspectKey2, aspectKey3, aspectKey4, aspectKey5)));
-    assertEquals(fiveRecords5, fiveRecords);
-
-    dao.setQueryKeysCount(1000);
-    Map<AspectKey<FooUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> fiveRecord1000 =
-        dao.get(new HashSet<>(Arrays.asList(aspectKey1, aspectKey2, aspectKey3, aspectKey4, aspectKey5)));
-    assertEquals(fiveRecord1000, fiveRecords);
+  @Test
+  public void testPageSizeGreaterThanResultsSize() {
+    testGetWithQuerySize(1000);
   }
 
   private void addMetadata(Urn urn, String aspectName, long version, RecordTemplate metadata) {
