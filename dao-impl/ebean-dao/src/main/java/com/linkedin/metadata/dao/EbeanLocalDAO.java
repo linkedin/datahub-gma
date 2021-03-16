@@ -536,6 +536,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     //   ...
     // Note: UNION ALL should be safe and more performant than UNION. We're selecting the entire entity key (as well
     // as data), so each result should be unique. No need to deduplicate.
+    // Another note: ebean doesn't support UNION ALL, so we need to manually build the SQL statement ourselves.
     final StringBuilder sb = new StringBuilder();
     final int end = Math.min(keys.size(), position + keysCount);
     final Map<String, Object> params = new HashMap<>();
