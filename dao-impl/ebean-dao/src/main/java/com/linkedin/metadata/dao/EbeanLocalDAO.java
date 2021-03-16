@@ -27,6 +27,7 @@ import com.linkedin.metadata.query.ListResultMetadata;
 import io.ebean.DuplicateKeyException;
 import io.ebean.EbeanServer;
 import io.ebean.EbeanServerFactory;
+import io.ebean.ExpressionList;
 import io.ebean.PagedList;
 import io.ebean.Query;
 import io.ebean.RawSql;
@@ -72,6 +73,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   protected final Class<URN> _urnClass;
   private UrnPathExtractor<URN> _urnPathExtractor;
   private int _queryKeysCount = 0; // 0 means no pagination on keys
+
+  // TODO feature flag, remove when vetted.
+  private boolean _useUnionForBatch = false;
 
   @Value
   static class GMAIndexPair {
@@ -154,6 +158,18 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   public EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull ServerConfig serverConfig,
       @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass) {
     this(producer, createServer(serverConfig), storageConfig, urnClass, new EmptyPathExtractor<>());
+  }
+
+  /**
+   * Determines whether we should use UNION ALL statements for batch gets, rather than a large series of OR statements.
+   *
+   * <p>DO NOT USE THIS FLAG! This is for LinkedIn use to help us test this feature without a rollback. Once we've
+   * vetted this in production we will be removing this flag and making the the default behavior. So if you set this
+   * to true by calling this method, your code will break when we remove this method. Just wait a bit for us to turn
+   * it on by default!
+   */
+  public void setUseUnionForBatch(boolean useUnionForBatch) {
+    _useUnionForBatch = useUnionForBatch;
   }
 
   @Nonnull
@@ -509,7 +525,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Nonnull
-  private List<EbeanMetadataAspect> batchGetHelper(@Nonnull List<AspectKey<URN, ? extends RecordTemplate>> keys,
+  private List<EbeanMetadataAspect> batchGetUnion(@Nonnull List<AspectKey<URN, ? extends RecordTemplate>> keys,
       int keysCount, int position) {
 
     // Build one SELECT per key and then UNION ALL the results. This can be much more performant than OR'ing the
@@ -545,6 +561,38 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
 
     return query.findList();
+  }
+
+  @Nonnull
+  private List<EbeanMetadataAspect> batchGetOr(@Nonnull List<AspectKey<URN, ? extends RecordTemplate>> keys,
+      int keysCount, int position) {
+    ExpressionList<EbeanMetadataAspect> query = _server.find(EbeanMetadataAspect.class).select(ALL_COLUMNS).where();
+
+    // add or if it is not the last element
+    if (position != keys.size() - 1) {
+      query = query.or();
+    }
+
+    for (int index = position; index < keys.size() && index < position + keysCount; index++) {
+      query = query.and()
+          .eq(URN_COLUMN, keys.get(index).getUrn().toString())
+          .eq(ASPECT_COLUMN, ModelUtils.getAspectName(keys.get(index).getAspectClass()))
+          .eq(VERSION_COLUMN, keys.get(index).getVersion())
+          .endAnd();
+    }
+
+    return query.findList();
+  }
+
+  @Nonnull
+  private List<EbeanMetadataAspect> batchGetHelper(@Nonnull List<AspectKey<URN, ? extends RecordTemplate>> keys,
+      int keysCount, int position) {
+    // TODO remove batchGetOr, make batchGetUnion the only implementation.
+    if (_useUnionForBatch) {
+      return batchGetUnion(keys, keysCount, position);
+    } else {
+      return batchGetOr(keys, keysCount, position);
+    }
   }
 
   /**
