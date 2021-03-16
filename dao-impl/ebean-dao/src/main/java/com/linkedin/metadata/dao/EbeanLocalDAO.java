@@ -27,9 +27,10 @@ import com.linkedin.metadata.query.ListResultMetadata;
 import io.ebean.DuplicateKeyException;
 import io.ebean.EbeanServer;
 import io.ebean.EbeanServerFactory;
-import io.ebean.ExpressionList;
 import io.ebean.PagedList;
 import io.ebean.Query;
+import io.ebean.RawSql;
+import io.ebean.RawSqlBuilder;
 import io.ebean.Transaction;
 import io.ebean.config.ServerConfig;
 import io.ebean.datasource.DataSourceConfig;
@@ -51,6 +52,7 @@ import java.util.stream.IntStream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.persistence.RollbackException;
+import javax.persistence.Table;
 import lombok.Value;
 
 import static com.linkedin.metadata.dao.EbeanMetadataAspect.*;
@@ -418,7 +420,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     final List<EbeanMetadataAspect> records;
 
     if (_queryKeysCount == 0) {
-      records = batchGet(keys);
+      records = batchGet(keys, keys.size());
     } else {
       records = batchGet(keys, _queryKeysCount);
     }
@@ -439,7 +441,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       return Collections.emptyMap();
     }
 
-    final List<EbeanMetadataAspect> records = batchGet(keys);
+    final List<EbeanMetadataAspect> records = batchGet(keys, keys.size());
 
     final Map<AspectKey<URN, ? extends RecordTemplate>, AspectWithExtraInfo<? extends RecordTemplate>> result =
         new HashMap<>();
@@ -452,26 +454,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   public boolean existsInLocalIndex(@Nonnull URN urn) {
     return _server.find(EbeanMetadataIndex.class).where().eq(URN_COLUMN, urn.toString()).exists();
-  }
-
-  // Will be migrated to use {@link #batchGet(Set<AspectKey<URN, ? extends RecordTemplate>>, int)}
-  @Nonnull
-  private List<EbeanMetadataAspect> batchGet(@Nonnull Set<AspectKey<URN, ? extends RecordTemplate>> keys) {
-
-    ExpressionList<EbeanMetadataAspect> query = _server.find(EbeanMetadataAspect.class).select(ALL_COLUMNS).where();
-    if (keys.size() > 1) {
-      query = query.or();
-    }
-
-    for (AspectKey<URN, ? extends RecordTemplate> key : keys) {
-      query = query.and()
-          .eq(URN_COLUMN, key.getUrn().toString())
-          .eq(ASPECT_COLUMN, ModelUtils.getAspectName(key.getAspectClass()))
-          .eq(VERSION_COLUMN, key.getVersion())
-          .endAnd();
-    }
-
-    return query.findList();
   }
 
   /**
@@ -507,22 +489,59 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     return finalResult;
   }
 
+  /**
+   * Builds a single SELECT statement for batch get, which selects one entity, and then can be UNION'd with other SELECT
+   * statements.
+   */
+  private String batchGetSelect(int selectId, @Nonnull String urn, @Nonnull String aspect, long version,
+      @Nonnull Map<String, Object> outputParamsToValues) {
+    final String urnArg = "urn" + selectId;
+    final String aspectArg = "aspect" + selectId;
+    final String versionArg = "version" + selectId;
+
+    outputParamsToValues.put(urnArg, urn);
+    outputParamsToValues.put(aspectArg, aspect);
+    outputParamsToValues.put(versionArg, version);
+
+    return String.format("SELECT urn, aspect, version, metadata, createdOn, createdBy, createdFor "
+            + "FROM %s WHERE urn = :%s AND aspect = :%s AND version = :%s",
+        EbeanMetadataAspect.class.getAnnotation(Table.class).name(), urnArg, aspectArg, versionArg);
+  }
+
   @Nonnull
   private List<EbeanMetadataAspect> batchGetHelper(@Nonnull List<AspectKey<URN, ? extends RecordTemplate>> keys,
       int keysCount, int position) {
-    ExpressionList<EbeanMetadataAspect> query = _server.find(EbeanMetadataAspect.class).select(ALL_COLUMNS).where();
 
-    // add or if it is not the last element
-    if (position != keys.size() - 1) {
-      query = query.or();
+    // Build one SELECT per key and then UNION ALL the results. This can be much more performant than OR'ing the
+    // conditions together. Our query will look like:
+    //   SELECT * FROM metadata_aspect WHERE urn = 'urn0' AND aspect = 'aspect0' AND version = 0
+    //   UNION ALL
+    //   SELECT * FROM metadata_aspect WHERE urn = 'urn0' AND aspect = 'aspect1' AND version = 0
+    //   ...
+    // Note: UNION ALL should be safe and more performant than UNION. We're selecting the entire entity key (as well
+    // as data), so each result should be unique. No need to deduplicate.
+    final StringBuilder sb = new StringBuilder();
+    final int end = Math.min(keys.size(), position + keysCount);
+    final Map<String, Object> params = new HashMap<>();
+    for (int index = position; index < end; index++) {
+      sb.append(batchGetSelect(index - position, keys.get(index).getUrn().toString(),
+          ModelUtils.getAspectName(keys.get(index).getAspectClass()), keys.get(index).getVersion(), params));
+
+      if (index != end - 1) {
+        sb.append(" UNION ALL ");
+      }
     }
 
-    for (int index = position; index < keys.size() && index < position + keysCount; index++) {
-      query = query.and()
-          .eq(URN_COLUMN, keys.get(index).getUrn().toString())
-          .eq(ASPECT_COLUMN, ModelUtils.getAspectName(keys.get(index).getAspectClass()))
-          .eq(VERSION_COLUMN, keys.get(index).getVersion())
-          .endAnd();
+    final RawSql rawSql = RawSqlBuilder.parse(sb.toString())
+        .columnMapping(URN_COLUMN, "key.urn")
+        .columnMapping(ASPECT_COLUMN, "key.aspect")
+        .columnMapping(VERSION_COLUMN, "key.version")
+        .create();
+
+    final Query<EbeanMetadataAspect> query = _server.find(EbeanMetadataAspect.class).setRawSql(rawSql);
+
+    for (Map.Entry<String, Object> param : params.entrySet()) {
+      query.setParameter(param.getKey(), param.getValue());
     }
 
     return query.findList();
