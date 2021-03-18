@@ -1,7 +1,9 @@
 package com.linkedin.metadata.dao.search;
 
+import com.google.common.collect.ImmutableList;
 import com.linkedin.testing.EntityDocument;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import javax.annotation.Nonnull;
 
@@ -34,5 +36,11 @@ public class TestSearchConfig extends BaseSearchConfig<EntityDocument> {
   @Nonnull
   public String getAutocompleteQueryTemplate() {
     return "";
+  }
+
+  @Override
+  @Nonnull
+  public List<String> getFieldsToHighlightMatch() {
+    return ImmutableList.of("field1", "field2");
   }
 }

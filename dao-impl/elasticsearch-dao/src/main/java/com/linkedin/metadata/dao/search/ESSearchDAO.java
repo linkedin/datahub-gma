@@ -16,16 +16,23 @@ import com.linkedin.metadata.query.AggregationMetadataArray;
 import com.linkedin.metadata.query.AutoCompleteResult;
 import com.linkedin.metadata.query.Criterion;
 import com.linkedin.metadata.query.Filter;
+import com.linkedin.metadata.query.MatchMetadata;
+import com.linkedin.metadata.query.MatchMetadataArray;
+import com.linkedin.metadata.query.MatchedField;
+import com.linkedin.metadata.query.MatchedFieldArray;
 import com.linkedin.metadata.query.SearchResultMetadata;
 import com.linkedin.metadata.query.SortCriterion;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -33,6 +40,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -45,8 +53,10 @@ import org.elasticsearch.search.aggregations.bucket.filter.ParsedFilter;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 
-import static com.linkedin.metadata.dao.utils.SearchUtils.*;
+import static com.linkedin.metadata.dao.utils.SearchUtils.getQueryBuilderFromCriterion;
 
 
 /**
@@ -64,6 +74,9 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
   private BaseESAutoCompleteQuery _autoCompleteQueryForHighCardFields;
   private int _maxTermBucketSize = DEFAULT_TERM_BUCKETS_SIZE_100;
 
+  // Regex patterns for matching original field names to the highlighted field name returned by elasticsearch
+  private Map<String, Pattern> _highlightedFieldNamePatterns;
+
   // TODO: Currently takes elastic search client, in future, can take other clients such as galene
   // TODO: take params and settings needed to create the client
   public ESSearchDAO(@Nonnull RestHighLevelClient esClient, @Nonnull Class<DOCUMENT> documentClass,
@@ -73,6 +86,11 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
     _config = config;
     _autoCompleteQueryForLowCardFields = new ESAutoCompleteQueryForLowCardinalityFields(_config);
     _autoCompleteQueryForHighCardFields = new ESAutoCompleteQueryForHighCardinalityFields(_config);
+    // Add regex pattern that checks whether the field name from elasticsearch
+    // matches the original field name or any sub-fields i.e. name, name.delimited, name.edge_ngram
+    _highlightedFieldNamePatterns = config.getFieldsToHighlightMatch()
+        .stream()
+        .collect(Collectors.toMap(Function.identity(), fieldName -> Pattern.compile(fieldName + "(\\..+)?")));
   }
 
   @Nonnull
@@ -150,8 +168,8 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
 
   @Override
   @Nonnull
-  public SearchResult<DOCUMENT> filter(@Nullable Filter filters, @Nullable SortCriterion sortCriterion,
-      int from, int size) {
+  public SearchResult<DOCUMENT> filter(@Nullable Filter filters, @Nullable SortCriterion sortCriterion, int from,
+      int size) {
 
     final SearchRequest searchRequest = getFilteredSearchQuery(filters, sortCriterion, from, size);
     return executeAndExtract(searchRequest, from, size);
@@ -168,16 +186,16 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
    * @return {@link SearchRequest} that contains the filtered query
    */
   @Nonnull
-  SearchRequest getFilteredSearchQuery(@Nullable Filter filters, @Nullable SortCriterion sortCriterion,
-      int from, int size) {
+  SearchRequest getFilteredSearchQuery(@Nullable Filter filters, @Nullable SortCriterion sortCriterion, int from,
+      int size) {
 
     final BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
     if (filters != null) {
       filters.getCriteria().forEach(criterion -> {
-            if (!criterion.getValue().trim().isEmpty()) {
-              boolQueryBuilder.filter(getQueryBuilderFromCriterion(criterion));
-            }
-          });
+        if (!criterion.getValue().trim().isEmpty()) {
+          boolQueryBuilder.filter(getQueryBuilderFromCriterion(criterion));
+        }
+      });
     }
     final SearchRequest searchRequest = new SearchRequest(_config.getIndexName());
     final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
@@ -199,7 +217,7 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
    * @param from index to start the search from
    * @param size the number of search hits to return
    * @return a valid search request
-   * @deprecated  please use {@link #constructSearchQuery(String, Filter, SortCriterion, String, int, int)} instead
+   * @deprecated please use {@link #constructSearchQuery(String, Filter, SortCriterion, String, int, int)} instead
    */
   @Nonnull
   public SearchRequest constructSearchQuery(@Nonnull String input, @Nullable Filter filter,
@@ -236,6 +254,7 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
     searchSourceBuilder.query(buildQueryString(input));
     searchSourceBuilder.postFilter(ESUtils.buildFilterQuery(filter));
     buildAggregations(searchSourceBuilder, filter);
+    buildHighlights(searchSourceBuilder, _config.getFieldsToHighlightMatch());
     ESUtils.buildSortOrder(searchSourceBuilder, sortCriterion);
 
     searchRequest.source(searchSourceBuilder);
@@ -251,8 +270,7 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
    * @param searchSourceBuilder the builder to build search source for search request
    * @param filter the search filters
    */
-  private void buildAggregations(@Nonnull SearchSourceBuilder searchSourceBuilder,
-      @Nullable Filter filter) {
+  private void buildAggregations(@Nonnull SearchSourceBuilder searchSourceBuilder, @Nullable Filter filter) {
     Set<String> facetFields = _config.getFacetFields();
     for (String facet : facetFields) {
       AggregationBuilder aggBuilder = AggregationBuilders.terms(facet).field(facet).size(_maxTermBucketSize);
@@ -267,6 +285,24 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
       });
       searchSourceBuilder.aggregation(aggBuilder);
     }
+  }
+
+  /**
+   * Constructs the highlighter based on the list of fields to highlight.
+   *
+   * @param searchSourceBuilder the builder to build search source for search request
+   * @param fieldsToHighlight list of fields to highlight
+   */
+  private void buildHighlights(@Nonnull SearchSourceBuilder searchSourceBuilder,
+      @Nullable List<String> fieldsToHighlight) {
+    if (fieldsToHighlight == null || fieldsToHighlight.isEmpty()) {
+      return;
+    }
+    HighlightBuilder highlightBuilder = new HighlightBuilder();
+    highlightBuilder.preTags("");
+    highlightBuilder.postTags("");
+    fieldsToHighlight.forEach(field -> highlightBuilder.field(field).field(field + ".*"));
+    searchSourceBuilder.highlighter(highlightBuilder);
   }
 
   /**
@@ -303,8 +339,8 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
    */
   @Nonnull
   List<DOCUMENT> getDocuments(@Nonnull SearchResponse searchResponse) {
-    return (Arrays.stream(searchResponse.getHits().getHits())).map(hit ->
-      newDocument(buildDocumentsDataMap(hit.getSourceAsMap()))).collect(Collectors.toList());
+    return (Arrays.stream(searchResponse.getHits().getHits())).map(
+        hit -> newDocument(buildDocumentsDataMap(hit.getSourceAsMap()))).collect(Collectors.toList());
   }
 
   /**
@@ -379,20 +415,34 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
     }
 
     final Aggregations aggregations = searchResponse.getAggregations();
-    if (aggregations == null) {
-      return searchResultMetadata;
+    if (aggregations != null) {
+      final AggregationMetadataArray aggregationMetadataArray = new AggregationMetadataArray();
+
+      for (Map.Entry<String, Aggregation> entry : aggregations.getAsMap().entrySet()) {
+        final Map<String, Long> oneTermAggResult = extractTermAggregations((ParsedTerms) entry.getValue());
+        final AggregationMetadata aggregationMetadata =
+            new AggregationMetadata().setName(entry.getKey()).setAggregations(new LongMap(oneTermAggResult));
+        aggregationMetadataArray.add(aggregationMetadata);
+      }
+
+      searchResultMetadata.setSearchResultMetadatas(aggregationMetadataArray);
     }
 
-    final AggregationMetadataArray aggregationMetadataArray = new AggregationMetadataArray();
-
-    for (Map.Entry<String, Aggregation> entry : aggregations.getAsMap().entrySet()) {
-      final Map<String, Long> oneTermAggResult = extractTermAggregations((ParsedTerms) entry.getValue());
-      final AggregationMetadata aggregationMetadata =
-          new AggregationMetadata().setName(entry.getKey()).setAggregations(new LongMap(oneTermAggResult));
-      aggregationMetadataArray.add(aggregationMetadata);
+    if (searchResponse.getHits() != null && searchResponse.getHits().getHits() != null) {
+      boolean hasMatch = false;
+      final List<MatchMetadata> highlightMetadataList = new ArrayList<>(searchResponse.getHits().getHits().length);
+      for (SearchHit hit : searchResponse.getHits().getHits()) {
+        if (!hit.getHighlightFields().isEmpty()) {
+          hasMatch = true;
+        }
+        highlightMetadataList.add(extractMatchMetadata(hit.getHighlightFields()));
+      }
+      if (hasMatch) {
+        searchResultMetadata.setMatches(new MatchMetadataArray(highlightMetadataList));
+      }
     }
 
-    return searchResultMetadata.setSearchResultMetadatas(aggregationMetadataArray);
+    return searchResultMetadata;
   }
 
   /**
@@ -437,6 +487,54 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
     }
 
     return parsedFilter;
+  }
+
+  /**
+   * Extracts highlight metadata from highlighted fields returned by Elasticsearch.
+   *
+   * @param highlightedFields map of matched field name to list of field values
+   * @return highlight metadata
+   */
+  @Nonnull
+  private MatchMetadata extractMatchMetadata(@Nonnull Map<String, HighlightField> highlightedFields) {
+    Map<String, Set<String>> highlightedFieldNamesAndValues = new HashMap<>();
+    for (Map.Entry<String, HighlightField> entry : highlightedFields.entrySet()) {
+      // Get the field name from source e.g. name.delimited -> name
+      Optional<String> fieldName = getFieldName(entry.getKey());
+      if (!fieldName.isPresent()) {
+        continue;
+      }
+      if (!highlightedFieldNamesAndValues.containsKey(fieldName.get())) {
+        highlightedFieldNamesAndValues.put(fieldName.get(), new HashSet<>());
+      }
+      for (Text fieldValue : entry.getValue().getFragments()) {
+        highlightedFieldNamesAndValues.get(fieldName.get()).add(fieldValue.string());
+      }
+    }
+    // Rank the highlights based on the order of field names in the config
+    return new MatchMetadata().setMatchedFields(new MatchedFieldArray(_config.getFieldsToHighlightMatch()
+        .stream()
+        .filter(highlightedFieldNamesAndValues::containsKey)
+        .flatMap(fieldName -> highlightedFieldNamesAndValues.get(fieldName)
+            .stream()
+            .map(value -> new MatchedField().setName(fieldName).setValue(value)))
+        .collect(Collectors.toList())));
+  }
+
+  /**
+   * Get the original field name that matches the given highlighted field name.
+   * i.e. name.delimited, name.ngram, name -> name
+   *
+   * @param highlightedFieldName highlighted field name from search response
+   * @return original field name
+   */
+  @Nonnull
+  private Optional<String> getFieldName(String highlightedFieldName) {
+    return _highlightedFieldNamePatterns.entrySet()
+        .stream()
+        .filter(entry -> entry.getValue().matcher(highlightedFieldName).matches())
+        .map(Map.Entry::getKey)
+        .findFirst();
   }
 
   @Nonnull
