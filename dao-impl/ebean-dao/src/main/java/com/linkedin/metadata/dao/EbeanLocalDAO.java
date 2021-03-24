@@ -75,7 +75,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   private int _queryKeysCount = 0; // 0 means no pagination on keys
 
   // TODO feature flag, remove when vetted.
-  private boolean _useUnionForBatch = false;
+  private boolean _useUnionForBatch = true;
 
   @Value
   static class GMAIndexPair {
