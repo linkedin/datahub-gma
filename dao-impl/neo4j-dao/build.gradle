@@ -7,6 +7,7 @@ dependencies {
   compile externalDependency.neo4jJavaDriver
 
   compileOnly externalDependency.lombok
+  annotationProcessor externalDependency.lombok
 
   testCompile project(':testing:test-models')
   testCompile externalDependency.neo4jHarness

@@ -9,11 +9,17 @@ import com.linkedin.metadata.validator.RelationshipValidator;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang.time.StopWatch;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.Record;
 import org.neo4j.driver.Session;
@@ -27,10 +33,98 @@ import static com.linkedin.metadata.dao.utils.RecordUtils.*;
 /**
  * An Neo4j implementation of {@link BaseGraphWriterDAO}.
  */
+@Slf4j
 public class Neo4jGraphWriterDAO extends BaseGraphWriterDAO {
+  /**
+   * Event listening interface to consume certain neo4j events and report metrics to some specific metric recording
+   * framework.
+   *
+   * <p>This allows for recording lower level metrics than just recording how long these method calls take; there is
+   * other overhead associated with the methods in this class, and these callbacks attempt to more accurately reflect
+   * how long neo4j transactions are taking.
+   */
+  public interface MetricListener {
+    /**
+     * Event when entities are successfully added to the neo4j graph.
+     *
+     * @param entityCount how many entities were added in this transaction
+     * @param updateTimeMs how long the update took in total (across all retries)
+     * @param retries how many retries were needed before the update was successful (0 means first attempt was a
+     *     success)
+     */
+    void onEntitiesAdded(int entityCount, long updateTimeMs, int retries);
+
+    /**
+     * Event when relationships are successfully added to the neo4j graph.
+     *
+     * @param relationshipCount how many relationships were added in this transaction
+     * @param updateTimeMs how long the update took in total (across all retries)
+     * @param retries how many retries were needed before the update was successful (0 means first attempt was a
+     *     success)
+     */
+    void onRelationshipsAdded(int relationshipCount, long updateTimeMs, int retries);
+
+    /**
+     * Event when entities are successfully removed from the neo4j graph.
+     *
+     * @param entityCount how many entities were removed in this transaction
+     * @param updateTimeMs how long the update took in total (across all retries)
+     * @param retries how many retries were needed before the update was successful (0 means first attempt was a
+     *     success)
+     */
+    void onEntitiesRemoved(int entityCount, long updateTimeMs, int retries);
+
+    /**
+     * Event when relationships are successfully removed from the neo4j graph.
+     *
+     * @param relationshipCount how many relationships were added in this transaction
+     * @param updateTimeMs how long the update took in total (across all retries)
+     * @param retries how many retries were needed before the update was successful (0 means first attempt was a
+     *     success)
+     */
+    void onRelationshipsRemoved(int relationshipCount, long updateTimeMs, int retries);
+  }
+
+  private static final class DelegateMetricListener implements MetricListener {
+    private final Set<MetricListener> _metricListeners = new HashSet<>();
+
+    void addMetricListener(@Nonnull MetricListener metricListener) {
+      _metricListeners.add(metricListener);
+    }
+
+    @Override
+    public void onEntitiesAdded(int entityCount, long updateTimeMs, int retries) {
+      for (MetricListener m : _metricListeners) {
+        m.onEntitiesAdded(entityCount, updateTimeMs, retries);
+      }
+    }
+
+    @Override
+    public void onRelationshipsAdded(int relationshipCount, long updateTimeMs, int retries) {
+      for (MetricListener m : _metricListeners) {
+        m.onRelationshipsAdded(relationshipCount, updateTimeMs, retries);
+      }
+    }
+
+    @Override
+    public void onEntitiesRemoved(int entityCount, long updateTimeMs, int retries) {
+      for (MetricListener m : _metricListeners) {
+        m.onEntitiesRemoved(entityCount, updateTimeMs, retries);
+      }
+    }
+
+    @Override
+    public void onRelationshipsRemoved(int relationshipCount, long updateTimeMs, int retries) {
+      for (MetricListener m : _metricListeners) {
+        m.onRelationshipsRemoved(relationshipCount, updateTimeMs, retries);
+      }
+    }
+  }
+
   private static final int MAX_TRANSACTION_RETRY = 3;
   private final Driver _driver;
   private static Map<String, String> _urnToEntityMap = null;
+  private DelegateMetricListener _metricListener = new DelegateMetricListener();
 
   public Neo4jGraphWriterDAO(@Nonnull Driver driver) {
     this._driver = driver;
@@ -41,6 +135,10 @@ public class Neo4jGraphWriterDAO extends BaseGraphWriterDAO {
   public Neo4jGraphWriterDAO(@Nonnull Driver driver, @Nonnull Set<Class<? extends RecordTemplate>> allEntities) {
     this._driver = driver;
     buildUrnToEntityMap(allEntities);
+  }
+
+  public void addMetricListener(@Nonnull MetricListener metricListener) {
+    _metricListener.addMetricListener(metricListener);
   }
 
   @Override
@@ -54,7 +152,11 @@ public class Neo4jGraphWriterDAO extends BaseGraphWriterDAO {
       Statement statement = addNode(entity);
       list.add(statement);
     }
-    executeStatements(list);
+
+    final ExecutionResult e = executeStatements(list);
+    log.trace("Added {} entities over {} retries, which took {} millis", entities.size(), e.getTookMs(),
+        e.getRetries());
+    _metricListener.onEntitiesAdded(entities.size(), e.getTookMs(), e.getRetries());
   }
 
   @Override
@@ -64,7 +166,11 @@ public class Neo4jGraphWriterDAO extends BaseGraphWriterDAO {
       Statement statement = removeNode(urn);
       list.add(statement);
     }
-    executeStatements(list);
+
+    final ExecutionResult e = executeStatements(list);
+    log.trace("Removed {} entities over {} retries, which took {} millis", urns.size(), e.getTookMs(),
+        e.getRetries());
+    _metricListener.onEntitiesRemoved(urns.size(), e.getTookMs(), e.getRetries());
   }
 
   @Override
@@ -74,7 +180,11 @@ public class Neo4jGraphWriterDAO extends BaseGraphWriterDAO {
     for (RELATIONSHIP relationship : relationships) {
       RelationshipValidator.validateRelationshipSchema(relationship.getClass());
     }
-    executeStatements(addEdges(relationships, removalOption));
+
+    final ExecutionResult e = executeStatements(addEdges(relationships, removalOption));
+    log.trace("Added {} relationships over {} retries, which took {} millis", relationships.size(), e.getTookMs(),
+        e.getRetries());
+    _metricListener.onRelationshipsAdded(relationships.size(), e.getTookMs(), e.getRetries());
   }
 
   @Override
@@ -88,7 +198,18 @@ public class Neo4jGraphWriterDAO extends BaseGraphWriterDAO {
       Statement statement = removeEdge(relationship);
       list.add(statement);
     }
-    executeStatements(list);
+
+    final ExecutionResult e = executeStatements(list);
+    log.trace("Removed {} relationships over {} retries, which took {} millis", relationships.size(), e.getTookMs(),
+        e.getRetries());
+    _metricListener.onRelationshipsRemoved(relationships.size(), e.getTookMs(), e.getRetries());
+  }
+
+  @AllArgsConstructor
+  @Data
+  private static final class ExecutionResult {
+    private long tookMs;
+    private int retries;
   }
 
   /**
@@ -96,8 +217,10 @@ public class Neo4jGraphWriterDAO extends BaseGraphWriterDAO {
    *
    * @param statements List of statements with parameters to be executed in order
    */
-  private void executeStatements(@Nonnull List<Statement> statements) {
+  private ExecutionResult executeStatements(@Nonnull List<Statement> statements) {
     int retry = 0;
+    final StopWatch stopWatch = new StopWatch();
+    stopWatch.start();
     Exception lastException;
     try (final Session session = _driver.session()) {
       do {
@@ -120,6 +243,9 @@ public class Neo4jGraphWriterDAO extends BaseGraphWriterDAO {
       throw new RetryLimitReached("Failed to execute Neo4j write transaction after "
           + MAX_TRANSACTION_RETRY + " retries", lastException);
     }
+
+    stopWatch.stop();
+    return new ExecutionResult(stopWatch.getTime(), retry);
   }
 
   /**
@@ -156,12 +282,7 @@ public class Neo4jGraphWriterDAO extends BaseGraphWriterDAO {
     params.put("urn", urn.toString());
 
     final List<Record> result = runQuery(buildStatement(statement, params));
-    List<Map<String, Object>> list = new ArrayList<>();
-    for (Record record : result) {
-      Map<String, Object> stringObjectMap = record.values().get(0).asMap();
-      list.add(stringObjectMap);
-    }
-    return list;
+    return result.stream().map(record -> record.values().get(0).asMap()).collect(Collectors.toList());
   }
 
   // used in testing
@@ -183,12 +304,7 @@ public class Neo4jGraphWriterDAO extends BaseGraphWriterDAO {
     params.put("destinationUrn", destinationUrn.toString());
 
     final List<Record> result = runQuery(buildStatement(statement, params));
-    List<Map<String, Object>> list = new ArrayList<>();
-    for (Record record : result) {
-      Map<String, Object> stringObjectMap = record.values().get(0).asMap();
-      list.add(stringObjectMap);
-    }
-    return list;
+    return result.stream().map(record -> record.values().get(0).asMap()).collect(Collectors.toList());
   }
 
   // used in testing
@@ -205,12 +321,7 @@ public class Neo4jGraphWriterDAO extends BaseGraphWriterDAO {
     params.put("sourceUrn", sourceUrn.toString());
 
     final List<Record> result = runQuery(buildStatement(statement, params));
-    List<Map<String, Object>> list = new ArrayList<>();
-    for (Record record : result) {
-      Map<String, Object> stringObjectMap = record.values().get(0).asMap();
-      list.add(stringObjectMap);
-    }
-    return list;
+    return result.stream().map(record -> record.values().get(0).asMap()).collect(Collectors.toList());
   }
 
   @Nonnull
