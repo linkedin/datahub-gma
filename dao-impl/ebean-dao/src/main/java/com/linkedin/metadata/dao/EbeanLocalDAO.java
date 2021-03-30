@@ -30,8 +30,6 @@ import io.ebean.EbeanServerFactory;
 import io.ebean.ExpressionList;
 import io.ebean.PagedList;
 import io.ebean.Query;
-import io.ebean.RawSql;
-import io.ebean.RawSqlBuilder;
 import io.ebean.Transaction;
 import io.ebean.config.ServerConfig;
 import io.ebean.datasource.DataSourceConfig;
