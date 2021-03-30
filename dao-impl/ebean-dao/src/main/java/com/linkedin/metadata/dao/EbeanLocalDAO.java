@@ -75,7 +75,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   private int _queryKeysCount = 0; // 0 means no pagination on keys
 
   // TODO feature flag, remove when vetted.
-  private boolean _useUnionForBatch = true;
+  private boolean _useUnionForBatch = false;
 
   @Value
   static class GMAIndexPair {
@@ -167,6 +167,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * vetted this in production we will be removing this flag and making the the default behavior. So if you set this
    * to true by calling this method, your code will break when we remove this method. Just wait a bit for us to turn
    * it on by default!
+   *
+   * <p>While this can increase performance, it can also cause a stack overflow error if {@link #setQueryKeysCount(int)}
+   * is either not set or set too high. See https://groups.google.com/g/ebean/c/ILpii41dJPA/m/VxMbPlqEBwAJ.
    */
   public void setUseUnionForBatch(boolean useUnionForBatch) {
     _useUnionForBatch = useUnionForBatch;
