@@ -28,15 +28,53 @@ public class Neo4jGraphWriterDAOTest {
 
   private Neo4jTestServerBuilder _serverBuilder;
   private Neo4jGraphWriterDAO _dao;
+  private TestMetricListener _testMetricListener;
+
+  private static class TestMetricListener implements Neo4jGraphWriterDAO.MetricListener {
+    int entitiesAdded = 0;
+    int entityAddedEvents = 0;
+    int entitiesRemoved = 0;
+    int entityRemovedEvents = 0;
+    int relationshipsAdded = 0;
+    int relationshipAddedEvents = 0;
+    int relationshipsRemoved = 0;
+    int relationshipRemovedEvents = 0;
+
+    @Override
+    public void onEntitiesAdded(int entityCount, long updateTimeMs, int retries) {
+      entityAddedEvents++;
+      entitiesAdded += entityCount;
+    }
+
+    @Override
+    public void onRelationshipsAdded(int relationshipCount, long updateTimeMs, int retries) {
+      relationshipAddedEvents++;
+      relationshipsAdded += relationshipCount;
+    }
+
+    @Override
+    public void onEntitiesRemoved(int entityCount, long updateTimeMs, int retries) {
+      entityRemovedEvents++;
+      entitiesRemoved += entityCount;
+    }
+
+    @Override
+    public void onRelationshipsRemoved(int relationshipCount, long updateTimeMs, int retries) {
+      relationshipRemovedEvents++;
+      relationshipsRemoved += relationshipCount;
+    }
+  }
 
   @BeforeMethod
   public void init() {
     _serverBuilder = new Neo4jTestServerBuilder();
     _serverBuilder.newServer();
+    _testMetricListener = new TestMetricListener();
     _dao = new Neo4jGraphWriterDAO(
         GraphDatabase.driver(_serverBuilder.boltURI()),
         TestUtils.getAllTestEntities()
     );
+    _dao.addMetricListener(_testMetricListener);
   }
 
   @AfterMethod
@@ -52,10 +90,14 @@ public class Neo4jGraphWriterDAOTest {
     _dao.addEntity(entity);
     Optional<Map<String, Object>> node = _dao.getNode(urn);
     assertEntityFoo(node.get(), entity);
+    assertEquals(_testMetricListener.entitiesAdded, 1);
+    assertEquals(_testMetricListener.entityAddedEvents, 1);
 
     _dao.removeEntity(urn);
     node = _dao.getNode(urn);
     assertFalse(node.isPresent());
+    assertEquals(_testMetricListener.entitiesRemoved, 1);
+    assertEquals(_testMetricListener.entityRemovedEvents, 1);
   }
 
   @Test
@@ -93,11 +135,15 @@ public class Neo4jGraphWriterDAOTest {
     assertEntityFoo(_dao.getNode(entity1.getUrn()).get(), entity1);
     assertEntityFoo(_dao.getNode(entity2.getUrn()).get(), entity2);
     assertEntityFoo(_dao.getNode(entity3.getUrn()).get(), entity3);
+    assertEquals(_testMetricListener.entitiesAdded, 3);
+    assertEquals(_testMetricListener.entityAddedEvents, 1);
 
     _dao.removeEntities(Arrays.asList(entity1.getUrn(), entity3.getUrn()));
     assertFalse(_dao.getNode(entity1.getUrn()).isPresent());
     assertTrue(_dao.getNode(entity2.getUrn()).isPresent());
     assertFalse(_dao.getNode(entity3.getUrn()).isPresent());
+    assertEquals(_testMetricListener.entitiesRemoved, 2);
+    assertEquals(_testMetricListener.entityRemovedEvents, 1);
   }
 
   @Test
@@ -111,6 +157,8 @@ public class Neo4jGraphWriterDAOTest {
     assertRelationshipFoo(_dao.getEdges(relationship), 1);
     assertEntityFoo(_dao.getNode(urn1).get(), new EntityFoo().setUrn(urn1));
     assertEntityBar(_dao.getNode(urn2).get(), new EntityBar().setUrn(urn2));
+    assertEquals(_testMetricListener.relationshipsAdded, 1);
+    assertEquals(_testMetricListener.relationshipAddedEvents, 1);
   }
 
   @Test
@@ -162,6 +210,13 @@ public class Neo4jGraphWriterDAOTest {
     // remove relationship1 & relationship2
     _dao.removeRelationships(Arrays.asList(relationship1, relationship2));
     assertRelationshipFoo(_dao.getEdgesFromSource(urn1, RelationshipFoo.class), 0);
+
+
+    assertEquals(_testMetricListener.relationshipsAdded, 3);
+    assertEquals(_testMetricListener.relationshipAddedEvents, 3);
+
+    assertEquals(_testMetricListener.relationshipsRemoved, 3);
+    assertEquals(_testMetricListener.relationshipRemovedEvents, 2);
   }
 
   @Test
