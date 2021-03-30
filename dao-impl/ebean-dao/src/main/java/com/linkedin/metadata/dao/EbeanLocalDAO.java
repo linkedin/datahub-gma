@@ -30,8 +30,6 @@ import io.ebean.EbeanServerFactory;
 import io.ebean.ExpressionList;
 import io.ebean.PagedList;
 import io.ebean.Query;
-import io.ebean.RawSql;
-import io.ebean.RawSqlBuilder;
 import io.ebean.Transaction;
 import io.ebean.config.ServerConfig;
 import io.ebean.datasource.DataSourceConfig;
@@ -512,19 +510,15 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * Builds a single SELECT statement for batch get, which selects one entity, and then can be UNION'd with other SELECT
    * statements.
    */
-  private String batchGetSelect(int selectId, @Nonnull String urn, @Nonnull String aspect, long version,
-      @Nonnull Map<String, Object> outputParamsToValues) {
-    final String urnArg = "urn" + selectId;
-    final String aspectArg = "aspect" + selectId;
-    final String versionArg = "version" + selectId;
+  private String batchGetSelect(@Nonnull String urn, @Nonnull String aspect, long version,
+      @Nonnull List<Object> outputParams) {
+    outputParams.add(urn);
+    outputParams.add(aspect);
+    outputParams.add(version);
 
-    outputParamsToValues.put(urnArg, urn);
-    outputParamsToValues.put(aspectArg, aspect);
-    outputParamsToValues.put(versionArg, version);
-
-    return String.format("SELECT urn, aspect, version, metadata, createdOn, createdBy, createdFor "
-            + "FROM %s WHERE urn = :%s AND aspect = :%s AND version = :%s",
-        EbeanMetadataAspect.class.getAnnotation(Table.class).name(), urnArg, aspectArg, versionArg);
+    return String.format("SELECT t.urn, t.aspect, t.version, t.metadata, t.createdOn, t.createdBy, t.createdFor "
+            + "FROM %s t WHERE urn = ? AND aspect = ? AND version = ?",
+        EbeanMetadataAspect.class.getAnnotation(Table.class).name());
   }
 
   @Nonnull
@@ -542,9 +536,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     // Another note: ebean doesn't support UNION ALL, so we need to manually build the SQL statement ourselves.
     final StringBuilder sb = new StringBuilder();
     final int end = Math.min(keys.size(), position + keysCount);
-    final Map<String, Object> params = new HashMap<>();
+    final List<Object> params = new ArrayList<>();
     for (int index = position; index < end; index++) {
-      sb.append(batchGetSelect(index - position, keys.get(index).getUrn().toString(),
+      sb.append(batchGetSelect(keys.get(index).getUrn().toString(),
           ModelUtils.getAspectName(keys.get(index).getAspectClass()), keys.get(index).getVersion(), params));
 
       if (index != end - 1) {
@@ -552,16 +546,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       }
     }
 
-    final RawSql rawSql = RawSqlBuilder.parse(sb.toString())
-        .columnMapping(URN_COLUMN, "key.urn")
-        .columnMapping(ASPECT_COLUMN, "key.aspect")
-        .columnMapping(VERSION_COLUMN, "key.version")
-        .create();
+    final Query<EbeanMetadataAspect> query = _server.findNative(EbeanMetadataAspect.class, sb.toString());
 
-    final Query<EbeanMetadataAspect> query = _server.find(EbeanMetadataAspect.class).setRawSql(rawSql);
-
-    for (Map.Entry<String, Object> param : params.entrySet()) {
-      query.setParameter(param.getKey(), param.getValue());
+    for (int i = 1; i <= params.size(); i++) {
+      query.setParameter(i, params.get(i - 1));
     }
 
     return query.findList();
