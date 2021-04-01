@@ -47,7 +47,7 @@ public class Neo4jUtil {
     // put all field values
     entity.data().forEach((k, v) -> fields.put(k, toValueObject(v)));
 
-    return Collections.unmodifiableMap(fields);
+    return fields;
   }
 
   /**
