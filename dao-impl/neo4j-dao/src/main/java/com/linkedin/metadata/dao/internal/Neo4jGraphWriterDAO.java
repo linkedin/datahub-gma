@@ -329,8 +329,9 @@ public class Neo4jGraphWriterDAO extends BaseGraphWriterDAO {
     final Urn urn = getUrnFromEntity(entity);
     final String nodeType = getNodeType(urn);
 
-    final String mergeTemplate = "MERGE (node%s {urn: $urn}) ON CREATE SET node%s SET node = $properties RETURN node";
-    final String statement = String.format(mergeTemplate, nodeType, nodeType);
+    // Use += to ensure this doesn't override the node but merges in the new properties to allow for partial updates.
+    final String mergeTemplate = "MERGE (node%s {urn: $urn}) SET node += $properties RETURN node";
+    final String statement = String.format(mergeTemplate, nodeType);
 
     final Map<String, Object> params = new HashMap<>();
     params.put("urn", urn.toString());
@@ -434,7 +435,7 @@ public class Neo4jGraphWriterDAO extends BaseGraphWriterDAO {
 
       // Add/Update relationship
       final String mergeRelationshipTemplate =
-          "MATCH (source%s {urn: $sourceUrn}),(destination%s {urn: $destinationUrn}) MERGE (source)-[r:%s]->(destination) SET r = $properties";
+          "MATCH (source%s {urn: $sourceUrn}),(destination%s {urn: $destinationUrn}) MERGE (source)-[r:%s]->(destination) SET r += $properties";
       final String statement =
           String.format(mergeRelationshipTemplate, sourceNodeType, destinationNodeType, getType(relationship));
 

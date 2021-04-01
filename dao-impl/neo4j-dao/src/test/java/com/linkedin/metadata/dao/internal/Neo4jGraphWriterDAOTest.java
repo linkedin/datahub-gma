@@ -1,7 +1,12 @@
 package com.linkedin.metadata.dao.internal;
 
 import com.linkedin.common.urn.Urn;
+import com.linkedin.metadata.dao.BaseQueryDAO;
+import com.linkedin.metadata.dao.Neo4jQueryDAO;
 import com.linkedin.metadata.dao.Neo4jTestServerBuilder;
+import com.linkedin.metadata.query.Criterion;
+import com.linkedin.metadata.query.CriterionArray;
+import com.linkedin.metadata.query.Filter;
 import com.linkedin.testing.RelationshipFoo;
 import com.linkedin.testing.EntityFoo;
 import com.linkedin.testing.EntityBar;
@@ -9,10 +14,12 @@ import com.linkedin.testing.TestUtils;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.FooUrn;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import javax.annotation.Nonnull;
+import org.neo4j.driver.Driver;
 import org.neo4j.driver.GraphDatabase;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -28,6 +35,7 @@ public class Neo4jGraphWriterDAOTest {
 
   private Neo4jTestServerBuilder _serverBuilder;
   private Neo4jGraphWriterDAO _dao;
+  private BaseQueryDAO _queryDao;
   private TestMetricListener _testMetricListener;
 
   private static class TestMetricListener implements Neo4jGraphWriterDAO.MetricListener {
@@ -70,10 +78,9 @@ public class Neo4jGraphWriterDAOTest {
     _serverBuilder = new Neo4jTestServerBuilder();
     _serverBuilder.newServer();
     _testMetricListener = new TestMetricListener();
-    _dao = new Neo4jGraphWriterDAO(
-        GraphDatabase.driver(_serverBuilder.boltURI()),
-        TestUtils.getAllTestEntities()
-    );
+    final Driver driver = GraphDatabase.driver(_serverBuilder.boltURI());
+    _dao = new Neo4jGraphWriterDAO(driver, TestUtils.getAllTestEntities());
+    _queryDao = new Neo4jQueryDAO(driver);
     _dao.addMetricListener(_testMetricListener);
   }
 
@@ -259,6 +266,131 @@ public class Neo4jGraphWriterDAOTest {
     _dao.addRelationship(relationship3, REMOVE_ALL_EDGES_FROM_SOURCE_TO_DESTINATION);
     assertRelationshipFoo(_dao.getEdgesFromSource(urn1, RelationshipFoo.class), 0);
     assertRelationshipFoo(_dao.getEdgesFromSource(urn4, RelationshipFoo.class), 1);
+  }
+
+  @Test
+  public void upsertNodeAddNewProperty() throws Exception {
+    // given
+    final FooUrn urn = makeFooUrn(1);
+    final EntityFoo initialEntity = new EntityFoo().setUrn(urn);
+    final EntityFoo updatedEntity = new EntityFoo().setUrn(urn).setValue("updated");
+
+    // when
+    _dao.addEntity(initialEntity);
+    _dao.addEntity(updatedEntity);
+
+    // then
+    assertEntityFoo(_dao.getNode(urn).get(), updatedEntity);
+  }
+
+  @Test
+  public void upsertEdgeAddNewProperty() throws Exception {
+    // given
+    final EntityFoo foo = new EntityFoo().setUrn(makeFooUrn(1));
+    final EntityBar bar = new EntityBar().setUrn(makeBarUrn(2)).setValue("bar");
+    _dao.addEntity(foo);
+    _dao.addEntity(bar);
+
+    final RelationshipFoo initialRelationship =
+        new RelationshipFoo().setSource(foo.getUrn()).setDestination(bar.getUrn());
+    final RelationshipFoo updatedRelationship =
+        new RelationshipFoo().setSource(foo.getUrn()).setDestination(bar.getUrn()).setType("test");
+    _dao.addRelationship(initialRelationship);
+
+    // when
+    _dao.addRelationship(updatedRelationship);
+
+    // then
+    assertEquals(_queryDao.findRelationships(EntityFoo.class,
+        new Filter().setCriteria(new CriterionArray(new Criterion().setField("urn").setValue(foo.getUrn().toString()))),
+        EntityBar.class,
+        new Filter().setCriteria(new CriterionArray(new Criterion().setField("urn").setValue(bar.getUrn().toString()))),
+        RelationshipFoo.class, new Filter().setCriteria(new CriterionArray()), 0, 10),
+        Collections.singletonList(updatedRelationship));
+  }
+
+  @Test
+  public void upsertNodeChangeProperty() throws Exception {
+    // given
+    final FooUrn urn = makeFooUrn(1);
+    final EntityFoo initialEntity = new EntityFoo().setUrn(urn).setValue("before");
+    final EntityFoo updatedEntity = new EntityFoo().setUrn(urn).setValue("after");
+    _dao.addEntity(initialEntity);
+
+    // when
+    _dao.addEntity(updatedEntity);
+
+    // then
+    assertEntityFoo(_dao.getNode(urn).get(), updatedEntity);
+  }
+
+  @Test
+  public void upsertEdgeChangeProperty() throws Exception {
+    // given
+    final EntityFoo foo = new EntityFoo().setUrn(makeFooUrn(1));
+    final EntityBar bar = new EntityBar().setUrn(makeBarUrn(2)).setValue("bar");
+    _dao.addEntity(foo);
+    _dao.addEntity(bar);
+
+    final RelationshipFoo initialRelationship =
+        new RelationshipFoo().setSource(foo.getUrn()).setDestination(bar.getUrn()).setType("before");
+    final RelationshipFoo updatedRelationship =
+        new RelationshipFoo().setSource(foo.getUrn()).setDestination(bar.getUrn()).setType("after");
+    _dao.addRelationship(initialRelationship);
+
+    // when
+    _dao.addRelationship(updatedRelationship);
+
+    // then
+    assertEquals(_queryDao.findRelationships(EntityFoo.class,
+        new Filter().setCriteria(new CriterionArray(new Criterion().setField("urn").setValue(foo.getUrn().toString()))),
+        EntityBar.class,
+        new Filter().setCriteria(new CriterionArray(new Criterion().setField("urn").setValue(bar.getUrn().toString()))),
+        RelationshipFoo.class, new Filter().setCriteria(new CriterionArray()), 0, 10),
+        Collections.singletonList(updatedRelationship));
+  }
+
+  @Test
+  public void upsertNodeRemovedProperty() throws Exception {
+    // given
+    final FooUrn urn = makeFooUrn(1);
+    final EntityFoo initialEntity = new EntityFoo().setUrn(urn).setValue("before");
+    final EntityFoo updatedEntity = new EntityFoo().setUrn(urn);
+    _dao.addEntity(initialEntity);
+
+    // when
+    _dao.addEntity(updatedEntity);
+
+    // then
+    // Upsert won't ever delete properties.
+    assertEntityFoo(_dao.getNode(urn).get(), initialEntity);
+  }
+
+  @Test
+  public void upsertEdgeRemoveProperty() throws Exception {
+    // given
+    final EntityFoo foo = new EntityFoo().setUrn(makeFooUrn(1));
+    final EntityBar bar = new EntityBar().setUrn(makeBarUrn(2)).setValue("bar");
+    _dao.addEntity(foo);
+    _dao.addEntity(bar);
+
+    final RelationshipFoo initialRelationship =
+        new RelationshipFoo().setSource(foo.getUrn()).setDestination(bar.getUrn()).setType("before");
+    final RelationshipFoo updatedRelationship =
+        new RelationshipFoo().setSource(foo.getUrn()).setDestination(bar.getUrn());
+    _dao.addRelationship(initialRelationship);
+
+    // when
+    _dao.addRelationship(updatedRelationship);
+
+    // then
+    assertEquals(_queryDao.findRelationships(EntityFoo.class,
+        new Filter().setCriteria(new CriterionArray(new Criterion().setField("urn").setValue(foo.getUrn().toString()))),
+        EntityBar.class,
+        new Filter().setCriteria(new CriterionArray(new Criterion().setField("urn").setValue(bar.getUrn().toString()))),
+        RelationshipFoo.class, new Filter().setCriteria(new CriterionArray()), 0, 10),
+        // Upsert won't ever delete properties.
+        Collections.singletonList(initialRelationship));
   }
 
   @Test
