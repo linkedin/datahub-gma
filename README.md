@@ -34,7 +34,7 @@ DataHub. We're still in the process of moving it all over.
 
 - [GMA Developer's Guide](docs/developers.md)
 - [GMA Architecture](docs/architecture/architecture.md)
-- [GMA Onboarding Guide](docs/how/entity-onboarding.md)
+- [Data Source Onboarding Guide](docs/how/data-source-onboarding.md)
 
 ## Releases
 
