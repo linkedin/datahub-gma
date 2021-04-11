@@ -24,8 +24,7 @@ generalized metadata search & discovery tool. To learn more about DataHub, check
 [GitHub page](https://github.com/linkedin/datahub).
 
 You should also visit [GMA Architecture](docs/architecture/architecture.md) to get a better understanding of how GMA is
-implemented and [GMA Onboarding Guide](docs/how/entity-onboarding.md) to understand how to extend GMA for your own use
-cases.
+implemented.
 
 This repository contains the _partial_ source code for GMA. It originally lived in the same GitHub repository as
 DataHub. We're still in the process of moving it all over.
@@ -34,7 +33,6 @@ DataHub. We're still in the process of moving it all over.
 
 - [GMA Developer's Guide](docs/developers.md)
 - [GMA Architecture](docs/architecture/architecture.md)
-- [Data Source Onboarding Guide](docs/how/data-source-onboarding.md)
 
 ## Releases
 
