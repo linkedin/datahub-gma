@@ -26,6 +26,7 @@ import org.javatuples.Triplet;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.GraphDatabase;
 import org.neo4j.driver.Record;
+import org.neo4j.driver.SessionConfig;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -49,7 +50,7 @@ public class Neo4jQueryDAOTest {
 
     final Driver driver = GraphDatabase.driver(_serverBuilder.boltURI());
     _dao = new Neo4jQueryDAO(driver);
-    _writer = new Neo4jGraphWriterDAO(driver, TestUtils.getAllTestEntities());
+    _writer = new Neo4jGraphWriterDAO(driver, SessionConfig.defaultConfig(), TestUtils.getAllTestEntities());
   }
 
   @AfterMethod
