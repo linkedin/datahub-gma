@@ -16,6 +16,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +24,7 @@ import org.apache.commons.lang.time.StopWatch;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.Record;
 import org.neo4j.driver.Session;
+import org.neo4j.driver.SessionConfig;
 import org.neo4j.driver.exceptions.Neo4jException;
 
 import static com.linkedin.metadata.dao.Neo4jUtil.*;
@@ -123,17 +125,33 @@ public class Neo4jGraphWriterDAO extends BaseGraphWriterDAO {
 
   private static final int MAX_TRANSACTION_RETRY = 3;
   private final Driver _driver;
+  private SessionConfig _sessionConfig;
   private static Map<String, String> _urnToEntityMap = null;
   private DelegateMetricListener _metricListener = new DelegateMetricListener();
 
   public Neo4jGraphWriterDAO(@Nonnull Driver driver) {
-    this._driver = driver;
-    buildUrnToEntityMap(getAllEntities());
+    this(driver, SessionConfig.defaultConfig());
   }
 
-  /* Should only be sed for testing */
-  public Neo4jGraphWriterDAO(@Nonnull Driver driver, @Nonnull Set<Class<? extends RecordTemplate>> allEntities) {
+  /**
+   * WARNING: Do NOT use this! This is not tested yet.
+   * Multi-DB support comes with Neo4j 4+.
+   * Although DAO works with Neo4j 4+, we can't bump Neo4j test harness to 4+ to test this because it needs Java 11
+   * And Java 11 build is blocked by ES7 migration.
+   */
+  public Neo4jGraphWriterDAO(@Nonnull Driver driver, @Nonnull String databaseName) {
+    this(driver, SessionConfig.forDatabase(databaseName));
+  }
+
+  public Neo4jGraphWriterDAO(@Nonnull Driver driver, @Nonnull SessionConfig sessionConfig) {
+    this(driver, sessionConfig, getAllEntities());
+  }
+
+  /* Should only be used for testing */
+  public Neo4jGraphWriterDAO(@Nonnull Driver driver, @Nonnull SessionConfig sessionConfig,
+                             @Nonnull Set<Class<? extends RecordTemplate>> allEntities) {
     this._driver = driver;
+    this._sessionConfig = sessionConfig;
     buildUrnToEntityMap(allEntities);
   }
 
@@ -222,7 +240,7 @@ public class Neo4jGraphWriterDAO extends BaseGraphWriterDAO {
     final StopWatch stopWatch = new StopWatch();
     stopWatch.start();
     Exception lastException;
-    try (final Session session = _driver.session()) {
+    try (final Session session = _driver.session(_sessionConfig)) {
       do {
         try {
           session.writeTransaction(tx -> {
@@ -255,7 +273,7 @@ public class Neo4jGraphWriterDAO extends BaseGraphWriterDAO {
    */
   @Nonnull
   private List<Record> runQuery(@Nonnull Statement statement) {
-    try (final Session session = _driver.session()) {
+    try (final Session session = _driver.session(_sessionConfig)) {
       return session.run(statement.getCommandText(), statement.getParams()).list();
     }
   }
@@ -483,8 +501,9 @@ public class Neo4jGraphWriterDAO extends BaseGraphWriterDAO {
     return buildStatement(statement, params);
   }
 
+  // visible for testing
   @Nonnull
-  private Statement buildStatement(@Nonnull String queryTemplate, @Nonnull Map<String, Object> params) {
+  Statement buildStatement(@Nonnull String queryTemplate, @Nonnull Map<String, Object> params) {
     for (Map.Entry<String, Object> entry : params.entrySet()) {
       String k = entry.getKey();
       Object v = entry.getValue();

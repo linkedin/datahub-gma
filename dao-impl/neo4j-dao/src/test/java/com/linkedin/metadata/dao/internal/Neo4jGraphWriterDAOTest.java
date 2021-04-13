@@ -4,6 +4,7 @@ import com.linkedin.common.urn.Urn;
 import com.linkedin.metadata.dao.BaseQueryDAO;
 import com.linkedin.metadata.dao.Neo4jQueryDAO;
 import com.linkedin.metadata.dao.Neo4jTestServerBuilder;
+import com.linkedin.metadata.dao.utils.Statement;
 import com.linkedin.metadata.query.Criterion;
 import com.linkedin.metadata.query.CriterionArray;
 import com.linkedin.metadata.query.Filter;
@@ -13,14 +14,17 @@ import com.linkedin.testing.EntityBar;
 import com.linkedin.testing.TestUtils;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.FooUrn;
+
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import javax.annotation.Nonnull;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.GraphDatabase;
+import org.neo4j.driver.SessionConfig;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -34,6 +38,7 @@ import static org.testng.Assert.*;
 public class Neo4jGraphWriterDAOTest {
 
   private Neo4jTestServerBuilder _serverBuilder;
+  private Driver _driver;
   private Neo4jGraphWriterDAO _dao;
   private BaseQueryDAO _queryDao;
   private TestMetricListener _testMetricListener;
@@ -78,9 +83,9 @@ public class Neo4jGraphWriterDAOTest {
     _serverBuilder = new Neo4jTestServerBuilder();
     _serverBuilder.newServer();
     _testMetricListener = new TestMetricListener();
-    final Driver driver = GraphDatabase.driver(_serverBuilder.boltURI());
-    _dao = new Neo4jGraphWriterDAO(driver, TestUtils.getAllTestEntities());
-    _queryDao = new Neo4jQueryDAO(driver);
+    _driver = GraphDatabase.driver(_serverBuilder.boltURI());
+    _dao = new Neo4jGraphWriterDAO(_driver, SessionConfig.defaultConfig(), TestUtils.getAllTestEntities());
+    _queryDao = new Neo4jQueryDAO(_driver);
     _dao.addMetricListener(_testMetricListener);
   }
 
@@ -403,6 +408,19 @@ public class Neo4jGraphWriterDAOTest {
     // test consistency !!
     assertEquals(_dao.getNodeType(makeBarUrn(1)), getTypeOrEmptyString(EntityBar.class));
     assertEquals(_dao.getNodeType(makeFooUrn(1)), getTypeOrEmptyString(EntityFoo.class));
+  }
+
+  @Test
+  public void testBuildStatement() {
+    final FooUrn urn = makeFooUrn(0);
+    final String queryTemplate = "dummy query template";
+    final Map<String, Object> queryParams = new HashMap<>();
+    queryParams.put("urn", urn);
+
+    final Statement queryStatement = _dao.buildStatement(queryTemplate, queryParams);
+
+    assertEquals(queryStatement.getCommandText(), queryTemplate);
+    assertEquals(queryStatement.getParams().get("urn"), urn.toString());
   }
 
   private void assertEntityFoo(@Nonnull Map<String, Object> node, @Nonnull EntityFoo entity) {
