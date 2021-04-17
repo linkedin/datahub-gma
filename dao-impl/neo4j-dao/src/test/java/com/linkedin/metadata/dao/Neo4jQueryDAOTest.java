@@ -6,11 +6,11 @@ import com.linkedin.metadata.dao.utils.Statement;
 import com.linkedin.metadata.query.Filter;
 import com.linkedin.metadata.query.RelationshipDirection;
 import com.linkedin.metadata.query.RelationshipFilter;
+import com.linkedin.testing.EntityBar;
 import com.linkedin.testing.EntityBaz;
+import com.linkedin.testing.EntityFoo;
 import com.linkedin.testing.RelationshipBar;
 import com.linkedin.testing.RelationshipFoo;
-import com.linkedin.testing.EntityFoo;
-import com.linkedin.testing.EntityBar;
 import com.linkedin.testing.TestUtils;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.BazUrn;
@@ -26,7 +26,6 @@ import org.javatuples.Triplet;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.GraphDatabase;
 import org.neo4j.driver.Record;
-import org.neo4j.driver.SessionConfig;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -50,7 +49,7 @@ public class Neo4jQueryDAOTest {
 
     final Driver driver = GraphDatabase.driver(_serverBuilder.boltURI());
     _dao = new Neo4jQueryDAO(driver);
-    _writer = new Neo4jGraphWriterDAO(driver, SessionConfig.defaultConfig(), TestUtils.getAllTestEntities());
+    _writer = new Neo4jGraphWriterDAO(driver, TestUtils.getAllTestEntities());
   }
 
   @AfterMethod
