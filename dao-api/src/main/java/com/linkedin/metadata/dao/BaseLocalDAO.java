@@ -602,6 +602,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     if (mode == BackfillMode.MAE_ONLY || mode == BackfillMode.BACKFILL_ALL) {
       _producer.produceMetadataAuditEvent(urn, aspect, aspect);
+      _producer.produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect);
     }
   }
 
