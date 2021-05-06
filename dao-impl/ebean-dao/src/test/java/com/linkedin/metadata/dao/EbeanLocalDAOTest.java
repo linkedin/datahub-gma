@@ -806,6 +806,43 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
+  public void testStartsWith() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    dao.enableLocalSecondaryIndex(true);
+    FooUrn urn1 = makeFooUrn(1);
+    FooUrn urn2 = makeFooUrn(2);
+    String aspect = "aspect" + System.currentTimeMillis();
+
+    addIndex(urn1, aspect, "/path", "value1");
+    addIndex(urn1, FooUrn.class.getCanonicalName(), "/fooId", 1);
+
+    addIndex(urn2, aspect, "/path", "value2");
+    addIndex(urn2, FooUrn.class.getCanonicalName(), "/fooId", 2);
+
+    // starts with substring
+    IndexValue indexValue1 = new IndexValue();
+    indexValue1.setString("val");
+    IndexCriterion criterion1 = new IndexCriterion().setAspect(aspect)
+        .setPathParams(new IndexPathParams().setPath("/path").setValue(indexValue1).setCondition(Condition.START_WITH));
+
+    IndexCriterionArray indexCriterionArray1 = new IndexCriterionArray(Collections.singletonList(criterion1));
+    final IndexFilter indexFilter1 = new IndexFilter().setCriteria(indexCriterionArray1);
+    List<FooUrn> urns1 = dao.listUrns(indexFilter1, null, 5);
+    assertEquals(urns1, Arrays.asList(urn1, urn2));
+
+    // full string
+    IndexValue indexValue2 = new IndexValue();
+    indexValue2.setString("value1");
+    IndexCriterion criterion2 = new IndexCriterion().setAspect(aspect)
+        .setPathParams(new IndexPathParams().setPath("/path").setValue(indexValue2).setCondition(Condition.START_WITH));
+
+    IndexCriterionArray indexCriterionArray2 = new IndexCriterionArray(Collections.singletonList(criterion2));
+    final IndexFilter indexFilter2 = new IndexFilter().setCriteria(indexCriterionArray2);
+    List<FooUrn> urns2 = dao.listUrns(indexFilter2, null, 5);
+    assertEquals(urns2, Collections.singletonList(urn1));
+  }
+
+  @Test
   public void testListUrns() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     AspectFoo foo = new AspectFoo().setValue("foo");
@@ -1325,41 +1362,45 @@ public class EbeanLocalDAOTest {
   @Test
   void testGetGMAIndexPair() {
     IndexValue indexValue = new IndexValue();
+    String aspect = "aspect" + System.currentTimeMillis();
+    IndexPathParams indexPathParams = new IndexPathParams().setPath("/path1").setValue(indexValue);
+    IndexCriterion indexCriterion = new IndexCriterion().setAspect(aspect).setPathParams(indexPathParams);
+
     // 1. IndexValue pair corresponds to boolean
     indexValue.setBoolean(false);
-    EbeanLocalDAO.GMAIndexPair gmaIndexPair = EbeanLocalDAO.getGMAIndexPair(indexValue);
+    EbeanLocalDAO.GMAIndexPair gmaIndexPair = EbeanLocalDAO.getGMAIndexPair(indexCriterion);
     assertEquals(EbeanMetadataIndex.STRING_COLUMN, gmaIndexPair.valueType);
     assertEquals("false", gmaIndexPair.value);
     // 2. IndexValue pair corresponds to double
     double dVal = 0.000001;
     indexValue.setDouble(dVal);
-    gmaIndexPair = EbeanLocalDAO.getGMAIndexPair(indexValue);
+    gmaIndexPair = EbeanLocalDAO.getGMAIndexPair(indexCriterion);
     assertEquals(EbeanMetadataIndex.DOUBLE_COLUMN, gmaIndexPair.valueType);
     assertEquals(dVal, gmaIndexPair.value);
     // 3. IndexValue pair corresponds to float
     float fVal = 0.0001f;
     double doubleVal = fVal;
     indexValue.setFloat(fVal);
-    gmaIndexPair = EbeanLocalDAO.getGMAIndexPair(indexValue);
+    gmaIndexPair = EbeanLocalDAO.getGMAIndexPair(indexCriterion);
     assertEquals(EbeanMetadataIndex.DOUBLE_COLUMN, gmaIndexPair.valueType);
     assertEquals(doubleVal, gmaIndexPair.value);
     // 4. IndexValue pair corresponds to int
     int iVal = 100;
     long longVal = iVal;
     indexValue.setInt(iVal);
-    gmaIndexPair = EbeanLocalDAO.getGMAIndexPair(indexValue);
+    gmaIndexPair = EbeanLocalDAO.getGMAIndexPair(indexCriterion);
     assertEquals(EbeanMetadataIndex.LONG_COLUMN, gmaIndexPair.valueType);
     assertEquals(longVal, gmaIndexPair.value);
     // 5. IndexValue pair corresponds to long
     long lVal = 1L;
     indexValue.setLong(lVal);
-    gmaIndexPair = EbeanLocalDAO.getGMAIndexPair(indexValue);
+    gmaIndexPair = EbeanLocalDAO.getGMAIndexPair(indexCriterion);
     assertEquals(EbeanMetadataIndex.LONG_COLUMN, gmaIndexPair.valueType);
     assertEquals(lVal, gmaIndexPair.value);
     // 6/ IndexValue pair corresponds to string
     String sVal = "testVal";
     indexValue.setString(sVal);
-    gmaIndexPair = EbeanLocalDAO.getGMAIndexPair(indexValue);
+    gmaIndexPair = EbeanLocalDAO.getGMAIndexPair(indexCriterion);
     assertEquals(EbeanMetadataIndex.STRING_COLUMN, gmaIndexPair.valueType);
     assertEquals(sVal, gmaIndexPair.value);
   }
