@@ -85,10 +85,11 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       Collections.unmodifiableMap(new HashMap<Condition, String>() {
         {
           put(Condition.EQUAL, "=");
-          put(Condition.LESS_THAN, "<");
-          put(Condition.LESS_THAN_OR_EQUAL_TO, "<=");
           put(Condition.GREATER_THAN, ">");
           put(Condition.GREATER_THAN_OR_EQUAL_TO, ">=");
+          put(Condition.LESS_THAN, "<");
+          put(Condition.LESS_THAN_OR_EQUAL_TO, "<=");
+          put(Condition.START_WITH, "LIKE");
         }
       });
 
@@ -796,7 +797,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Nonnull
-  static GMAIndexPair getGMAIndexPair(@Nonnull IndexValue indexValue) {
+  static GMAIndexPair getGMAIndexPair(@Nonnull IndexCriterion criterion) {
+    final IndexValue indexValue = criterion.getPathParams().getValue();
     final Object object;
     if (indexValue.isBoolean()) {
       object = indexValue.getBoolean().toString();
@@ -814,11 +816,19 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       object = indexValue.getLong();
       return new GMAIndexPair(EbeanMetadataIndex.LONG_COLUMN, object);
     } else if (indexValue.isString()) {
-      object = indexValue.getString();
+      object = getValueFromIndexCriterion(criterion);
       return new GMAIndexPair(EbeanMetadataIndex.STRING_COLUMN, object);
     } else {
       throw new IllegalArgumentException("Invalid index value " + indexValue);
     }
+  }
+
+  static String getValueFromIndexCriterion(@Nonnull IndexCriterion criterion) {
+    final IndexValue indexValue = criterion.getPathParams().getValue();
+    if (criterion.getPathParams().getCondition().equals(Condition.START_WITH)) {
+      return indexValue.getString() + "%";
+    }
+    return indexValue.getString();
   }
 
   /**
@@ -839,7 +849,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       indexQuery.setParameter(pos++, criterion.getAspect());
       if (criterion.getPathParams() != null) {
         indexQuery.setParameter(pos++, criterion.getPathParams().getPath());
-        indexQuery.setParameter(pos++, getGMAIndexPair(criterion.getPathParams().getValue()).value);
+        indexQuery.setParameter(pos++, getGMAIndexPair(criterion).value);
       }
     }
     indexQuery.setParameter(pos, pageSize);
@@ -878,7 +888,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
             .append(".path = ? AND t")
             .append(i)
             .append(".")
-            .append(getGMAIndexPair(criterion.getPathParams().getValue()).valueType)
+            .append(getGMAIndexPair(criterion).valueType)
+            .append(" ")
             .append(getStringForOperator(criterion.getPathParams().getCondition()))
             .append("?");
       }
