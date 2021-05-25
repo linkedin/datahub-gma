@@ -71,13 +71,15 @@ final class ElasticsearchIntegrationTestExtension
     }, ReflectionUtils.HierarchyTraversalMode.TOP_DOWN);
 
     final SearchIndexFactory indexFactory = new SearchIndexFactory(_connection);
-    final List<SearchIndex<?>> indices = createIndices(indexFactory, context.getRequiredTestClass(), fields,
-        fieldName -> String.format("%s_%s_%s", fieldName, testClass.getSimpleName(), System.currentTimeMillis()));
+    final List<SearchIndex<?>> indices =
+        createIndices(indexFactory, context.getRequiredTestClass(), context.getRequiredTestClass(), fields,
+            fieldName -> String.format("%s_%s_%s", fieldName, testClass.getSimpleName(), System.currentTimeMillis()));
     store.put(STATIC_INDICIES, indices);
   }
 
-  private List<SearchIndex<?>> createIndices(@Nonnull SearchIndexFactory indexFactory, @Nonnull Object testInstance,
-      @Nonnull List<Field> fields, @Nonnull Function<String, String> nameFn) throws Exception {
+  private List<SearchIndex<?>> createIndices(@Nonnull SearchIndexFactory indexFactory,
+      @Nonnull Class<?> testClass, @Nonnull Object testInstance, @Nonnull List<Field> fields,
+      @Nonnull Function<String, String> nameFn) throws Exception {
     final List<SearchIndex<?>> indices = new ArrayList<>();
 
     for (Field field : fields) {
@@ -91,10 +93,10 @@ final class ElasticsearchIntegrationTestExtension
       final String indexName = nameFn.apply(field.getName()).replaceAll("^_*", "").toLowerCase();
 
       final SearchIndexSettings settings = field.getAnnotation(SearchIndexSettings.class);
-      final String settingsJson = settings == null ? null : loadResource(testInstance.getClass(), settings.value());
+      final String settingsJson = settings == null ? null : loadResource(testClass, settings.value());
 
       final SearchIndexMappings mappings = field.getAnnotation(SearchIndexMappings.class);
-      final String mappingsJson = mappings == null ? null : loadResource(testInstance.getClass(), mappings.value());
+      final String mappingsJson = mappings == null ? null : loadResource(testClass, mappings.value());
 
       final DocType docType = field.getAnnotation(DocType.class);
       final String docTypeStr = docType == null ? null : docType.value();
@@ -166,9 +168,10 @@ final class ElasticsearchIntegrationTestExtension
     }, ReflectionUtils.HierarchyTraversalMode.TOP_DOWN);
 
     final SearchIndexFactory indexFactory = new SearchIndexFactory(_connection);
-    final List<SearchIndex<?>> indices = createIndices(indexFactory, context.getRequiredTestInstance(), fields,
-        fieldName -> String.format("%s_%s_%s_%s", fieldName, context.getRequiredTestMethod().getName(),
-            context.getRequiredTestClass().getSimpleName(), System.currentTimeMillis()));
+    final List<SearchIndex<?>> indices =
+        createIndices(indexFactory, context.getRequiredTestClass(), context.getRequiredTestInstance(), fields,
+            fieldName -> String.format("%s_%s_%s_%s", fieldName, context.getRequiredTestMethod().getName(),
+                context.getRequiredTestClass().getSimpleName(), System.currentTimeMillis()));
     store.put(INDICIES, indices);
   }
 
