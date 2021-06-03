@@ -32,9 +32,11 @@ import com.linkedin.metadata.query.ListResultMetadata;
 import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectBaz;
 import com.linkedin.testing.AspectFoo;
+import com.linkedin.testing.AspectFooArray;
 import com.linkedin.testing.AspectFooEvolved;
 import com.linkedin.testing.AspectInvalid;
 import com.linkedin.testing.EntityAspectUnion;
+import com.linkedin.testing.MixedRecord;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.BazUrn;
 import com.linkedin.testing.urn.FooUrn;
@@ -1468,6 +1470,91 @@ public class EbeanLocalDAOTest {
     urns = dao.listUrns(indexFilter6, urn1, 2);
 
     assertEquals(urns, Collections.emptyList());
+  }
+
+  @Test
+  void testUpdateArrayToLocalIndex() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = new EbeanLocalDAO<EntityAspectUnion, FooUrn>(_mockProducer, _server,
+        makeLocalDAOStorageConfig(MixedRecord.class, Arrays.asList("/value", "/recordArray/*/value")), FooUrn.class);
+    dao.enableLocalSecondaryIndex(true);
+    dao.setUrnPathExtractor(new FooUrnPathExtractor());
+    FooUrn urn = makeFooUrn(1);
+    AspectFoo aspectFoo1 = new AspectFoo().setValue("fooVal1");
+    AspectFoo aspectFoo2 = new AspectFoo().setValue("fooVal2");
+    AspectFoo aspectFoo3 = new AspectFoo().setValue("fooVal3");
+    AspectFoo aspectFoo4 = new AspectFoo().setValue("fooVal4");
+    AspectFoo aspectFoo5 = new AspectFoo().setValue("fooVal5");
+    AspectFoo aspectFoo6 = new AspectFoo().setValue("fooVal6");
+
+    final AspectFooArray
+        aspectFooArray1 = new AspectFooArray(Arrays.asList(aspectFoo1, aspectFoo2, aspectFoo3, aspectFoo4));
+    final MixedRecord aspect1 = new MixedRecord().setRecordArray(aspectFooArray1);
+    aspect1.setValue("val1");
+
+    dao.updateLocalIndex(urn, aspect1, 0);
+
+    List<EbeanMetadataIndex> fooRecords1 = getAllRecordsFromLocalIndex(urn);
+    assertEquals(fooRecords1.size(), 6);
+    EbeanMetadataIndex fooRecord1 = fooRecords1.get(0);
+    EbeanMetadataIndex fooRecord2 = fooRecords1.get(1);
+    EbeanMetadataIndex fooRecord3 = fooRecords1.get(2);
+    EbeanMetadataIndex fooRecord4 = fooRecords1.get(3);
+    EbeanMetadataIndex fooRecord5 = fooRecords1.get(4);
+    EbeanMetadataIndex fooRecord6 = fooRecords1.get(5);
+    assertEquals(fooRecord1.getUrn(), urn.toString());
+    assertEquals(fooRecord1.getAspect(), FooUrn.class.getCanonicalName());
+    assertEquals(fooRecord1.getPath(), "/fooId");
+    assertEquals(fooRecord1.getLongVal().longValue(), 1L);
+    assertEquals(fooRecord2.getUrn(), urn.toString());
+    assertEquals(fooRecord2.getAspect(), MixedRecord.class.getCanonicalName());
+    assertEquals(fooRecord2.getPath(), "/value");
+    assertEquals(fooRecord2.getStringVal(), "val1");
+    assertEquals(fooRecord3.getUrn(), urn.toString());
+    assertEquals(fooRecord3.getAspect(), MixedRecord.class.getCanonicalName());
+    assertEquals(fooRecord3.getPath(), "/recordArray/*/value");
+    assertEquals(fooRecord3.getStringVal(), "fooVal1");
+    assertEquals(fooRecord4.getUrn(), urn.toString());
+    assertEquals(fooRecord4.getAspect(), MixedRecord.class.getCanonicalName());
+    assertEquals(fooRecord4.getPath(), "/recordArray/*/value");
+    assertEquals(fooRecord4.getStringVal(), "fooVal2");
+    assertEquals(fooRecord5.getUrn(), urn.toString());
+    assertEquals(fooRecord5.getAspect(), MixedRecord.class.getCanonicalName());
+    assertEquals(fooRecord5.getPath(), "/recordArray/*/value");
+    assertEquals(fooRecord5.getStringVal(), "fooVal3");
+    assertEquals(fooRecord6.getUrn(), urn.toString());
+    assertEquals(fooRecord6.getAspect(), MixedRecord.class.getCanonicalName());
+    assertEquals(fooRecord6.getPath(), "/recordArray/*/value");
+    assertEquals(fooRecord6.getStringVal(), "fooVal4");
+
+    // update the aspect with new array, the old records should be deleted and new ones inserted
+    final AspectFooArray aspectFooArray2 = new AspectFooArray(Arrays.asList(aspectFoo5, aspectFoo6));
+    final MixedRecord aspect2 = new MixedRecord().setRecordArray(aspectFooArray2);
+    aspect2.setValue("val2");
+
+    dao.updateLocalIndex(urn, aspect2, 1);
+
+    List<EbeanMetadataIndex> fooRecords2 = getAllRecordsFromLocalIndex(urn);
+    assertEquals(fooRecords2.size(), 4);
+    EbeanMetadataIndex fooRecord7 = fooRecords2.get(0);
+    EbeanMetadataIndex fooRecord8 = fooRecords2.get(1);
+    EbeanMetadataIndex fooRecord9 = fooRecords2.get(2);
+    EbeanMetadataIndex fooRecord10 = fooRecords2.get(3);
+    assertEquals(fooRecord7.getUrn(), urn.toString());
+    assertEquals(fooRecord7.getAspect(), FooUrn.class.getCanonicalName());
+    assertEquals(fooRecord7.getPath(), "/fooId");
+    assertEquals(fooRecord7.getLongVal().longValue(), 1L);
+    assertEquals(fooRecord8.getUrn(), urn.toString());
+    assertEquals(fooRecord8.getAspect(), MixedRecord.class.getCanonicalName());
+    assertEquals(fooRecord8.getPath(), "/value");
+    assertEquals(fooRecord8.getStringVal(), "val2");
+    assertEquals(fooRecord9.getUrn(), urn.toString());
+    assertEquals(fooRecord9.getAspect(), MixedRecord.class.getCanonicalName());
+    assertEquals(fooRecord9.getPath(), "/recordArray/*/value");
+    assertEquals(fooRecord9.getStringVal(), "fooVal5");
+    assertEquals(fooRecord10.getUrn(), urn.toString());
+    assertEquals(fooRecord10.getAspect(), MixedRecord.class.getCanonicalName());
+    assertEquals(fooRecord10.getPath(), "/recordArray/*/value");
+    assertEquals(fooRecord10.getStringVal(), "fooVal6");
   }
 
   @Test

@@ -332,6 +332,18 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
   }
 
+  protected void saveRecordsToLocalIndex(@Nonnull URN urn, @Nonnull String aspect, @Nonnull String path,
+      @Nonnull Object value) {
+
+    if (value instanceof List) {
+      for (Object obj : (List<?>) value) {
+        saveSingleRecordToLocalIndex(urn, aspect, path, obj);
+      }
+    } else {
+      saveSingleRecordToLocalIndex(urn, aspect, path, value);
+    }
+  }
+
   protected long saveSingleRecordToLocalIndex(@Nonnull URN urn, @Nonnull String aspect, @Nonnull String path,
       @Nonnull Object value) {
 
@@ -385,7 +397,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         .filter(path -> pathStorageConfigMap.get(path).isStrongConsistentSecondaryIndex())
         .collect(Collectors.toMap(Function.identity(), path -> RecordUtils.getFieldValue(newValue, path)))
         .forEach((k, v) -> v.ifPresent(
-            value -> saveSingleRecordToLocalIndex(urn, newValue.getClass().getCanonicalName(), k, value)));
+            value -> saveRecordsToLocalIndex(urn, newValue.getClass().getCanonicalName(), k, value)));
   }
 
   @Override
