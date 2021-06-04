@@ -4,7 +4,6 @@ import com.linkedin.metadata.annotations.GmaEntitiesAnnotationAllowList;
 import com.linkedin.metadata.generator.SchemaGenerator;
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import org.apache.commons.io.FileUtils;
