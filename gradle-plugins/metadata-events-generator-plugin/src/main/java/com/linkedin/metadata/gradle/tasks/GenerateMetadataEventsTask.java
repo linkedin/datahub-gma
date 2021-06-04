@@ -4,8 +4,10 @@ import com.linkedin.metadata.annotations.GmaEntitiesAnnotationAllowList;
 import com.linkedin.metadata.generator.SchemaGenerator;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+import org.apache.commons.io.FileUtils;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.provider.Property;
@@ -59,6 +61,12 @@ public class GenerateMetadataEventsTask extends DefaultTask {
   @TaskAction
   public void generateEvents() throws IOException {
     final SchemaGenerator schemaGenerator = new SchemaGenerator();
+
+    // For caching to work across git branches, this entire directory needs to be deleted. The entire directory is
+    // cached; so if anything is left in here from other branch builds it will be incorrectly cached. Delete it to
+    // ensure that it is in 100% valid state after this task (and when cached).
+    FileUtils.deleteDirectory(getOutputDirectory().getSingleFile());
+
     final String outputDir =
         getOutputDirectory().getSingleFile().toPath().resolve("com").resolve("linkedin").resolve("mxe").toString();
     schemaGenerator.generate(_resolverPaths.getFiles().stream().map(File::toString).collect(Collectors.toList()),
