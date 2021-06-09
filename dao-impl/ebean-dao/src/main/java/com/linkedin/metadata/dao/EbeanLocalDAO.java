@@ -19,11 +19,14 @@ import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.ExtraInfoArray;
+import com.linkedin.metadata.query.IndexColumn;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
+import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.query.IndexValue;
 import com.linkedin.metadata.query.ListResultMetadata;
+import com.linkedin.metadata.query.SortOrder;
 import io.ebean.DuplicateKeyException;
 import io.ebean.EbeanServer;
 import io.ebean.EbeanServerFactory;
@@ -90,6 +93,15 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
           put(Condition.LESS_THAN, "<");
           put(Condition.LESS_THAN_OR_EQUAL_TO, "<=");
           put(Condition.START_WITH, "LIKE");
+        }
+      });
+
+  private static final Map<IndexColumn, String> COLUMN_STRING_MAP =
+      Collections.unmodifiableMap(new HashMap<IndexColumn, String>() {
+        {
+          put(IndexColumn.DOUBLE_COLUMN, EbeanMetadataIndex.DOUBLE_COLUMN);
+          put(IndexColumn.LONG_COLUMN, EbeanMetadataIndex.LONG_COLUMN);
+          put(IndexColumn.STRING_COLUMN, EbeanMetadataIndex.STRING_COLUMN);
         }
       });
 
@@ -849,11 +861,12 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    *
    * @param indexCriterionArray {@link IndexCriterionArray} whose values will be used to set parameters in metadata
    *                                                       index query based on its position
+   * @param indexSortCriterion {@link IndexSortCriterion} whose values will be used to set parameters in query
    * @param indexQuery {@link Query} whose ordered parameters need to be set, based on it's position
    * @param lastUrn string representation of the urn whose value is used to set the last urn parameter in index query
    * @param pageSize maximum number of distinct urns to return which is essentially the LIMIT clause of SQL query
    */
-  private static void setParameters(@Nonnull IndexCriterionArray indexCriterionArray,
+  private static void setParameters(@Nonnull IndexCriterionArray indexCriterionArray, @Nullable IndexSortCriterion indexSortCriterion,
       @Nonnull Query<EbeanMetadataIndex> indexQuery, @Nonnull String lastUrn, int pageSize) {
     indexQuery.setParameter(1, lastUrn);
     int pos = 2;
@@ -863,6 +876,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         indexQuery.setParameter(pos++, criterion.getPathParams().getPath());
         indexQuery.setParameter(pos++, getGMAIndexPair(criterion).value);
       }
+    }
+    if (indexSortCriterion != null) {
+      indexQuery.setParameter(pos++, indexSortCriterion.getAspect());
+      indexQuery.setParameter(pos++, indexSortCriterion.getPath());
     }
     indexQuery.setParameter(pos, pageSize);
   }
@@ -876,16 +893,32 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     return CONDITION_STRING_MAP.get(condition);
   }
 
+  @Nonnull
+  private static String getStringForColumn(@Nonnull IndexColumn column) {
+    if (!COLUMN_STRING_MAP.containsKey(column)) {
+      throw new UnsupportedOperationException(
+          column.toString() + " is not supported in local secondary index");
+    }
+    return COLUMN_STRING_MAP.get(column);
+  }
+
   /**
    * Constructs SQL query that contains positioned parameters (with `?`), based on whether {@link IndexCriterion} of
    * a given condition has field `pathParams`.
    *
    * @param indexCriterionArray {@link IndexCriterionArray} used to construct the SQL query
+   * @param indexSortCriterion {@link IndexSortCriterion} used to construct the SQL query
    * @return String representation of SQL query
    */
   @Nonnull
-  private static String constructSQLQuery(@Nonnull IndexCriterionArray indexCriterionArray) {
-    String selectClause = "SELECT DISTINCT(t0.urn) FROM metadata_index t0";
+  private static String constructSQLQuery(@Nonnull IndexCriterionArray indexCriterionArray,
+      @Nullable IndexSortCriterion indexSortCriterion) {
+    String selectClause = "SELECT DISTINCT(t0.urn)";
+    if (indexSortCriterion != null) {
+      selectClause += ", tsort.";
+      selectClause += getStringForColumn(indexSortCriterion.getColumn());
+    }
+    selectClause += " FROM metadata_index t0";
     selectClause += IntStream.range(1, indexCriterionArray.size())
         .mapToObj(i -> " INNER JOIN metadata_index " + "t" + i + " ON t0.urn = " + "t" + i + ".urn")
         .collect(Collectors.joining(""));
@@ -906,7 +939,16 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
             .append("?");
       }
     });
-    final String orderByClause = "ORDER BY urn ASC";
+    final String orderByClause;
+    if (indexSortCriterion != null) {
+      String sortOrder = indexSortCriterion.getOrder() == SortOrder.ASCENDING ? "ASC" : "DESC";
+
+      selectClause += " INNER JOIN metadata_index tsort ON t0.urn = tsort.urn";
+      whereClause.append(" AND tsort.aspect = ? AND tsort.path = ? ");
+      orderByClause = "ORDER BY tsort." + getStringForColumn(indexSortCriterion.getColumn()) + " " + sortOrder;
+    } else {
+      orderByClause = "ORDER BY urn ASC";
+    }
     final String limitClause = "LIMIT ?";
     return String.join(" ", selectClause, whereClause, orderByClause, limitClause);
   }
@@ -920,11 +962,12 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   /**
    * Returns list of urns from strongly consistent secondary index that satisfy the given filter conditions.
    *
-   * <p>Results are ordered lexicographically by the string representation of the URN.
+   * <p>Results are ordered by the sort criterion but defaults to sorting lexicographically by the string representation of the URN.
    *
    * <p>NOTE: Currently this works for upto 10 filter conditions.
    *
    * @param indexFilter {@link IndexFilter} containing filter conditions to be applied
+   * @param indexSortCriterion {@link IndexSortCriterion} sorting criteria to be applied
    * @param lastUrn last urn of the previous fetched page. This eliminates the need to use offset which
    *                 is known to slow down performance of MySQL queries. For the first page, this should be set as NULL
    * @param pageSize maximum number of distinct urns to return
@@ -932,7 +975,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    */
   @Override
   @Nonnull
-  public List<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable URN lastUrn, int pageSize) {
+  public List<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
+      @Nullable URN lastUrn, int pageSize) {
     if (!isLocalSecondaryIndexEnabled()) {
       throw new UnsupportedOperationException("Local secondary index isn't supported");
     }
@@ -948,9 +992,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     addEntityTypeFilter(indexFilter);
 
     final Query<EbeanMetadataIndex> query =
-        _server.findNative(EbeanMetadataIndex.class, constructSQLQuery(indexCriterionArray))
+        _server.findNative(EbeanMetadataIndex.class, constructSQLQuery(indexCriterionArray, indexSortCriterion))
             .setTimeout(INDEX_QUERY_TIMEOUT_IN_SEC);
-    setParameters(indexCriterionArray, query, lastUrn == null ? "" : lastUrn.toString(), pageSize);
+    setParameters(indexCriterionArray, indexSortCriterion, query, lastUrn == null ? "" : lastUrn.toString(), pageSize);
 
     final List<EbeanMetadataIndex> pagedList = query.findList();
 

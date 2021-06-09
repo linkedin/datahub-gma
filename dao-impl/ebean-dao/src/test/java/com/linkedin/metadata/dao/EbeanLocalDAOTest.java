@@ -23,12 +23,15 @@ import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.ExtraInfo;
+import com.linkedin.metadata.query.IndexColumn;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexPathParams;
+import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.query.IndexValue;
 import com.linkedin.metadata.query.ListResultMetadata;
+import com.linkedin.metadata.query.SortOrder;
 import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectBaz;
 import com.linkedin.testing.AspectFoo;
@@ -842,6 +845,83 @@ public class EbeanLocalDAOTest {
     final IndexFilter indexFilter2 = new IndexFilter().setCriteria(indexCriterionArray2);
     List<FooUrn> urns2 = dao.listUrns(indexFilter2, null, 5);
     assertEquals(urns2, Collections.singletonList(urn1));
+  }
+
+  @Test
+  public void testSorting() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    dao.enableLocalSecondaryIndex(true);
+    FooUrn urn1 = makeFooUrn(1);
+    FooUrn urn2 = makeFooUrn(2);
+    FooUrn urn3 = makeFooUrn(3);
+    String aspect1 = "aspect1" + System.currentTimeMillis();
+    String aspect2 = "aspect2" + System.currentTimeMillis();
+
+    addIndex(urn1, aspect1, "/path1", "valB");
+    addIndex(urn1, aspect2, "/path2", "dolphin");
+    addIndex(urn1, aspect2, "/path3", 10);
+    addIndex(urn1, aspect2, "/path4", 100.3);
+    addIndex(urn1, FooUrn.class.getCanonicalName(), "/fooId", 1);
+
+    addIndex(urn2, aspect1, "/path1", "valC");
+    addIndex(urn2, aspect2, "/path2", "reindeer");
+    addIndex(urn2, aspect2, "/path3", 8);
+    addIndex(urn2, aspect2, "/path4", 10.4);
+    addIndex(urn2, FooUrn.class.getCanonicalName(), "/fooId", 2);
+
+    addIndex(urn3, aspect1, "/path1", "valA");
+    addIndex(urn3, aspect2, "/path2", "dog");
+    addIndex(urn3, aspect2, "/path3", 100);
+    addIndex(urn3, aspect2, "/path4", 1.65);
+    addIndex(urn3, FooUrn.class.getCanonicalName(), "/fooId", 3);
+
+    // filter and no sorting criterion
+    IndexValue indexValue1 = new IndexValue();
+    indexValue1.setString("val");
+    IndexCriterion criterion1 = new IndexCriterion().setAspect(aspect1)
+        .setPathParams(new IndexPathParams().setPath("/path1").setValue(indexValue1).setCondition(Condition.START_WITH));
+
+    IndexCriterionArray indexCriterionArray1 = new IndexCriterionArray(Collections.singletonList(criterion1));
+    final IndexFilter indexFilter1 = new IndexFilter().setCriteria(indexCriterionArray1);
+
+    List<FooUrn> urns1 = dao.listUrns(indexFilter1, null, null, 5);
+    assertEquals(urns1, Arrays.asList(urn1, urn2, urn3));
+
+    // filter and sort on same aspect and path
+    IndexSortCriterion indexSortCriterion1 = new IndexSortCriterion().setAspect(aspect1)
+        .setPath("/path1").setColumn(IndexColumn.STRING_COLUMN).setOrder(SortOrder.DESCENDING);
+
+    List<FooUrn> urns2 = dao.listUrns(indexFilter1, indexSortCriterion1, null, 5);
+    assertEquals(urns2, Arrays.asList(urn2, urn1, urn3));
+
+    // filter and sort on different aspect and path
+    IndexSortCriterion indexSortCriterion2 = new IndexSortCriterion().setAspect(aspect2)
+        .setPath("/path2").setColumn(IndexColumn.STRING_COLUMN).setOrder(SortOrder.ASCENDING);
+
+    List<FooUrn> urns3 = dao.listUrns(indexFilter1, indexSortCriterion2, null, 5);
+    assertEquals(urns3, Arrays.asList(urn3, urn1, urn2));
+
+    // sorting on long column
+    IndexValue indexValue2 = new IndexValue();
+    indexValue2.setString("do");
+    IndexCriterion criterion2 = new IndexCriterion().setAspect(aspect2)
+        .setPathParams(new IndexPathParams().setPath("/path2").setValue(indexValue2).setCondition(Condition.START_WITH));
+
+    IndexCriterionArray indexCriterionArray2 = new IndexCriterionArray(Collections.singletonList(criterion2));
+    final IndexFilter indexFilter2 = new IndexFilter().setCriteria(indexCriterionArray2);
+
+    IndexSortCriterion indexSortCriterion3 = new IndexSortCriterion().setAspect(aspect2)
+        .setPath("/path3").setColumn(IndexColumn.LONG_COLUMN).setOrder(SortOrder.DESCENDING);
+
+    List<FooUrn> urns4 = dao.listUrns(indexFilter2, indexSortCriterion3, null, 5);
+    assertEquals(urns4, Arrays.asList(urn3, urn1));
+
+    // sorting on double column
+    IndexSortCriterion indexSortCriterion4 = new IndexSortCriterion().setAspect(aspect2)
+        .setPath("/path4").setColumn(IndexColumn.DOUBLE_COLUMN).setOrder(SortOrder.ASCENDING);
+
+    List<FooUrn> urns5 = dao.listUrns(indexFilter2, indexSortCriterion4, null, 5);
+    assertEquals(urns5, Arrays.asList(urn3, urn1));
   }
 
   @Test

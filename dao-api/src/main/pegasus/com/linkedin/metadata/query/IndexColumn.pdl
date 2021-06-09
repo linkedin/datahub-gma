@@ -1,0 +1,22 @@
+namespace com.linkedin.metadata.query
+
+/**
+ * The corresponding value column to the aspect and path
+ */
+enum IndexColumn {
+
+  /**
+   * Represent the corresponding column when the value is a double or float
+   */
+  DOUBLE_COLUMN
+
+  /**
+   * Represent the corresponding column when the value is an integer or long
+   */
+  LONG_COLUMN
+
+  /**
+   * Represent the corresponding column when the value is a boolean or string
+   */
+  STRING_COLUMN
+}

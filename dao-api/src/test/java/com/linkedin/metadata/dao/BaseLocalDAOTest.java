@@ -7,6 +7,7 @@ import com.linkedin.metadata.dao.retention.TimeBasedRetention;
 import com.linkedin.metadata.dao.retention.VersionBasedRetention;
 import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.IndexFilter;
+import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.EntityAspectUnion;
 import com.linkedin.testing.urn.FooUrn;
@@ -100,7 +101,8 @@ public class BaseLocalDAOTest {
     }
 
     @Override
-    public List<FooUrn> listUrns(@Nonnull IndexFilter indexFilter, @Nullable FooUrn lastUrn, int pageSize) {
+    public List<FooUrn> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
+        @Nullable FooUrn lastUrn, int pageSize) {
       return null;
     }
 

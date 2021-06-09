@@ -5,6 +5,7 @@ public final class RestliConstants {
 
   public static final String FINDER_SEARCH = "search";
   public static final String FINDER_FILTER = "filter";
+  public static final String FINDER_FILTER_SORT = "filterAndSort";
 
   public static final String ACTION_AUTOCOMPLETE = "autocomplete";
   public static final String ACTION_BACKFILL = "backfill";
