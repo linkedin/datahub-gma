@@ -53,6 +53,7 @@ import javax.annotation.Nullable;
 import javax.persistence.RollbackException;
 import javax.persistence.Table;
 import lombok.Value;
+import org.apache.commons.lang.ArrayUtils;
 
 import static com.linkedin.metadata.dao.EbeanMetadataAspect.*;
 
@@ -365,6 +366,18 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     return Collections.unmodifiableMap(new HashMap<>(_storageConfig.getAspectStorageConfigMap()));
   }
 
+  @Nonnull
+  static String getUrnClass(@Nonnull String urnClassName) {
+    // LinkedIn has some urns marked as internal urns, that start with Internal. We want to strip that off.
+    final String[] urnSubstrings = urnClassName.split("\\.");
+    if (ArrayUtils.isEmpty(urnSubstrings)) {
+      throw new IndexOutOfBoundsException("Urn class name is invalid " + urnClassName);
+    }
+    final String urnStr = urnSubstrings[urnSubstrings.length - 1];
+    final String entityType = urnStr.startsWith("Internal") ? urnStr.substring("Internal".length()) : urnStr;
+    return urnClassName.replace(urnStr, entityType);
+  }
+
   private void updateUrnInLocalIndex(@Nonnull URN urn) {
     if (existsInLocalIndex(urn)) {
       return;
@@ -372,7 +385,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
     final Map<String, Object> pathValueMap = _urnPathExtractor.extractPaths(urn);
     pathValueMap.forEach(
-        (path, value) -> saveSingleRecordToLocalIndex(urn, urn.getClass().getCanonicalName(), path, value));
+        (path, value) -> saveSingleRecordToLocalIndex(urn, getUrnClass(urn.getClass().getCanonicalName()), path, value));
   }
 
   private <ASPECT extends RecordTemplate> void updateAspectInLocalIndex(@Nonnull URN urn, @Nonnull ASPECT newValue) {

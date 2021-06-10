@@ -40,6 +40,7 @@ import com.linkedin.testing.MixedRecord;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.BazUrn;
 import com.linkedin.testing.urn.FooUrn;
+import com.linkedin.testing.urn.PizzaUrn;
 import io.ebean.EbeanServer;
 import io.ebean.EbeanServerFactory;
 import io.ebean.Transaction;
@@ -1486,8 +1487,8 @@ public class EbeanLocalDAOTest {
     AspectFoo aspectFoo5 = new AspectFoo().setValue("fooVal5");
     AspectFoo aspectFoo6 = new AspectFoo().setValue("fooVal6");
 
-    final AspectFooArray
-        aspectFooArray1 = new AspectFooArray(Arrays.asList(aspectFoo1, aspectFoo2, aspectFoo3, aspectFoo4));
+    final AspectFooArray aspectFooArray1 =
+        new AspectFooArray(Arrays.asList(aspectFoo1, aspectFoo2, aspectFoo3, aspectFoo4));
     final MixedRecord aspect1 = new MixedRecord().setRecordArray(aspectFooArray1);
     aspect1.setValue("val1");
 
@@ -1555,6 +1556,20 @@ public class EbeanLocalDAOTest {
     assertEquals(fooRecord10.getAspect(), MixedRecord.class.getCanonicalName());
     assertEquals(fooRecord10.getPath(), "/recordArray/*/value");
     assertEquals(fooRecord10.getStringVal(), "fooVal6");
+  }
+
+  @Test
+  void testGetUrnClass() {
+    FooUrn fooUrn = makeFooUrn(10);
+    String urnClass1 = EbeanLocalDAO.getUrnClass(fooUrn.getClass().getCanonicalName());
+    assertEquals(urnClass1, "com.linkedin.testing.urn.FooUrn");
+
+    PizzaUrn pizzaUrn = new PizzaUrn(1);
+    String urnClass2 = EbeanLocalDAO.getUrnClass(pizzaUrn.getClass().getCanonicalName());
+    assertEquals(urnClass2, "com.linkedin.testing.urn.PizzaUrn");
+
+    String urnClass3 = "com.linkedin.testing.urn.InternalBarUrn";
+    assertEquals(EbeanLocalDAO.getUrnClass(urnClass3), "com.linkedin.testing.urn.BarUrn");
   }
 
   @Test
