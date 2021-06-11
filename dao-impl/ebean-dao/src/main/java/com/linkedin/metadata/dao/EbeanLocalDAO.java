@@ -372,7 +372,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
     final Map<String, Object> pathValueMap = _urnPathExtractor.extractPaths(urn);
     pathValueMap.forEach(
-        (path, value) -> saveSingleRecordToLocalIndex(urn, urn.getClass().getCanonicalName(), path, value));
+        (path, value) -> saveSingleRecordToLocalIndex(urn, _urnClass.getCanonicalName(), path, value));
   }
 
   private <ASPECT extends RecordTemplate> void updateAspectInLocalIndex(@Nonnull URN urn, @Nonnull ASPECT newValue) {
