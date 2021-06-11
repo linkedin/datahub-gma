@@ -11,7 +11,6 @@ import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
 import com.linkedin.metadata.dao.retention.VersionBasedRetention;
 import com.linkedin.metadata.dao.scsi.EmptyPathExtractor;
-import com.linkedin.metadata.dao.scsi.EntityTypeProvider;
 import com.linkedin.metadata.dao.scsi.UrnPathExtractor;
 import com.linkedin.metadata.dao.storage.LocalDAOStorageConfig;
 import com.linkedin.metadata.dao.utils.ModelUtils;
@@ -372,14 +371,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
 
     final Map<String, Object> pathValueMap = _urnPathExtractor.extractPaths(urn);
-    final String entityType;
-    if (_urnPathExtractor instanceof EntityTypeProvider) {
-      entityType = ((EntityTypeProvider) _urnPathExtractor).entityType();
-    } else {
-      entityType = urn.getClass().getCanonicalName();
-    }
     pathValueMap.forEach(
-        (path, value) -> saveSingleRecordToLocalIndex(urn, entityType, path, value));
+        (path, value) -> saveSingleRecordToLocalIndex(urn, _urnClass.getCanonicalName(), path, value));
   }
 
   private <ASPECT extends RecordTemplate> void updateAspectInLocalIndex(@Nonnull URN urn, @Nonnull ASPECT newValue) {

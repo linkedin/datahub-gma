@@ -20,7 +20,6 @@ import com.linkedin.metadata.dao.utils.BarUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.BazUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.FooUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.ModelUtils;
-import com.linkedin.metadata.dao.utils.PizzaUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.ExtraInfo;
@@ -41,7 +40,6 @@ import com.linkedin.testing.MixedRecord;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.BazUrn;
 import com.linkedin.testing.urn.FooUrn;
-import com.linkedin.testing.urn.PizzaUrn;
 import io.ebean.EbeanServer;
 import io.ebean.EbeanServerFactory;
 import io.ebean.Transaction;
@@ -1213,28 +1211,6 @@ public class EbeanLocalDAOTest {
     // Test if new record is inserted with an existing urn
     dao1.updateLocalIndex(barUrn, aspectBar, 1);
     assertEquals(getAllRecordsFromLocalIndex(barUrn).size(), 1);
-  }
-
-  @Test
-  void testUpdateUrnWithEntityTypeInLocalIndex() {
-    // only urn will be updated since storage config has not been provided
-    EbeanLocalDAO<EntityAspectUnion, PizzaUrn> dao = createDao(PizzaUrn.class);
-    dao.enableLocalSecondaryIndex(true);
-    dao.setUrnPathExtractor(new PizzaUrnPathExtractor());
-
-    PizzaUrn pizzaUrn = new PizzaUrn(1);
-    AspectBar aspectBar = new AspectBar().setValue("val1");
-
-    dao.updateLocalIndex(pizzaUrn, aspectBar, 0);
-
-    List<EbeanMetadataIndex> pizzaRecords = getAllRecordsFromLocalIndex(pizzaUrn);
-    assertEquals(pizzaRecords.size(), 1);
-    EbeanMetadataIndex pizzaRecord = pizzaRecords.get(0);
-    assertEquals(pizzaRecord.getUrn(), pizzaUrn.toString());
-    // instead of the urn class name, the entity type will be added
-    assertEquals(pizzaRecord.getAspect(), "PizzaEntity");
-    assertEquals(pizzaRecord.getPath(), "/pizzaId");
-    assertEquals(pizzaRecord.getLongVal().longValue(), 1L);
   }
 
   @Test(expectedExceptions = NullPointerException.class)
