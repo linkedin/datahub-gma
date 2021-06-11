@@ -25,6 +25,7 @@ public final class RestliConstants {
   public static final String PARAM_FIELD = "field";
   public static final String PARAM_PATH = "path";
   public static final String PARAM_START = "start";
+  public static final String PARAM_COUNT = "count";
   public static final String PARAM_LIMIT = "limit";
   public static final String PARAM_SNAPSHOT = "snapshot";
   public static final String PARAM_URN = "urn";

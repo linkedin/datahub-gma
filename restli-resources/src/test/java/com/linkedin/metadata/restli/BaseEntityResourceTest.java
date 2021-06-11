@@ -482,12 +482,10 @@ public class BaseEntityResourceTest extends BaseEngineTest {
 
     // case 3: sortCriterion is not null
     List<FooUrn> urns3 = Arrays.asList(urn3, urn2);
-    IndexCriterion indexCriterion3 = new IndexCriterion().setAspect(FooUrn.class.getCanonicalName());
-    IndexFilter indexFilter3 = new IndexFilter().setCriteria(new IndexCriterionArray(indexCriterion3));
     IndexSortCriterion indexSortCriterion = new IndexSortCriterion().setAspect("aspect1").setPath("/id")
         .setColumn(IndexColumn.LONG_COLUMN).setOrder(SortOrder.DESCENDING);
     when(_mockLocalDAO.listUrns(indexFilter2, indexSortCriterion, null, 2)).thenReturn(urns3);
-    actual = runAndWait(_resource.filter(null, indexSortCriterion, new String[0], null, new PagingContext(0, 2)));
+    actual = runAndWait(_resource.filter(null, indexSortCriterion, new String[0], null, 2));
     assertEquals(actual.size(), 2);
     assertEquals(actual.get(0), new EntityValue());
     assertEquals(actual.get(1), new EntityValue());
@@ -543,7 +541,7 @@ public class BaseEntityResourceTest extends BaseEngineTest {
         .thenReturn(listResult3);
 
     List<EntityValue> actual3 =
-        runAndWait(_resource.filter(indexFilter, indexSortCriterion, aspectNames, null, new PagingContext(0, 2)));
+        runAndWait(_resource.filter(indexFilter, indexSortCriterion, aspectNames, null, 2));
 
     assertEquals(actual3.size(), 2);
     assertEquals(actual3.get(0), new EntityValue().setFoo(foo2).setBar(bar2));
