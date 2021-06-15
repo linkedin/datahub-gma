@@ -9,7 +9,6 @@ import com.linkedin.metadata.dao.BaseLocalDAO;
 import com.linkedin.metadata.dao.UrnAspectEntry;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
-import com.linkedin.metadata.query.IndexColumn;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
@@ -483,7 +482,7 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     // case 3: sortCriterion is not null
     List<FooUrn> urns3 = Arrays.asList(urn3, urn2);
     IndexSortCriterion indexSortCriterion = new IndexSortCriterion().setAspect("aspect1").setPath("/id")
-        .setColumn(IndexColumn.LONG_COLUMN).setOrder(SortOrder.DESCENDING);
+        .setOrder(SortOrder.DESCENDING);
     when(_mockLocalDAO.listUrns(indexFilter2, indexSortCriterion, null, 2)).thenReturn(urns3);
     actual = runAndWait(_resource.filter(null, indexSortCriterion, new String[0], null, 2));
     assertEquals(actual.size(), 2);
@@ -507,7 +506,7 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     IndexCriterionArray criterionArray = new IndexCriterionArray(criterion);
     IndexFilter indexFilter = new IndexFilter().setCriteria(criterionArray);
     IndexSortCriterion indexSortCriterion = new IndexSortCriterion().setAspect(AspectFoo.class.getCanonicalName())
-        .setPath("/value").setColumn(IndexColumn.STRING_COLUMN).setOrder(SortOrder.DESCENDING);
+        .setOrder(SortOrder.DESCENDING);
     String[] aspectNames = {ModelUtils.getAspectName(AspectFoo.class), ModelUtils.getAspectName(AspectBar.class)};
 
     // case 1: aspect list is provided, null last urn

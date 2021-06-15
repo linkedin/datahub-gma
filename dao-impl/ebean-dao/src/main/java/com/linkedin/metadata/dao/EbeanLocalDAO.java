@@ -19,7 +19,6 @@ import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.ExtraInfoArray;
-import com.linkedin.metadata.query.IndexColumn;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
@@ -93,15 +92,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
           put(Condition.LESS_THAN, "<");
           put(Condition.LESS_THAN_OR_EQUAL_TO, "<=");
           put(Condition.START_WITH, "LIKE");
-        }
-      });
-
-  private static final Map<IndexColumn, String> COLUMN_STRING_MAP =
-      Collections.unmodifiableMap(new HashMap<IndexColumn, String>() {
-        {
-          put(IndexColumn.DOUBLE_COLUMN, EbeanMetadataIndex.DOUBLE_COLUMN);
-          put(IndexColumn.LONG_COLUMN, EbeanMetadataIndex.LONG_COLUMN);
-          put(IndexColumn.STRING_COLUMN, EbeanMetadataIndex.STRING_COLUMN);
         }
       });
 
@@ -894,12 +884,25 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Nonnull
-  private static String getStringForColumn(@Nonnull IndexColumn column) {
-    if (!COLUMN_STRING_MAP.containsKey(column)) {
-      throw new UnsupportedOperationException(
-          column.toString() + " is not supported in local secondary index");
+  private String getSortingColumn(@Nonnull IndexSortCriterion indexSortCriterion) {
+    final EbeanMetadataIndex record = _server.find(EbeanMetadataIndex.class)
+        .select(ALL_COLUMNS)
+        .where()
+        .eq(EbeanMetadataIndex.ASPECT_COLUMN, indexSortCriterion.getAspect())
+        .eq(EbeanMetadataIndex.PATH_COLUMN, indexSortCriterion.getPath())
+        .setMaxRows(1)
+        .findOne();
+
+    if (record.stringVal != null) {
+      return EbeanMetadataIndex.STRING_COLUMN;
+    } else if (record.doubleVal != null) {
+      return EbeanMetadataIndex.DOUBLE_COLUMN;
+    } else if (record.longVal != null) {
+      return EbeanMetadataIndex.LONG_COLUMN;
+    } else {
+      throw new IllegalArgumentException("Invalid sort criterion " + indexSortCriterion);
     }
-    return COLUMN_STRING_MAP.get(column);
+
   }
 
   /**
@@ -908,15 +911,16 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    *
    * @param indexCriterionArray {@link IndexCriterionArray} used to construct the SQL query
    * @param indexSortCriterion {@link IndexSortCriterion} used to construct the SQL query
+   * @param sortColumn column the sort criterion is applied on which is used to construct the SQL query
    * @return String representation of SQL query
    */
   @Nonnull
   private static String constructSQLQuery(@Nonnull IndexCriterionArray indexCriterionArray,
-      @Nullable IndexSortCriterion indexSortCriterion) {
+      @Nullable IndexSortCriterion indexSortCriterion, @Nonnull String sortColumn) {
     String selectClause = "SELECT DISTINCT(t0.urn)";
     if (indexSortCriterion != null) {
       selectClause += ", tsort.";
-      selectClause += getStringForColumn(indexSortCriterion.getColumn());
+      selectClause += sortColumn;
     }
     selectClause += " FROM metadata_index t0";
     selectClause += IntStream.range(1, indexCriterionArray.size())
@@ -945,7 +949,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
       selectClause += " INNER JOIN metadata_index tsort ON t0.urn = tsort.urn";
       whereClause.append(" AND tsort.aspect = ? AND tsort.path = ? ");
-      orderByClause = "ORDER BY tsort." + getStringForColumn(indexSortCriterion.getColumn()) + " " + sortOrder;
+      orderByClause = "ORDER BY tsort." + sortColumn + " " + sortOrder;
     } else {
       orderByClause = "ORDER BY urn ASC";
     }
@@ -991,8 +995,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
     addEntityTypeFilter(indexFilter);
 
+    String sortColumn = indexSortCriterion != null ? getSortingColumn(indexSortCriterion) : "";
+
     final Query<EbeanMetadataIndex> query =
-        _server.findNative(EbeanMetadataIndex.class, constructSQLQuery(indexCriterionArray, indexSortCriterion))
+        _server.findNative(EbeanMetadataIndex.class, constructSQLQuery(indexCriterionArray, indexSortCriterion, sortColumn))
             .setTimeout(INDEX_QUERY_TIMEOUT_IN_SEC);
     setParameters(indexCriterionArray, indexSortCriterion, query, lastUrn == null ? "" : lastUrn.toString(), pageSize);
 

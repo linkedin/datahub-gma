@@ -16,11 +16,6 @@ record IndexSortCriterion {
   path: string
 
   /**
-   * Corresponding value column that this criterion refers to e.g. STRING_COLUMN
-   */
-  column: IndexColumn
-
-  /**
    * The order to sort the results i.e. ASCENDING or DESCENDING
    */
   order: SortOrder

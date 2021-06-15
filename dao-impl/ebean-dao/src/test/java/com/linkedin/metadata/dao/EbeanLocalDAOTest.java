@@ -23,7 +23,6 @@ import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.ExtraInfo;
-import com.linkedin.metadata.query.IndexColumn;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
@@ -889,14 +888,14 @@ public class EbeanLocalDAOTest {
 
     // filter and sort on same aspect and path
     IndexSortCriterion indexSortCriterion1 = new IndexSortCriterion().setAspect(aspect1)
-        .setPath("/path1").setColumn(IndexColumn.STRING_COLUMN).setOrder(SortOrder.DESCENDING);
+        .setPath("/path1").setOrder(SortOrder.DESCENDING);
 
     List<FooUrn> urns2 = dao.listUrns(indexFilter1, indexSortCriterion1, null, 5);
     assertEquals(urns2, Arrays.asList(urn2, urn1, urn3));
 
     // filter and sort on different aspect and path
     IndexSortCriterion indexSortCriterion2 = new IndexSortCriterion().setAspect(aspect2)
-        .setPath("/path2").setColumn(IndexColumn.STRING_COLUMN).setOrder(SortOrder.ASCENDING);
+        .setPath("/path2").setOrder(SortOrder.ASCENDING);
 
     List<FooUrn> urns3 = dao.listUrns(indexFilter1, indexSortCriterion2, null, 5);
     assertEquals(urns3, Arrays.asList(urn3, urn1, urn2));
@@ -911,14 +910,14 @@ public class EbeanLocalDAOTest {
     final IndexFilter indexFilter2 = new IndexFilter().setCriteria(indexCriterionArray2);
 
     IndexSortCriterion indexSortCriterion3 = new IndexSortCriterion().setAspect(aspect2)
-        .setPath("/path3").setColumn(IndexColumn.LONG_COLUMN).setOrder(SortOrder.DESCENDING);
+        .setPath("/path3").setOrder(SortOrder.DESCENDING);
 
     List<FooUrn> urns4 = dao.listUrns(indexFilter2, indexSortCriterion3, null, 5);
     assertEquals(urns4, Arrays.asList(urn3, urn1));
 
     // sorting on double column
     IndexSortCriterion indexSortCriterion4 = new IndexSortCriterion().setAspect(aspect2)
-        .setPath("/path4").setColumn(IndexColumn.DOUBLE_COLUMN).setOrder(SortOrder.ASCENDING);
+        .setPath("/path4").setOrder(SortOrder.ASCENDING);
 
     List<FooUrn> urns5 = dao.listUrns(indexFilter2, indexSortCriterion4, null, 5);
     assertEquals(urns5, Arrays.asList(urn3, urn1));
