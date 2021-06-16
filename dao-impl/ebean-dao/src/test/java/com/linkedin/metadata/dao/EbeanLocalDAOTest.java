@@ -1860,7 +1860,6 @@ public class EbeanLocalDAOTest {
   @Test
   public void testOptimisticLocking() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
-    dao.setUseOptimisticLocking(true);
     FooUrn fooUrn = makeFooUrn(1);
     AspectFoo fooAspect = new AspectFoo().setValue("foo");
 
@@ -1878,9 +1877,20 @@ public class EbeanLocalDAOTest {
     aspect.setCreatedOn(new Timestamp(456));
     _server.update(aspect);
 
-    // call save method with timestamp 123 but timestamp is already changed to 456, expecting OptimisticLockException
-    assertThrows(OptimisticLockException.class, () -> dao.save(fooUrn, fooAspect, makeAuditStamp("fooActor", 789),
-            0, false, makeAuditStamp("fooActor", 123)));
+    // call save method with timestamp 123 but timestamp is already changed to 456
+    // expect OptimisticLockException if optimistic locking is enabled
+
+    ThrowingRunnable runnable = () -> dao.save(fooUrn, fooAspect, makeAuditStamp("fooActor", 789),
+            0, false, makeAuditStamp("fooActor", 123));
+    if (_useOptimisticLocking) {
+      assertThrows(OptimisticLockException.class, runnable);
+    } else {
+      try {
+        runnable.run();
+      } catch (Throwable t) {
+        fail("This shouldn't have failed when optimistic locking is disabled");
+      }
+    }
   }
 
   private void addMetadata(Urn urn, String aspectName, long version, RecordTemplate metadata) {

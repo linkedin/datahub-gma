@@ -349,7 +349,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
                         + "SET urn = :urn, aspect = :aspect, version = :version, metadata = :metadata, createdOn = :createdOn, createdBy = :createdBy "
                         + "WHERE urn = :urn and aspect = :aspect and version = :version and createdOn = :oldCreatedOn";
 
-        SqlUpdate update = _server.createSqlUpdate(updateQuery);
+        final SqlUpdate update = _server.createSqlUpdate(updateQuery);
         update.setParameter("urn", aspect.getKey().getUrn());
         update.setParameter("aspect", aspect.getKey().getAspect());
         update.setParameter("version", aspect.getKey().getVersion());
