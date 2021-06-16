@@ -58,6 +58,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.Nonnull;
+import javax.persistence.OptimisticLockException;
 import javax.persistence.RollbackException;
 import org.mockito.InOrder;
 import org.testng.annotations.BeforeMethod;
@@ -76,18 +77,20 @@ public class EbeanLocalDAOTest {
   private EbeanServer _server;
   private BaseMetadataEventProducer _mockProducer;
   private AuditStamp _dummyAuditStamp;
-  // TODO delete this flag and stop running all tests twice for it.
+  // TODO delete these flags and stop running all tests twice for these.
   private boolean _useUnionForBatch;
+  private boolean _useOptimisticLocking;
 
   @Factory(dataProvider = "inputList")
-  public EbeanLocalDAOTest(boolean useUnionForBatch) {
+  public EbeanLocalDAOTest(boolean useUnionForBatch, boolean useOptimisticLocking) {
     _useUnionForBatch = useUnionForBatch;
+    _useOptimisticLocking = useOptimisticLocking;
   }
 
   @DataProvider
   public static Object[][] inputList() {
     return new Object[][]{
-        {false}, {true}
+        {false, false}, {true, true}
     };
   }
 
@@ -104,6 +107,7 @@ public class EbeanLocalDAOTest {
     final EbeanLocalDAO<EntityAspectUnion, URN> dao =
         new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, server, urnClass);
     dao.setUseUnionForBatch(_useUnionForBatch);
+    dao.setUseOptimisticLocking(_useOptimisticLocking);
     return dao;
   }
 
@@ -567,6 +571,7 @@ public class EbeanLocalDAOTest {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao =
         new EbeanLocalDAO<>(_mockProducer, _server, storageConfig, FooUrn.class);
     dao.setUseUnionForBatch(_useUnionForBatch);
+    dao.setUseOptimisticLocking(_useOptimisticLocking);
     dao.enableLocalSecondaryIndex(true);
 
     List<FooUrn> urns = ImmutableList.of(makeFooUrn(1), makeFooUrn(2), makeFooUrn(3));
@@ -892,6 +897,7 @@ public class EbeanLocalDAOTest {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao =
         new EbeanLocalDAO<>(_mockProducer, _server, storageConfig, FooUrn.class);
     dao.setUseUnionForBatch(_useUnionForBatch);
+    dao.setUseOptimisticLocking(_useOptimisticLocking);
     dao.enableLocalSecondaryIndex(true);
     dao.setUrnPathExtractor(new FooUrnPathExtractor());
 
@@ -1256,6 +1262,7 @@ public class EbeanLocalDAOTest {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao =
         new EbeanLocalDAO<>(_mockProducer, _server, storageConfig, FooUrn.class);
     dao.setUseUnionForBatch(_useUnionForBatch);
+    dao.setUseOptimisticLocking(_useOptimisticLocking);
     dao.enableLocalSecondaryIndex(true);
     dao.setUrnPathExtractor(new FooUrnPathExtractor());
     AspectFoo aspect = new AspectFoo().setValue("val2");
@@ -1276,6 +1283,7 @@ public class EbeanLocalDAOTest {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = new EbeanLocalDAO<>(_mockProducer, _server,
         makeLocalDAOStorageConfig(AspectFooEvolved.class, Arrays.asList("/value", "/newValue")), FooUrn.class);
     dao.setUseUnionForBatch(_useUnionForBatch);
+    dao.setUseOptimisticLocking(_useOptimisticLocking);
     dao.enableLocalSecondaryIndex(true);
     dao.setUrnPathExtractor(new FooUrnPathExtractor());
     FooUrn urn = makeFooUrn(1);
@@ -1847,6 +1855,32 @@ public class EbeanLocalDAOTest {
   @Test
   public void testPageSizeGreaterThanResultsSize() {
     testGetWithQuerySize(1000);
+  }
+
+  @Test
+  public void testOptimisticLocking() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    dao.setUseOptimisticLocking(true);
+    FooUrn fooUrn = makeFooUrn(1);
+    AspectFoo fooAspect = new AspectFoo().setValue("foo");
+
+    // create bean
+    EbeanMetadataAspect aspect = new EbeanMetadataAspect();
+    aspect.setKey(new EbeanMetadataAspect.PrimaryKey(fooUrn.toString(), AspectFoo.class.getCanonicalName(), 0));
+    aspect.setMetadata(RecordUtils.toJsonString(fooAspect));
+    aspect.setCreatedOn(new Timestamp(123));
+    aspect.setCreatedBy("fooActor");
+
+    // add aspect to the db
+    _server.insert(aspect);
+
+    // change timestamp and update the inserted row. this simulates a change in the version 0 row by a concurrent transaction
+    aspect.setCreatedOn(new Timestamp(456));
+    _server.update(aspect);
+
+    // call save method with timestamp 123 but timestamp is already changed to 456, expecting OptimisticLockException
+    assertThrows(OptimisticLockException.class, () -> dao.save(fooUrn, fooAspect, makeAuditStamp("fooActor", 789),
+            0, false, makeAuditStamp("fooActor", 123)));
   }
 
   private void addMetadata(Urn urn, String aspectName, long version, RecordTemplate metadata) {
