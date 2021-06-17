@@ -853,32 +853,32 @@ public class EbeanLocalDAOTest {
     FooUrn urn1 = makeFooUrn(1);
     FooUrn urn2 = makeFooUrn(2);
     FooUrn urn3 = makeFooUrn(3);
-    String aspect1 = "aspect1" + System.currentTimeMillis();
-    String aspect2 = "aspect2" + System.currentTimeMillis();
+    String aspect1 = AspectFoo.class.getCanonicalName();
+    String aspect2 = AspectBaz.class.getCanonicalName();
 
-    addIndex(urn1, aspect1, "/path1", "valB");
-    addIndex(urn1, aspect2, "/path2", "dolphin");
-    addIndex(urn1, aspect2, "/path3", 10);
-    addIndex(urn1, aspect2, "/path4", 100.3);
+    addIndex(urn1, aspect1, "/value", "valB");
+    addIndex(urn1, aspect2, "/stringField", "dolphin");
+    addIndex(urn1, aspect2, "/longField", 10);
+    addIndex(urn1, aspect2, "/recordField/value", "nestedC");
     addIndex(urn1, FooUrn.class.getCanonicalName(), "/fooId", 1);
 
-    addIndex(urn2, aspect1, "/path1", "valC");
-    addIndex(urn2, aspect2, "/path2", "reindeer");
-    addIndex(urn2, aspect2, "/path3", 8);
-    addIndex(urn2, aspect2, "/path4", 10.4);
+    addIndex(urn2, aspect1, "/value", "valC");
+    addIndex(urn2, aspect2, "/stringField", "reindeer");
+    addIndex(urn2, aspect2, "/longField", 8);
+    addIndex(urn2, aspect2, "/recordField/value", "nestedB");
     addIndex(urn2, FooUrn.class.getCanonicalName(), "/fooId", 2);
 
-    addIndex(urn3, aspect1, "/path1", "valA");
-    addIndex(urn3, aspect2, "/path2", "dog");
-    addIndex(urn3, aspect2, "/path3", 100);
-    addIndex(urn3, aspect2, "/path4", 1.65);
+    addIndex(urn3, aspect1, "/value", "valA");
+    addIndex(urn3, aspect2, "/stringField", "dog");
+    addIndex(urn3, aspect2, "/longField", 100);
+    addIndex(urn3, aspect2, "/recordField/value", "nestedA");
     addIndex(urn3, FooUrn.class.getCanonicalName(), "/fooId", 3);
 
     // filter and no sorting criterion
     IndexValue indexValue1 = new IndexValue();
     indexValue1.setString("val");
     IndexCriterion criterion1 = new IndexCriterion().setAspect(aspect1)
-        .setPathParams(new IndexPathParams().setPath("/path1").setValue(indexValue1).setCondition(Condition.START_WITH));
+        .setPathParams(new IndexPathParams().setPath("/value").setValue(indexValue1).setCondition(Condition.START_WITH));
 
     IndexCriterionArray indexCriterionArray1 = new IndexCriterionArray(Collections.singletonList(criterion1));
     final IndexFilter indexFilter1 = new IndexFilter().setCriteria(indexCriterionArray1);
@@ -888,14 +888,14 @@ public class EbeanLocalDAOTest {
 
     // filter and sort on same aspect and path
     IndexSortCriterion indexSortCriterion1 = new IndexSortCriterion().setAspect(aspect1)
-        .setPath("/path1").setOrder(SortOrder.DESCENDING);
+        .setPath("/value").setOrder(SortOrder.DESCENDING);
 
     List<FooUrn> urns2 = dao.listUrns(indexFilter1, indexSortCriterion1, null, 5);
-    assertEquals(urns2, Arrays.asList(urn2, urn1, urn3));
+        assertEquals(urns2, Arrays.asList(urn2, urn1, urn3));
 
     // filter and sort on different aspect and path
     IndexSortCriterion indexSortCriterion2 = new IndexSortCriterion().setAspect(aspect2)
-        .setPath("/path2").setOrder(SortOrder.ASCENDING);
+        .setPath("/stringField").setOrder(SortOrder.ASCENDING);
 
     List<FooUrn> urns3 = dao.listUrns(indexFilter1, indexSortCriterion2, null, 5);
     assertEquals(urns3, Arrays.asList(urn3, urn1, urn2));
@@ -904,23 +904,23 @@ public class EbeanLocalDAOTest {
     IndexValue indexValue2 = new IndexValue();
     indexValue2.setString("do");
     IndexCriterion criterion2 = new IndexCriterion().setAspect(aspect2)
-        .setPathParams(new IndexPathParams().setPath("/path2").setValue(indexValue2).setCondition(Condition.START_WITH));
+        .setPathParams(new IndexPathParams().setPath("/stringField").setValue(indexValue2).setCondition(Condition.START_WITH));
 
     IndexCriterionArray indexCriterionArray2 = new IndexCriterionArray(Collections.singletonList(criterion2));
     final IndexFilter indexFilter2 = new IndexFilter().setCriteria(indexCriterionArray2);
 
     IndexSortCriterion indexSortCriterion3 = new IndexSortCriterion().setAspect(aspect2)
-        .setPath("/path3").setOrder(SortOrder.DESCENDING);
+        .setPath("/longField").setOrder(SortOrder.DESCENDING);
 
     List<FooUrn> urns4 = dao.listUrns(indexFilter2, indexSortCriterion3, null, 5);
     assertEquals(urns4, Arrays.asList(urn3, urn1));
 
-    // sorting on double column
+    // sorting on nested field
     IndexSortCriterion indexSortCriterion4 = new IndexSortCriterion().setAspect(aspect2)
-        .setPath("/path4").setOrder(SortOrder.ASCENDING);
+        .setPath("/recordField/value").setOrder(SortOrder.ASCENDING);
 
-    List<FooUrn> urns5 = dao.listUrns(indexFilter2, indexSortCriterion4, null, 5);
-    assertEquals(urns5, Arrays.asList(urn3, urn1));
+    List<FooUrn> urns5 = dao.listUrns(indexFilter1, indexSortCriterion4, null, 5);
+    assertEquals(urns5, Arrays.asList(urn3, urn2, urn1));
   }
 
   @Test
