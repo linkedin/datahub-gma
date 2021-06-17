@@ -68,6 +68,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   private static final int INDEX_QUERY_TIMEOUT_IN_SEC = 5;
   private static final String EBEAN_MODEL_PACKAGE = EbeanMetadataAspect.class.getPackage().getName();
   private static final String EBEAN_INDEX_PACKAGE = EbeanMetadataIndex.class.getPackage().getName();
+  private static final String DEFAULT_COLUMN_FOR_OPTIMISTIC_LOCK = CREATED_ON_COLUMN;
 
   protected final EbeanServer _server;
   protected final Class<URN> _urnClass;
@@ -288,10 +289,18 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     if (oldValue != null && oldAuditStamp != null) {
       largestVersion = getNextVersion(urn, aspectClass);
       save(urn, oldValue, oldAuditStamp, largestVersion, true);
+
+      // update latest version
+      if (_useOptimisticLocking) {
+        saveWithOptimisticLocking(urn, newValue, newAuditStamp, LATEST_VERSION, false,
+                DEFAULT_COLUMN_FOR_OPTIMISTIC_LOCK, new Timestamp(oldAuditStamp.getTime()));
+      } else {
+        save(urn, newValue, newAuditStamp, LATEST_VERSION, false);
+      }
+    } else {
+      save(urn, newValue, newAuditStamp, LATEST_VERSION, true);
     }
 
-    // Save newValue as the latest version (v0)
-    save(urn, newValue, newAuditStamp, LATEST_VERSION, oldValue == null, oldAuditStamp);
     return largestVersion;
   }
 
@@ -323,54 +332,80 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     return new AspectEntry<>(RecordUtils.toRecordTemplate(aspectClass, latest.getMetadata()), toExtraInfo(latest));
   }
 
-  protected void save(@Nonnull URN urn, @Nonnull RecordTemplate value, @Nonnull AuditStamp newAuditStamp, long version,
-                    boolean insert, @Nullable AuditStamp oldAuditStamp) {
+  @Nonnull
+  private EbeanMetadataAspect buildMetadataAspectBean(@Nonnull URN urn, @Nonnull RecordTemplate value,
+                                                      @Nonnull AuditStamp auditStamp, long version) {
 
     final String aspectName = ModelUtils.getAspectName(value.getClass());
 
     final EbeanMetadataAspect aspect = new EbeanMetadataAspect();
     aspect.setKey(new PrimaryKey(urn.toString(), aspectName, version));
     aspect.setMetadata(RecordUtils.toJsonString(value));
-    aspect.setCreatedOn(new Timestamp(newAuditStamp.getTime()));
-    aspect.setCreatedBy(newAuditStamp.getActor().toString());
+    aspect.setCreatedOn(new Timestamp(auditStamp.getTime()));
+    aspect.setCreatedBy(auditStamp.getActor().toString());
 
-    Urn impersonator = newAuditStamp.getImpersonator();
+    final Urn impersonator = auditStamp.getImpersonator();
     if (impersonator != null) {
       aspect.setCreatedFor(impersonator.toString());
     }
 
+    return aspect;
+  }
+
+  // visible for testing
+  protected void saveWithOptimisticLocking(@Nonnull URN urn, @Nonnull RecordTemplate value,
+                                           @Nonnull AuditStamp newAuditStamp,
+                                           long version, boolean insert,
+                                           @Nonnull String columnToLock, @Nonnull Object oldLockValue) {
+
+    final EbeanMetadataAspect aspect = buildMetadataAspectBean(urn, value, newAuditStamp, version);
+
     if (insert) {
       _server.insert(aspect);
-    } else {
-      if (_useOptimisticLocking && oldAuditStamp != null) {
+      return;
+    }
 
-        // Build manual SQL update query to enable optimistic locking on createdOn column
-        final String updateQuery = "UPDATE metadata_aspect "
-                        + "SET urn = :urn, aspect = :aspect, version = :version, metadata = :metadata, createdOn = :createdOn, createdBy = :createdBy "
-                        + "WHERE urn = :urn and aspect = :aspect and version = :version and createdOn = :oldCreatedOn";
+    // Build manual SQL update query to enable optimistic locking on a given column
+    // Optimistic locking is supported on ebean using @version, see https://ebean.io/docs/mapping/jpa/version
+    // But we can't use @version annotation for optimistic locking for two reasons:
+    //   1. That prevents flag guarding optimistic locking feature
+    //   2. When using @version annotation, Ebean starts to override all updates to that column
+    //      by disregarding any user change.
+    // Ideally, another column for the sake of optimistic locking would be preferred but that means a change to
+    // metadata_aspect schema and we don't take this route here to keep this change backward incompatible.
+    final String updateQuery = String.format("UPDATE %s "
+            + "SET urn = :urn, aspect = :aspect, version = :version, metadata = :metadata, createdOn = :createdOn, createdBy = :createdBy "
+            + "WHERE urn = :urn and aspect = :aspect and version = :version and %s = :oldLockValue",
+            EbeanMetadataAspect.class.getAnnotation(Table.class).name(),
+            columnToLock);
 
-        final SqlUpdate update = _server.createSqlUpdate(updateQuery);
-        update.setParameter("urn", aspect.getKey().getUrn());
-        update.setParameter("aspect", aspect.getKey().getAspect());
-        update.setParameter("version", aspect.getKey().getVersion());
-        update.setParameter("metadata", aspect.getMetadata());
-        update.setParameter("createdOn", aspect.getCreatedOn());
-        update.setParameter("createdBy", aspect.getCreatedBy());
-        update.setParameter("oldCreatedOn", new Timestamp(oldAuditStamp.getTime()));
+    final SqlUpdate update = _server.createSqlUpdate(updateQuery);
+    update.setParameter("urn", aspect.getKey().getUrn());
+    update.setParameter("aspect", aspect.getKey().getAspect());
+    update.setParameter("version", aspect.getKey().getVersion());
+    update.setParameter("metadata", aspect.getMetadata());
+    update.setParameter("createdOn", aspect.getCreatedOn());
+    update.setParameter("createdBy", aspect.getCreatedBy());
+    update.setParameter("oldLockValue", oldLockValue);
 
-        if (_server.execute(update) != 1) {
-          throw new OptimisticLockException();
-        }
-      } else {
-        _server.update(aspect);
-      }
+    // If there is no single updated row, emit OptimisticLockException
+    int numOfUpdatedRows = _server.execute(update);
+    if (numOfUpdatedRows != 1) {
+      throw new OptimisticLockException(numOfUpdatedRows + " rows updated during save query: " + update.getGeneratedSql());
     }
   }
 
   @Override
   protected void save(@Nonnull URN urn, @Nonnull RecordTemplate value, @Nonnull AuditStamp auditStamp, long version,
       boolean insert) {
-    save(urn, value, auditStamp, version, insert, null);
+
+    final EbeanMetadataAspect aspect = buildMetadataAspectBean(urn, value, auditStamp, version);
+
+    if (insert) {
+      _server.insert(aspect);
+    } else {
+      _server.update(aspect);
+    }
   }
 
   protected void saveRecordsToLocalIndex(@Nonnull URN urn, @Nonnull String aspect, @Nonnull String path,
