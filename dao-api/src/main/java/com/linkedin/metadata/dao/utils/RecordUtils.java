@@ -164,6 +164,24 @@ public class RecordUtils {
   }
 
   /**
+   * Gets aspect from a string representing the class name.
+   *
+   * @param aspectClassString string representation of an aspect class
+   * @return the aspect corresponding to the aspect class
+   */
+  @Nonnull
+  public static <ASPECT extends RecordTemplate> ASPECT getAspectFromString(@Nonnull String aspectClassString) {
+    final Class<ASPECT> aspectClass;
+    try {
+      aspectClass = (Class<ASPECT>) Class.forName(aspectClassString);
+    } catch (ClassNotFoundException e) {
+      throw new RuntimeException("Exception occurred while trying to get the aspect class. ", e);
+    }
+
+    return getAspectFromClass(aspectClass);
+  }
+
+  /**
    * Extracts the aspect from an entity value which includes a single aspect.
    *
    * @param entity the entity value.
@@ -422,6 +440,10 @@ public class RecordUtils {
     pathSpecAsString = LEADING_SPACESLASH_PATTERN.matcher(pathSpecAsString).replaceAll("");
     pathSpecAsString = TRAILING_SPACESLASH_PATTERN.matcher(pathSpecAsString).replaceAll("");
 
+    if (pathSpecAsString.isEmpty()) {
+      return new String[0];
+    }
+
     return SLASH_PATERN.split(pathSpecAsString);
   }
 
@@ -431,7 +453,7 @@ public class RecordUtils {
    */
   @Nonnull
   public static Optional<Object> getFieldValue(@Nonnull RecordTemplate recordTemplate, @Nonnull String pathSpecAsString) {
-    String[] pathSpecAsArray = getPathSpecAsArray(pathSpecAsString);
+    final String[] pathSpecAsArray = getPathSpecAsArray(pathSpecAsString);
 
     if (pathSpecAsArray.length > 0) {
       return getFieldValue(recordTemplate, new PathSpec(pathSpecAsArray));

@@ -886,23 +886,11 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Nonnull
-  private <ASPECT extends RecordTemplate> ASPECT getAspectFromString(@Nonnull String aspectClassString) {
-    final Class<ASPECT> aspectClass;
-    try {
-      aspectClass = (Class<ASPECT>) Class.forName(aspectClassString);
-    } catch (ClassNotFoundException e) {
-      throw new RuntimeException("Exception occurred while trying to get the aspect class. ", e);
-    }
-
-    return RecordUtils.getAspectFromClass(aspectClass);
-  }
-
-  @Nonnull
-  private <ASPECT extends RecordTemplate> String getSortingColumn(@Nonnull IndexSortCriterion indexSortCriterion) {
+  static <ASPECT extends RecordTemplate> String getSortingColumn(@Nonnull IndexSortCriterion indexSortCriterion) {
     final String[] pathSpecArray = RecordUtils.getPathSpecAsArray(indexSortCriterion.getPath());
 
     // get nested field
-    ASPECT aspect = getAspectFromString(indexSortCriterion.getAspect());
+    ASPECT aspect = RecordUtils.getAspectFromString(indexSortCriterion.getAspect());
 
     final int pathSize = pathSpecArray.length;
 
@@ -913,7 +901,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
       if (dataSchema.getDereferencedType() == DataSchema.Type.RECORD) {
         final String nestedAspectName = ((RecordDataSchema) dataSchema).getBindingName();
-        aspect = getAspectFromString(nestedAspectName);
+        aspect = RecordUtils.getAspectFromString(nestedAspectName);
       } else {
         throw new IllegalArgumentException("Invalid path field for aspect in sort criterion " + indexSortCriterion);
       }
@@ -925,12 +913,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
     if (type == DataSchema.Type.INT || type == DataSchema.Type.LONG) {
       return EbeanMetadataIndex.LONG_COLUMN;
-    } else if (type == DataSchema.Type.BOOLEAN || type == DataSchema.Type.STRING) {
-      return EbeanMetadataIndex.STRING_COLUMN;
     } else if (type == DataSchema.Type.DOUBLE || type == DataSchema.Type.FLOAT) {
       return EbeanMetadataIndex.DOUBLE_COLUMN;
     } else {
-      throw new IllegalArgumentException("Invalid path field for aspect in sort criterion " + indexSortCriterion);
+      return EbeanMetadataIndex.STRING_COLUMN;
     }
   }
 

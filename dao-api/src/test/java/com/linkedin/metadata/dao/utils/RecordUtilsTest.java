@@ -166,6 +166,39 @@ public class RecordUtilsTest {
   }
 
   @Test
+  public void testGetPathSpecAsArray() {
+    String ps1 = "/test/path";
+    String[] psArray1 = RecordUtils.getPathSpecAsArray(ps1);
+
+    assertEquals(psArray1.length, 2);
+    assertEquals(psArray1[0], "test");
+    assertEquals(psArray1[1], "path");
+
+    String ps2 = "/";
+    String[] psArray2 = RecordUtils.getPathSpecAsArray(ps2);
+
+    assertEquals(psArray2.length, 0);
+
+    String ps3 = "/test/";
+    String[] psArray3 = RecordUtils.getPathSpecAsArray(ps3);
+
+    assertEquals(psArray3.length, 1);
+    assertEquals(psArray3[0], "test");
+  }
+
+  @Test
+  public void testGetAspectFromString() {
+    assertEquals(RecordUtils.getAspectFromString(AspectBar.class.getCanonicalName()), new AspectBar());
+    assertThrows(RuntimeException.class,
+        () -> RecordUtils.getAspectFromString(""));
+  }
+
+  @Test
+  public void testGetAspectFromClass() {
+    assertEquals(RecordUtils.getAspectFromClass(AspectBar.class), new AspectBar());
+  }
+
+  @Test
   public void testExtractAspectFromSingleAspectEntity() {
     String field1 = "foo";
     EntityValue value = new EntityValue();

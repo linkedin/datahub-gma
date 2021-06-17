@@ -2,6 +2,7 @@
   "boolField": true,
   "stringField": "baz",
   "longField": 1234,
+  "intField": 1,
   "arrayField": [
     "1",
     "2",

@@ -847,6 +847,69 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
+  public void testGetSortingColumn() {
+    // 1. string corresponds to string column
+    IndexSortCriterion indexSortCriterion1 = new IndexSortCriterion().setAspect(AspectFoo.class.getCanonicalName())
+        .setPath("/value").setOrder(SortOrder.DESCENDING);
+    String sortingColumn1 = EbeanLocalDAO.getSortingColumn(indexSortCriterion1);
+    assertEquals(sortingColumn1, EbeanMetadataIndex.STRING_COLUMN);
+
+    // 2. boolean corresponds to string column
+    IndexSortCriterion indexSortCriterion2 = new IndexSortCriterion().setAspect(AspectBaz.class.getCanonicalName())
+        .setPath("/boolField").setOrder(SortOrder.DESCENDING);
+    String sortingColumn2 = EbeanLocalDAO.getSortingColumn(indexSortCriterion2);
+    assertEquals(sortingColumn2, EbeanMetadataIndex.STRING_COLUMN);
+
+    // 3. int corresponds to long column
+    IndexSortCriterion indexSortCriterion3 = new IndexSortCriterion().setAspect(AspectBaz.class.getCanonicalName())
+        .setPath("/intField").setOrder(SortOrder.DESCENDING);
+    String sortingColumn3 = EbeanLocalDAO.getSortingColumn(indexSortCriterion3);
+    assertEquals(sortingColumn3, EbeanMetadataIndex.LONG_COLUMN);
+
+    // 4. long corresponds to long column
+    IndexSortCriterion indexSortCriterion4 = new IndexSortCriterion().setAspect(AspectBaz.class.getCanonicalName())
+        .setPath("/longField").setOrder(SortOrder.DESCENDING);
+    String sortingColumn4 = EbeanLocalDAO.getSortingColumn(indexSortCriterion4);
+    assertEquals(sortingColumn4, EbeanMetadataIndex.LONG_COLUMN);
+
+    // 5. double corresponds to double column
+    IndexSortCriterion indexSortCriterion5 = new IndexSortCriterion().setAspect(AspectBaz.class.getCanonicalName())
+        .setPath("/doubleField").setOrder(SortOrder.DESCENDING);
+    String sortingColumn5 = EbeanLocalDAO.getSortingColumn(indexSortCriterion5);
+    assertEquals(sortingColumn5, EbeanMetadataIndex.DOUBLE_COLUMN);
+
+    // 6. float corresponds to double column
+    IndexSortCriterion indexSortCriterion6 = new IndexSortCriterion().setAspect(AspectBaz.class.getCanonicalName())
+        .setPath("/floatField").setOrder(SortOrder.DESCENDING);
+    String sortingColumn6 = EbeanLocalDAO.getSortingColumn(indexSortCriterion6);
+    assertEquals(sortingColumn6, EbeanMetadataIndex.DOUBLE_COLUMN);
+
+    // 7. array corresponds to string column
+    IndexSortCriterion indexSortCriterion7 = new IndexSortCriterion().setAspect(AspectBaz.class.getCanonicalName())
+        .setPath("/arrayField").setOrder(SortOrder.DESCENDING);
+    String sortingColumn7 = EbeanLocalDAO.getSortingColumn(indexSortCriterion7);
+    assertEquals(sortingColumn7, EbeanMetadataIndex.STRING_COLUMN);
+
+    // 8. union corresponds to string column
+    IndexSortCriterion indexSortCriterion8 = new IndexSortCriterion().setAspect(AspectBaz.class.getCanonicalName())
+        .setPath("/unionField").setOrder(SortOrder.DESCENDING);
+    String sortingColumn8 = EbeanLocalDAO.getSortingColumn(indexSortCriterion8);
+    assertEquals(sortingColumn7, EbeanMetadataIndex.STRING_COLUMN);
+
+    // 9. record corresponds to string column
+    IndexSortCriterion indexSortCriterion9 = new IndexSortCriterion().setAspect(AspectBaz.class.getCanonicalName())
+        .setPath("/recordField").setOrder(SortOrder.DESCENDING);
+    String sortingColumn9 = EbeanLocalDAO.getSortingColumn(indexSortCriterion9);
+    assertEquals(sortingColumn9, EbeanMetadataIndex.STRING_COLUMN);
+
+    // 10. nested field
+    IndexSortCriterion indexSortCriterion10 = new IndexSortCriterion().setAspect(AspectBaz.class.getCanonicalName())
+        .setPath("/recordField/value").setOrder(SortOrder.DESCENDING);
+    String sortingColumn10 = EbeanLocalDAO.getSortingColumn(indexSortCriterion10);
+    assertEquals(sortingColumn10, EbeanMetadataIndex.STRING_COLUMN);
+  }
+
+  @Test
   public void testSorting() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     dao.enableLocalSecondaryIndex(true);
