@@ -179,7 +179,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   /**
-   * Determines whether we should use optimistic locking in updates. Optimistic locking is done on {@code createdOn} column
+   * Determines whether we should use optimistic locking in updates.
+   *
+   * <p>The column to execute optimistic locking is controlled by {@link #DEFAULT_COLUMN_FOR_OPTIMISTIC_LOCK}
    *
    * <p>DO NOT USE THIS FLAG! This is for LinkedIn use to help us test this feature without a rollback. Once we've
    * vetted this in production we will be removing this flag and making the the default behavior. So if you set this
