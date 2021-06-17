@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -86,7 +87,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   // Maps an aspect class to the corresponding equality tester
   private final Map<Class<? extends RecordTemplate>, EqualityTester<? extends RecordTemplate>>
-      _aspectEqualityTesterMap = new HashMap<>();
+      _aspectEqualityTesterMap = new ConcurrentHashMap<>();
 
   private boolean _modelValidationOnWrite = true;
 
