@@ -37,7 +37,6 @@ import io.ebean.Query;
 import io.ebean.Transaction;
 import io.ebean.config.ServerConfig;
 import io.ebean.datasource.DataSourceConfig;
-import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URISyntaxException;
@@ -51,7 +50,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.Nonnull;
@@ -896,37 +894,12 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       throw new RuntimeException("Exception occurred while trying to get the aspect class. ", e);
     }
 
-    // Create an empty aspect to extract its field names
-    final Constructor<ASPECT> constructor;
-    try {
-      @SuppressWarnings("rawtypes")
-      final Class[] constructorParamArray = new Class[]{};
-      constructor = aspectClass.getConstructor(constructorParamArray);
-    } catch (NoSuchMethodException e) {
-      throw new RuntimeException("Exception occurred while trying to get the default constructor for the aspect. ", e);
-    }
-
-    final ASPECT aspect;
-    try {
-      aspect = constructor.newInstance();
-    } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-      throw new RuntimeException("Exception occurred while creating an instance of the aspect. ", e);
-    }
-
-    return aspect;
+    return RecordUtils.getAspectFromClass(aspectClass);
   }
 
   @Nonnull
   private <ASPECT extends RecordTemplate> String getSortingColumn(@Nonnull IndexSortCriterion indexSortCriterion) {
-    // split sort criterion path into an array
-    final Pattern leadingSpaceslashPattern = Pattern.compile("^[/ ]+");
-    final Pattern trailingSpaceslashPattern = Pattern.compile("[/ ]+$");
-    final Pattern slashPattern = Pattern.compile("/");
-
-    String pathSpecAsString = indexSortCriterion.getPath();
-    pathSpecAsString = leadingSpaceslashPattern.matcher(pathSpecAsString).replaceAll("");
-    pathSpecAsString = trailingSpaceslashPattern.matcher(pathSpecAsString).replaceAll("");
-    final String[] pathSpecArray = slashPattern.split(pathSpecAsString);
+    final String[] pathSpecArray = RecordUtils.getPathSpecAsArray(indexSortCriterion.getPath());
 
     // get nested field
     ASPECT aspect = getAspectFromString(indexSortCriterion.getAspect());
@@ -942,7 +915,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         final String nestedAspectName = ((RecordDataSchema) dataSchema).getBindingName();
         aspect = getAspectFromString(nestedAspectName);
       } else {
-        throw new IllegalArgumentException("Invalid sort criterion " + indexSortCriterion);
+        throw new IllegalArgumentException("Invalid path field for aspect in sort criterion " + indexSortCriterion);
       }
     }
 
@@ -957,7 +930,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     } else if (type == DataSchema.Type.DOUBLE || type == DataSchema.Type.FLOAT) {
       return EbeanMetadataIndex.DOUBLE_COLUMN;
     } else {
-      throw new IllegalArgumentException("Invalid sort criterion " + indexSortCriterion);
+      throw new IllegalArgumentException("Invalid path field for aspect in sort criterion " + indexSortCriterion);
     }
   }
 
