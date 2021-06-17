@@ -68,7 +68,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   private static final int INDEX_QUERY_TIMEOUT_IN_SEC = 5;
   private static final String EBEAN_MODEL_PACKAGE = EbeanMetadataAspect.class.getPackage().getName();
   private static final String EBEAN_INDEX_PACKAGE = EbeanMetadataIndex.class.getPackage().getName();
-  private static final String DEFAULT_COLUMN_FOR_OPTIMISTIC_LOCK = CREATED_ON_COLUMN;
 
   protected final EbeanServer _server;
   protected final Class<URN> _urnClass;
@@ -295,7 +294,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       // update latest version
       if (_useOptimisticLocking) {
         saveWithOptimisticLocking(urn, newValue, newAuditStamp, LATEST_VERSION, false,
-                DEFAULT_COLUMN_FOR_OPTIMISTIC_LOCK, new Timestamp(oldAuditStamp.getTime()));
+                new Timestamp(oldAuditStamp.getTime()));
       } else {
         save(urn, newValue, newAuditStamp, LATEST_VERSION, false);
       }
@@ -358,7 +357,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   protected void saveWithOptimisticLocking(@Nonnull URN urn, @Nonnull RecordTemplate value,
                                            @Nonnull AuditStamp newAuditStamp,
                                            long version, boolean insert,
-                                           @Nonnull String columnToLock, @Nonnull Object oldLockValue) {
+                                           @Nonnull Object oldTimestamp) {
 
     final EbeanMetadataAspect aspect = buildMetadataAspectBean(urn, value, newAuditStamp, version);
 
@@ -375,11 +374,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     //      by disregarding any user change.
     // Ideally, another column for the sake of optimistic locking would be preferred but that means a change to
     // metadata_aspect schema and we don't take this route here to keep this change backward incompatible.
-    final String updateQuery = String.format("UPDATE %s "
+    final String updateQuery = String.format("UPDATE metadata_aspect "
             + "SET urn = :urn, aspect = :aspect, version = :version, metadata = :metadata, createdOn = :createdOn, createdBy = :createdBy "
-            + "WHERE urn = :urn and aspect = :aspect and version = :version and %s = :oldLockValue",
-            EbeanMetadataAspect.class.getAnnotation(Table.class).name(),
-            columnToLock);
+            + "WHERE urn = :urn and aspect = :aspect and version = :version and createdOn = :oldTimestamp");
 
     final SqlUpdate update = _server.createSqlUpdate(updateQuery);
     update.setParameter("urn", aspect.getKey().getUrn());
@@ -388,7 +385,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     update.setParameter("metadata", aspect.getMetadata());
     update.setParameter("createdOn", aspect.getCreatedOn());
     update.setParameter("createdBy", aspect.getCreatedBy());
-    update.setParameter("oldLockValue", oldLockValue);
+    update.setParameter("oldTimestamp", oldTimestamp);
 
     // If there is no single updated row, emit OptimisticLockException
     int numOfUpdatedRows = _server.execute(update);

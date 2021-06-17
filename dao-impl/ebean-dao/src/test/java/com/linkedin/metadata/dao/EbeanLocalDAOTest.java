@@ -1881,7 +1881,7 @@ public class EbeanLocalDAOTest {
     // call save method with timestamp 123 but timestamp is already changed to 456
     // expect OptimisticLockException if optimistic locking is enabled
     dao.saveWithOptimisticLocking(fooUrn, fooAspect,
-            makeAuditStamp("fooActor", 789), 0, false, "createdOn", new Timestamp(123));
+            makeAuditStamp("fooActor", 789), 0, false, new Timestamp(123));
   }
 
   private void addMetadata(Urn urn, String aspectName, long version, RecordTemplate metadata) {
