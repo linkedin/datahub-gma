@@ -30,6 +30,7 @@ import io.ebean.EbeanServerFactory;
 import io.ebean.ExpressionList;
 import io.ebean.PagedList;
 import io.ebean.Query;
+import io.ebean.SqlUpdate;
 import io.ebean.Transaction;
 import io.ebean.config.ServerConfig;
 import io.ebean.datasource.DataSourceConfig;
@@ -50,6 +51,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.persistence.OptimisticLockException;
 import javax.persistence.RollbackException;
 import javax.persistence.Table;
 import lombok.Value;
@@ -72,8 +74,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   private UrnPathExtractor<URN> _urnPathExtractor;
   private int _queryKeysCount = 0; // 0 means no pagination on keys
 
-  // TODO feature flag, remove when vetted.
+  // TODO feature flags, remove when vetted.
   private boolean _useUnionForBatch = false;
+  private boolean _useOptimisticLocking = false;
 
   @Value
   static class GMAIndexPair {
@@ -174,6 +177,18 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     _useUnionForBatch = useUnionForBatch;
   }
 
+  /**
+   * Determines whether we should use optimistic locking in updates. Optimistic locking is done on {@code createdOn} column
+   *
+   * <p>DO NOT USE THIS FLAG! This is for LinkedIn use to help us test this feature without a rollback. Once we've
+   * vetted this in production we will be removing this flag and making the the default behavior. So if you set this
+   * to true by calling this method, your code will break when we remove this method. Just wait a bit for us to turn
+   * it on by default!
+   */
+  public void setUseOptimisticLocking(boolean useOptimisticLocking) {
+    _useOptimisticLocking = useOptimisticLocking;
+  }
+
   @Nonnull
   private static EbeanServer createServer(@Nonnull ServerConfig serverConfig) {
     // Make sure that the serverConfig includes the package that contains DAO's Ebean model.
@@ -252,7 +267,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         transaction.commit();
         lastException = null;
         break;
-      } catch (RollbackException | DuplicateKeyException exception) {
+      } catch (RollbackException | DuplicateKeyException | OptimisticLockException exception) {
         lastException = exception;
       }
     } while (++retryCount <= maxTransactionRetry);
@@ -273,10 +288,18 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     if (oldValue != null && oldAuditStamp != null) {
       largestVersion = getNextVersion(urn, aspectClass);
       save(urn, oldValue, oldAuditStamp, largestVersion, true);
+
+      // update latest version
+      if (_useOptimisticLocking) {
+        saveWithOptimisticLocking(urn, newValue, newAuditStamp, LATEST_VERSION, false,
+                new Timestamp(oldAuditStamp.getTime()));
+      } else {
+        save(urn, newValue, newAuditStamp, LATEST_VERSION, false);
+      }
+    } else {
+      save(urn, newValue, newAuditStamp, LATEST_VERSION, true);
     }
 
-    // Save newValue as the latest version (v0)
-    save(urn, newValue, newAuditStamp, LATEST_VERSION, oldValue == null);
     return largestVersion;
   }
 
@@ -308,9 +331,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     return new AspectEntry<>(RecordUtils.toRecordTemplate(aspectClass, latest.getMetadata()), toExtraInfo(latest));
   }
 
-  @Override
-  protected void save(@Nonnull URN urn, @Nonnull RecordTemplate value, @Nonnull AuditStamp auditStamp, long version,
-      boolean insert) {
+  @Nonnull
+  private EbeanMetadataAspect buildMetadataAspectBean(@Nonnull URN urn, @Nonnull RecordTemplate value,
+                                                      @Nonnull AuditStamp auditStamp, long version) {
 
     final String aspectName = ModelUtils.getAspectName(value.getClass());
 
@@ -320,10 +343,60 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     aspect.setCreatedOn(new Timestamp(auditStamp.getTime()));
     aspect.setCreatedBy(auditStamp.getActor().toString());
 
-    Urn impersonator = auditStamp.getImpersonator();
+    final Urn impersonator = auditStamp.getImpersonator();
     if (impersonator != null) {
       aspect.setCreatedFor(impersonator.toString());
     }
+
+    return aspect;
+  }
+
+  // visible for testing
+  protected void saveWithOptimisticLocking(@Nonnull URN urn, @Nonnull RecordTemplate value,
+                                           @Nonnull AuditStamp newAuditStamp,
+                                           long version, boolean insert,
+                                           @Nonnull Object oldTimestamp) {
+
+    final EbeanMetadataAspect aspect = buildMetadataAspectBean(urn, value, newAuditStamp, version);
+
+    if (insert) {
+      _server.insert(aspect);
+      return;
+    }
+
+    // Build manual SQL update query to enable optimistic locking on a given column
+    // Optimistic locking is supported on ebean using @version, see https://ebean.io/docs/mapping/jpa/version
+    // But we can't use @version annotation for optimistic locking for two reasons:
+    //   1. That prevents flag guarding optimistic locking feature
+    //   2. When using @version annotation, Ebean starts to override all updates to that column
+    //      by disregarding any user change.
+    // Ideally, another column for the sake of optimistic locking would be preferred but that means a change to
+    // metadata_aspect schema and we don't take this route here to keep this change backward compatible.
+    final String updateQuery = String.format("UPDATE metadata_aspect "
+            + "SET urn = :urn, aspect = :aspect, version = :version, metadata = :metadata, createdOn = :createdOn, createdBy = :createdBy "
+            + "WHERE urn = :urn and aspect = :aspect and version = :version and createdOn = :oldTimestamp");
+
+    final SqlUpdate update = _server.createSqlUpdate(updateQuery);
+    update.setParameter("urn", aspect.getKey().getUrn());
+    update.setParameter("aspect", aspect.getKey().getAspect());
+    update.setParameter("version", aspect.getKey().getVersion());
+    update.setParameter("metadata", aspect.getMetadata());
+    update.setParameter("createdOn", aspect.getCreatedOn());
+    update.setParameter("createdBy", aspect.getCreatedBy());
+    update.setParameter("oldTimestamp", oldTimestamp);
+
+    // If there is no single updated row, emit OptimisticLockException
+    int numOfUpdatedRows = _server.execute(update);
+    if (numOfUpdatedRows != 1) {
+      throw new OptimisticLockException(numOfUpdatedRows + " rows updated during save query: " + update.getGeneratedSql());
+    }
+  }
+
+  @Override
+  protected void save(@Nonnull URN urn, @Nonnull RecordTemplate value, @Nonnull AuditStamp auditStamp, long version,
+      boolean insert) {
+
+    final EbeanMetadataAspect aspect = buildMetadataAspectBean(urn, value, auditStamp, version);
 
     if (insert) {
       _server.insert(aspect);
