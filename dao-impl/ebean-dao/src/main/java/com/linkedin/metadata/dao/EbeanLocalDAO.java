@@ -3,7 +3,6 @@ package com.linkedin.metadata.dao;
 import com.google.common.annotations.VisibleForTesting;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
-import com.linkedin.data.schema.ArrayDataSchema;
 import com.linkedin.data.schema.DataSchema;
 import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.template.RecordTemplate;
@@ -898,21 +897,14 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     for (int i = 0; i < pathSize - 1; i++) {
       final String part = pathSpecArray[i];
 
-      if (part.equals("*")) {
-        continue;
-      }
-
       final RecordDataSchema.Field field = aspect.schema().getField(part);
       final DataSchema dataSchema = field.getType();
 
-      final String nestedAspectName;
       if (dataSchema.getDereferencedType() == DataSchema.Type.RECORD) {
-        nestedAspectName = ((RecordDataSchema) dataSchema).getBindingName();
+        final String nestedAspectName = ((RecordDataSchema) dataSchema).getBindingName();
         aspect = RecordUtils.getAspectFromString(nestedAspectName);
       } else if (dataSchema.getDereferencedType() == DataSchema.Type.ARRAY) {
-        final DataSchema fieldsInArray = ((ArrayDataSchema) dataSchema).getItems();
-        nestedAspectName = ((RecordDataSchema) fieldsInArray).getBindingName();
-        aspect = RecordUtils.getAspectFromString(nestedAspectName);
+        throw new UnsupportedOperationException("Can not sort by an array " + indexSortCriterion);
       } else {
         throw new IllegalArgumentException("Invalid path field for aspect in sort criterion " + indexSortCriterion);
       }
@@ -939,14 +931,14 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    *
    * @param indexCriterionArray {@link IndexCriterionArray} used to construct the SQL query
    * @param indexSortCriterion {@link IndexSortCriterion} used to construct the SQL query
-   * @param sortColumn column the sort criterion is applied on which is used to construct the SQL query
    * @return String representation of SQL query
    */
   @Nonnull
   private static String constructSQLQuery(@Nonnull IndexCriterionArray indexCriterionArray,
-      @Nullable IndexSortCriterion indexSortCriterion, @Nonnull String sortColumn) {
+      @Nullable IndexSortCriterion indexSortCriterion) {
+    String sortColumn = indexSortCriterion != null ? getSortingColumn(indexSortCriterion) : "";
     String selectClause = "SELECT DISTINCT(t0.urn)";
-    if (indexSortCriterion != null && !sortColumn.isEmpty()) {
+    if (!sortColumn.isEmpty()) {
       selectClause += ", tsort.";
       selectClause += sortColumn;
     }
@@ -1023,10 +1015,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
     addEntityTypeFilter(indexFilter);
 
-    String sortColumn = indexSortCriterion != null ? getSortingColumn(indexSortCriterion) : "";
-
     final Query<EbeanMetadataIndex> query =
-        _server.findNative(EbeanMetadataIndex.class, constructSQLQuery(indexCriterionArray, indexSortCriterion, sortColumn))
+        _server.findNative(EbeanMetadataIndex.class, constructSQLQuery(indexCriterionArray, indexSortCriterion))
             .setTimeout(INDEX_QUERY_TIMEOUT_IN_SEC);
     setParameters(indexCriterionArray, indexSortCriterion, query, lastUrn == null ? "" : lastUrn.toString(), pageSize);
 
