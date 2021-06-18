@@ -915,8 +915,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       return EbeanMetadataIndex.LONG_COLUMN;
     } else if (type == DataSchema.Type.DOUBLE || type == DataSchema.Type.FLOAT) {
       return EbeanMetadataIndex.DOUBLE_COLUMN;
-    } else {
+    } else if (type == DataSchema.Type.STRING || type == DataSchema.Type.BOOLEAN) {
       return EbeanMetadataIndex.STRING_COLUMN;
+    } else {
+      throw new IllegalArgumentException("The type stored in the path field of the aspect can not be sorted on" + indexSortCriterion);
     }
   }
 
@@ -933,7 +935,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   private static String constructSQLQuery(@Nonnull IndexCriterionArray indexCriterionArray,
       @Nullable IndexSortCriterion indexSortCriterion, @Nonnull String sortColumn) {
     String selectClause = "SELECT DISTINCT(t0.urn)";
-    if (indexSortCriterion != null) {
+    if (indexSortCriterion != null && !sortColumn.isEmpty()) {
       selectClause += ", tsort.";
       selectClause += sortColumn;
     }
@@ -959,7 +961,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       }
     });
     final String orderByClause;
-    if (indexSortCriterion != null) {
+    if (indexSortCriterion != null && !sortColumn.isEmpty()) {
       String sortOrder = indexSortCriterion.getOrder() == SortOrder.ASCENDING ? "ASC" : "DESC";
 
       selectClause += " INNER JOIN metadata_index tsort ON t0.urn = tsort.urn";
