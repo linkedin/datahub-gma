@@ -184,6 +184,14 @@ public class RecordUtilsTest {
 
     assertEquals(psArray3.length, 1);
     assertEquals(psArray3[0], "test");
+
+    String ps4 = "/recordArray/*/value";
+    String[] psArray4 = RecordUtils.getPathSpecAsArray(ps4);
+
+    assertEquals(psArray4.length, 3);
+    assertEquals(psArray4[0], "recordArray");
+    assertEquals(psArray4[1], "*");
+    assertEquals(psArray4[2], "value");
   }
 
   @Test

@@ -3,6 +3,7 @@ package com.linkedin.metadata.dao;
 import com.google.common.annotations.VisibleForTesting;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
+import com.linkedin.data.schema.ArrayDataSchema;
 import com.linkedin.data.schema.DataSchema;
 import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.template.RecordTemplate;
@@ -896,11 +897,21 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
     for (int i = 0; i < pathSize - 1; i++) {
       final String part = pathSpecArray[i];
+
+      if (part.equals("*")) {
+        continue;
+      }
+
       final RecordDataSchema.Field field = aspect.schema().getField(part);
       final DataSchema dataSchema = field.getType();
 
+      final String nestedAspectName;
       if (dataSchema.getDereferencedType() == DataSchema.Type.RECORD) {
-        final String nestedAspectName = ((RecordDataSchema) dataSchema).getBindingName();
+        nestedAspectName = ((RecordDataSchema) dataSchema).getBindingName();
+        aspect = RecordUtils.getAspectFromString(nestedAspectName);
+      } else if (dataSchema.getDereferencedType() == DataSchema.Type.ARRAY) {
+        final DataSchema fieldsInArray = ((ArrayDataSchema) dataSchema).getItems();
+        nestedAspectName = ((RecordDataSchema) fieldsInArray).getBindingName();
         aspect = RecordUtils.getAspectFromString(nestedAspectName);
       } else {
         throw new IllegalArgumentException("Invalid path field for aspect in sort criterion " + indexSortCriterion);

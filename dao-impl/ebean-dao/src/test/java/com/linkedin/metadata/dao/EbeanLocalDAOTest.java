@@ -901,6 +901,12 @@ public class EbeanLocalDAOTest {
         .setPath("/arrayField").setOrder(SortOrder.DESCENDING);
     assertThrows(UnsupportedOperationException.class,
         () -> EbeanLocalDAO.getSortingColumn(indexSortCriterion9));
+
+    // 10. array of records
+    IndexSortCriterion indexSortCriterion10 = new IndexSortCriterion().setAspect(MixedRecord.class.getCanonicalName())
+        .setPath("/recordArray/*/value").setOrder(SortOrder.DESCENDING);
+    String sortingColumn10 = EbeanLocalDAO.getSortingColumn(indexSortCriterion10);
+    assertEquals(sortingColumn10, EbeanMetadataIndex.STRING_COLUMN);
   }
 
   @Test
