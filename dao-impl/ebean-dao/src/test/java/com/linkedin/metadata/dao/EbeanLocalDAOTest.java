@@ -884,11 +884,23 @@ public class EbeanLocalDAOTest {
     String sortingColumn6 = EbeanLocalDAO.getSortingColumn(indexSortCriterion6);
     assertEquals(sortingColumn6, EbeanMetadataIndex.DOUBLE_COLUMN);
 
-    // 7. nested field
+    // 7. enum corresponds to string column
     IndexSortCriterion indexSortCriterion7 = new IndexSortCriterion().setAspect(AspectBaz.class.getCanonicalName())
-        .setPath("/recordField/value").setOrder(SortOrder.DESCENDING);
+        .setPath("/enumField").setOrder(SortOrder.DESCENDING);
     String sortingColumn7 = EbeanLocalDAO.getSortingColumn(indexSortCriterion7);
     assertEquals(sortingColumn7, EbeanMetadataIndex.STRING_COLUMN);
+
+    // 8. nested field
+    IndexSortCriterion indexSortCriterion8 = new IndexSortCriterion().setAspect(AspectBaz.class.getCanonicalName())
+        .setPath("/recordField/value").setOrder(SortOrder.DESCENDING);
+    String sortingColumn8 = EbeanLocalDAO.getSortingColumn(indexSortCriterion8);
+    assertEquals(sortingColumn8, EbeanMetadataIndex.STRING_COLUMN);
+
+    // 9. invalid type
+    IndexSortCriterion indexSortCriterion9 = new IndexSortCriterion().setAspect(AspectBaz.class.getCanonicalName())
+        .setPath("/arrayField").setOrder(SortOrder.DESCENDING);
+    assertThrows(UnsupportedOperationException.class,
+        () -> EbeanLocalDAO.getSortingColumn(indexSortCriterion9));
   }
 
   @Test

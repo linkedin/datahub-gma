@@ -915,10 +915,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       return EbeanMetadataIndex.LONG_COLUMN;
     } else if (type == DataSchema.Type.DOUBLE || type == DataSchema.Type.FLOAT) {
       return EbeanMetadataIndex.DOUBLE_COLUMN;
-    } else if (type == DataSchema.Type.STRING || type == DataSchema.Type.BOOLEAN) {
+    } else if (type == DataSchema.Type.STRING || type == DataSchema.Type.BOOLEAN || type == DataSchema.Type.ENUM) {
       return EbeanMetadataIndex.STRING_COLUMN;
     } else {
-      throw new IllegalArgumentException("The type stored in the path field of the aspect can not be sorted on" + indexSortCriterion);
+      throw new UnsupportedOperationException("The type stored in the path field of the aspect can not be sorted on" + indexSortCriterion);
     }
   }
 
