@@ -371,7 +371,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     //   2. When using @version annotation, Ebean starts to override all updates to that column
     //      by disregarding any user change.
     // Ideally, another column for the sake of optimistic locking would be preferred but that means a change to
-    // metadata_aspect schema and we don't take this route here to keep this change backward incompatible.
+    // metadata_aspect schema and we don't take this route here to keep this change backward compatible.
     final String updateQuery = String.format("UPDATE metadata_aspect "
             + "SET urn = :urn, aspect = :aspect, version = :version, metadata = :metadata, createdOn = :createdOn, createdBy = :createdBy "
             + "WHERE urn = :urn and aspect = :aspect and version = :version and createdOn = :oldTimestamp");
