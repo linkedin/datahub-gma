@@ -55,6 +55,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.Nonnull;
@@ -1370,6 +1371,47 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
+  public void testAddAspectWithDerivedAspectsFunction() {
+    LocalDAOStorageConfig storageConfig =
+        makeLocalDAOStorageConfig(AspectFoo.class, Collections.singletonList("/value"),
+            AspectBar.class, Collections.singletonList("/value"));
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao =
+        new EbeanLocalDAO<>(_mockProducer, _server, storageConfig, FooUrn.class);
+    dao.enableLocalSecondaryIndex(true);
+    dao.setUrnPathExtractor(new FooUrnPathExtractor());
+
+    FooUrn urn = makeFooUrn(1);
+    AspectBar newAspectBar = new AspectBar().setValue("new bar");
+
+    dao.add(urn, newAspectBar, _dummyAuditStamp, getDerivedAspectFooFromAspectBar());
+
+    EbeanMetadataAspect aspect = getMetadata(urn, AspectBar.class.getCanonicalName(), 0);
+    AspectBar actual = RecordUtils.toRecordTemplate(AspectBar.class, aspect.getMetadata());
+    assertEquals(actual, newAspectBar);
+
+    List<EbeanMetadataIndex> fooRecords = getAllRecordsFromLocalIndex(urn);
+
+    assertEquals(fooRecords.size(), 3);
+    EbeanMetadataIndex fooRecord = fooRecords.get(0);
+    assertEquals(fooRecord.getUrn(), urn.toString());
+    assertEquals(fooRecord.getAspect(), FooUrn.class.getCanonicalName());
+    assertEquals(fooRecord.getPath(), "/fooId");
+    assertEquals(fooRecord.getLongVal().longValue(), urn.getFooIdEntity());
+
+    fooRecord = fooRecords.get(1);
+    assertEquals(fooRecord.getUrn(), urn.toString());
+    assertEquals(fooRecord.getAspect(), AspectBar.class.getCanonicalName());
+    assertEquals(fooRecord.getPath(), "/value");
+    assertEquals(fooRecord.getStringVal(), "new bar");
+
+    fooRecord = fooRecords.get(2);
+    assertEquals(fooRecord.getUrn(), urn.toString());
+    assertEquals(fooRecord.getAspect(), AspectFoo.class.getCanonicalName());
+    assertEquals(fooRecord.getPath(), "/value");
+    assertEquals(fooRecord.getStringVal(), "new bar");
+  }
+
+  @Test
   void testGetGMAIndexPair() {
     IndexValue indexValue = new IndexValue();
     String aspect = "aspect" + System.currentTimeMillis();
@@ -1949,5 +1991,21 @@ public class EbeanLocalDAOTest {
       assertEquals(v.getAudit().getActor(), actor);
       assertEquals(v.getAudit().getImpersonator(), impersonator);
     });
+  }
+
+  private Function<FooUrn, List<RecordTemplate>> getDerivedAspectFooFromAspectBar() {
+    return urn -> {
+      // get latest version of aspect bar
+      EbeanMetadataAspect aspect = getMetadata(urn, AspectBar.class.getCanonicalName(), 0);
+      AspectBar aspectBar = RecordUtils.toRecordTemplate(AspectBar.class, aspect.getMetadata());
+
+      // create new aspect foo with same value as aspect bar
+      AspectFoo newAspectFoo = new AspectFoo().setValue(aspectBar.getValue());
+
+      ArrayList<RecordTemplate> derivedAspects = new ArrayList<>();
+      derivedAspects.add(newAspectFoo);
+
+      return derivedAspects;
+    };
   }
 }

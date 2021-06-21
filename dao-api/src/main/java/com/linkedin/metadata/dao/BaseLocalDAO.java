@@ -254,15 +254,18 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * monotonically increasing. Older versions of aspect will be purged automatically based on the retention setting. A
    * MetadataAuditEvent is also emitted if there's an actual update.
    *
+   * <p>If SCSI is enabled, the secondary index of the derived aspects will be updated.
+   *
    * @param urn the URN for the entity the aspect is attached to
    * @param auditStamp the audit stamp for the operation
    * @param updateLambda a lambda expression that takes the previous version of aspect and returns the new version
+   * @param getDerivedAspects a lambda expression that derives aspects to be updated in the secondary index
    * @return {@link RecordTemplate} of the new value of aspect
    */
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp,
-      int maxTransactionRetry) {
+      int maxTransactionRetry, @Nonnull Function<URN, List<ASPECT>> getDerivedAspects) {
 
     checkValidAspect(aspectClass);
 
@@ -294,6 +297,12 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       // 5. Save to local secondary index
       if (_enableLocalSecondaryIndex) {
         updateLocalIndex(urn, newValue, largestVersion);
+
+        // 5.1 Update derived aspects in secondary index
+        List<ASPECT> derivedAspects = getDerivedAspects.apply(urn);
+        derivedAspects.forEach(derivedAspect -> {
+          updateLocalIndex(urn, derivedAspect, largestVersion);
+        });
       }
 
       return new AddResult<>(oldValue, newValue);
@@ -323,21 +332,51 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * Similar to {@link #add(Urn, Class, Function, AuditStamp, int)} but uses the default maximum transaction retry.
+   * Similar to {@link #add(Urn, Class, Function, AuditStamp, int, Function)} but does not update derived aspects.
+   */
+  @Nonnull
+  public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
+      @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp,
+      int maxTransactionRetry) {
+    return add(urn, aspectClass, updateLambda, auditStamp, maxTransactionRetry, ignored -> new ArrayList<>());
+  }
+
+  /**
+   * Similar to {@link #add(Urn, Class, Function, AuditStamp, int, Function)} but uses the default
+   * maximum transaction retry.
+   */
+  @Nonnull
+  public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
+      @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp,
+      @Nonnull Function<URN, List<ASPECT>> getDerivedAspects) {
+    return add(urn, aspectClass, updateLambda, auditStamp, DEFAULT_MAX_TRANSACTION_RETRY, getDerivedAspects);
+  }
+
+  /**
+   * Similar to {@link #add(Urn, Class, Function, AuditStamp, Function)} but does not update derived aspects.
    */
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp) {
-    return add(urn, aspectClass, updateLambda, auditStamp, DEFAULT_MAX_TRANSACTION_RETRY);
+    return add(urn, aspectClass, updateLambda, auditStamp, ignored -> new ArrayList<>());
   }
 
   /**
-   * Similar to {@link #add(Urn, Class, Function, AuditStamp)} but takes the new value directly.
+   * Similar to {@link #add(Urn, Class, Function, AuditStamp, Function)} but takes the new value directly.
+   */
+  @Nonnull
+  public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull ASPECT newValue,
+      @Nonnull AuditStamp auditStamp, @Nonnull Function<URN, List<ASPECT>> getDerivedAspects) {
+    return add(urn, (Class<ASPECT>) newValue.getClass(), ignored -> newValue, auditStamp, getDerivedAspects);
+  }
+
+  /**
+   * Similar to {@link #add(Urn, RecordTemplate, AuditStamp, Function)} but does not update derived aspects.
    */
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull ASPECT newValue,
       @Nonnull AuditStamp auditStamp) {
-    return add(urn, (Class<ASPECT>) newValue.getClass(), ignored -> newValue, auditStamp);
+    return add(urn, newValue, auditStamp, ignored -> new ArrayList<>());
   }
 
   private <ASPECT extends RecordTemplate> void applyRetention(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
