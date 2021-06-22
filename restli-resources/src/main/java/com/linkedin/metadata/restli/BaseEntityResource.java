@@ -418,7 +418,7 @@ public abstract class BaseEntityResource<
       @QueryParam(PARAM_SORT) @Optional @Nullable IndexSortCriterion indexSortCriterion,
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
       @QueryParam(PARAM_URN) @Optional @Nullable String lastUrn,
-      @QueryParam(PARAM_COUNT) int count) {
+      @QueryParam(PARAM_COUNT) @Optional("10") int count) {
 
     final IndexFilter filter = indexFilter == null ? getDefaultIndexFilter() : indexFilter;
 
