@@ -404,6 +404,8 @@ public abstract class BaseEntityResource<
    *
    * <p>If no filter conditions are provided, then it returns values of given entity type.
    *
+   * <p>Note: Only one of the filter finders should be implemented in your resource implementation.
+   *
    * @param indexFilter {@link IndexFilter} that defines the filter conditions
    * @param indexSortCriterion {@link IndexSortCriterion} that defines the sorting conditions
    * @param aspectNames list of aspects to be returned in the VALUE model
@@ -411,7 +413,7 @@ public abstract class BaseEntityResource<
    * @param count defining the maximum number of urns to return
    * @return {@link CollectionResult} containing values along with the associated urns in {@link ListResultMetadata}
    */
-  @Finder(FINDER_FILTER_SORT)
+  @Finder(FINDER_FILTER)
   @Nonnull
   public Task<List<VALUE>> filter(
       @QueryParam(PARAM_FILTER) @Optional @Nullable IndexFilter indexFilter,
@@ -435,6 +437,8 @@ public abstract class BaseEntityResource<
   /**
    * Similar to {@link #filter(IndexFilter, IndexSortCriterion, String[], String, int)} but
    * uses null sorting criterion.
+   *
+   * <p>Note: Only one of the filter finders should be implemented in your resource implementation.
    *
    * @deprecated Use {@link #filter(IndexFilter, IndexSortCriterion, String[], String, int)} instead
    */
