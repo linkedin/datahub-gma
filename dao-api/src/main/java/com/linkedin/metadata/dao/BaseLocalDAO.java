@@ -24,6 +24,7 @@ import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
+import com.linkedin.metadata.query.IndexSortCriterion;
 import java.time.Clock;
 import java.util.Collections;
 import java.util.ArrayList;
@@ -385,15 +386,26 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   /**
    * Returns list of urns from local secondary index that satisfy the given filter conditions.
    *
-   * <p>Results are ordered lexicographically by the string representation of the URN.
+   * <p>Results are ordered by the order criterion but defaults to sorting lexicographically by the string
+   * representation of the URN.
    *
    * @param indexFilter {@link IndexFilter} containing filter conditions to be applied
+   * @param indexSortCriterion {@link IndexSortCriterion} sorting criterion to be applied
    * @param lastUrn last urn of the previous fetched page. For the first page, this should be set as NULL
    * @param pageSize maximum number of distinct urns to return
    * @return List of urns from local secondary index that satisfy the given filter conditions
    */
   @Nonnull
-  public abstract List<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable URN lastUrn, int pageSize);
+  public abstract List<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
+      @Nullable URN lastUrn, int pageSize);
+
+  /**
+   * Similar to {@link #listUrns(IndexFilter, IndexSortCriterion, Urn, int)} but sorts lexicographically by the URN.
+   */
+  @Nonnull
+  public List<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable URN lastUrn, int pageSize) {
+    return listUrns(indexFilter, null, lastUrn, pageSize);
+  }
 
   /**
    * Similar to {@link #listUrns(IndexFilter, Urn, int)}. This is to get all urns with type URN.
@@ -407,11 +419,12 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   /**
    * Retrieves list of {@link UrnAspectEntry} containing latest version of aspects along with the urn for the list of urns
-   * returned from local secondary index that satisfy given filter conditions. The returned list is ordered lexicographically by the string
-   * representation of the URN.
+   * returned from local secondary index that satisfy given filter conditions. The returned list is ordered by the
+   * sort criterion but ordered lexicographically by the string representation of the URN by default.
    *
    * @param aspectClasses aspect classes whose latest versions need to be retrieved
    * @param indexFilter {@link IndexFilter} containing filter conditions to be applied
+   * @param indexSortCriterion {@link IndexSortCriterion} sort conditions to be applied
    * @param lastUrn last urn of the previous fetched page. For the first page, this should be set as NULL
    * @param pageSize maximum number of distinct urns whose aspects need to be retrieved
    * @return ordered list of latest versions of aspects along with urns returned from local secondary index
@@ -419,9 +432,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    */
   @Nonnull
   public List<UrnAspectEntry<URN>> getAspects(@Nonnull Set<Class<? extends RecordTemplate>> aspectClasses,
-      @Nonnull IndexFilter indexFilter, @Nullable URN lastUrn, int pageSize) {
+      @Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion, @Nullable URN lastUrn, int pageSize) {
 
-    final List<URN> urns = listUrns(indexFilter, lastUrn, pageSize);
+    final List<URN> urns = listUrns(indexFilter, indexSortCriterion, lastUrn, pageSize);
     final Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> urnAspectMap =
         get(aspectClasses, new HashSet<>(urns));
 
@@ -443,6 +456,16 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
         .stream()
         .map(entry -> new UrnAspectEntry<>(entry.getKey(), entry.getValue()))
         .collect(Collectors.toList());
+  }
+
+  /**
+   * Similar to {@link #getAspects(Set, IndexFilter, IndexSortCriterion, Urn, int)}
+   * but sorts lexicographically by the URN.
+   */
+  @Nonnull
+  public List<UrnAspectEntry<URN>> getAspects(@Nonnull Set<Class<? extends RecordTemplate>> aspectClasses,
+    @Nonnull IndexFilter indexFilter, @Nullable URN lastUrn, int pageSize) {
+    return getAspects(aspectClasses, indexFilter, null, lastUrn, pageSize);
   }
 
   /**

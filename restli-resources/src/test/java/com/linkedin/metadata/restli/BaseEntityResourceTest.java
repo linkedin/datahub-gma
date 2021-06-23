@@ -12,6 +12,8 @@ import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
+import com.linkedin.metadata.query.IndexSortCriterion;
+import com.linkedin.metadata.query.SortOrder;
 import com.linkedin.parseq.BaseEngineTest;
 import com.linkedin.restli.common.ComplexResourceKey;
 import com.linkedin.restli.common.EmptyRecord;
@@ -459,7 +461,7 @@ public class BaseEntityResourceTest extends BaseEngineTest {
 
     List<FooUrn> urns1 = Arrays.asList(urn2, urn3);
 
-    when(_mockLocalDAO.listUrns(indexFilter1, urn1, 2)).thenReturn(urns1);
+    when(_mockLocalDAO.listUrns(indexFilter1, null, urn1, 2)).thenReturn(urns1);
     List<EntityValue> actual =
         runAndWait(_resource.filter(indexFilter1, new String[0], urn1.toString(), new PagingContext(1, 2)));
 
@@ -471,8 +473,18 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     List<FooUrn> urns2 = Arrays.asList(urn1, urn2);
     IndexCriterion indexCriterion2 = new IndexCriterion().setAspect(FooUrn.class.getCanonicalName());
     IndexFilter indexFilter2 = new IndexFilter().setCriteria(new IndexCriterionArray(indexCriterion2));
-    when(_mockLocalDAO.listUrns(indexFilter2, null, 2)).thenReturn(urns2);
+    when(_mockLocalDAO.listUrns(indexFilter2, null, null, 2)).thenReturn(urns2);
     actual = runAndWait(_resource.filter(null, new String[0], null, new PagingContext(0, 2)));
+    assertEquals(actual.size(), 2);
+    assertEquals(actual.get(0), new EntityValue());
+    assertEquals(actual.get(1), new EntityValue());
+
+    // case 3: sortCriterion is not null
+    List<FooUrn> urns3 = Arrays.asList(urn3, urn2);
+    IndexSortCriterion indexSortCriterion = new IndexSortCriterion().setAspect("aspect1").setPath("/id")
+        .setOrder(SortOrder.DESCENDING);
+    when(_mockLocalDAO.listUrns(indexFilter2, indexSortCriterion, null, 2)).thenReturn(urns3);
+    actual = runAndWait(_resource.filter(null, indexSortCriterion, new String[0], null, 2));
     assertEquals(actual.size(), 2);
     assertEquals(actual.get(0), new EntityValue());
     assertEquals(actual.get(1), new EntityValue());
@@ -493,13 +505,15 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     IndexCriterion criterion = new IndexCriterion().setAspect(AspectFoo.class.getCanonicalName());
     IndexCriterionArray criterionArray = new IndexCriterionArray(criterion);
     IndexFilter indexFilter = new IndexFilter().setCriteria(criterionArray);
+    IndexSortCriterion indexSortCriterion = new IndexSortCriterion().setAspect(AspectFoo.class.getCanonicalName())
+        .setOrder(SortOrder.DESCENDING);
     String[] aspectNames = {ModelUtils.getAspectName(AspectFoo.class), ModelUtils.getAspectName(AspectBar.class)};
 
     // case 1: aspect list is provided, null last urn
     List<UrnAspectEntry<FooUrn>> listResult1 = Arrays.asList(entry1, entry2);
 
-    when(_mockLocalDAO.getAspects(ImmutableSet.of(AspectFoo.class, AspectBar.class), indexFilter, null, 2)).thenReturn(
-        listResult1);
+    when(_mockLocalDAO.getAspects(ImmutableSet.of(AspectFoo.class, AspectBar.class), indexFilter, null, null, 2))
+        .thenReturn(listResult1);
 
     List<EntityValue> actual1 =
         runAndWait(_resource.filter(indexFilter, aspectNames, null, new PagingContext(0, 2)));
@@ -511,13 +525,26 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     // case 2: null aspects is provided i.e. all aspects in the aspect union will be returned, non-null last urn
     List<UrnAspectEntry<FooUrn>> listResult2 = Collections.singletonList(entry2);
 
-    when(_mockLocalDAO.getAspects(ImmutableSet.of(AspectFoo.class, AspectBar.class), indexFilter, urn1, 2)).thenReturn(
-        listResult2);
+    when(_mockLocalDAO.getAspects(ImmutableSet.of(AspectFoo.class, AspectBar.class), indexFilter, null, urn1, 2))
+        .thenReturn(listResult2);
 
     List<EntityValue> actual2 =
         runAndWait(_resource.filter(indexFilter, null, urn1.toString(), new PagingContext(0, 2)));
     assertEquals(actual2.size(), 1);
     assertEquals(actual2.get(0), new EntityValue().setFoo(foo2).setBar(bar2));
+
+    // case 3: non-null sort criterion is provided
+    List<UrnAspectEntry<FooUrn>> listResult3 = Arrays.asList(entry2, entry1);
+
+    when(_mockLocalDAO.getAspects(ImmutableSet.of(AspectFoo.class, AspectBar.class), indexFilter, indexSortCriterion, null, 2))
+        .thenReturn(listResult3);
+
+    List<EntityValue> actual3 =
+        runAndWait(_resource.filter(indexFilter, indexSortCriterion, aspectNames, null, 2));
+
+    assertEquals(actual3.size(), 2);
+    assertEquals(actual3.get(0), new EntityValue().setFoo(foo2).setBar(bar2));
+    assertEquals(actual3.get(1), new EntityValue().setFoo(foo1).setBar(bar1));
   }
 
   @Test

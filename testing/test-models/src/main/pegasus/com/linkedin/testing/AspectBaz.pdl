@@ -23,6 +23,26 @@ record AspectBaz {
   /**
    * For unit tests
    */
+  intField: int
+
+  /**
+   * For unit tests
+   */
+  doubleField: double
+
+  /**
+   * For unit tests
+   */
+  floatField: float
+
+  /**
+   * For unit tests
+   */
+  enumField: PizzaSize
+
+  /**
+   * For unit tests
+   */
   arrayField: array[string]
 
   /**

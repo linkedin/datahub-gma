@@ -27,8 +27,10 @@ import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexPathParams;
+import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.query.IndexValue;
 import com.linkedin.metadata.query.ListResultMetadata;
+import com.linkedin.metadata.query.SortOrder;
 import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectBaz;
 import com.linkedin.testing.AspectFoo;
@@ -847,6 +849,146 @@ public class EbeanLocalDAOTest {
     final IndexFilter indexFilter2 = new IndexFilter().setCriteria(indexCriterionArray2);
     List<FooUrn> urns2 = dao.listUrns(indexFilter2, null, 5);
     assertEquals(urns2, Collections.singletonList(urn1));
+  }
+
+  @Test
+  public void testGetSortingColumn() {
+    // 1. string corresponds to string column
+    IndexSortCriterion indexSortCriterion1 = new IndexSortCriterion().setAspect(AspectFoo.class.getCanonicalName())
+        .setPath("/value").setOrder(SortOrder.DESCENDING);
+    String sortingColumn1 = EbeanLocalDAO.getSortingColumn(indexSortCriterion1);
+    assertEquals(sortingColumn1, EbeanMetadataIndex.STRING_COLUMN);
+
+    // 2. boolean corresponds to string column
+    IndexSortCriterion indexSortCriterion2 = new IndexSortCriterion().setAspect(AspectBaz.class.getCanonicalName())
+        .setPath("/boolField").setOrder(SortOrder.DESCENDING);
+    String sortingColumn2 = EbeanLocalDAO.getSortingColumn(indexSortCriterion2);
+    assertEquals(sortingColumn2, EbeanMetadataIndex.STRING_COLUMN);
+
+    // 3. int corresponds to long column
+    IndexSortCriterion indexSortCriterion3 = new IndexSortCriterion().setAspect(AspectBaz.class.getCanonicalName())
+        .setPath("/intField").setOrder(SortOrder.DESCENDING);
+    String sortingColumn3 = EbeanLocalDAO.getSortingColumn(indexSortCriterion3);
+    assertEquals(sortingColumn3, EbeanMetadataIndex.LONG_COLUMN);
+
+    // 4. long corresponds to long column
+    IndexSortCriterion indexSortCriterion4 = new IndexSortCriterion().setAspect(AspectBaz.class.getCanonicalName())
+        .setPath("/longField").setOrder(SortOrder.DESCENDING);
+    String sortingColumn4 = EbeanLocalDAO.getSortingColumn(indexSortCriterion4);
+    assertEquals(sortingColumn4, EbeanMetadataIndex.LONG_COLUMN);
+
+    // 5. double corresponds to double column
+    IndexSortCriterion indexSortCriterion5 = new IndexSortCriterion().setAspect(AspectBaz.class.getCanonicalName())
+        .setPath("/doubleField").setOrder(SortOrder.DESCENDING);
+    String sortingColumn5 = EbeanLocalDAO.getSortingColumn(indexSortCriterion5);
+    assertEquals(sortingColumn5, EbeanMetadataIndex.DOUBLE_COLUMN);
+
+    // 6. float corresponds to double column
+    IndexSortCriterion indexSortCriterion6 = new IndexSortCriterion().setAspect(AspectBaz.class.getCanonicalName())
+        .setPath("/floatField").setOrder(SortOrder.DESCENDING);
+    String sortingColumn6 = EbeanLocalDAO.getSortingColumn(indexSortCriterion6);
+    assertEquals(sortingColumn6, EbeanMetadataIndex.DOUBLE_COLUMN);
+
+    // 7. enum corresponds to string column
+    IndexSortCriterion indexSortCriterion7 = new IndexSortCriterion().setAspect(AspectBaz.class.getCanonicalName())
+        .setPath("/enumField").setOrder(SortOrder.DESCENDING);
+    String sortingColumn7 = EbeanLocalDAO.getSortingColumn(indexSortCriterion7);
+    assertEquals(sortingColumn7, EbeanMetadataIndex.STRING_COLUMN);
+
+    // 8. nested field
+    IndexSortCriterion indexSortCriterion8 = new IndexSortCriterion().setAspect(AspectBaz.class.getCanonicalName())
+        .setPath("/recordField/value").setOrder(SortOrder.DESCENDING);
+    String sortingColumn8 = EbeanLocalDAO.getSortingColumn(indexSortCriterion8);
+    assertEquals(sortingColumn8, EbeanMetadataIndex.STRING_COLUMN);
+
+    // 9. invalid type
+    IndexSortCriterion indexSortCriterion9 = new IndexSortCriterion().setAspect(AspectBaz.class.getCanonicalName())
+        .setPath("/arrayField").setOrder(SortOrder.DESCENDING);
+    assertThrows(UnsupportedOperationException.class,
+        () -> EbeanLocalDAO.getSortingColumn(indexSortCriterion9));
+
+    // 10. array of records is invalid type
+    IndexSortCriterion indexSortCriterion10 = new IndexSortCriterion().setAspect(MixedRecord.class.getCanonicalName())
+        .setPath("/recordArray/*/value").setOrder(SortOrder.DESCENDING);
+    assertThrows(UnsupportedOperationException.class,
+        () -> EbeanLocalDAO.getSortingColumn(indexSortCriterion10));
+  }
+
+  @Test
+  public void testSorting() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    dao.enableLocalSecondaryIndex(true);
+    FooUrn urn1 = makeFooUrn(1);
+    FooUrn urn2 = makeFooUrn(2);
+    FooUrn urn3 = makeFooUrn(3);
+    String aspect1 = AspectFoo.class.getCanonicalName();
+    String aspect2 = AspectBaz.class.getCanonicalName();
+
+    addIndex(urn1, aspect1, "/value", "valB");
+    addIndex(urn1, aspect2, "/stringField", "dolphin");
+    addIndex(urn1, aspect2, "/longField", 10);
+    addIndex(urn1, aspect2, "/recordField/value", "nestedC");
+    addIndex(urn1, FooUrn.class.getCanonicalName(), "/fooId", 1);
+
+    addIndex(urn2, aspect1, "/value", "valC");
+    addIndex(urn2, aspect2, "/stringField", "reindeer");
+    addIndex(urn2, aspect2, "/longField", 8);
+    addIndex(urn2, aspect2, "/recordField/value", "nestedB");
+    addIndex(urn2, FooUrn.class.getCanonicalName(), "/fooId", 2);
+
+    addIndex(urn3, aspect1, "/value", "valA");
+    addIndex(urn3, aspect2, "/stringField", "dog");
+    addIndex(urn3, aspect2, "/longField", 100);
+    addIndex(urn3, aspect2, "/recordField/value", "nestedA");
+    addIndex(urn3, FooUrn.class.getCanonicalName(), "/fooId", 3);
+
+    // filter and no sorting criterion
+    IndexValue indexValue1 = new IndexValue();
+    indexValue1.setString("val");
+    IndexCriterion criterion1 = new IndexCriterion().setAspect(aspect1)
+        .setPathParams(new IndexPathParams().setPath("/value").setValue(indexValue1).setCondition(Condition.START_WITH));
+
+    IndexCriterionArray indexCriterionArray1 = new IndexCriterionArray(Collections.singletonList(criterion1));
+    final IndexFilter indexFilter1 = new IndexFilter().setCriteria(indexCriterionArray1);
+
+    List<FooUrn> urns1 = dao.listUrns(indexFilter1, null, null, 5);
+    assertEquals(urns1, Arrays.asList(urn1, urn2, urn3));
+
+    // filter and sort on same aspect and path
+    IndexSortCriterion indexSortCriterion1 = new IndexSortCriterion().setAspect(aspect1)
+        .setPath("/value").setOrder(SortOrder.DESCENDING);
+
+    List<FooUrn> urns2 = dao.listUrns(indexFilter1, indexSortCriterion1, null, 5);
+        assertEquals(urns2, Arrays.asList(urn2, urn1, urn3));
+
+    // filter and sort on different aspect and path
+    IndexSortCriterion indexSortCriterion2 = new IndexSortCriterion().setAspect(aspect2)
+        .setPath("/stringField").setOrder(SortOrder.ASCENDING);
+
+    List<FooUrn> urns3 = dao.listUrns(indexFilter1, indexSortCriterion2, null, 5);
+    assertEquals(urns3, Arrays.asList(urn3, urn1, urn2));
+
+    // sorting on long column
+    IndexValue indexValue2 = new IndexValue();
+    indexValue2.setString("do");
+    IndexCriterion criterion2 = new IndexCriterion().setAspect(aspect2)
+        .setPathParams(new IndexPathParams().setPath("/stringField").setValue(indexValue2).setCondition(Condition.START_WITH));
+
+    IndexCriterionArray indexCriterionArray2 = new IndexCriterionArray(Collections.singletonList(criterion2));
+    final IndexFilter indexFilter2 = new IndexFilter().setCriteria(indexCriterionArray2);
+
+    IndexSortCriterion indexSortCriterion3 = new IndexSortCriterion().setAspect(aspect2)
+        .setPath("/longField").setOrder(SortOrder.DESCENDING);
+
+    List<FooUrn> urns4 = dao.listUrns(indexFilter2, indexSortCriterion3, null, 5);
+    assertEquals(urns4, Arrays.asList(urn3, urn1));
+
+    // sorting on nested field
+    IndexSortCriterion indexSortCriterion4 = new IndexSortCriterion().setAspect(aspect2)
+        .setPath("/recordField/value").setOrder(SortOrder.ASCENDING);
+
+    List<FooUrn> urns5 = dao.listUrns(indexFilter1, indexSortCriterion4, null, 5);
+    assertEquals(urns5, Arrays.asList(urn3, urn2, urn1));
   }
 
   @Test

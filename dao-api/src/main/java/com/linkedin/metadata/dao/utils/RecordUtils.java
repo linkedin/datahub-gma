@@ -138,21 +138,17 @@ public class RecordUtils {
   }
 
   /**
-   * Extracts the aspect from an entity value which includes a single aspect.
+   * Gets the aspect from the aspect class.
    *
-   * @param entity the entity value.
-   * @param aspectClass the aspect class.
-   * @return the aspect which is included in the entity.
-   * */
-  @Nonnull
-  public static <ASPECT extends RecordTemplate, ENTITY extends RecordTemplate> ASPECT
-  extractAspectFromSingleAspectEntity(@Nonnull ENTITY entity, @Nonnull Class<ASPECT> aspectClass) {
-
-    // Create an empty aspect to extract it's field names
+   * @param aspectClass the aspect class
+   * @return the aspect corresponding to the aspect class
+   */
+  public static <ASPECT extends RecordTemplate> ASPECT getAspectFromClass(@Nonnull Class<ASPECT> aspectClass) {
+    // Create an empty aspect to extract its field names
     final Constructor<ASPECT> constructor;
     try {
       @SuppressWarnings("rawtypes")
-      final Class[] constructorParamArray = new Class[] {};
+      final Class[] constructorParamArray = new Class[]{};
       constructor = aspectClass.getConstructor(constructorParamArray);
     } catch (NoSuchMethodException e) {
       throw new RuntimeException("Exception occurred while trying to get the default constructor for the aspect. ", e);
@@ -164,6 +160,39 @@ public class RecordUtils {
     } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
       throw new RuntimeException("Exception occurred while creating an instance of the aspect. ", e);
     }
+    return aspect;
+  }
+
+  /**
+   * Gets aspect from a string representing the class name.
+   *
+   * @param aspectClassString string representation of an aspect class
+   * @return the aspect corresponding to the aspect class
+   */
+  @Nonnull
+  public static <ASPECT extends RecordTemplate> ASPECT getAspectFromString(@Nonnull String aspectClassString) {
+    final Class<ASPECT> aspectClass;
+    try {
+      aspectClass = (Class<ASPECT>) Class.forName(aspectClassString);
+    } catch (ClassNotFoundException e) {
+      throw new RuntimeException("Exception occurred while trying to get the aspect class. ", e);
+    }
+
+    return getAspectFromClass(aspectClass);
+  }
+
+  /**
+   * Extracts the aspect from an entity value which includes a single aspect.
+   *
+   * @param entity the entity value.
+   * @param aspectClass the aspect class.
+   * @return the aspect which is included in the entity.
+   * */
+  @Nonnull
+  public static <ASPECT extends RecordTemplate, ENTITY extends RecordTemplate> ASPECT
+  extractAspectFromSingleAspectEntity(@Nonnull ENTITY entity, @Nonnull Class<ASPECT> aspectClass) {
+
+    final ASPECT aspect = getAspectFromClass(aspectClass);
 
     final Set<String> aspectFields = aspect.schema().getFields()
         .stream()
@@ -401,16 +430,33 @@ public class RecordUtils {
   }
 
   /**
+   * Returns a PathSpec as an array representation from a string representation.
+   *
+   * @param pathSpecAsString string representation of a path spec
+   * @return array representation of a path spec
+   */
+  @Nonnull
+  public static String[] getPathSpecAsArray(@Nonnull String pathSpecAsString) {
+    pathSpecAsString = LEADING_SPACESLASH_PATTERN.matcher(pathSpecAsString).replaceAll("");
+    pathSpecAsString = TRAILING_SPACESLASH_PATTERN.matcher(pathSpecAsString).replaceAll("");
+
+    if (pathSpecAsString.isEmpty()) {
+      return new String[0];
+    }
+
+    return SLASH_PATERN.split(pathSpecAsString);
+  }
+
+  /**
    * Similar to {@link #getFieldValue(RecordTemplate, PathSpec)} but takes string representation of Pegasus PathSpec as
    * input.
    */
   @Nonnull
   public static Optional<Object> getFieldValue(@Nonnull RecordTemplate recordTemplate, @Nonnull String pathSpecAsString) {
-    pathSpecAsString = LEADING_SPACESLASH_PATTERN.matcher(pathSpecAsString).replaceAll("");
-    pathSpecAsString = TRAILING_SPACESLASH_PATTERN.matcher(pathSpecAsString).replaceAll("");
+    final String[] pathSpecAsArray = getPathSpecAsArray(pathSpecAsString);
 
-    if (!pathSpecAsString.isEmpty()) {
-      return getFieldValue(recordTemplate, new PathSpec(SLASH_PATERN.split(pathSpecAsString)));
+    if (pathSpecAsArray.length > 0) {
+      return getFieldValue(recordTemplate, new PathSpec(pathSpecAsArray));
     }
     return Optional.empty();
   }

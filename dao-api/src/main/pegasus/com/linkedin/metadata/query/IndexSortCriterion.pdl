@@ -1,0 +1,22 @@
+namespace com.linkedin.metadata.query
+
+/**
+ * Sort order along with the aspect and path to sort it on, to be applied to the results.
+ */
+record IndexSortCriterion {
+
+  /**
+   * FQCN of the aspect class in the index table that this criterion refers to e.g. com.linkedin.common.Status
+   */
+  aspect: string
+
+  /**
+   * Corresponding path column of the index table that this criterion refers to e.g. /removed (corresponding to field "removed" of com.linkedin.common.Status aspect)
+   */
+  path: string
+
+  /**
+   * The order to sort the results i.e. ASCENDING or DESCENDING
+   */
+  order: SortOrder
+}

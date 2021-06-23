@@ -13,6 +13,7 @@ import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
+import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.query.ListResultMetadata;
 import com.linkedin.parseq.Task;
 import com.linkedin.restli.server.CollectionResult;
@@ -336,22 +337,24 @@ public abstract class BaseEntityResource<
 
   /**
    * Returns ordered list of values of multiple entities obtained after filtering urns
-   * from local secondary index. The returned list is ordered lexicographically by the string representation of the URN.
+   * from local secondary index. The returned list is ordered by the sort criterion but defaults to sorting
+   * lexicographically by the string representation of the URN.
    * The list of values is in the same order as the list of urns contained in {@link ListResultMetadata}.
    *
    * @param aspectClasses set of aspect classes that needs to be populated in the values
    * @param filter {@link IndexFilter} that defines the filter conditions
+   * @param indexSortCriterion {@link IndexSortCriterion} that defines the sort conditions
    * @param lastUrn last urn of the previous fetched page. For the first page, this should be set as NULL
-   * @param pagingContext {@link PagingContext} defining the paging parameters of the request
+   * @param count defining the maximum number of values returned
    * @return ordered list of values of multiple entities
    */
   @Nonnull
   private List<VALUE> filterAspects(
       @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nonnull IndexFilter filter,
-      @Nullable String lastUrn, @Nonnull PagingContext pagingContext) {
+      @Nullable IndexSortCriterion indexSortCriterion, @Nullable String lastUrn, int count) {
 
     final List<UrnAspectEntry<URN>> urnAspectEntries =
-        getLocalDAO().getAspects(aspectClasses, filter, parseUrnParam(lastUrn), pagingContext.getCount());
+        getLocalDAO().getAspects(aspectClasses, filter, indexSortCriterion, parseUrnParam(lastUrn), count);
 
     final Map<URN, List<UnionTemplate>> urnAspectsMap = new LinkedHashMap<>();
     for (UrnAspectEntry<URN> entry : urnAspectEntries) {
@@ -375,20 +378,22 @@ public abstract class BaseEntityResource<
 
   /**
    * Returns ordered list of values of multiple entities obtained after filtering urns
-   * from local secondary index. The returned list is ordered lexicographically by the string representation of the URN.
+   * from local secondary index. The returned list is ordered by the sort criterion but defaults to
+   * being ordered lexicographically by the string representation of the URN.
    * The values returned do not contain any metadata aspect, only parts of the urn (if applicable).
    * The list of values is in the same order as the list of urns contained in {@link ListResultMetadata}.
    *
    * @param filter {@link IndexFilter} that defines the filter conditions
+   * @param indexSortCriterion {@link IndexSortCriterion} that defines the sorting conditions
    * @param lastUrn last urn of the previous fetched page
-   * @param pagingContext {@link PagingContext} defining the paging parameters of the request
+   * @param count defining the maximum number of values returned
    * @return ordered list of values of multiple entities
    */
   @Nonnull
-  private List<VALUE> filterUrns(@Nonnull IndexFilter filter, @Nullable String lastUrn,
-      @Nonnull PagingContext pagingContext) {
+  private List<VALUE> filterUrns(@Nonnull IndexFilter filter, @Nullable IndexSortCriterion indexSortCriterion,
+      @Nullable String lastUrn, int count) {
 
-    final List<URN> urns = getLocalDAO().listUrns(filter, parseUrnParam(lastUrn), pagingContext.getCount());
+    final List<URN> urns = getLocalDAO().listUrns(filter, indexSortCriterion, parseUrnParam(lastUrn), count);
     return urns.stream().map(urn -> toValue(newSnapshot(urn))).collect(Collectors.toList());
   }
 
@@ -399,11 +404,43 @@ public abstract class BaseEntityResource<
    *
    * <p>If no filter conditions are provided, then it returns values of given entity type.
    *
+   * <p>Note: Only one of the filter finders should be implemented in your resource implementation.
+   *
    * @param indexFilter {@link IndexFilter} that defines the filter conditions
+   * @param indexSortCriterion {@link IndexSortCriterion} that defines the sorting conditions
    * @param aspectNames list of aspects to be returned in the VALUE model
    * @param lastUrn last urn of the previous fetched page. For the first page, this should be set as NULL
-   * @param pagingContext {@link PagingContext} defining the paging parameters of the request
+   * @param count defining the maximum number of urns to return
    * @return {@link CollectionResult} containing values along with the associated urns in {@link ListResultMetadata}
+   */
+  @Finder(FINDER_FILTER)
+  @Nonnull
+  public Task<List<VALUE>> filter(
+      @QueryParam(PARAM_FILTER) @Optional @Nullable IndexFilter indexFilter,
+      @QueryParam(PARAM_SORT) @Optional @Nullable IndexSortCriterion indexSortCriterion,
+      @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
+      @QueryParam(PARAM_URN) @Optional @Nullable String lastUrn,
+      @QueryParam(PARAM_COUNT) @Optional("10") int count) {
+
+    final IndexFilter filter = indexFilter == null ? getDefaultIndexFilter() : indexFilter;
+
+    return RestliUtils.toTask(() -> {
+      final Set<Class<? extends RecordTemplate>> aspectClasses = parseAspectsParam(aspectNames);
+      if (aspectClasses.isEmpty()) {
+        return filterUrns(filter, indexSortCriterion, lastUrn, count);
+      } else {
+        return filterAspects(aspectClasses, filter, indexSortCriterion, lastUrn, count);
+      }
+    });
+  }
+
+  /**
+   * Similar to {@link #filter(IndexFilter, IndexSortCriterion, String[], String, int)} but
+   * uses null sorting criterion.
+   *
+   * <p>Note: Only one of the filter finders should be implemented in your resource implementation.
+   *
+   * @deprecated Use {@link #filter(IndexFilter, IndexSortCriterion, String[], String, int)} instead
    */
   @Finder(FINDER_FILTER)
   @Nonnull
@@ -412,17 +449,7 @@ public abstract class BaseEntityResource<
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
       @QueryParam(PARAM_URN) @Optional @Nullable String lastUrn,
       @PagingContextParam @Nonnull PagingContext pagingContext) {
-
-    final IndexFilter filter = indexFilter == null ? getDefaultIndexFilter() : indexFilter;
-
-    return RestliUtils.toTask(() -> {
-      final Set<Class<? extends RecordTemplate>> aspectClasses = parseAspectsParam(aspectNames);
-      if (aspectClasses.isEmpty()) {
-        return filterUrns(filter, lastUrn, pagingContext);
-      } else {
-        return filterAspects(aspectClasses, filter, lastUrn, pagingContext);
-      }
-    });
+    return filter(indexFilter, null, aspectNames, lastUrn, pagingContext.getCount());
   }
 
   @Nonnull
