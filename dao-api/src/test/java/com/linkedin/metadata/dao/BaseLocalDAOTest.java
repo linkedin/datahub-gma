@@ -107,6 +107,12 @@ public class BaseLocalDAOTest {
     }
 
     @Override
+    public ListResult<FooUrn> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
+        int start, int pageSize) {
+      return null;
+    }
+
+    @Override
     public <ASPECT extends RecordTemplate> ListResult<ASPECT> list(Class<ASPECT> aspectClass, FooUrn urn, int start,
         int pageSize) {
       return null;

@@ -1050,6 +1050,88 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
+  public void testCheckValidIndexCriterionArray() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+
+    // secondary index not enabled
+    final IndexCriterionArray indexCriterionArray1 = new IndexCriterionArray();
+    assertThrows(UnsupportedOperationException.class, () -> dao.checkValidIndexCriterionArray(indexCriterionArray1));
+
+    // empty index criterion array
+    dao.enableLocalSecondaryIndex(true);
+    assertThrows(UnsupportedOperationException.class, () -> dao.checkValidIndexCriterionArray(indexCriterionArray1));
+
+    // >10 criterion in array
+    IndexValue indexValue = new IndexValue();
+    indexValue.setString("val");
+    IndexCriterion criterion = new IndexCriterion().setAspect(AspectFoo.class.getCanonicalName())
+        .setPathParams(new IndexPathParams().setPath("/value").setValue(indexValue).setCondition(Condition.START_WITH));
+    final IndexCriterionArray indexCriterionArray2 = new IndexCriterionArray(Collections.nCopies(11, criterion));
+    assertThrows(UnsupportedOperationException.class, () -> dao.checkValidIndexCriterionArray(indexCriterionArray2));
+  }
+
+  @Test
+  public void testListUrnsOffsetPagination() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    dao.enableLocalSecondaryIndex(true);
+    FooUrn urn1 = makeFooUrn(1);
+    FooUrn urn2 = makeFooUrn(2);
+    FooUrn urn3 = makeFooUrn(3);
+    String aspect1 = AspectFoo.class.getCanonicalName();
+    String aspect2 = AspectBaz.class.getCanonicalName();
+
+    addIndex(urn1, aspect1, "/value", "valB");
+    addIndex(urn1, aspect2, "/stringField", "dolphin");
+    addIndex(urn1, FooUrn.class.getCanonicalName(), "/fooId", 1);
+
+    addIndex(urn2, aspect1, "/value", "valC");
+    addIndex(urn2, aspect2, "/stringField", "reindeer");
+    addIndex(urn2, FooUrn.class.getCanonicalName(), "/fooId", 2);
+
+    addIndex(urn3, aspect1, "/value", "valA");
+    addIndex(urn3, aspect2, "/stringField", "dog");
+    addIndex(urn3, FooUrn.class.getCanonicalName(), "/fooId", 3);
+
+    IndexValue indexValue = new IndexValue();
+    indexValue.setString("val");
+    IndexCriterion criterion = new IndexCriterion().setAspect(aspect1)
+        .setPathParams(new IndexPathParams().setPath("/value").setValue(indexValue).setCondition(Condition.START_WITH));
+
+    IndexCriterionArray indexCriterionArray = new IndexCriterionArray(Collections.singletonList(criterion));
+    final IndexFilter indexFilter = new IndexFilter().setCriteria(indexCriterionArray);
+
+    IndexSortCriterion indexSortCriterion =
+        new IndexSortCriterion().setAspect(aspect1).setPath("/value").setOrder(SortOrder.DESCENDING);
+
+    // first page
+    ListResult<FooUrn> results1 = dao.listUrns(indexFilter, indexSortCriterion, 0, 2);
+    assertEquals(results1.getValues(), Arrays.asList(urn2, urn1));
+    assertTrue(results1.isHavingMore());
+    assertEquals(results1.getNextStart(), 2);
+    assertEquals(results1.getTotalCount(), 3);
+    assertEquals(results1.getPageSize(), 2);
+    assertEquals(results1.getTotalPageCount(), 2);
+
+    // last page
+    ListResult<FooUrn> results2 = dao.listUrns(indexFilter, indexSortCriterion, 2, 2);
+    assertEquals(results2.getValues(), Arrays.asList(urn3));
+    assertFalse(results2.isHavingMore());
+    assertEquals(results2.getNextStart(), ListResult.INVALID_NEXT_START);
+    assertEquals(results2.getTotalCount(), 3);
+    assertEquals(results2.getPageSize(), 2);
+    assertEquals(results2.getTotalPageCount(), 2);
+
+    // beyond last page
+    ListResult<FooUrn> results3 = dao.listUrns(indexFilter, indexSortCriterion, 4, 2);
+    assertEquals(results3.getValues(), new ArrayList<>());
+    assertFalse(results3.isHavingMore());
+    assertEquals(results3.getNextStart(), ListResult.INVALID_NEXT_START);
+    assertEquals(results3.getTotalCount(), 3);
+    assertEquals(results3.getPageSize(), 2);
+    assertEquals(results3.getTotalPageCount(), 2);
+  };
+
+  @Test
   public void testListUrns() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     AspectFoo foo = new AspectFoo().setValue("foo");
@@ -1139,6 +1221,17 @@ public class EbeanLocalDAOTest {
     UrnAspectEntry<FooUrn> entry2 = new UrnAspectEntry<>(urn2, Arrays.asList(e2foo1, e2bar1));
 
     assertEquals(actual, Arrays.asList(entry1, entry2));
+
+    // offset pagination
+    ListResult<UrnAspectEntry<FooUrn>> actualListResult = dao.getAspects(aspectClasses, indexFilter,
+        null, 0, 2);
+
+    assertEquals(actualListResult.getValues(), Arrays.asList(entry1, entry2));
+    assertFalse(actualListResult.isHavingMore());
+    assertEquals(actualListResult.getNextStart(), ListResult.INVALID_NEXT_START);
+    assertEquals(actualListResult.getTotalCount(), 2);
+    assertEquals(actualListResult.getPageSize(), 2);
+    assertEquals(actualListResult.getTotalPageCount(), 1);
   }
 
   @Test

@@ -928,6 +928,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   /**
    * Sets the values of parameters in metadata index query based on its position, values obtained from
    * {@link IndexCriterionArray} and last urn. Also sets the LIMIT of SQL query using the page size input.
+   * For offset pagination, the limit will be set when the query gets executed.
    *
    * @param indexCriterionArray {@link IndexCriterionArray} whose values will be used to set parameters in metadata
    *                                                       index query based on its position
@@ -935,9 +936,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * @param indexQuery {@link Query} whose ordered parameters need to be set, based on it's position
    * @param lastUrn string representation of the urn whose value is used to set the last urn parameter in index query
    * @param pageSize maximum number of distinct urns to return which is essentially the LIMIT clause of SQL query
+   * @param offsetPagination used to determine whether to used cursor or offset pagination
    */
   private static void setParameters(@Nonnull IndexCriterionArray indexCriterionArray, @Nullable IndexSortCriterion indexSortCriterion,
-      @Nonnull Query<EbeanMetadataIndex> indexQuery, @Nonnull String lastUrn, int pageSize) {
+      @Nonnull Query<EbeanMetadataIndex> indexQuery, @Nonnull String lastUrn, int pageSize, boolean offsetPagination) {
     indexQuery.setParameter(1, lastUrn);
     int pos = 2;
     for (IndexCriterion criterion : indexCriterionArray) {
@@ -951,7 +953,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       indexQuery.setParameter(pos++, indexSortCriterion.getAspect());
       indexQuery.setParameter(pos++, indexSortCriterion.getPath());
     }
-    indexQuery.setParameter(pos, pageSize);
+    if (!offsetPagination) {
+      indexQuery.setParameter(pos, pageSize);
+    }
   }
 
   @Nonnull
@@ -1027,14 +1031,17 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   /**
    * Constructs SQL query that contains positioned parameters (with `?`), based on whether {@link IndexCriterion} of
    * a given condition has field `pathParams`.
+   * For offset pagination, the limit clause is empty because the limit will be set when the query
+   * gets executed.
    *
    * @param indexCriterionArray {@link IndexCriterionArray} used to construct the SQL query
    * @param indexSortCriterion {@link IndexSortCriterion} used to construct the SQL query
+   * @param offsetPagination used to determine whether to used cursor or offset pagination
    * @return String representation of SQL query
    */
   @Nonnull
   private static String constructSQLQuery(@Nonnull IndexCriterionArray indexCriterionArray,
-      @Nullable IndexSortCriterion indexSortCriterion) {
+      @Nullable IndexSortCriterion indexSortCriterion, boolean offsetPagination) {
     String sortColumn = indexSortCriterion != null ? getSortingColumn(indexSortCriterion) : "";
     String selectClause = "SELECT DISTINCT(t0.urn)";
     if (!sortColumn.isEmpty()) {
@@ -1048,7 +1055,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     final StringBuilder whereClause = new StringBuilder("WHERE t0.urn > ?");
     IntStream.range(0, indexCriterionArray.size()).forEach(i -> {
       final IndexCriterion criterion = indexCriterionArray.get(i);
-
       whereClause.append(" AND t").append(i).append(".aspect = ?");
       if (criterion.getPathParams() != null) {
         validateConditionAndValue(criterion);
@@ -1073,8 +1079,21 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     } else {
       orderByClause = "ORDER BY urn ASC";
     }
-    final String limitClause = "LIMIT ?";
+    final String limitClause = offsetPagination ?  "" : "LIMIT ?";
     return String.join(" ", selectClause, whereClause, orderByClause, limitClause);
+  }
+
+  void checkValidIndexCriterionArray(@Nonnull IndexCriterionArray indexCriterionArray) {
+    if (!isLocalSecondaryIndexEnabled()) {
+      throw new UnsupportedOperationException("Local secondary index isn't supported");
+    }
+    if (indexCriterionArray.isEmpty()) {
+      throw new UnsupportedOperationException("Empty Index Filter is not supported by EbeanLocalDAO");
+    }
+    if (indexCriterionArray.size() > 10) {
+      throw new UnsupportedOperationException(
+          "Currently more than 10 filter conditions is not supported by EbeanLocalDAO");
+    }
   }
 
   void addEntityTypeFilter(@Nonnull IndexFilter indexFilter) {
@@ -1101,27 +1120,50 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Nonnull
   public List<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       @Nullable URN lastUrn, int pageSize) {
-    if (!isLocalSecondaryIndexEnabled()) {
-      throw new UnsupportedOperationException("Local secondary index isn't supported");
-    }
     final IndexCriterionArray indexCriterionArray = indexFilter.getCriteria();
-    if (indexCriterionArray.isEmpty()) {
-      throw new UnsupportedOperationException("Empty Index Filter is not supported by EbeanLocalDAO");
-    }
-    if (indexCriterionArray.size() > 10) {
-      throw new UnsupportedOperationException(
-          "Currently more than 10 filter conditions is not supported by EbeanLocalDAO");
-    }
+    checkValidIndexCriterionArray(indexCriterionArray);
 
     addEntityTypeFilter(indexFilter);
 
-    final Query<EbeanMetadataIndex> query =
-        _server.findNative(EbeanMetadataIndex.class, constructSQLQuery(indexCriterionArray, indexSortCriterion))
-            .setTimeout(INDEX_QUERY_TIMEOUT_IN_SEC);
-    setParameters(indexCriterionArray, indexSortCriterion, query, lastUrn == null ? "" : lastUrn.toString(), pageSize);
+    final Query<EbeanMetadataIndex> query = _server
+        .findNative(EbeanMetadataIndex.class, constructSQLQuery(indexCriterionArray, indexSortCriterion, false))
+        .setTimeout(INDEX_QUERY_TIMEOUT_IN_SEC);
+    setParameters(indexCriterionArray, indexSortCriterion, query, lastUrn == null ? "" : lastUrn.toString(), pageSize, false);
 
     final List<EbeanMetadataIndex> pagedList = query.findList();
 
     return pagedList.stream().map(entry -> getUrn(entry.getUrn())).collect(Collectors.toList());
+  }
+
+  /**
+   *  Similar to {@link #listUrns(IndexFilter, IndexSortCriterion, Urn, int)} but returns a list result with pagination
+   *  information.
+   *
+   * @param start the starting offset of the page
+   * @return a {@link ListResult} containing a list of urns and other pagination information
+   */
+  @Override
+  @Nonnull
+  public ListResult<URN> listUrns(@Nonnull IndexFilter indexFilter,
+      @Nullable IndexSortCriterion indexSortCriterion, int start, int pageSize) {
+    final IndexCriterionArray indexCriterionArray = indexFilter.getCriteria();
+    checkValidIndexCriterionArray(indexCriterionArray);
+
+    addEntityTypeFilter(indexFilter);
+
+    final Query<EbeanMetadataIndex> query = _server
+        .findNative(EbeanMetadataIndex.class, constructSQLQuery(indexCriterionArray, indexSortCriterion, true))
+        .setTimeout(INDEX_QUERY_TIMEOUT_IN_SEC);
+    setParameters(indexCriterionArray, indexSortCriterion, query, "", pageSize, true);
+
+    final PagedList<EbeanMetadataIndex> pagedList = query
+        .setFirstRow(start)
+        .setMaxRows(pageSize)
+        .findPagedList();
+
+    final List<URN> urns =
+        pagedList.getList().stream().map(entry -> getUrn(entry.getUrn())).collect(Collectors.toList());
+
+    return toListResult(urns, null, pagedList, start);
   }
 }
