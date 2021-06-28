@@ -380,7 +380,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param newValue {@link RecordTemplate} of the new value of aspect
    * @param version version of the aspect
    */
-  protected abstract <ASPECT extends RecordTemplate> void updateLocalIndex(@Nonnull URN urn,
+  public abstract <ASPECT extends RecordTemplate> void updateLocalIndex(@Nonnull URN urn,
       @Nullable ASPECT newValue, long version);
 
   /**
