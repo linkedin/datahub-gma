@@ -1052,13 +1052,10 @@ public class EbeanLocalDAOTest {
   @Test
   public void testCheckValidIndexCriterionArray() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
-
-    // secondary index not enabled
-    final IndexCriterionArray indexCriterionArray1 = new IndexCriterionArray();
-    assertThrows(UnsupportedOperationException.class, () -> dao.checkValidIndexCriterionArray(indexCriterionArray1));
+    dao.enableLocalSecondaryIndex(true);
 
     // empty index criterion array
-    dao.enableLocalSecondaryIndex(true);
+    final IndexCriterionArray indexCriterionArray1 = new IndexCriterionArray();
     assertThrows(UnsupportedOperationException.class, () -> dao.checkValidIndexCriterionArray(indexCriterionArray1));
 
     // >10 criterion in array

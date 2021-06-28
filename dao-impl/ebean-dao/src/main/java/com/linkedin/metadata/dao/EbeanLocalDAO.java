@@ -940,8 +940,13 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    */
   private static void setParameters(@Nonnull IndexCriterionArray indexCriterionArray, @Nullable IndexSortCriterion indexSortCriterion,
       @Nonnull Query<EbeanMetadataIndex> indexQuery, @Nonnull String lastUrn, int pageSize, boolean offsetPagination) {
-    indexQuery.setParameter(1, lastUrn);
-    int pos = 2;
+    int pos;
+    if (!offsetPagination) {
+      indexQuery.setParameter(1, lastUrn);
+      pos = 2;
+    } else {
+      pos = 1;
+    }
     for (IndexCriterion criterion : indexCriterionArray) {
       indexQuery.setParameter(pos++, criterion.getAspect());
       if (criterion.getPathParams() != null) {
@@ -1052,10 +1057,16 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     selectClause += IntStream.range(1, indexCriterionArray.size())
         .mapToObj(i -> " INNER JOIN metadata_index " + "t" + i + " ON t0.urn = " + "t" + i + ".urn")
         .collect(Collectors.joining(""));
-    final StringBuilder whereClause = new StringBuilder("WHERE t0.urn > ?");
+    final StringBuilder whereClause = new StringBuilder("WHERE ");
+    if (!offsetPagination) {
+      whereClause.append("t0.urn > ?");
+    }
     IntStream.range(0, indexCriterionArray.size()).forEach(i -> {
       final IndexCriterion criterion = indexCriterionArray.get(i);
-      whereClause.append(" AND t").append(i).append(".aspect = ?");
+      if (!offsetPagination || i > 0) {
+        whereClause.append(" AND");
+      }
+      whereClause.append(" t").append(i).append(".aspect = ?");
       if (criterion.getPathParams() != null) {
         validateConditionAndValue(criterion);
         whereClause.append(" AND t")
@@ -1084,9 +1095,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   void checkValidIndexCriterionArray(@Nonnull IndexCriterionArray indexCriterionArray) {
-    if (!isLocalSecondaryIndexEnabled()) {
-      throw new UnsupportedOperationException("Local secondary index isn't supported");
-    }
     if (indexCriterionArray.isEmpty()) {
       throw new UnsupportedOperationException("Empty Index Filter is not supported by EbeanLocalDAO");
     }
@@ -1120,6 +1128,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Nonnull
   public List<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       @Nullable URN lastUrn, int pageSize) {
+    if (!isLocalSecondaryIndexEnabled()) {
+      throw new UnsupportedOperationException("Local secondary index isn't supported");
+    }
+
     final IndexCriterionArray indexCriterionArray = indexFilter.getCriteria();
     checkValidIndexCriterionArray(indexCriterionArray);
 
@@ -1146,6 +1158,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Nonnull
   public ListResult<URN> listUrns(@Nonnull IndexFilter indexFilter,
       @Nullable IndexSortCriterion indexSortCriterion, int start, int pageSize) {
+    if (!isLocalSecondaryIndexEnabled()) {
+      throw new UnsupportedOperationException("Local secondary index isn't supported");
+    }
+
     final IndexCriterionArray indexCriterionArray = indexFilter.getCriteria();
     checkValidIndexCriterionArray(indexCriterionArray);
 
