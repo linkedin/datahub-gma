@@ -51,7 +51,7 @@ public class BaseLocalDAOTest {
     }
 
     @Override
-    protected <ASPECT extends RecordTemplate> void updateLocalIndex(@Nonnull FooUrn urn,
+    public <ASPECT extends RecordTemplate> void updateLocalIndex(@Nonnull FooUrn urn,
         @Nullable ASPECT newValue, long version) {
 
     }
