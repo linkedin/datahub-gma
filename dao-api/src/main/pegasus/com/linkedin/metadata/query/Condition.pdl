@@ -31,6 +31,11 @@ enum Condition {
   GREATER_THAN_OR_EQUAL_TO
 
   /**
+   * Represent the relation: String field is one of the array values to, e.g. name in ["Profile", "Event"]
+   */
+  IN
+
+  /**
    * Represent the relation less than, e.g. ownerCount < 3
    */
   LESS_THAN
