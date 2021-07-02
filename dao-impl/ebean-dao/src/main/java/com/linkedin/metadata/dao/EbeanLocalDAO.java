@@ -964,6 +964,16 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Nonnull
+  private static void validateConditionAndValue(@Nonnull IndexCriterion criterion) {
+    final Condition condition = criterion.getPathParams().getCondition();
+    final IndexValue indexValue = criterion.getPathParams().getValue();
+
+    if (condition == Condition.IN && !indexValue.isArray()) {
+      throw new IllegalArgumentException("Invalid condition " + condition + " for index value " + indexValue);
+    }
+  }
+
+  @Nonnull
   static <ASPECT extends RecordTemplate> String getSortingColumn(@Nonnull IndexSortCriterion indexSortCriterion) {
     final String[] pathSpecArray = RecordUtils.getPathSpecAsArray(indexSortCriterion.getPath());
 
@@ -1041,6 +1051,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
       whereClause.append(" AND t").append(i).append(".aspect = ?");
       if (criterion.getPathParams() != null) {
+        validateConditionAndValue(criterion);
         whereClause.append(" AND t")
             .append(i)
             .append(".path = ? AND t")
