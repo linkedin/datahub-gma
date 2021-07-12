@@ -968,8 +968,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     final Condition condition = criterion.getPathParams().getCondition();
     final IndexValue indexValue = criterion.getPathParams().getValue();
 
-    if (condition == Condition.IN && (!indexValue.isArray() || indexValue.getArray().size() == 0
-        || indexValue.getArray().get(0).getClass() != String.class)) {
+    if (condition == Condition.IN && (!indexValue.isArray() || indexValue.getArray().size() == 0)) {
       throw new IllegalArgumentException("Invalid condition " + condition + " for index value " + indexValue);
     }
   }
@@ -1015,7 +1014,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   private static String getPlaceholderStringForValue(@Nonnull IndexValue indexValue) {
-    if (indexValue.isArray() && indexValue.getArray().size() > 0 && indexValue.getArray().get(0).getClass() == String.class) {
+    if (indexValue.isArray() && indexValue.getArray().size() > 0) {
       List<Object> values = Arrays.asList(indexValue.getArray().toArray());
       String placeholderString = "(";
       placeholderString += String.join(",", values.stream().map(value -> "?").collect(Collectors.toList()));

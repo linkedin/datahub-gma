@@ -992,6 +992,7 @@ public class EbeanLocalDAOTest {
     assertEquals(urns5, Arrays.asList(urn3, urn2, urn1));
   }
 
+  @Test
   public void testIn() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     dao.enableLocalSecondaryIndex(true);
@@ -1028,6 +1029,24 @@ public class EbeanLocalDAOTest {
     final IndexFilter indexFilter2 = new IndexFilter().setCriteria(indexCriterionArray2);
     List<FooUrn> urns2 = dao.listUrns(indexFilter2, null, 5);
     assertEquals(urns2, Arrays.asList());
+
+    IndexValue indexValue3 = new IndexValue();
+    indexValue3.setString("test");
+    IndexCriterion criterion3 = new IndexCriterion().setAspect(aspect)
+        .setPathParams(new IndexPathParams().setPath("/path1").setValue(indexValue3).setCondition(Condition.IN));
+
+    IndexCriterionArray indexCriterionArray3 = new IndexCriterionArray(Collections.singletonList(criterion3));
+    final IndexFilter indexFilter3 = new IndexFilter().setCriteria(indexCriterionArray3);
+    assertThrows(IllegalArgumentException.class, () -> dao.listUrns(indexFilter3, null, 5));
+
+    IndexValue indexValue4 = new IndexValue();
+    indexValue4.setArray(new StringArray());
+    IndexCriterion criterion4 = new IndexCriterion().setAspect(aspect)
+        .setPathParams(new IndexPathParams().setPath("/path1").setValue(indexValue4).setCondition(Condition.IN));
+
+    IndexCriterionArray indexCriterionArray4 = new IndexCriterionArray(Collections.singletonList(criterion4));
+    final IndexFilter indexFilter4 = new IndexFilter().setCriteria(indexCriterionArray4);
+    assertThrows(IllegalArgumentException.class, () -> dao.listUrns(indexFilter4, null, 5));
   }
 
   @Test
