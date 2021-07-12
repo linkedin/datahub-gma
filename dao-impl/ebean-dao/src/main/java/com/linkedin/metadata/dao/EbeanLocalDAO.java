@@ -43,6 +43,7 @@ import java.lang.reflect.Method;
 import java.net.URISyntaxException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -94,6 +95,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
           put(Condition.EQUAL, "=");
           put(Condition.GREATER_THAN, ">");
           put(Condition.GREATER_THAN_OR_EQUAL_TO, ">=");
+          put(Condition.IN, "IN");
           put(Condition.LESS_THAN, "<");
           put(Condition.LESS_THAN_OR_EQUAL_TO, "<=");
           put(Condition.START_WITH, "LIKE");
@@ -907,6 +909,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     } else if (indexValue.isString()) {
       object = getValueFromIndexCriterion(criterion);
       return new GMAIndexPair(EbeanMetadataIndex.STRING_COLUMN, object);
+    } else if (indexValue.isArray() && indexValue.getArray().size() > 0 && indexValue.getArray().get(0).getClass() == String.class) {
+      object = indexValue.getArray();
+      return new GMAIndexPair(EbeanMetadataIndex.STRING_COLUMN, object);
     } else {
       throw new IllegalArgumentException("Invalid index value " + indexValue);
     }
@@ -959,6 +964,16 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Nonnull
+  private static void validateConditionAndValue(@Nonnull IndexCriterion criterion) {
+    final Condition condition = criterion.getPathParams().getCondition();
+    final IndexValue indexValue = criterion.getPathParams().getValue();
+
+    if (condition == Condition.IN && (!indexValue.isArray() || indexValue.getArray().size() == 0)) {
+      throw new IllegalArgumentException("Invalid condition " + condition + " for index value " + indexValue);
+    }
+  }
+
+  @Nonnull
   static <ASPECT extends RecordTemplate> String getSortingColumn(@Nonnull IndexSortCriterion indexSortCriterion) {
     final String[] pathSpecArray = RecordUtils.getPathSpecAsArray(indexSortCriterion.getPath());
 
@@ -998,6 +1013,17 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
   }
 
+  private static String getPlaceholderStringForValue(@Nonnull IndexValue indexValue) {
+    if (indexValue.isArray() && indexValue.getArray().size() > 0) {
+      List<Object> values = Arrays.asList(indexValue.getArray().toArray());
+      String placeholderString = "(";
+      placeholderString += String.join(",", values.stream().map(value -> "?").collect(Collectors.toList()));
+      placeholderString += ")";
+      return placeholderString;
+    }
+    return "?";
+  }
+
   /**
    * Constructs SQL query that contains positioned parameters (with `?`), based on whether {@link IndexCriterion} of
    * a given condition has field `pathParams`.
@@ -1025,6 +1051,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
       whereClause.append(" AND t").append(i).append(".aspect = ?");
       if (criterion.getPathParams() != null) {
+        validateConditionAndValue(criterion);
         whereClause.append(" AND t")
             .append(i)
             .append(".path = ? AND t")
@@ -1033,7 +1060,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
             .append(getGMAIndexPair(criterion).valueType)
             .append(" ")
             .append(getStringForOperator(criterion.getPathParams().getCondition()))
-            .append("?");
+            .append(getPlaceholderStringForValue(criterion.getPathParams().getValue()));
       }
     });
     final String orderByClause;

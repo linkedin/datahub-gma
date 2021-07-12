@@ -7,6 +7,7 @@ import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.common.urn.Urns;
 import com.linkedin.data.template.RecordTemplate;
+import com.linkedin.data.template.StringArray;
 import com.linkedin.metadata.backfill.BackfillMode;
 import com.linkedin.metadata.dao.equality.AlwaysFalseEqualityTester;
 import com.linkedin.metadata.dao.equality.DefaultEqualityTester;
@@ -992,6 +993,63 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
+  public void testIn() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    dao.enableLocalSecondaryIndex(true);
+    FooUrn urn1 = makeFooUrn(1);
+    FooUrn urn2 = makeFooUrn(2);
+    FooUrn urn3 = makeFooUrn(3);
+    String aspect = "aspect1" + System.currentTimeMillis();
+
+    addIndex(urn1, aspect, "/path1", "foo");
+    addIndex(urn1, FooUrn.class.getCanonicalName(), "/fooId", 1);
+
+    addIndex(urn2, aspect, "/path1", "baz");
+    addIndex(urn2, FooUrn.class.getCanonicalName(), "/fooId", 2);
+
+    addIndex(urn3, aspect, "/path1", "val");
+    addIndex(urn3, FooUrn.class.getCanonicalName(), "/fooId", 3);
+
+    IndexValue indexValue1 = new IndexValue();
+    indexValue1.setArray(new StringArray("foo", "baz"));
+    IndexCriterion criterion1 = new IndexCriterion().setAspect(aspect)
+        .setPathParams(new IndexPathParams().setPath("/path1").setValue(indexValue1).setCondition(Condition.IN));
+
+    IndexCriterionArray indexCriterionArray1 = new IndexCriterionArray(Collections.singletonList(criterion1));
+    final IndexFilter indexFilter1 = new IndexFilter().setCriteria(indexCriterionArray1);
+    List<FooUrn> urns1 = dao.listUrns(indexFilter1, null, 5);
+    assertEquals(urns1, Arrays.asList(urn1, urn2));
+
+    IndexValue indexValue2 = new IndexValue();
+    indexValue2.setArray(new StringArray("a", "b", "c"));
+    IndexCriterion criterion2 = new IndexCriterion().setAspect(aspect)
+        .setPathParams(new IndexPathParams().setPath("/path1").setValue(indexValue2).setCondition(Condition.IN));
+
+    IndexCriterionArray indexCriterionArray2 = new IndexCriterionArray(Collections.singletonList(criterion2));
+    final IndexFilter indexFilter2 = new IndexFilter().setCriteria(indexCriterionArray2);
+    List<FooUrn> urns2 = dao.listUrns(indexFilter2, null, 5);
+    assertEquals(urns2, Arrays.asList());
+
+    IndexValue indexValue3 = new IndexValue();
+    indexValue3.setString("test");
+    IndexCriterion criterion3 = new IndexCriterion().setAspect(aspect)
+        .setPathParams(new IndexPathParams().setPath("/path1").setValue(indexValue3).setCondition(Condition.IN));
+
+    IndexCriterionArray indexCriterionArray3 = new IndexCriterionArray(Collections.singletonList(criterion3));
+    final IndexFilter indexFilter3 = new IndexFilter().setCriteria(indexCriterionArray3);
+    assertThrows(IllegalArgumentException.class, () -> dao.listUrns(indexFilter3, null, 5));
+
+    IndexValue indexValue4 = new IndexValue();
+    indexValue4.setArray(new StringArray());
+    IndexCriterion criterion4 = new IndexCriterion().setAspect(aspect)
+        .setPathParams(new IndexPathParams().setPath("/path1").setValue(indexValue4).setCondition(Condition.IN));
+
+    IndexCriterionArray indexCriterionArray4 = new IndexCriterionArray(Collections.singletonList(criterion4));
+    final IndexFilter indexFilter4 = new IndexFilter().setCriteria(indexCriterionArray4);
+    assertThrows(IllegalArgumentException.class, () -> dao.listUrns(indexFilter4, null, 5));
+  }
+
+  @Test
   public void testListUrns() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     AspectFoo foo = new AspectFoo().setValue("foo");
@@ -1549,12 +1607,19 @@ public class EbeanLocalDAOTest {
     gmaIndexPair = EbeanLocalDAO.getGMAIndexPair(indexCriterion);
     assertEquals(EbeanMetadataIndex.LONG_COLUMN, gmaIndexPair.valueType);
     assertEquals(lVal, gmaIndexPair.value);
-    // 6/ IndexValue pair corresponds to string
+    // 6. IndexValue pair corresponds to string
     String sVal = "testVal";
     indexValue.setString(sVal);
     gmaIndexPair = EbeanLocalDAO.getGMAIndexPair(indexCriterion);
     assertEquals(EbeanMetadataIndex.STRING_COLUMN, gmaIndexPair.valueType);
     assertEquals(sVal, gmaIndexPair.value);
+    // 7. IndexValue pair corresponds to string array
+    StringArray sArrVal = new StringArray();
+    sArrVal.add("testVal");
+    indexValue.setArray(sArrVal);
+    gmaIndexPair = EbeanLocalDAO.getGMAIndexPair(indexCriterion);
+    assertEquals(EbeanMetadataIndex.STRING_COLUMN, gmaIndexPair.valueType);
+    assertEquals(sArrVal, gmaIndexPair.value);
   }
 
   @Test
