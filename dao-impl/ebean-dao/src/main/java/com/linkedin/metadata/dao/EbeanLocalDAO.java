@@ -909,7 +909,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     } else if (indexValue.isString()) {
       object = getValueFromIndexCriterion(criterion);
       return new GMAIndexPair(EbeanMetadataIndex.STRING_COLUMN, object);
-    } else if (indexValue.isArray()) {
+    } else if (indexValue.isArray() && indexValue.getArray().size() > 0 && indexValue.getArray().get(0).getClass() == String.class) {
       object = indexValue.getArray();
       return new GMAIndexPair(EbeanMetadataIndex.STRING_COLUMN, object);
     } else {
@@ -968,7 +968,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     final Condition condition = criterion.getPathParams().getCondition();
     final IndexValue indexValue = criterion.getPathParams().getValue();
 
-    if (condition == Condition.IN && !indexValue.isArray()) {
+    if (condition == Condition.IN && (!indexValue.isArray() || indexValue.getArray().size() == 0
+        || indexValue.getArray().get(0).getClass() != String.class)) {
       throw new IllegalArgumentException("Invalid condition " + condition + " for index value " + indexValue);
     }
   }
@@ -1014,7 +1015,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   private static String getPlaceholderStringForValue(@Nonnull IndexValue indexValue) {
-    if (indexValue.isArray()) {
+    if (indexValue.isArray() && indexValue.getArray().size() > 0 && indexValue.getArray().get(0).getClass() == String.class) {
       List<Object> values = Arrays.asList(indexValue.getArray().toArray());
       String placeholderString = "(";
       placeholderString += String.join(",", values.stream().map(value -> "?").collect(Collectors.toList()));
