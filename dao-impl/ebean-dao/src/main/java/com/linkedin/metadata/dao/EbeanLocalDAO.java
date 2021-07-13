@@ -940,12 +940,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    */
   private static void setParameters(@Nonnull IndexCriterionArray indexCriterionArray, @Nullable IndexSortCriterion indexSortCriterion,
       @Nonnull Query<EbeanMetadataIndex> indexQuery, @Nonnull String lastUrn, int pageSize, boolean offsetPagination) {
-    int pos;
+    int pos = 1;
     if (!offsetPagination) {
-      indexQuery.setParameter(1, lastUrn);
-      pos = 2;
-    } else {
-      pos = 1;
+      indexQuery.setParameter(pos++, lastUrn);
     }
     for (IndexCriterion criterion : indexCriterionArray) {
       indexQuery.setParameter(pos++, criterion.getAspect());
@@ -1176,6 +1173,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         .setFirstRow(start)
         .setMaxRows(pageSize)
         .findPagedList();
+
+    pagedList.loadCount();
 
     final List<URN> urns =
         pagedList.getList().stream().map(entry -> getUrn(entry.getUrn())).collect(Collectors.toList());

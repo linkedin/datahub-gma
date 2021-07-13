@@ -416,7 +416,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    */
   @Nonnull
   public abstract <ASPECT extends RecordTemplate> ListResult<URN> listUrns(@Nonnull IndexFilter indexFilter,
-      @Nullable IndexSortCriterion indexSortCriterion, @Nonnull int start, int pageSize);
+      @Nullable IndexSortCriterion indexSortCriterion, int start, int pageSize);
 
   /**
    * Similar to {@link #listUrns(IndexFilter, Urn, int)}. This is to get all urns with type URN.
@@ -437,7 +437,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    */
   @Nonnull
   private List<UrnAspectEntry<URN>> getUrnAspectEntries(@Nonnull Set<Class<? extends RecordTemplate>> aspectClasses,
-      List<URN> urns) {
+      @Nonnull List<URN> urns) {
     final Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> urnAspectMap =
         get(aspectClasses, new HashSet<>(urns));
 
