@@ -51,8 +51,8 @@ public class BaseLocalDAOTest {
     }
 
     @Override
-    public <ASPECT extends RecordTemplate> void updateLocalIndex(@Nonnull FooUrn urn,
-        @Nullable ASPECT newValue, long version) {
+    public <ASPECT extends RecordTemplate> void updateLocalIndex(@Nonnull FooUrn urn, @Nullable ASPECT newValue,
+        long version) {
 
     }
 
@@ -107,8 +107,8 @@ public class BaseLocalDAOTest {
     }
 
     @Override
-    public ListResult<FooUrn> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
-        int start, int pageSize) {
+    public ListResult<FooUrn> listUrns(@Nonnull IndexFilter indexFilter,
+        @Nullable IndexSortCriterion indexSortCriterion, int start, int pageSize) {
       return null;
     }
 

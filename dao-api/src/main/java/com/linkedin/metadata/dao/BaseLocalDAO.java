@@ -380,8 +380,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param newValue {@link RecordTemplate} of the new value of aspect
    * @param version version of the aspect
    */
-  public abstract <ASPECT extends RecordTemplate> void updateLocalIndex(@Nonnull URN urn,
-      @Nullable ASPECT newValue, long version);
+  public abstract <ASPECT extends RecordTemplate> void updateLocalIndex(@Nonnull URN urn, @Nullable ASPECT newValue,
+      long version);
 
   /**
    * Returns list of urns from local secondary index that satisfy the given filter conditions.
@@ -423,8 +423,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    */
   @Nonnull
   public List<URN> listUrns(@Nonnull Class<URN> urnClazz, @Nullable URN lastUrn, int pageSize) {
-    final IndexFilter indexFilter = new IndexFilter()
-            .setCriteria(new IndexCriterionArray(new IndexCriterion().setAspect(urnClazz.getCanonicalName())));
+    final IndexFilter indexFilter = new IndexFilter().setCriteria(
+        new IndexCriterionArray(new IndexCriterion().setAspect(urnClazz.getCanonicalName())));
     return listUrns(indexFilter, lastUrn, pageSize);
   }
 
@@ -476,7 +476,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    */
   @Nonnull
   public List<UrnAspectEntry<URN>> getAspects(@Nonnull Set<Class<? extends RecordTemplate>> aspectClasses,
-      @Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion, @Nullable URN lastUrn, int pageSize) {
+      @Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion, @Nullable URN lastUrn,
+      int pageSize) {
 
     final List<URN> urns = listUrns(indexFilter, indexSortCriterion, lastUrn, pageSize);
 
@@ -489,7 +490,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    */
   @Nonnull
   public List<UrnAspectEntry<URN>> getAspects(@Nonnull Set<Class<? extends RecordTemplate>> aspectClasses,
-    @Nonnull IndexFilter indexFilter, @Nullable URN lastUrn, int pageSize) {
+      @Nonnull IndexFilter indexFilter, @Nullable URN lastUrn, int pageSize) {
     return getAspects(aspectClasses, indexFilter, null, lastUrn, pageSize);
   }
 
@@ -510,8 +511,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     final List<UrnAspectEntry<URN>> urnAspectEntries = getUrnAspectEntries(aspectClasses, urns);
 
-    return ListResult.<UrnAspectEntry<URN>>builder()
-        .values(urnAspectEntries)
+    return ListResult.<UrnAspectEntry<URN>>builder().values(urnAspectEntries)
         .metadata(listResult.getMetadata())
         .nextStart(listResult.getNextStart())
         .havingMore(listResult.isHavingMore())
@@ -597,7 +597,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @deprecated Use {@link #backfill(Set, Set)} instead
    */
   @Nonnull
-  public <ASPECT extends RecordTemplate> Optional<ASPECT> backfill(@Nonnull Class<ASPECT> aspectClass, @Nonnull URN urn) {
+  public <ASPECT extends RecordTemplate> Optional<ASPECT> backfill(@Nonnull Class<ASPECT> aspectClass,
+      @Nonnull URN urn) {
     return backfill(BackfillMode.BACKFILL_ALL, aspectClass, urn);
   }
 
@@ -637,7 +638,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   private Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfill(
       @Nonnull BackfillMode mode, @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nonnull Set<URN> urns) {
     checkValidAspects(aspectClasses);
-    final Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> urnToAspects = get(aspectClasses, urns);
+    final Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> urnToAspects =
+        get(aspectClasses, urns);
     urnToAspects.forEach((urn, aspects) -> {
       aspects.forEach((aspectClass, aspect) -> aspect.ifPresent(value -> backfill(mode, value, urn)));
     });
@@ -672,7 +674,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param urn {@link Urn} for the entity
    * @param <ASPECT> must be a supported aspect type in {@code ASPECT_UNION}.
    */
-  private <ASPECT extends RecordTemplate> void backfill(@Nonnull BackfillMode mode,  @Nonnull ASPECT aspect, @Nonnull URN urn) {
+  private <ASPECT extends RecordTemplate> void backfill(@Nonnull BackfillMode mode, @Nonnull ASPECT aspect,
+      @Nonnull URN urn) {
     if (_enableLocalSecondaryIndex && (mode == BackfillMode.SCSI_ONLY || mode == BackfillMode.BACKFILL_ALL)) {
       updateLocalIndex(urn, aspect, FIRST_VERSION);
     }

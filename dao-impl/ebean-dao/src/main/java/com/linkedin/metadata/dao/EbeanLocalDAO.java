@@ -248,7 +248,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     DataSourceConfig dataSourceConfig = new DataSourceConfig();
     dataSourceConfig.setUsername("tester");
     dataSourceConfig.setPassword("");
-    dataSourceConfig.setUrl("jdbc:h2:mem:;IGNORECASE=TRUE;");
+    dataSourceConfig.setUrl("jdbc:h2:mem:testdb;IGNORECASE=TRUE;");
     dataSourceConfig.setDriver("org.h2.Driver");
 
     ServerConfig serverConfig = new ServerConfig();
@@ -298,7 +298,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       // update latest version
       if (_useOptimisticLocking) {
         saveWithOptimisticLocking(urn, newValue, newAuditStamp, LATEST_VERSION, false,
-                new Timestamp(oldAuditStamp.getTime()));
+            new Timestamp(oldAuditStamp.getTime()));
       } else {
         save(urn, newValue, newAuditStamp, LATEST_VERSION, false);
       }
@@ -339,7 +339,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   @Nonnull
   private EbeanMetadataAspect buildMetadataAspectBean(@Nonnull URN urn, @Nonnull RecordTemplate value,
-                                                      @Nonnull AuditStamp auditStamp, long version) {
+      @Nonnull AuditStamp auditStamp, long version) {
 
     final String aspectName = ModelUtils.getAspectName(value.getClass());
 
@@ -359,9 +359,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   // visible for testing
   protected void saveWithOptimisticLocking(@Nonnull URN urn, @Nonnull RecordTemplate value,
-                                           @Nonnull AuditStamp newAuditStamp,
-                                           long version, boolean insert,
-                                           @Nonnull Object oldTimestamp) {
+      @Nonnull AuditStamp newAuditStamp, long version, boolean insert, @Nonnull Object oldTimestamp) {
 
     final EbeanMetadataAspect aspect = buildMetadataAspectBean(urn, value, newAuditStamp, version);
 
@@ -379,8 +377,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     // Ideally, another column for the sake of optimistic locking would be preferred but that means a change to
     // metadata_aspect schema and we don't take this route here to keep this change backward compatible.
     final String updateQuery = String.format("UPDATE metadata_aspect "
-            + "SET urn = :urn, aspect = :aspect, version = :version, metadata = :metadata, createdOn = :createdOn, createdBy = :createdBy "
-            + "WHERE urn = :urn and aspect = :aspect and version = :version and createdOn = :oldTimestamp");
+        + "SET urn = :urn, aspect = :aspect, version = :version, metadata = :metadata, createdOn = :createdOn, createdBy = :createdBy "
+        + "WHERE urn = :urn and aspect = :aspect and version = :version and createdOn = :oldTimestamp");
 
     final SqlUpdate update = _server.createSqlUpdate(updateQuery);
     update.setParameter("urn", aspect.getKey().getUrn());
@@ -394,7 +392,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     // If there is no single updated row, emit OptimisticLockException
     int numOfUpdatedRows = _server.execute(update);
     if (numOfUpdatedRows != 1) {
-      throw new OptimisticLockException(numOfUpdatedRows + " rows updated during save query: " + update.getGeneratedSql());
+      throw new OptimisticLockException(
+          numOfUpdatedRows + " rows updated during save query: " + update.getGeneratedSql());
     }
   }
 
@@ -450,8 +449,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
 
     final Map<String, Object> pathValueMap = _urnPathExtractor.extractPaths(urn);
-    pathValueMap.forEach(
-        (path, value) -> saveSingleRecordToLocalIndex(urn, _urnClass.getCanonicalName(), path, value));
+    pathValueMap.forEach((path, value) -> saveSingleRecordToLocalIndex(urn, _urnClass.getCanonicalName(), path, value));
   }
 
   private <ASPECT extends RecordTemplate> void updateAspectInLocalIndex(@Nonnull URN urn, @Nonnull ASPECT newValue) {
@@ -909,7 +907,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     } else if (indexValue.isString()) {
       object = getValueFromIndexCriterion(criterion);
       return new GMAIndexPair(EbeanMetadataIndex.STRING_COLUMN, object);
-    } else if (indexValue.isArray() && indexValue.getArray().size() > 0 && indexValue.getArray().get(0).getClass() == String.class) {
+    } else if (indexValue.isArray() && indexValue.getArray().size() > 0
+        && indexValue.getArray().get(0).getClass() == String.class) {
       object = indexValue.getArray();
       return new GMAIndexPair(EbeanMetadataIndex.STRING_COLUMN, object);
     } else {
@@ -938,8 +937,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * @param pageSize maximum number of distinct urns to return which is essentially the LIMIT clause of SQL query
    * @param offsetPagination used to determine whether to used cursor or offset pagination
    */
-  private static void setParameters(@Nonnull IndexCriterionArray indexCriterionArray, @Nullable IndexSortCriterion indexSortCriterion,
-      @Nonnull Query<EbeanMetadataIndex> indexQuery, @Nonnull String lastUrn, int pageSize, boolean offsetPagination) {
+  private static void setParameters(@Nonnull IndexCriterionArray indexCriterionArray,
+      @Nullable IndexSortCriterion indexSortCriterion, @Nonnull Query<EbeanMetadataIndex> indexQuery,
+      @Nonnull String lastUrn, int pageSize, boolean offsetPagination) {
     int pos = 1;
     if (!offsetPagination) {
       indexQuery.setParameter(pos++, lastUrn);
@@ -1015,7 +1015,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     } else if (type == DataSchema.Type.STRING || type == DataSchema.Type.BOOLEAN || type == DataSchema.Type.ENUM) {
       return EbeanMetadataIndex.STRING_COLUMN;
     } else {
-      throw new UnsupportedOperationException("The type stored in the path field of the aspect can not be sorted on" + indexSortCriterion);
+      throw new UnsupportedOperationException(
+          "The type stored in the path field of the aspect can not be sorted on" + indexSortCriterion);
     }
   }
 
@@ -1087,7 +1088,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     } else {
       orderByClause = "ORDER BY urn ASC";
     }
-    final String limitClause = offsetPagination ?  "" : "LIMIT ?";
+    final String limitClause = offsetPagination ? "" : "LIMIT ?";
     return String.join(" ", selectClause, whereClause, orderByClause, limitClause);
   }
 
@@ -1134,10 +1135,11 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
     addEntityTypeFilter(indexFilter);
 
-    final Query<EbeanMetadataIndex> query = _server
-        .findNative(EbeanMetadataIndex.class, constructSQLQuery(indexCriterionArray, indexSortCriterion, false))
-        .setTimeout(INDEX_QUERY_TIMEOUT_IN_SEC);
-    setParameters(indexCriterionArray, indexSortCriterion, query, lastUrn == null ? "" : lastUrn.toString(), pageSize, false);
+    final Query<EbeanMetadataIndex> query =
+        _server.findNative(EbeanMetadataIndex.class, constructSQLQuery(indexCriterionArray, indexSortCriterion, false))
+            .setTimeout(INDEX_QUERY_TIMEOUT_IN_SEC);
+    setParameters(indexCriterionArray, indexSortCriterion, query, lastUrn == null ? "" : lastUrn.toString(), pageSize,
+        false);
 
     final List<EbeanMetadataIndex> pagedList = query.findList();
 
@@ -1153,8 +1155,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    */
   @Override
   @Nonnull
-  public ListResult<URN> listUrns(@Nonnull IndexFilter indexFilter,
-      @Nullable IndexSortCriterion indexSortCriterion, int start, int pageSize) {
+  public ListResult<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
+      int start, int pageSize) {
     if (!isLocalSecondaryIndexEnabled()) {
       throw new UnsupportedOperationException("Local secondary index isn't supported");
     }
@@ -1164,20 +1166,17 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
     addEntityTypeFilter(indexFilter);
 
-    final Query<EbeanMetadataIndex> query = _server
-        .findNative(EbeanMetadataIndex.class, constructSQLQuery(indexCriterionArray, indexSortCriterion, true))
-        .setTimeout(INDEX_QUERY_TIMEOUT_IN_SEC);
+    final Query<EbeanMetadataIndex> query =
+        _server.findNative(EbeanMetadataIndex.class, constructSQLQuery(indexCriterionArray, indexSortCriterion, true))
+            .setTimeout(INDEX_QUERY_TIMEOUT_IN_SEC);
     setParameters(indexCriterionArray, indexSortCriterion, query, "", pageSize, true);
 
-    final PagedList<EbeanMetadataIndex> pagedList = query
-        .setFirstRow(start)
-        .setMaxRows(pageSize)
-        .findPagedList();
+    final PagedList<EbeanMetadataIndex> pagedList = query.setFirstRow(start).setMaxRows(pageSize).findPagedList();
+
+    pagedList.loadCount();
 
     final List<URN> urns =
         pagedList.getList().stream().map(entry -> getUrn(entry.getUrn())).collect(Collectors.toList());
-
-    pagedList.loadCount();
 
     return toListResult(urns, null, pagedList, start);
   }
