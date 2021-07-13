@@ -109,7 +109,7 @@ public class BaseLocalDAOTest {
     @Override
     public ListResult<FooUrn> listUrns(@Nonnull IndexFilter indexFilter,
         @Nullable IndexSortCriterion indexSortCriterion, int start, int pageSize) {
-      return null;
+      return ListResult.<FooUrn>builder().build();
     }
 
     @Override
