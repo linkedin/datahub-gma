@@ -1174,10 +1174,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         .setMaxRows(pageSize)
         .findPagedList();
 
-    pagedList.loadCount();
-
     final List<URN> urns =
         pagedList.getList().stream().map(entry -> getUrn(entry.getUrn())).collect(Collectors.toList());
+
+    pagedList.loadCount();
 
     return toListResult(urns, null, pagedList, start);
   }
