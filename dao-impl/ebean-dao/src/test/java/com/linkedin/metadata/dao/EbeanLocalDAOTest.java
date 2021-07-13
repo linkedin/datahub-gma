@@ -27,6 +27,7 @@ import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
+import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexPathParams;
 import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.query.IndexValue;
@@ -850,74 +851,66 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
-  public void testGetSortingColumn() {
+  public void testGetFieldColumn() {
     // 1. string corresponds to string column
     IndexSortCriterion indexSortCriterion1 = new IndexSortCriterion().setAspect(AspectFoo.class.getCanonicalName())
-        .setPath("/value")
-        .setOrder(SortOrder.DESCENDING);
-    String sortingColumn1 = EbeanLocalDAO.getSortingColumn(indexSortCriterion1);
+        .setPath("/value").setOrder(SortOrder.DESCENDING);
+    String sortingColumn1 = EbeanLocalDAO.getFieldColumn(indexSortCriterion1.getPath(), indexSortCriterion1.getAspect());
     assertEquals(sortingColumn1, EbeanMetadataIndex.STRING_COLUMN);
 
     // 2. boolean corresponds to string column
     IndexSortCriterion indexSortCriterion2 = new IndexSortCriterion().setAspect(AspectBaz.class.getCanonicalName())
-        .setPath("/boolField")
-        .setOrder(SortOrder.DESCENDING);
-    String sortingColumn2 = EbeanLocalDAO.getSortingColumn(indexSortCriterion2);
+        .setPath("/boolField").setOrder(SortOrder.DESCENDING);
+    String sortingColumn2 = EbeanLocalDAO.getFieldColumn(indexSortCriterion2.getPath(), indexSortCriterion2.getAspect());
     assertEquals(sortingColumn2, EbeanMetadataIndex.STRING_COLUMN);
 
     // 3. int corresponds to long column
     IndexSortCriterion indexSortCriterion3 = new IndexSortCriterion().setAspect(AspectBaz.class.getCanonicalName())
-        .setPath("/intField")
-        .setOrder(SortOrder.DESCENDING);
-    String sortingColumn3 = EbeanLocalDAO.getSortingColumn(indexSortCriterion3);
+        .setPath("/intField").setOrder(SortOrder.DESCENDING);
+    String sortingColumn3 = EbeanLocalDAO.getFieldColumn(indexSortCriterion3.getPath(), indexSortCriterion3.getAspect());
     assertEquals(sortingColumn3, EbeanMetadataIndex.LONG_COLUMN);
 
     // 4. long corresponds to long column
     IndexSortCriterion indexSortCriterion4 = new IndexSortCriterion().setAspect(AspectBaz.class.getCanonicalName())
-        .setPath("/longField")
-        .setOrder(SortOrder.DESCENDING);
-    String sortingColumn4 = EbeanLocalDAO.getSortingColumn(indexSortCriterion4);
+        .setPath("/longField").setOrder(SortOrder.DESCENDING);
+    String sortingColumn4 = EbeanLocalDAO.getFieldColumn(indexSortCriterion4.getPath(), indexSortCriterion4.getAspect());
     assertEquals(sortingColumn4, EbeanMetadataIndex.LONG_COLUMN);
 
     // 5. double corresponds to double column
     IndexSortCriterion indexSortCriterion5 = new IndexSortCriterion().setAspect(AspectBaz.class.getCanonicalName())
-        .setPath("/doubleField")
-        .setOrder(SortOrder.DESCENDING);
-    String sortingColumn5 = EbeanLocalDAO.getSortingColumn(indexSortCriterion5);
+        .setPath("/doubleField").setOrder(SortOrder.DESCENDING);
+    String sortingColumn5 = EbeanLocalDAO.getFieldColumn(indexSortCriterion5.getPath(), indexSortCriterion5.getAspect());
     assertEquals(sortingColumn5, EbeanMetadataIndex.DOUBLE_COLUMN);
 
     // 6. float corresponds to double column
     IndexSortCriterion indexSortCriterion6 = new IndexSortCriterion().setAspect(AspectBaz.class.getCanonicalName())
-        .setPath("/floatField")
-        .setOrder(SortOrder.DESCENDING);
-    String sortingColumn6 = EbeanLocalDAO.getSortingColumn(indexSortCriterion6);
+        .setPath("/floatField").setOrder(SortOrder.DESCENDING);
+    String sortingColumn6 = EbeanLocalDAO.getFieldColumn(indexSortCriterion6.getPath(), indexSortCriterion6.getAspect());
     assertEquals(sortingColumn6, EbeanMetadataIndex.DOUBLE_COLUMN);
 
     // 7. enum corresponds to string column
     IndexSortCriterion indexSortCriterion7 = new IndexSortCriterion().setAspect(AspectBaz.class.getCanonicalName())
-        .setPath("/enumField")
-        .setOrder(SortOrder.DESCENDING);
-    String sortingColumn7 = EbeanLocalDAO.getSortingColumn(indexSortCriterion7);
+        .setPath("/enumField").setOrder(SortOrder.DESCENDING);
+    String sortingColumn7 = EbeanLocalDAO.getFieldColumn(indexSortCriterion7.getPath(), indexSortCriterion7.getAspect());
     assertEquals(sortingColumn7, EbeanMetadataIndex.STRING_COLUMN);
 
     // 8. nested field
     IndexSortCriterion indexSortCriterion8 = new IndexSortCriterion().setAspect(AspectBaz.class.getCanonicalName())
-        .setPath("/recordField/value")
-        .setOrder(SortOrder.DESCENDING);
-    String sortingColumn8 = EbeanLocalDAO.getSortingColumn(indexSortCriterion8);
+        .setPath("/recordField/value").setOrder(SortOrder.DESCENDING);
+    String sortingColumn8 = EbeanLocalDAO.getFieldColumn(indexSortCriterion8.getPath(), indexSortCriterion8.getAspect());
     assertEquals(sortingColumn8, EbeanMetadataIndex.STRING_COLUMN);
 
     // 9. invalid type
     IndexSortCriterion indexSortCriterion9 = new IndexSortCriterion().setAspect(AspectBaz.class.getCanonicalName())
-        .setPath("/arrayField")
-        .setOrder(SortOrder.DESCENDING);
-    assertThrows(UnsupportedOperationException.class, () -> EbeanLocalDAO.getSortingColumn(indexSortCriterion9));
+        .setPath("/arrayField").setOrder(SortOrder.DESCENDING);
+    assertThrows(UnsupportedOperationException.class,
+        () -> EbeanLocalDAO.getFieldColumn(indexSortCriterion9.getPath(), indexSortCriterion9.getAspect()));
 
     // 10. array of records is invalid type
     IndexSortCriterion indexSortCriterion10 = new IndexSortCriterion().setAspect(MixedRecord.class.getCanonicalName())
-        .setPath("/recordArray/*/value")
-        .setOrder(SortOrder.DESCENDING);
-    assertThrows(UnsupportedOperationException.class, () -> EbeanLocalDAO.getSortingColumn(indexSortCriterion10));
+        .setPath("/recordArray/*/value").setOrder(SortOrder.DESCENDING);
+    assertThrows(UnsupportedOperationException.class,
+        () -> EbeanLocalDAO.getFieldColumn(indexSortCriterion10.getPath(), indexSortCriterion10.getAspect()));
   }
 
   @Test
@@ -2076,6 +2069,92 @@ public class EbeanLocalDAOTest {
 
     // then
     assertEquals(records.size(), 2);
+  }
+
+  @Test
+  public void testCountAggregate() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    dao.enableLocalSecondaryIndex(true);
+    FooUrn urn1 = makeFooUrn(1);
+    FooUrn urn2 = makeFooUrn(2);
+    FooUrn urn3 = makeFooUrn(3);
+    String aspect1 = AspectFoo.class.getCanonicalName();
+    String aspect2 = AspectBaz.class.getCanonicalName();
+
+    addIndex(urn1, aspect1, "/value", "valB");
+    addIndex(urn1, aspect2, "/longField", 10);
+    addIndex(urn1, aspect2, "/doubleField", 1.2);
+    addIndex(urn1, aspect2, "/recordField/value", "nestedC");
+    addIndex(urn1, FooUrn.class.getCanonicalName(), "/fooId", 1);
+
+    addIndex(urn2, aspect1, "/value", "valB");
+    addIndex(urn2, aspect2, "/longField", 8);
+    addIndex(urn2, aspect2, "/doubleField", 1.2);
+    addIndex(urn2, aspect2, "/recordField/value", "nestedB");
+    addIndex(urn2, FooUrn.class.getCanonicalName(), "/fooId", 2);
+
+    addIndex(urn3, aspect1, "/value", "valA");
+    addIndex(urn3, aspect2, "/longField", 100);
+    addIndex(urn3, aspect2, "/doubleField", 1.2);
+    addIndex(urn3, aspect2, "/recordField/value", "nestedA");
+    addIndex(urn3, FooUrn.class.getCanonicalName(), "/fooId", 3);
+
+    // group by string
+    IndexValue indexValue1 = new IndexValue();
+    indexValue1.setString("val");
+    IndexCriterion criterion1 = new IndexCriterion().setAspect(aspect1)
+        .setPathParams(new IndexPathParams().setPath("/value").setValue(indexValue1).setCondition(Condition.START_WITH));
+
+    IndexCriterionArray indexCriterionArray1 = new IndexCriterionArray(Collections.singletonList(criterion1));
+    final IndexFilter indexFilter1 = new IndexFilter().setCriteria(indexCriterionArray1);
+    IndexGroupByCriterion indexGroupByCriterion1 = new IndexGroupByCriterion().setAspect(AspectFoo.class.getCanonicalName())
+        .setPath("/value");
+
+    Map<String, Long> result = dao.countAggregate(indexFilter1, indexGroupByCriterion1);
+    assertEquals(result.size(), 2);
+    assertEquals(result.get("valB").longValue(), 2);
+    assertEquals(result.get("valA").longValue(), 1);
+
+    // group by string and filter
+    IndexValue indexValue2 = new IndexValue();
+    indexValue2.setInt(10);
+    IndexCriterion criterion2 = new IndexCriterion().setAspect(aspect2)
+        .setPathParams(new IndexPathParams().setPath("/longField").setValue(indexValue2).setCondition(Condition.GREATER_THAN_OR_EQUAL_TO));
+
+    IndexCriterionArray indexCriterionArray2 = new IndexCriterionArray(Collections.singletonList(criterion2));
+    final IndexFilter indexFilter2 = new IndexFilter().setCriteria(indexCriterionArray2);
+    result = dao.countAggregate(indexFilter2, indexGroupByCriterion1);
+    assertEquals(result.size(), 2);
+    assertEquals(result.get("valB").longValue(), 1);
+    assertEquals(result.get("valA").longValue(), 1);
+
+    // group by nested field
+    IndexGroupByCriterion indexGroupByCriterion2 = new IndexGroupByCriterion().setAspect(AspectBaz.class.getCanonicalName())
+        .setPath("/recordField/value");
+
+    result = dao.countAggregate(indexFilter1, indexGroupByCriterion2);
+    assertEquals(result.size(), 3);
+    assertEquals(result.get("nestedA").longValue(), 1);
+    assertEquals(result.get("nestedB").longValue(), 1);
+    assertEquals(result.get("nestedC").longValue(), 1);
+
+    // group by long field
+    IndexGroupByCriterion indexGroupByCriterion3 = new IndexGroupByCriterion().setAspect(AspectBaz.class.getCanonicalName())
+        .setPath("/longField");
+
+    result = dao.countAggregate(indexFilter1, indexGroupByCriterion3);
+    assertEquals(result.size(), 3);
+    assertEquals(result.get("10").longValue(), 1);
+    assertEquals(result.get("8").longValue(), 1);
+    assertEquals(result.get("100").longValue(), 1);
+
+    // group by double field
+    IndexGroupByCriterion indexGroupByCriterion4 = new IndexGroupByCriterion().setAspect(AspectBaz.class.getCanonicalName())
+        .setPath("/doubleField");
+
+    result = dao.countAggregate(indexFilter1, indexGroupByCriterion4);
+    assertEquals(result.size(), 1);
+    assertEquals(result.get("1.2").longValue(), 3);
   }
 
   @Test

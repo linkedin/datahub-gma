@@ -24,6 +24,7 @@ import com.linkedin.metadata.query.ExtraInfoArray;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
+import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.query.IndexValue;
 import com.linkedin.metadata.query.ListResultMetadata;
@@ -979,12 +980,12 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
   }
 
-  @Nonnull
-  static <ASPECT extends RecordTemplate> String getSortingColumn(@Nonnull IndexSortCriterion indexSortCriterion) {
-    final String[] pathSpecArray = RecordUtils.getPathSpecAsArray(indexSortCriterion.getPath());
+  static <ASPECT extends RecordTemplate> String getFieldColumn(@Nonnull String stringPath,
+      @Nonnull String stringAspect) {
+    final String[] pathSpecArray = RecordUtils.getPathSpecAsArray(stringPath);
 
     // get nested field
-    ASPECT aspect = RecordUtils.getAspectFromString(indexSortCriterion.getAspect());
+    ASPECT aspect = RecordUtils.getAspectFromString(stringAspect);
 
     final int pathSize = pathSpecArray.length;
 
@@ -998,9 +999,11 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         final String nestedAspectName = ((RecordDataSchema) dataSchema).getBindingName();
         aspect = RecordUtils.getAspectFromString(nestedAspectName);
       } else if (dataSchema.getDereferencedType() == DataSchema.Type.ARRAY) {
-        throw new UnsupportedOperationException("Can not sort by an array " + indexSortCriterion);
+        throw new UnsupportedOperationException(
+            "Can not sort or group by an array for path: " + stringPath + ", aspect: " + stringAspect);
       } else {
-        throw new IllegalArgumentException("Invalid path field for aspect in sort criterion " + indexSortCriterion);
+        throw new IllegalArgumentException(
+            "Invalid path field for aspect in sort or group by path: " + stringPath + ", aspect: " + stringAspect);
       }
     }
 
@@ -1016,7 +1019,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       return EbeanMetadataIndex.STRING_COLUMN;
     } else {
       throw new UnsupportedOperationException(
-          "The type stored in the path field of the aspect can not be sorted on" + indexSortCriterion);
+          "The type stored in the path field of the aspect can not be sorted or grouped on for path: " + stringPath
+              + ", aspect: " + stringAspect);
     }
   }
 
@@ -1045,7 +1049,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Nonnull
   private static String constructSQLQuery(@Nonnull IndexCriterionArray indexCriterionArray,
       @Nullable IndexSortCriterion indexSortCriterion, boolean offsetPagination) {
-    String sortColumn = indexSortCriterion != null ? getSortingColumn(indexSortCriterion) : "";
+    String sortColumn =
+        indexSortCriterion != null ? getFieldColumn(indexSortCriterion.getPath(), indexSortCriterion.getAspect()) : "";
     String selectClause = "SELECT DISTINCT(t0.urn)";
     if (!sortColumn.isEmpty()) {
       selectClause += ", tsort.";
@@ -1179,5 +1184,104 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         pagedList.getList().stream().map(entry -> getUrn(entry.getUrn())).collect(Collectors.toList());
 
     return toListResult(urns, null, pagedList, start);
+  }
+
+  /**
+   * Constructs SQL query to count agggregate urns that contains positioned parameters (with `?`),
+   * based on whether {@link IndexCriterion} of a given condition has field `pathParams`.
+   *
+   * @param indexCriterionArray {@link IndexCriterionArray} used to construct the SQL query
+   * @param indexGroupByCriterion {@link IndexGroupByCriterion} used to construct the SQL query
+   * @return String representation of SQL query
+   */
+  @Nonnull
+  private static String constructCountAggregateSQLQuery(@Nonnull IndexCriterionArray indexCriterionArray,
+      @Nonnull IndexGroupByCriterion indexGroupByCriterion) {
+    String groupByColumn = getFieldColumn(indexGroupByCriterion.getPath(), indexGroupByCriterion.getAspect());
+    String selectClause = "SELECT COUNT(*), tgroup.";
+    selectClause += groupByColumn;
+    selectClause += " FROM metadata_index t0 INNER JOIN metadata_index tgroup on t0.urn = tgroup.urn";
+    selectClause += IntStream.range(1, indexCriterionArray.size())
+        .mapToObj(i -> " INNER JOIN metadata_index " + "t" + i + " ON t0.urn = " + "t" + i + ".urn")
+        .collect(Collectors.joining(""));
+    final StringBuilder whereClause = new StringBuilder("WHERE");
+    IntStream.range(0, indexCriterionArray.size()).forEach(i -> {
+      final IndexCriterion criterion = indexCriterionArray.get(i);
+
+      if (i > 0) {
+        whereClause.append(" AND");
+      }
+      whereClause.append(" t").append(i).append(".aspect = ?");
+      if (criterion.getPathParams() != null) {
+        whereClause.append(" AND t")
+            .append(i)
+            .append(".path = ? AND t")
+            .append(i)
+            .append(".")
+            .append(getGMAIndexPair(criterion).valueType)
+            .append(" ")
+            .append(getStringForOperator(criterion.getPathParams().getCondition()))
+            .append("?");
+      }
+    });
+    whereClause.append(" AND tgroup.aspect = ? AND tgroup.path = ? ");
+    final String groupByClause = "GROUP BY tgroup." + groupByColumn;
+    return String.join(" ", selectClause, whereClause, groupByClause);
+  }
+
+  /**
+   * Sets the values of parameters in metadata index query based on its position, values obtained from
+   * {@link IndexCriterionArray} and last urn. Also sets the LIMIT of SQL query using the page size input.
+   *
+   * @param indexCriterionArray {@link IndexCriterionArray} whose values will be used to set parameters in metadata
+   *                                                       index query based on its position
+   * @param indexSortCriterion {@link IndexGroupByCriterion} whose values will be used to set parameters in query
+   * @param indexQuery {@link Query} whose ordered parameters need to be set, based on it's position
+   */
+  @Nonnull
+  private static void setCountAggregateParameters(@Nonnull IndexCriterionArray indexCriterionArray,
+      @Nonnull IndexGroupByCriterion indexGroupByCriterion, @Nonnull Query<EbeanMetadataIndex> indexQuery) {
+    int pos = 1;
+    for (IndexCriterion criterion : indexCriterionArray) {
+      indexQuery.setParameter(pos++, criterion.getAspect());
+      if (criterion.getPathParams() != null) {
+        indexQuery.setParameter(pos++, criterion.getPathParams().getPath());
+        indexQuery.setParameter(pos++, getGMAIndexPair(criterion).value);
+      }
+    }
+    indexQuery.setParameter(pos++, indexGroupByCriterion.getAspect());
+    indexQuery.setParameter(pos++, indexGroupByCriterion.getPath());
+  }
+
+  @Override
+  @Nonnull
+  public Map<String, Long> countAggregate(@Nonnull IndexFilter indexFilter,
+      @Nonnull IndexGroupByCriterion indexGroupByCriterion) {
+    if (!isLocalSecondaryIndexEnabled()) {
+      throw new UnsupportedOperationException("Local secondary index isn't supported");
+    }
+
+    final IndexCriterionArray indexCriterionArray = indexFilter.getCriteria();
+    checkValidIndexCriterionArray(indexCriterionArray);
+
+    addEntityTypeFilter(indexFilter);
+
+    final Query<EbeanMetadataIndex> query = _server.findNative(EbeanMetadataIndex.class,
+        constructCountAggregateSQLQuery(indexCriterionArray, indexGroupByCriterion))
+        .setTimeout(INDEX_QUERY_TIMEOUT_IN_SEC);
+    setCountAggregateParameters(indexCriterionArray, indexGroupByCriterion, query);
+
+    final List<EbeanMetadataIndex> list = query.setDistinct(true).findList();
+    Map<String, Long> result = new HashMap<>();
+    list.stream().map(entry -> {
+      if (entry.getStringVal() != null) {
+        return result.put(entry.getStringVal(), entry.getTotalCount());
+      } else if (entry.getDoubleVal() != null) {
+        return result.put(entry.getDoubleVal().toString(), entry.getTotalCount());
+      } else {
+        return result.put(entry.getLongVal().toString(), entry.getTotalCount());
+      }
+    }).collect(Collectors.toList());
+    return result;
   }
 }

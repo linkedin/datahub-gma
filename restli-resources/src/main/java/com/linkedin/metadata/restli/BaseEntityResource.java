@@ -14,6 +14,7 @@ import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
+import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.query.ListResultMetadata;
 import com.linkedin.parseq.Task;
@@ -548,6 +549,23 @@ public abstract class BaseEntityResource<
         return filterAspects(aspectClasses, filter, indexSortCriterion, pagingContext.getStart(), pagingContext.getCount());
       }
     });
+  }
+
+  /*
+   * Gets the count of an aggregation specified by the aspect and field to group by.
+   * @param indexFilter {@link IndexFilter} that defines the filter conditions
+   * @param indexGroupByCriterion {@link IndexGroupByCriterion} that defines the aspect to group by
+   * @return map of the field to the count
+   */
+  @Action(name = ACTION_COUNT_AGGREGATE)
+  @Nonnull
+  public Task<Map<String, Long>> countAggregate(
+      @QueryParam(PARAM_FILTER) @Optional @Nullable IndexFilter indexFilter,
+      @QueryParam(PARAM_GROUP) IndexGroupByCriterion indexGroupByCriterion
+  ) {
+    final IndexFilter filter = indexFilter == null ? getDefaultIndexFilter() : indexFilter;
+
+    return RestliUtils.toTask(() -> getLocalDAO().countAggregate(indexFilter, indexGroupByCriterion));
   }
 
   @Nonnull
