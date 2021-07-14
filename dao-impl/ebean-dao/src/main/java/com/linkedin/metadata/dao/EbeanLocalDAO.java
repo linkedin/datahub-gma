@@ -980,6 +980,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
   }
 
+  @Nonnull
   static <ASPECT extends RecordTemplate> String getFieldColumn(@Nonnull String stringPath,
       @Nonnull String stringAspect) {
     final String[] pathSpecArray = RecordUtils.getPathSpecAsArray(stringPath);
