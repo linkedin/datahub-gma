@@ -527,7 +527,7 @@ public abstract class BaseEntityResource<
    * @return {@link ListResult} containing values along with the associated urns in {@link ListResultMetadata} and
    *        pagination information
    */
-  @Finder(FINDER_FILTER_OFFSET_PAGINATION)
+  @Finder(FINDER_FILTER_OFFSET)
   @Nonnull
   public Task<ListResult<VALUE>> filter(
       @QueryParam(PARAM_FILTER) @Optional @Nullable IndexFilter indexFilter,
