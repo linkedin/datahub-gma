@@ -78,6 +78,8 @@ public class SearchUtils {
       return QueryBuilders.rangeQuery(criterion.getField()).lt(criterion.getValue().trim());
     } else if (condition == Condition.LESS_THAN_OR_EQUAL_TO) {
       return QueryBuilders.rangeQuery(criterion.getField()).lte(criterion.getValue().trim());
+    } else if (condition == Condition.CONTAIN) {
+      return QueryBuilders.termQuery(criterion.getField(), criterion.getValue().trim());
     }
 
     throw new UnsupportedOperationException("Unsupported condition: " + condition);

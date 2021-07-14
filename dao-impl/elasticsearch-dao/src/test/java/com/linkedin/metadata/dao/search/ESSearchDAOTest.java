@@ -246,7 +246,7 @@ public class ESSearchDAOTest {
     int from = 0;
     int size = 10;
     final Filter filter2 = new Filter().setCriteria(new CriterionArray(Arrays.asList(
-        new Criterion().setField("field_contain").setValue("value_contain").setCondition(Condition.CONTAIN))));
+        new Criterion().setField("field_contain").setValue("value_contain").setCondition(Condition.START_WITH))));
     SortCriterion sortCriterion = new SortCriterion().setOrder(SortOrder.ASCENDING).setField("urn");
     assertThrows(UnsupportedOperationException.class,
         () -> _searchDAO.getFilteredSearchQuery(filter2, sortCriterion, from, size));
