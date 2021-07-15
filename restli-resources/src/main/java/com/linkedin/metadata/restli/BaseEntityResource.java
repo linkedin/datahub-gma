@@ -393,6 +393,7 @@ public abstract class BaseEntityResource<
    * takes in a start offset and returns a list result with pagination information.
    *
    * @param start defining the paging start
+   * @param count defining the maximum number of values returned
    * @return a {@link ListResult} containing a list of version numbers and other pagination information
    */
   @Nonnull
@@ -442,6 +443,7 @@ public abstract class BaseEntityResource<
    * takes in a start offset and returns a list result with pagination information.
    *
    * @param start defining the paging start
+   * @param count defining the maximum number of values returned
    * @return a {@link ListResult} containing an ordered list of values of multiple entities and other pagination information
    */
   @Nonnull
