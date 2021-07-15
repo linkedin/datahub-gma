@@ -8,6 +8,7 @@ import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.backfill.BackfillMode;
 import com.linkedin.metadata.dao.AspectKey;
 import com.linkedin.metadata.dao.BaseLocalDAO;
+import com.linkedin.metadata.dao.ListResult;
 import com.linkedin.metadata.dao.UrnAspectEntry;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.query.IndexCriterion;
@@ -336,26 +337,13 @@ public abstract class BaseEntityResource<
   }
 
   /**
-   * Returns ordered list of values of multiple entities obtained after filtering urns
-   * from local secondary index. The returned list is ordered by the sort criterion but defaults to sorting
-   * lexicographically by the string representation of the URN.
-   * The list of values is in the same order as the list of urns contained in {@link ListResultMetadata}.
+   * Returns a list of values of multiple entities from urn aspect entries.
    *
-   * @param aspectClasses set of aspect classes that needs to be populated in the values
-   * @param filter {@link IndexFilter} that defines the filter conditions
-   * @param indexSortCriterion {@link IndexSortCriterion} that defines the sort conditions
-   * @param lastUrn last urn of the previous fetched page. For the first page, this should be set as NULL
-   * @param count defining the maximum number of values returned
+   * @param urnAspectEntries entries used to make values
    * @return ordered list of values of multiple entities
    */
   @Nonnull
-  private List<VALUE> filterAspects(
-      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nonnull IndexFilter filter,
-      @Nullable IndexSortCriterion indexSortCriterion, @Nullable String lastUrn, int count) {
-
-    final List<UrnAspectEntry<URN>> urnAspectEntries =
-        getLocalDAO().getAspects(aspectClasses, filter, indexSortCriterion, parseUrnParam(lastUrn), count);
-
+  private List<VALUE> getUrnAspectValues(List<UrnAspectEntry<URN>> urnAspectEntries) {
     final Map<URN, List<UnionTemplate>> urnAspectsMap = new LinkedHashMap<>();
     for (UrnAspectEntry<URN> entry : urnAspectEntries) {
       urnAspectsMap.compute(entry.getUrn(), (k, v) -> {
@@ -378,6 +366,59 @@ public abstract class BaseEntityResource<
 
   /**
    * Returns ordered list of values of multiple entities obtained after filtering urns
+   * from local secondary index. The returned list is ordered by the sort criterion but defaults to sorting
+   * lexicographically by the string representation of the URN.
+   * The list of values is in the same order as the list of urns contained in {@link ListResultMetadata}.
+   *
+   * @param aspectClasses set of aspect classes that needs to be populated in the values
+   * @param filter {@link IndexFilter} that defines the filter conditions
+   * @param indexSortCriterion {@link IndexSortCriterion} that defines the sort conditions
+   * @param lastUrn last urn of the previous fetched page. For the first page, this should be set as NULL
+   * @param count defining the maximum number of values returned
+   * @return ordered list of values of multiple entities
+   */
+  @Nonnull
+  private List<VALUE> filterAspects(
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nonnull IndexFilter filter,
+      @Nullable IndexSortCriterion indexSortCriterion, @Nullable String lastUrn, int count) {
+
+    final List<UrnAspectEntry<URN>> urnAspectEntries =
+        getLocalDAO().getAspects(aspectClasses, filter, indexSortCriterion, parseUrnParam(lastUrn), count);
+
+    return getUrnAspectValues(urnAspectEntries);
+  }
+
+  /**
+   * Similar to {@link #filterAspects(Set, IndexFilter, IndexSortCriterion, String, int)} but
+   * takes in a start offset and returns a list result with pagination information.
+   *
+   * @param start defining the paging start
+   * @param count defining the maximum number of values returned
+   * @return a {@link ListResult} containing a list of version numbers and other pagination information
+   */
+  @Nonnull
+  private ListResult<VALUE> filterAspects(
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nonnull IndexFilter filter,
+      @Nullable IndexSortCriterion indexSortCriterion, int start, int count) {
+
+    final ListResult<UrnAspectEntry<URN>> listResult =
+        getLocalDAO().getAspects(aspectClasses, filter, indexSortCriterion, start, count);
+    final List<UrnAspectEntry<URN>> urnAspectEntries = listResult.getValues();
+    final List<VALUE> values = getUrnAspectValues(urnAspectEntries);
+
+    return ListResult.<VALUE>builder()
+        .values(values)
+        .metadata(listResult.getMetadata())
+        .nextStart(listResult.getNextStart())
+        .havingMore(listResult.isHavingMore())
+        .totalCount(listResult.getTotalCount())
+        .totalPageCount(listResult.getTotalPageCount())
+        .pageSize(listResult.getPageSize())
+        .build();
+  }
+
+  /**
+   * Returns ordered list of values of multiple entities obtained after filtering urns
    * from local secondary index. The returned list is ordered by the sort criterion but defaults to
    * being ordered lexicographically by the string representation of the URN.
    * The values returned do not contain any metadata aspect, only parts of the urn (if applicable).
@@ -395,6 +436,33 @@ public abstract class BaseEntityResource<
 
     final List<URN> urns = getLocalDAO().listUrns(filter, indexSortCriterion, parseUrnParam(lastUrn), count);
     return urns.stream().map(urn -> toValue(newSnapshot(urn))).collect(Collectors.toList());
+  }
+
+  /**
+   * Similar to {@link #filterUrns(IndexFilter, IndexSortCriterion, String, int)} but
+   * takes in a start offset and returns a list result with pagination information.
+   *
+   * @param start defining the paging start
+   * @param count defining the maximum number of values returned
+   * @return a {@link ListResult} containing an ordered list of values of multiple entities and other pagination information
+   */
+  @Nonnull
+  private ListResult<VALUE> filterUrns(@Nonnull IndexFilter filter, @Nullable IndexSortCriterion indexSortCriterion,
+      int start, int count) {
+
+    final ListResult<URN> listResult = getLocalDAO().listUrns(filter, indexSortCriterion, start, count);
+    final List<URN> urns = listResult.getValues();
+    final List<VALUE> urnValues = urns.stream().map(urn -> toValue(newSnapshot(urn))).collect(Collectors.toList());
+
+    return ListResult.<VALUE>builder()
+        .values(urnValues)
+        .metadata(listResult.getMetadata())
+        .nextStart(listResult.getNextStart())
+        .havingMore(listResult.isHavingMore())
+        .totalCount(listResult.getTotalCount())
+        .totalPageCount(listResult.getTotalPageCount())
+        .pageSize(listResult.getPageSize())
+        .build();
   }
 
   /**
@@ -450,6 +518,36 @@ public abstract class BaseEntityResource<
       @QueryParam(PARAM_URN) @Optional @Nullable String lastUrn,
       @PagingContextParam @Nonnull PagingContext pagingContext) {
     return filter(indexFilter, null, aspectNames, lastUrn, pagingContext.getCount());
+  }
+
+  /**
+   * Similar to {@link #filter(IndexFilter, IndexSortCriterion, String[], String, int)} but
+   * returns a list result with pagination information.
+   *
+   * <p>Note: Only one of the filter finders should be implemented in your resource implementation.
+   *
+   * @param pagingContext {@link PagingContext} defines the paging start and count
+   * @return {@link ListResult} containing values along with the associated urns in {@link ListResultMetadata} and
+   *        pagination information
+   */
+  @Finder(FINDER_FILTER)
+  @Nonnull
+  public Task<ListResult<VALUE>> filter(
+      @QueryParam(PARAM_FILTER) @Optional @Nullable IndexFilter indexFilter,
+      @QueryParam(PARAM_SORT) @Optional @Nullable IndexSortCriterion indexSortCriterion,
+      @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
+      @PagingContextParam @Nonnull PagingContext pagingContext) {
+
+    final IndexFilter filter = indexFilter == null ? getDefaultIndexFilter() : indexFilter;
+
+    return RestliUtils.toTask(() -> {
+      final Set<Class<? extends RecordTemplate>> aspectClasses = parseAspectsParam(aspectNames);
+      if (aspectClasses.isEmpty()) {
+        return filterUrns(filter, indexSortCriterion, pagingContext.getStart(), pagingContext.getCount());
+      } else {
+        return filterAspects(aspectClasses, filter, indexSortCriterion, pagingContext.getStart(), pagingContext.getCount());
+      }
+    });
   }
 
   @Nonnull

@@ -6,6 +6,7 @@ import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.backfill.BackfillMode;
 import com.linkedin.metadata.dao.AspectKey;
 import com.linkedin.metadata.dao.BaseLocalDAO;
+import com.linkedin.metadata.dao.ListResult;
 import com.linkedin.metadata.dao.UrnAspectEntry;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
@@ -488,6 +489,29 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     assertEquals(actual.size(), 2);
     assertEquals(actual.get(0), new EntityValue());
     assertEquals(actual.get(1), new EntityValue());
+
+    // case 4: offset pagination
+    ListResult<FooUrn> urnsListResult = ListResult.<FooUrn>builder()
+        .values(urns3)
+        .metadata(null)
+        .nextStart(ListResult.INVALID_NEXT_START)
+        .havingMore(false)
+        .totalCount(2)
+        .totalPageCount(1)
+        .pageSize(2)
+        .build();
+    when(_mockLocalDAO.listUrns(indexFilter2, indexSortCriterion, 0, 2)).thenReturn(urnsListResult);
+    ListResult<EntityValue>
+        listResultActual = runAndWait(_resource.filter(null, indexSortCriterion, new String[0], new PagingContext(0, 2)));
+    List<EntityValue> actualValues = listResultActual.getValues();
+    assertEquals(actualValues.size(), 2);
+    assertEquals(actualValues.get(0), new EntityValue());
+    assertEquals(actualValues.get(1), new EntityValue());
+    assertEquals(listResultActual.getNextStart(), urnsListResult.getNextStart());
+    assertEquals(listResultActual.isHavingMore(), urnsListResult.isHavingMore());
+    assertEquals(listResultActual.getTotalCount(), urnsListResult.getTotalCount());
+    assertEquals(listResultActual.getTotalPageCount(), urnsListResult.getTotalPageCount());
+    assertEquals(listResultActual.getPageSize(), urnsListResult.getPageSize());
   }
 
   @Test
@@ -545,6 +569,33 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     assertEquals(actual3.size(), 2);
     assertEquals(actual3.get(0), new EntityValue().setFoo(foo2).setBar(bar2));
     assertEquals(actual3.get(1), new EntityValue().setFoo(foo1).setBar(bar1));
+
+    // case 4: offset pagination
+    ListResult<UrnAspectEntry<FooUrn>> urnsListResult = ListResult.<UrnAspectEntry<FooUrn>>builder()
+        .values(Arrays.asList(entry2, entry1))
+        .metadata(null)
+        .nextStart(ListResult.INVALID_NEXT_START)
+        .havingMore(false)
+        .totalCount(2)
+        .totalPageCount(1)
+        .pageSize(2)
+        .build();
+
+    when(_mockLocalDAO.getAspects(ImmutableSet.of(AspectFoo.class, AspectBar.class), indexFilter, indexSortCriterion, 0, 2))
+        .thenReturn(urnsListResult);
+
+    ListResult<EntityValue> actual4 =
+        runAndWait(_resource.filter(indexFilter, indexSortCriterion, aspectNames, new PagingContext(0, 2)));
+
+    List<EntityValue> actualValues = actual4.getValues();
+    assertEquals(actualValues.size(), 2);
+    assertEquals(actualValues.get(0), new EntityValue().setFoo(foo2).setBar(bar2));
+    assertEquals(actualValues.get(1), new EntityValue().setFoo(foo1).setBar(bar1));
+    assertEquals(actual4.getNextStart(), urnsListResult.getNextStart());
+    assertEquals(actual4.isHavingMore(), urnsListResult.isHavingMore());
+    assertEquals(actual4.getTotalCount(), urnsListResult.getTotalCount());
+    assertEquals(actual4.getTotalPageCount(), urnsListResult.getTotalPageCount());
+    assertEquals(actual4.getPageSize(), urnsListResult.getPageSize());
   }
 
   @Test
