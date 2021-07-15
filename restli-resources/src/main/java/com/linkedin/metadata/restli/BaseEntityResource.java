@@ -390,18 +390,18 @@ public abstract class BaseEntityResource<
 
   /**
    * Similar to {@link #filterAspects(Set, IndexFilter, IndexSortCriterion, String, int)} but
-   * takes in a paging context and returns a list result with pagination information.
+   * takes in a start offset and returns a list result with pagination information.
    *
-   * @param pagingContext {@link PagingContext} defines the paging start and count
+   * @param start defining the paging start
    * @return a {@link ListResult} containing a list of version numbers and other pagination information
    */
   @Nonnull
   private ListResult<VALUE> filterAspects(
       @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nonnull IndexFilter filter,
-      @Nullable IndexSortCriterion indexSortCriterion, @Nonnull PagingContext pagingContext) {
+      @Nullable IndexSortCriterion indexSortCriterion, int start, int count) {
 
     final ListResult<UrnAspectEntry<URN>> listResult =
-        getLocalDAO().getAspects(aspectClasses, filter, indexSortCriterion, pagingContext.getStart(), pagingContext.getCount());
+        getLocalDAO().getAspects(aspectClasses, filter, indexSortCriterion, start, count);
     final List<UrnAspectEntry<URN>> urnAspectEntries = listResult.getValues();
     final List<VALUE> values = getUrnAspectValues(urnAspectEntries);
 
@@ -439,17 +439,16 @@ public abstract class BaseEntityResource<
 
   /**
    * Similar to {@link #filterUrns(IndexFilter, IndexSortCriterion, String, int)} but
-   * takes in a paging context and returns a list result with pagination information.
+   * takes in a start offset and returns a list result with pagination information.
    *
-   * @param pagingContext {@link PagingContext} defines the paging start and count
+   * @param start defining the paging start
    * @return a {@link ListResult} containing an ordered list of values of multiple entities and other pagination information
    */
   @Nonnull
   private ListResult<VALUE> filterUrns(@Nonnull IndexFilter filter, @Nullable IndexSortCriterion indexSortCriterion,
-      @Nonnull PagingContext pagingContext) {
+      int start, int count) {
 
-    final ListResult<URN> listResult = getLocalDAO()
-        .listUrns(filter, indexSortCriterion, pagingContext.getStart(), pagingContext.getCount());
+    final ListResult<URN> listResult = getLocalDAO().listUrns(filter, indexSortCriterion, start, count);
     final List<URN> urns = listResult.getValues();
     final List<VALUE> urnValues = urns.stream().map(urn -> toValue(newSnapshot(urn))).collect(Collectors.toList());
 
@@ -523,11 +522,13 @@ public abstract class BaseEntityResource<
    * Similar to {@link #filter(IndexFilter, IndexSortCriterion, String[], String, int)} but
    * returns a list result with pagination information.
    *
+   * <p>Note: Only one of the filter finders should be implemented in your resource implementation.
+   *
    * @param pagingContext {@link PagingContext} defines the paging start and count
    * @return {@link ListResult} containing values along with the associated urns in {@link ListResultMetadata} and
    *        pagination information
    */
-  @Finder(FINDER_FILTER_OFFSET)
+  @Finder(FINDER_FILTER)
   @Nonnull
   public Task<ListResult<VALUE>> filter(
       @QueryParam(PARAM_FILTER) @Optional @Nullable IndexFilter indexFilter,
@@ -540,9 +541,9 @@ public abstract class BaseEntityResource<
     return RestliUtils.toTask(() -> {
       final Set<Class<? extends RecordTemplate>> aspectClasses = parseAspectsParam(aspectNames);
       if (aspectClasses.isEmpty()) {
-        return filterUrns(filter, indexSortCriterion, pagingContext);
+        return filterUrns(filter, indexSortCriterion, pagingContext.getStart(), pagingContext.getCount());
       } else {
-        return filterAspects(aspectClasses, filter, indexSortCriterion, pagingContext);
+        return filterAspects(aspectClasses, filter, indexSortCriterion, pagingContext.getStart(), pagingContext.getCount());
       }
     });
   }
