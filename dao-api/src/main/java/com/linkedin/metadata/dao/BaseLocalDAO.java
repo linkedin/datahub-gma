@@ -24,6 +24,7 @@ import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
+import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
 import java.time.Clock;
 import java.util.Collections;
@@ -753,6 +754,16 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   @Nonnull
   public abstract <ASPECT extends RecordTemplate> ListResult<ASPECT> list(@Nonnull Class<ASPECT> aspectClass, int start,
       int pageSize);
+
+  /**
+   *  Gets the count of an aggregation specified by the aspect and field to group on.
+   * @param indexFilter {@link IndexFilter} that defines the filter conditions
+   * @param indexGroupByCriterion {@link IndexGroupByCriterion} that defines the aspect to group by
+   * @return map of the field to the count
+   */
+  @Nonnull
+  public abstract Map<String, Long> countAggregate(@Nonnull IndexFilter indexFilter,
+      @Nonnull IndexGroupByCriterion indexGroupByCriterion);
 
   /**
    * Batch retrieves metadata aspects along with {@link ExtraInfo} using multiple {@link AspectKey}s.
