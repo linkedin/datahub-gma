@@ -1279,9 +1279,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         return result.put(entry.getStringVal(), entry.getTotalCount());
       } else if (entry.getDoubleVal() != null) {
         return result.put(entry.getDoubleVal().toString(), entry.getTotalCount());
-      } else {
+      } else if (entry.getLongVal() != null) {
         return result.put(entry.getLongVal().toString(), entry.getTotalCount());
       }
+      return result;
     }).collect(Collectors.toList());
     return result;
   }

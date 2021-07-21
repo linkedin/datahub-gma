@@ -132,7 +132,7 @@ public class BaseLocalDAOTest {
 
     @Override
     public Map<String, Long> countAggregate(@Nonnull IndexFilter indexFilter, @Nonnull IndexGroupByCriterion groupCriterion) {
-      return null;
+      return Collections.emptyMap();
     }
 
     @Override

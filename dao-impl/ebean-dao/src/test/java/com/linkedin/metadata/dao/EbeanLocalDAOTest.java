@@ -2155,6 +2155,13 @@ public class EbeanLocalDAOTest {
     result = dao.countAggregate(indexFilter1, indexGroupByCriterion4);
     assertEquals(result.size(), 1);
     assertEquals(result.get("1.2").longValue(), 3);
+
+    // group by an aspect and path that the filtered results do not contain
+    IndexGroupByCriterion indexGroupByCriterion5 = new IndexGroupByCriterion().setAspect(AspectBaz.class.getCanonicalName())
+        .setPath("/enumField");
+
+    result = dao.countAggregate(indexFilter1, indexGroupByCriterion5);
+    assertEquals(result.size(), 0);
   }
 
   @Test
