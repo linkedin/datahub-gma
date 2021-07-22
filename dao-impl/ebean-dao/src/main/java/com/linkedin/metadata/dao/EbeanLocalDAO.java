@@ -981,12 +981,12 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Nonnull
-  static <ASPECT extends RecordTemplate> String getFieldColumn(@Nonnull String stringPath,
-      @Nonnull String stringAspect) {
-    final String[] pathSpecArray = RecordUtils.getPathSpecAsArray(stringPath);
+  static <ASPECT extends RecordTemplate> String getFieldColumn(@Nonnull String path,
+      @Nonnull String aspectName) {
+    final String[] pathSpecArray = RecordUtils.getPathSpecAsArray(path);
 
     // get nested field
-    ASPECT aspect = RecordUtils.getAspectFromString(stringAspect);
+    ASPECT aspect = RecordUtils.getAspectFromString(aspectName);
 
     final int pathSize = pathSpecArray.length;
 
@@ -1001,10 +1001,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         aspect = RecordUtils.getAspectFromString(nestedAspectName);
       } else if (dataSchema.getDereferencedType() == DataSchema.Type.ARRAY) {
         throw new UnsupportedOperationException(
-            "Can not sort or group by an array for path: " + stringPath + ", aspect: " + stringAspect);
+            "Can not sort or group by an array for path: " + path + ", aspect: " + aspectName);
       } else {
         throw new IllegalArgumentException(
-            "Invalid path field for aspect in sort or group by path: " + stringPath + ", aspect: " + stringAspect);
+            "Invalid path field for aspect in sort or group by path: " + path + ", aspect: " + aspectName);
       }
     }
 
@@ -1020,8 +1020,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       return EbeanMetadataIndex.STRING_COLUMN;
     } else {
       throw new UnsupportedOperationException(
-          "The type stored in the path field of the aspect can not be sorted or grouped on for path: " + stringPath
-              + ", aspect: " + stringAspect);
+          "The type stored in the path field of the aspect can not be sorted or grouped on for path: " + path
+              + ", aspect: " + aspectName);
     }
   }
 

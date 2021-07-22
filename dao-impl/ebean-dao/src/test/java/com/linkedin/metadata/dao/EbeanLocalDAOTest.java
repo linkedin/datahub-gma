@@ -2082,18 +2082,21 @@ public class EbeanLocalDAOTest {
     String aspect2 = AspectBaz.class.getCanonicalName();
 
     addIndex(urn1, aspect1, "/value", "valB");
+    addIndex(urn1, aspect2, "/stringField", "valC");
     addIndex(urn1, aspect2, "/longField", 10);
     addIndex(urn1, aspect2, "/doubleField", 1.2);
     addIndex(urn1, aspect2, "/recordField/value", "nestedC");
     addIndex(urn1, FooUrn.class.getCanonicalName(), "/fooId", 1);
 
     addIndex(urn2, aspect1, "/value", "valB");
+    addIndex(urn2, aspect2, "/stringField", "valC");
     addIndex(urn2, aspect2, "/longField", 8);
     addIndex(urn2, aspect2, "/doubleField", 1.2);
     addIndex(urn2, aspect2, "/recordField/value", "nestedB");
     addIndex(urn2, FooUrn.class.getCanonicalName(), "/fooId", 2);
 
     addIndex(urn3, aspect1, "/value", "valA");
+    addIndex(urn3, aspect2, "/stringField", "valC");
     addIndex(urn3, aspect2, "/longField", 100);
     addIndex(urn3, aspect2, "/doubleField", 1.2);
     addIndex(urn3, aspect2, "/recordField/value", "nestedA");
@@ -2162,6 +2165,24 @@ public class EbeanLocalDAOTest {
 
     result = dao.countAggregate(indexFilter1, indexGroupByCriterion5);
     assertEquals(result.size(), 0);
+
+    // filter by condition that are both strings and group by 1 of them
+    IndexValue indexValue3 = new IndexValue();
+    indexValue3.setString("valC");
+    IndexCriterion criterion3 = new IndexCriterion().setAspect(aspect2)
+        .setPathParams(new IndexPathParams().setPath("/stringField").setValue(indexValue3).setCondition(Condition.START_WITH));
+
+    IndexValue indexValue4 = new IndexValue();
+    indexValue4.setString("valB");
+    IndexCriterion criterion4 = new IndexCriterion().setAspect(aspect1)
+        .setPathParams(new IndexPathParams().setPath("/value").setValue(indexValue4).setCondition(Condition.START_WITH));
+
+    IndexCriterionArray indexCriterionArray3 = new IndexCriterionArray(Arrays.asList(criterion3, criterion4));
+    final IndexFilter indexFilter3 = new IndexFilter().setCriteria(indexCriterionArray3);
+
+    result = dao.countAggregate(indexFilter3, indexGroupByCriterion1);
+    assertEquals(result.size(), 1);
+    assertEquals(result.get("valB").longValue(), 2);
   }
 
   @Test
