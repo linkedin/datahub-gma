@@ -13,6 +13,7 @@ import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
+import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.query.SortOrder;
 import com.linkedin.parseq.BaseEngineTest;
@@ -33,6 +34,7 @@ import com.linkedin.testing.urn.FooUrn;
 import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -615,5 +617,33 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     assertEquals(aspectClasses.size(), 2);
     assertTrue(aspectClasses.contains(AspectFoo.class));
     assertTrue(aspectClasses.contains(AspectBar.class));
+  }
+
+  @Test
+  public void testCountAggregate() {
+    FooUrn urn1 = makeFooUrn(1);
+    FooUrn urn2 = makeFooUrn(2);
+    AspectFoo foo1 = new AspectFoo().setValue("val1");
+    AspectFoo foo2 = new AspectFoo().setValue("val2");
+    AspectBar bar1 = new AspectBar().setValue("val1");
+    AspectBar bar2 = new AspectBar().setValue("val2");
+
+    UrnAspectEntry<FooUrn> entry1 = new UrnAspectEntry<>(urn1, Arrays.asList(foo1, bar1));
+    UrnAspectEntry<FooUrn> entry2 = new UrnAspectEntry<>(urn2, Arrays.asList(foo2, bar2));
+
+    IndexCriterion criterion = new IndexCriterion().setAspect(AspectFoo.class.getCanonicalName());
+    IndexCriterionArray criterionArray = new IndexCriterionArray(criterion);
+    IndexFilter indexFilter = new IndexFilter().setCriteria(criterionArray);
+    IndexGroupByCriterion indexGroupByCriterion = new IndexGroupByCriterion().setAspect(AspectFoo.class.getCanonicalName())
+        .setPath("/value");
+    Map<String, Long> mapResult = new HashMap<>();
+    mapResult.put("val1", 1L);
+    mapResult.put("val2", 1L);
+
+    when(_mockLocalDAO.countAggregate(indexFilter, indexGroupByCriterion)).thenReturn(mapResult);
+    Map<String, Long> actual =
+        runAndWait(_resource.countAggregate(indexFilter, indexGroupByCriterion));
+
+    assertEquals(actual, mapResult);
   }
 }

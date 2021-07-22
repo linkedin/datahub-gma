@@ -1,5 +1,6 @@
 package com.linkedin.metadata.dao;
 
+import io.ebean.annotation.Aggregation;
 import io.ebean.annotation.Index;
 import io.ebean.Model;
 import javax.persistence.Column;
@@ -79,4 +80,7 @@ public class EbeanMetadataIndex extends Model {
 
   @Column(name = DOUBLE_COLUMN)
   protected Double doubleVal;
+
+  @Aggregation("count(*)")
+  protected Long totalCount;
 }
