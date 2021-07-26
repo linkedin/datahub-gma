@@ -1214,6 +1214,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       }
       whereClause.append(" t").append(i).append(".aspect = ?");
       if (criterion.getPathParams() != null) {
+        validateConditionAndValue(criterion);
         whereClause.append(" AND t")
             .append(i)
             .append(".path = ? AND t")
@@ -1222,7 +1223,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
             .append(getGMAIndexPair(criterion).valueType)
             .append(" ")
             .append(getStringForOperator(criterion.getPathParams().getCondition()))
-            .append("?");
+            .append(getPlaceholderStringForValue(criterion.getPathParams().getValue()));
       }
     });
     whereClause.append(" AND tgroup.aspect = ? AND tgroup.path = ? ");

@@ -560,8 +560,8 @@ public abstract class BaseEntityResource<
   @Action(name = ACTION_COUNT_AGGREGATE)
   @Nonnull
   public Task<Map<String, Long>> countAggregate(
-      @QueryParam(PARAM_FILTER) @Optional @Nullable IndexFilter indexFilter,
-      @QueryParam(PARAM_GROUP) IndexGroupByCriterion indexGroupByCriterion
+      @ActionParam(PARAM_FILTER) @Optional @Nullable IndexFilter indexFilter,
+      @ActionParam(PARAM_GROUP) IndexGroupByCriterion indexGroupByCriterion
   ) {
     final IndexFilter filter = indexFilter == null ? getDefaultIndexFilter() : indexFilter;
 
