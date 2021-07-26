@@ -2,6 +2,7 @@ package com.linkedin.metadata.restli;
 
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
+import com.linkedin.data.template.LongMap;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.StringArray;
 import com.linkedin.data.template.UnionTemplate;
@@ -11,6 +12,7 @@ import com.linkedin.metadata.dao.BaseLocalDAO;
 import com.linkedin.metadata.dao.ListResult;
 import com.linkedin.metadata.dao.UrnAspectEntry;
 import com.linkedin.metadata.dao.utils.ModelUtils;
+import com.linkedin.metadata.query.CountAggregateMetadata;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
@@ -18,6 +20,7 @@ import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.query.ListResultMetadata;
 import com.linkedin.parseq.Task;
+import com.linkedin.restli.common.EmptyRecord;
 import com.linkedin.restli.server.CollectionResult;
 import com.linkedin.restli.server.PagingContext;
 import com.linkedin.restli.server.annotations.Action;
@@ -551,11 +554,37 @@ public abstract class BaseEntityResource<
     });
   }
 
-  /*
+  /**
+   * Gets a collection result with count aggregate metadata, which has the count of an aggregation
+   * specified by the aspect and field to group by.
+   *
+   * @param indexFilter {@link IndexFilter} that defines the filter conditions
+   * @param indexGroupByCriterion {@link IndexGroupByCriterion} that defines the aspect to group by
+   * @return map of the field values to their count
+   */
+  @Finder(FINDER_COUNT_AGGREGATE)
+  @Nonnull
+  public Task<CollectionResult<EmptyRecord, CountAggregateMetadata>> countAggregateFilter(
+      @QueryParam(PARAM_FILTER) @Optional @Nullable IndexFilter indexFilter,
+      @QueryParam(PARAM_GROUP) IndexGroupByCriterion indexGroupByCriterion
+  ) {
+    final IndexFilter filter = indexFilter == null ? getDefaultIndexFilter() : indexFilter;
+
+    return RestliUtils.toTask(() -> {
+      Map<String, Long> countAggregateMap = getLocalDAO().countAggregate(indexFilter, indexGroupByCriterion);
+      CountAggregateMetadata countAggregateMetadata = new CountAggregateMetadata()
+          .setCountAggregateMap(new LongMap(countAggregateMap));
+      return new CollectionResult<EmptyRecord, CountAggregateMetadata>(new ArrayList<>(), countAggregateMetadata);
+    });
+  }
+
+  /**
    * Gets the count of an aggregation specified by the aspect and field to group by.
    * @param indexFilter {@link IndexFilter} that defines the filter conditions
    * @param indexGroupByCriterion {@link IndexGroupByCriterion} that defines the aspect to group by
-   * @return map of the field to the count
+   * @return map of the field values to their count
+   *
+   * @deprecated Use {@link #countAggregateFilter(IndexFilter, IndexGroupByCriterion)} instead
    */
   @Action(name = ACTION_COUNT_AGGREGATE)
   @Nonnull

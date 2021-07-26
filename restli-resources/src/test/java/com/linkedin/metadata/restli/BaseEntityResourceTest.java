@@ -2,6 +2,7 @@ package com.linkedin.metadata.restli;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.linkedin.data.template.LongMap;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.backfill.BackfillMode;
 import com.linkedin.metadata.dao.AspectKey;
@@ -10,6 +11,7 @@ import com.linkedin.metadata.dao.ListResult;
 import com.linkedin.metadata.dao.UrnAspectEntry;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
+import com.linkedin.metadata.query.CountAggregateMetadata;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
@@ -20,6 +22,7 @@ import com.linkedin.parseq.BaseEngineTest;
 import com.linkedin.restli.common.ComplexResourceKey;
 import com.linkedin.restli.common.EmptyRecord;
 import com.linkedin.restli.common.HttpStatus;
+import com.linkedin.restli.server.CollectionResult;
 import com.linkedin.restli.server.PagingContext;
 import com.linkedin.restli.server.ResourceContext;
 import com.linkedin.restli.server.RestLiServiceException;
@@ -645,5 +648,33 @@ public class BaseEntityResourceTest extends BaseEngineTest {
         runAndWait(_resource.countAggregate(indexFilter, indexGroupByCriterion));
 
     assertEquals(actual, mapResult);
+  }
+
+  @Test
+  public void testCountAggregateFilter() {
+    FooUrn urn1 = makeFooUrn(1);
+    FooUrn urn2 = makeFooUrn(2);
+    AspectFoo foo1 = new AspectFoo().setValue("val1");
+    AspectFoo foo2 = new AspectFoo().setValue("val2");
+    AspectBar bar1 = new AspectBar().setValue("val1");
+    AspectBar bar2 = new AspectBar().setValue("val2");
+
+    UrnAspectEntry<FooUrn> entry1 = new UrnAspectEntry<>(urn1, Arrays.asList(foo1, bar1));
+    UrnAspectEntry<FooUrn> entry2 = new UrnAspectEntry<>(urn2, Arrays.asList(foo2, bar2));
+
+    IndexCriterion criterion = new IndexCriterion().setAspect(AspectFoo.class.getCanonicalName());
+    IndexCriterionArray criterionArray = new IndexCriterionArray(criterion);
+    IndexFilter indexFilter = new IndexFilter().setCriteria(criterionArray);
+    IndexGroupByCriterion indexGroupByCriterion = new IndexGroupByCriterion().setAspect(AspectFoo.class.getCanonicalName())
+        .setPath("/value");
+    Map<String, Long> mapResult = new HashMap<>();
+    mapResult.put("val1", 1L);
+    mapResult.put("val2", 1L);
+
+    when(_mockLocalDAO.countAggregate(indexFilter, indexGroupByCriterion)).thenReturn(mapResult);
+    CollectionResult<EmptyRecord, CountAggregateMetadata> actual =
+        runAndWait(_resource.countAggregateFilter(indexFilter, indexGroupByCriterion));
+
+    assertEquals(actual.getMetadata().getCountAggregateMap(), new LongMap(mapResult));
   }
 }
