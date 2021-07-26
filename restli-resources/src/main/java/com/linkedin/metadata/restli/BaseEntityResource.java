@@ -12,13 +12,13 @@ import com.linkedin.metadata.dao.BaseLocalDAO;
 import com.linkedin.metadata.dao.ListResult;
 import com.linkedin.metadata.dao.UrnAspectEntry;
 import com.linkedin.metadata.dao.utils.ModelUtils;
-import com.linkedin.metadata.query.CountAggregateMetadata;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.query.ListResultMetadata;
+import com.linkedin.metadata.query.MapMetadata;
 import com.linkedin.parseq.Task;
 import com.linkedin.restli.common.EmptyRecord;
 import com.linkedin.restli.server.CollectionResult;
@@ -560,11 +560,11 @@ public abstract class BaseEntityResource<
    *
    * @param indexFilter {@link IndexFilter} that defines the filter conditions
    * @param indexGroupByCriterion {@link IndexGroupByCriterion} that defines the aspect to group by
-   * @return map of the field values to their count
+   * @return {@link CollectionResult} containing metadata that has a map of the field values to their count
    */
   @Finder(FINDER_COUNT_AGGREGATE)
   @Nonnull
-  public Task<CollectionResult<EmptyRecord, CountAggregateMetadata>> countAggregateFilter(
+  public Task<CollectionResult<EmptyRecord, MapMetadata>> countAggregateFilter(
       @QueryParam(PARAM_FILTER) @Optional @Nullable IndexFilter indexFilter,
       @QueryParam(PARAM_GROUP) IndexGroupByCriterion indexGroupByCriterion
   ) {
@@ -572,9 +572,8 @@ public abstract class BaseEntityResource<
 
     return RestliUtils.toTask(() -> {
       Map<String, Long> countAggregateMap = getLocalDAO().countAggregate(indexFilter, indexGroupByCriterion);
-      CountAggregateMetadata countAggregateMetadata = new CountAggregateMetadata()
-          .setCountAggregateMap(new LongMap(countAggregateMap));
-      return new CollectionResult<EmptyRecord, CountAggregateMetadata>(new ArrayList<>(), countAggregateMetadata);
+      MapMetadata mapMetadata = new MapMetadata().setLongMap(new LongMap(countAggregateMap));
+      return new CollectionResult<EmptyRecord, MapMetadata>(new ArrayList<>(), mapMetadata);
     });
   }
 

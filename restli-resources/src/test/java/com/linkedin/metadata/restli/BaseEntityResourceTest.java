@@ -11,12 +11,12 @@ import com.linkedin.metadata.dao.ListResult;
 import com.linkedin.metadata.dao.UrnAspectEntry;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
-import com.linkedin.metadata.query.CountAggregateMetadata;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
+import com.linkedin.metadata.query.MapMetadata;
 import com.linkedin.metadata.query.SortOrder;
 import com.linkedin.parseq.BaseEngineTest;
 import com.linkedin.restli.common.ComplexResourceKey;
@@ -672,9 +672,9 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     mapResult.put("val2", 1L);
 
     when(_mockLocalDAO.countAggregate(indexFilter, indexGroupByCriterion)).thenReturn(mapResult);
-    CollectionResult<EmptyRecord, CountAggregateMetadata> actual =
+    CollectionResult<EmptyRecord, MapMetadata> actual =
         runAndWait(_resource.countAggregateFilter(indexFilter, indexGroupByCriterion));
 
-    assertEquals(actual.getMetadata().getCountAggregateMap(), new LongMap(mapResult));
+    assertEquals(actual.getMetadata().getLongMap(), new LongMap(mapResult));
   }
 }
