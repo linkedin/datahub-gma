@@ -122,8 +122,9 @@ public class ESBrowseDAO extends BaseBrowseDAO {
    * @param isGroupQuery true if it's group query false otherwise
    * @return {@link QueryBuilder}
    */
+  @VisibleForTesting
   @Nonnull
-  private QueryBuilder buildQueryString(@Nonnull String path, @Nonnull Map<String, String> requestMap,
+   QueryBuilder buildQueryString(@Nonnull String path, @Nonnull Map<String, String> requestMap,
       boolean isGroupQuery) {
     final String browsePathFieldName = _config.getBrowsePathFieldName();
     final String browseDepthFieldName = _config.getBrowseDepthFieldName();
@@ -145,7 +146,8 @@ public class ESBrowseDAO extends BaseBrowseDAO {
     }
 
     requestMap.forEach((field, val) -> {
-      if (_config.hasFieldInSchema(field)) {
+      String[] fieldParts = field.split("\\.");
+      if (_config.hasFieldInSchema(fieldParts[0])) {
         queryBuilder.filter(QueryBuilders.termQuery(field, val));
       }
     });

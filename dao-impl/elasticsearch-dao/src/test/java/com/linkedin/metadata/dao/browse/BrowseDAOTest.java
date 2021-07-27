@@ -4,10 +4,13 @@ import com.linkedin.common.urn.Urn;
 import com.linkedin.testing.TestUtils;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.testng.annotations.BeforeMethod;
@@ -98,5 +101,28 @@ public class BrowseDAOTest {
     when(_mockClient.search(any())).thenReturn(mockSearchResponse);
     assertEquals(_browseDAO.getBrowsePaths(dummyUrn).size(), 1);
     assertEquals(_browseDAO.getBrowsePaths(dummyUrn).get(0), "foo");
+  }
+
+  @Test
+  public void testBuildQueryString() throws Exception {
+
+    // Test the case of empty requestMap.
+    Map<String, String> requestMap = new HashMap<>();
+    BoolQueryBuilder simpleResult = (BoolQueryBuilder) _browseDAO.buildQueryString("/dev/hive", requestMap, false);
+    // Checks if we have only 2 term clauses, one for path and one for length.
+    assertEquals(simpleResult.filter().size(), 2);
+    assertTrue(simpleResult.filter().contains(new TermQueryBuilder("browsePaths", "/dev/hive")));
+    assertTrue(simpleResult.filter().contains(new TermQueryBuilder("browsePaths.length", 3)));
+
+    // Test the case of extra filter clauses in requestMap.
+    requestMap.put("urn", "some_urn_value");
+    requestMap.put("urn.sub_field", "sub_value");
+    BoolQueryBuilder subFieldResult = (BoolQueryBuilder) _browseDAO.buildQueryString("/dev/hive", requestMap, false);
+    // Checks if we have 2 additional term clauses, one for urn and one sub field based - `urn.subfield`.
+    // Test is configured on EntityDocument class having only `urn` and `value` fields in the schema.
+    assertEquals(subFieldResult.filter().size(), 4);
+    assertTrue(subFieldResult.filter().contains(new TermQueryBuilder("urn", "some_urn_value")));
+    assertTrue(subFieldResult.filter().contains(new TermQueryBuilder("urn.sub_field", "sub_value")));
+
   }
 }
