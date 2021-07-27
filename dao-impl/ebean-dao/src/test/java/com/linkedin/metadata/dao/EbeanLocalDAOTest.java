@@ -2183,6 +2183,22 @@ public class EbeanLocalDAOTest {
     result = dao.countAggregate(indexFilter3, indexGroupByCriterion1);
     assertEquals(result.size(), 1);
     assertEquals(result.get("valB").longValue(), 2);
+
+    // in filter
+    IndexValue indexValue5 = new IndexValue();
+    indexValue5.setArray(new StringArray("valA", "valB"));
+    IndexCriterion criterion5 = new IndexCriterion().setAspect(aspect1)
+        .setPathParams(new IndexPathParams().setPath("/value").setValue(indexValue5).setCondition(Condition.IN));
+
+    IndexCriterionArray indexCriterionArray4 = new IndexCriterionArray(Collections.singletonList(criterion5));
+    final IndexFilter indexFilter4 = new IndexFilter().setCriteria(indexCriterionArray4);
+
+    result = dao.countAggregate(indexFilter4, indexGroupByCriterion1);
+    List<FooUrn> test = dao.listUrns(indexFilter4, null, null, 10);
+    assertEquals(test.size(), 3);
+    assertEquals(result.size(), 2);
+    assertEquals(result.get("valB").longValue(), 2);
+    assertEquals(result.get("valA").longValue(), 1);
   }
 
   @Test
