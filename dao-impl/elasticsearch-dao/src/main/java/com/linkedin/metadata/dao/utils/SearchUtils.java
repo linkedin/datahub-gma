@@ -68,6 +68,10 @@ public class SearchUtils {
    * <p>If the condition between a field and value is not the same as EQUAL, a Range query is constructed. This
    * condition does not support multiple values for the same field.
    *
+   * <p>When CONTAIN, START_WITH and END_WITH conditions are used, the underlying logic is using wildcard query which is
+   * not performant according to ES. For details, please refer to:
+   * https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-wildcard-query.html#wildcard-query-field-params
+   *
    * @param criterion {@link Criterion} single criterion which contains field, value and a comparison operator
    */
   @Nonnull
@@ -88,8 +92,16 @@ public class SearchUtils {
       return QueryBuilders.rangeQuery(criterion.getField()).lt(criterion.getValue().trim());
     } else if (condition == Condition.LESS_THAN_OR_EQUAL_TO) {
       return QueryBuilders.rangeQuery(criterion.getField()).lte(criterion.getValue().trim());
+    } else if (condition == Condition.CONTAIN) {
+      return QueryBuilders.wildcardQuery(criterion.getField(),
+          "*" + ESUtils.escapeReservedCharacters(criterion.getValue().trim()) + "*");
+    } else if (condition == Condition.START_WITH) {
+      return QueryBuilders.wildcardQuery(criterion.getField(),
+          ESUtils.escapeReservedCharacters(criterion.getValue().trim()) + "*");
+    } else if (condition == Condition.END_WITH) {
+      return QueryBuilders.wildcardQuery(criterion.getField(),
+          "*" + ESUtils.escapeReservedCharacters(criterion.getValue().trim()));
     }
-
     throw new UnsupportedOperationException("Unsupported condition: " + condition);
   }
 
