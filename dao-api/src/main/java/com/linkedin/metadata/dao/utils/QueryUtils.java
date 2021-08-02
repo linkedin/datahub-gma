@@ -7,6 +7,9 @@ import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.Criterion;
 import com.linkedin.metadata.query.CriterionArray;
 import com.linkedin.metadata.query.Filter;
+import com.linkedin.metadata.query.RelationshipDirection;
+import com.linkedin.metadata.query.RelationshipFilter;
+
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
@@ -54,6 +57,34 @@ public class QueryUtils {
   @Nonnull
   public static Filter newFilter(@Nonnull String field, @Nonnull String value) {
     return newFilter(Collections.singletonMap(field, value));
+  }
+
+
+  /**
+   * Create {@link RelationshipFilter} using filter and relationship direction.
+   *
+   * @param filter {@link Filter} filter
+   * @param relationshipDirection {@link RelationshipDirection} relationship direction
+   * @return RelationshipFilter
+   */
+  @Nonnull
+  public static RelationshipFilter newRelationshipFilter(@Nonnull Filter filter,
+                                                         @Nonnull RelationshipDirection relationshipDirection) {
+    return new RelationshipFilter().setCriteria(filter.getCriteria()).setDirection(relationshipDirection);
+  }
+
+  /**
+   * Create {@link RelationshipFilter} using filter conditions and relationship direction.
+   *
+   * @param field field to create a filter on
+   * @param value field value to be filtered
+   * @param relationshipDirection {@link RelationshipDirection} relationship direction
+   * @return RelationshipFilter
+   */
+  @Nonnull
+  public static RelationshipFilter newRelationshipFilter(@Nonnull String field, @Nonnull String value,
+                                                         @Nonnull RelationshipDirection relationshipDirection) {
+    return newRelationshipFilter(newFilter(field, value), relationshipDirection);
   }
 
   /**

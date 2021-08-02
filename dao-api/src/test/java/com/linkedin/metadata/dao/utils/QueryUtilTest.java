@@ -5,7 +5,10 @@ import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.aspect.AspectVersion;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.Criterion;
+import com.linkedin.metadata.query.CriterionArray;
 import com.linkedin.metadata.query.Filter;
+import com.linkedin.metadata.query.RelationshipDirection;
+import com.linkedin.metadata.query.RelationshipFilter;
 import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectFoo;
 import java.util.Collections;
@@ -13,6 +16,7 @@ import java.util.Map;
 import java.util.Set;
 import org.testng.annotations.Test;
 
+import static com.linkedin.metadata.dao.utils.QueryUtils.newRelationshipFilter;
 import static org.testng.Assert.*;
 
 
@@ -37,6 +41,19 @@ public class QueryUtilTest {
     Map<String, String> paramsWithNulls = Collections.singletonMap("foo", null);
     filter = QueryUtils.newFilter(paramsWithNulls);
     assertEquals(filter.getCriteria().size(), 0);
+  }
+
+  @Test
+  public void testCreateRelationshipFilter() {
+    String field = "field";
+    String value = "value";
+    RelationshipDirection direction = RelationshipDirection.OUTGOING;
+
+    RelationshipFilter relationshipFilter = new RelationshipFilter().setCriteria(new CriterionArray(
+                    Collections.singletonList(new Criterion().setField(field).setValue(value).setCondition(Condition.EQUAL))))
+            .setDirection(direction);
+
+    assertEquals(newRelationshipFilter(field, value, direction), relationshipFilter);
   }
 
   @Test

@@ -7,8 +7,6 @@ import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.Criterion;
 import com.linkedin.metadata.query.CriterionArray;
 import com.linkedin.metadata.query.Filter;
-import com.linkedin.metadata.query.RelationshipDirection;
-import com.linkedin.metadata.query.RelationshipFilter;
 import com.linkedin.testing.EntityBar;
 import com.linkedin.testing.EntityFoo;
 import com.linkedin.testing.RelationshipFoo;
@@ -176,19 +174,6 @@ public class Neo4jUtilTest {
   public void testGetTypeOrEmptyString() {
     assertEquals(getTypeOrEmptyString(EntityBar.class), ":`com.linkedin.testing.EntityBar`");
     assertEquals(getTypeOrEmptyString(null), "");
-  }
-
-  @Test
-  public void testCreateRelationshipFilter() {
-    String field = "field";
-    String value = "value";
-    RelationshipDirection direction = RelationshipDirection.OUTGOING;
-
-    RelationshipFilter relationshipFilter = new RelationshipFilter().setCriteria(new CriterionArray(
-        Collections.singletonList(new Criterion().setField(field).setValue(value).setCondition(Condition.EQUAL))))
-        .setDirection(direction);
-
-    assertEquals(createRelationshipFilter(field, value, direction), relationshipFilter);
   }
 
   @Test
