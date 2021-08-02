@@ -6,8 +6,6 @@ import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.CriterionArray;
 import com.linkedin.metadata.query.Filter;
-import com.linkedin.metadata.query.RelationshipDirection;
-import com.linkedin.metadata.query.RelationshipFilter;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -20,8 +18,6 @@ import org.apache.commons.lang3.ClassUtils;
 import org.neo4j.driver.types.Node;
 import org.neo4j.driver.types.Path;
 import org.neo4j.driver.types.Relationship;
-
-import static com.linkedin.metadata.dao.utils.QueryUtils.*;
 
 
 public class Neo4jUtil {
@@ -247,32 +243,5 @@ public class Neo4jUtil {
   @Nonnull
   public static String getType(@Nonnull Class<? extends RecordTemplate> recordClass) {
     return new StringBuilder("`").append(recordClass.getCanonicalName()).append("`").toString();
-  }
-
-  /**
-   * Create {@link RelationshipFilter} using filter and relationship direction.
-   *
-   * @param filter {@link Filter} filter
-   * @param relationshipDirection {@link RelationshipDirection} relationship direction
-   * @return RelationshipFilter
-   */
-  @Nonnull
-  public static RelationshipFilter createRelationshipFilter(@Nonnull Filter filter,
-      @Nonnull RelationshipDirection relationshipDirection) {
-    return new RelationshipFilter().setCriteria(filter.getCriteria()).setDirection(relationshipDirection);
-  }
-
-  /**
-   * Create {@link RelationshipFilter} using filter conditions and relationship direction.
-   *
-   * @param field field to create a filter on
-   * @param value field value to be filtered
-   * @param relationshipDirection {@link RelationshipDirection} relationship direction
-   * @return RelationshipFilter
-   */
-  @Nonnull
-  public static RelationshipFilter createRelationshipFilter(@Nonnull String field, @Nonnull String value,
-      @Nonnull RelationshipDirection relationshipDirection) {
-    return createRelationshipFilter(newFilter(field, value), relationshipDirection);
   }
 }
