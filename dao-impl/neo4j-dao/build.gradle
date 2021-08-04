@@ -9,6 +9,7 @@ dependencies {
   compileOnly externalDependency.lombok
   annotationProcessor externalDependency.lombok
 
+  testImplementation testFixtures(project(':dao-api'))
   testCompile project(':testing:test-models')
   testCompile externalDependency.neo4jHarness
 }

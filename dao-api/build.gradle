@@ -1,3 +1,5 @@
+apply plugin: 'java'
+apply plugin: 'java-test-fixtures'
 apply plugin: 'pegasus'
 
 apply from: "$rootDir/gradle/java-publishing.gradle"
@@ -20,4 +22,7 @@ dependencies {
   testCompile externalDependency.guava
   testCompile externalDependency.mockito
   testCompile externalDependency.commonsIo
+
+  testFixturesCompile project(':testing:test-models')
+  testFixturesCompile externalDependency.testng
 }
