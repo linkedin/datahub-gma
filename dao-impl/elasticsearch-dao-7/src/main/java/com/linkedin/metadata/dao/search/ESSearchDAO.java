@@ -67,8 +67,7 @@ import static com.linkedin.metadata.dao.utils.SearchUtils.getQueryBuilderFromCri
 public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<DOCUMENT> {
 
   private static final Integer DEFAULT_TERM_BUCKETS_SIZE_100 = 100;
-  private static final Integer ES_LOWER_BOUND_HITS = 10000;
-  private static final Integer DEFAULT_LOWER_BOUND_HITS = 2147483647;
+  private static final Integer DEFAULT_LOWER_BOUND_HITS = Integer.MAX_VALUE;
   private static final String URN_FIELD = "urn";
 
   private RestHighLevelClient _client;
@@ -95,18 +94,6 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
     _highlightedFieldNamePatterns = config.getFieldsToHighlightMatch()
         .stream()
         .collect(Collectors.toMap(Function.identity(), fieldName -> Pattern.compile(fieldName + "(\\..+)?")));
-  }
-
-  /**
-   * Set "track_total_hits" query parameter to false if you do not need accurate results. It is a good trade off to
-   * speed up searches if you don’t need the accurate number of hits after a certain threshold. If set to false, it will
-   * use the default lower bound set by Elasticsearch.
-   */
-  public void setTrackTotalHits(boolean trackTotalHits) {
-    _lowerBoundHits = DEFAULT_LOWER_BOUND_HITS;
-    if (!trackTotalHits) {
-      _lowerBoundHits = ES_LOWER_BOUND_HITS;
-    }
   }
 
   /**

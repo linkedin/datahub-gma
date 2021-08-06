@@ -219,7 +219,7 @@ public class ESSearchDAOTest {
   public void testFilteredQueryApproxHits() throws IOException {
     int from = 0;
     int size = 10;
-    _searchDAO.setTrackTotalHits(false);
+    _searchDAO.setTrackTotalHits(10000);
     Filter filter = newFilter(ImmutableMap.of("key1", "value1, value2 ", "key2", "urn:li:entity:(foo,bar,baz)"));
     SortCriterion sortCriterion = new SortCriterion().setOrder(SortOrder.ASCENDING).setField("urn");
 
@@ -232,8 +232,8 @@ public class ESSearchDAOTest {
     assertEquals(searchRequest.source().toString(), loadJsonFromResource("UrnFilterCustomLowerHitsQuery.json"));
     assertEquals(searchRequest.indices(), new String[]{_testSearchConfig.getIndexName()});
 
-    // set the default value of "track_total_hits" back to true
-    _searchDAO.setTrackTotalHits(true);
+    // set the value of "track_total_hits" back to the default i.e. maximum integer value
+    _searchDAO.setTrackTotalHits(Integer.MAX_VALUE);
   }
 
   @Test
