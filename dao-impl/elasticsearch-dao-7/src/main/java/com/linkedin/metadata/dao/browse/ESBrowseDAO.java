@@ -48,10 +48,33 @@ import org.elasticsearch.search.sort.SortOrder;
 public class ESBrowseDAO extends BaseBrowseDAO {
   private final RestHighLevelClient _client;
   private final BaseBrowseConfig _config;
+  private static final Integer ES_LOWER_BOUND_HITS = 10000;
+  private static final Integer DEFAULT_LOWER_BOUND_HITS = 2147483647;
+  private int _lowerBoundHits = DEFAULT_LOWER_BOUND_HITS;
 
   public ESBrowseDAO(@Nonnull RestHighLevelClient esClient, @Nonnull BaseBrowseConfig config) {
     this._client = esClient;
     this._config = config;
+  }
+
+  /**
+   * Set "track_total_hits" query parameter to false if you do not need accurate results. It is a good trade off to
+   * speed up searches if you don’t need the accurate number of hits after a certain threshold. If set to false, it will
+   * use the default lower bound set by Elasticsearch.
+   */
+  public void setTrackTotalHits(boolean trackTotalHits) {
+    _lowerBoundHits = DEFAULT_LOWER_BOUND_HITS;
+    if (!trackTotalHits) {
+      _lowerBoundHits = ES_LOWER_BOUND_HITS;
+    }
+  }
+
+  /**
+   * Set "track_total_hits" query parameter to a custom lower bound if you do not need accurate results. It is a good
+   * trade off to speed up searches if you don’t need the accurate number of hits after a certain threshold.
+   */
+  public void setTrackTotalHits(int lowermost) {
+    _lowerBoundHits = lowermost;
   }
 
   /**
@@ -110,6 +133,8 @@ public class ESBrowseDAO extends BaseBrowseDAO {
   protected SearchRequest constructGroupsSearchRequest(@Nonnull String path, @Nonnull Map<String, String> requestMap) {
     final SearchRequest searchRequest = new SearchRequest(_config.getIndexName());
     final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+    searchSourceBuilder.trackTotalHitsUpTo(_lowerBoundHits);
+
     searchSourceBuilder.query(buildQueryString(path, requestMap, true));
     searchSourceBuilder.aggregation(buildAggregations(path));
     searchRequest.source(searchSourceBuilder);
@@ -171,6 +196,9 @@ public class ESBrowseDAO extends BaseBrowseDAO {
     final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
     searchSourceBuilder.from(from);
     searchSourceBuilder.size(size);
+
+    searchSourceBuilder.trackTotalHitsUpTo(_lowerBoundHits);
+
     searchSourceBuilder.fetchSource(new String[]{_config.getBrowsePathFieldName(), _config.getUrnFieldName()}, null);
     searchSourceBuilder.sort(_config.getSortingField(), SortOrder.ASC);
     searchSourceBuilder.query(buildQueryString(path, requestMap, false));

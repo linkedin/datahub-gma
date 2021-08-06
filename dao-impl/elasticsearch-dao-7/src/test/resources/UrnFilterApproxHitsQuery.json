@@ -16,7 +16,7 @@
         {
           "terms" : {
             "key2" : [
-              "value3"
+              "urn:li:entity:(foo,bar,baz)"
             ],
             "boost" : 1.0
           }
@@ -28,15 +28,10 @@
   },
   "sort" : [
     {
-      "_score" : {
-        "order" : "desc"
-      }
-    },
-    {
       "urn" : {
         "order" : "asc"
       }
     }
   ],
-  "track_total_hits" : 2147483647
+  "track_total_hits" : 10000
 }
