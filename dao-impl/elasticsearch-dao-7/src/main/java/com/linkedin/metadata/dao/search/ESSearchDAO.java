@@ -67,7 +67,6 @@ import static com.linkedin.metadata.dao.utils.SearchUtils.getQueryBuilderFromCri
 public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<DOCUMENT> {
 
   private static final Integer DEFAULT_TERM_BUCKETS_SIZE_100 = 100;
-  private static final Integer DEFAULT_LOWER_BOUND_HITS = Integer.MAX_VALUE;
   private static final String URN_FIELD = "urn";
 
   private RestHighLevelClient _client;
@@ -75,7 +74,7 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
   private BaseESAutoCompleteQuery _autoCompleteQueryForLowCardFields;
   private BaseESAutoCompleteQuery _autoCompleteQueryForHighCardFields;
   private int _maxTermBucketSize = DEFAULT_TERM_BUCKETS_SIZE_100;
-  private int _lowerBoundHits = DEFAULT_LOWER_BOUND_HITS;
+  private int _lowerBoundHits = Integer.MAX_VALUE;
 
   // Regex patterns for matching original field names to the highlighted field name returned by elasticsearch
   private Map<String, Pattern> _highlightedFieldNamePatterns;

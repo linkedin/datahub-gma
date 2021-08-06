@@ -48,8 +48,7 @@ import org.elasticsearch.search.sort.SortOrder;
 public class ESBrowseDAO extends BaseBrowseDAO {
   private final RestHighLevelClient _client;
   private final BaseBrowseConfig _config;
-  private static final Integer DEFAULT_LOWER_BOUND_HITS = Integer.MAX_VALUE;
-  private int _lowerBoundHits = DEFAULT_LOWER_BOUND_HITS;
+  private int _lowerBoundHits = Integer.MAX_VALUE;
 
   public ESBrowseDAO(@Nonnull RestHighLevelClient esClient, @Nonnull BaseBrowseConfig config) {
     this._client = esClient;
