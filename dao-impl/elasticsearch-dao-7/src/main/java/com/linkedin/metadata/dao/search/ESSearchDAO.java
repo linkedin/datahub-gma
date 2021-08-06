@@ -74,6 +74,7 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
   private BaseESAutoCompleteQuery _autoCompleteQueryForLowCardFields;
   private BaseESAutoCompleteQuery _autoCompleteQueryForHighCardFields;
   private int _maxTermBucketSize = DEFAULT_TERM_BUCKETS_SIZE_100;
+  private int _lowerBoundHits = Integer.MAX_VALUE;
 
   // Regex patterns for matching original field names to the highlighted field name returned by elasticsearch
   private Map<String, Pattern> _highlightedFieldNamePatterns;
@@ -92,6 +93,14 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
     _highlightedFieldNamePatterns = config.getFieldsToHighlightMatch()
         .stream()
         .collect(Collectors.toMap(Function.identity(), fieldName -> Pattern.compile(fieldName + "(\\..+)?")));
+  }
+
+  /**
+   * Set "track_total_hits" query parameter to a custom lower bound if you do not need accurate results. It is a good
+   * trade off to speed up searches if you don’t need the accurate number of hits after a certain threshold.
+   */
+  public void setTrackTotalHits(int lowermost) {
+    _lowerBoundHits = lowermost;
   }
 
   @Nonnull
@@ -200,6 +209,7 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
     }
     final SearchRequest searchRequest = new SearchRequest(_config.getIndexName());
     final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+    searchSourceBuilder.trackTotalHitsUpTo(_lowerBoundHits);
     searchSourceBuilder.query(boolQueryBuilder);
     searchSourceBuilder.from(from).size(size);
     ESUtils.buildSortOrder(searchSourceBuilder, sortCriterion);
@@ -251,6 +261,8 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
 
     searchSourceBuilder.from(from);
     searchSourceBuilder.size(size);
+
+    searchSourceBuilder.trackTotalHitsUpTo(_lowerBoundHits);
 
     searchSourceBuilder.query(buildQueryString(input));
     searchSourceBuilder.postFilter(ESUtils.buildFilterQuery(filter));
