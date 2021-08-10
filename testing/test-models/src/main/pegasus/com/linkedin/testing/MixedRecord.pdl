@@ -48,6 +48,11 @@ record MixedRecord {
   /**
    * For unit tests
    */
+  unionArray: optional array[StringUnion]
+
+  /**
+   * For unit tests
+   */
   fooUrn: optional FooUrn
 
   /**
