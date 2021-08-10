@@ -413,7 +413,7 @@ public class RecordUtils {
   /**
    * Helper method for referencing array of RecordTemplate objects. Referencing a particular index or range of indices of an array is not supported.
    *
-   * @param reference {@link AbstractArrayTemplate} corresponding to array of {@link RecordTemplate} which needs to be referenced
+   * @param reference {@link AbstractArrayTemplate} corresponding to array of {@link RecordTemplate} or {@link UnionTemplate} which needs to be referenced
    * @param ps {@link PathSpec} for the entire path inside the array that needs to be referenced
    * @return {@link List} of objects from the array, referenced using the PathSpec
    */
@@ -471,7 +471,7 @@ public class RecordUtils {
 
   /**
    * Given a {@link RecordTemplate} and {@link com.linkedin.data.schema.PathSpec} this will return value of the path from the record.
-   * This handles only RecordTemplate, fields of which can be primitive types, typeRefs, arrays of primitive types or array of records.
+   * This handles only RecordTemplate, fields of which can be primitive types, typeRefs, arrays of primitive types, arrays of records or arrays of primitive union types.
    * Fetching of values in a RecordTemplate where the field has a default value will return the field default value.
    * Referencing field corresponding to a particular index or range of indices of an array is not supported.
    * Fields corresponding to 1) multi-dimensional array 2) UnionTemplate 3) AbstractMapTemplate 4) FixedTemplate are currently not supported.
