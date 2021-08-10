@@ -413,18 +413,26 @@ public class RecordUtils {
   /**
    * Helper method for referencing array of RecordTemplate objects. Referencing a particular index or range of indices of an array is not supported.
    *
-   * @param reference {@link AbstractArrayTemplate} corresponding to array of {@link RecordTemplate} which needs to be referenced
+   * @param reference {@link AbstractArrayTemplate} corresponding to array of {@link RecordTemplate} or {@link UnionTemplate} which needs to be referenced
    * @param ps {@link PathSpec} for the entire path inside the array that needs to be referenced
    * @return {@link List} of objects from the array, referenced using the PathSpec
    */
   @Nonnull
   @SuppressWarnings("rawtypes")
-  private static List<Object> getReferenceForAbstractArray(@Nonnull AbstractArrayTemplate<RecordTemplate> reference, @Nonnull PathSpec ps) {
+  private static List<Object> getReferenceForAbstractArray(@Nonnull AbstractArrayTemplate<?> reference, @Nonnull PathSpec ps) {
     if (!reference.isEmpty()) {
-      return Arrays.stream((reference).toArray())
-          .map(x -> getFieldValue(((RecordTemplate) x), ps))
-          .flatMap(o -> o.map(Stream::of).orElseGet(Stream::empty))
-          .collect(Collectors.toList());
+      return Arrays.stream((reference).toArray()).map(x -> {
+        if (x instanceof RecordTemplate) {
+          return getFieldValue(((RecordTemplate) x), ps);
+        }
+        if (x instanceof UnionTemplate) {
+          if (ps.getPathComponents().size() != 1) {
+            throw new InvalidSchemaException("The currently selected member isn't a union of primitives: " + ps);
+          }
+          return Optional.ofNullable(((DataMap) ((UnionTemplate) x).data()).get(ps.getPathComponents().get(0)));
+        }
+        throw new InvalidSchemaException("The currently selected member is neither a RecordTemplate or a Union: " + ps);
+      }).flatMap(o -> o.map(Stream::of).orElseGet(Stream::empty)).collect(Collectors.toList());
     }
     return Collections.emptyList();
   }
@@ -463,7 +471,8 @@ public class RecordUtils {
 
   /**
    * Given a {@link RecordTemplate} and {@link com.linkedin.data.schema.PathSpec} this will return value of the path from the record.
-   * This handles only RecordTemplate, fields of which can be primitive types, typeRefs, arrays of primitive types or array of records.
+   * This handles only RecordTemplate, fields of which can be primitive types, typeRefs, arrays of primitive types, arrays of records
+   * or arrays of primitive union types.
    * Fetching of values in a RecordTemplate where the field has a default value will return the field default value.
    * Referencing field corresponding to a particular index or range of indices of an array is not supported.
    * Fields corresponding to 1) multi-dimensional array 2) UnionTemplate 3) AbstractMapTemplate 4) FixedTemplate are currently not supported.
@@ -492,7 +501,7 @@ public class RecordUtils {
         }
       } else if (reference instanceof AbstractArrayTemplate) {
         return Optional.of(getReferenceForAbstractArray(
-            (AbstractArrayTemplate<RecordTemplate>) reference, new PathSpec(ps.getPathComponents().subList(i, pathSize))));
+            (AbstractArrayTemplate<?>) reference, new PathSpec(ps.getPathComponents().subList(i, pathSize))));
       } else {
         throw new UnsupportedOperationException(String.format("Failed at extracting %s (%s from %s)", part, ps, recordTemplate));
       }

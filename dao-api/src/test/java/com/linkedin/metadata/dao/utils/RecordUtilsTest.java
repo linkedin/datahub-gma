@@ -15,6 +15,8 @@ import com.linkedin.testing.AspectFooArray;
 import com.linkedin.testing.EntitySnapshot;
 import com.linkedin.testing.EntityValueArray;
 import com.linkedin.testing.MixedRecord;
+import com.linkedin.testing.StringUnion;
+import com.linkedin.testing.StringUnionArray;
 import com.linkedin.testing.singleaspectentity.EntityValue;
 import com.linkedin.testing.urn.FooUrn;
 import java.io.IOException;
@@ -371,6 +373,41 @@ public class RecordUtilsTest {
     PathSpec ps7 = MixedRecord.fields().recordArray().items().value();
     Optional<Object> o7 = RecordUtils.getFieldValue(mixedRecord7, ps7);
     assertFalse(o7.isPresent());
+  }
+
+  @Test(description = "Test getFieldValue() when RecordTemplate has field of type array of primitive unions")
+  public void testGetFieldValueArrayOfPrimitiveUnions() {
+
+    // case 1: array of unions of strings
+    final MixedRecord mixedRecord1 =
+        new MixedRecord().setUnionArray(new StringUnionArray(Arrays.asList(
+            StringUnion.create("val1"),
+            StringUnion.create("val2"),
+            StringUnion.create("val3"),
+            StringUnion.create("val4")
+        )));
+
+    PathSpec ps1 = MixedRecord.fields().unionArray();
+    Object o1 = RecordUtils.getFieldValue(mixedRecord1, ps1).get();
+
+    PathSpec ps2 = MixedRecord.fields().unionArray().items();
+    Object o2 = RecordUtils.getFieldValue(mixedRecord1, ps2).get();
+
+    assertEquals(o1, new StringUnionArray(Arrays.asList(
+        StringUnion.create("val1"),
+        StringUnion.create("val2"),
+        StringUnion.create("val3"),
+        StringUnion.create("val4")
+    )));
+    assertEquals(ps1.toString(), "/unionArray");
+
+    assertEquals(o2, new StringUnionArray(Arrays.asList(
+        StringUnion.create("val1"),
+        StringUnion.create("val2"),
+        StringUnion.create("val3"),
+        StringUnion.create("val4")
+    )));
+    assertEquals(ps2.toString(), "/unionArray/*");
   }
 
   @Test
