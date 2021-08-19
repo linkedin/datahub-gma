@@ -44,7 +44,7 @@ public class QueryUtilTest {
   }
 
   @Test
-  public void testCreateRelationshipFilter() {
+  public void testNewRelationshipFilter() {
     String field = "field";
     String value = "value";
     RelationshipDirection direction = RelationshipDirection.OUTGOING;
