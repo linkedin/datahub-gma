@@ -261,7 +261,7 @@ public class Neo4jUtil {
   @Deprecated
   public static RelationshipFilter createRelationshipFilter(@Nonnull Filter filter,
       @Nonnull RelationshipDirection relationshipDirection) {
-    return new RelationshipFilter().setCriteria(filter.getCriteria()).setDirection(relationshipDirection);
+    return newRelationshipFilter(filter, relationshipDirection);
   }
 
   /**
@@ -277,6 +277,6 @@ public class Neo4jUtil {
   @Deprecated
   public static RelationshipFilter createRelationshipFilter(@Nonnull String field, @Nonnull String value,
       @Nonnull RelationshipDirection relationshipDirection) {
-    return createRelationshipFilter(newFilter(field, value), relationshipDirection);
+    return newRelationshipFilter(field, value, relationshipDirection);
   }
 }
