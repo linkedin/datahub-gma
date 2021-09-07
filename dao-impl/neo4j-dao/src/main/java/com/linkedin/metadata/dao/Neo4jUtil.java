@@ -251,19 +251,22 @@ public class Neo4jUtil {
 
   /**
    * Create {@link RelationshipFilter} using filter and relationship direction.
+   * @deprecated Use `newRelationshipFilter` in {@link com.linkedin.metadata.dao.utils.QueryUtils} instead.
    *
    * @param filter {@link Filter} filter
    * @param relationshipDirection {@link RelationshipDirection} relationship direction
    * @return RelationshipFilter
    */
   @Nonnull
+  @Deprecated
   public static RelationshipFilter createRelationshipFilter(@Nonnull Filter filter,
       @Nonnull RelationshipDirection relationshipDirection) {
-    return new RelationshipFilter().setCriteria(filter.getCriteria()).setDirection(relationshipDirection);
+    return newRelationshipFilter(filter, relationshipDirection);
   }
 
   /**
    * Create {@link RelationshipFilter} using filter conditions and relationship direction.
+   * @deprecated Use `newRelationshipFilter` in {@link com.linkedin.metadata.dao.utils.QueryUtils} instead.
    *
    * @param field field to create a filter on
    * @param value field value to be filtered
@@ -271,8 +274,9 @@ public class Neo4jUtil {
    * @return RelationshipFilter
    */
   @Nonnull
+  @Deprecated
   public static RelationshipFilter createRelationshipFilter(@Nonnull String field, @Nonnull String value,
       @Nonnull RelationshipDirection relationshipDirection) {
-    return createRelationshipFilter(newFilter(field, value), relationshipDirection);
+    return newRelationshipFilter(field, value, relationshipDirection);
   }
 }
