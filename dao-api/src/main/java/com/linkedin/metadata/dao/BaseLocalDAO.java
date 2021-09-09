@@ -83,7 +83,11 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   // Maps an aspect class to the corresponding retention policy
   private final Map<Class<? extends RecordTemplate>, Retention> _aspectRetentionMap = new HashMap<>();
 
-  // Maps as aspect class to a list of post-update hooks
+  // Maps an aspect class to a list of pre-update hooks
+  private final Map<Class<? extends RecordTemplate>, List<BiConsumer<Urn, RecordTemplate>>> _aspectPreUpdateHooksMap =
+      new HashMap<>();
+
+  // Maps an aspect class to a list of post-update hooks
   private final Map<Class<? extends RecordTemplate>, List<BiConsumer<Urn, RecordTemplate>>> _aspectPostUpdateHooksMap =
       new HashMap<>();
 
@@ -153,6 +157,30 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   public <ASPECT extends RecordTemplate> Retention getRetention(@Nonnull Class<ASPECT> aspectClass) {
     checkValidAspect(aspectClass);
     return _aspectRetentionMap.getOrDefault(aspectClass, INDEFINITE_RETENTION);
+  }
+
+  /**
+   * Registers a pre-update hook for a specific aspect.
+   *
+   * <p>The hook will be invoked with the latest value of an aspect before it's updated. There's no guarantee on the
+   * order of invocation when multiple hooks are added for a single aspect. Adding the same hook again will result in
+   * {@link IllegalArgumentException} thrown. Hooks are invoked in the order they're registered.
+   */
+  public <URN extends Urn, ASPECT extends RecordTemplate> void addPreUpdateHook(@Nonnull Class<ASPECT> aspectClass,
+      @Nonnull BiConsumer<URN, ASPECT> preUpdateHook) {
+
+    checkValidAspect(aspectClass);
+    // TODO: Also validate Urn once we convert all aspect models to PDL with proper annotation
+
+    final List<BiConsumer<Urn, RecordTemplate>> hooks =
+        _aspectPreUpdateHooksMap.getOrDefault(aspectClass, new LinkedList<>());
+
+    if (hooks.contains(preUpdateHook)) {
+      throw new IllegalArgumentException("Adding an already-registered hook");
+    }
+
+    hooks.add((BiConsumer<Urn, RecordTemplate>) preUpdateHook);
+    _aspectPreUpdateHooksMap.put(aspectClass, hooks);
   }
 
   /**
@@ -276,24 +304,30 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       final ASPECT oldValue = latest == null ? null : latest.getAspect();
       final ASPECT newValue = updateLambda.apply(Optional.ofNullable(oldValue));
       checkValidAspect(newValue.getClass());
+
       if (_modelValidationOnWrite) {
         validateAgainstSchema(newValue);
       }
 
-      // 2. Skip saving if there's no actual change
+      // 2. Invoke pre-update hooks, if any
+      if (_aspectPreUpdateHooksMap.containsKey(aspectClass)) {
+        _aspectPreUpdateHooksMap.get(aspectClass).forEach(hook -> hook.accept(urn, newValue));
+      }
+
+      // 3. Skip saving if there's no actual change
       if (oldValue != null && equalityTester.equals(oldValue, newValue)) {
         return new AddResult<>(oldValue, oldValue);
       }
 
-      // 3. Save the newValue as the latest version
+      // 4. Save the newValue as the latest version
       long largestVersion =
           saveLatest(urn, aspectClass, oldValue, latest == null ? null : latest.getExtraInfo().getAudit(), newValue,
               auditStamp);
 
-      // 4. Apply retention policy
+      // 5. Apply retention policy
       applyRetention(urn, aspectClass, getRetention(aspectClass), largestVersion);
 
-      // 5. Save to local secondary index
+      // 6. Save to local secondary index
       if (_enableLocalSecondaryIndex) {
         updateLocalIndex(urn, newValue, largestVersion);
       }
@@ -304,19 +338,19 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     final ASPECT oldValue = result.getOldValue();
     final ASPECT newValue = result.getNewValue();
 
-    // 6. Produce MAE after a successful update
+    // 7. Produce MAE after a successful update
     if (_alwaysEmitAuditEvent || oldValue != newValue) {
       _producer.produceMetadataAuditEvent(urn, oldValue, newValue);
     }
 
-    // TODO: Replace step 6 with step 6.1 after pipeline is fully migrated to aspect specific events.
-    // 6.1 Produce aspect specific MAE after a successful update
+    // TODO: Replace step 7 with step 7.1 after pipeline is fully migrated to aspect specific events.
+    // 7.1 Produce aspect specific MAE after a successful update
     if (_emitAspectSpecificAuditEvent) {
       if (_alwaysEmitAspectSpecificAuditEvent || oldValue != newValue) {
         _producer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue);
       }
     }
-    // 7. Invoke post-update hooks if there's any
+    // 8. Invoke post-update hooks if there's any
     if (_aspectPostUpdateHooksMap.containsKey(aspectClass)) {
       _aspectPostUpdateHooksMap.get(aspectClass).forEach(hook -> hook.accept(urn, newValue));
     }
