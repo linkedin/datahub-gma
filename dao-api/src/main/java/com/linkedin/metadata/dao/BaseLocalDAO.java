@@ -160,51 +160,45 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * Registers a pre-update hook for a specific aspect.
+   * Helper function to add pre- and post-update hooks.
    *
-   * <p>The hook will be invoked with the latest value of an aspect before it's updated. There's no guarantee on the
-   * order of invocation when multiple hooks are added for a single aspect. Adding the same hook again will result in
-   * {@link IllegalArgumentException} thrown. Hooks are invoked in the order they're registered.
+   * <p>The hook will be invoked with the latest value of an aspect before (pre-) or after (post-) it's updated. There's
+   * no guarantee on the order of invocation when multiple hooks are added for a single aspect. Adding the same hook
+   * again will result in {@link IllegalArgumentException} thrown. Hooks are invoked in the order they're registered.
    */
-  public <URN extends Urn, ASPECT extends RecordTemplate> void addPreUpdateHook(@Nonnull Class<ASPECT> aspectClass,
-      @Nonnull BiConsumer<URN, ASPECT> preUpdateHook) {
+  public <URN extends Urn, ASPECT extends RecordTemplate> void addHook(@Nonnull Class<ASPECT> aspectClass,
+      @Nonnull BiConsumer<URN, ASPECT> hook,
+      @Nonnull Map<Class<? extends RecordTemplate>, List<BiConsumer<Urn, RecordTemplate>>> hooksMap) {
 
     checkValidAspect(aspectClass);
     // TODO: Also validate Urn once we convert all aspect models to PDL with proper annotation
 
     final List<BiConsumer<Urn, RecordTemplate>> hooks =
-        _aspectPreUpdateHooksMap.getOrDefault(aspectClass, new LinkedList<>());
+        hooksMap.getOrDefault(aspectClass, new LinkedList<>());
 
-    if (hooks.contains(preUpdateHook)) {
+    if (hooks.contains(hook)) {
       throw new IllegalArgumentException("Adding an already-registered hook");
     }
 
-    hooks.add((BiConsumer<Urn, RecordTemplate>) preUpdateHook);
-    _aspectPreUpdateHooksMap.put(aspectClass, hooks);
+    hooks.add((BiConsumer<Urn, RecordTemplate>) hook);
+    hooksMap.put(aspectClass, hooks);
   }
 
   /**
-   * Registers a post-update hook for a specific aspect.
-   *
-   * <p>The hook will be invoked with the latest value of an aspect after it's updated. There's no guarantee on the
-   * order of invocation when multiple hooks are added for a single aspect. Adding the same hook again will result in
-   * {@link IllegalArgumentException} thrown. Hooks are invoked in the order they're registered.
+   * Add a pre-update hook for a specific aspect type. Warning: pre-update hooks are run within a transaction, so avoid
+   * creating time- and/or resource-consuming pre-update hooks.
+   */
+  public <URN extends Urn, ASPECT extends RecordTemplate> void addPreUpdateHook(@Nonnull Class<ASPECT> aspectClass,
+      @Nonnull BiConsumer<URN, ASPECT> preUpdateHook) {
+    addHook(aspectClass, preUpdateHook, _aspectPreUpdateHooksMap);
+  }
+
+  /**
+   * Add a post-update hook for a specific aspect type.
    */
   public <URN extends Urn, ASPECT extends RecordTemplate> void addPostUpdateHook(@Nonnull Class<ASPECT> aspectClass,
       @Nonnull BiConsumer<URN, ASPECT> postUpdateHook) {
-
-    checkValidAspect(aspectClass);
-    // TODO: Also validate Urn once we convert all aspect models to PDL with proper annotation
-
-    final List<BiConsumer<Urn, RecordTemplate>> hooks =
-        _aspectPostUpdateHooksMap.getOrDefault(aspectClass, new LinkedList<>());
-
-    if (hooks.contains(postUpdateHook)) {
-      throw new IllegalArgumentException("Adding an already-registered hook");
-    }
-
-    hooks.add((BiConsumer<Urn, RecordTemplate>) postUpdateHook);
-    _aspectPostUpdateHooksMap.put(aspectClass, hooks);
+    addHook(aspectClass, postUpdateHook, _aspectPostUpdateHooksMap);
   }
 
   /**
