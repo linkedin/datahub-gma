@@ -229,6 +229,37 @@ public class BaseLocalDAOTest {
   }
 
   @Test
+  public void testAddSamePreUpdateHookTwice() {
+    BiConsumer<FooUrn, AspectFoo> hook = (urn, foo) -> {
+      // do nothing;
+    };
+
+    _dummyLocalDAO.addPreUpdateHook(AspectFoo.class, hook);
+
+    try {
+      _dummyLocalDAO.addPreUpdateHook(AspectFoo.class, hook);
+    } catch (IllegalArgumentException e) {
+      // expected
+      return;
+    }
+
+    fail("No IllegalArgumentException thrown");
+  }
+
+  @Test
+  public void testPreUpdateHookInvoked() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    BiConsumer<FooUrn, AspectFoo> hook = mock(BiConsumer.class);
+
+    _dummyLocalDAO.addPreUpdateHook(AspectFoo.class, hook);
+    _dummyLocalDAO.add(urn, foo, _dummyAuditStamp);
+
+    verify(hook, times(1)).accept(urn, foo);
+    verifyNoMoreInteractions(hook);
+  }
+
+  @Test
   public void testAddSamePostUpdateHookTwice() {
     BiConsumer<FooUrn, AspectFoo> hook = (urn, foo) -> {
       // do nothing;
