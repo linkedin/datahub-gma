@@ -15,6 +15,15 @@ If you find a bug:
 
 1. If the issue still reproduces or has not yet been reported, try to isolate the problem before opening an issue.
 
+## Getting Started
+
+If you haven't done so already, fork and clone the repo by following [GitHub's quickstart guide](https://docs.github.com/en/get-started/quickstart/fork-a-repo).
+Make sure to go through the [steps](https://docs.github.com/en/get-started/quickstart/fork-a-repo#configuring-git-to-sync-your-fork-with-the-original-repository) 
+to add the upstream repo via git remote.
+
+To contribute to the project, push local changes to your fork (i.e. github.com/<user>/datahub-gma instead of github.com/linkedin/datahub-gma),
+then follow the below steps for creating a pull request.
+
 ## Submitting a Pull Request (PR)
 
 Before you submit your Pull Request (PR), consider the following guidelines:
