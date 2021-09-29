@@ -31,6 +31,8 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -297,6 +299,43 @@ public class ESSearchDAOTest {
     SearchRequest searchRequest = _searchDAO.constructSearchQuery("dummy", filter, null, null, 0, 10);
     assertEquals(searchRequest.source().aggregations().getAggregatorFactories().iterator().next(),
         AggregationBuilders.terms(facetFieldName).field(facetFieldName).size(5));
+  }
+
+  @Test
+  public void testUrnWithComma() {
+    // TODO(https://github.com/linkedin/datahub-gma/issues/51): stop treating urns differently
+
+    // given
+    String facetFieldName = "value";
+    String urnValue = "urn:li:entity:(a,b)";
+    Map<String, String> requestMap = Collections.singletonMap(facetFieldName, urnValue);
+    Filter filter = QueryUtils.newFilter(requestMap);
+
+    // when
+    SearchRequest searchRequest = _searchDAO.constructSearchQuery("dummy", filter, null, null, 0, 10);
+
+    // then
+    assertEquals(searchRequest.source().postFilter(),
+        new BoolQueryBuilder().must(new BoolQueryBuilder().should(QueryBuilders.matchQuery(facetFieldName, urnValue))));
+  }
+
+  @Test
+  public void testNonUrnWithComma() {
+    // TODO(https://github.com/linkedin/datahub-gma/issues/51): stop splitting on commas
+
+    // given
+    String facetFieldName = "value";
+    String urnValue = "a,b";
+    Map<String, String> requestMap = Collections.singletonMap(facetFieldName, urnValue);
+    Filter filter = QueryUtils.newFilter(requestMap);
+
+    // when
+    SearchRequest searchRequest = _searchDAO.constructSearchQuery("dummy", filter, null, null, 0, 10);
+
+    // then
+    assertEquals(searchRequest.source().postFilter(), new BoolQueryBuilder().must(
+        new BoolQueryBuilder().should(QueryBuilders.matchQuery(facetFieldName, "a"))
+            .should(QueryBuilders.matchQuery(facetFieldName, "b"))));
   }
 
   private static SearchHit makeSearchHit(int id) {
