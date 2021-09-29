@@ -63,6 +63,13 @@ public class ESUtils {
     final Condition condition = criterion.getCondition();
     if (condition == Condition.EQUAL) {
       BoolQueryBuilder filters = new BoolQueryBuilder();
+
+      // TODO(https://github.com/linkedin/datahub-gma/issues/51): support multiple values a field can take without using
+      // delimiters like comma. This is a hack to support equals with URN that has a comma in it.
+      if (SearchUtils.isUrn(criterion.getValue())) {
+        filters.should(QueryBuilders.matchQuery(criterion.getField(), criterion.getValue().trim()));
+        return filters;
+      }
       Arrays.stream(criterion.getValue().trim().split("\\s*,\\s*"))
           .forEach(elem -> filters.should(QueryBuilders.matchQuery(criterion.getField(), elem)));
       return filters;
