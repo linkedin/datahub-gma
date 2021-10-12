@@ -80,8 +80,11 @@ public class Neo4jUtilTest {
   @Test
   public void testFilterToCriteria() {
     Filter filter = newFilter("a", "b");
-
     assertEquals(filterToCriteria(filter), "{a:\"b\"}");
+
+    // check that boolean values (i.e. true or false) are NOT double quoted
+    filter = newFilter("c", "false");
+    assertEquals(filterToCriteria(filter), "{c:false}");
   }
 
   @Test(expectedExceptions = RuntimeException.class)

@@ -108,7 +108,9 @@ public class Neo4jUtil {
     if (ClassUtils.isPrimitiveOrWrapper(value.getClass())) {
       return key + ":" + value;
     }
-
+    if (value.toString().equals("true") || value.toString().equals("false")) {
+      return key + ":" + value;
+    }
     return key + ":\"" + value.toString() + "\"";
   }
 
