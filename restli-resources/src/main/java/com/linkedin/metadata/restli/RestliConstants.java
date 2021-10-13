@@ -17,9 +17,11 @@ public final class RestliConstants {
   public static final String ACTION_GET_SNAPSHOT = "getSnapshot";
   public static final String ACTION_INGEST = "ingest";
   public static final String ACTION_LIST_URNS_FROM_INDEX = "listUrnsFromIndex";
+  public static final String ACTION_SOFT_DELETE_ASPECT = "softDeleteAspect";
 
   public static final String PARAM_INPUT = "input";
   public static final String PARAM_ASPECTS = "aspects";
+  public static final String PARAM_ASPECT = "aspect";
   public static final String PARAM_FILTER = "filter";
   public static final String PARAM_GROUP = "group";
   public static final String PARAM_SORT = "sort";

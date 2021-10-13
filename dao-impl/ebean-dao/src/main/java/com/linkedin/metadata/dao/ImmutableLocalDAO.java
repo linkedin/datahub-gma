@@ -47,7 +47,11 @@ public class ImmutableLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends U
     super(aspectUnionClass, new DummyMetadataEventProducer<>(),
         createProductionH2ServerConfig(aspectUnionClass.getCanonicalName()), urnClass);
     _server.execute(Ebean.createSqlUpdate(readSQLfromFile(GMA_CREATE_ALL_SQL)));
-    urnAspectMap.forEach((key, value) -> super.save(key, value, DUMMY_AUDIT_STAMP, LATEST_VERSION, true));
+    urnAspectMap.forEach((key, value) -> {
+      if (value != null) {
+        super.save(key, value, value.getClass(), DUMMY_AUDIT_STAMP, LATEST_VERSION, true);
+      }
+    });
   }
 
   // For testing purpose
@@ -55,7 +59,11 @@ public class ImmutableLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends U
       @Nonnull Map<URN, ? extends RecordTemplate> urnAspectMap, boolean ddlGenerate, @Nonnull Class<URN> urnClass) {
 
     super(aspectUnionClass, new DummyMetadataEventProducer<>(), createTestingH2ServerConfig(), urnClass);
-    urnAspectMap.forEach((key, value) -> super.save(key, value, DUMMY_AUDIT_STAMP, LATEST_VERSION, true));
+    urnAspectMap.forEach((key, value) -> {
+      if (value != null) {
+        super.save(key, value, value.getClass(), DUMMY_AUDIT_STAMP, LATEST_VERSION, true);
+      }
+    });
   }
 
   /**

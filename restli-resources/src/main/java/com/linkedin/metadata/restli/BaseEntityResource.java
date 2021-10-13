@@ -198,6 +198,22 @@ public abstract class BaseEntityResource<
   }
 
   /**
+   * An action method for soft deleting an aspect.
+   */
+  @Action(name = ACTION_SOFT_DELETE_ASPECT)
+  @Nonnull
+  public Task<Void> softDelete(@ActionParam(PARAM_URN) @Nonnull String urnString, @ActionParam(PARAM_ASPECT) @Nonnull String aspectCLass) {
+    return RestliUtils.toTask(() -> {
+      final URN urn = parseUrnParam(urnString);
+      if (urn != null) {
+        final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
+        getLocalDAO().delete(urn, ModelUtils.getAspectClass(aspectCLass), auditStamp);
+      }
+      return null;
+    });
+  }
+
+  /**
    * An action method for getting a snapshot of aspects for an entity.
    */
   @Action(name = ACTION_GET_SNAPSHOT)

@@ -273,6 +273,16 @@ public class BaseEntityResourceTest extends BaseEngineTest {
   }
 
   @Test
+  public void testSoftDeletionOfAspect() {
+    FooUrn urn = makeFooUrn(1);
+
+    runAndWait(_resource.softDelete(urn.toString(), ModelUtils.getAspectName(AspectFoo.class)));
+
+    verify(_mockLocalDAO, times(1)).delete(eq(urn), eq(AspectFoo.class), any());
+    verifyNoMoreInteractions(_mockLocalDAO);
+  }
+
+  @Test
   public void testGetSnapshotWithOneAspect() {
     FooUrn urn = makeFooUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");

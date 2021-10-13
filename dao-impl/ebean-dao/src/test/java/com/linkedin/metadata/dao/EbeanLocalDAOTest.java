@@ -46,6 +46,7 @@ import com.linkedin.testing.urn.BazUrn;
 import com.linkedin.testing.urn.FooUrn;
 import io.ebean.EbeanServer;
 import io.ebean.EbeanServerFactory;
+import io.ebean.PagedList;
 import io.ebean.Transaction;
 import java.sql.Timestamp;
 import java.time.Clock;
@@ -62,6 +63,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.persistence.OptimisticLockException;
 import javax.persistence.RollbackException;
 import org.mockito.InOrder;
@@ -209,6 +211,37 @@ public class EbeanLocalDAOTest {
 
     verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
     verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, foo, bar);
+    verifyNoMoreInteractions(_mockProducer);
+  }
+
+  @Test
+  public void testSoftDeletedAspect() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn urn = makeFooUrn(1);
+    String aspectName = ModelUtils.getAspectName(AspectFoo.class);
+    AspectFoo v1 = new AspectFoo().setValue("foo");
+    AspectFoo v0 = new AspectFoo().setValue("bar");
+
+    dao.add(urn, v1, _dummyAuditStamp);
+    dao.add(urn, v0, _dummyAuditStamp);
+    dao.delete(urn, AspectFoo.class, _dummyAuditStamp);
+
+    // latest version of metadata should be null
+    EbeanMetadataAspect aspect = getMetadata(urn, aspectName, 0);
+    assertNull(aspect.getMetadata());
+
+    aspect = getMetadata(urn, aspectName, 1);
+    AspectFoo actual = RecordUtils.toRecordTemplate(AspectFoo.class, aspect.getMetadata());
+    assertEquals(actual, v1);
+
+    aspect = getMetadata(urn, aspectName, 2);
+    actual = RecordUtils.toRecordTemplate(AspectFoo.class, aspect.getMetadata());
+    assertEquals(actual, v0);
+
+    InOrder inOrder = inOrder(_mockProducer);
+    inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, v1);
+    inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, v1, v0);
+    // TODO: verify that MAE was produced with newValue set as null for soft deleted aspect
     verifyNoMoreInteractions(_mockProducer);
   }
 
@@ -417,6 +450,33 @@ public class EbeanLocalDAOTest {
     assertFalse(result.get(urn2).get(AspectBar.class).isPresent());
     assertFalse(result.get(urn3).get(AspectFoo.class).isPresent());
     assertFalse(result.get(urn3).get(AspectBar.class).isPresent());
+  }
+
+  @Test
+  public void testGetListResult() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn urn = makeFooUrn(1);
+    AspectFoo v1 = new AspectFoo().setValue("val1");
+    AspectFoo v2 = new AspectFoo().setValue("val2");
+    AspectFoo v4 = new AspectFoo().setValue("val4");
+    // set v0 metadata as null
+    EbeanMetadataAspect a0 = getMetadata(urn, AspectFoo.class.getCanonicalName(), 0, null);
+    EbeanMetadataAspect a1 = getMetadata(urn, AspectFoo.class.getCanonicalName(), 1, v1);
+    EbeanMetadataAspect a2 = getMetadata(urn, AspectFoo.class.getCanonicalName(), 2, v2);
+    EbeanMetadataAspect a3 = getMetadata(urn, AspectFoo.class.getCanonicalName(), 3, null);
+    EbeanMetadataAspect a4 = getMetadata(urn, AspectFoo.class.getCanonicalName(), 4, v4);
+    List<EbeanMetadataAspect> listAspects = Arrays.asList(a0, a1, a2, a3, a4);
+
+    PagedList pagedList = mock(PagedList.class);
+    when(pagedList.getList()).thenReturn(listAspects);
+
+    ListResult<AspectFoo> metadata = dao.getListResult(AspectFoo.class, pagedList, 0);
+    List<Long> nonNullVersions = metadata.getMetadata().getExtraInfos().stream().map(ExtraInfo::getVersion).collect(Collectors.toList());
+    List<Long> nullVersions = metadata.getMetadata().getSoftDeletedAspects().stream().map(ExtraInfo::getVersion).collect(Collectors.toList());
+
+    assertEquals(metadata.getValues(), Arrays.asList(v1, v2, v4));
+    assertEquals(nonNullVersions, Arrays.asList(1L, 2L, 4L));
+    assertEquals(nullVersions, Arrays.asList(0L, 3L));
   }
 
   @Test
@@ -1259,7 +1319,7 @@ public class EbeanLocalDAOTest {
 
     assertNotNull(results.getMetadata());
     List<Long> expectedVersions = Arrays.asList(0L, 1L, 2L, 3L, 4L);
-    List<Urn> expectedUrns = Arrays.asList(makeFooUrn(0), makeFooUrn(1), makeFooUrn(2), makeFooUrn(3), makeFooUrn(4));
+    List<Urn> expectedUrns = Collections.singletonList(urn0);
     assertVersionMetadata(results.getMetadata(), expectedVersions, expectedUrns, 1234L,
         Urns.createFromTypeSpecificString("test", "foo"), Urns.createFromTypeSpecificString("test", "bar"));
 
@@ -1273,6 +1333,49 @@ public class EbeanLocalDAOTest {
     assertEquals(results.getTotalPageCount(), 2);
     assertEquals(results.getValues(), foos.subList(5, 10));
     assertNotNull(results.getMetadata());
+  }
+
+  @Test
+  public void testListWithNullMetadata() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    List<AspectFoo> foos = new LinkedList<>();
+    for (int i = 0; i < 3; i++) {
+      FooUrn urn = makeFooUrn(i);
+
+      for (int j = 0; j < 3; j++) {
+        AspectFoo foo = new AspectFoo().setValue("foo" + j);
+        addMetadata(urn, AspectFoo.class.getCanonicalName(), j, foo);
+        if (i == 0) {
+          foos.add(foo);
+        }
+      }
+
+      for (int j = 3; j < 6; j++) {
+        addMetadata(urn, AspectFoo.class.getCanonicalName(), j, null);
+      }
+    }
+
+    FooUrn urn0 = makeFooUrn(0);
+
+    ListResult<AspectFoo> results = dao.list(AspectFoo.class, urn0, 0, 5);
+
+    assertTrue(results.isHavingMore());
+    assertEquals(results.getNextStart(), 5);
+    assertEquals(results.getTotalCount(), 6);
+    assertEquals(results.getPageSize(), 5);
+    assertEquals(results.getTotalPageCount(), 2);
+    assertEquals(results.getValues().size(), 3);
+    assertEquals(results.getValues(), foos);
+
+    assertNotNull(results.getMetadata());
+    List<Long> expectedNonNullVersions = Arrays.asList(0L, 1L, 2L);
+    List<Urn> expectedUrns = Collections.singletonList(urn0);
+    assertVersionMetadata(results.getMetadata(), expectedNonNullVersions, expectedUrns, 1234L,
+        Urns.createFromTypeSpecificString("test", "foo"), Urns.createFromTypeSpecificString("test", "bar"));
+
+    List<ExtraInfo> softDeletedAspects = results.getMetadata().getSoftDeletedAspects();
+    assertEquals(softDeletedAspects.stream().map(ExtraInfo::getVersion).collect(Collectors.toSet()), Arrays.asList(3L, 4L));
+    assertEquals(softDeletedAspects.stream().map(ExtraInfo::getUrn).collect(Collectors.toList()), Arrays.asList(urn0, urn0));
   }
 
   private static LocalDAOStorageConfig makeLocalDAOStorageConfig(Class<? extends RecordTemplate> aspectClass,
@@ -1342,7 +1445,7 @@ public class EbeanLocalDAOTest {
     assertEquals(results.getTotalPageCount(), 2);
 
     assertNotNull(results.getMetadata());
-    assertVersionMetadata(results.getMetadata(), Arrays.asList(0L), Arrays.asList(makeFooUrn(0)), 1234L,
+    assertVersionMetadata(results.getMetadata(), Collections.singletonList(0L), Arrays.asList(makeFooUrn(0), makeFooUrn(1)), 1234L,
         Urns.createFromTypeSpecificString("test", "foo"), Urns.createFromTypeSpecificString("test", "bar"));
 
     // Test list latest aspects
@@ -1369,7 +1472,8 @@ public class EbeanLocalDAOTest {
     assertEquals(results.getTotalPageCount(), 1);
 
     assertNotNull(results.getMetadata());
-    assertVersionMetadata(results.getMetadata(), Arrays.asList(1L), Arrays.asList(makeUrn(2)), 1234L,
+    assertVersionMetadata(results.getMetadata(), Collections.singletonList(1L),
+        Arrays.asList(makeFooUrn(0), makeFooUrn(1), makeFooUrn(2)), 1234L,
         Urns.createFromTypeSpecificString("test", "foo"), Urns.createFromTypeSpecificString("test", "bar"));
   }
 
@@ -2003,6 +2107,27 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
+  public void testGetWithExtraInfoSoftDeletedAspect() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn urn = makeFooUrn(1);
+    AspectFoo v0 = new AspectFoo().setValue("foo");
+    Urn creator1 = Urns.createFromTypeSpecificString("test", "testCreator1");
+    Urn impersonator1 = Urns.createFromTypeSpecificString("test", "testImpersonator1");
+    Urn creator2 = Urns.createFromTypeSpecificString("test", "testCreator2");
+    Urn impersonator2 = Urns.createFromTypeSpecificString("test", "testImpersonator2");
+    addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 0, v0, 123, creator1.toString(),
+        impersonator1.toString());
+    addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 1, null, 456, creator2.toString(),
+        impersonator2.toString());
+
+    Optional<AspectWithExtraInfo<AspectFoo>> foo = dao.getWithExtraInfo(AspectFoo.class, urn, 1);
+
+    assertTrue(foo.isPresent());
+    assertEquals(foo.get(), new AspectWithExtraInfo<>(null,
+        new ExtraInfo().setAudit(makeAuditStamp(creator2, impersonator2, 456)).setVersion(1).setUrn(urn)));
+  }
+
+  @Test
   public void testGetWithExtraInfoMultipleKeys() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     FooUrn urn = makeFooUrn(1);
@@ -2306,24 +2431,31 @@ public class EbeanLocalDAOTest {
 
     // call save method with timestamp 123 but timestamp is already changed to 456
     // expect OptimisticLockException if optimistic locking is enabled
-    dao.saveWithOptimisticLocking(fooUrn, fooAspect, makeAuditStamp("fooActor", 789), 0, false, new Timestamp(123));
+    dao.saveWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", 789), 0, false,
+        new Timestamp(123));
   }
 
-  private void addMetadata(Urn urn, String aspectName, long version, RecordTemplate metadata) {
+  @Nonnull
+  private EbeanMetadataAspect getMetadata(Urn urn, String aspectName, long version, @Nullable RecordTemplate metadata) {
     EbeanMetadataAspect aspect = new EbeanMetadataAspect();
     aspect.setKey(new EbeanMetadataAspect.PrimaryKey(urn.toString(), aspectName, version));
-    aspect.setMetadata(RecordUtils.toJsonString(metadata));
+    if (metadata != null) {
+      aspect.setMetadata(RecordUtils.toJsonString(metadata));
+    }
     aspect.setCreatedOn(new Timestamp(1234));
     aspect.setCreatedBy("urn:li:test:foo");
     aspect.setCreatedFor("urn:li:test:bar");
+    return aspect;
+  }
+
+  private void addMetadata(Urn urn, String aspectName, long version, @Nullable RecordTemplate metadata) {
+    EbeanMetadataAspect aspect = getMetadata(urn, aspectName, version, metadata);
     _server.save(aspect);
   }
 
   private void addMetadataWithAuditStamp(Urn urn, String aspectName, long version, RecordTemplate metadata,
       long timeStamp, String creator, String impersonator) {
-    EbeanMetadataAspect aspect = new EbeanMetadataAspect();
-    aspect.setKey(new EbeanMetadataAspect.PrimaryKey(urn.toString(), aspectName, version));
-    aspect.setMetadata(RecordUtils.toJsonString(metadata));
+    EbeanMetadataAspect aspect = getMetadata(urn, aspectName, version, metadata);
     aspect.setCreatedOn(new Timestamp(timeStamp));
     aspect.setCreatedBy(creator);
     aspect.setCreatedFor(impersonator);
@@ -2368,6 +2500,7 @@ public class EbeanLocalDAOTest {
       Long time, Urn actor, Urn impersonator) {
     List<ExtraInfo> extraInfos = listResultMetadata.getExtraInfos();
     assertEquals(extraInfos.stream().map(ExtraInfo::getVersion).collect(Collectors.toSet()), versions);
+    assertEquals(extraInfos.stream().map(ExtraInfo::getUrn).collect(Collectors.toSet()), urns);
 
     extraInfos.forEach(v -> {
       assertEquals(v.getAudit().getTime(), time);
