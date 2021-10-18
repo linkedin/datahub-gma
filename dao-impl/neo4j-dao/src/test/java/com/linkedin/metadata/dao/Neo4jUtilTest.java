@@ -3,6 +3,7 @@ package com.linkedin.metadata.dao;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.DataTemplateUtil;
 import com.linkedin.data.template.RecordTemplate;
+import com.linkedin.metadata.dao.utils.QueryUtils;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.Criterion;
 import com.linkedin.metadata.query.CriterionArray;
@@ -83,7 +84,7 @@ public class Neo4jUtilTest {
     assertEquals(filterToCriteria(filter), "{a:\"b\"}");
 
     // check that boolean values (i.e. true or false) are NOT double quoted
-    filter = newFilter("c", "false");
+    filter = newFilter("c", QueryUtils.FALSE);
     assertEquals(filterToCriteria(filter), "{c:false}");
   }
 
