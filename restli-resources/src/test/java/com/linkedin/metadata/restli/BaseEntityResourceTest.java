@@ -195,7 +195,7 @@ public class BaseEntityResourceTest extends BaseEngineTest {
       runAndWait(_resource.get(makeResourceKey(urn), aspectNames));
     } catch (RestLiServiceException e) {
       assertEquals(e.getStatus(), HttpStatus.S_404_NOT_FOUND);
-      verify(_mockLocalDAO, times(1)).get(Collections.singleton(aspect1Key));
+      verify(_mockLocalDAO, times(1)).exists(urn);
       verifyNoMoreInteractions(_mockLocalDAO);
       return;
     }

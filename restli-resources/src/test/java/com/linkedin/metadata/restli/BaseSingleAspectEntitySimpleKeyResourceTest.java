@@ -61,6 +61,7 @@ public class BaseSingleAspectEntitySimpleKeyResourceTest extends BaseEngineTest 
     SingleAspectEntityUrn urn = new SingleAspectEntityUrn(id1);
     AspectBar aspect = new AspectBar().setValue(field1);
     AspectKey<SingleAspectEntityUrn, AspectBar> aspectKey = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
+    when(_mockLocalDao.exists(urn)).thenReturn(true);
     when(_mockLocalDao.get(Collections.singleton(aspectKey))).thenReturn(
         Collections.singletonMap(aspectKey, Optional.of(aspect)));
 

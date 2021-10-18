@@ -166,6 +166,7 @@ public abstract class BaseEntityResource<
   public Task<Map<KEY, VALUE>> batchGet(
       @Nonnull Set<KEY> ids,
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
+    // TODO: META-15492 - discuss and sync with get()'s intended behavior (check if urn exists).
     return RestliUtils.toTask(() -> {
       final Map<URN, KEY> urnMap =
           ids.stream().collect(Collectors.toMap(id -> toUrn(id), Function.identity()));
