@@ -625,10 +625,9 @@ public abstract class BaseEntityResource<
   @Nonnull
   protected Map<URN, VALUE> getInternalNonEmpty(@Nonnull Collection<URN> urns,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses) {
-    BaseLocalDAO<ASPECT_UNION, URN> dao = getLocalDAO();
     return getUrnAspectMap(urns, aspectClasses).entrySet()
         .stream()
-        .filter(e -> dao.exists(e.getKey()))
+        .filter(e -> getLocalDAO().exists(e.getKey()))
         .filter(e -> !e.getValue().isEmpty())
         .collect(Collectors.toMap(Map.Entry::getKey, e -> toValue(newSnapshot(e.getKey(), e.getValue()))));
   }
@@ -636,7 +635,6 @@ public abstract class BaseEntityResource<
   @Nonnull
   private Map<URN, List<UnionTemplate>> getUrnAspectMap(@Nonnull Collection<URN> urns,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses) {
-    BaseLocalDAO<ASPECT_UNION, URN> dao = getLocalDAO();
     // Construct the keys to retrieve latest version of all supported aspects for all URNs.
     final Set<AspectKey<URN, ? extends RecordTemplate>> keys = urns.stream()
         .map(urn -> aspectClasses.stream()
@@ -648,7 +646,7 @@ public abstract class BaseEntityResource<
     final Map<URN, List<UnionTemplate>> urnAspectsMap =
         urns.stream().collect(Collectors.toMap(Function.identity(), urn -> new ArrayList<>()));
 
-    dao.get(keys)
+    getLocalDAO().get(keys)
         .forEach((key, aspect) -> aspect.ifPresent(
             metadata -> urnAspectsMap.get(key.getUrn()).add(ModelUtils.newAspectUnion(_aspectUnionClass, metadata))));
 
