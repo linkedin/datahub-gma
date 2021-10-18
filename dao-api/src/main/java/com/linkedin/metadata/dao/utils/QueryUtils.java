@@ -22,6 +22,8 @@ import javax.annotation.Nullable;
 public class QueryUtils {
 
   public static final Filter EMPTY_FILTER = new Filter().setCriteria(new CriterionArray());
+  public static final String TRUE = "unique_TRUE";
+  public static final String FALSE = "unique_FALSE";
 
   private QueryUtils() {
   }

@@ -108,7 +108,8 @@ public class Neo4jUtil {
     if (ClassUtils.isPrimitiveOrWrapper(value.getClass())) {
       return key + ":" + value;
     }
-    if (value.toString().equals("true") || value.toString().equals("false")) {
+    if (value.toString().equals(TRUE) || value.toString().equals(FALSE)) {
+      // TODO: find better approach to accommodate booleans in Filters. (currently only Strings allowed)
       return key + ":" + value;
     }
     return key + ":\"" + value.toString() + "\"";
