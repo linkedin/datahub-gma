@@ -143,6 +143,7 @@ public class BaseEntityResourceTest extends BaseEngineTest {
 
     when(_mockLocalDAO.get(new HashSet<>(Arrays.asList(aspect1Key, aspect2Key)))).thenReturn(
         Collections.singletonMap(aspect1Key, Optional.of(foo)));
+    when(_mockLocalDAO.exists(urn)).thenReturn(true);
 
     EntityValue value = runAndWait(_resource.get(makeResourceKey(urn), null));
 
@@ -178,6 +179,7 @@ public class BaseEntityResourceTest extends BaseEngineTest {
 
     when(_mockLocalDAO.get(new HashSet<>(Arrays.asList(aspect1Key)))).thenReturn(
         Collections.singletonMap(aspect1Key, Optional.of(foo)));
+    when(_mockLocalDAO.exists(urn)).thenReturn(true);
 
     EntityValue value = runAndWait(_resource.get(makeResourceKey(urn), aspectNames));
     assertEquals(value.getFoo(), foo);
@@ -194,6 +196,7 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     } catch (RestLiServiceException e) {
       assertEquals(e.getStatus(), HttpStatus.S_404_NOT_FOUND);
       verify(_mockLocalDAO, times(1)).get(Collections.singleton(aspect1Key));
+      verify(_mockLocalDAO, times(1)).exists(urn);
       verifyNoMoreInteractions(_mockLocalDAO);
       return;
     }

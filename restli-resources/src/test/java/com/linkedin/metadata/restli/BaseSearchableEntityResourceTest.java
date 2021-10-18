@@ -151,6 +151,8 @@ public class BaseSearchableEntityResourceTest extends BaseEngineTest {
     String[] aspectNames = new String[]{ModelUtils.getAspectName(AspectFoo.class)};
     when(_mockLocalDAO.get(ImmutableSet.of(aspectKey1, aspectKey2))).thenReturn(
         ImmutableMap.of(aspectKey1, Optional.of(foo), aspectKey2, Optional.empty()));
+    when(_mockLocalDAO.exists(urn1)).thenReturn(true);
+    when(_mockLocalDAO.exists(urn2)).thenReturn(true);
 
     CollectionResult<EntityValue, SearchResultMetadata> searchResult =
         runAndWait(_resource.search("bar", aspectNames, EMPTY_FILTER, null, new PagingContext(1, 2)));
@@ -207,6 +209,8 @@ public class BaseSearchableEntityResourceTest extends BaseEngineTest {
     String[] aspectNames = new String[]{ModelUtils.getAspectName(AspectFoo.class)};
     when(_mockLocalDAO.get(ImmutableSet.of(aspectKey1, aspectKey2))).thenReturn(
         ImmutableMap.of(aspectKey1, Optional.of(foo), aspectKey2, Optional.of(foo)));
+    when(_mockLocalDAO.exists(urn1)).thenReturn(true);
+    when(_mockLocalDAO.exists(urn2)).thenReturn(true);
 
     // test with null filter and null sort criterion
     List<EntityValue> values =

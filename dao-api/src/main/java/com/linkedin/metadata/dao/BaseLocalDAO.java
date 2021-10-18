@@ -595,6 +595,13 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       long version, boolean insert);
 
   /**
+   * Returns a boolean representing if an Urn has any Aspects associated with it (i.e. if it exists in the DB).
+   * @param urn {@link Urn} for the entity
+   * @return boolean representing if entity associated with Urn exists
+   */
+  public abstract boolean exists(@Nonnull URN urn);
+
+  /**
    * Applies version-based retention against a specific aspect type for an entity.
    *
    * @param aspectClass the type of aspect to apply retention to
