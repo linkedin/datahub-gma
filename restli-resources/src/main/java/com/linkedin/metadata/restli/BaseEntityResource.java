@@ -147,7 +147,10 @@ public abstract class BaseEntityResource<
 
     return RestliUtils.toTask(() -> {
       final URN urn = toUrn(id);
-      final VALUE value = getInternalNonEmpty(Collections.singleton(urn), parseAspectsParam(aspectNames)).get(urn);
+      if (!getLocalDAO().exists(urn)) {
+        throw RestliUtils.resourceNotFoundException();
+      }
+      final VALUE value = getInternal(Collections.singleton(urn), parseAspectsParam(aspectNames)).get(urn);
       if (value == null) {
         throw RestliUtils.resourceNotFoundException();
       }
@@ -627,7 +630,6 @@ public abstract class BaseEntityResource<
       @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses) {
     return getUrnAspectMap(urns, aspectClasses).entrySet()
         .stream()
-        .filter(e -> getLocalDAO().exists(e.getKey()))
         .filter(e -> !e.getValue().isEmpty())
         .collect(Collectors.toMap(Map.Entry::getKey, e -> toValue(newSnapshot(e.getKey(), e.getValue()))));
   }
