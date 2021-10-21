@@ -113,6 +113,16 @@ public class BaseVersionedAspectResourceTest extends BaseEngineTest {
   }
 
   @Test
+  public void testSoftDelete() {
+
+    runAndWait(_resource.delete());
+
+    // this should test that delete method of DAO is being called once
+    verify(_mockLocalDAO, times(1)).delete(eq(ENTITY_URN), eq(AspectFoo.class), any(AuditStamp.class));
+    verifyNoMoreInteractions(_mockLocalDAO);
+  }
+
+  @Test
   public void testCreateViaLambda() {
     AspectFoo foo = new AspectFoo().setValue("foo");
     Function<Optional<AspectFoo>, AspectFoo> createLambda = (prev) -> foo;
