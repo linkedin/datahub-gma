@@ -33,5 +33,5 @@ record MetadataChangeEvent {
   /**
    * Change type.
    */
-  changeType: ChangeType = "UPSERT"
+  changeType: optional ChangeType
 }
