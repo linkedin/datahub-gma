@@ -1,7 +1,6 @@
 namespace com.linkedin.mxe.bar.annotatedAspectBar
 
 import com.linkedin.avro2pegasus.events.KafkaAuditHeader
-import com.linkedin.common.ChangeType
 import com.linkedin.testing.BarUrn
 import com.linkedin.testing.AnnotatedAspectBar
 
@@ -25,9 +24,4 @@ record MetadataChangeEvent {
    * Value of the proposed AnnotatedAspectBar change.
    */
   proposedValue: optional AnnotatedAspectBar
-
-  /**
-   * Change type.
-   */
-  changeType: optional ChangeType
 }
