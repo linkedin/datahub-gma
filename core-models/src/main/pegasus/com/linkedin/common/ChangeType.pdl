@@ -1,0 +1,16 @@
+namespace com.linkedin.common
+
+/**
+ * Descriptor for a change action. For every type, a new version of metadata will be created
+ */
+enum ChangeType {
+  /**
+   * create new metadata if it doesn't exist, update if it already exists
+   */
+  UPSERT
+
+  /**
+   * delete the latest version of metadata, if it exists
+   */
+  DELETE
+}

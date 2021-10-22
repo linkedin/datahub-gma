@@ -94,6 +94,7 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
       namespace com.linkedin.mxe.foo.testAspect
 
       import com.linkedin.avro2pegasus.events.KafkaAuditHeader
+      import com.linkedin.common.ChangeType
       import com.linkedin.testing.FooUrn
       import com.linkedin.metadata.test.aspects.TestAspect
 
@@ -117,12 +118,18 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
          * Value of the proposed TestAspect change.
          */
         proposedValue: optional TestAspect
+
+        /**
+         * Change type.
+         */
+        changeType: optional ChangeType
       }'''.stripIndent()
 
     projectFile('build/my-dummy-module/generateMetadataEventsSchema/com/linkedin/mxe/foo/testAspect/MetadataAuditEvent.pdl').text == '''\
       namespace com.linkedin.mxe.foo.testAspect
 
       import com.linkedin.avro2pegasus.events.KafkaAuditHeader
+      import com.linkedin.common.ChangeType
       import com.linkedin.testing.FooUrn
       import com.linkedin.metadata.test.aspects.TestAspect
 
@@ -151,6 +158,11 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
          * Aspect of the TestAspect after the update.
          */
         newValue: TestAspect
+
+        /**
+         * Change type.
+         */
+        changeType: optional ChangeType
       }'''.stripIndent()
 
     projectFile('build/my-dummy-module/generateMetadataEventsSchema/com/linkedin/mxe/foo/testAspect/FailedMetadataChangeEvent.pdl').text == '''\

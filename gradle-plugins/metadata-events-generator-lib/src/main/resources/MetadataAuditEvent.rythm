@@ -5,6 +5,7 @@
 namespace com.linkedin.mxe@(nameSpace)
 
 import com.linkedin.avro2pegasus.events.KafkaAuditHeader
+import com.linkedin.common.ChangeType
 import @entityUrn
 import @eventSpec.getFullValueType()
 
@@ -33,4 +34,9 @@ record MetadataAuditEvent {
    * Aspect of the @eventSpec.getValueType() after the update.
    */
   newValue: @eventSpec.getValueType()
+
+  /**
+   * Change type.
+   */
+  changeType: optional ChangeType
 }
