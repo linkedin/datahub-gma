@@ -10,7 +10,7 @@ enum ChangeType {
   UPSERT
 
   /**
-   * soft delete the latest version of metadata
+   * delete the latest version of metadata, if it exists
    */
   DELETE
 }
