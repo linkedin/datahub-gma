@@ -122,7 +122,7 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
         /**
          * Change type.
          */
-        changeType: optional ChangeType
+        changeType: optional union[null, ChangeType] = null
       }'''.stripIndent()
 
     projectFile('build/my-dummy-module/generateMetadataEventsSchema/com/linkedin/mxe/foo/testAspect/MetadataAuditEvent.pdl').text == '''\
@@ -162,7 +162,7 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
         /**
          * Change type.
          */
-        changeType: optional ChangeType
+        changeType: optional union[null, ChangeType] = null
       }'''.stripIndent()
 
     projectFile('build/my-dummy-module/generateMetadataEventsSchema/com/linkedin/mxe/foo/testAspect/FailedMetadataChangeEvent.pdl').text == '''\

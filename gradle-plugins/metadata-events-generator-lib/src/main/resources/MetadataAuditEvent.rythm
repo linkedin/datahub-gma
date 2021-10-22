@@ -38,5 +38,5 @@ record MetadataAuditEvent {
   /**
    * Change type.
    */
-  changeType: optional ChangeType
+  changeType: optional union[null, ChangeType] = null
 }
