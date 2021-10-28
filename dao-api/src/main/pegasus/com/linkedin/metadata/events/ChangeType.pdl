@@ -1,4 +1,4 @@
-namespace com.linkedin.common
+namespace com.linkedin.metadata.events
 
 /**
  * Descriptor for a change action. For every type, a new version of metadata will be created

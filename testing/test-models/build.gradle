@@ -4,7 +4,9 @@ apply from: "$rootDir/gradle/java-publishing.gradle"
 
 dependencies {
   compile project(':core-models')
+  compile project(':dao-api')
   dataModel project(':core-models')
+  dataModel project(':dao-api')
 
   compile spec.product.pegasus.restliCommon
 }
