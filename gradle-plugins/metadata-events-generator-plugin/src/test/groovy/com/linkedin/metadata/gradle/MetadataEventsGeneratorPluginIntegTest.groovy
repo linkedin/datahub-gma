@@ -94,7 +94,7 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
       namespace com.linkedin.mxe.foo.testAspect
 
       import com.linkedin.avro2pegasus.events.KafkaAuditHeader
-      import com.linkedin.common.ChangeType
+      import com.linkedin.metadata.events.ChangeType
       import com.linkedin.testing.FooUrn
       import com.linkedin.metadata.test.aspects.TestAspect
 
@@ -129,7 +129,7 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
       namespace com.linkedin.mxe.foo.testAspect
 
       import com.linkedin.avro2pegasus.events.KafkaAuditHeader
-      import com.linkedin.common.ChangeType
+      import com.linkedin.metadata.events.ChangeType
       import com.linkedin.testing.FooUrn
       import com.linkedin.metadata.test.aspects.TestAspect
 
