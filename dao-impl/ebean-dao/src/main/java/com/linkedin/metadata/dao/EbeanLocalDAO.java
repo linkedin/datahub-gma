@@ -560,6 +560,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     return result;
   }
 
+  @Override
   public boolean exists(@Nonnull URN urn) {
     return _server.find(EbeanMetadataAspect.class).where().eq(URN_COLUMN, urn.toString()).exists();
   }
