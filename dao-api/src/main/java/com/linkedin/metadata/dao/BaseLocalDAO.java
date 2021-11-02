@@ -283,8 +283,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param updateLambda a lambda expression that takes the previous version of aspect and returns the new version
    * @return {@link RecordTemplate} of the new value of aspect
    */
-  @Nullable
-  public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
+  @Nonnull
+  public <ASPECT extends RecordTemplate> Optional<ASPECT> add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp,
       int maxTransactionRetry) {
 
@@ -338,7 +338,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     // 7. Produce MAE after a successful update
     if (_alwaysEmitAuditEvent || oldValue != newValue) {
-      // TODO: add support for setting newValue field in MAE as null for soft deleted aspect
+      // TODO: add support for sending MAE for soft deleted aspects
       if (newValue != null) {
         _producer.produceMetadataAuditEvent(urn, oldValue, newValue);
       }
@@ -348,7 +348,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     // 7.1 Produce aspect specific MAE after a successful update
     if (_emitAspectSpecificAuditEvent) {
       if (_alwaysEmitAspectSpecificAuditEvent || oldValue != newValue) {
-        // TODO: add support for setting newValue field in MAE as null for soft deleted aspect
+        // TODO: add support for sending MAE for soft deleted aspects
         if (newValue != null) {
           _producer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue);
         }
@@ -359,14 +359,14 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       _aspectPostUpdateHooksMap.get(aspectClass).forEach(hook -> hook.accept(urn, newValue));
     }
 
-    return newValue;
+    return Optional.ofNullable(newValue);
   }
 
   /**
    * Similar to {@link #add(Urn, Class, Function, AuditStamp, int)} but uses the default maximum transaction retry.
    */
-  @Nullable
-  public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
+  @Nonnull
+  public <ASPECT extends RecordTemplate> Optional<ASPECT> add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp) {
     return add(urn, aspectClass, updateLambda, auditStamp, DEFAULT_MAX_TRANSACTION_RETRY);
   }
@@ -374,8 +374,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   /**
    * Similar to {@link #add(Urn, Class, Function, AuditStamp)} but takes the new value directly.
    */
-  @Nullable
-  public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull ASPECT newValue,
+  @Nonnull
+  public <ASPECT extends RecordTemplate> Optional<ASPECT> add(@Nonnull URN urn, @Nonnull ASPECT newValue,
       @Nonnull AuditStamp auditStamp) {
     return add(urn, (Class<ASPECT>) newValue.getClass(), ignored -> newValue, auditStamp);
   }

@@ -127,9 +127,13 @@ public class BaseVersionedAspectResourceTest extends BaseEngineTest {
   public void testCreateResponseViaLambda() {
     AspectFoo foo = new AspectFoo().setValue("foo");
     Function<Optional<AspectFoo>, AspectFoo> createLambda = (prev) -> foo;
-    when(_mockLocalDAO.add(eq(ENTITY_URN), eq(AspectFoo.class), eq(createLambda), any())).thenReturn(foo);
+    when(_mockLocalDAO.add(eq(ENTITY_URN), eq(AspectFoo.class), eq(createLambda), any())).thenReturn(Optional.of(foo));
 
-    CreateKVResponse<Long, AspectFoo> response = runAndWait(_resource.createAndGet(AspectFoo.class, createLambda));
+    Optional<CreateKVResponse<Long, AspectFoo>> responseOptional = runAndWait(_resource.createAndGet(AspectFoo.class, createLambda));
+
+    assertTrue(responseOptional.isPresent());
+
+    CreateKVResponse<Long, AspectFoo> response = responseOptional.get();
 
     assertEquals(response.getStatus().getCode(), 201);
     assertEquals(response.getEntity(), foo);
@@ -145,10 +149,14 @@ public class BaseVersionedAspectResourceTest extends BaseEngineTest {
           assertTrue(args[2] instanceof Function);
           Function<Optional<RecordTemplate>, RecordTemplate> lambda =
               (Function<Optional<RecordTemplate>, RecordTemplate>) args[2];
-          return lambda.apply(Optional.empty());
+          return Optional.of(lambda.apply(Optional.empty()));
         });
 
-    CreateKVResponse<Long, AspectFoo> response = runAndWait(_resource.createIfAbsent(defaultValue));
+    Optional<CreateKVResponse<Long, AspectFoo>> responseOptional = runAndWait(_resource.createIfAbsent(defaultValue));
+
+    assertTrue(responseOptional.isPresent());
+
+    CreateKVResponse<Long, AspectFoo> response = responseOptional.get();
 
     assertEquals(response.getStatus().getCode(), 201);
     assertEquals(response.getEntity(), defaultValue);
@@ -165,10 +173,14 @@ public class BaseVersionedAspectResourceTest extends BaseEngineTest {
           assertTrue(args[2] instanceof Function);
           Function<Optional<RecordTemplate>, RecordTemplate> lambda =
               (Function<Optional<RecordTemplate>, RecordTemplate>) args[2];
-          return lambda.apply(Optional.of(oldVal));
+          return Optional.of(lambda.apply(Optional.of(oldVal)));
         });
 
-    CreateKVResponse<Long, AspectFoo> response = runAndWait(_resource.createIfAbsent(defaultValue));
+    Optional<CreateKVResponse<Long, AspectFoo>> responseOptional = runAndWait(_resource.createIfAbsent(defaultValue));
+
+    assertTrue(responseOptional.isPresent());
+
+    CreateKVResponse<Long, AspectFoo> response = responseOptional.get();
 
     assertEquals(response.getStatus().getCode(), 201);
     assertEquals(response.getEntity(), oldVal);
