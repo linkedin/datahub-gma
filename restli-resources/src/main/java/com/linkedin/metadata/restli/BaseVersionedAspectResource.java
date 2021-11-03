@@ -127,7 +127,7 @@ public abstract class BaseVersionedAspectResource<URN extends Urn, ASPECT_UNION 
 
   /**
    * Similar to {@link #create(Class, Function)} but returns {@link CreateKVResponse} containing latest version and
-   * created aspect.
+   * created aspect. The returned response is empty for soft deleted aspect i.e. when adding null metadata.
    */
   @RestMethod.Create
   @ReturnEntity

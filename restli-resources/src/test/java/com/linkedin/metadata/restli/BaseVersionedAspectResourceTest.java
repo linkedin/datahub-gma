@@ -141,6 +141,17 @@ public class BaseVersionedAspectResourceTest extends BaseEngineTest {
   }
 
   @Test
+  public void testCreateAndGetSoftDeletedAspect() {
+    Function<Optional<AspectFoo>, AspectFoo> createLambda = (prev) -> null;
+    when(_mockLocalDAO.add(eq(ENTITY_URN), eq(AspectFoo.class), eq(createLambda), any())).thenReturn(Optional.empty());
+
+    Optional<CreateKVResponse<Long, AspectFoo>> responseOptional =
+        runAndWait(_resource.createAndGet(AspectFoo.class, createLambda));
+
+    assertFalse(responseOptional.isPresent());
+  }
+
+  @Test
   public void testCreateIfAbsentWithoutExistingValue() {
     AspectFoo defaultValue = new AspectFoo().setValue("foo");
     when(_mockLocalDAO.add(eq(ENTITY_URN), eq(AspectFoo.class), any(), any())).thenAnswer(
