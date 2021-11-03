@@ -56,6 +56,7 @@ public class BaseEntitySimpleKeyResourceTest extends BaseEngineTest {
     AspectKey<Urn, AspectFoo> aspect1Key = new AspectKey<>(AspectFoo.class, urn, LATEST_VERSION);
     AspectKey<Urn, AspectBar> aspect2Key = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
 
+    when(_mockLocalDAO.exists(urn)).thenReturn(true);
     when(_mockLocalDAO.get(new HashSet<>(Arrays.asList(aspect1Key, aspect2Key))))
         .thenReturn(Collections.singletonMap(aspect1Key, Optional.of(foo)));
 
@@ -66,21 +67,38 @@ public class BaseEntitySimpleKeyResourceTest extends BaseEngineTest {
   }
 
   @Test
-  public void testGetNotFound() {
+  public void testGetUrnNotFound() {
     long id = 1234;
     Urn urn = makeUrn(id);
 
-    AspectKey<Urn, AspectFoo> aspect1Key = new AspectKey<>(AspectFoo.class, urn, LATEST_VERSION);
-    AspectKey<Urn, AspectBar> aspect2Key = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
-
-    when(_mockLocalDAO.get(new HashSet<>(Arrays.asList(aspect1Key, aspect2Key)))).thenReturn(
-        Collections.emptyMap());
+    when(_mockLocalDAO.exists(urn)).thenReturn(false);
 
     try {
       runAndWait(_resource.get(id, new String[0]));
+      fail("An exception should've been thrown!");
     } catch (RestLiServiceException e) {
       assertEquals(e.getStatus(), HttpStatus.S_404_NOT_FOUND);
-      return;
+    }
+  }
+
+  @Test
+  public void testGetWithEmptyAspects() {
+    long id = 1234;
+    Urn urn = makeUrn(id);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectKey<Urn, AspectFoo> aspect1Key = new AspectKey<>(AspectFoo.class, urn, LATEST_VERSION);
+    AspectKey<Urn, AspectBar> aspect2Key = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
+
+    when(_mockLocalDAO.exists(urn)).thenReturn(true);
+    when(_mockLocalDAO.get(new HashSet<>(Arrays.asList(aspect1Key, aspect2Key))))
+        .thenReturn(Collections.emptyMap());
+
+    try {
+      EntityValue value = runAndWait(_resource.get(id, new String[0]));
+      assertFalse(value.hasFoo());
+      assertFalse(value.hasBar());
+    } catch (RestLiServiceException e) {
+      fail("No exception should be thrown!");
     }
   }
 
@@ -88,11 +106,11 @@ public class BaseEntitySimpleKeyResourceTest extends BaseEngineTest {
   public void testGetSpecificAspect() {
     long id = 1234;
     Urn urn = makeUrn(id);
-
     AspectFoo foo = new AspectFoo().setValue("foo");
     AspectKey<Urn, AspectFoo> aspect1Key = new AspectKey<>(AspectFoo.class, urn, LATEST_VERSION);
     String[] aspectNames = {AspectFoo.class.getCanonicalName()};
 
+    when(_mockLocalDAO.exists(urn)).thenReturn(true);
     when(_mockLocalDAO.get(new HashSet<>(Collections.singletonList(aspect1Key))))
         .thenReturn(Collections.singletonMap(aspect1Key, Optional.of(foo)));
 
@@ -105,15 +123,16 @@ public class BaseEntitySimpleKeyResourceTest extends BaseEngineTest {
   public void testGetSpecificAspectNotFound() {
     long id = 1234;
     Urn urn = makeUrn(id);
-
-    AspectKey<Urn, AspectFoo> aspect1Key = new AspectKey<>(AspectFoo.class, urn, LATEST_VERSION);
     String[] aspectNames = {AspectFoo.class.getCanonicalName()};
+
+    when(_mockLocalDAO.exists(urn)).thenReturn(true);
+
     try {
-      runAndWait(_resource.get(id, aspectNames));
+      EntityValue value = runAndWait(_resource.get(id, aspectNames));
+      assertFalse(value.hasFoo());
+      assertFalse(value.hasBar());
     } catch (RestLiServiceException e) {
-      assertEquals(e.getStatus(), HttpStatus.S_404_NOT_FOUND);
-      verify(_mockLocalDAO, times(1)).get(Collections.singleton(aspect1Key));
-      verifyNoMoreInteractions(_mockLocalDAO);
+      fail("No exception should be thrown!");
     }
   }
 

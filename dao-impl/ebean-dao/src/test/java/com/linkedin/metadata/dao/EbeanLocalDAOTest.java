@@ -1459,6 +1459,21 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
+  void testExists() {
+    // given
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn urn = makeFooUrn(1);
+
+    assertFalse(dao.exists(urn));
+
+    // add metadata
+    AspectFoo fooV1 = new AspectFoo().setValue("foo");
+    addMetadata(urn, AspectFoo.class.getCanonicalName(), 1, fooV1);
+
+    assertTrue(dao.exists(urn));
+  }
+
+  @Test
   void testExistsInLocalIndex() {
     EbeanLocalDAO<EntityAspectUnion, BarUrn> dao = createDao(BarUrn.class);
     BarUrn urn = makeBarUrn(0);

@@ -78,6 +78,11 @@ public class BaseLocalDAOTest {
     }
 
     @Override
+    public boolean exists(FooUrn urn) {
+      return true;
+    }
+
+    @Override
     protected <ASPECT extends RecordTemplate> void applyVersionBasedRetention(Class<ASPECT> aspectClass, FooUrn urn,
         VersionBasedRetention retention, long largestVersion) {
 

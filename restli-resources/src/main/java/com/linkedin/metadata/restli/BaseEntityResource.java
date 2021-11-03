@@ -147,7 +147,10 @@ public abstract class BaseEntityResource<
 
     return RestliUtils.toTask(() -> {
       final URN urn = toUrn(id);
-      final VALUE value = getInternalNonEmpty(Collections.singleton(urn), parseAspectsParam(aspectNames)).get(urn);
+      if (!getLocalDAO().exists(urn)) {
+        throw RestliUtils.resourceNotFoundException();
+      }
+      final VALUE value = getInternal(Collections.singleton(urn), parseAspectsParam(aspectNames)).get(urn);
       if (value == null) {
         throw RestliUtils.resourceNotFoundException();
       }
@@ -163,6 +166,7 @@ public abstract class BaseEntityResource<
   public Task<Map<KEY, VALUE>> batchGet(
       @Nonnull Set<KEY> ids,
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
+    // TODO: discuss and sync with get()'s intended behavior (check if urn exists). https://github.com/linkedin/datahub-gma/issues/136
     return RestliUtils.toTask(() -> {
       final Map<URN, KEY> urnMap =
           ids.stream().collect(Collectors.toMap(id -> toUrn(id), Function.identity()));
