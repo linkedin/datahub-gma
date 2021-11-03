@@ -91,7 +91,7 @@ public class BaseEntitySimpleKeyResourceTest extends BaseEngineTest {
 
     when(_mockLocalDAO.exists(urn)).thenReturn(true);
     when(_mockLocalDAO.get(new HashSet<>(Arrays.asList(aspect1Key, aspect2Key))))
-        .thenReturn(Collections.singletonMap(aspect1Key, Optional.of(foo)));
+        .thenReturn(Collections.emptyMap());
 
     try {
       EntityValue value = runAndWait(_resource.get(id, new String[0]));
@@ -123,7 +123,6 @@ public class BaseEntitySimpleKeyResourceTest extends BaseEngineTest {
   public void testGetSpecificAspectNotFound() {
     long id = 1234;
     Urn urn = makeUrn(id);
-    AspectKey<Urn, AspectFoo> aspect1Key = new AspectKey<>(AspectFoo.class, urn, LATEST_VERSION);
     String[] aspectNames = {AspectFoo.class.getCanonicalName()};
 
     when(_mockLocalDAO.exists(urn)).thenReturn(true);

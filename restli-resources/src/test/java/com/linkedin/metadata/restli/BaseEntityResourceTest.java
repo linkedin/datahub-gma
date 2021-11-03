@@ -152,22 +152,40 @@ public class BaseEntityResourceTest extends BaseEngineTest {
   }
 
   @Test
-  public void testGetNotFound() {
+  public void testGetUrnNotFound() {
     FooUrn urn = makeFooUrn(1234);
 
     AspectKey<FooUrn, AspectFoo> aspect1Key = new AspectKey<>(AspectFoo.class, urn, LATEST_VERSION);
     AspectKey<FooUrn, AspectBar> aspect2Key = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
 
+    when(_mockLocalDAO.exists(urn)).thenReturn(false);
     when(_mockLocalDAO.get(new HashSet<>(Arrays.asList(aspect1Key, aspect2Key)))).thenReturn(Collections.emptyMap());
 
     try {
       runAndWait(_resource.get(makeResourceKey(urn), new String[0]));
+      fail("An exception should've been thrown!");
     } catch (RestLiServiceException e) {
       assertEquals(e.getStatus(), HttpStatus.S_404_NOT_FOUND);
-      return;
     }
+  }
 
-    fail("No exception thrown");
+  @Test
+  public void testGetWithEmptyAspects() {
+    FooUrn urn = makeFooUrn(1234);
+
+    AspectKey<FooUrn, AspectFoo> aspect1Key = new AspectKey<>(AspectFoo.class, urn, LATEST_VERSION);
+    AspectKey<FooUrn, AspectBar> aspect2Key = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
+
+    when(_mockLocalDAO.exists(urn)).thenReturn(true);
+    when(_mockLocalDAO.get(new HashSet<>(Arrays.asList(aspect1Key, aspect2Key)))).thenReturn(Collections.emptyMap());
+
+    try {
+      EntityValue value = runAndWait(_resource.get(makeResourceKey(urn), new String[0]));
+      assertFalse(value.hasFoo());
+      assertFalse(value.hasBar());
+    } catch (RestLiServiceException e) {
+      fail("No exception should be thrown!");
+    }
   }
 
   @Test
@@ -189,17 +207,17 @@ public class BaseEntityResourceTest extends BaseEngineTest {
   @Test
   public void testGetSpecificAspectNotFound() {
     FooUrn urn = makeFooUrn(1234);
-    AspectKey<FooUrn, AspectFoo> aspect1Key = new AspectKey<>(AspectFoo.class, urn, LATEST_VERSION);
     String[] aspectNames = {AspectFoo.class.getCanonicalName()};
+
+    when(_mockLocalDAO.exists(urn)).thenReturn(true);
+
     try {
-      runAndWait(_resource.get(makeResourceKey(urn), aspectNames));
+      EntityValue value = runAndWait(_resource.get(makeResourceKey(urn), aspectNames));
+      assertFalse(value.hasFoo());
+      assertFalse(value.hasBar());
     } catch (RestLiServiceException e) {
-      assertEquals(e.getStatus(), HttpStatus.S_404_NOT_FOUND);
-      verify(_mockLocalDAO, times(1)).exists(urn);
-      verifyNoMoreInteractions(_mockLocalDAO);
-      return;
+      fail("No exception should be thrown!");
     }
-    fail("No exception thrown");
   }
 
   @Test
