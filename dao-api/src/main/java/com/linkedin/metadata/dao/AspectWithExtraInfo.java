@@ -2,7 +2,7 @@ package com.linkedin.metadata.dao;
 
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.query.ExtraInfo;
-import javax.annotation.Nullable;
+import javax.annotation.Nonnull;
 import lombok.NonNull;
 import lombok.Value;
 
@@ -13,7 +13,7 @@ import lombok.Value;
 @Value
 public class AspectWithExtraInfo<ASPECT extends RecordTemplate> {
 
-  @Nullable
+  @Nonnull
   ASPECT aspect;
 
   @NonNull

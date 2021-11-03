@@ -55,7 +55,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.persistence.OptimisticLockException;
@@ -335,11 +334,11 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     if (latest == null) {
       return null;
     }
-    if (latest.getMetadata() == null) {
-      return null;
-    }
 
-    return new AspectEntry<>(RecordUtils.toRecordTemplate(aspectClass, latest.getMetadata()), toExtraInfo(latest));
+    final Optional<ExtraInfo> optionalExtraInfo = toExtraInfo(latest);
+    return optionalExtraInfo.map(
+        extraInfo -> new AspectEntry<>(RecordUtils.toRecordTemplate(aspectClass, latest.getMetadata()), extraInfo))
+        .orElse(null);
   }
 
   @Nonnull
@@ -567,7 +566,13 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     keys.forEach(key -> records.stream()
         .filter(record -> matchKeys(key, record.getKey()))
         .findFirst()
-        .map(record -> result.put(key, toRecordTemplateWithExtraInfo(key.getAspectClass(), record))));
+        .map(record -> {
+          final Class<RecordTemplate> aspectClass = (Class<RecordTemplate>) key.getAspectClass();
+          final Optional<AspectWithExtraInfo<RecordTemplate>> aspectWithExtraInfo = toRecordTemplateWithExtraInfo(aspectClass, record);
+          aspectWithExtraInfo.ifPresent(
+              recordTemplateAspectWithExtraInfo -> result.put(key, recordTemplateAspectWithExtraInfo));
+          return null;
+        }));
     return result;
   }
 
@@ -748,24 +753,18 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Nonnull
   <ASPECT extends RecordTemplate> ListResult<ASPECT> getListResult(@Nonnull Class<ASPECT> aspectClass,
       @Nonnull PagedList<EbeanMetadataAspect> pagedList, int start) {
-    // get a list of EbeanMetadataAspect for which metadata is null
-    final List<EbeanMetadataAspect> softDeletedAspects =
-        pagedList.getList().stream().filter(r -> r.getMetadata() == null).collect(Collectors.toList());
-    // get a list of EbeanMetadataAspect for which metadata is non-null
-    final List<EbeanMetadataAspect> nonNullAspects =
-        pagedList.getList().stream().filter(r -> r.getMetadata() != null).collect(Collectors.toList());
+    final List<ASPECT> aspects = new ArrayList<>();
+    pagedList.getList().forEach(a -> {
+      final Optional<ASPECT> record = toRecordTemplate(aspectClass, a);
+      record.ifPresent(aspects::add);
+    });
 
-    // get a list of aspects for which metadata is non-null
-    final List<ASPECT> aspects = nonNullAspects.stream()
-        .map(a -> toRecordTemplate(aspectClass, a))
-        .flatMap(o -> o.map(Stream::of).orElseGet(Stream::empty))
-        .collect(Collectors.toList());
-
-    final List<ExtraInfo> extraInfos =
-        nonNullAspects.stream().map(EbeanLocalDAO::toExtraInfo).collect(Collectors.toList());
-    final List<ExtraInfo> softDeletedMetadata =
-        softDeletedAspects.stream().map(EbeanLocalDAO::toExtraInfo).collect(Collectors.toList());
-    final ListResultMetadata listResultMetadata = makeListResultMetadata(extraInfos, softDeletedMetadata);
+    final List<ExtraInfo> extraInfos = new ArrayList<>();
+    pagedList.getList().forEach(record -> {
+      final Optional<ExtraInfo> extraInfo = EbeanLocalDAO.toExtraInfo(record);
+      extraInfo.ifPresent(extraInfos::add);
+    });
+    final ListResultMetadata listResultMetadata = makeListResultMetadata(extraInfos);
     return toListResult(aspects, listResultMetadata, pagedList, start);
   }
 
@@ -838,11 +837,15 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Nonnull
-  private static <ASPECT extends RecordTemplate> AspectWithExtraInfo<ASPECT> toRecordTemplateWithExtraInfo(
+  private static <ASPECT extends RecordTemplate> Optional<AspectWithExtraInfo<ASPECT>> toRecordTemplateWithExtraInfo(
       @Nonnull Class<ASPECT> aspectClass, @Nonnull EbeanMetadataAspect aspect) {
-    return new AspectWithExtraInfo<>(
-        aspect.getMetadata() != null ? RecordUtils.toRecordTemplate(aspectClass, aspect.getMetadata()) : null,
-        toExtraInfo(aspect));
+    if (aspect.getMetadata() == null) {
+      return Optional.empty();
+    }
+    final Optional<ExtraInfo> optionalExtraInfo = toExtraInfo(aspect);
+    return optionalExtraInfo.map(
+        extraInfo -> new AspectWithExtraInfo<>(RecordUtils.toRecordTemplate(aspectClass, aspect.getMetadata()),
+            extraInfo));
   }
 
   @Nonnull
@@ -863,7 +866,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Nonnull
-  private static ExtraInfo toExtraInfo(@Nonnull EbeanMetadataAspect aspect) {
+  private static Optional<ExtraInfo> toExtraInfo(@Nonnull EbeanMetadataAspect aspect) {
+    if (aspect.getMetadata() == null) {
+      return Optional.empty();
+    }
     final ExtraInfo extraInfo = new ExtraInfo();
     extraInfo.setVersion(aspect.getKey().getVersion());
     extraInfo.setAudit(makeAuditStamp(aspect));
@@ -873,7 +879,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       throw new ModelConversionException(e.getMessage());
     }
 
-    return extraInfo;
+    return Optional.of(extraInfo);
   }
 
   @Nonnull
@@ -893,11 +899,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Nonnull
-  private ListResultMetadata makeListResultMetadata(@Nonnull List<ExtraInfo> extraInfos,
-      @Nonnull List<ExtraInfo> softDeletedAspects) {
+  private ListResultMetadata makeListResultMetadata(@Nonnull List<ExtraInfo> extraInfos) {
     final ListResultMetadata listResultMetadata = new ListResultMetadata();
     listResultMetadata.setExtraInfos(new ExtraInfoArray(extraInfos));
-    listResultMetadata.setSoftDeletedAspects(new ExtraInfoArray(softDeletedAspects));
     return listResultMetadata;
   }
 

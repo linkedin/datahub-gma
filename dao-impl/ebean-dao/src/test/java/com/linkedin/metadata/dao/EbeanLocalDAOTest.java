@@ -472,11 +472,9 @@ public class EbeanLocalDAOTest {
 
     ListResult<AspectFoo> metadata = dao.getListResult(AspectFoo.class, pagedList, 0);
     List<Long> nonNullVersions = metadata.getMetadata().getExtraInfos().stream().map(ExtraInfo::getVersion).collect(Collectors.toList());
-    List<Long> nullVersions = metadata.getMetadata().getSoftDeletedAspects().stream().map(ExtraInfo::getVersion).collect(Collectors.toList());
 
     assertEquals(metadata.getValues(), Arrays.asList(v1, v2, v4));
     assertEquals(nonNullVersions, Arrays.asList(1L, 2L, 4L));
-    assertEquals(nullVersions, Arrays.asList(0L, 3L));
   }
 
   @Test
@@ -1372,10 +1370,6 @@ public class EbeanLocalDAOTest {
     List<Urn> expectedUrns = Collections.singletonList(urn0);
     assertVersionMetadata(results.getMetadata(), expectedNonNullVersions, expectedUrns, 1234L,
         Urns.createFromTypeSpecificString("test", "foo"), Urns.createFromTypeSpecificString("test", "bar"));
-
-    List<ExtraInfo> softDeletedAspects = results.getMetadata().getSoftDeletedAspects();
-    assertEquals(softDeletedAspects.stream().map(ExtraInfo::getVersion).collect(Collectors.toSet()), Arrays.asList(3L, 4L));
-    assertEquals(softDeletedAspects.stream().map(ExtraInfo::getUrn).collect(Collectors.toList()), Arrays.asList(urn0, urn0));
   }
 
   private static LocalDAOStorageConfig makeLocalDAOStorageConfig(Class<? extends RecordTemplate> aspectClass,
@@ -2107,7 +2101,7 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
-  public void testGetWithExtraInfoSoftDeletedAspect() {
+  public void testGetForSoftDeletedAspect() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     FooUrn urn = makeFooUrn(1);
     AspectFoo v0 = new AspectFoo().setValue("foo");
@@ -2122,9 +2116,7 @@ public class EbeanLocalDAOTest {
 
     Optional<AspectWithExtraInfo<AspectFoo>> foo = dao.getWithExtraInfo(AspectFoo.class, urn, 1);
 
-    assertTrue(foo.isPresent());
-    assertEquals(foo.get(), new AspectWithExtraInfo<>(null,
-        new ExtraInfo().setAudit(makeAuditStamp(creator2, impersonator2, 456)).setVersion(1).setUrn(urn)));
+    assertFalse(foo.isPresent());
   }
 
   @Test

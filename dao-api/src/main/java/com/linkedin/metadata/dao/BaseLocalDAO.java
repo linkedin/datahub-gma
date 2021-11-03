@@ -281,7 +281,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param urn the URN for the entity the aspect is attached to
    * @param auditStamp the audit stamp for the operation
    * @param updateLambda a lambda expression that takes the previous version of aspect and returns the new version
-   * @return {@link RecordTemplate} of the new value of aspect
+   * @return optional {@link RecordTemplate} of the new value of aspect
    */
   @Nonnull
   public <ASPECT extends RecordTemplate> Optional<ASPECT> add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
