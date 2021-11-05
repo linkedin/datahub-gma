@@ -127,18 +127,19 @@ public abstract class BaseVersionedAspectResource<URN extends Urn, ASPECT_UNION 
 
   /**
    * Similar to {@link #create(Class, Function)} but returns {@link CreateKVResponse} containing latest version and
-   * created aspect. The returned response is empty for soft deleted aspect i.e. when adding null metadata.
+   * created aspect.
    */
   @RestMethod.Create
   @ReturnEntity
   @Nonnull
-  public Task<Optional<CreateKVResponse<Long, ASPECT>>> createAndGet(@Nonnull Class<ASPECT> aspectClass,
+  public Task<CreateKVResponse<Long, ASPECT>> createAndGet(@Nonnull Class<ASPECT> aspectClass,
       @Nonnull Function<Optional<ASPECT>, ASPECT> createLambda) {
-    final URN urn = getUrn(getContext().getPathKeys());
-    final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
-    final Optional<ASPECT> newValue = getLocalDAO().add(urn, aspectClass, createLambda, auditStamp);
-    return newValue.map(aspect -> RestliUtils.toTask(() -> Optional.of(new CreateKVResponse<>(LATEST_VERSION, aspect))))
-        .orElseGet(() -> Task.value(Optional.empty()));
+    return RestliUtils.toTask(() -> {
+      final URN urn = getUrn(getContext().getPathKeys());
+      final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
+      final ASPECT newValue = getLocalDAO().add(urn, aspectClass, createLambda, auditStamp);
+      return new CreateKVResponse<>(LATEST_VERSION, newValue);
+    });
   }
 
   /**
@@ -150,7 +151,7 @@ public abstract class BaseVersionedAspectResource<URN extends Urn, ASPECT_UNION 
   @RestMethod.Create
   @ReturnEntity
   @Nonnull
-  public Task<Optional<CreateKVResponse<Long, ASPECT>>> createIfAbsent(@Nonnull ASPECT defaultValue) {
+  public Task<CreateKVResponse<Long, ASPECT>> createIfAbsent(@Nonnull ASPECT defaultValue) {
     return createAndGet((Class<ASPECT>) defaultValue.getClass(), ignored -> ignored.orElse(defaultValue));
   }
 }

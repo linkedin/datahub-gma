@@ -272,6 +272,58 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
+   * Logic common to both {@link #add(Urn, Class, Function, AuditStamp)} and {@link #delete(Urn, Class, AuditStamp, int)} methods.
+   *
+   * <p>The metadata being added is null for the delete method and non-null for the add method.
+   *
+   * @param urn the URN for the entity the aspect is attached to
+   * @param oldValue old metadata of the aspect
+   * @param newValue new metadata of the aspect. This is null for the delete method/operation
+   * @param auditStamp the audit stamp for the operation
+   * @return
+   */
+  private <ASPECT extends RecordTemplate> AddResult<ASPECT> addCommon(@Nonnull URN urn,
+      @Nullable AspectEntry<ASPECT> latest, @Nullable ASPECT oldValue, @Nullable ASPECT newValue,
+      @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp,
+      @Nonnull EqualityTester<ASPECT> equalityTester) {
+
+    if (newValue != null) {
+      checkValidAspect(newValue.getClass());
+    }
+
+    if (newValue != null && _modelValidationOnWrite) {
+      validateAgainstSchema(newValue);
+    }
+
+    // 2. Invoke pre-update hooks, if any, only if the new metadata being added is not null
+    if (newValue != null && _aspectPreUpdateHooksMap.containsKey(aspectClass)) {
+      _aspectPreUpdateHooksMap.get(aspectClass).forEach(hook -> hook.accept(urn, newValue));
+    }
+
+    // 3. Skip saving if there's no actual change
+    if ((oldValue == null && newValue == null) || oldValue != null && newValue != null && equalityTester.equals(
+        oldValue, newValue)) {
+      return new AddResult<>(oldValue, oldValue);
+    }
+
+    // 4. Save the newValue as the latest version
+    long largestVersion =
+        saveLatest(urn, aspectClass, oldValue, latest == null ? null : latest.getExtraInfo().getAudit(), newValue,
+            auditStamp);
+
+    // 5. Apply retention policy
+    applyRetention(urn, aspectClass, getRetention(aspectClass), largestVersion);
+
+    // 6. Save to local secondary index
+    // TODO: add support for soft deleted aspects in local secondary index
+    if (_enableLocalSecondaryIndex && newValue != null) {
+      updateLocalIndex(urn, newValue, largestVersion);
+    }
+
+    return new AddResult<>(oldValue, newValue);
+  }
+
+  /**
    * Adds a new version of aspect for an entity.
    *
    * <p>The new aspect will have an automatically assigned version number, which is guaranteed to be positive and
@@ -281,10 +333,10 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param urn the URN for the entity the aspect is attached to
    * @param auditStamp the audit stamp for the operation
    * @param updateLambda a lambda expression that takes the previous version of aspect and returns the new version
-   * @return optional {@link RecordTemplate} of the new value of aspect
+   * @return {@link RecordTemplate} of the new value of aspect
    */
   @Nonnull
-  public <ASPECT extends RecordTemplate> Optional<ASPECT> add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
+  public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp,
       int maxTransactionRetry) {
 
@@ -294,43 +346,13 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     final AddResult<ASPECT> result = runInTransactionWithRetry(() -> {
       // 1. Compute newValue based on oldValue
-      AspectEntry<ASPECT> latest = getLatest(urn, aspectClass);
+      final AspectEntry<ASPECT> latest = getLatest(urn, aspectClass);
       final ASPECT oldValue = latest == null ? null : latest.getAspect();
       final ASPECT newValue = updateLambda.apply(Optional.ofNullable(oldValue));
-      if (newValue != null) {
-        checkValidAspect(newValue.getClass());
+      if (newValue == null) {
+        throw new UnsupportedOperationException("Do not support adding null metadata in add method");
       }
-
-      if (newValue != null && _modelValidationOnWrite) {
-        validateAgainstSchema(newValue);
-      }
-
-      // 2. Invoke pre-update hooks, if any
-      if (_aspectPreUpdateHooksMap.containsKey(aspectClass)) {
-        _aspectPreUpdateHooksMap.get(aspectClass).forEach(hook -> hook.accept(urn, newValue));
-      }
-
-      // 3. Skip saving if there's no actual change
-      if ((oldValue == null && newValue == null) || oldValue != null && newValue != null && equalityTester.equals(
-          oldValue, newValue)) {
-        return new AddResult<>(oldValue, oldValue);
-      }
-
-      // 4. Save the newValue as the latest version
-      long largestVersion =
-          saveLatest(urn, aspectClass, oldValue, latest == null ? null : latest.getExtraInfo().getAudit(), newValue,
-              auditStamp);
-
-      // 5. Apply retention policy
-      applyRetention(urn, aspectClass, getRetention(aspectClass), largestVersion);
-
-      // 6. Save to local secondary index
-      // TODO: add support for soft deleted aspects in local secondary index
-      if (_enableLocalSecondaryIndex && newValue != null) {
-        updateLocalIndex(urn, newValue, largestVersion);
-      }
-
-      return new AddResult<>(oldValue, newValue);
+      return addCommon(urn, latest, oldValue, newValue, aspectClass, auditStamp, equalityTester);
     }, maxTransactionRetry);
 
     final ASPECT oldValue = result.getOldValue();
@@ -338,20 +360,14 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     // 7. Produce MAE after a successful update
     if (_alwaysEmitAuditEvent || oldValue != newValue) {
-      // TODO: add support for sending MAE for soft deleted aspects
-      if (newValue != null) {
-        _producer.produceMetadataAuditEvent(urn, oldValue, newValue);
-      }
+      _producer.produceMetadataAuditEvent(urn, oldValue, newValue);
     }
 
     // TODO: Replace step 7 with step 7.1 after pipeline is fully migrated to aspect specific events.
     // 7.1 Produce aspect specific MAE after a successful update
     if (_emitAspectSpecificAuditEvent) {
       if (_alwaysEmitAspectSpecificAuditEvent || oldValue != newValue) {
-        // TODO: add support for sending MAE for soft deleted aspects
-        if (newValue != null) {
-          _producer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue);
-        }
+        _producer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue);
       }
     }
     // 8. Invoke post-update hooks if there's any
@@ -359,14 +375,38 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       _aspectPostUpdateHooksMap.get(aspectClass).forEach(hook -> hook.accept(urn, newValue));
     }
 
-    return Optional.ofNullable(newValue);
+    return newValue;
+  }
+
+  /**
+   * Deletes the latest version of aspect for an entity.
+   *
+   * <p>The new aspect will have an automatically assigned version number, which is guaranteed to be positive and
+   * monotonically increasing. Older versions of aspect will be purged automatically based on the retention setting.
+   *
+   * @param urn the URN for the entity the aspect is attached to
+   * @param auditStamp the audit stamp for the operation
+   */
+  private <ASPECT extends RecordTemplate> void delete(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
+      @Nonnull AuditStamp auditStamp, int maxTransactionRetry) {
+
+    checkValidAspect(aspectClass);
+
+    runInTransactionWithRetry(() -> {
+      final AspectEntry<ASPECT> latest = getLatest(urn, aspectClass);
+      final ASPECT oldValue = latest == null ? null : latest.getAspect();
+
+      return addCommon(urn, latest, oldValue, null, aspectClass, auditStamp, new DefaultEqualityTester<>());
+    }, maxTransactionRetry);
+
+    // 7. TODO: add support for sending MAE for soft deleted aspects
   }
 
   /**
    * Similar to {@link #add(Urn, Class, Function, AuditStamp, int)} but uses the default maximum transaction retry.
    */
   @Nonnull
-  public <ASPECT extends RecordTemplate> Optional<ASPECT> add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
+  public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp) {
     return add(urn, aspectClass, updateLambda, auditStamp, DEFAULT_MAX_TRANSACTION_RETRY);
   }
@@ -375,18 +415,18 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * Similar to {@link #add(Urn, Class, Function, AuditStamp)} but takes the new value directly.
    */
   @Nonnull
-  public <ASPECT extends RecordTemplate> Optional<ASPECT> add(@Nonnull URN urn, @Nonnull ASPECT newValue,
+  public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull ASPECT newValue,
       @Nonnull AuditStamp auditStamp) {
     return add(urn, (Class<ASPECT>) newValue.getClass(), ignored -> newValue, auditStamp);
   }
 
   /**
-   * Similar to {@link #add(Urn, Class, Function, AuditStamp)} but sets the new value as null.
+   * Similar to {@link #delete(Urn, Class, AuditStamp, int)} e} but uses the default maximum transaction retry.
    */
   @Nonnull
   public <ASPECT extends RecordTemplate> void delete(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull AuditStamp auditStamp) {
-    add(urn, aspectClass, ignored -> null, auditStamp);
+    delete(urn, aspectClass, auditStamp, DEFAULT_MAX_TRANSACTION_RETRY);
   }
 
   private <ASPECT extends RecordTemplate> void applyRetention(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
