@@ -246,6 +246,23 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
+  public void testSoftDeletedAspectWithNoExistingMetadata() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn urn = makeFooUrn(1);
+    String aspectName = ModelUtils.getAspectName(AspectFoo.class);
+
+    // no metadata already exists
+    dao.delete(urn, AspectFoo.class, _dummyAuditStamp);
+
+    // since old and new value are the same i.e. null, no metadata will be saved
+    EbeanMetadataAspect aspect = getMetadata(urn, aspectName, 0);
+    assertNull(aspect);
+
+    // no MAE will be produced
+    verifyNoMoreInteractions(_mockProducer);
+  }
+
+  @Test
   public void testAlwaysFalseEqualityTester() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     dao.setEqualityTester(AspectFoo.class, AlwaysFalseEqualityTester.<AspectFoo>newInstance());
