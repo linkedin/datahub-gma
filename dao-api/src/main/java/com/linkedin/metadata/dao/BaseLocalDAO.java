@@ -382,6 +382,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * <p>The new aspect will have an automatically assigned version number, which is guaranteed to be positive and
    * monotonically increasing. Older versions of aspect will be purged automatically based on the retention setting.
    *
+   * <p>Note that we do not support Post-update hooks while soft deleting an aspect
+   *
    * @param urn the URN for the entity the aspect is attached to
    * @param auditStamp the audit stamp for the operation
    */
