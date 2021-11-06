@@ -287,34 +287,21 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp,
       @Nonnull EqualityTester<ASPECT> equalityTester) {
 
-    if (newValue != null) {
-      checkValidAspect(newValue.getClass());
-    }
-
-    if (newValue != null && _modelValidationOnWrite) {
-      validateAgainstSchema(newValue);
-    }
-
-    // 2. Invoke pre-update hooks, if any, only if the new metadata being added is not null
-    if (newValue != null && _aspectPreUpdateHooksMap.containsKey(aspectClass)) {
-      _aspectPreUpdateHooksMap.get(aspectClass).forEach(hook -> hook.accept(urn, newValue));
-    }
-
-    // 3. Skip saving if there's no actual change
+    // 1. Skip saving if there's no actual change
     if ((oldValue == null && newValue == null) || oldValue != null && newValue != null && equalityTester.equals(
         oldValue, newValue)) {
       return new AddResult<>(oldValue, oldValue);
     }
 
-    // 4. Save the newValue as the latest version
+    // 2. Save the newValue as the latest version
     long largestVersion =
         saveLatest(urn, aspectClass, oldValue, latest == null ? null : latest.getExtraInfo().getAudit(), newValue,
             auditStamp);
 
-    // 5. Apply retention policy
+    // 3. Apply retention policy
     applyRetention(urn, aspectClass, getRetention(aspectClass), largestVersion);
 
-    // 6. Save to local secondary index
+    // 4. Save to local secondary index
     // TODO: add support for soft deleted aspects in local secondary index
     if (_enableLocalSecondaryIndex && newValue != null) {
       updateLocalIndex(urn, newValue, largestVersion);
@@ -352,25 +339,36 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       if (newValue == null) {
         throw new UnsupportedOperationException("Do not support adding null metadata in add method");
       }
+      checkValidAspect(newValue.getClass());
+
+      if (_modelValidationOnWrite) {
+        validateAgainstSchema(newValue);
+      }
+
+      // 2. Invoke pre-update hooks, if any
+      if (_aspectPreUpdateHooksMap.containsKey(aspectClass)) {
+        _aspectPreUpdateHooksMap.get(aspectClass).forEach(hook -> hook.accept(urn, newValue));
+      }
+
       return addCommon(urn, latest, oldValue, newValue, aspectClass, auditStamp, equalityTester);
     }, maxTransactionRetry);
 
     final ASPECT oldValue = result.getOldValue();
     final ASPECT newValue = result.getNewValue();
 
-    // 7. Produce MAE after a successful update
+    // 3. Produce MAE after a successful update
     if (_alwaysEmitAuditEvent || oldValue != newValue) {
       _producer.produceMetadataAuditEvent(urn, oldValue, newValue);
     }
 
-    // TODO: Replace step 7 with step 7.1 after pipeline is fully migrated to aspect specific events.
-    // 7.1 Produce aspect specific MAE after a successful update
+    // TODO: Replace step 3 with step 3.1 after pipeline is fully migrated to aspect specific events.
+    // 3.1 Produce aspect specific MAE after a successful update
     if (_emitAspectSpecificAuditEvent) {
       if (_alwaysEmitAspectSpecificAuditEvent || oldValue != newValue) {
         _producer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue);
       }
     }
-    // 8. Invoke post-update hooks if there's any
+    // 4. Invoke post-update hooks if there's any
     if (_aspectPostUpdateHooksMap.containsKey(aspectClass)) {
       _aspectPostUpdateHooksMap.get(aspectClass).forEach(hook -> hook.accept(urn, newValue));
     }
@@ -399,7 +397,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       return addCommon(urn, latest, oldValue, null, aspectClass, auditStamp, new DefaultEqualityTester<>());
     }, maxTransactionRetry);
 
-    // 7. TODO: add support for sending MAE for soft deleted aspects
+    // TODO: add support for sending MAE for soft deleted aspects
   }
 
   /**
