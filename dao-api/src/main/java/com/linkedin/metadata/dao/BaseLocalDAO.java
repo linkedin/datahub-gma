@@ -274,19 +274,20 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   /**
    * Logic common to both {@link #add(Urn, Class, Function, AuditStamp)} and {@link #delete(Urn, Class, AuditStamp, int)} methods.
    *
-   * <p>The metadata being added is null for the delete method and non-null for the add method.
-   *
-   * @param urn the URN for the entity the aspect is attached to
-   * @param oldValue old metadata of the aspect
-   * @param newValue new metadata of the aspect. This is null for the delete method/operation
-   * @param auditStamp the audit stamp for the operation
-   * @return
+   * @param urn urn the URN for the entity the aspect is attached to
+   * @param latest {@link AspectEntry} that corresponds to the latest metadata stored
+   * @param newValue new metadata that needs to be added/stored
+   * @param aspectClass aspectClass of the aspect being saved
+   * @param auditStamp audit stamp for the operation
+   * @param equalityTester {@link EqualityTester} that is an interface for testing equality between two objects of the same type
+   * @param <ASPECT> must be a supported aspect type in {@code ASPECT_UNION}
+   * @return {@link AddResult} corresponding to the old and new value of metadata
    */
   private <ASPECT extends RecordTemplate> AddResult<ASPECT> addCommon(@Nonnull URN urn,
-      @Nullable AspectEntry<ASPECT> latest, @Nullable ASPECT oldValue, @Nullable ASPECT newValue,
-      @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp,
-      @Nonnull EqualityTester<ASPECT> equalityTester) {
+      @Nullable AspectEntry<ASPECT> latest, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
+      @Nonnull AuditStamp auditStamp, @Nonnull EqualityTester<ASPECT> equalityTester) {
 
+    final ASPECT oldValue = latest == null ? null : latest.getAspect();
     // Skip saving if there's no actual change
     if ((oldValue == null && newValue == null) || oldValue != null && newValue != null && equalityTester.equals(
         oldValue, newValue)) {
@@ -350,7 +351,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
         _aspectPreUpdateHooksMap.get(aspectClass).forEach(hook -> hook.accept(urn, newValue));
       }
 
-      return addCommon(urn, latest, oldValue, newValue, aspectClass, auditStamp, equalityTester);
+      return addCommon(urn, latest, newValue, aspectClass, auditStamp, equalityTester);
     }, maxTransactionRetry);
 
     final ASPECT oldValue = result.getOldValue();
@@ -384,8 +385,11 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    *
    * <p>Note that we do not support Post-update hooks while soft deleting an aspect
    *
-   * @param urn the URN for the entity the aspect is attached to
-   * @param auditStamp the audit stamp for the operation
+   * @param urn urn the URN for the entity the aspect is attached to
+   * @param aspectClass aspectClass of the aspect being saved
+   * @param auditStamp the audit stamp of the previous latest aspect, null if new value is the first version
+   * @param maxTransactionRetry maximum number of transaction retries before throwing an exception
+   * @param <ASPECT> must be a supported aspect type in {@code ASPECT_UNION}
    */
   public <ASPECT extends RecordTemplate> void delete(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull AuditStamp auditStamp, int maxTransactionRetry) {
@@ -394,9 +398,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     runInTransactionWithRetry(() -> {
       final AspectEntry<ASPECT> latest = getLatest(urn, aspectClass);
-      final ASPECT oldValue = latest == null ? null : latest.getAspect();
 
-      return addCommon(urn, latest, oldValue, null, aspectClass, auditStamp, new DefaultEqualityTester<>());
+      return addCommon(urn, latest, null, aspectClass, auditStamp, new DefaultEqualityTester<>());
     }, maxTransactionRetry);
 
     // TODO: add support for sending MAE for soft deleted aspects
@@ -651,7 +654,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param version the version for the aspect
    * @param insert use insert, instead of update, operation to save
    */
-  protected abstract <ASPECT extends RecordTemplate> void save(@Nonnull URN urn, @Nonnull RecordTemplate value,
+  protected abstract <ASPECT extends RecordTemplate> void save(@Nonnull URN urn, @Nullable RecordTemplate value,
       @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, long version, boolean insert);
 
   /**
