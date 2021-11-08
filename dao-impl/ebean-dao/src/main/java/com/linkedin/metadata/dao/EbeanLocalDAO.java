@@ -288,23 +288,23 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   @Override
   protected <ASPECT extends RecordTemplate> long saveLatest(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
-      @Nullable ASPECT oldValue, @Nullable AuditStamp oldAuditStamp, @Nonnull ASPECT newValue,
+      @Nullable ASPECT oldValue, @Nullable AuditStamp oldAuditStamp, @Nullable ASPECT newValue,
       @Nonnull AuditStamp newAuditStamp) {
     // Save oldValue as the largest version + 1
     long largestVersion = 0;
     if (oldValue != null && oldAuditStamp != null) {
       largestVersion = getNextVersion(urn, aspectClass);
-      save(urn, oldValue, oldAuditStamp, largestVersion, true);
+      save(urn, oldValue, aspectClass, oldAuditStamp, largestVersion, true);
 
       // update latest version
       if (_useOptimisticLocking) {
-        saveWithOptimisticLocking(urn, newValue, newAuditStamp, LATEST_VERSION, false,
+        saveWithOptimisticLocking(urn, newValue, aspectClass, newAuditStamp, LATEST_VERSION, false,
             new Timestamp(oldAuditStamp.getTime()));
       } else {
-        save(urn, newValue, newAuditStamp, LATEST_VERSION, false);
+        save(urn, newValue, aspectClass, newAuditStamp, LATEST_VERSION, false);
       }
     } else {
-      save(urn, newValue, newAuditStamp, LATEST_VERSION, true);
+      save(urn, newValue, aspectClass, newAuditStamp, LATEST_VERSION, true);
     }
 
     return largestVersion;
@@ -335,18 +335,26 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       return null;
     }
 
-    return new AspectEntry<>(RecordUtils.toRecordTemplate(aspectClass, latest.getMetadata()), toExtraInfo(latest));
+    final Optional<ExtraInfo> optionalExtraInfo = toExtraInfo(latest);
+    return optionalExtraInfo.map(
+        extraInfo -> new AspectEntry<>(RecordUtils.toRecordTemplate(aspectClass, latest.getMetadata()), extraInfo))
+        .orElse(null);
   }
 
   @Nonnull
-  private EbeanMetadataAspect buildMetadataAspectBean(@Nonnull URN urn, @Nonnull RecordTemplate value,
-      @Nonnull AuditStamp auditStamp, long version) {
+  private <ASPECT extends RecordTemplate> EbeanMetadataAspect buildMetadataAspectBean(@Nonnull URN urn,
+      @Nullable RecordTemplate value, @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp,
+      long version) {
 
-    final String aspectName = ModelUtils.getAspectName(value.getClass());
+    final String aspectName = ModelUtils.getAspectName(aspectClass);
 
     final EbeanMetadataAspect aspect = new EbeanMetadataAspect();
     aspect.setKey(new PrimaryKey(urn.toString(), aspectName, version));
-    aspect.setMetadata(RecordUtils.toJsonString(value));
+    if (value != null) {
+      aspect.setMetadata(RecordUtils.toJsonString(value));
+    } else {
+      aspect.setMetadata(null);
+    }
     aspect.setCreatedOn(new Timestamp(auditStamp.getTime()));
     aspect.setCreatedBy(auditStamp.getActor().toString());
 
@@ -359,10 +367,11 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   // visible for testing
-  protected void saveWithOptimisticLocking(@Nonnull URN urn, @Nonnull RecordTemplate value,
-      @Nonnull AuditStamp newAuditStamp, long version, boolean insert, @Nonnull Object oldTimestamp) {
+  protected <ASPECT extends RecordTemplate> void saveWithOptimisticLocking(@Nonnull URN urn,
+      @Nullable RecordTemplate value, @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp newAuditStamp,
+      long version, boolean insert, @Nonnull Object oldTimestamp) {
 
-    final EbeanMetadataAspect aspect = buildMetadataAspectBean(urn, value, newAuditStamp, version);
+    final EbeanMetadataAspect aspect = buildMetadataAspectBean(urn, value, aspectClass, newAuditStamp, version);
 
     if (insert) {
       _server.insert(aspect);
@@ -399,10 +408,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Override
-  protected void save(@Nonnull URN urn, @Nonnull RecordTemplate value, @Nonnull AuditStamp auditStamp, long version,
-      boolean insert) {
+  protected <ASPECT extends RecordTemplate> void save(@Nonnull URN urn, @Nullable RecordTemplate value,
+      @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, long version, boolean insert) {
 
-    final EbeanMetadataAspect aspect = buildMetadataAspectBean(urn, value, auditStamp, version);
+    final EbeanMetadataAspect aspect = buildMetadataAspectBean(urn, value, aspectClass, auditStamp, version);
 
     if (insert) {
       _server.insert(aspect);
@@ -534,11 +543,12 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
 
     // TODO: Improve this O(n^2) search
+
     return keys.stream()
         .collect(Collectors.toMap(Function.identity(), key -> records.stream()
             .filter(record -> matchKeys(key, record.getKey()))
             .findFirst()
-            .map(record -> toRecordTemplate(key.getAspectClass(), record))));
+            .flatMap(record -> toRecordTemplate(key.getAspectClass(), record))));
   }
 
   @Override
@@ -556,7 +566,13 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     keys.forEach(key -> records.stream()
         .filter(record -> matchKeys(key, record.getKey()))
         .findFirst()
-        .map(record -> result.put(key, toRecordTemplateWithExtraInfo(key.getAspectClass(), record))));
+        .map(record -> {
+          final Class<RecordTemplate> aspectClass = (Class<RecordTemplate>) key.getAspectClass();
+          final Optional<AspectWithExtraInfo<RecordTemplate>> aspectWithExtraInfo = toRecordTemplateWithExtraInfo(aspectClass, record);
+          aspectWithExtraInfo.ifPresent(
+              recordTemplateAspectWithExtraInfo -> result.put(key, recordTemplateAspectWithExtraInfo));
+          return null;
+        }));
     return result;
   }
 
@@ -739,6 +755,24 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     return toListResult(urns, null, pagedList, start);
   }
 
+  @Nonnull
+  <ASPECT extends RecordTemplate> ListResult<ASPECT> getListResult(@Nonnull Class<ASPECT> aspectClass,
+      @Nonnull PagedList<EbeanMetadataAspect> pagedList, int start) {
+    final List<ASPECT> aspects = new ArrayList<>();
+    pagedList.getList().forEach(a -> {
+      final Optional<ASPECT> record = toRecordTemplate(aspectClass, a);
+      record.ifPresent(aspects::add);
+    });
+
+    final List<ExtraInfo> extraInfos = new ArrayList<>();
+    pagedList.getList().forEach(record -> {
+      final Optional<ExtraInfo> extraInfo = EbeanLocalDAO.toExtraInfo(record);
+      extraInfo.ifPresent(extraInfos::add);
+    });
+    final ListResultMetadata listResultMetadata = makeListResultMetadata(extraInfos);
+    return toListResult(aspects, listResultMetadata, pagedList, start);
+  }
+
   @Override
   @Nonnull
   public <ASPECT extends RecordTemplate> ListResult<ASPECT> list(@Nonnull Class<ASPECT> aspectClass, @Nonnull URN urn,
@@ -757,11 +791,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         .asc(VERSION_COLUMN)
         .findPagedList();
 
-    final List<ASPECT> aspects =
-        pagedList.getList().stream().map(a -> toRecordTemplate(aspectClass, a)).collect(Collectors.toList());
-    final ListResultMetadata listResultMetadata = makeListResultMetadata(
-        pagedList.getList().stream().map(EbeanLocalDAO::toExtraInfo).collect(Collectors.toList()));
-    return toListResult(aspects, listResultMetadata, pagedList, start);
+    return getListResult(aspectClass, pagedList, start);
   }
 
   @Override
@@ -782,11 +812,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         .asc(URN_COLUMN)
         .findPagedList();
 
-    final List<ASPECT> aspects =
-        pagedList.getList().stream().map(a -> toRecordTemplate(aspectClass, a)).collect(Collectors.toList());
-    final ListResultMetadata listResultMetadata = makeListResultMetadata(
-        pagedList.getList().stream().map(EbeanLocalDAO::toExtraInfo).collect(Collectors.toList()));
-    return toListResult(aspects, listResultMetadata, pagedList, start);
+    return getListResult(aspectClass, pagedList, start);
   }
 
   @Override
@@ -807,16 +833,24 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Nonnull
-  private static <ASPECT extends RecordTemplate> ASPECT toRecordTemplate(@Nonnull Class<ASPECT> aspectClass,
+  private static <ASPECT extends RecordTemplate> Optional<ASPECT> toRecordTemplate(@Nonnull Class<ASPECT> aspectClass,
       @Nonnull EbeanMetadataAspect aspect) {
-    return RecordUtils.toRecordTemplate(aspectClass, aspect.getMetadata());
+    if (aspect.getMetadata() == null) {
+      return Optional.empty();
+    }
+    return Optional.of(RecordUtils.toRecordTemplate(aspectClass, aspect.getMetadata()));
   }
 
   @Nonnull
-  private static <ASPECT extends RecordTemplate> AspectWithExtraInfo<ASPECT> toRecordTemplateWithExtraInfo(
+  private static <ASPECT extends RecordTemplate> Optional<AspectWithExtraInfo<ASPECT>> toRecordTemplateWithExtraInfo(
       @Nonnull Class<ASPECT> aspectClass, @Nonnull EbeanMetadataAspect aspect) {
-    return new AspectWithExtraInfo<>(RecordUtils.toRecordTemplate(aspectClass, aspect.getMetadata()),
-        toExtraInfo(aspect));
+    if (aspect.getMetadata() == null) {
+      return Optional.empty();
+    }
+    final Optional<ExtraInfo> optionalExtraInfo = toExtraInfo(aspect);
+    return optionalExtraInfo.map(
+        extraInfo -> new AspectWithExtraInfo<>(RecordUtils.toRecordTemplate(aspectClass, aspect.getMetadata()),
+            extraInfo));
   }
 
   @Nonnull
@@ -837,7 +871,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Nonnull
-  private static ExtraInfo toExtraInfo(@Nonnull EbeanMetadataAspect aspect) {
+  private static Optional<ExtraInfo> toExtraInfo(@Nonnull EbeanMetadataAspect aspect) {
+    if (aspect.getMetadata() == null) {
+      return Optional.empty();
+    }
     final ExtraInfo extraInfo = new ExtraInfo();
     extraInfo.setVersion(aspect.getKey().getVersion());
     extraInfo.setAudit(makeAuditStamp(aspect));
@@ -847,7 +884,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       throw new ModelConversionException(e.getMessage());
     }
 
-    return extraInfo;
+    return Optional.of(extraInfo);
   }
 
   @Nonnull
@@ -986,8 +1023,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Nonnull
-  static <ASPECT extends RecordTemplate> String getFieldColumn(@Nonnull String path,
-      @Nonnull String aspectName) {
+  static <ASPECT extends RecordTemplate> String getFieldColumn(@Nonnull String path, @Nonnull String aspectName) {
     final String[] pathSpecArray = RecordUtils.getPathSpecAsArray(path);
 
     // get nested field
@@ -1242,7 +1278,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    *
    * @param indexCriterionArray {@link IndexCriterionArray} whose values will be used to set parameters in metadata
    *                                                       index query based on its position
-   * @param indexSortCriterion {@link IndexGroupByCriterion} whose values will be used to set parameters in query
+   * @param indexGroupByCriterion {@link IndexGroupByCriterion} whose values will be used to set parameters in query
    * @param indexQuery {@link Query} whose ordered parameters need to be set, based on it's position
    */
   @Nonnull

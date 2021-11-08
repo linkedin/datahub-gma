@@ -73,7 +73,8 @@ public class BaseLocalDAOTest {
     }
 
     @Override
-    protected void save(FooUrn urn, RecordTemplate value, AuditStamp auditStamp, long version, boolean insert) {
+    protected <ASPECT extends RecordTemplate> void save(FooUrn urn, RecordTemplate value, Class<ASPECT> aspectClass,
+        AuditStamp auditStamp, long version, boolean insert) {
 
     }
 
@@ -230,6 +231,22 @@ public class BaseLocalDAOTest {
     _dummyLocalDAO.add(urn, foo3, _dummyAuditStamp);
 
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo1);
+    verifyNoMoreInteractions(_mockEventProducer);
+  }
+
+  @Test
+  public void testMAEWithNullValue() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    _dummyLocalDAO.setAlwaysEmitAuditEvent(true);
+    expectGetLatest(urn, AspectFoo.class, Arrays.asList(null, makeAspectEntry(foo, _dummyAuditStamp)));
+
+    _dummyLocalDAO.add(urn, foo, _dummyAuditStamp);
+    _dummyLocalDAO.delete(urn, AspectFoo.class, _dummyAuditStamp);
+
+    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
+    // TODO: ensure MAE is produced with newValue set as null for soft deleted aspect
+    // verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, foo, null);
     verifyNoMoreInteractions(_mockEventProducer);
   }
 

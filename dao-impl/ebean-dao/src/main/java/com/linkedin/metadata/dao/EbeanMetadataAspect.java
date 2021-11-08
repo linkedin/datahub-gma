@@ -70,9 +70,8 @@ public class EbeanMetadataAspect extends Model {
   @Index
   protected PrimaryKey key;
 
-  @NonNull
   @Lob
-  @Column(name = METADATA_COLUMN, nullable = false)
+  @Column(name = METADATA_COLUMN, nullable = true)
   protected String metadata;
 
   @NonNull
