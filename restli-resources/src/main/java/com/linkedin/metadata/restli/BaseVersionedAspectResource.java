@@ -17,6 +17,7 @@ import com.linkedin.restli.server.CreateKVResponse;
 import com.linkedin.restli.server.CreateResponse;
 import com.linkedin.restli.server.PagingContext;
 import com.linkedin.restli.server.PathKeys;
+import com.linkedin.restli.server.UpdateResponse;
 import com.linkedin.restli.server.annotations.PagingContextParam;
 import com.linkedin.restli.server.annotations.RestMethod;
 import com.linkedin.restli.server.annotations.ReturnEntity;
@@ -108,6 +109,22 @@ public abstract class BaseVersionedAspectResource<URN extends Urn, ASPECT_UNION 
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
       getLocalDAO().add(urn, aspect, auditStamp);
       return new CreateResponse(HttpStatus.S_201_CREATED);
+    });
+  }
+
+  /**
+   * Soft deletes the latest version of aspect if it exists.
+   *
+   * @return {@link UpdateResponse} indicating the status code of the response.
+   */
+  @RestMethod.Delete
+  @Nonnull
+  public Task<UpdateResponse> delete() {
+    return RestliUtils.toTask(() -> {
+      final URN urn = getUrn(getContext().getPathKeys());
+      final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
+      getLocalDAO().delete(urn, this._aspectClass, auditStamp);
+      return new UpdateResponse(HttpStatus.S_200_OK);
     });
   }
 
