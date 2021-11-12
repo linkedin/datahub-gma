@@ -2,7 +2,7 @@ create table metadata_aspect (
   urn                           varchar(500) not null,
   aspect                        varchar(200) not null,
   version                       bigint not null,
-  metadata                      clob,
+  metadata                      clob not null,
   createdon                     timestamp not null,
   createdby                     varchar(255) not null,
   createdfor                    varchar(255),

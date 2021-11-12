@@ -71,6 +71,8 @@ import static com.linkedin.metadata.dao.EbeanMetadataAspect.*;
 public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     extends BaseLocalDAO<ASPECT_UNION, URN> {
 
+  public static final String NULL_VALUE = "NULL";
+
   private static final int INDEX_QUERY_TIMEOUT_IN_SEC = 5;
   private static final String EBEAN_MODEL_PACKAGE = EbeanMetadataAspect.class.getPackage().getName();
   private static final String EBEAN_INDEX_PACKAGE = EbeanMetadataIndex.class.getPackage().getName();
@@ -353,7 +355,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     if (value != null) {
       aspect.setMetadata(RecordUtils.toJsonString(value));
     } else {
-      aspect.setMetadata(null);
+      aspect.setMetadata(NULL_VALUE);
     }
     aspect.setCreatedOn(new Timestamp(auditStamp.getTime()));
     aspect.setCreatedBy(auditStamp.getActor().toString());
@@ -835,7 +837,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Nonnull
   private static <ASPECT extends RecordTemplate> Optional<ASPECT> toRecordTemplate(@Nonnull Class<ASPECT> aspectClass,
       @Nonnull EbeanMetadataAspect aspect) {
-    if (aspect.getMetadata() == null) {
+    if (aspect.getMetadata().equals(NULL_VALUE)) {
       return Optional.empty();
     }
     return Optional.of(RecordUtils.toRecordTemplate(aspectClass, aspect.getMetadata()));
@@ -872,7 +874,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   @Nonnull
   private static Optional<ExtraInfo> toExtraInfo(@Nonnull EbeanMetadataAspect aspect) {
-    if (aspect.getMetadata() == null) {
+    if (aspect.getMetadata().equals(NULL_VALUE)) {
       return Optional.empty();
     }
     final ExtraInfo extraInfo = new ExtraInfo();
