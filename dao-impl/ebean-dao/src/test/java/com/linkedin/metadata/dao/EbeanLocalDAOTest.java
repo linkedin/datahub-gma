@@ -228,7 +228,7 @@ public class EbeanLocalDAOTest {
 
     // latest version of metadata should be null
     EbeanMetadataAspect aspect = getMetadata(urn, aspectName, 0);
-    assertNull(aspect.getMetadata());
+    assertEquals(aspect.getMetadata(), EbeanLocalDAO.DELETED_VALUE);
 
     aspect = getMetadata(urn, aspectName, 1);
     AspectFoo actual = RecordUtils.toRecordTemplate(AspectFoo.class, aspect.getMetadata());
@@ -2465,6 +2465,8 @@ public class EbeanLocalDAOTest {
     aspect.setKey(new EbeanMetadataAspect.PrimaryKey(urn.toString(), aspectName, version));
     if (metadata != null) {
       aspect.setMetadata(RecordUtils.toJsonString(metadata));
+    } else {
+      aspect.setMetadata(EbeanLocalDAO.DELETED_VALUE);
     }
     aspect.setCreatedOn(new Timestamp(1234));
     aspect.setCreatedBy("urn:li:test:foo");
