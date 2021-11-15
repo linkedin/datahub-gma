@@ -292,10 +292,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Override
   protected <ASPECT extends RecordTemplate> long saveLatest(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
       @Nullable ASPECT oldValue, @Nullable AuditStamp oldAuditStamp, @Nullable ASPECT newValue,
-      @Nonnull AuditStamp newAuditStamp) {
+      @Nonnull AuditStamp newAuditStamp, boolean isDeleted) {
     // Save oldValue as the largest version + 1
     long largestVersion = 0;
-    if (oldValue != null && oldAuditStamp != null) {
+    if ((isDeleted || oldValue != null) && oldAuditStamp != null) {
       largestVersion = getNextVersion(urn, aspectClass);
       save(urn, oldValue, aspectClass, oldAuditStamp, largestVersion, true);
 
@@ -329,19 +329,21 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Override
-  @Nullable
-  protected <ASPECT extends RecordTemplate> AspectEntry<ASPECT> getLatest(@Nonnull URN urn,
+  @Nonnull
+  protected <ASPECT extends RecordTemplate> AspectMetadata<ASPECT> getLatest(@Nonnull URN urn,
       @Nonnull Class<ASPECT> aspectClass) {
     final PrimaryKey key = new PrimaryKey(urn.toString(), ModelUtils.getAspectName(aspectClass), 0L);
     final EbeanMetadataAspect latest = _server.find(EbeanMetadataAspect.class, key);
     if (latest == null) {
-      return null;
+      return new AspectMetadata<>(null, null, false);
+    }
+    final ExtraInfo extraInfo = toExtraInfo(latest);
+
+    if (latest.getMetadata().equals(DELETED_VALUE)) {
+      return new AspectMetadata<>(null, extraInfo, true);
     }
 
-    final Optional<ExtraInfo> optionalExtraInfo = toExtraInfo(latest);
-    return optionalExtraInfo.map(
-        extraInfo -> new AspectEntry<>(RecordUtils.toRecordTemplate(aspectClass, latest.getMetadata()), extraInfo))
-        .orElse(null);
+    return new AspectMetadata<>(RecordUtils.toRecordTemplate(aspectClass, latest.getMetadata()), extraInfo, false);
   }
 
   @Nonnull
@@ -350,7 +352,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       long version) {
 
     final String aspectName = ModelUtils.getAspectName(aspectClass);
-
     final EbeanMetadataAspect aspect = new EbeanMetadataAspect();
     aspect.setKey(new PrimaryKey(urn.toString(), aspectName, version));
     if (value != null) {
@@ -415,7 +416,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, long version, boolean insert) {
 
     final EbeanMetadataAspect aspect = buildMetadataAspectBean(urn, value, aspectClass, auditStamp, version);
-
     if (insert) {
       _server.insert(aspect);
     } else {
@@ -769,8 +769,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
     final List<ExtraInfo> extraInfos = new ArrayList<>();
     pagedList.getList().forEach(record -> {
-      final Optional<ExtraInfo> extraInfo = EbeanLocalDAO.toExtraInfo(record);
-      extraInfo.ifPresent(extraInfos::add);
+      if (!record.getMetadata().equals(DELETED_VALUE)) {
+        final ExtraInfo extraInfo = EbeanLocalDAO.toExtraInfo(record);
+        extraInfos.add(extraInfo);
+      }
     });
     final ListResultMetadata listResultMetadata = makeListResultMetadata(extraInfos);
     return toListResult(aspects, listResultMetadata, pagedList, start);
@@ -847,13 +849,12 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Nonnull
   private static <ASPECT extends RecordTemplate> Optional<AspectWithExtraInfo<ASPECT>> toRecordTemplateWithExtraInfo(
       @Nonnull Class<ASPECT> aspectClass, @Nonnull EbeanMetadataAspect aspect) {
-    if (aspect.getMetadata() == null) {
+    if (aspect.getMetadata() == null || aspect.getMetadata().equals(DELETED_VALUE)) {
       return Optional.empty();
     }
-    final Optional<ExtraInfo> optionalExtraInfo = toExtraInfo(aspect);
-    return optionalExtraInfo.map(
-        extraInfo -> new AspectWithExtraInfo<>(RecordUtils.toRecordTemplate(aspectClass, aspect.getMetadata()),
-            extraInfo));
+    final ExtraInfo extraInfo = toExtraInfo(aspect);
+    return Optional.of(new AspectWithExtraInfo<>(RecordUtils.toRecordTemplate(aspectClass, aspect.getMetadata()),
+        extraInfo));
   }
 
   @Nonnull
@@ -874,10 +875,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Nonnull
-  private static Optional<ExtraInfo> toExtraInfo(@Nonnull EbeanMetadataAspect aspect) {
-    if (aspect.getMetadata().equals(DELETED_VALUE)) {
-      return Optional.empty();
-    }
+  private static ExtraInfo toExtraInfo(@Nonnull EbeanMetadataAspect aspect) {
     final ExtraInfo extraInfo = new ExtraInfo();
     extraInfo.setVersion(aspect.getKey().getVersion());
     extraInfo.setAudit(makeAuditStamp(aspect));
@@ -887,7 +885,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       throw new ModelConversionException(e.getMessage());
     }
 
-    return Optional.of(extraInfo);
+    return extraInfo;
   }
 
   @Nonnull

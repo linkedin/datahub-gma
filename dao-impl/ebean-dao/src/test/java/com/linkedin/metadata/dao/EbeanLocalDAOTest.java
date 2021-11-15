@@ -263,6 +263,49 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
+  public void testUndeleteSoftDeletedAspect() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn urn = makeFooUrn(1);
+    String aspectName = ModelUtils.getAspectName(AspectFoo.class);
+    AspectFoo v1 = new AspectFoo().setValue("foo");
+    AspectFoo v0 = new AspectFoo().setValue("bar");
+
+    dao.add(urn, v1, _dummyAuditStamp);
+    dao.add(urn, v0, _dummyAuditStamp);
+    dao.delete(urn, AspectFoo.class, _dummyAuditStamp);
+
+    // next undelete the soft deleted aspect
+    AspectFoo foo = new AspectFoo().setValue("baz");
+    dao.add(urn, foo, _dummyAuditStamp);
+
+    // latest version of metadata should be non-null
+    EbeanMetadataAspect aspect = getMetadata(urn, aspectName, 0);
+    AspectFoo metadata1 = RecordUtils.toRecordTemplate(AspectFoo.class, aspect.getMetadata());
+    assertEquals(metadata1, foo);
+
+    // version=3 should correspond to soft deleted metadata
+    aspect = getMetadata(urn, aspectName, 3);
+    assertEquals(aspect.getMetadata(), EbeanLocalDAO.DELETED_VALUE);
+
+    // version=2 should be non-null
+    aspect = getMetadata(urn, aspectName, 2);
+    AspectFoo metadata2 = RecordUtils.toRecordTemplate(AspectFoo.class, aspect.getMetadata());
+    assertEquals(metadata2, v0);
+
+    // version=1 should be non-null again
+    aspect = getMetadata(urn, aspectName, 1);
+    AspectFoo metadata3 = RecordUtils.toRecordTemplate(AspectFoo.class, aspect.getMetadata());
+    assertEquals(metadata3, v1);
+
+    InOrder inOrder = inOrder(_mockProducer);
+    inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, v1);
+    inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, v1, v0);
+    inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
+    // TODO: verify that MAE was produced with newValue set as null for soft deleted aspect
+    verifyNoMoreInteractions(_mockProducer);
+  }
+
+  @Test
   public void testAlwaysFalseEqualityTester() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     dao.setEqualityTester(AspectFoo.class, AlwaysFalseEqualityTester.<AspectFoo>newInstance());
