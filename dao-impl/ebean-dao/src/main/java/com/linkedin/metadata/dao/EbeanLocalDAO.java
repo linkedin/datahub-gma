@@ -352,6 +352,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       long version) {
 
     final String aspectName = ModelUtils.getAspectName(aspectClass);
+
     final EbeanMetadataAspect aspect = new EbeanMetadataAspect();
     aspect.setKey(new PrimaryKey(urn.toString(), aspectName, version));
     if (value != null) {
@@ -416,6 +417,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, long version, boolean insert) {
 
     final EbeanMetadataAspect aspect = buildMetadataAspectBean(urn, value, aspectClass, auditStamp, version);
+
     if (insert) {
       _server.insert(aspect);
     } else {
@@ -762,18 +764,15 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   <ASPECT extends RecordTemplate> ListResult<ASPECT> getListResult(@Nonnull Class<ASPECT> aspectClass,
       @Nonnull PagedList<EbeanMetadataAspect> pagedList, int start) {
     final List<ASPECT> aspects = new ArrayList<>();
+    final List<ExtraInfo> extraInfos = new ArrayList<>();
     pagedList.getList().forEach(a -> {
       final Optional<ASPECT> record = toRecordTemplate(aspectClass, a);
-      record.ifPresent(aspects::add);
+      record.ifPresent(r -> {
+        aspects.add(r);
+        extraInfos.add(EbeanLocalDAO.toExtraInfo(a));
+      });
     });
 
-    final List<ExtraInfo> extraInfos = new ArrayList<>();
-    pagedList.getList().forEach(record -> {
-      if (!record.getMetadata().equals(DELETED_VALUE)) {
-        final ExtraInfo extraInfo = EbeanLocalDAO.toExtraInfo(record);
-        extraInfos.add(extraInfo);
-      }
-    });
     final ListResultMetadata listResultMetadata = makeListResultMetadata(extraInfos);
     return toListResult(aspects, listResultMetadata, pagedList, start);
   }
