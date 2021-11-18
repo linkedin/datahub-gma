@@ -2084,7 +2084,7 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
-  public void testListSoftDeletedAspect() {
+  public void testListSoftDeletedAspectGivenUrn() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     List<AspectFoo> foos = new LinkedList<>();
     for (int i = 0; i < 3; i++) {
@@ -2130,6 +2130,34 @@ public class EbeanLocalDAOTest {
     assertEquals(results.getValues().subList(0, 4), foos.subList(6, 10));
     assertEquals(results.getValues().get(4), foos.get(0));
     assertNotNull(results.getMetadata());
+  }
+
+  @Test
+  public void testListSpecificVersionSoftDeletedAspect() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    for (int i = 0; i < 3; i++) {
+      FooUrn urn = makeFooUrn(i);
+
+      for (int j = 0; j < 9; j++) {
+        AspectFoo foo = new AspectFoo().setValue("foo" + j);
+        dao.add(urn, foo, _dummyAuditStamp);
+      }
+      // soft delete metadata
+      dao.delete(urn, AspectFoo.class, _dummyAuditStamp);
+      // add again
+      AspectFoo latest = new AspectFoo().setValue("latest");
+      dao.add(urn, latest, _dummyAuditStamp);
+    }
+
+    // version=10 corresponds to soft deleted aspect
+    ListResult<AspectFoo> results = dao.list(AspectFoo.class, 10, 0, 2);
+
+    assertFalse(results.isHavingMore());
+    assertEquals(results.getNextStart(), -1);
+    assertEquals(results.getTotalCount(), 0);
+    assertEquals(results.getPageSize(), 2);
+    assertEquals(results.getTotalPageCount(), 0);
+    assertEquals(results.getValues().size(), 0);
   }
 
   @Test
