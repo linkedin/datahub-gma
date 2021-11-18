@@ -804,7 +804,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * Paginates over all available versions of an aspect for an entity.
+   * Paginates over all available versions of an aspect for an entity. This includes version of soft deleted aspect(s).
    *
    * @param aspectClass the type of the aspect to query
    * @param urn {@link Urn} for the entity
@@ -818,7 +818,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nonnull URN urn, int start, int pageSize);
 
   /**
-   * Paginates over all URNs for entities that have a specific aspect.
+   * Paginates over all URNs for entities that have a specific aspect. This does not include the urn(s) for which the
+   * aspect is soft deleted in the latest version.
    *
    * @param aspectClass the type of the aspect to query
    * @param start the starting offset of the page
@@ -831,7 +832,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       int start, int pageSize);
 
   /**
-   * Paginates over all versions of an aspect for a specific Urn.
+   * Paginates over all versions of an aspect for a specific Urn. It does not return metadata corresponding to versions
+   * indicating soft deleted aspect(s).
    *
    * @param aspectClass the type of the aspect to query
    * @param urn {@link Urn} for the entity
@@ -845,7 +847,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nonnull URN urn, int start, int pageSize);
 
   /**
-   * Paginates over a specific version of a specific aspect for all Urns.
+   * Paginates over a specific version of a specific aspect for all Urns. The result does not include soft deleted
+   * aspect if the specific version of a specific aspect was soft deleted.
    *
    * @param aspectClass the type of the aspect to query
    * @param version the version of the aspect
@@ -859,7 +862,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       long version, int start, int pageSize);
 
   /**
-   * Paginates over the latest version of a specific aspect for all Urns.
+   * Paginates over the latest version of a specific aspect for all Urns. The result does not include soft deleted
+   * aspect if the latest version of a specific aspect was soft deleted.
    *
    * @param aspectClass the type of the aspect to query
    * @param start the starting offset of the page

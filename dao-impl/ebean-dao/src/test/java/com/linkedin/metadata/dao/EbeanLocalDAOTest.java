@@ -215,215 +215,6 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
-  public void testGetSoftDeletedAspect() {
-    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
-    FooUrn urn = makeFooUrn(1);
-    String aspectName = ModelUtils.getAspectName(AspectFoo.class);
-    AspectFoo v1 = new AspectFoo().setValue("foo");
-    AspectFoo v0 = new AspectFoo().setValue("bar");
-
-    dao.add(urn, v1, _dummyAuditStamp);
-    dao.add(urn, v0, _dummyAuditStamp);
-    dao.delete(urn, AspectFoo.class, _dummyAuditStamp);
-
-    // latest version of metadata should be null
-    EbeanMetadataAspect aspect = getMetadata(urn, aspectName, 0);
-    assertEquals(aspect.getMetadata(), EbeanLocalDAO.DELETED_VALUE);
-    Optional<AspectFoo> fooOptional = dao.get(AspectFoo.class, urn);
-    assertFalse(fooOptional.isPresent());
-
-    // version=1 should be non-null
-    fooOptional = dao.get(AspectFoo.class, urn, 1);
-    assertTrue(fooOptional.isPresent());
-    assertEquals(fooOptional.get(), v1);
-
-    // version=2 should be non-null
-    fooOptional = dao.get(AspectFoo.class, urn, 2);
-    assertTrue(fooOptional.isPresent());
-    assertEquals(fooOptional.get(), v0);
-
-    InOrder inOrder = inOrder(_mockProducer);
-    inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, v1);
-    inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, v1, v0);
-    // TODO: verify that MAE was produced with newValue set as null for soft deleted aspect
-    verifyNoMoreInteractions(_mockProducer);
-  }
-
-  @Test
-  public void testSoftDeletedAspectWithNoExistingMetadata() {
-    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
-    FooUrn urn = makeFooUrn(1);
-    String aspectName = ModelUtils.getAspectName(AspectFoo.class);
-
-    // no metadata already exists
-    dao.delete(urn, AspectFoo.class, _dummyAuditStamp);
-
-    // since there is nothing to delete, no metadata will be saved
-    EbeanMetadataAspect aspect = getMetadata(urn, aspectName, 0);
-    assertNull(aspect);
-    Optional<AspectFoo> fooOptional = dao.get(AspectFoo.class, urn);
-    assertFalse(fooOptional.isPresent());
-
-    // no MAE will be produced
-    verifyNoMoreInteractions(_mockProducer);
-  }
-
-  @Test
-  public void testListVersionsForSoftDeletedAspect() {
-    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
-    FooUrn urn = makeFooUrn(1);
-    for (long i = 0; i < 6; i++) {
-      AspectFoo foo = new AspectFoo().setValue("foo" + i);
-      addMetadata(urn, AspectFoo.class.getCanonicalName(), i, foo);
-    }
-    // soft delete the latest version i.e. version=7 corresponds to soft deleted aspect
-    dao.delete(urn, AspectFoo.class, _dummyAuditStamp);
-
-    ListResult<Long> results = dao.listVersions(AspectFoo.class, urn, 0, 5);
-
-    assertTrue(results.isHavingMore());
-    assertEquals(results.getNextStart(), 5);
-    assertEquals(results.getTotalCount(), 7);
-    assertEquals(results.getPageSize(), 5);
-    assertEquals(results.getTotalPageCount(), 2);
-    assertEquals(results.getValues(), Arrays.asList(0L, 1L, 2L, 3L, 4L));
-
-    // List last page
-    results = dao.listVersions(AspectFoo.class, urn, 5, 10);
-
-    assertFalse(results.isHavingMore());
-    assertEquals(results.getNextStart(), ListResult.INVALID_NEXT_START);
-    assertEquals(results.getTotalCount(), 7);
-    assertEquals(results.getPageSize(), 10);
-    assertEquals(results.getTotalPageCount(), 1);
-    assertEquals(results.getValues(), Arrays.asList(5L, 6L));
-
-    // List beyond last page
-    results = dao.listVersions(AspectFoo.class, urn, 7, 1);
-
-    assertFalse(results.isHavingMore());
-    assertEquals(results.getNextStart(), ListResult.INVALID_NEXT_START);
-    assertEquals(results.getTotalCount(), 7);
-    assertEquals(results.getPageSize(), 1);
-    assertEquals(results.getTotalPageCount(), 7);
-    assertEquals(results.getValues(), new ArrayList<>());
-  }
-
-  @Test
-  public void testListUrnsForSoftDeletedAspect() {
-    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
-    List<FooUrn> urns = new ArrayList<>();
-    for (int i = 0; i < 3; i++) {
-      FooUrn urn = makeFooUrn(i);
-      for (int j = 0; j < 3; j++) {
-        AspectFoo foo = new AspectFoo().setValue("foo" + j);
-        dao.add(urn, foo, _dummyAuditStamp);
-      }
-      dao.delete(urn, AspectFoo.class, _dummyAuditStamp);
-      urns.add(urn);
-    }
-
-    ListResult<FooUrn> results = dao.listUrns(AspectFoo.class, 0, 1);
-
-    assertTrue(results.isHavingMore());
-    assertEquals(results.getNextStart(), 1);
-    assertEquals(results.getTotalCount(), 3);
-    assertEquals(results.getPageSize(), 1);
-    assertEquals(results.getTotalPageCount(), 3);
-    assertEquals(results.getValues(), urns.subList(0, 1));
-
-    // List next page
-    results = dao.listUrns(AspectFoo.class, 1, 1);
-
-    assertTrue(results.isHavingMore());
-    assertEquals(results.getNextStart(), 2);
-    assertEquals(results.getTotalCount(), 3);
-    assertEquals(results.getPageSize(), 1);
-    assertEquals(results.getTotalPageCount(), 3);
-    assertEquals(results.getValues(), urns.subList(1, 2));
-
-    // Test List result sorted by Urns
-    results = dao.listUrns(AspectFoo.class, 0, 5);
-    assertEquals(results.getValues().size(), 3);
-    assertEquals(results.getValues(), urns.subList(0, 3));
-    assertEquals(results.getValues().get(0), makeFooUrn(0));
-    assertEquals(results.getValues().get(1), makeFooUrn(1));
-    assertEquals(results.getValues().get(2), makeFooUrn(2));
-  }
-
-  @Test
-  public void testGetWithKeysSoftDeletedAspect() {
-    // given
-    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
-
-    FooUrn fooUrn = makeFooUrn(1);
-
-    // both aspect keys exist
-    AspectKey<FooUrn, AspectFoo> aspectKey1 = new AspectKey<>(AspectFoo.class, fooUrn, 1L);
-    AspectKey<FooUrn, AspectBar> aspectKey2 = new AspectKey<>(AspectBar.class, fooUrn, 0L);
-
-    // add metadata
-    addMetadata(fooUrn, AspectFoo.class.getCanonicalName(), 1, null);
-    AspectBar barV0 = new AspectBar().setValue("bar");
-    addMetadata(fooUrn, AspectBar.class.getCanonicalName(), 0, barV0);
-
-    // when
-    Map<AspectKey<FooUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> records =
-        dao.get(new HashSet<>(Arrays.asList(aspectKey1, aspectKey2)));
-
-    // then
-    assertEquals(records.size(), 2);
-    assertEquals(records.get(aspectKey1), Optional.empty());
-    assertEquals(records.get(aspectKey2), Optional.of(barV0));
-  }
-
-  @Test
-  public void testUndeleteSoftDeletedAspect() {
-    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
-    FooUrn urn = makeFooUrn(1);
-    String aspectName = ModelUtils.getAspectName(AspectFoo.class);
-    AspectFoo v1 = new AspectFoo().setValue("foo");
-    AspectFoo v0 = new AspectFoo().setValue("bar");
-
-    dao.add(urn, v1, _dummyAuditStamp);
-    dao.add(urn, v0, _dummyAuditStamp);
-    // soft delete the aspect
-    dao.delete(urn, AspectFoo.class, _dummyAuditStamp);
-
-    // next undelete the soft deleted aspect
-    AspectFoo foo = new AspectFoo().setValue("baz");
-    dao.add(urn, foo, _dummyAuditStamp);
-
-    // latest version of metadata should be non-null and correspond to the metadata added after soft deleting the aspect
-    Optional<AspectFoo> fooOptional = dao.get(AspectFoo.class, urn);
-    assertTrue(fooOptional.isPresent());
-    assertEquals(fooOptional.get(), foo);
-
-    // version=3 should correspond to soft deleted metadata
-    EbeanMetadataAspect aspect = getMetadata(urn, aspectName, 3);
-    assertEquals(aspect.getMetadata(), EbeanLocalDAO.DELETED_VALUE);
-    fooOptional = dao.get(AspectFoo.class, urn, 3);
-    assertFalse(fooOptional.isPresent());
-
-    // version=2 should be non-null
-    fooOptional = dao.get(AspectFoo.class, urn, 2);
-    assertTrue(fooOptional.isPresent());
-    assertEquals(fooOptional.get(), v0);
-
-    // version=1 should be non-null again
-    fooOptional = dao.get(AspectFoo.class, urn, 1);
-    assertTrue(fooOptional.isPresent());
-    assertEquals(fooOptional.get(), v1);
-
-    InOrder inOrder = inOrder(_mockProducer);
-    inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, v1);
-    inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, v1, v0);
-    inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
-    // TODO: verify that MAE was produced with newValue set as null for soft deleted aspect
-    verifyNoMoreInteractions(_mockProducer);
-  }
-
-  @Test
   public void testAlwaysFalseEqualityTester() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     dao.setEqualityTester(AspectFoo.class, AlwaysFalseEqualityTester.<AspectFoo>newInstance());
@@ -1511,45 +1302,6 @@ public class EbeanLocalDAOTest {
     assertNotNull(results.getMetadata());
   }
 
-  @Test
-  public void testListWithNullMetadata() {
-    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
-    List<AspectFoo> foos = new LinkedList<>();
-    for (int i = 0; i < 3; i++) {
-      FooUrn urn = makeFooUrn(i);
-
-      for (int j = 0; j < 3; j++) {
-        AspectFoo foo = new AspectFoo().setValue("foo" + j);
-        addMetadata(urn, AspectFoo.class.getCanonicalName(), j, foo);
-        if (i == 0) {
-          foos.add(foo);
-        }
-      }
-
-      for (int j = 3; j < 6; j++) {
-        addMetadata(urn, AspectFoo.class.getCanonicalName(), j, null);
-      }
-    }
-
-    FooUrn urn0 = makeFooUrn(0);
-
-    ListResult<AspectFoo> results = dao.list(AspectFoo.class, urn0, 0, 5);
-
-    assertTrue(results.isHavingMore());
-    assertEquals(results.getNextStart(), 5);
-    assertEquals(results.getTotalCount(), 6);
-    assertEquals(results.getPageSize(), 5);
-    assertEquals(results.getTotalPageCount(), 2);
-    assertEquals(results.getValues().size(), 3);
-    assertEquals(results.getValues(), foos);
-
-    assertNotNull(results.getMetadata());
-    List<Long> expectedNonNullVersions = Arrays.asList(0L, 1L, 2L);
-    List<Urn> expectedUrns = Collections.singletonList(urn0);
-    assertVersionMetadata(results.getMetadata(), expectedNonNullVersions, expectedUrns, 1234L,
-        Urns.createFromTypeSpecificString("test", "foo"), Urns.createFromTypeSpecificString("test", "bar"));
-  }
-
   private static LocalDAOStorageConfig makeLocalDAOStorageConfig(Class<? extends RecordTemplate> aspectClass,
       List<String> pegasusPaths) {
     Map<Class<? extends RecordTemplate>, LocalDAOStorageConfig.AspectStorageConfig> aspectStorageConfigMap =
@@ -2329,6 +2081,272 @@ public class EbeanLocalDAOTest {
     Optional<AspectWithExtraInfo<AspectFoo>> foo = dao.getWithExtraInfo(AspectFoo.class, urn, 1);
 
     assertFalse(foo.isPresent());
+  }
+
+  @Test
+  public void testListSoftDeletedAspect() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    List<AspectFoo> foos = new LinkedList<>();
+    for (int i = 0; i < 3; i++) {
+      FooUrn urn = makeFooUrn(i);
+
+      for (int j = 0; j < 10; j++) {
+        AspectFoo foo = new AspectFoo().setValue("foo" + j);
+        addMetadata(urn, AspectFoo.class.getCanonicalName(), j, foo);
+        if (i == 0) {
+          foos.add(foo);
+        }
+      }
+      // soft delete the latest version
+      dao.delete(urn, AspectFoo.class, _dummyAuditStamp);
+    }
+
+    FooUrn urn0 = makeFooUrn(0);
+
+    ListResult<AspectFoo> results = dao.list(AspectFoo.class, urn0, 0, 5);
+
+    assertTrue(results.isHavingMore());
+    assertEquals(results.getNextStart(), 5);
+    assertEquals(results.getTotalCount(), 10);
+    assertEquals(results.getPageSize(), 5);
+    assertEquals(results.getTotalPageCount(), 2);
+    assertEquals(results.getValues(), foos.subList(1, 6));
+
+    assertNotNull(results.getMetadata());
+    // latest version i.e. version=0 is soft deleted, hence will not be present in the metadata
+    List<Long> expectedVersions = Arrays.asList(1L, 2L, 3L, 4L, 5L);
+    List<Urn> expectedUrns = Collections.singletonList(urn0);
+    assertVersionMetadata(results.getMetadata(), expectedVersions, expectedUrns, 1234L,
+        Urns.createFromTypeSpecificString("test", "foo"), Urns.createFromTypeSpecificString("test", "bar"));
+
+    // List next page
+    results = dao.list(AspectFoo.class, urn0, 5, 9);
+
+    assertFalse(results.isHavingMore());
+    assertEquals(results.getNextStart(), ListResult.INVALID_NEXT_START);
+    assertEquals(results.getTotalCount(), 10);
+    assertEquals(results.getPageSize(), 9);
+    assertEquals(results.getTotalPageCount(), 2);
+    assertEquals(results.getValues().subList(0, 4), foos.subList(6, 10));
+    assertEquals(results.getValues().get(4), foos.get(0));
+    assertNotNull(results.getMetadata());
+  }
+
+  @Test
+  public void testGetSoftDeletedAspect() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn urn = makeFooUrn(1);
+    String aspectName = ModelUtils.getAspectName(AspectFoo.class);
+    AspectFoo v1 = new AspectFoo().setValue("foo");
+    AspectFoo v0 = new AspectFoo().setValue("bar");
+
+    dao.add(urn, v1, _dummyAuditStamp);
+    dao.add(urn, v0, _dummyAuditStamp);
+    dao.delete(urn, AspectFoo.class, _dummyAuditStamp);
+
+    // latest version of metadata should be null
+    EbeanMetadataAspect aspect = getMetadata(urn, aspectName, 0);
+    assertEquals(aspect.getMetadata(), EbeanLocalDAO.DELETED_VALUE);
+    Optional<AspectFoo> fooOptional = dao.get(AspectFoo.class, urn);
+    assertFalse(fooOptional.isPresent());
+
+    // version=1 should be non-null
+    fooOptional = dao.get(AspectFoo.class, urn, 1);
+    assertTrue(fooOptional.isPresent());
+    assertEquals(fooOptional.get(), v1);
+
+    // version=2 should be non-null
+    fooOptional = dao.get(AspectFoo.class, urn, 2);
+    assertTrue(fooOptional.isPresent());
+    assertEquals(fooOptional.get(), v0);
+
+    InOrder inOrder = inOrder(_mockProducer);
+    inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, v1);
+    inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, v1, v0);
+    // TODO: verify that MAE was produced with newValue set as null for soft deleted aspect
+    verifyNoMoreInteractions(_mockProducer);
+  }
+
+  @Test
+  public void testSoftDeletedAspectWithNoExistingMetadata() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn urn = makeFooUrn(1);
+    String aspectName = ModelUtils.getAspectName(AspectFoo.class);
+
+    // no metadata already exists
+    dao.delete(urn, AspectFoo.class, _dummyAuditStamp);
+
+    // since there is nothing to delete, no metadata will be saved
+    EbeanMetadataAspect aspect = getMetadata(urn, aspectName, 0);
+    assertNull(aspect);
+    Optional<AspectFoo> fooOptional = dao.get(AspectFoo.class, urn);
+    assertFalse(fooOptional.isPresent());
+
+    // no MAE will be produced
+    verifyNoMoreInteractions(_mockProducer);
+  }
+
+  @Test
+  public void testListVersionsForSoftDeletedAspect() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn urn = makeFooUrn(1);
+    for (long i = 0; i < 6; i++) {
+      AspectFoo foo = new AspectFoo().setValue("foo" + i);
+      addMetadata(urn, AspectFoo.class.getCanonicalName(), i, foo);
+    }
+    // soft delete the latest version i.e. version=7 corresponds to soft deleted aspect
+    dao.delete(urn, AspectFoo.class, _dummyAuditStamp);
+
+    ListResult<Long> results = dao.listVersions(AspectFoo.class, urn, 0, 5);
+
+    assertTrue(results.isHavingMore());
+    assertEquals(results.getNextStart(), 5);
+    assertEquals(results.getTotalCount(), 7);
+    assertEquals(results.getPageSize(), 5);
+    assertEquals(results.getTotalPageCount(), 2);
+    assertEquals(results.getValues(), Arrays.asList(0L, 1L, 2L, 3L, 4L));
+
+    // List last page
+    results = dao.listVersions(AspectFoo.class, urn, 5, 10);
+
+    assertFalse(results.isHavingMore());
+    assertEquals(results.getNextStart(), ListResult.INVALID_NEXT_START);
+    assertEquals(results.getTotalCount(), 7);
+    assertEquals(results.getPageSize(), 10);
+    assertEquals(results.getTotalPageCount(), 1);
+    assertEquals(results.getValues(), Arrays.asList(5L, 6L));
+
+    // List beyond last page
+    results = dao.listVersions(AspectFoo.class, urn, 7, 1);
+
+    assertFalse(results.isHavingMore());
+    assertEquals(results.getNextStart(), ListResult.INVALID_NEXT_START);
+    assertEquals(results.getTotalCount(), 7);
+    assertEquals(results.getPageSize(), 1);
+    assertEquals(results.getTotalPageCount(), 7);
+    assertEquals(results.getValues(), new ArrayList<>());
+  }
+
+  @Test
+  public void testListUrnsForSoftDeletedAspect() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    for (int i = 0; i < 3; i++) {
+      FooUrn urn = makeFooUrn(i);
+      for (int j = 0; j < 3; j++) {
+        AspectFoo foo = new AspectFoo().setValue("foo" + j);
+        dao.add(urn, foo, _dummyAuditStamp);
+      }
+      // soft delete the latest version of aspect
+      dao.delete(urn, AspectFoo.class, _dummyAuditStamp);
+    }
+
+    ListResult<FooUrn> results = dao.listUrns(AspectFoo.class, 0, 1);
+
+    assertFalse(results.isHavingMore());
+    assertEquals(results.getNextStart(), -1);
+    assertEquals(results.getTotalCount(), 0);
+    assertEquals(results.getPageSize(), 1);
+    assertEquals(results.getTotalPageCount(), 0);
+    assertEquals(results.getValues().size(), 0);
+  }
+
+  @Test
+  public void testListUrnsAfterUndeleteSoftDeletedAspect() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    List<FooUrn> urns = new ArrayList<>();
+    for (int i = 0; i < 3; i++) {
+      FooUrn urn = makeFooUrn(i);
+      for (int j = 0; j < 3; j++) {
+        AspectFoo foo = new AspectFoo().setValue("foo" + j);
+        dao.add(urn, foo, _dummyAuditStamp);
+      }
+      // soft delete the latest version of aspect
+      dao.delete(urn, AspectFoo.class, _dummyAuditStamp);
+      AspectFoo latest = new AspectFoo().setValue("val");
+      dao.add(urn, latest, _dummyAuditStamp);
+      urns.add(urn);
+    }
+
+    ListResult<FooUrn> results = dao.listUrns(AspectFoo.class, 0, 1);
+
+    assertTrue(results.isHavingMore());
+    assertEquals(results.getNextStart(), 1);
+    assertEquals(results.getTotalCount(), 3);
+    assertEquals(results.getPageSize(), 1);
+    assertEquals(results.getTotalPageCount(), 3);
+    assertEquals(results.getValues(), urns.subList(0, 1));
+  }
+
+  @Test
+  public void testGetWithKeysSoftDeletedAspect() {
+    // given
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+
+    FooUrn fooUrn = makeFooUrn(1);
+
+    // both aspect keys exist
+    AspectKey<FooUrn, AspectFoo> aspectKey1 = new AspectKey<>(AspectFoo.class, fooUrn, 1L);
+    AspectKey<FooUrn, AspectBar> aspectKey2 = new AspectKey<>(AspectBar.class, fooUrn, 0L);
+
+    // add metadata
+    addMetadata(fooUrn, AspectFoo.class.getCanonicalName(), 1, null);
+    AspectBar barV0 = new AspectBar().setValue("bar");
+    addMetadata(fooUrn, AspectBar.class.getCanonicalName(), 0, barV0);
+
+    // when
+    Map<AspectKey<FooUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> records =
+        dao.get(new HashSet<>(Arrays.asList(aspectKey1, aspectKey2)));
+
+    // then
+    assertEquals(records.size(), 2);
+    assertEquals(records.get(aspectKey1), Optional.empty());
+    assertEquals(records.get(aspectKey2), Optional.of(barV0));
+  }
+
+  @Test
+  public void testUndeleteSoftDeletedAspect() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn urn = makeFooUrn(1);
+    String aspectName = ModelUtils.getAspectName(AspectFoo.class);
+    AspectFoo v1 = new AspectFoo().setValue("foo");
+    AspectFoo v0 = new AspectFoo().setValue("bar");
+
+    dao.add(urn, v1, _dummyAuditStamp);
+    dao.add(urn, v0, _dummyAuditStamp);
+    // soft delete the aspect
+    dao.delete(urn, AspectFoo.class, _dummyAuditStamp);
+
+    // next undelete the soft deleted aspect
+    AspectFoo foo = new AspectFoo().setValue("baz");
+    dao.add(urn, foo, _dummyAuditStamp);
+
+    // latest version of metadata should be non-null and correspond to the metadata added after soft deleting the aspect
+    Optional<AspectFoo> fooOptional = dao.get(AspectFoo.class, urn);
+    assertTrue(fooOptional.isPresent());
+    assertEquals(fooOptional.get(), foo);
+
+    // version=3 should correspond to soft deleted metadata
+    EbeanMetadataAspect aspect = getMetadata(urn, aspectName, 3);
+    assertEquals(aspect.getMetadata(), EbeanLocalDAO.DELETED_VALUE);
+    fooOptional = dao.get(AspectFoo.class, urn, 3);
+    assertFalse(fooOptional.isPresent());
+
+    // version=2 should be non-null
+    fooOptional = dao.get(AspectFoo.class, urn, 2);
+    assertTrue(fooOptional.isPresent());
+    assertEquals(fooOptional.get(), v0);
+
+    // version=1 should be non-null again
+    fooOptional = dao.get(AspectFoo.class, urn, 1);
+    assertTrue(fooOptional.isPresent());
+    assertEquals(fooOptional.get(), v1);
+
+    InOrder inOrder = inOrder(_mockProducer);
+    inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, v1);
+    inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, v1, v0);
+    inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
+    // TODO: verify that MAE was produced with newValue set as null for soft deleted aspect
+    verifyNoMoreInteractions(_mockProducer);
   }
 
   @Test
