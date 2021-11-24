@@ -330,20 +330,20 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   @Override
   @Nonnull
-  protected <ASPECT extends RecordTemplate> AspectMetadata<ASPECT> getLatest(@Nonnull URN urn,
+  protected <ASPECT extends RecordTemplate> AspectEntry<ASPECT> getLatest(@Nonnull URN urn,
       @Nonnull Class<ASPECT> aspectClass) {
     final PrimaryKey key = new PrimaryKey(urn.toString(), ModelUtils.getAspectName(aspectClass), 0L);
     final EbeanMetadataAspect latest = _server.find(EbeanMetadataAspect.class, key);
     if (latest == null) {
-      return new AspectMetadata<>(null, null, false);
+      return new AspectEntry<>(null, null, false);
     }
     final ExtraInfo extraInfo = toExtraInfo(latest);
 
     if (latest.getMetadata().equals(DELETED_VALUE)) {
-      return new AspectMetadata<>(null, extraInfo, true);
+      return new AspectEntry<>(null, extraInfo, true);
     }
 
-    return new AspectMetadata<>(RecordUtils.toRecordTemplate(aspectClass, latest.getMetadata()), extraInfo, false);
+    return new AspectEntry<>(RecordUtils.toRecordTemplate(aspectClass, latest.getMetadata()), extraInfo, false);
   }
 
   @Nonnull

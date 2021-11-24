@@ -45,6 +45,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import lombok.Builder;
 import lombok.Value;
 
 
@@ -66,20 +67,16 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param <ASPECT> must be a supported aspect type in {@code ASPECT_UNION}.
    */
   @Value
-  static class AspectMetadata<ASPECT extends RecordTemplate> {
-    @Nullable
-    ASPECT aspect;
-
-    @Nullable
-    ExtraInfo extraInfo;
-
-    boolean isSoftDeleted;
-  }
-
-  @Value
+  @Builder
   static class AspectEntry<ASPECT extends RecordTemplate> {
+    @Nullable
     ASPECT aspect;
+
+    @Nullable
     ExtraInfo extraInfo;
+
+    @Builder.Default
+    boolean isSoftDeleted = false;
   }
 
   @Value
@@ -292,7 +289,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * Logic common to both {@link #add(Urn, Class, Function, AuditStamp)} and {@link #delete(Urn, Class, AuditStamp, int)} methods.
    *
    * @param urn urn the URN for the entity the aspect is attached to
-   * @param latest {@link AspectMetadata} that corresponds to the latest metadata stored
+   * @param latest {@link AspectEntry} that corresponds to the latest metadata stored
    * @param newValue new metadata that needs to be added/stored
    * @param aspectClass aspectClass of the aspect being saved
    * @param auditStamp audit stamp for the operation
@@ -301,7 +298,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @return {@link AddResult} corresponding to the old and new value of metadata
    */
   private <ASPECT extends RecordTemplate> AddResult<ASPECT> addCommon(@Nonnull URN urn,
-      @Nonnull AspectMetadata<ASPECT> latest, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
+      @Nonnull AspectEntry<ASPECT> latest, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull AuditStamp auditStamp, @Nonnull EqualityTester<ASPECT> equalityTester) {
 
     final ASPECT oldValue = latest.getAspect() == null ? null : latest.getAspect();
@@ -351,7 +348,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     final AddResult<ASPECT> result = runInTransactionWithRetry(() -> {
       // Compute newValue based on oldValue
-      final AspectMetadata<ASPECT> latest = getLatest(urn, aspectClass);
+      final AspectEntry<ASPECT> latest = getLatest(urn, aspectClass);
       final ASPECT oldValue = latest.getAspect() == null ? null : latest.getAspect();
       final ASPECT newValue = updateLambda.apply(Optional.ofNullable(oldValue));
       if (newValue == null) {
@@ -414,7 +411,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     checkValidAspect(aspectClass);
 
     runInTransactionWithRetry(() -> {
-      final AspectMetadata<ASPECT> latest = getLatest(urn, aspectClass);
+      final AspectEntry<ASPECT> latest = getLatest(urn, aspectClass);
 
       return addCommon(urn, latest, null, aspectClass, auditStamp, new DefaultEqualityTester<>());
     }, maxTransactionRetry);
@@ -646,10 +643,10 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    *
    * @param urn {@link Urn} for the entity
    * @param aspectClass the type of aspect to get
-   * @return {@link AspectMetadata} corresponding to the latest version of specific aspect, if it exists
+   * @return {@link AspectEntry} corresponding to the latest version of specific aspect, if it exists
    */
   @Nonnull
-  protected abstract <ASPECT extends RecordTemplate> AspectMetadata<ASPECT> getLatest(@Nonnull URN urn,
+  protected abstract <ASPECT extends RecordTemplate> AspectEntry<ASPECT> getLatest(@Nonnull URN urn,
       @Nonnull Class<ASPECT> aspectClass);
 
   /**
