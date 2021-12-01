@@ -801,7 +801,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * Paginates over all available versions of an aspect for an entity. This includes version of soft deleted aspect(s).
+   * Paginates over all available versions of an aspect for an entity. This does not include version of soft deleted aspect(s).
    *
    * @param aspectClass the type of the aspect to query
    * @param urn {@link Urn} for the entity

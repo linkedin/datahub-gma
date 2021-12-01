@@ -726,6 +726,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         .where()
         .eq(URN_COLUMN, urn.toString())
         .eq(ASPECT_COLUMN, ModelUtils.getAspectName(aspectClass))
+        .ne(METADATA_COLUMN, DELETED_VALUE)
         .setFirstRow(start)
         .setMaxRows(pageSize)
         .orderBy()

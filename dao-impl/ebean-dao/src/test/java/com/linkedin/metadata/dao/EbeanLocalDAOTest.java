@@ -2222,37 +2222,27 @@ public class EbeanLocalDAOTest {
       AspectFoo foo = new AspectFoo().setValue("foo" + i);
       addMetadata(urn, AspectFoo.class.getCanonicalName(), i, foo);
     }
-    // soft delete the latest version i.e. version=7 corresponds to soft deleted aspect
+    // soft delete the latest version
     dao.delete(urn, AspectFoo.class, _dummyAuditStamp);
 
     ListResult<Long> results = dao.listVersions(AspectFoo.class, urn, 0, 5);
 
     assertTrue(results.isHavingMore());
     assertEquals(results.getNextStart(), 5);
-    assertEquals(results.getTotalCount(), 7);
+    assertEquals(results.getTotalCount(), 6);
     assertEquals(results.getPageSize(), 5);
     assertEquals(results.getTotalPageCount(), 2);
-    assertEquals(results.getValues(), Arrays.asList(0L, 1L, 2L, 3L, 4L));
+    assertEquals(results.getValues(), Arrays.asList(1L, 2L, 3L, 4L, 5L));
 
     // List last page
     results = dao.listVersions(AspectFoo.class, urn, 5, 10);
 
     assertFalse(results.isHavingMore());
     assertEquals(results.getNextStart(), ListResult.INVALID_NEXT_START);
-    assertEquals(results.getTotalCount(), 7);
+    assertEquals(results.getTotalCount(), 6);
     assertEquals(results.getPageSize(), 10);
     assertEquals(results.getTotalPageCount(), 1);
-    assertEquals(results.getValues(), Arrays.asList(5L, 6L));
-
-    // List beyond last page
-    results = dao.listVersions(AspectFoo.class, urn, 7, 1);
-
-    assertFalse(results.isHavingMore());
-    assertEquals(results.getNextStart(), ListResult.INVALID_NEXT_START);
-    assertEquals(results.getTotalCount(), 7);
-    assertEquals(results.getPageSize(), 1);
-    assertEquals(results.getTotalPageCount(), 7);
-    assertEquals(results.getValues(), new ArrayList<>());
+    assertEquals(results.getValues(), Collections.singletonList(6L));
   }
 
   @Test
