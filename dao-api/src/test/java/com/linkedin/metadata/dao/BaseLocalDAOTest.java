@@ -47,7 +47,7 @@ public class BaseLocalDAOTest {
 
     @Override
     protected <ASPECT extends RecordTemplate> long saveLatest(FooUrn urn, Class<ASPECT> aspectClass, ASPECT oldEntry,
-        AuditStamp oldAuditStamp, ASPECT newEntry, AuditStamp newAuditStamp) {
+        AuditStamp oldAuditStamp, ASPECT newEntry, AuditStamp newAuditStamp, boolean isSoftDeleted) {
       return 0;
     }
 
@@ -174,8 +174,13 @@ public class BaseLocalDAOTest {
     _dummyAuditStamp = makeAuditStamp("foo", 1234);
   }
 
-  private <T extends RecordTemplate> BaseLocalDAO.AspectEntry<T> makeAspectEntry(T aspect, AuditStamp auditStamp) {
-    return new BaseLocalDAO.AspectEntry(aspect, new ExtraInfo().setAudit(auditStamp));
+  private <T extends RecordTemplate> BaseLocalDAO.AspectEntry<T> makeAspectEntry(T aspect,
+      AuditStamp auditStamp) {
+    ExtraInfo extraInfo = null;
+    if (auditStamp != null) {
+      extraInfo = new ExtraInfo().setAudit(auditStamp);
+    }
+    return new BaseLocalDAO.AspectEntry<>(aspect, extraInfo, false);
   }
 
   private <T extends RecordTemplate> void expectGetLatest(FooUrn urn, Class<T> aspectClass,
@@ -191,7 +196,8 @@ public class BaseLocalDAOTest {
     FooUrn urn = new FooUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");
     _dummyLocalDAO.setAlwaysEmitAuditEvent(true);
-    expectGetLatest(urn, AspectFoo.class, Arrays.asList(null, makeAspectEntry(foo, _dummyAuditStamp)));
+    expectGetLatest(urn, AspectFoo.class,
+        Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(foo, _dummyAuditStamp)));
 
     _dummyLocalDAO.add(urn, foo, _dummyAuditStamp);
     _dummyLocalDAO.add(urn, foo, _dummyAuditStamp);
@@ -207,7 +213,8 @@ public class BaseLocalDAOTest {
     AspectFoo foo1 = new AspectFoo().setValue("foo1");
     AspectFoo foo2 = new AspectFoo().setValue("foo2");
     _dummyLocalDAO.setAlwaysEmitAuditEvent(false);
-    expectGetLatest(urn, AspectFoo.class, Arrays.asList(null, makeAspectEntry(foo1, _dummyAuditStamp)));
+    expectGetLatest(urn, AspectFoo.class,
+        Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(foo1, _dummyAuditStamp)));
 
     _dummyLocalDAO.add(urn, foo1, _dummyAuditStamp);
     _dummyLocalDAO.add(urn, foo2, _dummyAuditStamp);
@@ -224,7 +231,8 @@ public class BaseLocalDAOTest {
     AspectFoo foo2 = new AspectFoo().setValue("foo");
     AspectFoo foo3 = new AspectFoo().setValue("foo");
     _dummyLocalDAO.setAlwaysEmitAuditEvent(false);
-    expectGetLatest(urn, AspectFoo.class, Arrays.asList(null, makeAspectEntry(foo1, _dummyAuditStamp)));
+    expectGetLatest(urn, AspectFoo.class,
+        Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(foo1, _dummyAuditStamp)));
 
     _dummyLocalDAO.add(urn, foo1, _dummyAuditStamp);
     _dummyLocalDAO.add(urn, foo2, _dummyAuditStamp);
@@ -239,7 +247,8 @@ public class BaseLocalDAOTest {
     FooUrn urn = new FooUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");
     _dummyLocalDAO.setAlwaysEmitAuditEvent(true);
-    expectGetLatest(urn, AspectFoo.class, Arrays.asList(null, makeAspectEntry(foo, _dummyAuditStamp)));
+    expectGetLatest(urn, AspectFoo.class,
+        Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(foo, _dummyAuditStamp)));
 
     _dummyLocalDAO.add(urn, foo, _dummyAuditStamp);
     _dummyLocalDAO.delete(urn, AspectFoo.class, _dummyAuditStamp);
@@ -273,6 +282,8 @@ public class BaseLocalDAOTest {
     FooUrn urn = new FooUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");
     BiConsumer<FooUrn, AspectFoo> hook = mock(BiConsumer.class);
+    expectGetLatest(urn, AspectFoo.class,
+        Collections.singletonList(makeAspectEntry(null, null)));
 
     _dummyLocalDAO.addPreUpdateHook(AspectFoo.class, hook);
     _dummyLocalDAO.add(urn, foo, _dummyAuditStamp);
@@ -304,6 +315,8 @@ public class BaseLocalDAOTest {
     FooUrn urn = new FooUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");
     BiConsumer<FooUrn, AspectFoo> hook = mock(BiConsumer.class);
+    expectGetLatest(urn, AspectFoo.class,
+        Collections.singletonList(makeAspectEntry(null, null)));
 
     _dummyLocalDAO.addPostUpdateHook(AspectFoo.class, hook);
     _dummyLocalDAO.add(urn, foo, _dummyAuditStamp);

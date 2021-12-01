@@ -45,6 +45,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import lombok.Builder;
 import lombok.Value;
 
 
@@ -59,10 +60,23 @@ import lombok.Value;
 public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     extends BaseReadDAO<ASPECT_UNION, URN> {
 
+  /**
+   * Immutable class that corresponds to the metadata aspect along with {@link ExtraInfo} for the same metadata. It also
+   * has a flag to indicate if this metadata is soft deleted.
+   *
+   * @param <ASPECT> must be a supported aspect type in {@code ASPECT_UNION}.
+   */
   @Value
+  @Builder
   static class AspectEntry<ASPECT extends RecordTemplate> {
+    @Nullable
     ASPECT aspect;
+
+    @Nullable
     ExtraInfo extraInfo;
+
+    @Builder.Default
+    boolean isSoftDeleted = false;
   }
 
   @Value
@@ -284,10 +298,10 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @return {@link AddResult} corresponding to the old and new value of metadata
    */
   private <ASPECT extends RecordTemplate> AddResult<ASPECT> addCommon(@Nonnull URN urn,
-      @Nullable AspectEntry<ASPECT> latest, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
+      @Nonnull AspectEntry<ASPECT> latest, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull AuditStamp auditStamp, @Nonnull EqualityTester<ASPECT> equalityTester) {
 
-    final ASPECT oldValue = latest == null ? null : latest.getAspect();
+    final ASPECT oldValue = latest.getAspect() == null ? null : latest.getAspect();
     // Skip saving if there's no actual change
     if ((oldValue == null && newValue == null) || oldValue != null && newValue != null && equalityTester.equals(
         oldValue, newValue)) {
@@ -296,8 +310,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     // Save the newValue as the latest version
     long largestVersion =
-        saveLatest(urn, aspectClass, oldValue, latest == null ? null : latest.getExtraInfo().getAudit(), newValue,
-            auditStamp);
+        saveLatest(urn, aspectClass, oldValue, latest.getExtraInfo() == null ? null : latest.getExtraInfo().getAudit(),
+            newValue, auditStamp, latest.isSoftDeleted);
 
     // Apply retention policy
     applyRetention(urn, aspectClass, getRetention(aspectClass), largestVersion);
@@ -335,7 +349,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     final AddResult<ASPECT> result = runInTransactionWithRetry(() -> {
       // Compute newValue based on oldValue
       final AspectEntry<ASPECT> latest = getLatest(urn, aspectClass);
-      final ASPECT oldValue = latest == null ? null : latest.getAspect();
+      final ASPECT oldValue = latest.getAspect() == null ? null : latest.getAspect();
       final ASPECT newValue = updateLambda.apply(Optional.ofNullable(oldValue));
       if (newValue == null) {
         throw new UnsupportedOperationException("Do not support adding null metadata in add method");
@@ -458,11 +472,12 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param oldAuditStamp the audit stamp of the previous latest aspect, null if new value is the first version
    * @param newEntry {@link RecordTemplate} of the new latest value of aspect
    * @param newAuditStamp the audit stamp for the operation
+   * @param isSoftDeleted flag to indicate if the previous latest value of aspect was soft deleted
    * @return the largest version
    */
   protected abstract <ASPECT extends RecordTemplate> long saveLatest(@Nonnull URN urn,
       @Nonnull Class<ASPECT> aspectClass, @Nullable ASPECT oldEntry, @Nullable AuditStamp oldAuditStamp,
-      @Nullable ASPECT newEntry, @Nonnull AuditStamp newAuditStamp);
+      @Nullable ASPECT newEntry, @Nonnull AuditStamp newAuditStamp, boolean isSoftDeleted);
 
   /**
    * Saves the new value of an aspect to local secondary index.
@@ -628,9 +643,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    *
    * @param urn {@link Urn} for the entity
    * @param aspectClass the type of aspect to get
-   * @return the latest version for the aspect type, or null if there's none
+   * @return {@link AspectEntry} corresponding to the latest version of specific aspect, if it exists
    */
-  @Nullable
+  @Nonnull
   protected abstract <ASPECT extends RecordTemplate> AspectEntry<ASPECT> getLatest(@Nonnull URN urn,
       @Nonnull Class<ASPECT> aspectClass);
 
@@ -786,7 +801,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * Paginates over all available versions of an aspect for an entity.
+   * Paginates over all available versions of an aspect for an entity. This does not include version of soft deleted aspect(s).
    *
    * @param aspectClass the type of the aspect to query
    * @param urn {@link Urn} for the entity
@@ -800,7 +815,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nonnull URN urn, int start, int pageSize);
 
   /**
-   * Paginates over all URNs for entities that have a specific aspect.
+   * Paginates over all URNs for entities that have a specific aspect. This does not include the urn(s) for which the
+   * aspect is soft deleted in the latest version.
    *
    * @param aspectClass the type of the aspect to query
    * @param start the starting offset of the page
@@ -813,7 +829,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       int start, int pageSize);
 
   /**
-   * Paginates over all versions of an aspect for a specific Urn.
+   * Paginates over all versions of an aspect for a specific Urn. It does not return metadata corresponding to versions
+   * indicating soft deleted aspect(s).
    *
    * @param aspectClass the type of the aspect to query
    * @param urn {@link Urn} for the entity
@@ -827,7 +844,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nonnull URN urn, int start, int pageSize);
 
   /**
-   * Paginates over a specific version of a specific aspect for all Urns.
+   * Paginates over a specific version of a specific aspect for all Urns. The result does not include soft deleted
+   * aspect if the specific version of a specific aspect was soft deleted.
    *
    * @param aspectClass the type of the aspect to query
    * @param version the version of the aspect
@@ -841,7 +859,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       long version, int start, int pageSize);
 
   /**
-   * Paginates over the latest version of a specific aspect for all Urns.
+   * Paginates over the latest version of a specific aspect for all Urns. The result does not include soft deleted
+   * aspect if the latest version of a specific aspect was soft deleted.
    *
    * @param aspectClass the type of the aspect to query
    * @param start the starting offset of the page
