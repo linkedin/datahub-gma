@@ -180,7 +180,7 @@ public class BaseLocalDAOTest {
     if (auditStamp != null) {
       extraInfo = new ExtraInfo().setAudit(auditStamp);
     }
-    return new BaseLocalDAO.AspectEntry<>(aspect, extraInfo, false);
+    return new BaseLocalDAO.AspectEntry<>(aspect, extraInfo);
   }
 
   private <T extends RecordTemplate> void expectGetLatest(FooUrn urn, Class<T> aspectClass,

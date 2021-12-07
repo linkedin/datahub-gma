@@ -335,7 +335,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     final PrimaryKey key = new PrimaryKey(urn.toString(), ModelUtils.getAspectName(aspectClass), 0L);
     final EbeanMetadataAspect latest = _server.find(EbeanMetadataAspect.class, key);
     if (latest == null) {
-      return new AspectEntry<>(null, null, false);
+      return new AspectEntry<>(null, null);
     }
     final ExtraInfo extraInfo = toExtraInfo(latest);
 
@@ -343,7 +343,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       return new AspectEntry<>(null, extraInfo, true);
     }
 
-    return new AspectEntry<>(RecordUtils.toRecordTemplate(aspectClass, latest.getMetadata()), extraInfo, false);
+    return new AspectEntry<>(RecordUtils.toRecordTemplate(aspectClass, latest.getMetadata()), extraInfo);
   }
 
   @Nonnull
