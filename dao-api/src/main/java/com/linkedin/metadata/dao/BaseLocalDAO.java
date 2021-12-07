@@ -45,7 +45,9 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
+import lombok.Data;
 import lombok.Value;
 
 
@@ -66,8 +68,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    *
    * @param <ASPECT> must be a supported aspect type in {@code ASPECT_UNION}.
    */
-  @Value
+  @Data
   @Builder
+  @AllArgsConstructor
   static class AspectEntry<ASPECT extends RecordTemplate> {
     @Nullable
     ASPECT aspect;
@@ -77,6 +80,12 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     @Builder.Default
     boolean isSoftDeleted = false;
+
+    public AspectEntry(@Nullable ASPECT aspect, @Nullable ExtraInfo extraInfo) {
+      this.aspect = aspect;
+      this.extraInfo = extraInfo;
+      this.isSoftDeleted = false;
+    }
   }
 
   @Value
