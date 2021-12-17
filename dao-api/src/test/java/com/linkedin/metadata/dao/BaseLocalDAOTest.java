@@ -260,6 +260,64 @@ public class BaseLocalDAOTest {
   }
 
   @Test
+  public void testGeneralMAEDisabled() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    _dummyLocalDAO.setEmitAspectSpecificAuditEvent(true);
+    _dummyLocalDAO.enableGeneralAuditEvent(false);
+
+    expectGetLatest(urn, AspectFoo.class,
+        Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(foo, _dummyAuditStamp)));
+
+    _dummyLocalDAO.add(urn, foo, _dummyAuditStamp);
+    _dummyLocalDAO.delete(urn, AspectFoo.class, _dummyAuditStamp);
+    verify(_mockEventProducer, times(0)).produceMetadataAuditEvent(urn, null, foo);
+    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo);
+    verifyNoMoreInteractions(_mockEventProducer);
+  }
+
+  @Test
+  public void testGeneralMAEDefaultsEnabled() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+
+    expectGetLatest(urn, AspectFoo.class,
+        Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(foo, _dummyAuditStamp)));
+
+    _dummyLocalDAO.add(urn, foo, _dummyAuditStamp);
+    _dummyLocalDAO.delete(urn, AspectFoo.class, _dummyAuditStamp);
+    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
+    verify(_mockEventProducer, times(0)).produceAspectSpecificMetadataAuditEvent(urn, null, foo);
+    verifyNoMoreInteractions(_mockEventProducer);
+  }
+
+  @Test(expectedExceptions = {
+      IllegalStateException.class},
+      expectedExceptionsMessageRegExp = "Emission of general audit events cannot be disabled without enabling aspect-specific audit events")
+  public void testCannotDisableGeneralMAEWithoutEnablingAspectMAE() {
+    _dummyLocalDAO.setEmitAspectSpecificAuditEvent(false);
+    _dummyLocalDAO.enableGeneralAuditEvent(false);
+  }
+
+  @Test
+  public void testMAEDualWrite() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+
+    expectGetLatest(urn, AspectFoo.class,
+        Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(foo, _dummyAuditStamp)));
+
+    _dummyLocalDAO.setEmitAspectSpecificAuditEvent(true);
+
+    _dummyLocalDAO.add(urn, foo, _dummyAuditStamp);
+    _dummyLocalDAO.delete(urn, AspectFoo.class, _dummyAuditStamp);
+    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
+    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo);
+    verifyNoMoreInteractions(_mockEventProducer);
+
+  }
+
+  @Test
   public void testAddSamePreUpdateHookTwice() {
     BiConsumer<FooUrn, AspectFoo> hook = (urn, foo) -> {
       // do nothing;
