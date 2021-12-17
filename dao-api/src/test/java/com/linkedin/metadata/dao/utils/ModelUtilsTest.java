@@ -5,6 +5,7 @@ import com.linkedin.common.CommonTestAspect;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.testing.EntityFoo;
 import com.linkedin.testing.EntityUnion;
+import com.linkedin.testing.EntityUnionAlias;
 import com.linkedin.testing.urn.PizzaUrn;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.data.template.RecordTemplate;
@@ -13,6 +14,7 @@ import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.DeltaUnion;
 import com.linkedin.testing.EntityAspectUnion;
+import com.linkedin.testing.EntityAspectUnionAlias;
 import com.linkedin.testing.EntityAspectUnionArray;
 import com.linkedin.testing.EntityBar;
 import com.linkedin.testing.EntityDelta;
@@ -21,6 +23,7 @@ import com.linkedin.testing.EntitySnapshot;
 import com.linkedin.testing.InvalidAspectUnion;
 import com.linkedin.testing.RelationshipFoo;
 import com.linkedin.testing.RelationshipUnion;
+import com.linkedin.testing.RelationshipUnionAlias;
 import com.linkedin.testing.SnapshotUnion;
 import com.linkedin.testing.urn.FooUrn;
 import java.io.IOException;
@@ -220,6 +223,15 @@ public class ModelUtilsTest {
   }
 
   @Test
+  public void testNewAspectAlias() {
+    AspectFoo foo = new AspectFoo().setValue("foo");
+
+    EntityAspectUnionAlias aspectUnion = ModelUtils.newAspectUnion(EntityAspectUnionAlias.class, foo);
+
+    assertEquals(aspectUnion.getFoo(), foo);
+  }
+
+  @Test
   public void testAspectClassForSnapshot() {
     assertEquals(ModelUtils.aspectClassForSnapshot(EntitySnapshot.class), EntityAspectUnion.class);
   }
@@ -270,6 +282,15 @@ public class ModelUtilsTest {
   }
 
   @Test
+  public void testNewRelatioshipUnionAlias() {
+    RelationshipFoo foo = new RelationshipFoo().setDestination(makeFooUrn(1)).setSource(makeFooUrn(2));
+
+    RelationshipUnionAlias relationshipUnion = ModelUtils.newRelationshipUnion(RelationshipUnionAlias.class, foo);
+
+    assertEquals(relationshipUnion.getFoo(), foo);
+  }
+
+  @Test
   public void testGetMAETopicName() throws URISyntaxException {
     FooUrn urn = new FooUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");
@@ -296,5 +317,13 @@ public class ModelUtilsTest {
     EntityUnion entityUnion = ModelUtils.newEntityUnion(EntityUnion.class, entityFoo);
 
     assertEquals(entityUnion.getEntityFoo(), entityFoo);
+  }
+
+  @Test
+  public void testNewEntityUnionAlias() {
+    EntityFoo entityFoo = new EntityFoo().setUrn(makeFooUrn(1));
+    EntityUnionAlias entityUnion = ModelUtils.newEntityUnion(EntityUnionAlias.class, entityFoo);
+
+    assertEquals(entityUnion.getFoo(), entityFoo);
   }
 }
