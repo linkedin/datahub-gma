@@ -4,6 +4,7 @@ import com.linkedin.data.DataMap;
 import com.linkedin.data.schema.DataSchema;
 import com.linkedin.data.schema.PathSpec;
 import com.linkedin.data.schema.RecordDataSchema;
+import com.linkedin.data.schema.UnionDataSchema;
 import com.linkedin.data.template.AbstractArrayTemplate;
 import com.linkedin.data.template.DataTemplate;
 import com.linkedin.data.template.GetMode;
@@ -343,10 +344,20 @@ public class RecordUtils {
   @Nonnull
   public static <V extends RecordTemplate> RecordTemplate setSelectedRecordTemplateInUnion(
       @Nonnull UnionTemplate unionTemplate, @Nonnull RecordTemplate selectedMember) {
-
     final Method selectWrapped =
         getProtectedMethod(UnionTemplate.class, "selectWrapped", DataSchema.class, Class.class, String.class,
             DataTemplate.class);
+
+    final List<UnionDataSchema.Member> members = ((UnionDataSchema) unionTemplate.schema()).getMembers();
+    for (UnionDataSchema.Member m : members) {
+      if (m.hasAlias() && m.getType()
+          .getDereferencedDataSchema()
+          .getUnionMemberKey()
+          .equals(selectedMember.getClass().getName())) {
+        return (V) invokeProtectedMethod(unionTemplate, selectWrapped, selectedMember.schema(),
+            selectedMember.getClass(), m.getAlias(), selectedMember);
+      }
+    }
     return (V) invokeProtectedMethod(unionTemplate, selectWrapped, selectedMember.schema(), selectedMember.getClass(),
         selectedMember.schema().getUnionMemberKey(), selectedMember);
   }
