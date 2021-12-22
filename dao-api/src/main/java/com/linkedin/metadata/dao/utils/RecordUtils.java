@@ -330,6 +330,17 @@ public class RecordUtils {
 
     final Method obtainWrapped =
         getProtectedMethod(UnionTemplate.class, "obtainWrapped", DataSchema.class, Class.class, String.class);
+    final List<UnionDataSchema.Member> members = ((UnionDataSchema) unionTemplate.schema()).getMembers();
+    for (UnionDataSchema.Member m : members) {
+      if (m.hasAlias() && m.getType()
+          .getDereferencedDataSchema()
+          .getUnionMemberKey()
+          .equals(clazz.getName())) {
+        return (V) invokeProtectedMethod(unionTemplate, obtainWrapped, dataSchema, clazz,
+            m.getAlias());
+      }
+    }
+
     return (V) invokeProtectedMethod(unionTemplate, obtainWrapped, dataSchema, clazz,
         ((RecordDataSchema) dataSchema).getFullName());
   }
