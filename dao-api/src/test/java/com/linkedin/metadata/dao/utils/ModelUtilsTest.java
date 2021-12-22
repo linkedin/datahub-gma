@@ -3,7 +3,9 @@ package com.linkedin.metadata.dao.utils;
 import com.google.common.collect.ImmutableSet;
 import com.linkedin.common.CommonTestAspect;
 import com.linkedin.common.urn.Urn;
+import com.linkedin.testing.DeltaUnionAlias;
 import com.linkedin.testing.EntityAspectUnionAliasArray;
+import com.linkedin.testing.EntityDeltaAlias;
 import com.linkedin.testing.EntityFoo;
 import com.linkedin.testing.EntitySnapshotAlias;
 import com.linkedin.testing.EntityUnion;
@@ -140,9 +142,9 @@ public class ModelUtilsTest {
   @Test
   public void testGetUrnFromDeltaUnionAlias() {
     Urn expected = makeUrn(1);
-    EntityDelta delta = new EntityDelta().setUrn(expected);
-    DeltaUnion deltaUnion = new DeltaUnion();
-    deltaUnion.setEntityDelta(delta);
+    EntityDeltaAlias delta = new EntityDeltaAlias().setUrn(expected);
+    DeltaUnionAlias deltaUnion = new DeltaUnionAlias();
+    deltaUnion.setEntity(delta);
 
     Urn urn = ModelUtils.getUrnFromDeltaUnion(deltaUnion);
     assertEquals(urn, expected);
