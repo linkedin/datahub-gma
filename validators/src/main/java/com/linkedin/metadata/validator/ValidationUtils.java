@@ -158,7 +158,8 @@ public final class ValidationUtils {
   }
 
   public static boolean isUnionWithOnlyComplexMembers(UnionDataSchema unionDataSchema) {
-    return unionDataSchema.getMembers().stream().allMatch(member -> member.getType().isComplex());
+    return unionDataSchema.getMembers().stream().allMatch(member -> member.getType().getDereferencedDataSchema().getType().equals(
+        DataSchema.Type.RECORD));
   }
 
   @Nonnull
