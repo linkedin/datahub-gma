@@ -12,6 +12,7 @@ import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectBaz;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.AspectFooArray;
+import com.linkedin.testing.EntityAspectUnion;
 import com.linkedin.testing.EntitySnapshot;
 import com.linkedin.testing.EntityValueArray;
 import com.linkedin.testing.MixedRecord;
@@ -408,6 +409,51 @@ public class RecordUtilsTest {
         StringUnion.create("val4")
     )));
     assertEquals(ps2.toString(), "/unionArray/*");
+  }
+
+  @Test
+  public void testGetFieldValuePrimitiveUnion() {
+    final MixedRecord mixedRecord1 = new MixedRecord().setPrimitiveUnion(StringUnion.create("val1"));
+
+    PathSpec ps1 = MixedRecord.fields().primitiveUnion();
+    Object o1 = RecordUtils.getFieldValue(mixedRecord1, ps1).get();
+
+    assertEquals(o1, StringUnion.create("val1"));
+    assertEquals(ps1.toString(), "/primitiveUnion");
+  }
+
+  @Test
+  public void testGetFieldValueUnionOfRecords() {
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    EntityAspectUnion union = EntityAspectUnion.create(foo); // Union members are AspectFoo and AspectBar
+    final MixedRecord mixedRecord1 = new MixedRecord().setRecordUnion(union);
+
+    // union
+    PathSpec ps1 = MixedRecord.fields().recordUnion();
+    Object o1 = RecordUtils.getFieldValue(mixedRecord1, ps1).get();
+
+    // union's AspectFoo
+    PathSpec ps2 = MixedRecord.fields().recordUnion().AspectFoo();
+    Object o2 = RecordUtils.getFieldValue(mixedRecord1, ps2).get();
+
+    // union's AspectFoo's value
+    PathSpec ps3 = MixedRecord.fields().recordUnion().AspectFoo().value();
+    Object o3 = RecordUtils.getFieldValue(mixedRecord1, ps3).get();
+
+    // union's AspectBar's value - this should return an empty Optional, and no error should be thrown.
+    PathSpec ps4 = MixedRecord.fields().recordUnion().AspectBar().value();
+    Optional<Object> o4 = RecordUtils.getFieldValue(mixedRecord1, ps4);
+
+    assertEquals(o1, EntityAspectUnion.create(foo));
+    assertEquals(ps1.toString(), "/recordUnion");
+
+    assertEquals(o2, new AspectFoo().setValue("foo"));
+    assertEquals(ps2.toString(), "/recordUnion/com.linkedin.testing.AspectFoo");
+
+    assertEquals(o3, "foo");
+    assertEquals(ps3.toString(), "/recordUnion/com.linkedin.testing.AspectFoo/value");
+
+    assertFalse(o4.isPresent());
   }
 
   @Test

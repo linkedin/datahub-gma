@@ -43,10 +43,11 @@ public class RecordUtils {
   private static final Pattern SLASH_PATERN = Pattern.compile("/");
 
   /**
-   * Using in-memory hash map to store the get/is methods of the schema fields of RecordTemplate.
-   * Here map has RecordTemplate class as key, value being another map of field name with the associated get/is method
+   * Using in-memory hash map to store the get/is methods of the schema fields of RecordTemplate and UnionTemplate, respectively.
+   * These maps have RecordTemplate/UnionTemplate class as the key, with the value being another map of field name with the associated get/is methods.
    */
-  private static final ConcurrentHashMap<Class<? extends RecordTemplate>, Map<String, Method>> METHOD_CACHE = new ConcurrentHashMap<>();
+  private static final ConcurrentHashMap<Class<? extends RecordTemplate>, Map<String, Method>> RECORD_METHOD_CACHE = new ConcurrentHashMap<>();
+  private static final ConcurrentHashMap<Class<? extends UnionTemplate>, Map<String, Method>> UNION_METHOD_CACHE = new ConcurrentHashMap<>();
 
   private RecordUtils() {
     // Util class
@@ -412,23 +413,63 @@ public class RecordUtils {
     return Collections.unmodifiableMap(methodMap);
   }
 
+  @Nonnull
+  private static Map<String, Method> getMethodsFromUnionTemplate(@Nonnull UnionTemplate unionTemplate) {
+    final Pattern patternLastPeriod = Pattern.compile("^(.*)\\.");
+    final HashMap<String, Method> methodMap = new HashMap<>();
+    for (UnionDataSchema.Member member : ((UnionDataSchema) unionTemplate.schema()).getMembers()) {
+      String unionMemberKey = member.getUnionMemberKey();
+      // com.linkedin.foo => Foo
+      String lastPartOfUnionMemberKey = patternLastPeriod.matcher(unionMemberKey).replaceAll("");
+      String capitalizedName = capitalizeFirst(lastPartOfUnionMemberKey);
+      String getMethodName = "get" + capitalizedName;
+      try {
+        methodMap.put(unionMemberKey, unionTemplate.getClass().getMethod(getMethodName));
+      } catch (NoSuchMethodException e) {
+        throw new RuntimeException(String.format("Failed to get method [%s], for class [%s], field [%s]",
+            getMethodName, unionTemplate.getClass().getCanonicalName(), unionMemberKey), e);
+      }
+    }
+    return Collections.unmodifiableMap(methodMap);
+  }
+
   /**
    * Given a {@link RecordTemplate} and field name, this will find and execute getFieldName/isFieldName and return the result
    * If neither getFieldName/isFieldName has been called for any of the fields of the RecordTemplate, then the get/is method
    * for all schema fields of the record will be found and subsequently cached.
    *
-   * @param record {@link RecordTemplate} whose field has to be referenced
+   * @param dataTemplate {@link RecordTemplate} or {@link UnionTemplate} whose field/member has to be referenced
    * @param fieldName field name of the record that has to be referenced
    * @return value of the field in the record
    */
   @Nullable
-  private static Object invokeMethod(@Nonnull RecordTemplate record, @Nonnull String fieldName) {
-    METHOD_CACHE.putIfAbsent(record.getClass(), getMethodsFromRecordTemplate(record));
+  private static Object invokeMethod(@Nonnull Object dataTemplate, @Nonnull String fieldName) {
+    if (dataTemplate instanceof RecordTemplate) {
+      return invokeMethodRecord((RecordTemplate) dataTemplate, fieldName);
+    }
+    if (dataTemplate instanceof UnionTemplate) {
+      return invokeMethodUnion((UnionTemplate) dataTemplate, fieldName);
+    }
+    return null;
+  }
+
+  private static Object invokeMethodRecord(@Nonnull RecordTemplate record, @Nonnull String fieldName) {
+    RECORD_METHOD_CACHE.putIfAbsent(record.getClass(), getMethodsFromRecordTemplate(record));
     try {
-      return METHOD_CACHE.get(record.getClass()).get(fieldName).invoke(record);
+      return RECORD_METHOD_CACHE.get(record.getClass()).get(fieldName).invoke(record);
     } catch (IllegalAccessException | InvocationTargetException e) {
       throw new RuntimeException(String.format("Failed to execute method for class [%s], field [%s]",
           record.getClass().getCanonicalName(), fieldName), e);
+    }
+  }
+
+  private static Object invokeMethodUnion(@Nonnull UnionTemplate union, @Nonnull String fieldName) {
+    UNION_METHOD_CACHE.putIfAbsent(union.getClass(), getMethodsFromUnionTemplate(union));
+    try {
+      return UNION_METHOD_CACHE.get(union.getClass()).get(fieldName).invoke(union);
+    } catch (IllegalAccessException | InvocationTargetException e) {
+      throw new RuntimeException(String.format("Failed to execute method for class [%s], field [%s]",
+          union.getClass().getCanonicalName(), fieldName), e);
     }
   }
 
@@ -493,11 +534,11 @@ public class RecordUtils {
 
   /**
    * Given a {@link RecordTemplate} and {@link com.linkedin.data.schema.PathSpec} this will return value of the path from the record.
-   * This handles only RecordTemplate, fields of which can be primitive types, typeRefs, arrays of primitive types, arrays of records
-   * or arrays of primitive union types.
+   * This handles only RecordTemplate, fields of which can be primitive types, typeRefs, unions ({@link UnionTemplate}),
+   * arrays of primitive types, arrays of records, or arrays of primitive union types.
    * Fetching of values in a RecordTemplate where the field has a default value will return the field default value.
    * Referencing field corresponding to a particular index or range of indices of an array is not supported.
-   * Fields corresponding to 1) multi-dimensional array 2) UnionTemplate 3) AbstractMapTemplate 4) FixedTemplate are currently not supported.
+   * Fields corresponding to 1) multi-dimensional array 2) AbstractMapTemplate 3) FixedTemplate are currently not supported.
    *
    * @param recordTemplate {@link RecordTemplate} whose field specified by the pegasus path has to be accessed
    * @param ps {@link PathSpec} representing the path whose value needs to be returned
@@ -522,8 +563,16 @@ public class RecordUtils {
           return Optional.empty();
         }
       } else if (reference instanceof AbstractArrayTemplate) {
-        return Optional.of(getReferenceForAbstractArray(
-            (AbstractArrayTemplate<?>) reference, new PathSpec(ps.getPathComponents().subList(i, pathSize))));
+        return Optional.of(getReferenceForAbstractArray((AbstractArrayTemplate<?>) reference, new PathSpec(ps.getPathComponents().subList(i, pathSize))));
+      } else if (reference instanceof UnionTemplate) {
+        if (ps.getPathComponents().size() == 1) {
+          // if primitive
+          return Optional.ofNullable(((DataMap) ((UnionTemplate) reference).data()).get(ps.getPathComponents().get(0)));
+        }
+        reference = invokeMethod((UnionTemplate) reference, part);
+        if (reference == null) {
+          return Optional.empty();
+        }
       } else {
         throw new UnsupportedOperationException(String.format("Failed at extracting %s (%s from %s)", part, ps, recordTemplate));
       }
