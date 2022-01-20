@@ -418,11 +418,11 @@ public class RecordUtils {
     final Pattern patternLastPeriod = Pattern.compile("^(.*)\\.");
     final HashMap<String, Method> methodMap = new HashMap<>();
     for (UnionDataSchema.Member member : ((UnionDataSchema) unionTemplate.schema()).getMembers()) {
-      String unionMemberKey = member.getUnionMemberKey();
+      final String unionMemberKey = member.getUnionMemberKey();
       // com.linkedin.foo => Foo
-      String lastPartOfUnionMemberKey = patternLastPeriod.matcher(unionMemberKey).replaceAll("");
-      String capitalizedName = capitalizeFirst(lastPartOfUnionMemberKey);
-      String getMethodName = "get" + capitalizedName;
+      final String lastPartOfUnionMemberKey = patternLastPeriod.matcher(unionMemberKey).replaceAll("");
+      final String capitalizedName = capitalizeFirst(lastPartOfUnionMemberKey);
+      final String getMethodName = "get" + capitalizedName;
       try {
         methodMap.put(unionMemberKey, unionTemplate.getClass().getMethod(getMethodName));
       } catch (NoSuchMethodException e) {

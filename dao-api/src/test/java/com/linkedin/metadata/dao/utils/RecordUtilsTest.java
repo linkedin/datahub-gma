@@ -11,8 +11,10 @@ import com.linkedin.metadata.validator.ValidationUtils;
 import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectBaz;
 import com.linkedin.testing.AspectFoo;
+import com.linkedin.testing.AspectBarArray;
 import com.linkedin.testing.AspectFooArray;
 import com.linkedin.testing.EntityAspectUnion;
+import com.linkedin.testing.EntityAspectUnionComplex;
 import com.linkedin.testing.EntitySnapshot;
 import com.linkedin.testing.EntityValueArray;
 import com.linkedin.testing.MixedRecord;
@@ -23,6 +25,7 @@ import com.linkedin.testing.urn.FooUrn;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import org.apache.commons.io.IOUtils;
 import org.testng.annotations.Test;
@@ -424,9 +427,13 @@ public class RecordUtilsTest {
 
   @Test
   public void testGetFieldValueUnionOfRecords() {
-    AspectFoo foo = new AspectFoo().setValue("foo");
-    EntityAspectUnion union = EntityAspectUnion.create(foo); // Union members are AspectFoo and AspectBar
-    final MixedRecord mixedRecord1 = new MixedRecord().setRecordUnion(union);
+    AspectFoo foo0 = new AspectFoo().setValue("foo0");
+    AspectBar foo1 = new AspectBar().setValue("foo1");
+    AspectBar foo2 = new AspectBar().setValue("foo2");
+    AspectBaz baz = new AspectBaz().setArrayRecordsField(new AspectBarArray(Arrays.asList(foo1, foo2)));
+    EntityAspectUnion union = EntityAspectUnion.create(foo0); // Union members are AspectFoo and AspectBar
+    EntityAspectUnionComplex unionComplex = EntityAspectUnionComplex.create(baz);
+    final MixedRecord mixedRecord1 = new MixedRecord().setRecordUnion(union).setRecordUnionComplex(unionComplex);
 
     // union
     PathSpec ps1 = MixedRecord.fields().recordUnion();
@@ -444,16 +451,25 @@ public class RecordUtilsTest {
     PathSpec ps4 = MixedRecord.fields().recordUnion().AspectBar().value();
     Optional<Object> o4 = RecordUtils.getFieldValue(mixedRecord1, ps4);
 
-    assertEquals(o1, EntityAspectUnion.create(foo));
+    // union with AspectBaz, which has an array field containing AspectFoo records. try to access the value field of those records.
+    PathSpec ps5 = MixedRecord.fields().recordUnionComplex().AspectBaz().arrayRecordsField().items().value();
+    Optional<Object> o5 = RecordUtils.getFieldValue(mixedRecord1, ps5);
+
+    assertEquals(o1, EntityAspectUnion.create(foo0));
     assertEquals(ps1.toString(), "/recordUnion");
 
-    assertEquals(o2, new AspectFoo().setValue("foo"));
+    assertEquals(o2, new AspectFoo().setValue("foo0"));
     assertEquals(ps2.toString(), "/recordUnion/com.linkedin.testing.AspectFoo");
 
-    assertEquals(o3, "foo");
+    assertEquals(o3, "foo0");
     assertEquals(ps3.toString(), "/recordUnion/com.linkedin.testing.AspectFoo/value");
 
     assertFalse(o4.isPresent());
+
+    List<String> output = (List<String>) o5.get();
+    assertEquals(output.get(0), "foo1");
+    assertEquals(output.get(1), "foo2");
+    assertEquals(ps5.toString(), "/recordUnionComplex/com.linkedin.testing.AspectBaz/arrayRecordsField/*/value");
   }
 
   @Test
