@@ -35,10 +35,4 @@ public class ValidationUtilsTest {
     UnionDataSchema dataSchema = ValidationUtils.getUnionSchema(PizzaStringAspect.class);
     assertFalse(ValidationUtils.isUnionWithOnlyComplexMembers(dataSchema));
   }
-
-  @Test
-  public void testNestedUnion() {
-    UnionDataSchema dataSchema = ValidationUtils.getUnionSchema(PizzaUnionAspect.class);
-    assertFalse(ValidationUtils.isUnionWithOnlyComplexMembers(dataSchema));
-  }
 }
