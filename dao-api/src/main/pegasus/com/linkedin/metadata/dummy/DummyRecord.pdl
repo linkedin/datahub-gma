@@ -3,4 +3,7 @@ namespace com.linkedin.metadata.dummy
 /**
  * Not to be used
  */
-typeref DummyAspect = union[DummyRecord]
+record DummyRecord {
+
+  value: string
+}
