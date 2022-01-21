@@ -79,4 +79,9 @@ record MixedRecord {
    * For unit tests
    */
   recordUnionComplex: optional EntityAspectUnionComplex
+
+  /**
+   * For unit tests
+   */
+  recordUnionAlias: optional EntityAspectUnionAlias
 }
