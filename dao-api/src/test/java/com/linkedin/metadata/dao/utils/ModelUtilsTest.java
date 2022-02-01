@@ -3,8 +3,14 @@ package com.linkedin.metadata.dao.utils;
 import com.google.common.collect.ImmutableSet;
 import com.linkedin.common.CommonTestAspect;
 import com.linkedin.common.urn.Urn;
+import com.linkedin.testing.DeltaUnionAlias;
+import com.linkedin.testing.EntityAspectUnionAliasArray;
+import com.linkedin.testing.EntityDeltaAlias;
 import com.linkedin.testing.EntityFoo;
+import com.linkedin.testing.EntitySnapshotAlias;
 import com.linkedin.testing.EntityUnion;
+import com.linkedin.testing.EntityUnionAlias;
+import com.linkedin.testing.SnapshotUnionAlias;
 import com.linkedin.testing.urn.PizzaUrn;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.data.template.RecordTemplate;
@@ -13,6 +19,7 @@ import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.DeltaUnion;
 import com.linkedin.testing.EntityAspectUnion;
+import com.linkedin.testing.EntityAspectUnionAlias;
 import com.linkedin.testing.EntityAspectUnionArray;
 import com.linkedin.testing.EntityBar;
 import com.linkedin.testing.EntityDelta;
@@ -21,6 +28,7 @@ import com.linkedin.testing.EntitySnapshot;
 import com.linkedin.testing.InvalidAspectUnion;
 import com.linkedin.testing.RelationshipFoo;
 import com.linkedin.testing.RelationshipUnion;
+import com.linkedin.testing.RelationshipUnionAlias;
 import com.linkedin.testing.SnapshotUnion;
 import com.linkedin.testing.urn.FooUrn;
 import java.io.IOException;
@@ -101,6 +109,17 @@ public class ModelUtilsTest {
   }
 
   @Test
+  public void testGetUrnFromSnapshotUnionAlias() {
+    Urn expected = makeUrn(1);
+    EntitySnapshotAlias snapshot = new EntitySnapshotAlias().setUrn(expected);
+    SnapshotUnionAlias snapshotUnion = new SnapshotUnionAlias();
+    snapshotUnion.setEntity(snapshot);
+
+    Urn urn = ModelUtils.getUrnFromSnapshotUnion(snapshotUnion);
+    assertEquals(urn, expected);
+  }
+
+  @Test
   public void testGetUrnFromDelta() {
     Urn expected = makeUrn(1);
     EntityDelta delta = new EntityDelta().setUrn(expected);
@@ -115,6 +134,17 @@ public class ModelUtilsTest {
     EntityDelta delta = new EntityDelta().setUrn(expected);
     DeltaUnion deltaUnion = new DeltaUnion();
     deltaUnion.setEntityDelta(delta);
+
+    Urn urn = ModelUtils.getUrnFromDeltaUnion(deltaUnion);
+    assertEquals(urn, expected);
+  }
+
+  @Test
+  public void testGetUrnFromDeltaUnionAlias() {
+    Urn expected = makeUrn(1);
+    EntityDeltaAlias delta = new EntityDeltaAlias().setUrn(expected);
+    DeltaUnionAlias deltaUnion = new DeltaUnionAlias();
+    deltaUnion.setEntity(delta);
 
     Urn urn = ModelUtils.getUrnFromDeltaUnion(deltaUnion);
     assertEquals(urn, expected);
@@ -165,6 +195,26 @@ public class ModelUtilsTest {
   }
 
   @Test
+  public void testGetAspectsFromSnapshotAlias() throws IOException {
+    EntitySnapshotAlias snapshot = new EntitySnapshotAlias();
+    snapshot.setAspects(new EntityAspectUnionAliasArray());
+    AspectFoo foo = new AspectFoo();
+    EntityAspectUnionAlias aspect1 = new EntityAspectUnionAlias();
+    aspect1.setFoo(foo);
+    snapshot.getAspects().add(aspect1);
+    AspectBar bar = new AspectBar();
+    EntityAspectUnionAlias aspect2 = new EntityAspectUnionAlias();
+    aspect2.setBar(bar);
+    snapshot.getAspects().add(aspect2);
+
+    List<? extends RecordTemplate> aspects = ModelUtils.getAspectsFromSnapshot(snapshot);
+
+    assertEquals(aspects.size(), 2);
+    assertEquals(aspects.get(0), foo);
+    assertEquals(aspects.get(1), bar);
+  }
+
+  @Test
   public void testGetAspectFromSnapshot() throws IOException {
     EntitySnapshot snapshot = new EntitySnapshot();
     snapshot.setAspects(new EntityAspectUnionArray());
@@ -197,6 +247,22 @@ public class ModelUtilsTest {
   }
 
   @Test
+  public void testGetAspectsFromSnapshotUnionAlias() throws IOException {
+    EntitySnapshotAlias snapshot = new EntitySnapshotAlias();
+    snapshot.setAspects(new EntityAspectUnionAliasArray());
+    snapshot.getAspects().add(new EntityAspectUnionAlias());
+    AspectFoo foo = new AspectFoo();
+    snapshot.getAspects().get(0).setFoo(foo);
+    SnapshotUnionAlias snapshotUnion = new SnapshotUnionAlias();
+    snapshotUnion.setEntity(snapshot);
+
+    List<? extends RecordTemplate> aspects = ModelUtils.getAspectsFromSnapshotUnion(snapshotUnion);
+
+    assertEquals(aspects.size(), 1);
+    assertEquals(aspects.get(0), foo);
+  }
+
+  @Test
   public void testNewSnapshot() {
     Urn urn = makeUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");
@@ -217,6 +283,15 @@ public class ModelUtilsTest {
     EntityAspectUnion aspectUnion = ModelUtils.newAspectUnion(EntityAspectUnion.class, foo);
 
     assertEquals(aspectUnion.getAspectFoo(), foo);
+  }
+
+  @Test
+  public void testNewAspectAlias() {
+    AspectFoo foo = new AspectFoo().setValue("foo");
+
+    EntityAspectUnionAlias aspectUnion = ModelUtils.newAspectUnion(EntityAspectUnionAlias.class, foo);
+
+    assertEquals(aspectUnion.getFoo(), foo);
   }
 
   @Test
@@ -270,6 +345,15 @@ public class ModelUtilsTest {
   }
 
   @Test
+  public void testNewRelatioshipUnionAlias() {
+    RelationshipFoo foo = new RelationshipFoo().setDestination(makeFooUrn(1)).setSource(makeFooUrn(2));
+
+    RelationshipUnionAlias relationshipUnion = ModelUtils.newRelationshipUnion(RelationshipUnionAlias.class, foo);
+
+    assertEquals(relationshipUnion.getFoo(), foo);
+  }
+
+  @Test
   public void testGetMAETopicName() throws URISyntaxException {
     FooUrn urn = new FooUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");
@@ -296,5 +380,13 @@ public class ModelUtilsTest {
     EntityUnion entityUnion = ModelUtils.newEntityUnion(EntityUnion.class, entityFoo);
 
     assertEquals(entityUnion.getEntityFoo(), entityFoo);
+  }
+
+  @Test
+  public void testNewEntityUnionAlias() {
+    EntityFoo entityFoo = new EntityFoo().setUrn(makeFooUrn(1));
+    EntityUnionAlias entityUnion = ModelUtils.newEntityUnion(EntityUnionAlias.class, entityFoo);
+
+    assertEquals(entityUnion.getFoo(), entityFoo);
   }
 }

@@ -64,4 +64,24 @@ record MixedRecord {
    * For unit tests
    */
   recordTypeRef: optional typeref AspectFooTypeRef = AspectFoo
+
+  /**
+   * For unit tests
+   */
+  primitiveUnion: optional StringUnion
+
+  /**
+   * For unit tests
+   */
+  recordUnion: optional EntityAspectUnion
+
+  /**
+   * For unit tests
+   */
+  recordUnionComplex: optional EntityAspectUnionComplex
+
+  /**
+   * For unit tests
+   */
+  recordUnionAlias: optional EntityAspectUnionAlias
 }

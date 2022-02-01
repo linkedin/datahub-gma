@@ -1,0 +1,5 @@
+namespace com.linkedin.testing
+
+typeref PizzaEnumAspect = union[
+  PizzaSize
+]

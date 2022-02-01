@@ -48,6 +48,11 @@ record AspectBaz {
   /**
    * For unit tests
    */
+  arrayRecordsField: array[AspectBar]
+
+  /**
+   * For unit tests
+   */
   recordField: AspectFoo
 
   /**

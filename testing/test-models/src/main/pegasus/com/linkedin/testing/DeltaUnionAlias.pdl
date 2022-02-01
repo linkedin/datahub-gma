@@ -1,0 +1,8 @@
+namespace com.linkedin.testing
+
+/**
+ * For unit tests
+ */
+typeref DeltaUnionAlias = union[
+  entity: EntityDeltaAlias
+]
