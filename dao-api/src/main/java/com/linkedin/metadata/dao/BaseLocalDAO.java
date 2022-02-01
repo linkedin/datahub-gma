@@ -278,13 +278,6 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * Sets whether to emit the general MAE. Either general or aspect-specific MAE must be enabled.
-   */
-  public void setEmitGeneralAuditEvent(boolean emitGeneralAuditEvent) {
-    enableGeneralAuditEvent(emitGeneralAuditEvent);
-  }
-
-  /**
    * Sets if aspect specific MAE should be always emitted after each update even if there's no actual value change.
    */
   public void setAlwaysEmitAspectSpecificAuditEvent(boolean alwaysEmitAspectSpecificAuditEvent) {
