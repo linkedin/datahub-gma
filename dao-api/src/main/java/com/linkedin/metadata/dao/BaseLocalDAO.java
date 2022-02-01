@@ -20,6 +20,7 @@ import com.linkedin.metadata.dao.retention.Retention;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
 import com.linkedin.metadata.dao.retention.VersionBasedRetention;
 import com.linkedin.metadata.dao.storage.LocalDAOStorageConfig;
+import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
@@ -48,6 +49,7 @@ import javax.annotation.Nullable;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NonNull;
 import lombok.Value;
 
 
@@ -61,6 +63,8 @@ import lombok.Value;
  */
 public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     extends BaseReadDAO<ASPECT_UNION, URN> {
+
+  private final Class<ASPECT_UNION> _aspectUnionClass;
 
   /**
    * Immutable class that corresponds to the metadata aspect along with {@link ExtraInfo} for the same metadata. It also
@@ -92,6 +96,29 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   static class AddResult<ASPECT extends RecordTemplate> {
     ASPECT oldValue;
     ASPECT newValue;
+    Class<ASPECT> klass;
+  }
+
+  /**
+   * Immutable class to hold the details of an update to an aspect.
+   *
+   * <p>This class allows the wildcard capture in {@link #addMany(Urn, List, AuditStamp)}</p>
+   *
+   * @param <ASPECT> the type of the aspect being updated
+   */
+  @AllArgsConstructor
+  @Value
+  public static class AspectUpdateLambda<ASPECT extends RecordTemplate> {
+    @NonNull
+    Class<ASPECT> aspectClass;
+
+    @NonNull
+    Function<Optional<ASPECT>, ASPECT> updateLambda;
+
+    AspectUpdateLambda(ASPECT value) {
+      this.aspectClass = (Class<ASPECT>) value.getClass();
+      this.updateLambda = (ignored) -> value;
+    }
   }
 
   private static final String DEFAULT_ID_NAMESPACE = "global";
@@ -130,6 +157,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   // Flag for enabling reads and writes to local secondary index
   private boolean _enableLocalSecondaryIndex = false;
 
+  // Enable updating multiple aspects within a single transaction
+  private boolean _enableAtomicMultipleUpdate = false;
+
   private Clock _clock = Clock.systemUTC();
 
   /**
@@ -143,6 +173,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     super(aspectUnionClass);
     _producer = producer;
     _storageConfig = LocalDAOStorageConfig.builder().build();
+    _aspectUnionClass = aspectUnionClass;
   }
 
   /**
@@ -155,6 +186,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     super(storageConfig.getAspectStorageConfigMap().keySet());
     _producer = producer;
     _storageConfig = storageConfig;
+    _aspectUnionClass = producer.getAspectUnionClass();
   }
 
   /**
@@ -244,6 +276,13 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
+   * Enables or disables atomic updates of multiple aspects.
+   */
+  public void enableAtomicMultipleUpdate(boolean enabled) {
+    _enableAtomicMultipleUpdate = enabled;
+  }
+
+  /**
    * Enables or disables model validation before persisting.
    */
   public void enableModelValidationOnWrite(boolean enabled) {
@@ -314,7 +353,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     // Skip saving if there's no actual change
     if ((oldValue == null && newValue == null) || oldValue != null && newValue != null && equalityTester.equals(
         oldValue, newValue)) {
-      return new AddResult<>(oldValue, oldValue);
+      return new AddResult<>(oldValue, oldValue, aspectClass);
     }
 
     // Save the newValue as the latest version
@@ -331,52 +370,86 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       updateLocalIndex(urn, newValue, largestVersion);
     }
 
-    return new AddResult<>(oldValue, newValue);
+    return new AddResult<>(oldValue, newValue, aspectClass);
   }
 
   /**
-   * Adds a new version of aspect for an entity.
+   * Adds a new version of several aspects for an entity.
    *
-   * <p>The new aspect will have an automatically assigned version number, which is guaranteed to be positive and
+   * <p>Each new aspect will have an automatically assigned version number, which is guaranteed to be positive and
    * monotonically increasing. Older versions of aspect will be purged automatically based on the retention setting. A
-   * MetadataAuditEvent is also emitted if there's an actual update.
+   * MetadataAuditEvent is also emitted if an actual update occurs.</p>
    *
-   * @param urn the URN for the entity the aspect is attached to
+   * <p><b>Important:</b> If {@link #_enableAtomicMultipleUpdate} is true, all updates will occur in a single transaction. Note that
+   * pre-update hooks are fired between update statements, meaning that the behavior of which pre-update hooks fire when
+   * an update partially fails will depend on the implementation.</p>
+   *
+   * @param urn the URN of the entity to which the aspects are attached
+   * @param aspectUpdateLambdas a list of {@link AspectUpdateLambda} to execute
    * @param auditStamp the audit stamp for the operation
-   * @param updateLambda a lambda expression that takes the previous version of aspect and returns the new version
-   * @return {@link RecordTemplate} of the new value of aspect
+   * @param maxTransactionRetry the maximum number of times to retry the transaction
+   * @return a list of the updated aspects, each wrapped in an instance of {@link ASPECT_UNION}
    */
-  @Nonnull
-  public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
-      @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp,
+  public List<ASPECT_UNION> addMany(@Nonnull URN urn,
+      @Nonnull List<AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas,
+      @Nonnull AuditStamp auditStamp,
       int maxTransactionRetry) {
 
-    checkValidAspect(aspectClass);
+    // first check that all the aspects are valid
+    aspectUpdateLambdas.stream().map(AspectUpdateLambda::getAspectClass).forEach(this::checkValidAspect);
 
-    final EqualityTester<ASPECT> equalityTester = getEqualityTester(aspectClass);
+    final List<AddResult<? extends RecordTemplate>> results;
+    if (_enableAtomicMultipleUpdate) {
+      // atomic multiple update enabled: run in a single transaction
+      results = runInTransactionWithRetry(
+          () -> aspectUpdateLambdas.stream().map(x -> aspectUpdateHelper(urn, x, auditStamp)).collect(Collectors.toList()), maxTransactionRetry);
+    } else {
+      // no atomic multiple updates: run each in its own transaction. This is the same as repeated calls to add
+      results = aspectUpdateLambdas.stream().map(x -> runInTransactionWithRetry(() -> aspectUpdateHelper(urn, x, auditStamp), maxTransactionRetry))
+          .collect(Collectors.toList());
+    }
 
-    final AddResult<ASPECT> result = runInTransactionWithRetry(() -> {
-      // Compute newValue based on oldValue
-      final AspectEntry<ASPECT> latest = getLatest(urn, aspectClass);
-      final ASPECT oldValue = latest.getAspect() == null ? null : latest.getAspect();
-      final ASPECT newValue = updateLambda.apply(Optional.ofNullable(oldValue));
-      if (newValue == null) {
-        throw new UnsupportedOperationException("Do not support adding null metadata in add method");
-      }
-      checkValidAspect(newValue.getClass());
+    // send the audit events etc
+    return results.stream().map(x -> unwrapAddResultToUnion(urn, x)).collect(Collectors.toList());
+  }
 
-      if (_modelValidationOnWrite) {
-        validateAgainstSchema(newValue);
-      }
+  public List<ASPECT_UNION> addMany(@Nonnull URN urn, @Nonnull List<? extends RecordTemplate> aspectValues, AuditStamp auditStamp) {
+    List<AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas = aspectValues.stream()
+        .map(AspectUpdateLambda::new)
+        .collect(Collectors.toList());
 
-      // Invoke pre-update hooks, if any
-      if (_aspectPreUpdateHooksMap.containsKey(aspectClass)) {
-        _aspectPreUpdateHooksMap.get(aspectClass).forEach(hook -> hook.accept(urn, newValue));
-      }
+    return addMany(urn, aspectUpdateLambdas, auditStamp, DEFAULT_MAX_TRANSACTION_RETRY);
+  }
 
-      return addCommon(urn, latest, newValue, aspectClass, auditStamp, equalityTester);
-    }, maxTransactionRetry);
+  private <ASPECT extends RecordTemplate> AddResult<ASPECT> aspectUpdateHelper(URN urn, AspectUpdateLambda<ASPECT> updateTuple, AuditStamp auditStamp) {
+    AspectEntry<ASPECT> latest = getLatest(urn, updateTuple.getAspectClass());
+    Optional<ASPECT> oldValue = Optional.ofNullable(latest.getAspect());
+    ASPECT newValue = updateTuple.getUpdateLambda().apply(oldValue);
+    if (newValue == null) {
+      throw new UnsupportedOperationException(String.format("Attempted to update %s with null aspect %s", urn, updateTuple.getAspectClass().getName()));
+    }
 
+    checkValidAspect(newValue.getClass());
+
+    if (_modelValidationOnWrite) {
+      validateAgainstSchema(newValue);
+    }
+
+    // Invoke pre-update hooks, if any
+    if (_aspectPreUpdateHooksMap.containsKey(updateTuple.getAspectClass())) {
+      _aspectPreUpdateHooksMap.get(updateTuple.getAspectClass()).forEach(hook -> hook.accept(urn, newValue));
+    }
+
+    return addCommon(urn, latest, newValue, updateTuple.getAspectClass(), auditStamp, getEqualityTester(updateTuple.getAspectClass()));
+  }
+
+  private <ASPECT extends RecordTemplate> ASPECT_UNION unwrapAddResultToUnion(URN urn, AddResult<ASPECT> result) {
+    ASPECT rawResult = unwrapAddResult(urn, result);
+    return ModelUtils.newEntityUnion(_aspectUnionClass, rawResult);
+  }
+
+  private <ASPECT extends RecordTemplate> ASPECT unwrapAddResult(URN urn, AddResult<ASPECT> result) {
+    Class<ASPECT> aspectClass = result.getKlass();
     final ASPECT oldValue = result.getOldValue();
     final ASPECT newValue = result.getNewValue();
 
@@ -398,6 +471,52 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     }
 
     return newValue;
+  }
+
+  /**
+   * Adds a new version of aspect for an entity.
+   *
+   * <p>The new aspect will have an automatically assigned version number, which is guaranteed to be positive and
+   * monotonically increasing. Older versions of aspect will be purged automatically based on the retention setting. A
+   * MetadataAuditEvent is also emitted if there's an actual update.
+   *
+   * @param urn the URN for the entity the aspect is attached to
+   * @param auditStamp the audit stamp for the operation
+   * @param updateLambda a lambda expression that takes the previous version of aspect and returns the new version
+   * @return {@link RecordTemplate} of the new value of aspect
+   */
+  @Nonnull
+  public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
+      @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp,
+      int maxTransactionRetry) {
+    return add(urn, new AspectUpdateLambda<>(aspectClass, updateLambda), auditStamp, maxTransactionRetry);
+  }
+
+  /**
+   * Adds a new version of an aspect for an entity.
+   *
+   * <p>
+   * The new aspect will have an automatically assigned version number, which is guaranteed to be positive and monotonically
+   * increasing. Older versions of the aspect will be purged automatically based on the retention setting. A MetadataAuditEvent
+   * is also emitted if an actualy update occurs.
+   * </p>
+   *
+   * @param urn the URN for the entity to which the aspect is attached
+   * @param updateLambda the {@link AspectUpdateLambda} describing the update
+   * @param auditStamp the audit stamp for the operation
+   * @param maxTransactionRetry the maximum number of times to retry the transaction
+   * @param <ASPECT> the type of the aspect being updated
+   * @return the new value of the aspect
+   */
+  @Nonnull
+  public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, AspectUpdateLambda<ASPECT> updateLambda,
+      @Nonnull AuditStamp auditStamp, int maxTransactionRetry) {
+    checkValidAspect(updateLambda.getAspectClass());
+
+    final AddResult<ASPECT> result = runInTransactionWithRetry(() -> aspectUpdateHelper(urn, updateLambda, auditStamp),
+        maxTransactionRetry);
+
+    return unwrapAddResult(urn, result);
   }
 
   /**

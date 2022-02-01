@@ -310,6 +310,50 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
+  public void testAtomicMultipleUpdatesRollsbackOnFailure() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(_server, FooUrn.class);
+    dao.enableAtomicMultipleUpdate(true);
+
+    FooUrn fooUrn = makeFooUrn(1);
+
+    // first, verify that we don't have anything in our DB when we start
+    assertFalse(dao.get(AspectFoo.class, fooUrn).isPresent());
+    assertFalse(dao.get(AspectBar.class, fooUrn).isPresent());
+
+    BaseLocalDAO.AspectUpdateLambda<AspectFoo> goodUpdate = new BaseLocalDAO.AspectUpdateLambda<>(new AspectFoo().setValue("foo"));
+    BaseLocalDAO.AspectUpdateLambda<AspectBar> badUpdate = new BaseLocalDAO.AspectUpdateLambda<>(AspectBar.class, (ignore) -> {
+      throw new RuntimeException();
+    });
+
+    assertThrows(RuntimeException.class, () ->
+        dao.addMany(fooUrn, Arrays.asList(goodUpdate, badUpdate), _dummyAuditStamp, 1));
+
+    // because our second update lambda throws an exception, we still should not have records in our DB
+    assertFalse(dao.get(AspectFoo.class, fooUrn).isPresent());
+    assertFalse(dao.get(AspectBar.class, fooUrn).isPresent());
+  }
+
+  @Test
+  public void testAtomicMultipleUpdateSuccess() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(_server, FooUrn.class);
+    dao.enableAtomicMultipleUpdate(true);
+
+    FooUrn fooUrn = makeFooUrn(1);
+
+    // first, verify that we don't have anything in our DB when we start
+    assertFalse(dao.get(AspectFoo.class, fooUrn).isPresent());
+    assertFalse(dao.get(AspectBar.class, fooUrn).isPresent());
+
+    BaseLocalDAO.AspectUpdateLambda<AspectFoo> firstUpdate = new BaseLocalDAO.AspectUpdateLambda<>(new AspectFoo().setValue("foo"));
+    BaseLocalDAO.AspectUpdateLambda<AspectBar> secondUpdate = new BaseLocalDAO.AspectUpdateLambda<>(new AspectBar().setValue("bar"));
+
+    dao.addMany(fooUrn, Arrays.asList(firstUpdate, secondUpdate), _dummyAuditStamp, 1);
+
+    assertEquals(dao.get(AspectFoo.class, fooUrn).map(AspectFoo::getValue), Optional.of("foo"));
+    assertEquals(dao.get(AspectBar.class, fooUrn).map(AspectBar::getValue), Optional.of("bar"));
+  }
+
+  @Test
   public void testGetNonExisting() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     FooUrn urn = makeFooUrn(1);
