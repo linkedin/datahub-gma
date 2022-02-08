@@ -2,6 +2,7 @@ package com.linkedin.metadata.generator;
 
 import com.google.common.base.Charsets;
 import com.google.common.io.Files;
+import com.linkedin.data.schema.RecordDataSchema;
 import java.io.File;
 import java.io.IOException;
 import javax.annotation.Nonnull;
@@ -80,5 +81,30 @@ public class SchemaGeneratorUtil {
       throw new IOException(String.format("%s cannot be created.", directory));
     }
     return directory;
+  }
+
+  /**
+   * Strip the namespace to the valueType.
+   *
+   * @param fqcn the namespace of the entity.
+   * @return the valueType of the namespace.
+   */
+  @Nonnull
+  static String getNamespace(@Nonnull String fqcn) {
+    final int index = fqcn.lastIndexOf('.');
+    if (index != -1) {
+      // index == -1 (dot not found) || 0 <= index < length -1 (namespace is not ended with dot)
+      return fqcn.substring(0, index);
+    }
+    throw new IllegalArgumentException();
+  }
+
+  /**
+   * Given a schema return if it's a GMA snapshot schema.
+   * @param schema A schema
+   * @return if the input schema is a GMA snapshot schema
+   */
+  static boolean isSnapshotSchema(RecordDataSchema schema) {
+    return schema.getName().endsWith("Snapshot");
   }
 }
