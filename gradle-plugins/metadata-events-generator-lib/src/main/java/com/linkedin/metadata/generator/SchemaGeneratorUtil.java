@@ -90,7 +90,7 @@ public class SchemaGeneratorUtil {
    * @return the valueType of the namespace.
    */
   @Nonnull
-  static String getNamespace(@Nonnull String fqcn) {
+  public static String getNamespace(@Nonnull String fqcn) {
     final int index = fqcn.lastIndexOf('.');
     if (index != -1) {
       // index == -1 (dot not found) || 0 <= index < length -1 (namespace is not ended with dot)
@@ -104,7 +104,7 @@ public class SchemaGeneratorUtil {
    * @param schema A schema
    * @return if the input schema is a GMA snapshot schema
    */
-  static boolean isSnapshotSchema(RecordDataSchema schema) {
+  public static boolean isSnapshotSchema(RecordDataSchema schema) {
     return schema.getName().endsWith("Snapshot");
   }
 }
