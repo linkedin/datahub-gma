@@ -2,7 +2,7 @@ package com.linkedin.metadata.annotations;
 
 import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.Multimap;
-import com.linkedin.data.schema.RecordDataSchema;
+import com.linkedin.data.schema.DataSchema;
 import java.util.Collection;
 import javax.annotation.Nonnull;
 
@@ -40,18 +40,18 @@ public final class GmaEntitiesAnnotationAllowListImpl implements GmaEntitiesAnno
   }
 
   @Override
-  public void check(@Nonnull RecordDataSchema schema, @Nonnull AspectAnnotation aspectAnnotation) {
-    final Collection<String> urns = _allowedModelFqcnsToAllowedUrns.get(schema.getFullName());
+  public void check(@Nonnull DataSchema schema, @Nonnull AspectAnnotation aspectAnnotation) {
+    final Collection<String> urns = _allowedModelFqcnsToAllowedUrns.get(DataSchemaUtil.getFullName(schema));
 
     if (urns.isEmpty()) {
       throw new AnnotationNotAllowedException(
-          String.format("@gma.aspect.entities not allowed on %s", schema.getFullName()));
+          String.format("@gma.aspect.entities not allowed on %s", DataSchemaUtil.getFullName(schema)));
     }
 
     for (AspectEntityAnnotation entity : aspectAnnotation.getEntities()) {
       if (!urns.contains(entity.getUrn())) {
         throw new AnnotationNotAllowedException(
-            String.format("URN %s is not allowed for entity %s", entity.getUrn(), schema.getFullName()));
+            String.format("URN %s is not allowed for entity %s", entity.getUrn(), DataSchemaUtil.getFullName(schema)));
       }
     }
   }

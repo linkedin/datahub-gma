@@ -1,8 +1,8 @@
 package com.linkedin.metadata.generator;
 
 import com.linkedin.data.schema.DataSchema;
-import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.metadata.annotations.AspectEntityAnnotation;
+import com.linkedin.metadata.annotations.DataSchemaUtil;
 import com.linkedin.metadata.annotations.GmaAnnotationParser;
 import com.linkedin.metadata.annotations.GmaEntitiesAnnotationAllowList;
 import com.linkedin.pegasus.generator.DataSchemaParser;
@@ -41,15 +41,16 @@ public class SchemaAnnotationRetriever {
     final DataSchemaParser.ParseResult parseResult = _dataSchemaParser.parseSources(sources);
     final List<EventSpec> eventSpecs = new ArrayList<>();
     for (DataSchema dataSchema : parseResult.getSchemaAndLocations().keySet()) {
-      if (dataSchema.getType() == DataSchema.Type.RECORD) {
-        eventSpecs.addAll(generate((RecordDataSchema) dataSchema));
+      if (dataSchema.getType() == DataSchema.Type.RECORD
+          || dataSchema.getType() == DataSchema.Type.TYPEREF && dataSchema.getDereferencedType() == DataSchema.Type.RECORD) {
+        eventSpecs.addAll(generate(dataSchema));
       }
     }
     return eventSpecs;
   }
 
   @Nonnull
-  private List<EventSpec> generate(@Nonnull RecordDataSchema schema) {
+  private List<EventSpec> generate(@Nonnull DataSchema schema) {
     return _gmaAnnotationParser.parse(schema).map(gma -> {
       final List<EventSpec> eventSpecs = new ArrayList<>();
 
@@ -67,9 +68,9 @@ public class SchemaAnnotationRetriever {
 
       for (AspectEntityAnnotation entityAnnotation : entityAnnotations) {
         final EventSpec.EventSpecBuilder builder = EventSpec.builder();
-        builder.namespace(schema.getNamespace());
-        builder.fullValueType(schema.getFullName());
-        builder.valueType(SchemaGeneratorUtil.stripNamespace(schema.getFullName()));
+        builder.namespace(DataSchemaUtil.getNamespace(schema));
+        builder.fullValueType(DataSchemaUtil.getFullName(schema));
+        builder.valueType(SchemaGeneratorUtil.stripNamespace(DataSchemaUtil.getFullName(schema)));
         builder.urn(entityAnnotation.getUrn());
 
         builder.eventType(SchemaGeneratorConstants.MetadataEventType.CHANGE);

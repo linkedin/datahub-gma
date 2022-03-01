@@ -1,0 +1,6 @@
+namespace com.linkedin.metadata.test.aspects
+
+import com.linkedin.metadata.test.models.TestModel
+
+@gma.aspect.entity.urn = "com.linkedin.testing.FooUrn"
+typeref TestTyperefAspect = TestModel

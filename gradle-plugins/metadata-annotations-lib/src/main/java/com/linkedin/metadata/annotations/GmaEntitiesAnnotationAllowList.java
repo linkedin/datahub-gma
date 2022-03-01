@@ -1,6 +1,6 @@
 package com.linkedin.metadata.annotations;
 
-import com.linkedin.data.schema.RecordDataSchema;
+import com.linkedin.data.schema.DataSchema;
 import javax.annotation.Nonnull;
 
 
@@ -21,5 +21,5 @@ public interface GmaEntitiesAnnotationAllowList {
     }
   }
 
-  void check(@Nonnull RecordDataSchema schema, @Nonnull AspectAnnotation aspectAnnotation);
+  void check(@Nonnull DataSchema schema, @Nonnull AspectAnnotation aspectAnnotation);
 }
