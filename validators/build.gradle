@@ -12,5 +12,4 @@ dependencies {
   annotationProcessor externalDependency.lombok
 
   testCompile externalDependency.guava
-  testCompile project(':testing:test-models')
 }

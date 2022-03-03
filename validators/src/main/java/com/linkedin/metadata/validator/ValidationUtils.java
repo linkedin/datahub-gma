@@ -157,9 +157,8 @@ public final class ValidationUtils {
         .collect(Collectors.toList());
   }
 
-  public static boolean isUnionWithOnlyRecordMembers(UnionDataSchema unionDataSchema) {
-    return unionDataSchema.getMembers().stream().allMatch(member -> member.getType().getDereferencedDataSchema().getType().equals(
-        DataSchema.Type.RECORD));
+  public static boolean isUnionWithOnlyComplexMembers(UnionDataSchema unionDataSchema) {
+    return unionDataSchema.getMembers().stream().allMatch(member -> member.getType().isComplex());
   }
 
   @Nonnull

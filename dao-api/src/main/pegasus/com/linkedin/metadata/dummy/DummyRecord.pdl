@@ -1,9 +1,0 @@
-namespace com.linkedin.metadata.dummy
-
-/**
- * Not to be used
- */
-record DummyRecord {
-
-  value: string
-}
