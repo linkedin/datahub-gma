@@ -89,7 +89,7 @@ public final class EntityValidator {
    */
   public static void validateEntityUnionSchema(@Nonnull UnionDataSchema schema, @Nonnull String entityClassName) {
 
-    if (!ValidationUtils.isUnionWithOnlyRecordMembers(schema)) {
+    if (!ValidationUtils.isUnionWithOnlyComplexMembers(schema)) {
       ValidationUtils.invalidSchema("Entity '%s' must be a union containing only record type members", entityClassName);
     }
   }

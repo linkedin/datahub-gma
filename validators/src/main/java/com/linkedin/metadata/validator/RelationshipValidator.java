@@ -94,7 +94,7 @@ public class RelationshipValidator {
    */
   public static void validateRelationshipUnionSchema(@Nonnull UnionDataSchema schema, @Nonnull String relationshipClassName) {
 
-    if (!ValidationUtils.isUnionWithOnlyRecordMembers(schema)) {
+    if (!ValidationUtils.isUnionWithOnlyComplexMembers(schema)) {
       ValidationUtils.invalidSchema("Relationship '%s' must be a union containing only record type members", relationshipClassName);
     }
   }

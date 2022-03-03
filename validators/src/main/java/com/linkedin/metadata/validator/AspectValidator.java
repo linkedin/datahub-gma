@@ -28,7 +28,7 @@ public final class AspectValidator {
    */
   public static void validateAspectUnionSchema(@Nonnull UnionDataSchema schema, @Nonnull String aspectClassName) {
 
-    if (!ValidationUtils.isUnionWithOnlyRecordMembers(schema)) {
+    if (!ValidationUtils.isUnionWithOnlyComplexMembers(schema)) {
       ValidationUtils.invalidSchema("Aspect '%s' must be a union containing only record type members", aspectClassName);
     }
   }
@@ -47,7 +47,7 @@ public final class AspectValidator {
 
   private static boolean isValidMetadataField(RecordDataSchema.Field field) {
     return field.getName().equals("metadata") && !field.getOptional()
-        && field.getType().getType() == DataSchema.Type.UNION && ValidationUtils.isUnionWithOnlyRecordMembers(
+        && field.getType().getType() == DataSchema.Type.UNION && ValidationUtils.isUnionWithOnlyComplexMembers(
         (UnionDataSchema) field.getType());
   }
 }
