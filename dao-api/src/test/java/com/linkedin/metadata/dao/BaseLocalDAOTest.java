@@ -9,6 +9,7 @@ import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
+import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.EntityAspectUnion;
 import com.linkedin.testing.urn.FooUrn;
@@ -35,14 +36,22 @@ import static org.testng.Assert.*;
 
 public class BaseLocalDAOTest {
 
+  static class DummyTransactionRunner {
+    public <T> T run(Supplier<T> block) {
+      return block.get();
+    }
+  }
+
   static class DummyLocalDAO extends BaseLocalDAO<EntityAspectUnion, FooUrn> {
 
     private final BiFunction<FooUrn, Class<? extends RecordTemplate>, AspectEntry> _getLatestFunction;
+    private final DummyTransactionRunner _transactionRunner;
 
     public DummyLocalDAO(BiFunction<FooUrn, Class<? extends RecordTemplate>, AspectEntry> getLatestFunction,
-        BaseMetadataEventProducer eventProducer) {
+        BaseMetadataEventProducer eventProducer, DummyTransactionRunner transactionRunner) {
       super(EntityAspectUnion.class, eventProducer);
       _getLatestFunction = getLatestFunction;
+      _transactionRunner = transactionRunner;
     }
 
     @Override
@@ -57,9 +66,10 @@ public class BaseLocalDAOTest {
 
     }
 
+    @Nonnull
     @Override
     protected <T> T runInTransactionWithRetry(Supplier<T> block, int maxTransactionRetry) {
-      return block.get();
+      return _transactionRunner.run(block);
     }
 
     @Override
@@ -165,12 +175,14 @@ public class BaseLocalDAOTest {
   private AuditStamp _dummyAuditStamp;
   private BaseMetadataEventProducer _mockEventProducer;
   private BiFunction<FooUrn, Class<? extends RecordTemplate>, BaseLocalDAO.AspectEntry> _mockGetLatestFunction;
+  private DummyTransactionRunner _mockTransactionRunner;
 
   @BeforeMethod
   public void setup() {
     _mockGetLatestFunction = mock(BiFunction.class);
     _mockEventProducer = mock(BaseMetadataEventProducer.class);
-    _dummyLocalDAO = new DummyLocalDAO(_mockGetLatestFunction, _mockEventProducer);
+    _mockTransactionRunner = spy(DummyTransactionRunner.class);
+    _dummyLocalDAO = new DummyLocalDAO(_mockGetLatestFunction, _mockEventProducer, _mockTransactionRunner);
     _dummyAuditStamp = makeAuditStamp("foo", 1234);
   }
 
@@ -323,5 +335,35 @@ public class BaseLocalDAOTest {
 
     verify(hook, times(1)).accept(urn, foo);
     verifyNoMoreInteractions(hook);
+  }
+
+  @Test
+  public void testAtomicUpdateEnableUsesOneTransaction() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectBar bar = new AspectBar().setValue("bar");
+
+    _dummyLocalDAO.enableAtomicMultipleUpdate(true);
+    when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class))).thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(null, null));
+    when(_mockGetLatestFunction.apply(any(), eq(AspectBar.class))).thenReturn(new BaseLocalDAO.AspectEntry<AspectBar>(null, null));
+
+    _dummyLocalDAO.addMany(urn, Arrays.asList(foo, bar), _dummyAuditStamp);
+
+    verify(_mockTransactionRunner, times(1)).run(any());
+  }
+
+  @Test
+  public void testAtomicUpdateDisabledUsesMultipleTransactions() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectBar bar = new AspectBar().setValue("bar");
+
+    _dummyLocalDAO.enableAtomicMultipleUpdate(false);
+    when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class))).thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(null, null));
+    when(_mockGetLatestFunction.apply(any(), eq(AspectBar.class))).thenReturn(new BaseLocalDAO.AspectEntry<AspectBar>(null, null));
+
+    _dummyLocalDAO.addMany(urn, Arrays.asList(foo, bar), _dummyAuditStamp);
+
+    verify(_mockTransactionRunner, times(2)).run(any());
   }
 }

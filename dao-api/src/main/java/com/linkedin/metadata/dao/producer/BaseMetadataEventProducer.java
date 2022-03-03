@@ -25,6 +25,10 @@ public abstract class BaseMetadataEventProducer<SNAPSHOT extends RecordTemplate,
     _aspectUnionClass = aspectUnionClass;
   }
 
+  public Class<ASPECT_UNION> getAspectUnionClass() {
+    return _aspectUnionClass;
+  }
+
   /**
    * Produces a Metadata Change Event (MCE) with a snapshot-base metadata change proposal.
    *
