@@ -191,6 +191,108 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
          */
         error: string
       }'''.stripIndent()
+
+    projectFile('build/my-dummy-module/generateMetadataEventsSchema/com/linkedin/mxe/foo/testTyperefAspect/MetadataChangeEvent.pdl').text == '''\
+      namespace com.linkedin.mxe.foo.testTyperefAspect
+
+      import com.linkedin.avro2pegasus.events.KafkaAuditHeader
+      import com.linkedin.metadata.events.ChangeType
+      import com.linkedin.testing.FooUrn
+      import com.linkedin.metadata.test.aspects.TestTyperefAspect
+
+      /**
+       * MetadataChangeEvent for the FooUrn with TestTyperefAspect aspect.
+       */
+      @MetadataChangeEvent
+      record MetadataChangeEvent {
+
+        /**
+         * Kafka audit header. See go/kafkaauditheader for more info.
+         */
+        auditHeader: optional KafkaAuditHeader
+
+        /**
+         * FooUrn as the key for the MetadataChangeEvent.
+         */
+        urn: FooUrn
+
+        /**
+         * Value of the proposed TestTyperefAspect change.
+         */
+        proposedValue: optional TestTyperefAspect
+
+        /**
+         * Change type.
+         */
+        changeType: optional union[null, ChangeType] = null
+      }'''.stripIndent()
+
+    projectFile('build/my-dummy-module/generateMetadataEventsSchema/com/linkedin/mxe/foo/testTyperefAspect/MetadataAuditEvent.pdl').text == '''\
+      namespace com.linkedin.mxe.foo.testTyperefAspect
+
+      import com.linkedin.avro2pegasus.events.KafkaAuditHeader
+      import com.linkedin.metadata.events.ChangeType
+      import com.linkedin.testing.FooUrn
+      import com.linkedin.metadata.test.aspects.TestTyperefAspect
+
+      /**
+       * MetadataAuditEvent for the FooUrn with TestTyperefAspect aspect.
+       */
+      @MetadataAuditEvent
+      record MetadataAuditEvent {
+
+        /**
+         * Kafka audit header for the MetadataAuditEvent.
+         */
+        auditHeader: optional KafkaAuditHeader
+
+        /**
+         * FooUrn as the key for the MetadataAuditEvent.
+         */
+        urn: FooUrn
+
+        /**
+         * Aspect of the TestTyperefAspect before the update.
+         */
+        oldValue: optional TestTyperefAspect
+
+        /**
+         * Aspect of the TestTyperefAspect after the update.
+         */
+        newValue: TestTyperefAspect
+
+        /**
+         * Change type.
+         */
+        changeType: optional union[null, ChangeType] = null
+      }'''.stripIndent()
+
+    projectFile('build/my-dummy-module/generateMetadataEventsSchema/com/linkedin/mxe/foo/testTyperefAspect/FailedMetadataChangeEvent.pdl').text == '''\
+      namespace com.linkedin.mxe.foo.testTyperefAspect
+
+      import com.linkedin.avro2pegasus.events.KafkaAuditHeader
+
+      /**
+       * FailedMetadataChangeEvent for the FooUrn with TestTyperefAspect aspect.
+       */
+      @FailedMetadataChangeEvent
+      record FailedMetadataChangeEvent {
+
+        /**
+         * Kafka event for capturing a failure to process a MetadataChangeEvent.
+         */
+        auditHeader: optional KafkaAuditHeader
+
+        /**
+         * The event that failed to be processed.
+         */
+        metadataChangeEvent: MetadataChangeEvent
+
+        /**
+         * The error message or the stacktrace for the failure.
+         */
+        error: string
+      }'''.stripIndent()
   }
 
   def 'generate data template for events'() {
@@ -213,6 +315,11 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
     testAspectDir.resolve('MetadataChangeEvent.java').toFile().exists()
     testAspectDir.resolve('MetadataAuditEvent.java').toFile().exists()
     testAspectDir.resolve('FailedMetadataChangeEvent.java').toFile().exists()
+
+    Path testTyperefAspectDir = projectPath('my-dummy-module/src/mainGeneratedDataTemplate/java/com/linkedin/mxe/foo/testTyperefAspect/')
+    testTyperefAspectDir.resolve('MetadataChangeEvent.java').toFile().exists()
+    testTyperefAspectDir.resolve('MetadataAuditEvent.java').toFile().exists()
+    testTyperefAspectDir.resolve('FailedMetadataChangeEvent.java').toFile().exists()
   }
 
   def 'data template jar has java class events'() {
@@ -235,6 +342,11 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
     jar.getEntry('com/linkedin/mxe/foo/testAspect/MetadataAuditEvent.class') != null
     jar.getEntry('com/linkedin/mxe/foo/testAspect/FailedMetadataChangeEvent.class') != null
     jar.getEntry('com/linkedin/metadata/test/aspects/TestAspect.class') != null
+
+    jar.getEntry('com/linkedin/mxe/foo/testTyperefAspect/MetadataChangeEvent.class') != null
+    jar.getEntry('com/linkedin/mxe/foo/testTyperefAspect/MetadataAuditEvent.class') != null
+    jar.getEntry('com/linkedin/mxe/foo/testTyperefAspect/FailedMetadataChangeEvent.class') != null
+    jar.getEntry('com/linkedin/metadata/test/aspects/TestTyperefAspect.class') != null
   }
 
   def 'data template jar has pdl events'() {
@@ -256,5 +368,10 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
     jar.getEntry('pegasus/com/linkedin/mxe/foo/testAspect/MetadataAuditEvent.pdl') != null
     jar.getEntry('pegasus/com/linkedin/mxe/foo/testAspect/FailedMetadataChangeEvent.pdl') != null
     jar.getEntry('pegasus/com/linkedin/metadata/test/aspects/TestAspect.pdl') != null
+
+    jar.getEntry('pegasus/com/linkedin/mxe/foo/testTyperefAspect/MetadataChangeEvent.pdl') != null
+    jar.getEntry('pegasus/com/linkedin/mxe/foo/testTyperefAspect/MetadataAuditEvent.pdl') != null
+    jar.getEntry('pegasus/com/linkedin/mxe/foo/testTyperefAspect/FailedMetadataChangeEvent.pdl') != null
+    jar.getEntry('pegasus/com/linkedin/metadata/test/aspects/TestTyperefAspect.pdl') != null
   }
 }

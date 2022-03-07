@@ -1,7 +1,7 @@
 package com.linkedin.metadata.annotations;
 
 import com.google.common.base.Joiner;
-import com.linkedin.data.schema.RecordDataSchema;
+import com.linkedin.data.schema.DataSchema;
 import com.linkedin.data.schema.validation.RequiredMode;
 import com.linkedin.data.schema.validation.UnrecognizedFieldMode;
 import com.linkedin.data.schema.validation.ValidateDataAgainstSchema;
@@ -37,7 +37,7 @@ public class GmaAnnotationParser {
    *
    * @throws GmaAnnotationParseException if the provided {@code @gma} annotation does not match the schema.
    */
-  public Optional<GmaAnnotation> parse(@Nonnull RecordDataSchema schema) {
+  public Optional<GmaAnnotation> parse(@Nonnull DataSchema schema) {
     final Map<String, Object> properties = schema.getProperties();
     final Object gmaObj = properties.get(GMA);
 
@@ -55,7 +55,7 @@ public class GmaAnnotationParser {
     final GmaAnnotation gmaAnnotation = DataTemplateUtil.wrap(gmaObj, GmaAnnotation.class);
 
     if (!result.isValid()) {
-      throw new GmaAnnotationParseException(String.format("Error parsing @gma on %s: \n%s", schema.getFullName(),
+      throw new GmaAnnotationParseException(String.format("Error parsing @gma on %s: \n%s", DataSchemaUtil.getFullName(schema),
           Joiner.on('\n').join(result.getMessages())));
     }
 
