@@ -151,7 +151,7 @@ public class RecordUtilsTest {
   }
 
   @Test
-  public void testGetSelectedRecordTemplateFromUnionWithTypeRef() throws IOException {
+  public void testGetSelectedRecordTemplateFromUnionWithTypeRef() throws Exception {
     AspectBaz baz = new AspectBaz();
     baz.setUnionField(new AspectBaz.UnionField());
     baz.getUnionField().setTyperefPizzaInfo(new PizzaInfo().setMadeBy("bar"));
@@ -159,6 +159,7 @@ public class RecordUtilsTest {
     RecordTemplate selected = RecordUtils.getSelectedRecordTemplateFromUnion(baz.getUnionField());
 
     assertEquals(selected.getClass(), PizzaInfo.class);
+    assertEquals(selected.getClass().getMethod("getMadeBy").invoke(selected), "bar");
   }
 
   @Test

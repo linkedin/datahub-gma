@@ -324,7 +324,8 @@ public class RecordUtils {
     DataSchema dataSchema = unionTemplate.memberType();
     if (!(dataSchema instanceof RecordDataSchema) && !(dataSchema instanceof TyperefDataSchema)) {
       throw new InvalidSchemaException(
-          "The currently selected member isn't a RecordTemplate in " + unionTemplate.getClass().getCanonicalName());
+          "The currently selected member isn't a RecordDataSchema/TyperefDataSchema in " + unionTemplate.getClass()
+              .getCanonicalName());
     }
 
     if (dataSchema instanceof TyperefDataSchema) {
