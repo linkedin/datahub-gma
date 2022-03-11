@@ -160,6 +160,7 @@ public class RecordUtilsTest {
 
     assertEquals(selected.getClass(), PizzaInfo.class);
     assertEquals(selected.getClass().getMethod("getMadeBy").invoke(selected), "bar");
+    assertEquals(selected, new PizzaInfo().setMadeBy("bar"));
   }
 
   @Test
