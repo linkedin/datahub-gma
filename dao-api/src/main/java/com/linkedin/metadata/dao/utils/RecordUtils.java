@@ -4,6 +4,7 @@ import com.linkedin.data.DataMap;
 import com.linkedin.data.schema.DataSchema;
 import com.linkedin.data.schema.PathSpec;
 import com.linkedin.data.schema.RecordDataSchema;
+import com.linkedin.data.schema.TyperefDataSchema;
 import com.linkedin.data.schema.UnionDataSchema;
 import com.linkedin.data.template.AbstractArrayTemplate;
 import com.linkedin.data.template.DataTemplate;
@@ -320,12 +321,16 @@ public class RecordUtils {
   public static <V extends RecordTemplate> RecordTemplate getSelectedRecordTemplateFromUnion(
       @Nonnull UnionTemplate unionTemplate) {
 
-    final DataSchema dataSchema = unionTemplate.memberType();
-    if (!(dataSchema instanceof RecordDataSchema)) {
+    DataSchema dataSchema = unionTemplate.memberType();
+    if (!(dataSchema instanceof RecordDataSchema) && !(dataSchema instanceof TyperefDataSchema)) {
       throw new InvalidSchemaException(
-          "The currently selected member isn't a RecordTemplate in " + unionTemplate.getClass().getCanonicalName());
+          "The currently selected member isn't a RecordDataSchema/TyperefDataSchema in " + unionTemplate.getClass()
+              .getCanonicalName());
     }
 
+    if (dataSchema instanceof TyperefDataSchema) {
+      dataSchema = dataSchema.getDereferencedDataSchema();
+    }
     final Class<? extends RecordTemplate> clazz =
         ModelUtils.getClassFromName(((RecordDataSchema) dataSchema).getBindingName(), RecordTemplate.class);
 

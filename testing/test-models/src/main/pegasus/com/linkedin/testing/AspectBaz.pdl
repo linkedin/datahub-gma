@@ -58,5 +58,5 @@ record AspectBaz {
   /**
    * For unit tests
    */
-  unionField: union[AspectFoo, AspectBar]
+  unionField: union[AspectFoo, AspectBar, TyperefPizzaInfo]
 }

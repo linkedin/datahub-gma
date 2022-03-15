@@ -19,6 +19,7 @@ import com.linkedin.testing.EntityAspectUnionComplex;
 import com.linkedin.testing.EntitySnapshot;
 import com.linkedin.testing.EntityValueArray;
 import com.linkedin.testing.MixedRecord;
+import com.linkedin.testing.PizzaInfo;
 import com.linkedin.testing.StringUnion;
 import com.linkedin.testing.StringUnionArray;
 import com.linkedin.testing.singleaspectentity.EntityValue;
@@ -147,6 +148,19 @@ public class RecordUtilsTest {
     RecordTemplate selected = RecordUtils.getSelectedRecordTemplateFromUnion(baz.getUnionField());
 
     assertEquals(selected.getClass(), AspectFoo.class);
+  }
+
+  @Test
+  public void testGetSelectedRecordTemplateFromUnionWithTypeRef() throws Exception {
+    AspectBaz baz = new AspectBaz();
+    baz.setUnionField(new AspectBaz.UnionField());
+    baz.getUnionField().setTyperefPizzaInfo(new PizzaInfo().setMadeBy("bar"));
+
+    RecordTemplate selected = RecordUtils.getSelectedRecordTemplateFromUnion(baz.getUnionField());
+
+    assertEquals(selected.getClass(), PizzaInfo.class);
+    assertEquals(selected.getClass().getMethod("getMadeBy").invoke(selected), "bar");
+    assertEquals(selected, new PizzaInfo().setMadeBy("bar"));
   }
 
   @Test
