@@ -120,7 +120,7 @@ public class ESBrowseDAO extends BaseBrowseDAO {
     final SearchRequest searchRequest = new SearchRequest(_config.getIndexName());
     final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
     searchSourceBuilder.trackTotalHitsUpTo(_lowerBoundHits);
-
+    searchSourceBuilder.size(0);
     searchSourceBuilder.query(buildQueryString(path, requestMap, true));
     searchSourceBuilder.aggregation(buildAggregations(path));
     searchRequest.source(searchSourceBuilder);
