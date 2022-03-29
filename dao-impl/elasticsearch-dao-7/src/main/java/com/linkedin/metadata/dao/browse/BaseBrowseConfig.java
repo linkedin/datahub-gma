@@ -53,5 +53,9 @@ public abstract class BaseBrowseConfig<DOCUMENT extends RecordTemplate> {
     return getSearchDocument().getSimpleName().toLowerCase();
   }
 
+  public boolean shouldUseMapExecutionHint() {
+    return false;
+  }
+
   public abstract Class<DOCUMENT> getSearchDocument();
 }

@@ -1,6 +1,7 @@
 package com.linkedin.metadata.dao.browse;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.metadata.dao.BaseBrowseDAO;
 import com.linkedin.metadata.dao.exception.ESQueryException;
@@ -19,6 +20,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +43,7 @@ import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -49,6 +56,12 @@ public class ESBrowseDAO extends BaseBrowseDAO {
   private final RestHighLevelClient _client;
   private final BaseBrowseConfig _config;
   private int _lowerBoundHits = Integer.MAX_VALUE;
+
+  private static final int THREAD_COUNT = 2;
+  private static final int TIME_BEFORE_SHUTDOWN = 1;
+  private static final ExecutorService EXECUTOR_SERVICE  =
+      MoreExecutors.getExitingExecutorService((ThreadPoolExecutor) Executors.newFixedThreadPool(THREAD_COUNT),
+          TIME_BEFORE_SHUTDOWN, TimeUnit.SECONDS);
 
   public ESBrowseDAO(@Nonnull RestHighLevelClient esClient, @Nonnull BaseBrowseConfig config) {
     this._client = esClient;
@@ -78,10 +91,12 @@ public class ESBrowseDAO extends BaseBrowseDAO {
     final Map<String, String> requestMap = SearchUtils.getRequestMap(requestParams);
 
     try {
-      final SearchResponse groupsResponse =
-          _client.search(constructGroupsSearchRequest(path, requestMap), RequestOptions.DEFAULT);
-      final SearchResponse entitiesResponse =
-          _client.search(constructEntitiesSearchRequest(path, requestMap, from, size), RequestOptions.DEFAULT);
+      final Future<SearchResponse> groupsResponseFuture =
+          EXECUTOR_SERVICE.submit(() -> _client.search(constructGroupsSearchRequest(path, requestMap), RequestOptions.DEFAULT));
+      final Future<SearchResponse> entitiesResponseFutre =
+          EXECUTOR_SERVICE.submit(() -> _client.search(constructEntitiesSearchRequest(path, requestMap, from, size), RequestOptions.DEFAULT));
+      final SearchResponse groupsResponse = groupsResponseFuture.get();
+      final SearchResponse entitiesResponse = entitiesResponseFutre.get();
       final BrowseResult result = extractQueryResult(groupsResponse, entitiesResponse, path, from);
       result.getMetadata().setPath(path);
       return result;
@@ -102,11 +117,17 @@ public class ESBrowseDAO extends BaseBrowseDAO {
     final String includeFilter = ESUtils.escapeReservedCharacters(path) + "/.*";
     final String excludeFilter = ESUtils.escapeReservedCharacters(path) + "/.*/.*";
 
-    return AggregationBuilders.terms("groups")
+    TermsAggregationBuilder aggregationBuilder = AggregationBuilders.terms("groups")
         .field(_config.getBrowsePathFieldName())
         .size(Integer.MAX_VALUE)
         .order(BucketOrder.count(true)) // Ascending order
         .includeExclude(new IncludeExclude(includeFilter, excludeFilter));
+
+    if (_config.shouldUseMapExecutionHint()) {
+      aggregationBuilder.executionHint("map");
+    }
+
+    return aggregationBuilder;
   }
 
   /**
