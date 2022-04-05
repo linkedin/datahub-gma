@@ -5,6 +5,7 @@ apply from: "$rootDir/gradle/java-publishing.gradle"
 dependencies {
   compile project(':dao-api')
 
+  compile externalDependency.caffeine
   compile externalDependency.elasticSearchRest7
   compile externalDependency.elasticSearchTransport7
   compile externalDependency.guava

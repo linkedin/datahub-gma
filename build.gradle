@@ -36,6 +36,7 @@ project.ext.externalDependency = [
     'assertJ': 'org.assertj:assertj-core:3.11.1',
     'commonsIo': 'commons-io:commons-io:2.4',
     'commonsLang': 'commons-lang:commons-lang:2.6',
+    'caffeine': 'com.github.ben-manes.caffeine:caffeine:2.9.2',
     'ebean': 'io.ebean:ebean:11.33.3',
     'ebeanAgent': 'io.ebean:ebean-agent:11.27.1',
     'elasticSearchRest': 'org.elasticsearch.client:elasticsearch-rest-high-level-client:5.6.8',
