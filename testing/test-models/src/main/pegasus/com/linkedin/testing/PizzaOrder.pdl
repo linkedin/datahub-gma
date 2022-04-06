@@ -1,0 +1,17 @@
+namespace com.linkedin.testing
+
+
+/**
+ * Test aspect that represnts basic information for an order for a Pizza.
+ */
+record PizzaOrder {
+  /**
+   * Customer name for the order of this pizza.
+   */
+  customer: string
+
+  /**
+   * Price of this pizza order.
+   */
+  totalPrice: double
+}
