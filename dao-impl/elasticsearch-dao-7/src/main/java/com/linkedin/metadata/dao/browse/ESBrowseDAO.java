@@ -1,5 +1,7 @@
 package com.linkedin.metadata.dao.browse;
 
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.linkedin.common.urn.Urn;
@@ -14,17 +16,22 @@ import com.linkedin.metadata.query.BrowseResultGroup;
 import com.linkedin.metadata.query.BrowseResultGroupArray;
 import com.linkedin.metadata.query.BrowseResultMetadata;
 import com.linkedin.metadata.query.Filter;
+import java.io.IOException;
 import java.net.URISyntaxException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import lombok.extern.slf4j.Slf4j;
@@ -55,6 +62,7 @@ import org.elasticsearch.search.sort.SortOrder;
 public class ESBrowseDAO extends BaseBrowseDAO {
   private final RestHighLevelClient _client;
   private final BaseBrowseConfig _config;
+  private LoadingCache<String, SearchResponse> _cache = null;
   private int _lowerBoundHits = Integer.MAX_VALUE;
 
   private static final int THREAD_COUNT = 2;
@@ -66,6 +74,18 @@ public class ESBrowseDAO extends BaseBrowseDAO {
   public ESBrowseDAO(@Nonnull RestHighLevelClient esClient, @Nonnull BaseBrowseConfig config) {
     this._client = esClient;
     this._config = config;
+
+    if (config.enableCache()) {
+      _cache = Caffeine.newBuilder()
+          .maximumSize(CacheConfig.MAXIMUM_CACHED_RESULT)
+          .refreshAfterWrite(CacheConfig.REFRESH_INTERVAL)
+          .build(key -> sendGroupsSearchRequest(key, new HashMap<>()));
+
+      // Eager loading some browse paths search result into the cache.
+      _cache.getAll((Set<String>) config.eagerLoadCachedBrowsePaths().stream()
+          .limit(CacheConfig.EAGER_LOAD_LIMITATION)
+          .collect(Collectors.toSet()));
+    }
   }
 
   /**
@@ -92,7 +112,7 @@ public class ESBrowseDAO extends BaseBrowseDAO {
 
     try {
       final Future<SearchResponse> groupsResponseFuture =
-          EXECUTOR_SERVICE.submit(() -> _client.search(constructGroupsSearchRequest(path, requestMap), RequestOptions.DEFAULT));
+          EXECUTOR_SERVICE.submit(() -> cachedGroupSearchResponse(path, requestMap));
       final Future<SearchResponse> entitiesResponseFutre =
           EXECUTOR_SERVICE.submit(() -> _client.search(constructEntitiesSearchRequest(path, requestMap, from, size), RequestOptions.DEFAULT));
       final SearchResponse groupsResponse = groupsResponseFuture.get();
@@ -311,6 +331,26 @@ public class ESBrowseDAO extends BaseBrowseDAO {
     return StringUtils.countMatches(path, "/");
   }
 
+  @Nonnull
+  private SearchResponse cachedGroupSearchResponse(@Nonnull String path, @Nonnull Map<String, String> requestMap) throws Exception {
+    /*
+     * If cache is null / not enabled, directly call ES.
+     * Or if request map is not empty, directly call ES.
+     * Or if browse path is greater than MAXIMUM_CACHED_DEPTH, directly call ES. We don't want to cache too much
+     * data in-memory, only caching the slower requests is enough.
+     */
+    if (_cache == null || !requestMap.isEmpty() || getPathDepth(path) > CacheConfig.MAXIMUM_CACHED_DEPTH) {
+      return sendGroupsSearchRequest(path, requestMap);
+    }
+
+    return _cache.get(path);
+  }
+
+  @Nonnull
+  private SearchResponse sendGroupsSearchRequest(@Nonnull String path, @Nonnull Map<String, String> requestMap) throws IOException {
+    return _client.search(constructGroupsSearchRequest(path, requestMap), RequestOptions.DEFAULT);
+  }
+
   /**
    * Gets a list of paths for a given urn.
    *
@@ -338,5 +378,28 @@ public class ESBrowseDAO extends BaseBrowseDAO {
       return Collections.emptyList();
     }
     return (List<String>) sourceMap.get(_config.getBrowsePathFieldName());
+  }
+
+  private static class CacheConfig {
+    /**
+     * Maximum level of browse path depth will be cached.
+     */
+    private static final int MAXIMUM_CACHED_DEPTH = 2;
+
+    /**
+     * Maximum number of results cached. Larger number results in more memory consumption.
+     */
+    private static final int MAXIMUM_CACHED_RESULT = 100;
+
+    /**
+     * How often cache is refreshed. Longer refresh time will result in staleness in cache.
+     */
+    private static final Duration REFRESH_INTERVAL = Duration.ofHours(1);
+
+    /**
+     * Limitation on number of results loaded into cache during DAO instance initiation.
+     * Limitation needed to avoid traffic spike and slow DAO instantiation.
+     */
+    private static final int EAGER_LOAD_LIMITATION = 5;
   }
 }
