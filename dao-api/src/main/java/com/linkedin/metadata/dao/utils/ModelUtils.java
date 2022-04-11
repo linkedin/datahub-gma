@@ -77,8 +77,15 @@ public class ModelUtils {
 
     Set<Class<? extends RecordTemplate>> validTypes = new HashSet<>();
     for (UnionDataSchema.Member member : ValidationUtils.getUnionSchema(aspectUnionClass).getMembers()) {
+      String fqcn = null;
       if (member.getType().getType() == DataSchema.Type.RECORD) {
-        String fqcn = ((RecordDataSchema) member.getType()).getBindingName();
+        fqcn = ((RecordDataSchema) member.getType()).getBindingName();
+      } else if (member.getType().getType() == DataSchema.Type.TYPEREF
+          && member.getType().getDereferencedType() == DataSchema.Type.RECORD) {
+        fqcn = ((RecordDataSchema) member.getType().getDereferencedDataSchema()).getBindingName();
+      }
+
+      if (fqcn != null) {
         try {
           validTypes.add(CLASS_LOADER.loadClass(fqcn).asSubclass(RecordTemplate.class));
         } catch (ClassNotFoundException | ClassCastException e) {

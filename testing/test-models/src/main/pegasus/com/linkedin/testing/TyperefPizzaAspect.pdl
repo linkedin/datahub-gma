@@ -1,0 +1,9 @@
+namespace com.linkedin.testing
+
+/**
+ * Aspect union to test typeref element.
+ */
+typeref TyperefPizzaAspect = union[
+  PizzaOrder
+  TyperefPizzaInfo
+]
