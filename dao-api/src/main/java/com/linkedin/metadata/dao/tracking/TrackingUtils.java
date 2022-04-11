@@ -12,23 +12,25 @@ public class TrackingUtils {
   }
 
   public enum ProcessType {
-    BUILD_FILTER_QUERY_END("buildFilterQuery.end"),
-    BUILD_FILTER_QUERY_START("buildFilterQuery.start"),
-    BUILD_SEARCH_QUERY_END("buildSearchQuery.end"),
-    BUILD_SEARCH_QUERY_START("buildSearchQuery.start"),
+    AUTOCOMPLETE_QUERY_END("autocompleteQuery.end"),
+    AUTOCOMPLETE_QUERY_FAIL("autocompleteQuery.fail"),
+    AUTOCOMPLETE_QUERY_START("autocompleteQuery.start"),
     CONVERT_FAIL("convert.fail"),
     FEED_BACKUP_INDEX_END("feedBackupIndex.end"),
     FEED_BACKUP_INDEX_START("feedBackupIndex.start"),
     FEED_LIVE_INDEX_END("feedLiveIndex.end"),
     FEED_LIVE_INDEX_START("feedLiveIndex.start"),
+    FILTER_QUERY_END("filterQuery.end"),
+    FILTER_QUERY_FAIL("filterQuery.fail"),
+    FILTER_QUERY_START("filterQuery.start"),
     PROCESS_END("process.end"),
     PROCESS_FAIL("process.fail"),
     PROCESS_START("process.start"),
     RECEIVE_END("receive.end"),
     RECEIVE_START("receive.start"),
-    EXECUTE_AND_EXTRACT_END("executeAndExtract.end"),
-    EXECUTE_AND_EXTRACT_FAIL("executeAndExtract.fail"),
-    EXECUTE_AND_EXTRACT_START("executeAndExtract.start");
+    SEARCH_QUERY_END("searchQuery.end"),
+    SEARCH_QUERY_FAIL("searchQuery.fail"),
+    SEARCH_QUERY_START("searchQuery.start");
 
     private final String _name;
 
