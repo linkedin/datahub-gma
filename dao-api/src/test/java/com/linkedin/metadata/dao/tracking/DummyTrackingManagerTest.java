@@ -13,7 +13,7 @@ public class DummyTrackingManagerTest {
   public void testCreateDummyTrackingManager() {
     DummyTrackingManager manager = new DummyTrackingManager();
     ProcessType processType = ProcessType.PROCESS_START;
-    byte[] id = random(new byte[16]);
+    byte[] id = getRandomTrackingId();
 
     manager.register(processType);
     manager.trackRequest(id, processType);

@@ -61,7 +61,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 
-import static com.linkedin.metadata.dao.tracking.TrackingUtils.random;
+import static com.linkedin.metadata.dao.tracking.TrackingUtils.*;
 import static com.linkedin.metadata.dao.tracking.TrackingUtils.ProcessType.*;
 import static com.linkedin.metadata.dao.utils.SearchUtils.getQueryBuilderFromCriterion;
 
@@ -199,7 +199,7 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
   public SearchResult<DOCUMENT> search(@Nonnull String input, @Nullable Filter postFilters,
       @Nullable SortCriterion sortCriterion, @Nullable String preference, int from, int size) {
     // Step 0: TODO: Add type casting if needed and  add request params validation against the model
-    final byte[] id = random(new byte[16]);
+    final byte[] id = getRandomTrackingId();
     _baseTrackingManager.trackRequest(id, SEARCH_QUERY_START);
     // Step 1: construct the query
     final SearchRequest req = constructSearchQuery(input, postFilters, sortCriterion, preference, from, size);
@@ -213,7 +213,7 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
   @Nonnull
   public SearchResult<DOCUMENT> filter(@Nullable Filter filters, @Nullable SortCriterion sortCriterion, int from,
       int size) {
-    final byte[] id = random(new byte[16]);
+    final byte[] id = getRandomTrackingId();
     _baseTrackingManager.trackRequest(id, FILTER_QUERY_START);
     final SearchRequest searchRequest = getFilteredSearchQuery(filters, sortCriterion, from, size);
     final SearchResult<DOCUMENT> searchResult = executeAndExtract(searchRequest, from, size, id, FILTER_QUERY_FAIL);
@@ -416,7 +416,7 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
   @Nonnull
   public AutoCompleteResult autoComplete(@Nonnull String query, @Nullable String field, @Nullable Filter requestParams,
       int limit) {
-    final byte[] id = random(new byte[16]);
+    final byte[] id = getRandomTrackingId();
     _baseTrackingManager.trackRequest(id, AUTOCOMPLETE_QUERY_START);
     if (field == null) {
       field = _config.getDefaultAutocompleteField();

@@ -6,7 +6,7 @@ import javax.annotation.Nonnull;
 /**
  * A dummy tracking manager that doesn't actually track any requests.
  */
-public class DummyTrackingManager extends BaseTrackingManager {
+public class DummyTrackingManager implements BaseTrackingManager {
 
   @Override
   public void register(@Nonnull TrackingUtils.ProcessType processType) {
