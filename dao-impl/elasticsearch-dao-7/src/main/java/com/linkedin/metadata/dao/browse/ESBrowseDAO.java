@@ -81,10 +81,15 @@ public class ESBrowseDAO extends BaseBrowseDAO {
           .refreshAfterWrite(CacheConfig.REFRESH_INTERVAL)
           .build(key -> sendGroupsSearchRequest(key, new HashMap<>()));
 
-      // Eager loading some browse paths search result into the cache.
-      _cache.getAll((Set<String>) config.eagerLoadCachedBrowsePaths().stream()
-          .limit(CacheConfig.EAGER_LOAD_LIMITATION)
-          .collect(Collectors.toSet()));
+      // Pre-loading some browse paths search result into the cache upon instance instantiation.
+      // Any exception occurred is catched and should not block instantiation.
+      try {
+        _cache.getAll((Set<String>) config.eagerLoadCachedBrowsePaths().stream()
+            .limit(CacheConfig.EAGER_LOAD_LIMITATION)
+            .collect(Collectors.toSet()));
+      } catch (Exception e) {
+        log.error("Pre-loading cache during ESBrowseDAO instantiation failed: " + e.getMessage());
+      }
     }
   }
 
