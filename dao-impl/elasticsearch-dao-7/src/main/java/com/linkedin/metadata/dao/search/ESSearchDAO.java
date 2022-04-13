@@ -1,5 +1,6 @@
 package com.linkedin.metadata.dao.search;
 
+import com.google.common.collect.ImmutableList;
 import com.linkedin.common.UrnArray;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.DataList;
@@ -9,6 +10,9 @@ import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.BaseSearchDAO;
 import com.linkedin.metadata.dao.SearchResult;
 import com.linkedin.metadata.dao.exception.ESQueryException;
+import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
+import com.linkedin.metadata.dao.tracking.DummyTrackingManager;
+import com.linkedin.metadata.dao.tracking.TrackingUtils;
 import com.linkedin.metadata.dao.utils.ESUtils;
 import com.linkedin.metadata.dao.utils.QueryUtils;
 import com.linkedin.metadata.query.AggregationMetadata;
@@ -57,6 +61,8 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 
+import static com.linkedin.metadata.dao.tracking.TrackingUtils.*;
+import static com.linkedin.metadata.dao.tracking.TrackingUtils.ProcessType.*;
 import static com.linkedin.metadata.dao.utils.SearchUtils.getQueryBuilderFromCriterion;
 
 
@@ -73,17 +79,34 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
   private BaseSearchConfig<DOCUMENT> _config;
   private BaseESAutoCompleteQuery _autoCompleteQueryForLowCardFields;
   private BaseESAutoCompleteQuery _autoCompleteQueryForHighCardFields;
+  private BaseTrackingManager _baseTrackingManager;
   private int _maxTermBucketSize = DEFAULT_TERM_BUCKETS_SIZE_100;
   private int _lowerBoundHits = Integer.MAX_VALUE;
 
   // Regex patterns for matching original field names to the highlighted field name returned by elasticsearch
   private Map<String, Pattern> _highlightedFieldNamePatterns;
+  // @formatter:off
+  private static final ImmutableList<TrackingUtils.ProcessType> PROCESS_STATES =
+      ImmutableList.of(
+          AUTOCOMPLETE_QUERY_END,
+          AUTOCOMPLETE_QUERY_FAIL,
+          AUTOCOMPLETE_QUERY_START,
+          FILTER_QUERY_END,
+          FILTER_QUERY_FAIL,
+          FILTER_QUERY_START,
+          SEARCH_QUERY_END,
+          SEARCH_QUERY_FAIL,
+          SEARCH_QUERY_START);
+  // @formatter:on
 
   // TODO: Currently takes elastic search client, in future, can take other clients such as galene
   // TODO: take params and settings needed to create the client
   public ESSearchDAO(@Nonnull RestHighLevelClient esClient, @Nonnull Class<DOCUMENT> documentClass,
-      @Nonnull BaseSearchConfig<DOCUMENT> config) {
+      @Nonnull BaseSearchConfig<DOCUMENT> config, @Nonnull BaseTrackingManager baseTrackingManager) {
     super(documentClass);
+    _baseTrackingManager = baseTrackingManager;
+    // Register all tracking process types.
+    PROCESS_STATES.forEach(_baseTrackingManager::register);
     _client = esClient;
     _config = config;
     _autoCompleteQueryForLowCardFields = new ESAutoCompleteQueryForLowCardinalityFields(_config);
@@ -93,6 +116,11 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
     _highlightedFieldNamePatterns = config.getFieldsToHighlightMatch()
         .stream()
         .collect(Collectors.toMap(Function.identity(), fieldName -> Pattern.compile(fieldName + "(\\..+)?")));
+  }
+
+  public ESSearchDAO(@Nonnull RestHighLevelClient esClient, @Nonnull Class<DOCUMENT> documentClass,
+      @Nonnull BaseSearchConfig<DOCUMENT> config) {
+    this(esClient, documentClass, config, new DummyTrackingManager());
   }
 
   /**
@@ -124,13 +152,15 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
   }
 
   @Nonnull
-  private SearchResult<DOCUMENT> executeAndExtract(@Nonnull SearchRequest searchRequest, int from, int size) {
+  private SearchResult<DOCUMENT> executeAndExtract(@Nonnull SearchRequest searchRequest, int from, int size,
+      @Nonnull byte[] id, @Nonnull TrackingUtils.ProcessType processType) {
     try {
       final SearchResponse searchResponse = _client.search(searchRequest, RequestOptions.DEFAULT);
       // extract results, validated against document model as well
       return extractQueryResult(searchResponse, from, size);
     } catch (Exception e) {
       log.error("Search query failed:" + e.getMessage());
+      _baseTrackingManager.trackRequest(id, processType);
       throw new ESQueryException("Search query failed:", e);
     }
   }
@@ -168,21 +198,27 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
   @Nonnull
   public SearchResult<DOCUMENT> search(@Nonnull String input, @Nullable Filter postFilters,
       @Nullable SortCriterion sortCriterion, @Nullable String preference, int from, int size) {
-
     // Step 0: TODO: Add type casting if needed and  add request params validation against the model
+    final byte[] id = getRandomTrackingId();
+    _baseTrackingManager.trackRequest(id, SEARCH_QUERY_START);
     // Step 1: construct the query
     final SearchRequest req = constructSearchQuery(input, postFilters, sortCriterion, preference, from, size);
     // Step 2: execute the query and extract results, validated against document model as well
-    return executeAndExtract(req, from, size);
+    final SearchResult<DOCUMENT> searchResult = executeAndExtract(req, from, size, id, SEARCH_QUERY_FAIL);
+    _baseTrackingManager.trackRequest(id, SEARCH_QUERY_END);
+    return searchResult;
   }
 
   @Override
   @Nonnull
   public SearchResult<DOCUMENT> filter(@Nullable Filter filters, @Nullable SortCriterion sortCriterion, int from,
       int size) {
-
+    final byte[] id = getRandomTrackingId();
+    _baseTrackingManager.trackRequest(id, FILTER_QUERY_START);
     final SearchRequest searchRequest = getFilteredSearchQuery(filters, sortCriterion, from, size);
-    return executeAndExtract(searchRequest, from, size);
+    final SearchResult<DOCUMENT> searchResult = executeAndExtract(searchRequest, from, size, id, FILTER_QUERY_FAIL);
+    _baseTrackingManager.trackRequest(id, FILTER_QUERY_END);
+    return searchResult;
   }
 
   /**
@@ -380,15 +416,20 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
   @Nonnull
   public AutoCompleteResult autoComplete(@Nonnull String query, @Nullable String field, @Nullable Filter requestParams,
       int limit) {
+    final byte[] id = getRandomTrackingId();
+    _baseTrackingManager.trackRequest(id, AUTOCOMPLETE_QUERY_START);
     if (field == null) {
       field = _config.getDefaultAutocompleteField();
     }
     try {
       SearchRequest req = constructAutoCompleteQuery(query, field, requestParams);
       SearchResponse searchResponse = _client.search(req, RequestOptions.DEFAULT);
-      return extractAutoCompleteResult(searchResponse, query, field, limit);
+      final AutoCompleteResult autoCompleteResult = extractAutoCompleteResult(searchResponse, query, field, limit);
+      _baseTrackingManager.trackRequest(id, AUTOCOMPLETE_QUERY_END);
+      return autoCompleteResult;
     } catch (Exception e) {
       log.error("Auto complete query failed:" + e.getMessage());
+      _baseTrackingManager.trackRequest(id, AUTOCOMPLETE_QUERY_FAIL);
       throw new ESQueryException("Auto complete query failed:", e);
     }
   }
