@@ -1,7 +1,7 @@
 namespace com.linkedin.testing
 
 /**
- * A tuple of a specific metadata aspect and its version.
+ * Captures metadata on soft deleted aspect. This is a copy of SoftDeletedAspect.
  */
 record SoftDeletedAspectCopy {
 
