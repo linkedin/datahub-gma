@@ -1,0 +1,12 @@
+namespace com.linkedin.metadata.aspect
+
+/**
+ * Captures metadata on soft deleted aspect.
+ */
+record SoftDeletedAspect {
+
+  /**
+   * Flag to indicate if the aspect is soft deleted in GMA
+   */
+  gma_deleted: boolean
+}

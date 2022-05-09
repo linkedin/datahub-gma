@@ -31,6 +31,10 @@ public final class AspectValidator {
     if (!ValidationUtils.isUnionWithOnlyComplexMembers(schema)) {
       ValidationUtils.invalidSchema("Aspect '%s' must be a union containing only record type members", aspectClassName);
     }
+
+    if (ValidationUtils.isUnionWithSoftDeletedAspect(schema)) {
+      ValidationUtils.invalidSchema("Aspect '%s' cannot be a union of a soft deleted aspect", aspectClassName);
+    }
   }
 
   /**

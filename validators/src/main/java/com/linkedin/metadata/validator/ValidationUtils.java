@@ -8,10 +8,12 @@ import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.schema.UnionDataSchema;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.UnionTemplate;
+import com.linkedin.metadata.aspect.SoftDeletedAspect;
 import java.lang.reflect.Field;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -35,6 +37,8 @@ public final class ValidationUtils {
           add(DataSchema.Type.ENUM);
         }
       });
+
+  private static final Map<String, String> SOFT_DELETED_FIELD_METADATA = fieldMetadata(new SoftDeletedAspect().schema());
 
   private ValidationUtils() {
     // Util class
@@ -159,6 +163,29 @@ public final class ValidationUtils {
 
   public static boolean isUnionWithOnlyComplexMembers(UnionDataSchema unionDataSchema) {
     return unionDataSchema.getMembers().stream().allMatch(member -> member.getType().isComplex());
+  }
+
+  public static boolean isUnionWithSoftDeletedAspect(UnionDataSchema unionDataSchema) {
+    return unionDataSchema.getMembers().stream().anyMatch(ValidationUtils::fieldsOfSoftDeletedAspect);
+  }
+
+  private static boolean fieldsOfSoftDeletedAspect(@Nonnull UnionDataSchema.Member member) {
+    if (member.getType().getDereferencedDataSchema().getType().equals(DataSchema.Type.RECORD)) {
+      final RecordDataSchema dataSchema = (RecordDataSchema) member.getType().getDereferencedDataSchema();
+      return fieldMetadata(dataSchema).equals(SOFT_DELETED_FIELD_METADATA);
+    }
+    return false;
+  }
+
+  /**
+   * Returns field name and the type of all the fields in a {@link RecordDataSchema} schema.
+   *
+   * @param schema input schema of type {@link RecordDataSchema}
+   * @return map of key value pairs where key is the field name and value is the field type, both converted to string
+   */
+  private static Map<String, String> fieldMetadata(RecordDataSchema schema) {
+    return schema.getFields().stream().collect(Collectors.toMap(
+        RecordDataSchema.Field::getName, f -> f.getType().toString()));
   }
 
   @Nonnull

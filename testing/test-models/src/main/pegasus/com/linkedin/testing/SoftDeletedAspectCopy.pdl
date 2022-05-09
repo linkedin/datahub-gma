@@ -1,0 +1,12 @@
+namespace com.linkedin.testing
+
+/**
+ * A tuple of a specific metadata aspect and its version.
+ */
+record SoftDeletedAspectCopy {
+
+  /**
+   * flag to indicate if the aspect is soft deleted in GMA
+   */
+  gma_deleted: boolean
+}

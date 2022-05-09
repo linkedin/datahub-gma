@@ -7,6 +7,7 @@ import com.linkedin.data.schema.DataSchema;
 import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.UnionTemplate;
+import com.linkedin.metadata.aspect.SoftDeletedAspect;
 import com.linkedin.metadata.dao.exception.ModelConversionException;
 import com.linkedin.metadata.dao.exception.RetryLimitReached;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
@@ -61,7 +62,6 @@ import javax.persistence.OptimisticLockException;
 import javax.persistence.RollbackException;
 import javax.persistence.Table;
 import lombok.Value;
-import org.json.simple.JSONObject;
 
 import static com.linkedin.metadata.dao.EbeanMetadataAspect.*;
 
@@ -72,11 +72,9 @@ import static com.linkedin.metadata.dao.EbeanMetadataAspect.*;
 public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     extends BaseLocalDAO<ASPECT_UNION, URN> {
 
-  // String literal stored in metadata_aspect table for soft deleted aspect
-  private static final Map<String, Boolean> DELETED_METADATA = new HashMap<String, Boolean>() {{
-    put("GMA_DELETED", true);
-  }};
-  public static final String DELETED_VALUE = new JSONObject(DELETED_METADATA).toString();
+  // String stored in metadata_aspect table for soft deleted aspect
+  private static final RecordTemplate DELETED_METADATA = new SoftDeletedAspect().setGma_deleted(true);
+  public static final String DELETED_VALUE = RecordUtils.toJsonString(DELETED_METADATA);
 
   private static final int INDEX_QUERY_TIMEOUT_IN_SEC = 5;
   private static final String EBEAN_MODEL_PACKAGE = EbeanMetadataAspect.class.getPackage().getName();
