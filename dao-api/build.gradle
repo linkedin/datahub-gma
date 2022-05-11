@@ -10,6 +10,7 @@ dependencies {
   compile externalDependency.commonsLang
 
   dataModel project(':core-models')
+  dataModel project(':validators')
 
   compileOnly externalDependency.lombok
 

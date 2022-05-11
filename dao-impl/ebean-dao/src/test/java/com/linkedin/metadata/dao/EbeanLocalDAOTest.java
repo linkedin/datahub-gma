@@ -2219,6 +2219,7 @@ public class EbeanLocalDAOTest {
     // latest version of metadata should be null
     EbeanMetadataAspect aspect = getMetadata(urn, aspectName, 0);
     assertEquals(aspect.getMetadata(), EbeanLocalDAO.DELETED_VALUE);
+    assertEquals(EbeanLocalDAO.DELETED_VALUE, "{\"gma_deleted\":true}");
     Optional<AspectFoo> fooOptional = dao.get(AspectFoo.class, urn);
     assertFalse(fooOptional.isPresent());
 

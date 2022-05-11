@@ -1,0 +1,12 @@
+namespace com.linkedin.testing
+
+/**
+ * Captures metadata on soft deleted aspect. This is a copy of SoftDeletedAspect.
+ */
+record SoftDeletedAspectCopy {
+
+  /**
+   * flag to indicate if the aspect is soft deleted in GMA
+   */
+  gma_deleted: boolean
+}

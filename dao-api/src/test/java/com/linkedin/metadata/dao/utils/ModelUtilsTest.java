@@ -3,6 +3,7 @@ package com.linkedin.metadata.dao.utils;
 import com.google.common.collect.ImmutableSet;
 import com.linkedin.common.CommonTestAspect;
 import com.linkedin.common.urn.Urn;
+import com.linkedin.testing.AspectUnionWithSoftDeletedAspect;
 import com.linkedin.testing.DeltaUnionAlias;
 import com.linkedin.testing.EntityAspectUnionAliasArray;
 import com.linkedin.testing.EntityDeltaAlias;
@@ -77,6 +78,12 @@ public class ModelUtilsTest {
     Set<Class<? extends RecordTemplate>> validTypes = ModelUtils.getValidAspectTypes(EntityAspectUnion.class);
 
     assertEquals(validTypes, ImmutableSet.of(AspectFoo.class, AspectBar.class));
+  }
+
+  @Test
+  public void testSoftDeletedAspect() {
+    assertThrows(InvalidSchemaException.class,
+        () -> ModelUtils.getValidAspectTypes(AspectUnionWithSoftDeletedAspect.class));
   }
 
   @Test
