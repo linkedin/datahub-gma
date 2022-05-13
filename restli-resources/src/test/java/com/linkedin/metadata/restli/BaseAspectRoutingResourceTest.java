@@ -9,6 +9,7 @@ import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.parseq.BaseEngineTest;
 import com.linkedin.restli.common.ComplexResourceKey;
 import com.linkedin.restli.common.EmptyRecord;
+import com.linkedin.restli.server.ResourceContext;
 import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.EntityAspectUnion;
@@ -22,6 +23,7 @@ import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import javax.annotation.Nonnull;
 import org.testng.annotations.BeforeMethod;
@@ -84,7 +86,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     @Nonnull
     @Override
     protected ComplexResourceKey<EntityKey, EmptyRecord> toKey(@Nonnull Urn urn) {
-      throw new UnsupportedOperationException("Not implemented");
+      return new ComplexResourceKey<>(new EntityKey().setId(urn.getIdAsLong()), new EmptyRecord());
     }
 
     @Nonnull
@@ -127,6 +129,11 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     @Override
     public BaseAspectRoutingGmsClient getGmsClient() {
       return _mockGmsClient;
+    }
+
+    @Override
+    public ResourceContext getContext() {
+      return mock(ResourceContext.class);
     }
   }
 
@@ -231,5 +238,49 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     assertTrue(value.hasBar());
     assertEquals(value.getBar(), bar);
     assertFalse(value.hasFoo());
+  }
+
+  @Test
+  public void testIngestWithRoutingAspect() {
+    FooUrn urn = makeFooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectBar bar = new AspectBar().setValue("bar");
+    List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, foo),
+        ModelUtils.newAspectUnion(EntityAspectUnion.class, bar));
+    EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
+
+    runAndWait(_resource.ingest(snapshot));
+
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any());
+    verify(_mockGmsClient, times(1)).ingest(eq(_resource.toKey(urn)), eq(foo));
+    verifyNoMoreInteractions(_mockLocalDAO);
+  }
+
+  @Test
+  public void testIngestWithoutRoutingAspect() {
+    FooUrn urn = makeFooUrn(1);
+    AspectBar bar = new AspectBar().setValue("bar");
+    List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, bar));
+    EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
+
+    runAndWait(_resource.ingest(snapshot));
+
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any());
+    verifyZeroInteractions(_mockGmsClient);
+    verifyNoMoreInteractions(_mockLocalDAO);
+  }
+
+  @Test
+  public void testIngestWithOnlyRoutingAspect() {
+    FooUrn urn = makeFooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, foo));
+    EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
+
+    runAndWait(_resource.ingest(snapshot));
+
+    verifyZeroInteractions(_mockLocalDAO);
+    verify(_mockGmsClient, times(1)).ingest(eq(_resource.toKey(urn)), eq(foo));
+    verifyNoMoreInteractions(_mockGmsClient);
   }
 }
