@@ -65,7 +65,7 @@ public class ESBrowseDAO extends BaseBrowseDAO {
   private LoadingCache<String, SearchResponse> _cache = null;
   private int _lowerBoundHits = Integer.MAX_VALUE;
 
-  private static final int THREAD_COUNT = 2;
+  private static final int THREAD_COUNT = 25;
   private static final int TIME_BEFORE_SHUTDOWN = 1;
   private static final ExecutorService EXECUTOR_SERVICE  =
       MoreExecutors.getExitingExecutorService((ThreadPoolExecutor) Executors.newFixedThreadPool(THREAD_COUNT),
