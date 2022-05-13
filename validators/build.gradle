@@ -14,3 +14,12 @@ dependencies {
 
   testCompile externalDependency.guava
 }
+
+idea {
+  module {
+    sourceDirs += file('src/main/javaPegasus')
+  }
+}
+
+// Need to compile backing java definitions with the data template.
+sourceSets.mainGeneratedDataTemplate.java.srcDirs('src/main/javaPegasus/')
