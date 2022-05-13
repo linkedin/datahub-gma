@@ -1,9 +1,11 @@
 package com.linkedin.metadata.restli;
 
+import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.UnionTemplate;
+import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.parseq.Task;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.RestLiServiceException;
@@ -17,6 +19,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.ParametersAreNonnullByDefault;
 
 import static com.linkedin.metadata.restli.RestliConstants.*;
 
@@ -38,8 +41,8 @@ public abstract class BaseAspectRoutingResource<
     // @formatter:on
     extends BaseBrowsableEntityResource<KEY, VALUE, URN, SNAPSHOT, ASPECT_UNION, DOCUMENT> {
 
-  private Class<ROUTING_ASPECT> _routingAspectClass;
-  private Class<VALUE> _valueClass;
+  private final Class<ROUTING_ASPECT> _routingAspectClass;
+  private final Class<VALUE> _valueClass;
 
   public BaseAspectRoutingResource(@Nonnull Class<SNAPSHOT> snapshotClass, @Nonnull Class<ASPECT_UNION> aspectUnionClass,
       @Nonnull Class<ROUTING_ASPECT> routingAspect, @Nonnull Class<VALUE> valueClass) {
@@ -106,6 +109,26 @@ public abstract class BaseAspectRoutingResource<
     });
   }
 
+  @Nonnull
+  @Override
+  protected Task<Void> ingestInternal(@Nonnull SNAPSHOT snapshot,
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore) {
+    return RestliUtils.toTask(() -> {
+      final URN urn = (URN) ModelUtils.getUrnFromSnapshot(snapshot);
+      final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
+      ModelUtils.getAspectsFromSnapshot(snapshot).stream().forEach(aspect -> {
+        if (!aspectsToIgnore.contains(aspect.getClass())) {
+          if (aspect.getClass().equals(_routingAspectClass)) {
+            getGmsClient().ingest(toKey(urn), aspect);
+          } else {
+            getLocalDAO().add(urn, aspect, auditStamp);
+          }
+        }
+      });
+      return null;
+    });
+  }
+
   /**
    * Whether given set of aspect classes contains routing aspect class.
    * @param aspectClasses A set of aspect classes
@@ -121,6 +144,8 @@ public abstract class BaseAspectRoutingResource<
    * @param aspectClasses Aspects to be decorated on the entity
    * @return Entity decorated with specified aspect classes.
    */
+  @Nonnull
+  @ParametersAreNonnullByDefault
   private VALUE getValueFromLocalDao(KEY id, Set<Class<? extends RecordTemplate>> aspectClasses) {
     final URN urn = toUrn(id);
     final VALUE value = getInternal(Collections.singleton(urn), aspectClasses).get(urn);
@@ -136,6 +161,7 @@ public abstract class BaseAspectRoutingResource<
    * @param aspectFromGms Aspect value retrieved from GMS
    * @return Merged entity value which will contain routing aspect value
    */
+  @Nonnull
   private VALUE merge(@Nullable VALUE valueFromLocalDao, @Nullable ROUTING_ASPECT aspectFromGms) {
     final String setterMethodName = "set" + getRoutingAspectFieldName();
 

@@ -9,9 +9,13 @@ import com.linkedin.restli.server.RestLiServiceException;
  */
 public abstract class BaseAspectRoutingGmsClient {
 
-
   /**
    * Retrieves the latest version of the routing aspect for an entity.
    */
   public abstract <KEY, ASPECT extends RecordTemplate> ASPECT get(KEY id) throws RestLiServiceException;
+
+  /**
+   * Ingests the latest version of the routing aspect for an entity.
+   */
+  public abstract <KEY, ASPECT extends RecordTemplate> void ingest(KEY id, ASPECT aspect) throws RestLiServiceException;
 }
