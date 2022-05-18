@@ -1,11 +1,15 @@
 package com.linkedin.metadata.restli;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.linkedin.common.urn.Urn;
+import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.AspectKey;
 import com.linkedin.metadata.dao.BaseBrowseDAO;
 import com.linkedin.metadata.dao.BaseLocalDAO;
 import com.linkedin.metadata.dao.BaseSearchDAO;
 import com.linkedin.metadata.dao.utils.ModelUtils;
+import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.parseq.BaseEngineTest;
 import com.linkedin.restli.common.ComplexResourceKey;
 import com.linkedin.restli.common.EmptyRecord;
@@ -25,6 +29,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -282,5 +288,57 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     verifyZeroInteractions(_mockLocalDAO);
     verify(_mockGmsClient, times(1)).ingest(eq(_resource.toKey(urn)), eq(foo));
     verifyNoMoreInteractions(_mockGmsClient);
+  }
+
+  @Test
+  public void testGetSnapshotWithoutRoutingAspect() {
+    FooUrn urn = makeFooUrn(1);
+    AspectFoo bar = new AspectFoo().setValue("bar");
+    AspectKey<FooUrn, ? extends RecordTemplate> barKey = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
+    when(_mockLocalDAO.get(ImmutableSet.of(barKey))).thenReturn(ImmutableMap.of(barKey, Optional.of(bar)));
+
+    EntitySnapshot snapshot = runAndWait(_resource.getSnapshot(urn.toString(), new String[]{AspectBar.class.getCanonicalName()}));
+
+    assertEquals(snapshot.getUrn(), urn);
+    assertEquals(snapshot.getAspects().size(), 1);
+    Set<RecordTemplate> aspects =
+        snapshot.getAspects().stream().map(RecordUtils::getSelectedRecordTemplateFromUnion).collect(Collectors.toSet());
+    assertEquals(aspects, ImmutableSet.of(bar));
+  }
+
+  @Test
+  public void testGetSnapshotWithRoutingAspect() {
+    FooUrn urn = makeFooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectFoo bar = new AspectFoo().setValue("bar");
+    AspectKey<FooUrn, ? extends RecordTemplate> barKey = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
+    Set<AspectKey<FooUrn, ? extends RecordTemplate>> aspectKeys = ImmutableSet.of(barKey);
+    when(_mockLocalDAO.get(aspectKeys)).thenReturn(ImmutableMap.of(barKey, Optional.of(bar)));
+    when(_mockGmsClient.get(makeResourceKey(urn))).thenReturn(foo);
+
+    EntitySnapshot snapshot = runAndWait(_resource.getSnapshot(urn.toString(),
+        new String[]{AspectFoo.class.getCanonicalName(), AspectBar.class.getCanonicalName()}));
+
+    assertEquals(snapshot.getUrn(), urn);
+    Set<RecordTemplate> aspects =
+        snapshot.getAspects().stream().map(RecordUtils::getSelectedRecordTemplateFromUnion).collect(Collectors.toSet());
+    assertEquals(aspects, ImmutableSet.of(foo, bar));
+  }
+
+  @Test
+  public void testGetSnapshotWithOnlyRoutingAspect() {
+    FooUrn urn = makeFooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    when(_mockGmsClient.get(makeResourceKey(urn))).thenReturn(foo);
+
+    EntitySnapshot snapshot = runAndWait(_resource.getSnapshot(urn.toString(), new String[]{AspectFoo.class.getCanonicalName()}));
+    assertEquals(snapshot.getUrn(), urn);
+
+    Set<RecordTemplate> aspects =
+        snapshot.getAspects().stream().map(RecordUtils::getSelectedRecordTemplateFromUnion).collect(Collectors.toSet());
+
+    assertEquals(snapshot.getUrn(), urn);
+    assertEquals(aspects, ImmutableSet.of(foo));
+    verifyZeroInteractions(_mockLocalDAO);
   }
 }

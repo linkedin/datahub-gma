@@ -670,7 +670,7 @@ public abstract class BaseEntityResource<
   }
 
   @Nullable
-  private URN parseUrnParam(@Nullable String urnString) {
+  protected URN parseUrnParam(@Nullable String urnString) {
     if (urnString == null) {
       return null;
     }
