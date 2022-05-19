@@ -7,6 +7,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 
 /**
@@ -19,14 +20,26 @@ public class TupleKey {
   public static final char END_TUPLE = ')';
   public static final char DELIMITER = ',';
 
-  private List<String> _tuple;
+  private final List<StringPart> _tupleParts;
 
-  public TupleKey(String... tuple) {
-    _tuple = Arrays.asList(checkStringsNotNull(tuple));
+  public TupleKey(String... tupleParts) {
+    _tupleParts = Arrays.stream(tupleParts).map(value -> {
+      if (value == null) {
+        throw new NullPointerException("Cannot create URN with null part.");
+      }
+
+      return new StringPart(value, 0, value.length());
+    }).collect(Collectors.toList());
   }
 
-  public TupleKey(List<String> tuple) {
-    this(tuple, true);
+  public TupleKey(List<String> tupleParts) {
+    _tupleParts = tupleParts.stream().map(value -> {
+      if (value == null) {
+        throw new NullPointerException("Cannot create URN with null part.");
+      }
+
+      return new StringPart(value, 0, value.length());
+    }).collect(Collectors.toList());
   }
 
   /**
@@ -49,12 +62,12 @@ public class TupleKey {
    * permitting, or {@code List#copyOf} from JDK 10 can be used to recover the
    * benefits more elegantly when it is available for us to use.
    *
-   * @param tuple tuple parts
+   * @param tupleParts tuple parts
    * @param calledFromExternal whether the constructions is invoked from outside
    *     of this class
    */
-  private TupleKey(List<String> tuple, boolean calledFromExternal) {
-    _tuple = calledFromExternal ? Collections.unmodifiableList(checkStringsNotNull(tuple)) : tuple;
+  private TupleKey(List<StringPart> tupleParts, boolean calledFromExternal) {
+    _tupleParts = calledFromExternal ? Collections.unmodifiableList(checkStringsNotNull(tupleParts)) : tupleParts;
   }
 
   // This constructor is intentionally made non-public and should only be
@@ -66,7 +79,7 @@ public class TupleKey {
     if (oneElement == null) {
       throw new NullPointerException("Cannot create URN with null part.");
     }
-    _tuple = Collections.singletonList(oneElement);
+    _tupleParts = Collections.singletonList(new StringPart(oneElement, 0, oneElement.length()));
   }
 
   public static TupleKey createWithOneKeyPart(String input) {
@@ -78,24 +91,21 @@ public class TupleKey {
    * consists of the sequence of String values resulting from calling .toString() on each
    * object in the input sequence
    *
-   * @param tuple - a sequence of Objects to be represented in the tuple
+   * @param tupleParts - a sequence of Objects to be represented in the tuple
    * @return - a TupleKey representation of the object sequence
    */
-  public static TupleKey create(Object... tuple) {
-    List<String> parts = new ArrayList<String>(tuple.length);
-
-    for (Object o : tuple) {
-      if (o == null) {
-        throw new NullPointerException("Cannot create a Urn from tuple with null parameter.");
+  public static TupleKey create(Object... tupleParts) {
+    return new TupleKey(Arrays.stream(tupleParts).map(value -> {
+      if (value == null) {
+        throw new NullPointerException("Cannot create a URN with null tuple part.");
       }
 
-      String objString = o.toString();
-      if (objString.isEmpty()) {
-        throw new IllegalArgumentException("Cannot create a Urn from tuple with an empty value.");
+      String stringValue = value.toString();
+      if (stringValue.isEmpty()) {
+        throw new IllegalArgumentException("Cannot create a Urn from tuple part with an empty value.");
       }
-      parts.add(objString);
-    }
-    return new TupleKey(Collections.unmodifiableList(parts), false);
+      return new StringPart(stringValue, 0, stringValue.length());
+    }).collect(Collectors.toList()), false);
   }
 
   /**
@@ -103,27 +113,63 @@ public class TupleKey {
    * consists of the sequence of String values resulting from calling .toString() on each
    * object in the input sequence
    *
-   * @param tuple - a sequence of Objects to be represented in the tuple
+   * @param tupleParts - a sequence of Objects to be represented in the tuple
    * @return - a TupleKey representation of the object sequence
    */
-  public static TupleKey create(Collection<?> tuple) {
-    List<String> parts = new ArrayList<String>(tuple.size());
-
-    for (Object o : tuple) {
-      if (o == null) {
-        throw new NullPointerException("Cannot create a Urn from tuple with null parameter.");
+  public static TupleKey create(Collection<?> tupleParts) {
+    return new TupleKey(tupleParts.stream().map(value -> {
+      if (value == null) {
+        throw new NullPointerException("Cannot create a URN with null tuple part.");
       }
-      parts.add(o.toString());
-    }
-    return new TupleKey(Collections.unmodifiableList(parts), false);
+
+      String stringValue = value.toString();
+      if (stringValue.isEmpty()) {
+        throw new IllegalArgumentException("Cannot create a Urn from tuple part with an empty value.");
+      }
+      return new StringPart(stringValue, 0, stringValue.length());
+    }).collect(Collectors.toList()), false);
   }
 
   public String getFirst() {
-    return _tuple.get(0);
+    return _tupleParts.get(0).toString();
   }
 
   public String get(int index) {
-    return _tuple.get(index);
+    return _tupleParts.get(index).toString();
+  }
+
+  public short getAsShort(int index) {
+    long value = _tupleParts.get(index).parseLong();
+    if (value < Short.MIN_VALUE || value > Short.MAX_VALUE) {
+      throw new NumberFormatException("Value out of short range. Value:\"" + value + "\"");
+    }
+    return (short) value;
+  }
+
+  public int getAsInt(int index) {
+    long value = _tupleParts.get(index).parseLong();
+    if (value < Integer.MIN_VALUE || value > Integer.MAX_VALUE) {
+      throw new NumberFormatException("Value out of int range. Value:\"" + value + "\"");
+    }
+    return (int) value;
+  }
+
+  public long getAsLong(int index) {
+    return _tupleParts.get(index).parseLong();
+  }
+
+  public boolean getAsBoolean(int index) {
+    StringPart value = _tupleParts.get(index);
+
+    if (value.length() == 4 && value._value.regionMatches(true, value._start, "true", 0, 4)) {
+      return true;
+    }
+
+    if (value.length() == 5 && value._value.regionMatches(true, value._start, "false", 0, 5)) {
+      return false;
+    }
+
+    throw new IllegalArgumentException("Invalid boolean value: " + value);
   }
 
   /**
@@ -134,69 +180,52 @@ public class TupleKey {
    * @param <T> - the desired type for the returned object.
    * @return The specified element of the tuple, coerced to the specified type T.
    */
+  @SuppressWarnings({"unchecked"})
   public <T> T getAs(int index, Class<T> clazz) {
-    String value = get(index);
-
-    Object result;
-
-    if (value == null) {
-      return null;
-    } else if (String.class.equals(clazz)) {
-      result = value;
+    if (String.class.equals(clazz)) {
+      return (T) get(index);
     } else if (Short.TYPE.equals(clazz) || Short.class.equals(clazz)) {
-      result = Short.valueOf(value);
-    } else if (Boolean.class.equals(clazz) || Boolean.TYPE.equals(clazz)) {
-      if (!value.equalsIgnoreCase("true") && !value.equalsIgnoreCase("false")) {
-        throw new IllegalArgumentException("Invalid boolean value: " + value);
-      }
-      result = Boolean.valueOf(value);
+      return (T) (Short) getAsShort(index);
     } else if (Integer.TYPE.equals(clazz) || Integer.class.equals(clazz)) {
-      result = Integer.valueOf(value);
+      return (T) (Integer) getAsInt(index);
     } else if (Long.TYPE.equals(clazz) || Long.class.equals(clazz)) {
-      result = Long.valueOf(value);
-    } else if (Enum.class.isAssignableFrom(clazz)) {
-      result = getEnumValue(clazz, value);
+      return (T) (Long) getAsLong(index);
+    } else if (Boolean.TYPE.equals(clazz) || Boolean.class.equals(clazz)) {
+      return (T) (Boolean) getAsBoolean(index);
+    }
+
+    String value = get(index);
+    if (Enum.class.isAssignableFrom(clazz)) {
+      return (T) Enum.valueOf(clazz.asSubclass(Enum.class), value);
     } else if (DataTemplateUtil.hasCoercer(clazz)) {
-      result = DataTemplateUtil.coerceOutput(value, clazz);
+      return DataTemplateUtil.coerceOutput(value, clazz);
     } else {
       throw new IllegalArgumentException("Cannot coerce String to type: " + clazz.getName());
     }
-    @SuppressWarnings("unchecked")
-    T rv = (T) result;
-    return rv;
-  }
-
-  /**
-   * Helper method to capture E.
-   */
-  private <E extends Enum<E>> Enum<E> getEnumValue(Class<?> clazz, String value) {
-    @SuppressWarnings("unchecked")
-    final Class<E> enumClazz = (Class<E>) clazz.asSubclass(Enum.class);
-    return Enum.valueOf(enumClazz, value);
   }
 
   public int size() {
-    return _tuple.size();
+    return _tupleParts.size();
   }
 
   public List<String> getParts() {
-    return _tuple;
+    return _tupleParts.stream().map(StringPart::toString).collect(Collectors.toList());
   }
 
   @Override
   public String toString() {
-    if (_tuple.size() == 1) {
-      return _tuple.get(0);
+    if (_tupleParts.size() == 1) {
+      return _tupleParts.get(0).toString();
     } else {
       StringBuilder result = new StringBuilder();
 
       result.append(START_TUPLE);
       boolean delimit = false;
-      for (String value : _tuple) {
+      for (StringPart value : _tupleParts) {
         if (delimit) {
           result.append(DELIMITER);
         }
-        result.append(value);
+        result.append(value._value, value._start, value._end);
         delimit = true;
       }
       result.append(END_TUPLE);
@@ -206,7 +235,7 @@ public class TupleKey {
 
   @Override
   public int hashCode() {
-    return _tuple.hashCode();
+    return _tupleParts.hashCode();
   }
 
   @Override
@@ -219,27 +248,24 @@ public class TupleKey {
       return false;
     }
 
-    return _tuple.equals(((TupleKey) obj)._tuple);
+    return _tupleParts.equals(((TupleKey) obj)._tupleParts);
   }
 
   public static TupleKey fromString(String s) throws URISyntaxException {
-    return new TupleKey(parseKeyParts(s, 0), false);
+    return fromString(s, 0);
   }
 
   /**
    * Create a tuple key from a string starting at the given index.
-   * @param s raw urn string or urn type specific string.
+   * @param input raw urn string or urn type specific string.
    * @param startIndex index where urn type specific string starts.
    * @return entity tuple key.
    * @throws URISyntaxException if type specific string format is invalid.
    */
-  public static TupleKey fromString(String s, int startIndex) throws URISyntaxException {
-    return new TupleKey(parseKeyParts(s, startIndex), false);
-  }
+  public static TupleKey fromString(String input, int startIndex) throws URISyntaxException {
 
-  private static List<String> parseKeyParts(String input, int startIndex) throws URISyntaxException {
     if (startIndex >= input.length()) {
-      return Collections.emptyList();
+      return new TupleKey(Collections.emptyList(), false);
     }
 
     // If there's no opening paren, there's only one tuple part. This is a very
@@ -249,10 +275,10 @@ public class TupleKey {
       if (!hasBalancedParens(input, startIndex)) {
         throw new URISyntaxException(input, "mismatched paren nesting");
       }
-      return Collections.singletonList(input.substring(startIndex));
+      return new TupleKey(Collections.singletonList(new StringPart(input, startIndex, input.length())), false);
     }
 
-    /* URNs with multiple-part ids overwhelmingly have just two or three parts.  As of May 5, a check of
+    /* URNs with multiple-part ids overwhelmingly have just two or three parts. As of May 5, a check of
      * existing typed URNs showed
      *
      *  890 single-part URN ids
@@ -267,7 +293,7 @@ public class TupleKey {
      * eight (as it would be for a default ArrayList capacity of 10) while providing enough slots for the 97.5%
      * of URN types which use three parts or fewer -- the rest will require some array expansion.
      */
-    List<String> parts = new ArrayList<>(3);
+    List<StringPart> parts = new ArrayList<>(3);
 
     int numStartedParenPairs = 1; // We know we have at least one starting paren
     int partStart = startIndex + 1;  // +1 to skip opening paren
@@ -293,7 +319,7 @@ public class TupleKey {
         if (i - partStart <= 0) {
           throw new URISyntaxException(input, "empty part disallowed");
         }
-        parts.add(input.substring(partStart, i));
+        parts.add(new StringPart(input, partStart, i));
         partStart = i + 1;
       }
     }
@@ -308,8 +334,10 @@ public class TupleKey {
       throw new URISyntaxException(input, "empty part disallowed");
     }
 
-    parts.add(input.substring(partStart, lastPartEnd));
-    return Collections.unmodifiableList(parts);
+    parts.add(new StringPart(input, partStart, lastPartEnd));
+    // If we got here and have 1 part then it means that this was parsed from a legacy string
+    // representation that encoded single parts inside parentheses.
+    return new TupleKey(Collections.unmodifiableList(parts), parts.size() == 1);
   }
 
   private static boolean hasBalancedParens(String input, int startIndex) {
@@ -328,23 +356,126 @@ public class TupleKey {
     return numStartedParenPairs == 0;
   }
 
-  private static String[] checkStringsNotNull(String... array) {
-    for (int i = 0; i < array.length; i++) {
-      if (array[i] == null) {
-        throw new NullPointerException("at index " + i);
-      }
-    }
-    return array;
-  }
-
-  private static List<String> checkStringsNotNull(List<String> list) {
+  private static List<StringPart> checkStringsNotNull(List<StringPart> list) {
     int i = 0;
-    for (String str : list) {
-      if (str == null) {
+    for (StringPart str : list) {
+      if (str == null || str.toString() == null) {
         throw new NullPointerException("at index " + i);
       }
       i++;
     }
     return list;
+  }
+
+  /**
+   * Represents a view into a part of a String. This internal structure helps avoid memory copies and garbage caused by
+   * splitting and constructing strings for parts of URNs.
+   */
+  private static final class StringPart {
+    private final String _value;
+    private final int _start;
+    private final int _end;
+    private volatile String _cachedString = null;
+    private volatile int _cachedHashCode = 0;
+
+    private StringPart(String value, int start, int end) {
+      _value = value;
+      _start = start;
+      _end = end;
+    }
+
+    @Override
+    public String toString() {
+      if (_cachedString == null) {
+        synchronized (this) {
+          if (_cachedString == null) {
+            if (_start == 0 && _end == _value.length()) {
+              _cachedString = _value;
+            } else {
+              _cachedString = _value.substring(_start, _end);
+            }
+          }
+        }
+      }
+
+      return _cachedString;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      StringPart that = (StringPart) o;
+
+      if (length() != that.length()) {
+        return false;
+      }
+
+      return _value.regionMatches(false, _start, that._value, that._start, that._end - that._start);
+    }
+
+    @Override
+    public int hashCode() {
+      if (_cachedHashCode == 0) {
+        synchronized (this) {
+          if (_cachedHashCode == 0) {
+            int hash = 0;
+            for (int i = _start; i < _end; i++) {
+              hash = 31 * hash + _value.charAt(i);
+            }
+            _cachedHashCode = hash;
+          }
+        }
+      }
+
+      return _cachedHashCode;
+    }
+
+    public int length() {
+      return _end - _start;
+    }
+
+    public long parseLong() {
+      boolean negative = false;
+      boolean atLeastOneDigit = false;
+      long result = 0;
+      long limit = -Long.MAX_VALUE;
+      long minMultiple = limit / 10;
+
+      for (int i = _start; i < _end; i++) {
+        char character = _value.charAt(i);
+        if (i == _start) {
+          if (character == '-') {
+            negative = true;
+            limit = Long.MIN_VALUE;
+            minMultiple = limit / 10;
+            continue;
+          }
+        }
+
+        int digit = Character.digit(character, 10);
+        if (digit < 0 || result < minMultiple) {
+          throw new NumberFormatException("Invalid number: " + this);
+        }
+        atLeastOneDigit = true;
+
+        result *= 10;
+        if (result < limit + digit) {
+          throw new NumberFormatException("Invalid number: " + this);
+        }
+
+        result -= digit;
+      }
+
+      if (!atLeastOneDigit) {
+        throw new NumberFormatException("Invalid number: " + this);
+      }
+
+      return negative ? result : (-1 * result);
+    }
   }
 }

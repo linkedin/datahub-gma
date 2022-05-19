@@ -151,10 +151,14 @@ public class Urn {
   }
 
   public Urn(String namespace, String entityType, TupleKey entityKey) {
+    this(namespace, entityType, entityKey, null);
+  }
+
+  protected Urn(String namespace, String entityType, TupleKey entityKey, String cachedStringUrn) {
     _namespace = namespace;
     _entityType = entityType;
     _entityKey = entityKey;
-    _cachedStringUrn = null;
+    _cachedStringUrn = cachedStringUrn;
   }
 
   /**
