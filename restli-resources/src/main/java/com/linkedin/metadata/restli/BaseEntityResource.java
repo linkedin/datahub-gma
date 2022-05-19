@@ -281,7 +281,7 @@ public abstract class BaseEntityResource<
   }
 
   @Nonnull
-  private BackfillResult buildBackfillResult(@Nonnull Map<URN, Map<Class<? extends RecordTemplate>,
+  protected BackfillResult buildBackfillResult(@Nonnull Map<URN, Map<Class<? extends RecordTemplate>,
           java.util.Optional<? extends RecordTemplate>>> backfilledAspects) {
 
     final Set<URN> urns = new TreeSet<>(Comparator.comparing(Urn::toString));
