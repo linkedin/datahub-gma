@@ -53,7 +53,7 @@ project.ext.externalDependency = [
     'junitJupiterParams': "org.junit.jupiter:junit-jupiter-params:$junitJupiterVersion",
     'junitJupiterEngine': "org.junit.jupiter:junit-jupiter-engine:$junitJupiterVersion",
     'junitVintageEngine': "org.junit.vintage:junit-vintage-engine:$junitJupiterVersion",
-    'lombok': 'org.projectlombok:lombok:1.18.12',
+    'lombok': 'org.projectlombok:lombok:1.18.22',
     'mockito': 'org.mockito:mockito-core:3.0.0',
     'mockitoInline': 'org.mockito:mockito-inline:3.0.0',
     'neo4jHarness': 'org.neo4j.test:neo4j-harness:3.4.11',

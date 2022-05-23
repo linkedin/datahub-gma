@@ -18,8 +18,11 @@ import com.linkedin.restli.server.annotations.RestMethod;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -81,7 +84,7 @@ public abstract class BaseAspectRoutingResource<
    * Get the client of GMS that routing aspect will be routed to.
    * @return A client of the GMS for routing aspect.
    */
-  public abstract BaseAspectRoutingGmsClient getGmsClient();
+  public abstract BaseAspectRoutingGmsClient<ROUTING_ASPECT> getGmsClient();
 
   /**
    * Retrieves the value for an entity that is made up of latest versions of specified aspects.
@@ -97,7 +100,7 @@ public abstract class BaseAspectRoutingResource<
 
       // Get entity from aspect GMS
       if (containsRoutingAspect(aspectClasses) && aspectClasses.size() == 1) {
-        return merge(null, getGmsClient().get(id));
+        return merge(null, getGmsClient().get(toUrn(id)));
       }
 
       // The assumption is main GMS must have this entity.
@@ -116,7 +119,7 @@ public abstract class BaseAspectRoutingResource<
       // TODO: Confirm ownership gms will return null value if there is no ownership aspect for id.
       // Need to read from both aspect GMS and local DAO.
       final VALUE valueFromLocalDao = getValueFromLocalDao(id, withoutRoutingAspect);
-      final ROUTING_ASPECT aspectValueFromGms = getGmsClient().get(id);
+      final ROUTING_ASPECT aspectValueFromGms = getGmsClient().get(toUrn(id));
 
       return merge(valueFromLocalDao, aspectValueFromGms);
     });
@@ -155,6 +158,47 @@ public abstract class BaseAspectRoutingResource<
     });
   }
 
+  /**
+   * An action method for emitting MAE backfill messages for a set of entities.
+   */
+  @Action(name = ACTION_BACKFILL_WITH_URNS)
+  @Nonnull
+  public Task<BackfillResult> backfill(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
+      @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
+
+    return RestliUtils.toTask(() -> {
+      final Set<URN> urnSet = Arrays.stream(urns).map(urnString -> parseUrnParam(urnString)).collect(Collectors.toSet());
+      final Set<Class<? extends RecordTemplate>> aspectClasses = parseAspectsParam(aspectNames);
+      Map<URN, Map<Class<? extends RecordTemplate>, java.util.Optional<? extends RecordTemplate>>> urnToAspect = new HashMap<>();
+
+      if (!containsRoutingAspect(aspectClasses)) {
+        // Backfill only needs local DAO.
+        return buildBackfillResult(getLocalDAO().backfill(aspectClasses, urnSet));
+      }
+
+      if (containsRoutingAspect(aspectClasses) && aspectClasses.size() == 1) {
+        // Backfill only needs aspect GMS
+        getGmsClient().batchGet(urnSet).forEach((urn, routingAspect) -> {
+          urnToAspect.put(urn, Collections.singletonMap(_routingAspectClass, java.util.Optional.ofNullable(routingAspect)));
+        });
+      } else {
+        getGmsClient().batchGet(urnSet).forEach((urn, routingAspect) -> {
+          Map<Class<? extends RecordTemplate>, java.util.Optional<? extends RecordTemplate>> aspectMap = new HashMap<>();
+          aspectMap.put(_routingAspectClass, java.util.Optional.ofNullable(routingAspect));
+          urnToAspect.put(urn, aspectMap);
+        });
+
+        getLocalDAO().get(removeRoutingAspect(aspectClasses), urnSet).forEach((urn, aspect) -> {
+          urnToAspect.get(urn).putAll(aspect);
+        });
+      }
+
+      // MAE is emitted in LocalDAO so we still need to invoke backfill in LocalDAO.
+      getLocalDAO().backfill(urnToAspect);
+      return buildBackfillResult(urnToAspect);
+    });
+  }
+
   @Nonnull
   @Override
   protected Task<Void> ingestInternal(@Nonnull SNAPSHOT snapshot,
@@ -165,7 +209,7 @@ public abstract class BaseAspectRoutingResource<
       ModelUtils.getAspectsFromSnapshot(snapshot).stream().forEach(aspect -> {
         if (!aspectsToIgnore.contains(aspect.getClass())) {
           if (aspect.getClass().equals(_routingAspectClass)) {
-            getGmsClient().ingest(toKey(urn), aspect);
+            getGmsClient().ingest(urn, (ROUTING_ASPECT) aspect);
           } else {
             getLocalDAO().add(urn, aspect, auditStamp);
           }
@@ -235,7 +279,7 @@ public abstract class BaseAspectRoutingResource<
   @Nonnull
   @ParametersAreNonnullByDefault
   private List<ASPECT_UNION> getAspectsFromGms(URN urn) {
-    final ROUTING_ASPECT routingAspect = getGmsClient().get(toKey(urn));
+    final ROUTING_ASPECT routingAspect = getGmsClient().get(urn);
     if (routingAspect == null) {
       return new ArrayList<>();
     }
