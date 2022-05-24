@@ -3,7 +3,6 @@ package com.linkedin.metadata.restli;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.restli.server.RestLiServiceException;
-import java.util.Map;
 import java.util.Set;
 
 
@@ -18,9 +17,9 @@ public abstract class BaseAspectRoutingGmsClient<ASPECT extends RecordTemplate> 
   public abstract <URN extends Urn> ASPECT get(URN urn) throws RestLiServiceException;
 
   /**
-   * Batch retrieve the latest version of the routing aspect for a set of entities.
+   * Backfill the routing aspect value for a given set of entity identified by the urns.
    */
-  public abstract <URN extends Urn> Map<URN, ASPECT> batchGet(Set<URN> urn) throws RestLiServiceException;
+  public abstract <URN extends Urn> BackfillResult backfill(Set<URN> urn) throws RestLiServiceException;
 
   /**
    * Ingests the latest version of the routing aspect for an entity.

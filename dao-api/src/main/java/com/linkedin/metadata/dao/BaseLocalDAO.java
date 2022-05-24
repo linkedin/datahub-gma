@@ -872,15 +872,6 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * Backfill a set of aspects for each corresponding urn.
-   */
-  public void backfill(@Nonnull Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> urnToAspects) {
-    urnToAspects.forEach((urn, aspects) -> {
-      aspects.forEach((aspectClass, aspect) -> aspect.ifPresent(value -> backfill(BackfillMode.BACKFILL_ALL, value, urn)));
-    });
-  }
-
-  /**
    * Similar to {@link #backfill(Set, Set)} but does a scoped backfill.
    *
    * @param mode backfill mode to scope the backfill process

@@ -4,6 +4,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
+import com.linkedin.data.template.StringArray;
 import com.linkedin.metadata.dao.AspectKey;
 import com.linkedin.metadata.dao.BaseBrowseDAO;
 import com.linkedin.metadata.dao.BaseLocalDAO;
@@ -347,17 +348,22 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
   public void testBackfillWithRoutingAspect() {
     FooUrn fooUrn1 = makeFooUrn(1);
     FooUrn fooUrn2 = makeFooUrn(2);
-    AspectFoo foo1 = new AspectFoo().setValue("foo1");
     AspectBar bar1 = new AspectBar().setValue("bar1");
-    AspectFoo foo2 = new AspectFoo().setValue("foo2");
     AspectBar bar2 = new AspectBar().setValue("bar2");
 
     Map<FooUrn, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> daoResult =
         ImmutableMap.of(fooUrn1, Collections.singletonMap(AspectBar.class, Optional.of(bar1)),
             fooUrn2, Collections.singletonMap(AspectBar.class, Optional.of(bar2)));
 
-    when(_mockLocalDAO.get(Collections.singleton(AspectBar.class), ImmutableSet.of(fooUrn1, fooUrn2))).thenReturn(daoResult);
-    when(_mockGmsClient.batchGet(ImmutableSet.of(fooUrn1, fooUrn2))).thenReturn(ImmutableMap.of(fooUrn1, foo1, fooUrn2, foo2));
+    BackfillResult gmsResult = new BackfillResult();
+    BackfillResultEntity resultEntity1 =
+        new BackfillResultEntity().setUrn(fooUrn1).setAspects(new StringArray(AspectFoo.class.getCanonicalName()));
+    BackfillResultEntity resultEntity2 =
+        new BackfillResultEntity().setUrn(fooUrn2).setAspects(new StringArray(AspectFoo.class.getCanonicalName()));
+    gmsResult.setEntities(new BackfillResultEntityArray(resultEntity1, resultEntity2));
+
+    when(_mockLocalDAO.backfill(Collections.singleton(AspectBar.class), ImmutableSet.of(fooUrn1, fooUrn2))).thenReturn(daoResult);
+    when(_mockGmsClient.backfill(ImmutableSet.of(fooUrn1, fooUrn2))).thenReturn(gmsResult);
 
     BackfillResult backfillResult = runAndWait(_resource.backfill(new String[]{fooUrn1.toString(), fooUrn2.toString()},
         new String[]{AspectFoo.class.getCanonicalName(), AspectBar.class.getCanonicalName()}));
@@ -367,7 +373,6 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     assertTrue(backfillResult.getEntities().get(0).getAspects().contains(AspectFoo.class.getCanonicalName()));
     assertTrue(backfillResult.getEntities().get(1).getAspects().contains(AspectBar.class.getCanonicalName()));
     assertTrue(backfillResult.getEntities().get(1).getAspects().contains(AspectFoo.class.getCanonicalName()));
-    verify(_mockLocalDAO, times(1)).backfill(anyMap());
   }
 
   @Test
@@ -387,7 +392,6 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     assertEquals(backfillResult.getEntities().size(), 2);
     verifyZeroInteractions(_mockGmsClient);
-    verify(_mockLocalDAO, times(0)).backfill(anyMap());
   }
 
   @Test
@@ -397,7 +401,13 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     AspectFoo foo1 = new AspectFoo().setValue("foo1");
     AspectFoo foo2 = new AspectFoo().setValue("foo2");
 
-    when(_mockGmsClient.batchGet(ImmutableSet.of(fooUrn1, fooUrn2))).thenReturn(ImmutableMap.of(fooUrn1, foo1, fooUrn2, foo2));
+    BackfillResult gmsResult = new BackfillResult();
+    BackfillResultEntity resultEntity1 =
+        new BackfillResultEntity().setUrn(fooUrn1).setAspects(new StringArray(foo1.getClass().getCanonicalName()));
+    BackfillResultEntity resultEntity2 =
+        new BackfillResultEntity().setUrn(fooUrn2).setAspects(new StringArray(foo2.getClass().getCanonicalName()));
+    gmsResult.setEntities(new BackfillResultEntityArray(resultEntity1, resultEntity2));
+    when(_mockGmsClient.backfill(ImmutableSet.of(fooUrn1, fooUrn2))).thenReturn(gmsResult);
 
     BackfillResult backfillResult = runAndWait(_resource.backfill(new String[]{fooUrn1.toString(), fooUrn2.toString()},
         new String[]{AspectFoo.class.getCanonicalName()}));
@@ -407,6 +417,5 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     assertTrue(backfillResult.getEntities().get(0).getAspects().contains(AspectFoo.class.getCanonicalName()));
     assertFalse(backfillResult.getEntities().get(1).getAspects().contains(AspectBar.class.getCanonicalName()));
     assertTrue(backfillResult.getEntities().get(1).getAspects().contains(AspectFoo.class.getCanonicalName()));
-    verify(_mockLocalDAO, times(1)).backfill(anyMap());
   }
 }

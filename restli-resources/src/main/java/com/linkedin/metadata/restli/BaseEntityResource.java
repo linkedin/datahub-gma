@@ -36,12 +36,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
@@ -259,7 +257,7 @@ public abstract class BaseEntityResource<
 
     return RestliUtils.toTask(() -> {
       final Set<URN> urnSet = Arrays.stream(urns).map(urnString -> parseUrnParam(urnString)).collect(Collectors.toSet());
-      return buildBackfillResult(getLocalDAO().backfill(parseAspectsParam(aspectNames), urnSet));
+      return RestliUtils.buildBackfillResult(getLocalDAO().backfill(parseAspectsParam(aspectNames), urnSet));
     });
   }
 
@@ -274,34 +272,10 @@ public abstract class BaseEntityResource<
       @ActionParam(PARAM_LIMIT) int limit) {
 
     return RestliUtils.toTask(() ->
-            buildBackfillResult(getLocalDAO().backfill(mode, parseAspectsParam(aspectNames),
+            RestliUtils.buildBackfillResult(getLocalDAO().backfill(mode, parseAspectsParam(aspectNames),
                     _urnClass,
                     parseUrnParam(lastUrn),
                     limit)));
-  }
-
-  @Nonnull
-  protected BackfillResult buildBackfillResult(@Nonnull Map<URN, Map<Class<? extends RecordTemplate>,
-          java.util.Optional<? extends RecordTemplate>>> backfilledAspects) {
-
-    final Set<URN> urns = new TreeSet<>(Comparator.comparing(Urn::toString));
-    urns.addAll(backfilledAspects.keySet());
-    return new BackfillResult().setEntities(new BackfillResultEntityArray(
-            urns.stream().map(urn -> buildBackfillResultEntity(urn, backfilledAspects.get(urn)))
-                    .collect(Collectors.toList())));
-  }
-
-  @Nonnull
-  private BackfillResultEntity buildBackfillResultEntity(@Nonnull URN urn, Map<Class<? extends RecordTemplate>,
-          java.util.Optional<? extends RecordTemplate>> aspectMap) {
-
-    return new BackfillResultEntity()
-            .setUrn(urn)
-            .setAspects(new StringArray(aspectMap.entrySet().stream()
-                    .filter(aspect -> aspect.getValue().isPresent())
-                    .map(aspect -> aspect.getKey().getCanonicalName())
-                    .collect(Collectors.toList()))
-            );
   }
 
   /**
