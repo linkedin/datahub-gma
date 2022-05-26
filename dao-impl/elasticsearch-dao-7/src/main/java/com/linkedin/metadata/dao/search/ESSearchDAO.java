@@ -26,6 +26,7 @@ import com.linkedin.metadata.query.MatchedField;
 import com.linkedin.metadata.query.MatchedFieldArray;
 import com.linkedin.metadata.query.SearchResultMetadata;
 import com.linkedin.metadata.query.SortCriterion;
+import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -427,7 +428,7 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
       final AutoCompleteResult autoCompleteResult = extractAutoCompleteResult(searchResponse, query, field, limit);
       _baseTrackingManager.trackRequest(id, AUTOCOMPLETE_QUERY_END);
       return autoCompleteResult;
-    } catch (Exception e) {
+    } catch (IOException e) {
       log.error("Auto complete query failed:" + e.getMessage());
       _baseTrackingManager.trackRequest(id, AUTOCOMPLETE_QUERY_FAIL);
       throw new ESQueryException("Auto complete query failed:", e);
