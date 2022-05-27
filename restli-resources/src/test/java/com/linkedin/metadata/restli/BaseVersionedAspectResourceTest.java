@@ -1,6 +1,8 @@
 package com.linkedin.metadata.restli;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.common.urn.Urns;
@@ -19,8 +21,11 @@ import com.linkedin.restli.server.PathKeys;
 import com.linkedin.restli.server.ResourceContext;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.EntityAspectUnion;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import javax.annotation.Nonnull;
 import org.mockito.invocation.InvocationOnMock;
@@ -77,6 +82,20 @@ public class BaseVersionedAspectResourceTest extends BaseEngineTest {
     AspectFoo result = runAndWait(_resource.get(123L));
 
     assertEquals(result, foo);
+  }
+
+  @Test
+  public void testBackfill() {
+    AspectFoo aspectFoo = new AspectFoo().setValue("value1");
+    Set<Urn> urns = ImmutableSet.of(makeUrn(111), makeUrn(222));
+
+    Map<Urn, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfillResult = new HashMap<>();
+    backfillResult.put(makeUrn(111), ImmutableMap.of(AspectFoo.class, Optional.of(aspectFoo)));
+    backfillResult.put(makeUrn(222), ImmutableMap.of(AspectFoo.class, Optional.empty()));
+    when(_mockLocalDAO.backfill(ImmutableSet.of(AspectFoo.class), urns)).thenReturn(backfillResult);
+    BackfillResult result = runAndWait(_resource.backfillWithUrns(urns));
+
+    assertEquals(result.getEntities().size(), 2);
   }
 
   @Test

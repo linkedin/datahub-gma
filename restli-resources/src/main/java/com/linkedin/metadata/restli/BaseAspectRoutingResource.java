@@ -4,6 +4,7 @@ import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.SetMode;
+import com.linkedin.data.template.StringArray;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.AspectKey;
 import com.linkedin.metadata.dao.utils.ModelUtils;
@@ -24,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nonnull;
@@ -173,29 +175,19 @@ public abstract class BaseAspectRoutingResource<
 
       if (!containsRoutingAspect(aspectClasses)) {
         // Backfill only needs local DAO.
-        return buildBackfillResult(getLocalDAO().backfill(aspectClasses, urnSet));
+        return RestliUtils.buildBackfillResult(getLocalDAO().backfill(aspectClasses, urnSet));
       }
 
       if (containsRoutingAspect(aspectClasses) && aspectClasses.size() == 1) {
         // Backfill only needs aspect GMS
-        getGmsClient().batchGet(urnSet).forEach((urn, routingAspect) -> {
-          urnToAspect.put(urn, Collections.singletonMap(_routingAspectClass, java.util.Optional.ofNullable(routingAspect)));
-        });
+        return getGmsClient().backfill(urnSet);
       } else {
-        getGmsClient().batchGet(urnSet).forEach((urn, routingAspect) -> {
-          Map<Class<? extends RecordTemplate>, java.util.Optional<? extends RecordTemplate>> aspectMap = new HashMap<>();
-          aspectMap.put(_routingAspectClass, java.util.Optional.ofNullable(routingAspect));
-          urnToAspect.put(urn, aspectMap);
-        });
-
-        getLocalDAO().get(removeRoutingAspect(aspectClasses), urnSet).forEach((urn, aspect) -> {
-          urnToAspect.get(urn).putAll(aspect);
-        });
+        // Backfill needs both aspect GMS and local DAO.
+        BackfillResult localDaoBackfillResult =
+            RestliUtils.buildBackfillResult(getLocalDAO().backfill(removeRoutingAspect(aspectClasses), urnSet));
+        BackfillResult gmsBackfillResult = getGmsClient().backfill(urnSet);
+        return merge(localDaoBackfillResult, gmsBackfillResult);
       }
-
-      // MAE is emitted in LocalDAO so we still need to invoke backfill in LocalDAO.
-      getLocalDAO().backfill(urnToAspect);
-      return buildBackfillResult(urnToAspect);
     });
   }
 
@@ -320,5 +312,31 @@ public abstract class BaseAspectRoutingResource<
     }
 
     return valueFromLocalDao;
+  }
+
+  /**
+   * Merget BackfillResult from routing aspect GMS and Local DAO.
+   * @param fromDao BackfillResult from Local DAO.
+   * @param fromGms BackfillResult from routing aspect GMS.
+   * @return merged BackfillResult
+   */
+  @Nonnull
+  @ParametersAreNonnullByDefault
+  private BackfillResult merge(final BackfillResult fromDao, final BackfillResult fromGms) {
+    Map<Urn, BackfillResultEntity> urnToEntityMap = fromDao.getEntities().stream()
+        .collect(Collectors.toMap(BackfillResultEntity::getUrn, Function.identity()));
+
+    fromGms.getEntities().forEach(backfillResultEntity -> {
+      Urn urn = backfillResultEntity.getUrn();
+      if (urnToEntityMap.containsKey(urn)) {
+        urnToEntityMap.get(urn).getAspects().add(_routingAspectClass.getCanonicalName());
+      } else {
+        BackfillResultEntity entity = new BackfillResultEntity().setUrn(urn)
+            .setAspects(new StringArray(_routingAspectClass.getCanonicalName()));
+        urnToEntityMap.put(urn, entity);
+      }
+    });
+
+    return new BackfillResult().setEntities(new BackfillResultEntityArray(urnToEntityMap.values()));
   }
 }

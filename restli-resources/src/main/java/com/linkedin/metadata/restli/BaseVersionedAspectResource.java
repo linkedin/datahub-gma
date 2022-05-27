@@ -1,5 +1,6 @@
 package com.linkedin.metadata.restli;
 
+import com.google.common.collect.ImmutableSet;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
@@ -18,16 +19,20 @@ import com.linkedin.restli.server.CreateResponse;
 import com.linkedin.restli.server.PagingContext;
 import com.linkedin.restli.server.PathKeys;
 import com.linkedin.restli.server.UpdateResponse;
+import com.linkedin.restli.server.annotations.Action;
 import com.linkedin.restli.server.annotations.PagingContextParam;
 import com.linkedin.restli.server.annotations.RestMethod;
 import com.linkedin.restli.server.annotations.ReturnEntity;
 import com.linkedin.restli.server.resources.CollectionResourceTaskTemplate;
 import java.time.Clock;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import javax.annotation.Nonnull;
 
 import static com.linkedin.metadata.dao.BaseReadDAO.*;
+import static com.linkedin.metadata.restli.RestliConstants.*;
+
 
 /**
  * A base class for an aspect rest.li subresource with versioning support.
@@ -85,6 +90,18 @@ public abstract class BaseVersionedAspectResource<URN extends Urn, ASPECT_UNION 
       return getLocalDAO().get(new AspectKey<>(_aspectClass, urn, version))
           .orElseThrow(RestliUtils::resourceNotFoundException);
     });
+  }
+
+  /**
+   * Backfill ASPECT for each entity identified by its URN.
+   * @param urns Identifies a set of entities for which its ASPECT will be backfilled.
+   * @return BackfillResult for each entity identified by URN.
+   */
+  @Action(name = ACTION_BACKFILL_WITH_URNS)
+  @Nonnull
+  public Task<BackfillResult> backfillWithUrns(@Nonnull Set<URN> urns) {
+    return RestliUtils.toTask(() ->
+        RestliUtils.buildBackfillResult(getLocalDAO().backfill(ImmutableSet.of(_aspectClass), urns)));
   }
 
   @RestMethod.GetAll

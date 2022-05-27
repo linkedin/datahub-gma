@@ -1,10 +1,18 @@
 package com.linkedin.metadata.restli;
 
+import com.linkedin.common.urn.Urn;
+import com.linkedin.data.template.RecordTemplate;
+import com.linkedin.data.template.StringArray;
 import com.linkedin.parseq.Task;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.RestLiServiceException;
+import java.util.Comparator;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -69,5 +77,28 @@ public class RestliUtils {
   @Nonnull
   public static RestLiServiceException invalidArgumentsException(@Nullable String message) {
     return new RestLiServiceException(HttpStatus.S_412_PRECONDITION_FAILED, message);
+  }
+
+  @Nonnull
+  public static <URN extends Urn> BackfillResult buildBackfillResult(
+      @Nonnull Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfilledAspects) {
+
+    final Set<URN> urns = new TreeSet<>(Comparator.comparing(Urn::toString));
+    urns.addAll(backfilledAspects.keySet());
+    return new BackfillResult().setEntities(new BackfillResultEntityArray(
+        urns.stream().map(urn -> buildBackfillResultEntity(urn, backfilledAspects.get(urn)))
+            .collect(Collectors.toList())));
+  }
+
+  private static <URN extends Urn> BackfillResultEntity buildBackfillResultEntity(@Nonnull URN urn,
+      Map<Class<? extends RecordTemplate>, java.util.Optional<? extends RecordTemplate>> aspectMap) {
+
+    return new BackfillResultEntity()
+        .setUrn(urn)
+        .setAspects(new StringArray(aspectMap.entrySet().stream()
+            .filter(aspect -> aspect.getValue().isPresent())
+            .map(aspect -> aspect.getKey().getCanonicalName())
+            .collect(Collectors.toList()))
+        );
   }
 }
