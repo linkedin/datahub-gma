@@ -15,12 +15,12 @@ import javax.annotation.Nullable;
 public interface IEBeanLocalAccess<URN extends Urn> {
 
   /**
-   * Upsert aspect into entity table
+   * Upsert aspect into entity table.
    * @param urn entity urn
    * @param newValue aspect value in {@link RecordTemplate}
    * @param auditStamp audit timestamp
-   * @param <ASPECT>
-   * @return
+   * @param <ASPECT> metadata aspect value
+   * @return number of rows inserted or updated
    */
   @Nonnull
   <ASPECT extends RecordTemplate> int add(@Nonnull URN urn, @Nonnull ASPECT newValue,
@@ -32,8 +32,8 @@ public interface IEBeanLocalAccess<URN extends Urn> {
    * @param keys {@link AspectKey} to retrieve aspect metadata
    * @param keysCount pagination key count limit
    * @param position starting position of pagination
-   * @param <ASPECT>
-   * @return
+   * @param <ASPECT> metadata aspect value
+   * @return a list of {@link EbeanMetadataAspect} as get response
    */
   @Nonnull
   <ASPECT extends RecordTemplate> List<EbeanMetadataAspect> batchGetUnion(@Nonnull List<AspectKey<URN, ? extends RecordTemplate>> keys,
@@ -44,7 +44,7 @@ public interface IEBeanLocalAccess<URN extends Urn> {
    * @param keys {@link AspectKey} to retrieve aspect metadata
    * @param keysCount pagination key count limit
    * @param position starting position of pagination
-   * @return
+   * @return a list of {@link EbeanMetadataAspect} as get response
    */
   @Nonnull
   <ASPECT extends RecordTemplate> List<EbeanMetadataAspect> batchGetOr(@Nonnull List<AspectKey<URN, ? extends RecordTemplate>> keys,
