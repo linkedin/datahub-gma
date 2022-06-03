@@ -1,5 +1,6 @@
 package com.linkedin.metadata.restli;
 
+import com.google.common.collect.ImmutableSet;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
@@ -16,39 +17,40 @@ import com.linkedin.restli.server.CollectionResult;
 import com.linkedin.restli.server.CreateKVResponse;
 import com.linkedin.restli.server.CreateResponse;
 import com.linkedin.restli.server.PagingContext;
-import com.linkedin.restli.server.PathKeys;
 import com.linkedin.restli.server.UpdateResponse;
+import com.linkedin.restli.server.annotations.Action;
 import com.linkedin.restli.server.annotations.PagingContextParam;
 import com.linkedin.restli.server.annotations.RestMethod;
 import com.linkedin.restli.server.annotations.ReturnEntity;
 import com.linkedin.restli.server.resources.CollectionResourceTaskTemplate;
 import java.time.Clock;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import javax.annotation.Nonnull;
 
 import static com.linkedin.metadata.dao.BaseReadDAO.*;
+import static com.linkedin.metadata.restli.RestliConstants.*;
 
 
 /**
- * A base class for an aspect rest.li subresource with versioning support.
- *
- * <p>See http://go/gma for more details
+ * This resource is intended to be used as top level resousce, instead of a sub resource.
+ * For sub-resource please use {@link BaseVersionedAspectResource}
  *
  * @param <URN> must be a valid {@link Urn} type
  * @param <ASPECT_UNION> must be a valid union of aspect models defined in com.linkedin.metadata.aspect
  * @param <ASPECT> must be a valid aspect type inside ASPECT_UNION
  */
-public abstract class BaseVersionedAspectResource<URN extends Urn, ASPECT_UNION extends UnionTemplate, ASPECT extends RecordTemplate>
-    extends CollectionResourceTaskTemplate<Long, ASPECT> {
+public abstract class BaseAspectV2Resource<
+    URN extends Urn,
+    ASPECT_UNION extends UnionTemplate,
+    ASPECT extends RecordTemplate> extends CollectionResourceTaskTemplate<URN, ASPECT> {
 
   private static final BaseRestliAuditor DUMMY_AUDITOR = new DummyRestliAuditor(Clock.systemUTC());
 
   private final Class<ASPECT> _aspectClass;
 
-  public BaseVersionedAspectResource(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull Class<ASPECT> aspectClass) {
-    super();
-
+  public BaseAspectV2Resource(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull Class<ASPECT> aspectClass) {
     if (!ModelUtils.getValidAspectTypes(aspectUnionClass).contains(aspectClass)) {
       ValidationUtils.invalidSchema("Aspect '%s' is not in Union '%s'", aspectClass.getCanonicalName(),
           aspectUnionClass.getCanonicalName());
@@ -72,28 +74,20 @@ public abstract class BaseVersionedAspectResource<URN extends Urn, ASPECT_UNION 
   protected abstract BaseLocalDAO<ASPECT_UNION, URN> getLocalDAO();
 
   /**
-   * Constructs an entity-specific {@link Urn} based on the entity's {@link PathKeys}.
+   * Get the ASPECT associated with URN.
    */
-  @Nonnull
-  protected abstract URN getUrn(@Nonnull PathKeys entityPathKeys);
-
   @RestMethod.Get
-  @Override
   @Nonnull
-  public Task<ASPECT> get(@Nonnull Long version) {
-    return RestliUtils.toTask(() -> {
-      final URN urn = getUrn(getContext().getPathKeys());
-      return getLocalDAO().get(new AspectKey<>(_aspectClass, urn, version))
-          .orElseThrow(RestliUtils::resourceNotFoundException);
-    });
+  public Task<ASPECT> get(@Nonnull URN urn) {
+    return RestliUtils.toTask(() -> getLocalDAO().get(new AspectKey<>(_aspectClass, urn, LATEST_VERSION))
+        .orElseThrow(RestliUtils::resourceNotFoundException));
   }
 
   @RestMethod.GetAll
   @Nonnull
-  public Task<CollectionResult<ASPECT, ListResultMetadata>> getAllWithMetadata(
+  public Task<CollectionResult<ASPECT, ListResultMetadata>> getAllWithMetadata(@Nonnull URN urn,
       @PagingContextParam @Nonnull PagingContext pagingContext) {
     return RestliUtils.toTask(() -> {
-      final URN urn = getUrn(getContext().getPathKeys());
 
       final ListResult<ASPECT> listResult =
           getLocalDAO().list(_aspectClass, urn, pagingContext.getStart(), pagingContext.getCount());
@@ -102,14 +96,27 @@ public abstract class BaseVersionedAspectResource<URN extends Urn, ASPECT_UNION 
   }
 
   @RestMethod.Create
-  @Override
   @Nonnull
-  public Task<CreateResponse> create(@Nonnull ASPECT aspect) {
+  public Task<CreateResponse> create(@Nonnull URN urn, @Nonnull ASPECT aspect) {
     return RestliUtils.toTask(() -> {
-      final URN urn = getUrn(getContext().getPathKeys());
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
       getLocalDAO().add(urn, aspect, auditStamp);
       return new CreateResponse(HttpStatus.S_201_CREATED);
+    });
+  }
+
+  /**
+   * Create and get the latest version of aspect.
+   */
+  @RestMethod.Create
+  @ReturnEntity
+  @Nonnull
+  public Task<CreateKVResponse<URN, ASPECT>> createAndGet(@Nonnull URN urn,
+      @Nonnull Function<Optional<ASPECT>, ASPECT> createLambda) {
+    return RestliUtils.toTask(() -> {
+      final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
+      final ASPECT newValue = getLocalDAO().add(urn, _aspectClass, createLambda, auditStamp);
+      return new CreateKVResponse<>(urn, newValue);
     });
   }
 
@@ -120,9 +127,8 @@ public abstract class BaseVersionedAspectResource<URN extends Urn, ASPECT_UNION 
    */
   @RestMethod.Delete
   @Nonnull
-  public Task<UpdateResponse> delete() {
+  public Task<UpdateResponse> delete(@Nonnull URN urn) {
     return RestliUtils.toTask(() -> {
-      final URN urn = getUrn(getContext().getPathKeys());
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
       getLocalDAO().delete(urn, this._aspectClass, auditStamp);
       return new UpdateResponse(HttpStatus.S_200_OK);
@@ -130,46 +136,14 @@ public abstract class BaseVersionedAspectResource<URN extends Urn, ASPECT_UNION 
   }
 
   /**
-   * Similar to {@link #create(RecordTemplate)} but uses a create lambda instead.
+   * Backfill ASPECT for each entity identified by its URN.
+   * @param urns Identifies a set of entities for which its ASPECT will be backfilled.
+   * @return BackfillResult for each entity identified by URN.
    */
+  @Action(name = ACTION_BACKFILL_WITH_URNS)
   @Nonnull
-  public Task<CreateResponse> create(@Nonnull Class<ASPECT> aspectClass,
-      @Nonnull Function<Optional<ASPECT>, ASPECT> createLambda) {
-    return RestliUtils.toTask(() -> {
-      final URN urn = getUrn(getContext().getPathKeys());
-      final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
-      getLocalDAO().add(urn, aspectClass, createLambda, auditStamp);
-      return new CreateResponse(HttpStatus.S_201_CREATED);
-    });
-  }
-
-  /**
-   * Similar to {@link #create(Class, Function)} but returns {@link CreateKVResponse} containing latest version and
-   * created aspect.
-   */
-  @RestMethod.Create
-  @ReturnEntity
-  @Nonnull
-  public Task<CreateKVResponse<Long, ASPECT>> createAndGet(@Nonnull Class<ASPECT> aspectClass,
-      @Nonnull Function<Optional<ASPECT>, ASPECT> createLambda) {
-    return RestliUtils.toTask(() -> {
-      final URN urn = getUrn(getContext().getPathKeys());
-      final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
-      final ASPECT newValue = getLocalDAO().add(urn, aspectClass, createLambda, auditStamp);
-      return new CreateKVResponse<>(LATEST_VERSION, newValue);
-    });
-  }
-
-  /**
-   * Creates using the provided default value only if the aspect is not set already.
-   *
-   * @param defaultValue provided default value
-   * @return {@link CreateKVResponse} containing lastest version and created aspect
-   */
-  @RestMethod.Create
-  @ReturnEntity
-  @Nonnull
-  public Task<CreateKVResponse<Long, ASPECT>> createIfAbsent(@Nonnull ASPECT defaultValue) {
-    return createAndGet((Class<ASPECT>) defaultValue.getClass(), ignored -> ignored.orElse(defaultValue));
+  public Task<BackfillResult> backfillWithUrns(@Nonnull Set<URN> urns) {
+    return RestliUtils.toTask(() ->
+        RestliUtils.buildBackfillResult(getLocalDAO().backfill(ImmutableSet.of(_aspectClass), urns)));
   }
 }

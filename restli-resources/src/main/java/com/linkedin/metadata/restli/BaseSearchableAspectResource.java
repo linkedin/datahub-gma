@@ -39,7 +39,7 @@ public abstract class BaseSearchableAspectResource<
     URN extends Urn,
     ASPECT_UNION extends UnionTemplate,
     ASPECT extends RecordTemplate,
-    DOCUMENT extends RecordTemplate> extends BaseVersionedAspectResource<URN, ASPECT_UNION, ASPECT> {
+    DOCUMENT extends RecordTemplate> extends BaseAspectV2Resource<URN, ASPECT_UNION, ASPECT> {
 
   private final Class<ASPECT> _aspectClass;
 
