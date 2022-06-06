@@ -4,7 +4,6 @@ import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.SetMode;
-import com.linkedin.data.template.StringArray;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.AspectKey;
 import com.linkedin.metadata.dao.utils.ModelUtils;
@@ -328,12 +327,11 @@ public abstract class BaseAspectRoutingResource<
 
     fromGms.getEntities().forEach(backfillResultEntity -> {
       Urn urn = backfillResultEntity.getUrn();
+
       if (urnToEntityMap.containsKey(urn)) {
-        urnToEntityMap.get(urn).getAspects().add(_routingAspectClass.getCanonicalName());
+        urnToEntityMap.get(urn).getAspects().addAll(backfillResultEntity.getAspects());
       } else {
-        BackfillResultEntity entity = new BackfillResultEntity().setUrn(urn)
-            .setAspects(new StringArray(_routingAspectClass.getCanonicalName()));
-        urnToEntityMap.put(urn, entity);
+        urnToEntityMap.put(urn, new BackfillResultEntity().setUrn(urn).setAspects(backfillResultEntity.getAspects()));
       }
     });
 
