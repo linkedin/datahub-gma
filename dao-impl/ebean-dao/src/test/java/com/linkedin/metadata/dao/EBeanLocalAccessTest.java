@@ -180,7 +180,7 @@ public class EBeanLocalAccessTest {
   }
 
   @Test
-  public void testExist() throws URISyntaxException {
+  public void testExists() throws URISyntaxException {
     // Given: metadata_entity_foo table with fooUrns from 0 ~ 99
 
     // When: check whether urn:li:foo:0 exist
@@ -192,7 +192,7 @@ public class EBeanLocalAccessTest {
     // When: check whether urn:li:foo:9999 exist
     FooUrn foo9999 = new FooUrn(9999);
 
-    // Expect: urn:li:foo:9999 exists
+    // Expect: urn:li:foo:9999 does not exists
     assertFalse(_IEBeanLocalAccess.exists(foo9999));
   }
 
