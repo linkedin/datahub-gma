@@ -45,6 +45,7 @@ project.ext.externalDependency = [
     'elasticSearchTransport7': 'org.elasticsearch.client:transport:7.9.3',
     'guava': 'com.google.guava:guava:27.0.1-jre',
     'h2': 'com.h2database:h2:1.4.196',
+     'mysql': 'mysql:mysql-connector-java:8.0.29',
     'jacksonCore': 'com.fasterxml.jackson.core:jackson-core:2.9.7',
     'jacksonDataBind': 'com.fasterxml.jackson.core:jackson-databind:2.9.7',
     'javatuples': 'org.javatuples:javatuples:1.2',

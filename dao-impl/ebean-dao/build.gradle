@@ -20,12 +20,15 @@ dependencies {
 
   testCompile project(':testing:core-models-testing')
   testCompile project(':testing:test-models')
+  testCompile externalDependency.mysql
   testCompile externalDependency.h2
   testCompile externalDependency.mockito
 
   enhance externalDependency.ebeanAgent
 }
-
+test {
+  exclude '**/EBeanLocalAccessTest.class'
+}
 project.compileJava {
   doLast {
     ant.taskdef(name: 'ebean', classname: 'io.ebean.enhance.ant.AntEnhanceTask',
