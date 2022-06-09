@@ -178,4 +178,51 @@ public class EBeanLocalAccessTest {
     assertEquals(5, listUrns.size());
     assertEquals("30", listUrns.get(0).getId());
   }
+
+  @Test
+  public void testExist() throws URISyntaxException {
+    // Given: metadata_entity_foo table with fooUrns from 0 ~ 99
+
+    // When: check whether urn:li:foo:0 exist
+    FooUrn foo0 = new FooUrn(0);
+
+    // Expect: urn:li:foo:0 exists
+    assertTrue(_IEBeanLocalAccess.exists(foo0));
+
+    // When: check whether urn:li:foo:9999 exist
+    FooUrn foo9999 = new FooUrn(9999);
+
+    // Expect: urn:li:foo:9999 exists
+    assertFalse(_IEBeanLocalAccess.exists(foo9999));
+  }
+
+
+  @Test
+  public void testListUrns() throws URISyntaxException {
+    // Given: metadata_entity_foo table with fooUrns from 0 ~ 99
+
+    // When: list urns from the 1st record, with 50 page size
+    ListResult<AspectFoo> fooUrnListResult = _IEBeanLocalAccess.listUrns(AspectFoo.class, 0, 50);
+
+    // Expect: 50 results is returned and 100 total records
+    assertEquals(50, fooUrnListResult.getValues().size());
+    assertEquals(100, fooUrnListResult.getTotalCount());
+
+    // When: list urns from the 55th record, with 50 page size
+    fooUrnListResult = _IEBeanLocalAccess.listUrns(AspectFoo.class, 55, 50);
+
+    // Expect: 45 results is returned and 100 total records
+    assertEquals(45, fooUrnListResult.getValues().size());
+    assertEquals(100, fooUrnListResult.getTotalCount());
+
+    // When: list urns from the 101th record, with 50 page size
+    fooUrnListResult = _IEBeanLocalAccess.listUrns(AspectFoo.class, 101, 50);
+
+    // Expect: 0 results is returned and 0 total records
+    assertEquals(0, fooUrnListResult.getValues().size());
+
+    // TODO, if no results is returned, the TotalCount is 0. It is a temporary workaround and should be fixed before the release
+    // For details, see EBeanLocalAccess.toResultList
+    assertEquals(0, fooUrnListResult.getTotalCount());
+  }
 }
