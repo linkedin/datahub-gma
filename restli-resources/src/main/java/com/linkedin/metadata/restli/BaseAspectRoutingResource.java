@@ -21,10 +21,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nonnull;
@@ -322,8 +322,10 @@ public abstract class BaseAspectRoutingResource<
   @Nonnull
   @ParametersAreNonnullByDefault
   private BackfillResult merge(final BackfillResult fromDao, final BackfillResult fromGms) {
-    Map<Urn, BackfillResultEntity> urnToEntityMap = fromDao.getEntities().stream()
-        .collect(Collectors.toMap(BackfillResultEntity::getUrn, Function.identity()));
+    Map<Urn, BackfillResultEntity> urnToEntityMap = new LinkedHashMap<>();
+    fromDao.getEntities().forEach(backfillResultEntity -> {
+      urnToEntityMap.put(backfillResultEntity.getUrn(), backfillResultEntity);
+    });
 
     fromGms.getEntities().forEach(backfillResultEntity -> {
       Urn urn = backfillResultEntity.getUrn();
