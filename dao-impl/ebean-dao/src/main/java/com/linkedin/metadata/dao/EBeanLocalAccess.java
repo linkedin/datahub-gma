@@ -7,6 +7,7 @@ import com.linkedin.metadata.dao.utils.SQLStatementUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
 import com.linkedin.metadata.query.IndexFilter;
+import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
 import io.ebean.EbeanServer;
 import io.ebean.SqlQuery;
@@ -18,6 +19,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
@@ -124,6 +126,35 @@ public class EBeanLocalAccess<URN extends Urn> implements IEBeanLocalAccess<URN>
     return toListResult(values, sqlRows, start, pageSize);
   }
 
+  @Override
+  public boolean exists(@Nonnull URN urn) {
+    final String existSql = SQLStatementUtils.createExistSql(urn);
+    final SqlQuery sqlQuery = _server.createSqlQuery(existSql);
+    return sqlQuery.findList().size() > 0;
+  }
+
+  @Nonnull
+  @Override
+  public <ASPECT extends RecordTemplate> ListResult<URN> listUrns(@Nonnull Class<ASPECT> aspectClass, int start,
+      int pageSize) {
+    final String browseSql = SQLStatementUtils.createAspectBrowseSql(_entityType, aspectClass);
+    final SqlQuery sqlQuery = _server.createSqlQuery(browseSql);
+
+    final List<SqlRow> sqlRows = sqlQuery.setFirstRow(start).setMaxRows(pageSize).findList();
+    final List<URN> values =
+        sqlRows.stream().map(sqlRow -> getUrn(sqlRow.getString("urn"), _urnClass)).collect(Collectors.toList());
+    return toListResult(values, sqlRows, start, pageSize);
+  }
+
+  @Nonnull
+  @Override
+  public Map<String, Long> countAggregate(@Nonnull IndexFilter indexFilter,
+      @Nonnull IndexGroupByCriterion indexGroupByCriterion) {
+    return null;
+  }
+
+
+
   /**
    * Produce {@link SqlQuery} for list urn by offset (start) and by lastUrn.
    * @param indexFilter index filter conditions
@@ -191,6 +222,7 @@ public class EBeanLocalAccess<URN extends Urn> implements IEBeanLocalAccess<URN>
       pageSize = DEFAULT_PAGE_SIZE;
     }
     if (sqlRows.isEmpty()) {
+      // TODO, sqlRows could be empty but totalCount is not necessarily 0.  It requires a secondary query to get the actual total count
       hasNext = false;
       return ListResult.<T>builder()
           // Format

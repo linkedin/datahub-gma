@@ -24,6 +24,9 @@ public class SQLStatementUtils {
   private static final String SQL_READ_ASPECT_TEMPLATE =
       "SELECT urn, %s, lastmodifiedon, lastmodifiedby FROM %s WHERE urn = '%s';";
 
+  private static final String SQL_URN_EXIST_TEMPLATE =
+      "SELECT urn FROM %s WHERE urn = '%s'";
+
   /**
    *  Filter query has pagination params in the existing APIs. To accommodate this, we use WITH query to include total result counts in the query response.
    *  For example, we will build the following filter query statement:
@@ -38,10 +41,24 @@ public class SQLStatementUtils {
   private static final String SQL_FILTER_TEMPLATE_START = "WITH _temp_results AS (SELECT * FROM %s";
   private static final String SQL_FILTER_TEMPLATE_FINISH = ")\nSELECT *, (SELECT COUNT(urn) FROM _temp_results) AS _total_count FROM _temp_results";
 
+  private static final String SQL_BROWSE_ASPECT_TEMPLATE =
+      "SELECT urn, %s, lastmodifiedon, lastmodifiedby, (SELECT COUNT(urn) FROM %s) as _total_count FROM %s";
+
 
   private SQLStatementUtils() {
 
   }
+
+  /**
+   * Create entity exist SQL statement.
+   * @param urn entity urn
+   * @return entity exist sql
+   */
+  public static String createExistSql(@Nonnull Urn urn) {
+    final String tableName = getTableName(urn);
+    return String.format(SQL_URN_EXIST_TEMPLATE, tableName, urn.toString());
+  }
+
 
   /**
    * Create read aspect SQL statement.
@@ -91,5 +108,17 @@ public class SQLStatementUtils {
     }
     sb.append(SQL_FILTER_TEMPLATE_FINISH);
     return sb.toString();
+  }
+
+  /**
+   * Create aspect browse SQL statement.
+   * @param entityType entity type.
+   * @param aspectClass aspect class
+   * @param <ASPECT> {@link RecordTemplate}
+   * @return aspect browse SQL.
+   */
+  public static <ASPECT extends RecordTemplate> String createAspectBrowseSql(String entityType, Class<ASPECT> aspectClass) {
+    final String tableName = getTableName(entityType);
+    return String.format(SQL_BROWSE_ASPECT_TEMPLATE, getColumnName(aspectClass), tableName, tableName);
   }
 }
