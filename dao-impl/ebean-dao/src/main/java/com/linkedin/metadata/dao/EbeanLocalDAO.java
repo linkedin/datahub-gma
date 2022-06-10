@@ -40,6 +40,7 @@ import io.ebean.SqlUpdate;
 import io.ebean.Transaction;
 import io.ebean.config.ServerConfig;
 import io.ebean.datasource.DataSourceConfig;
+import io.ebeaninternal.server.expression.UnsupportedDocStoreExpression;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URISyntaxException;
@@ -62,6 +63,8 @@ import javax.persistence.OptimisticLockException;
 import javax.persistence.RollbackException;
 import javax.persistence.Table;
 import lombok.Value;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
 
 import static com.linkedin.metadata.dao.EbeanMetadataAspect.*;
 
@@ -69,6 +72,7 @@ import static com.linkedin.metadata.dao.EbeanMetadataAspect.*;
 /**
  * An Ebean implementation of {@link BaseLocalDAO}.
  */
+@Slf4j
 public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     extends BaseLocalDAO<ASPECT_UNION, URN> {
 
@@ -82,12 +86,16 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   protected final EbeanServer _server;
   protected final Class<URN> _urnClass;
+  private IEBeanLocalAccess<URN> _localAccess;
   private UrnPathExtractor<URN> _urnPathExtractor;
   private int _queryKeysCount = 0; // 0 means no pagination on keys
 
   // TODO feature flags, remove when vetted.
   private boolean _useUnionForBatch = false;
   private boolean _useOptimisticLocking = false;
+
+  private boolean _useNewSchema = false; // Read from and write to the new schema tables.
+  private boolean _dualReadEnabled = false; // Read from both the old and new tables and perform a comparison.
 
   @Value
   static class GMAIndexPair {
@@ -117,6 +125,15 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     _urnPathExtractor = new EmptyPathExtractor<>();
   }
 
+  @VisibleForTesting
+  EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
+      @Nonnull EbeanServer server, @Nonnull Class<URN> urnClass, boolean useNewSchema, boolean dualReadEnabled) {
+    this(aspectUnionClass, producer, server, urnClass);
+    _useNewSchema = useNewSchema;
+    _dualReadEnabled = dualReadEnabled && useNewSchema;
+    _localAccess = new EBeanLocalAccess<>(server, urnClass);
+  }
+
   /**
    * Constructor for EbeanLocalDAO.
    *
@@ -130,6 +147,21 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     this(aspectUnionClass, producer, createServer(serverConfig), urnClass);
   }
 
+  /**
+   * Constructor for EbeanLocalDAO with the option to use the new schema and enable dual-read.
+   *
+   * @param aspectUnionClass containing union of all supported aspects. Must be a valid aspect union defined in com.linkedin.metadata.aspect
+   * @param producer {@link BaseMetadataEventProducer} for the metadata event producer
+   * @param serverConfig {@link ServerConfig} that defines the configuration of EbeanServer instances
+   * @param urnClass Class of the entity URN
+   * @param useNewSchema Flag indicating whether or not to read from/write into new schema tables
+   * @param dualReadEnabled Flag indicating whether or not to read from both old and new schema tables (with comparison)
+   */
+  public EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
+      @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass, boolean useNewSchema, boolean dualReadEnabled) {
+    this(aspectUnionClass, producer, createServer(serverConfig), urnClass, useNewSchema, dualReadEnabled);
+  }
+
   @VisibleForTesting
   EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull EbeanServer server,
       @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass,
@@ -138,6 +170,16 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     _server = server;
     _urnClass = urnClass;
     _urnPathExtractor = urnPathExtractor;
+  }
+
+  @VisibleForTesting
+  EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull EbeanServer server,
+      @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass,
+      @Nonnull UrnPathExtractor<URN> urnPathExtractor, boolean useNewSchema, boolean dualReadEnabled) {
+    this(producer, server, storageConfig, urnClass, urnPathExtractor);
+    _useNewSchema = useNewSchema;
+    _dualReadEnabled = dualReadEnabled && useNewSchema;
+    _localAccess = new EBeanLocalAccess<>(server, urnClass);
   }
 
   @VisibleForTesting
@@ -162,6 +204,23 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   /**
+   * Constructor for EbeanLocalDAO with the option to use the new schema and enable dual-read.
+   *
+   * @param producer {@link BaseMetadataEventProducer} for the metadata event producer
+   * @param serverConfig {@link ServerConfig} that defines the configuration of EbeanServer instances
+   * @param storageConfig {@link LocalDAOStorageConfig} containing storage config of full list of supported aspects
+   * @param urnClass class of the entity URN
+   * @param urnPathExtractor path extractor to index parts of URNs to the secondary index
+   * @param useNewSchema Flag indicating whether or not to read from/write into new schema tables
+   * @param dualReadEnabled Flag indicating whether or not to read from both old and new schema tables (with comparison)
+   */
+  public EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull ServerConfig serverConfig,
+      @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass,
+      @Nonnull UrnPathExtractor<URN> urnPathExtractor, boolean useNewSchema, boolean dualReadEnabled) {
+    this(producer, createServer(serverConfig), storageConfig, urnClass, urnPathExtractor, useNewSchema, dualReadEnabled);
+  }
+
+  /**
    * Constructor for EbeanLocalDAO.
    *
    * @param producer {@link BaseMetadataEventProducer} for the metadata event producer
@@ -172,6 +231,21 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   public EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull ServerConfig serverConfig,
       @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass) {
     this(producer, createServer(serverConfig), storageConfig, urnClass, new EmptyPathExtractor<>());
+  }
+
+  /**
+   * Constructor for EbeanLocalDAO with the option to use the new schema and enable dual-read.
+   *
+   * @param producer {@link BaseMetadataEventProducer} for the metadata event producer
+   * @param serverConfig {@link ServerConfig} that defines the configuration of EbeanServer instances
+   * @param storageConfig {@link LocalDAOStorageConfig} containing storage config of full list of supported aspects
+   * @param urnClass class of the entity URN
+   * @param useNewSchema Flag indicating whether or not to read from/write into new schema tables
+   * @param dualReadEnabled Flag indicating whether or not to read from both old and new schema tables (with comparison)
+   */
+  public EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull ServerConfig serverConfig,
+      @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass, boolean useNewSchema, boolean dualReadEnabled) {
+    this(producer, createServer(serverConfig), storageConfig, urnClass, new EmptyPathExtractor<>(), useNewSchema, dualReadEnabled);
   }
 
   /**
@@ -322,6 +396,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       throw new UnsupportedOperationException("Local secondary index isn't supported");
     }
 
+    if (_useNewSchema && !_dualReadEnabled) {
+      throw new UnsupportedOperationException("Local secondary index isn't supported when using only the new schema");
+    }
+
     // Process and save URN
     // Only do this with the first version of each aspect
     if (version == FIRST_VERSION) {
@@ -335,7 +413,14 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   protected <ASPECT extends RecordTemplate> AspectEntry<ASPECT> getLatest(@Nonnull URN urn,
       @Nonnull Class<ASPECT> aspectClass) {
     final PrimaryKey key = new PrimaryKey(urn.toString(), ModelUtils.getAspectName(aspectClass), 0L);
-    final EbeanMetadataAspect latest = _server.find(EbeanMetadataAspect.class, key);
+    EbeanMetadataAspect latest;
+    if (_useNewSchema) {
+      List<EbeanMetadataAspect> result = batchGetHelper(
+          Collections.singletonList(new AspectKey<>(aspectClass, urn, LATEST_VERSION)), 1, 0);
+      latest = result.size() == 0 ? null : result.get(0);
+    } else {
+      latest = _server.find(EbeanMetadataAspect.class, key);
+    }
     if (latest == null) {
       return new AspectEntry<>(null, null);
     }
@@ -380,7 +465,16 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     final EbeanMetadataAspect aspect = buildMetadataAspectBean(urn, value, aspectClass, newAuditStamp, version);
 
     if (insert) {
-      _server.insert(aspect);
+      if (_useNewSchema) {
+        // ensure atomicity by running old schema update + new schema update in a transaction
+        runInTransactionWithRetry(() -> {
+          _localAccess.add(urn, value, newAuditStamp);
+          _server.insert(aspect);
+          return 0; // unused
+        }, 1);
+      } else {
+        _server.insert(aspect);
+      }
       return;
     }
 
@@ -405,8 +499,18 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     update.setParameter("createdBy", aspect.getCreatedBy());
     update.setParameter("oldTimestamp", oldTimestamp);
 
+    int numOfUpdatedRows;
+    if (_useNewSchema) {
+      // ensure atomicity by running old schema update + new schema update in a transaction
+      numOfUpdatedRows = runInTransactionWithRetry(() -> {
+        _localAccess.add(urn, value, newAuditStamp);
+        return _server.execute(update);
+      }, 1);
+    } else {
+      numOfUpdatedRows = _server.execute(update);
+    }
+
     // If there is no single updated row, emit OptimisticLockException
-    int numOfUpdatedRows = _server.execute(update);
     if (numOfUpdatedRows != 1) {
       throw new OptimisticLockException(
           numOfUpdatedRows + " rows updated during save query: " + update.getGeneratedSql());
@@ -419,6 +523,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
     final EbeanMetadataAspect aspect = buildMetadataAspectBean(urn, value, aspectClass, auditStamp, version);
 
+    if (_useNewSchema) {
+      _localAccess.add(urn, value, auditStamp);
+    }
+
     if (insert) {
       _server.insert(aspect);
     } else {
@@ -428,7 +536,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   protected void saveRecordsToLocalIndex(@Nonnull URN urn, @Nonnull String aspect, @Nonnull String path,
       @Nonnull Object value) {
-
     if (value instanceof List) {
       for (Object obj : (List<?>) value) {
         saveSingleRecordToLocalIndex(urn, aspect, path, obj);
@@ -511,6 +618,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Override
   protected <ASPECT extends RecordTemplate> void applyVersionBasedRetention(@Nonnull Class<ASPECT> aspectClass,
       @Nonnull URN urn, @Nonnull VersionBasedRetention retention, long largestVersion) {
+
     _server.find(EbeanMetadataAspect.class)
         .where()
         .eq(URN_COLUMN, urn.toString())
@@ -584,10 +692,25 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   @Override
   public boolean exists(@Nonnull URN urn) {
+    if (_useNewSchema) {
+      final boolean existsInNewSchema = _localAccess.exists(urn);
+      if (_dualReadEnabled) {
+        final boolean existsInOldSchema = _server.find(EbeanMetadataAspect.class).where().eq(URN_COLUMN, urn.toString()).exists();
+        if (existsInNewSchema != existsInOldSchema) {
+          log.error(String.format("The following urn does%s exist in the old schema but does%s exist in the new schema: %s",
+              existsInOldSchema ? "" : " not", existsInNewSchema ? "" : " not", urn.toString()));
+        }
+        return existsInOldSchema;
+      }
+      return existsInNewSchema;
+    }
     return _server.find(EbeanMetadataAspect.class).where().eq(URN_COLUMN, urn.toString()).exists();
   }
 
   public boolean existsInLocalIndex(@Nonnull URN urn) {
+    if (_useNewSchema && !_dualReadEnabled) {
+      throw new UnsupportedOperationException("Local secondary index isn't supported when using only the new schema");
+    }
     return _server.find(EbeanMetadataIndex.class).where().eq(URN_COLUMN, urn.toString()).exists();
   }
 
@@ -698,11 +821,33 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   List<EbeanMetadataAspect> batchGetHelper(@Nonnull List<AspectKey<URN, ? extends RecordTemplate>> keys,
       int keysCount, int position) {
     // TODO remove batchGetOr, make batchGetUnion the only implementation.
-    if (_useUnionForBatch) {
-      return batchGetUnion(keys, keysCount, position);
-    } else {
-      return batchGetOr(keys, keysCount, position);
+
+    if (!_useNewSchema) {
+      // Use old schema only
+      return _useUnionForBatch
+          ? batchGetUnion(keys, keysCount, position)
+          : batchGetOr(keys, keysCount, position);
+    } else if (!_dualReadEnabled) {
+      // Use new schema only
+      return _useUnionForBatch
+          ? _localAccess.batchGetUnion(keys, keysCount, position)
+          : _localAccess.batchGetOr(keys, keysCount, position);
     }
+    // Compare results from both new and old schemas
+    final List<EbeanMetadataAspect> resultsOldSchema = _useUnionForBatch
+        ? batchGetUnion(keys, keysCount, position)
+        : batchGetOr(keys, keysCount, position);;
+    final List<EbeanMetadataAspect> resultsNewSchema = _useUnionForBatch
+        ? _localAccess.batchGetUnion(keys, keysCount, position)
+        : _localAccess.batchGetOr(keys, keysCount, position);;
+
+    // TODO: add comparator to compare objects within list:
+    // https://commons.apache.org/proper/commons-collections/javadocs/api-4.4/org/apache/commons/collections4/CollectionUtils.html#isEqualCollection-java.util.Collection-java.util.Collection-org.apache.commons.collections4.Equator-
+    if (!CollectionUtils.isEqualCollection(resultsOldSchema, resultsNewSchema)) {
+      log.error(String.format("The results of batchGet from the new schema table and old schema table are not equal."
+          + "Defaulting to using the value(s) from the old schema table."));
+    }
+    return resultsOldSchema;
   }
 
   /**
@@ -743,7 +888,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Nonnull
   public <ASPECT extends RecordTemplate> ListResult<URN> listUrns(@Nonnull Class<ASPECT> aspectClass, int start,
       int pageSize) {
-
+    if (_useNewSchema) {
+      return _localAccess.listUrns(aspectClass, start, pageSize);
+    }
     checkValidAspect(aspectClass);
 
     final PagedList<EbeanMetadataAspect> pagedList = _server.find(EbeanMetadataAspect.class)
@@ -764,7 +911,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Nonnull
-  <ASPECT extends RecordTemplate> ListResult<ASPECT> getListResult(@Nonnull Class<ASPECT> aspectClass,
+  private <ASPECT extends RecordTemplate> ListResult<ASPECT> getListResult(@Nonnull Class<ASPECT> aspectClass,
       @Nonnull PagedList<EbeanMetadataAspect> pagedList, int start) {
     final List<ASPECT> aspects = new ArrayList<>();
     final List<ExtraInfo> extraInfos = new ArrayList<>();
@@ -1182,6 +1329,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       throw new UnsupportedOperationException("Local secondary index isn't supported");
     }
 
+    if (_useNewSchema) {
+      return _localAccess.listUrns(indexFilter, indexSortCriterion, lastUrn, pageSize);
+    }
+
     final IndexCriterionArray indexCriterionArray = indexFilter.getCriteria();
     checkValidIndexCriterionArray(indexCriterionArray);
 
@@ -1211,6 +1362,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       int start, int pageSize) {
     if (!isLocalSecondaryIndexEnabled()) {
       throw new UnsupportedOperationException("Local secondary index isn't supported");
+    }
+
+    if (_useNewSchema) {
+      return _localAccess.listUrns(indexFilter, indexSortCriterion, start, pageSize);
     }
 
     final IndexCriterionArray indexCriterionArray = indexFilter.getCriteria();
@@ -1307,6 +1462,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       @Nonnull IndexGroupByCriterion indexGroupByCriterion) {
     if (!isLocalSecondaryIndexEnabled()) {
       throw new UnsupportedOperationException("Local secondary index isn't supported");
+    }
+
+    if (_useNewSchema) {
+      return _localAccess.countAggregate(indexFilter, indexGroupByCriterion);
     }
 
     final IndexCriterionArray indexCriterionArray = indexFilter.getCriteria();
