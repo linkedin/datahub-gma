@@ -3,9 +3,9 @@ package com.linkedin.metadata.dao;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
-import com.linkedin.metadata.dao.utils.SQLStatementUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
+import com.linkedin.metadata.dao.utils.SQLStatementUtils;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -42,13 +43,11 @@ public class EBeanLocalAccess<URN extends Urn> implements IEBeanLocalAccess<URN>
   // TODO confirm if the default page size is 1000 in other code context.
   private static final int DEFAULT_PAGE_SIZE = 1000;
 
-
   public EBeanLocalAccess(EbeanServer server, @Nonnull Class<URN> urnClass) {
     _server = server;
     _urnClass = urnClass;
     _entityType = getEntityType(_urnClass);
   }
-
 
   @Override
   public <ASPECT extends RecordTemplate> int add(@Nonnull URN urn, @Nonnull ASPECT newValue,
@@ -68,7 +67,8 @@ public class EBeanLocalAccess<URN extends Urn> implements IEBeanLocalAccess<URN>
     // TODO that it knows when this aspect is persisted
     final SqlUpdate sqlUpdate = _server.createSqlUpdate(SQLStatementUtils.createAspectUpsertSql(urn, newValue))
         .setParameter("urn", urn.toString())
-        .setParameter("lastmodifiedon", LocalDateTime.from(Instant.ofEpochMilli(auditStamp.getTime()).atZone(ZoneId.systemDefault())))
+        .setParameter("lastmodifiedon",
+            LocalDateTime.from(Instant.ofEpochMilli(auditStamp.getTime()).atZone(ZoneId.systemDefault())))
         .setParameter("lastmodifiedby", auditStamp.getActor().toString())
         .setParameter("metadata", RecordUtils.toJsonString(newValue));
     return sqlUpdate.execute();
@@ -107,13 +107,12 @@ public class EBeanLocalAccess<URN extends Urn> implements IEBeanLocalAccess<URN>
   }
 
   @Override
-  public  List<URN> listUrns(@Nonnull IndexFilter indexFilter,
-      @Nullable IndexSortCriterion indexSortCriterion, @Nullable URN lastUrn, int pageSize) {
+  public List<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
+      @Nullable URN lastUrn, int pageSize) {
     SqlQuery sqlQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, lastUrn);
     final List<SqlRow> sqlRows = sqlQuery.setFirstRow(0).setMaxRows(pageSize).findList();
     return sqlRows.stream().map(sqlRow -> getUrn(sqlRow.getString("urn"), _urnClass)).collect(Collectors.toList());
   }
-
 
   @Override
   public ListResult<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
@@ -150,10 +149,24 @@ public class EBeanLocalAccess<URN extends Urn> implements IEBeanLocalAccess<URN>
   @Override
   public Map<String, Long> countAggregate(@Nonnull IndexFilter indexFilter,
       @Nonnull IndexGroupByCriterion indexGroupByCriterion) {
-    return null;
+    final String tableName = SQLSchemaUtils.getTableName(_entityType);
+    final String groupBySql = SQLStatementUtils.createGroupBySql(tableName, indexFilter, indexGroupByCriterion);
+    final SqlQuery sqlQuery = _server.createSqlQuery(groupBySql);
+    final List<SqlRow> sqlRows = sqlQuery.findList();
+    Map<String, Long> resultMap = new HashMap<>();
+    for (SqlRow sqlRow : sqlRows) {
+      Long count = sqlRow.getLong("count");
+      String value = null;
+      for (Map.Entry<String, Object> entry : sqlRow.entrySet()) {
+        if (!entry.getKey().equalsIgnoreCase("count")) {
+          value = String.valueOf(entry.getValue());
+          break;
+        }
+      }
+      resultMap.put(value, count);
+    }
+    return resultMap;
   }
-
-
 
   /**
    * Produce {@link SqlQuery} for list urn by offset (start) and by lastUrn.
@@ -247,7 +260,8 @@ public class EBeanLocalAccess<URN extends Urn> implements IEBeanLocalAccess<URN>
         nextStart = -1;
       } else {
         throw new RuntimeException(
-            String.format("Row count (%d) is more than total count of (%d) started from (%s)", sqlRows.size(), totalCount));
+            String.format("Row count (%d) is more than total count of (%d) started from (%s)", sqlRows.size(),
+                totalCount));
       }
     } else {
       if (sqlRows.size() < totalCount - start) {
@@ -258,7 +272,8 @@ public class EBeanLocalAccess<URN extends Urn> implements IEBeanLocalAccess<URN>
         nextStart = -1;
       } else {
         throw new RuntimeException(
-            String.format("Row count (%d) is more than total count of (%d) started from (%s)", sqlRows.size(), totalCount, start));
+            String.format("Row count (%d) is more than total count of (%d) started from (%s)", sqlRows.size(),
+                totalCount, start));
       }
     }
     return ListResult.<T>builder()

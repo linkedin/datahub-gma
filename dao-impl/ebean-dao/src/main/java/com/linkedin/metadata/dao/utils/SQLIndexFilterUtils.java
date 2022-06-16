@@ -61,6 +61,7 @@ public class SQLIndexFilterUtils {
     }
   }
 
+
   /**
    * Parse {@link IndexSortCriterion} into SQL syntax.
    * @param indexSortCriterion filter sorting criterion
@@ -72,7 +73,7 @@ public class SQLIndexFilterUtils {
     }
     final String normalizedAspectName = getNormalizedAspectName(indexSortCriterion.getAspect());
     final String path = indexSortCriterion.getPath();
-    final String indexColumn = INDEX_PREFIX + normalizedAspectName + "$" + path;
+    final String indexColumn = INDEX_PREFIX + normalizedAspectName + processPath(path);
 
     if (!indexSortCriterion.hasOrder()) {
       return "ORDER BY " + indexColumn;
@@ -87,14 +88,14 @@ public class SQLIndexFilterUtils {
    * @param indexFilter index filter
    * @return translated SQL condition expression, e.g. WHERE ...
    */
-  static String parseIndexFilter(@Nonnull IndexFilter indexFilter) {
+  public static String parseIndexFilter(@Nonnull IndexFilter indexFilter) {
 
     List<String> sqlFilters = new ArrayList<>();
     for (IndexCriterion indexCriterion : indexFilter.getCriteria()) {
       final String normalizedAspectName = getNormalizedAspectName(indexCriterion.getAspect());
       final String path = indexCriterion.getPathParams().getPath();
       final Condition condition = indexCriterion.getPathParams().getCondition();
-      final String indexColumn = INDEX_PREFIX + normalizedAspectName + "$" + path;
+      final String indexColumn = INDEX_PREFIX + normalizedAspectName + processPath(path);
       sqlFilters.add(
           indexColumn + parseConditionExpr(condition, indexCriterion.getPathParams().getValue(GetMode.NULL)));
     }

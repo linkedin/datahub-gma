@@ -8,6 +8,7 @@ import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
+import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.query.IndexValue;
 import com.linkedin.metadata.query.SortOrder;
@@ -23,6 +24,7 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import javax.annotation.Nonnull;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
@@ -106,8 +108,7 @@ public class EBeanLocalAccessTest {
     // When get AspectFoo from urn:li:foo:9999 (does not exist)
     FooUrn nonExistFooUrn = makeFooUrn(9999);
     AspectKey<FooUrn, AspectFoo> nonExistKey = new AspectKey(AspectFoo.class, nonExistFooUrn, 0L);
-    ebeanMetadataAspectList =
-        _IEBeanLocalAccess.batchGetUnion(Collections.singletonList(nonExistKey), 1000, 0);
+    ebeanMetadataAspectList = _IEBeanLocalAccess.batchGetUnion(Collections.singletonList(nonExistKey), 1000, 0);
 
     // Expect: get AspectFoo from urn:li:foo:9999 returns empty result
     assertTrue(ebeanMetadataAspectList.isEmpty());
@@ -196,7 +197,6 @@ public class EBeanLocalAccessTest {
     assertFalse(_IEBeanLocalAccess.exists(foo9999));
   }
 
-
   @Test
   public void testListUrns() throws URISyntaxException {
     // Given: metadata_entity_foo table with fooUrns from 0 ~ 99
@@ -224,5 +224,40 @@ public class EBeanLocalAccessTest {
     // TODO, if no results is returned, the TotalCount is 0. It is a temporary workaround and should be fixed before the release
     // For details, see EBeanLocalAccess.toResultList
     assertEquals(0, fooUrnListResult.getTotalCount());
+  }
+
+  @Test
+  public void testCountAggregate() {
+    // Given: metadata_entity_foo table with fooUrns from 0 ~ 99
+
+    // When: count aggregate with filter value = 25
+    IndexFilter indexFilter = new IndexFilter();
+    IndexCriterionArray indexCriterionArray = new IndexCriterionArray();
+
+    IndexCriterion indexCriterion1 =
+        SQLIndexFilterUtils.createIndexCriterion(AspectFoo.class, "value", Condition.EQUAL, IndexValue.create(25));
+
+    indexCriterionArray.add(indexCriterion1);
+    indexFilter.setCriteria(indexCriterionArray);
+
+    IndexGroupByCriterion indexGroupByCriterion = new IndexGroupByCriterion();
+    indexGroupByCriterion.setPath("/value");
+    indexGroupByCriterion.setAspect(AspectFoo.class.getCanonicalName());
+    Map<String, Long> countMap = _IEBeanLocalAccess.countAggregate(indexFilter, indexGroupByCriterion);
+
+    // Expect: there is 1 count for value 25
+    assertEquals(countMap.get("25"), Long.valueOf(1));
+
+    // When: change foo:26's value to be 25
+
+    FooUrn fooUrn = makeFooUrn(26);
+    AspectFoo aspectFoo = new AspectFoo();
+    aspectFoo.setValue(String.valueOf(25));
+    AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
+    _IEBeanLocalAccess.add(fooUrn, aspectFoo, auditStamp);
+    countMap = _IEBeanLocalAccess.countAggregate(indexFilter, indexGroupByCriterion);
+
+    // Expect: there are 2 counts for value 25
+    assertEquals(countMap.get("25"), Long.valueOf(2));
   }
 }

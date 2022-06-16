@@ -2,6 +2,7 @@ package com.linkedin.metadata.dao.utils;
 
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
+import com.linkedin.metadata.query.IndexGroupByCriterion;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -119,5 +120,29 @@ public class SQLSchemaUtils {
       throw new RuntimeException("unable to further trim column name: " + aspectCanonicalName);
     }
     return String.join(".", packageTokens.subList(curToken, packageTokens.size()));
+  }
+
+  /**
+   * process 'path' into mysql column name convention.
+   * @param path path in string e.g. /name/value, /name
+   * @return $name$value or $name
+   */
+  static String processPath(@Nonnull String path) {
+    path = path.replace("/", "$");
+    if (!path.startsWith("$")) {
+      path = "$" + path;
+    }
+    return path;
+  }
+
+  /**
+   * Get index group by column from group by criterion.
+   * @param indexGroupByCriterion {@link IndexGroupByCriterion}
+   * @return GROUP BY i_{aspect}${path}
+   */
+  public static String getIndexGroupByColumn(IndexGroupByCriterion indexGroupByCriterion) {
+    final String normalizedAspectName = getNormalizedAspectName(indexGroupByCriterion.getAspect());
+    final String indexColumn = INDEX_PREFIX + normalizedAspectName + processPath(indexGroupByCriterion.getPath());
+    return indexColumn;
   }
 }
