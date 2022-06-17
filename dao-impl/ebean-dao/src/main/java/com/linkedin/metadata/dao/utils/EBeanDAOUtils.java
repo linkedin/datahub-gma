@@ -1,16 +1,27 @@
 package com.linkedin.metadata.dao.utils;
 
 import com.linkedin.common.urn.Urn;
+import com.linkedin.metadata.dao.EbeanMetadataAspect;
+import com.linkedin.metadata.dao.ListResult;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.List;
+import java.util.Objects;
 import javax.annotation.Nonnull;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.functors.DefaultEquator;
 
 
 /**
  * Miscellaneous utils used by metadata.dao package.
  */
+@Slf4j
 public class EBeanDAOUtils {
+
+  public static final String DIFFERENT_RESULTS_TEMPLATE = "The results of %s from the new schema table and old schema table are not equal."
+      + "Defaulting to using the value(s) from the old schema table.";
 
   private EBeanDAOUtils() {
 
@@ -57,5 +68,40 @@ public class EBeanDAOUtils {
    */
   public static int ceilDiv(int x, int y) {
     return -Math.floorDiv(-x, y);
+  }
+
+  /**
+   * Compare lists, which should be results from reading the old and new schema tables. If different, log an error and
+   * return false. Otherwise, return true.
+   * @param resultOld Results from reading the old schema table
+   * @param resultNew Results from reading the new schema table
+   * @param methodName Name of method that called this function, for logging purposes
+   * @return Boolean indicating equivalence
+   */
+  public static <T> boolean compareResults(List<T> resultOld, List<T> resultNew, String methodName) {
+    // TODO: This needs testing
+    // https://commons.apache.org/proper/commons-collections/javadocs/api-4.4/org/apache/commons/collections4/CollectionUtils.html#isEqualCollection-java.util.Collection-java.util.Collection-org.apache.commons.collections4.Equator-
+    final DefaultEquator<EbeanMetadataAspect> equator = DefaultEquator.defaultEquator();
+    if (!CollectionUtils.isEqualCollection(resultOld, resultNew, equator)) {
+      log.error(String.format(DIFFERENT_RESULTS_TEMPLATE), methodName);
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Compare lists, which should be results from reading the old and new schema tables. If different, log an error and
+   * return false. Otherwise, return true.
+   * @param resultOld Results from reading the old schema table
+   * @param resultNew Results from reading the new schema table
+   * @param methodName Name of method that called this function, for logging purposes
+   * @return Boolean indicating equivalence
+   */
+  public static <T> boolean compareResults(ListResult<T> resultOld, ListResult<T> resultNew, String methodName) {
+    if (!Objects.equals(resultOld.getValues(), resultNew.getValues())) {
+      log.error(String.format(DIFFERENT_RESULTS_TEMPLATE), methodName);
+      return false;
+    }
+    return true;
   }
 }

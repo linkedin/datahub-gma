@@ -40,9 +40,9 @@ import static org.testng.AssertJUnit.*;
  * 2. Set DB_USER, DB_PASS, DB_SCHEMA
  */
 public class EBeanLocalAccessTest {
-  private static final String DB_USER = "raptor";
-  private static final String DB_PASS = "raptor";
-  private static final String DB_SCHEMA = "raptor_stg";
+  private static final String DB_USER = "tester";
+  private static final String DB_PASS = "tester";
+  private static final String DB_SCHEMA = "ebeanlocaldaotest";
 
   private static EbeanServer _server;
   private static IEBeanLocalAccess _IEBeanLocalAccess;

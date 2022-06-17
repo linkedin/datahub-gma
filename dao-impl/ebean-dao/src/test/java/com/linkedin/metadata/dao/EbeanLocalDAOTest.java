@@ -9,6 +9,7 @@ import com.linkedin.common.urn.Urns;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.StringArray;
 import com.linkedin.metadata.backfill.BackfillMode;
+import com.linkedin.metadata.dao.EbeanLocalDAO.SchemaConfig;
 import com.linkedin.metadata.dao.equality.AlwaysFalseEqualityTester;
 import com.linkedin.metadata.dao.equality.DefaultEqualityTester;
 import com.linkedin.metadata.dao.exception.InvalidMetadataType;
@@ -48,6 +49,8 @@ import io.ebean.EbeanServer;
 import io.ebean.EbeanServerFactory;
 import io.ebean.PagedList;
 import io.ebean.Transaction;
+import io.ebean.config.ServerConfig;
+import io.ebean.datasource.DataSourceConfig;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.util.ArrayList;
@@ -78,7 +81,24 @@ import static org.mockito.Mockito.*;
 import static org.testng.Assert.*;
 
 
+/**
+ * IMPORTANT: set NEW_SCHEMA_DISABLED to true when creating a PR as tests involving the new schema require a local MySQL connection.
+ * YOUR TESTS WILL FAIL IF YOU DON'T
+ *
+ * <p>TODO due to we have MySQL specific 'upsert' statement, therefore the following tests are executed on dev database
+ * For local dev testing:
+ *
+ * 1. Have a local MySQL database running
+ * 2. Set DB_USER, DB_PASS, DB_SCHEMA
+ * </p>
+ */
 public class EbeanLocalDAOTest {
+
+  // ONLY SET THIS TO FALSE IF YOU WANT TO TEST NEW_SCHEMA_ONLY OR DUAL_READ EbeanLocalDAO SchemaConfig values.
+  private static final boolean NEW_SCHEMA_DISABLED = true;
+  private static final String DB_USER = "tester";
+  private static final String DB_PASS = "tester";
+  private static final String DB_SCHEMA = "ebeanlocaldaotest";
 
   private EbeanServer _server;
   private BaseMetadataEventProducer _mockProducer;
@@ -87,29 +107,65 @@ public class EbeanLocalDAOTest {
   private boolean _useUnionForBatch;
   private boolean _useOptimisticLocking;
 
+  // run the tests 1 time for each of EbeanLocalDAO.SchemaConfig values (3 total)
+  private SchemaConfig _schemaConfig;
+
   @Factory(dataProvider = "inputList")
-  public EbeanLocalDAOTest(boolean useUnionForBatch, boolean useOptimisticLocking) {
+  public EbeanLocalDAOTest(boolean useUnionForBatch, boolean useOptimisticLocking, SchemaConfig schemaConfig) {
     _useUnionForBatch = useUnionForBatch;
     _useOptimisticLocking = useOptimisticLocking;
+    _schemaConfig = schemaConfig;
   }
 
   @DataProvider
   public static Object[][] inputList() {
-    return new Object[][]{{false, false}, {true, true}};
+    return NEW_SCHEMA_DISABLED
+      ? new Object[][]{
+          {false, false, SchemaConfig.OLD_SCHEMA_ONLY},
+          {true, true, SchemaConfig.OLD_SCHEMA_ONLY}
+        }
+      : new Object[][]{
+          {false, false, SchemaConfig.OLD_SCHEMA_ONLY},
+          {false, false, SchemaConfig.NEW_SCHEMA_ONLY},
+          {false, false, SchemaConfig.DUAL_SCHEMA},
+          {true, true, SchemaConfig.OLD_SCHEMA_ONLY},
+          {true, true, SchemaConfig.NEW_SCHEMA_ONLY},
+          {true, true, SchemaConfig.DUAL_SCHEMA}
+        };
   }
 
   @BeforeMethod
   public void setupTest() {
-    _server = EbeanServerFactory.create(EbeanLocalDAO.createTestingH2ServerConfig());
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      _server = EbeanServerFactory.create(EbeanLocalDAO.createTestingH2ServerConfig());
+    } else {
+      _server = EbeanServerFactory.create(createLocalMySQLServerConfig());
+    }
     _mockProducer = mock(BaseMetadataEventProducer.class);
     _dummyAuditStamp = makeAuditStamp("foo", 1234);
+  }
+
+  @Nonnull
+  public static ServerConfig createLocalMySQLServerConfig() {
+    DataSourceConfig dataSourceConfig = new DataSourceConfig();
+    dataSourceConfig.setUsername(DB_USER);
+    dataSourceConfig.setPassword(DB_PASS);
+    dataSourceConfig.setUrl(String.format("jdbc:mysql://localhost:3306/%s?allowMultiQueries=true", DB_SCHEMA));
+    dataSourceConfig.setDriver("com.mysql.cj.jdbc.Driver");
+
+    ServerConfig serverConfig = new ServerConfig();
+    serverConfig.setName("gma");
+    serverConfig.setDataSourceConfig(dataSourceConfig);
+    serverConfig.setDdlGenerate(false);
+    serverConfig.setDdlRun(false);
+    return serverConfig;
   }
 
   @Nonnull
   private <URN extends Urn> EbeanLocalDAO<EntityAspectUnion, URN> createDao(@Nonnull EbeanServer server,
       @Nonnull Class<URN> urnClass) {
     final EbeanLocalDAO<EntityAspectUnion, URN> dao =
-        new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, server, urnClass);
+        new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, server, urnClass, _schemaConfig);
     dao.setUseUnionForBatch(_useUnionForBatch);
     dao.setUseOptimisticLocking(_useOptimisticLocking);
     return dao;
