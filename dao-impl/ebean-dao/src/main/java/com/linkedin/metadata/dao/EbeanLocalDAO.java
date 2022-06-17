@@ -73,7 +73,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     extends BaseLocalDAO<ASPECT_UNION, URN> {
 
   // String stored in metadata_aspect table for soft deleted aspect
-  private static final RecordTemplate DELETED_METADATA = new SoftDeletedAspect().setGma_deleted(true);
+  protected static final RecordTemplate DELETED_METADATA = new SoftDeletedAspect().setGma_deleted(true);
   public static final String DELETED_VALUE = RecordUtils.toJsonString(DELETED_METADATA);
 
   private static final int INDEX_QUERY_TIMEOUT_IN_SEC = 5;
@@ -341,7 +341,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
     final ExtraInfo extraInfo = toExtraInfo(latest);
 
-    if (latest.getMetadata().equals(DELETED_VALUE)) {
+    // Convert metadata string to record template object
+    final RecordTemplate metadataRecord = RecordUtils.toRecordTemplate(aspectClass, latest.getMetadata());
+    if (metadataRecord.equals(DELETED_METADATA)) {
       return new AspectEntry<>(null, extraInfo, true);
     }
 
