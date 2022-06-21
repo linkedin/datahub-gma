@@ -76,6 +76,7 @@ import org.testng.annotations.Factory;
 import org.testng.annotations.Test;
 
 import static com.linkedin.common.AuditStamps.*;
+import static com.linkedin.metadata.dao.utils.EBeanDAOUtils.*;
 import static com.linkedin.testing.TestUtils.*;
 import static org.mockito.Mockito.*;
 import static org.testng.Assert.*;
@@ -2274,9 +2275,7 @@ public class EbeanLocalDAOTest {
 
     // latest version of metadata should be null
     EbeanMetadataAspect aspect = getMetadata(urn, aspectName, 0);
-    // Convert metadata string to record template object
-    final RecordTemplate metadataRecord = RecordUtils.toRecordTemplate(AspectFoo.class, aspect.getMetadata());
-    assertEquals(metadataRecord, EbeanLocalDAO.DELETED_METADATA);
+    assertTrue(isSoftDeletedAspect(aspect, AspectFoo.class));
     Optional<AspectFoo> fooOptional = dao.get(AspectFoo.class, urn);
     assertFalse(fooOptional.isPresent());
 
@@ -2447,7 +2446,7 @@ public class EbeanLocalDAOTest {
 
     // version=3 should correspond to soft deleted metadata
     EbeanMetadataAspect aspect = getMetadata(urn, aspectName, 3);
-    assertEquals(aspect.getMetadata(), EbeanLocalDAO.DELETED_VALUE);
+    assertTrue(isSoftDeletedAspect(aspect, AspectFoo.class));
     fooOptional = dao.get(AspectFoo.class, urn, 3);
     assertFalse(fooOptional.isPresent());
 
@@ -2784,7 +2783,7 @@ public class EbeanLocalDAOTest {
     if (metadata != null) {
       aspect.setMetadata(RecordUtils.toJsonString(metadata));
     } else {
-      aspect.setMetadata(EbeanLocalDAO.DELETED_VALUE);
+      aspect.setMetadata(DELETED_VALUE);
     }
     aspect.setCreatedOn(new Timestamp(1234));
     aspect.setCreatedBy("urn:li:test:foo");

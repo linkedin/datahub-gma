@@ -7,7 +7,6 @@ import com.linkedin.data.schema.DataSchema;
 import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.UnionTemplate;
-import com.linkedin.metadata.aspect.SoftDeletedAspect;
 import com.linkedin.metadata.dao.exception.ModelConversionException;
 import com.linkedin.metadata.dao.exception.RetryLimitReached;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
@@ -66,6 +65,7 @@ import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 
 import static com.linkedin.metadata.dao.EbeanMetadataAspect.*;
+import static com.linkedin.metadata.dao.utils.EBeanDAOUtils.*;
 
 
 /**
@@ -74,10 +74,6 @@ import static com.linkedin.metadata.dao.EbeanMetadataAspect.*;
 @Slf4j
 public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     extends BaseLocalDAO<ASPECT_UNION, URN> {
-
-  // String stored in metadata_aspect table for soft deleted aspect
-  protected static final RecordTemplate DELETED_METADATA = new SoftDeletedAspect().setGma_deleted(true);
-  public static final String DELETED_VALUE = RecordUtils.toJsonString(DELETED_METADATA);
 
   private static final int INDEX_QUERY_TIMEOUT_IN_SEC = 5;
   private static final String EBEAN_MODEL_PACKAGE = EbeanMetadataAspect.class.getPackage().getName();
@@ -428,9 +424,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
     final ExtraInfo extraInfo = toExtraInfo(latest);
 
-    // Convert metadata string to record template object
-    final RecordTemplate metadataRecord = RecordUtils.toRecordTemplate(aspectClass, latest.getMetadata());
-    if (metadataRecord.equals(DELETED_METADATA)) {
+    if (isSoftDeletedAspect(latest, aspectClass)) {
       return new AspectEntry<>(null, extraInfo, true);
     }
 
@@ -1005,7 +999,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Nonnull
   static <ASPECT extends RecordTemplate> Optional<ASPECT> toRecordTemplate(@Nonnull Class<ASPECT> aspectClass,
       @Nonnull EbeanMetadataAspect aspect) {
-    if (aspect.getMetadata().equals(DELETED_VALUE)) {
+    if (isSoftDeletedAspect(aspect, aspectClass)) {
       return Optional.empty();
     }
     return Optional.of(RecordUtils.toRecordTemplate(aspectClass, aspect.getMetadata()));
@@ -1014,7 +1008,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Nonnull
   static <ASPECT extends RecordTemplate> Optional<AspectWithExtraInfo<ASPECT>> toRecordTemplateWithExtraInfo(
       @Nonnull Class<ASPECT> aspectClass, @Nonnull EbeanMetadataAspect aspect) {
-    if (aspect.getMetadata() == null || aspect.getMetadata().equals(DELETED_VALUE)) {
+    if (aspect.getMetadata() == null || isSoftDeletedAspect(aspect, aspectClass)) {
       return Optional.empty();
     }
     final ExtraInfo extraInfo = toExtraInfo(aspect);
