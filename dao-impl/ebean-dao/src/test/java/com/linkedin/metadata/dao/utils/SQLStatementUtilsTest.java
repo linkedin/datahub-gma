@@ -4,6 +4,7 @@ import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
+import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexValue;
 import com.linkedin.metadata.query.SortOrder;
 import com.linkedin.testing.AspectFoo;
@@ -48,5 +49,30 @@ public class SQLStatementUtilsTest {
         + "i_testing_aspectfoo$value >= 25\nAND " + "i_testing_aspectfoo$value < 50\n"
         + "ORDER BY i_testing_aspectfoo$value ASC)\nSELECT *, (SELECT COUNT(urn) FROM _temp_results) AS _total_count FROM _temp_results";
     assertEquals(sql, expectedSql);
+  }
+
+  @Test
+  public void testCreateGroupBySql() {
+    IndexFilter indexFilter = new IndexFilter();
+    IndexCriterionArray indexCriterionArray = new IndexCriterionArray();
+
+    IndexCriterion indexCriterion1 =
+        SQLIndexFilterUtils.createIndexCriterion(AspectFoo.class, "value", Condition.GREATER_THAN_OR_EQUAL_TO,
+            IndexValue.create(25));
+    IndexCriterion indexCriterion2 =
+        SQLIndexFilterUtils.createIndexCriterion(AspectFoo.class, "value", Condition.LESS_THAN, IndexValue.create(50));
+
+    indexCriterionArray.add(indexCriterion1);
+    indexCriterionArray.add(indexCriterion2);
+    indexFilter.setCriteria(indexCriterionArray);
+
+    IndexGroupByCriterion indexGroupByCriterion = new IndexGroupByCriterion();
+    indexGroupByCriterion.setAspect(AspectFoo.class.getCanonicalName());
+    indexGroupByCriterion.setPath("/value");
+
+    String sql = SQLStatementUtils.createGroupBySql("metadata_entity_foo", indexFilter, indexGroupByCriterion);
+    assertEquals(sql, "SELECT count(*) as COUNT, i_testing_aspectfoo$value FROM metadata_entity_foo\n"
+        + "WHERE i_testing_aspectfoo$value >= 25\n" + "AND i_testing_aspectfoo$value < 50\n"
+        + "GROUP BY i_testing_aspectfoo$value");
   }
 }
