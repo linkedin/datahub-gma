@@ -3,6 +3,8 @@ package com.linkedin.metadata.dao.utils;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.metadata.dao.EbeanMetadataAspect;
 import com.linkedin.metadata.dao.ListResult;
+import com.linkedin.data.template.RecordTemplate;
+import com.linkedin.metadata.aspect.SoftDeletedAspect;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -22,6 +24,9 @@ public class EBeanDAOUtils {
 
   public static final String DIFFERENT_RESULTS_TEMPLATE = "The results of %s from the new schema table and old schema table are not equal."
       + "Defaulting to using the value(s) from the old schema table.";
+  // String stored in metadata_aspect table for soft deleted aspect
+  private static final RecordTemplate DELETED_METADATA = new SoftDeletedAspect().setGma_deleted(true);
+  public static final String DELETED_VALUE = RecordUtils.toJsonString(DELETED_METADATA);
 
   private EBeanDAOUtils() {
 
@@ -103,5 +108,19 @@ public class EBeanDAOUtils {
       return false;
     }
     return true;
+  }
+
+  /**
+   * Checks whether the aspect record has been soft deleted.
+   *
+   * @param aspect aspect value
+   * @param aspectClass the type of the aspect
+   * @return boolean representing whether the aspect record has been soft deleted
+   */
+  public static <ASPECT extends RecordTemplate> boolean isSoftDeletedAspect(@Nonnull EbeanMetadataAspect aspect,
+      @Nonnull Class<ASPECT> aspectClass) {
+    // Convert metadata string to record template object
+    final RecordTemplate metadataRecord = RecordUtils.toRecordTemplate(aspectClass, aspect.getMetadata());
+    return metadataRecord.equals(DELETED_METADATA);
   }
 }
