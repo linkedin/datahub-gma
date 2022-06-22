@@ -9,7 +9,6 @@ configurations {
 dependencies {
   compile project(':core-models-utils')
   compile project(':dao-api')
-  compile externalDependency.commonsCollections4
   compile externalDependency.ebean
   compile externalDependency.jsonSimple
   compile externalDependency.guava

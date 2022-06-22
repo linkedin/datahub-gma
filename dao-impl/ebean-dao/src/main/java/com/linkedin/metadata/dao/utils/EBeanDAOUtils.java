@@ -12,8 +12,6 @@ import java.util.List;
 import java.util.Objects;
 import javax.annotation.Nonnull;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.collections4.functors.DefaultEquator;
 
 
 /**
@@ -85,9 +83,9 @@ public class EBeanDAOUtils {
    */
   public static <T> boolean compareResults(List<T> resultOld, List<T> resultNew, String methodName) {
     // TODO: This needs testing
+    // TODO: Need to compare each item in the list
     // https://commons.apache.org/proper/commons-collections/javadocs/api-4.4/org/apache/commons/collections4/CollectionUtils.html#isEqualCollection-java.util.Collection-java.util.Collection-org.apache.commons.collections4.Equator-
-    final DefaultEquator<EbeanMetadataAspect> equator = DefaultEquator.defaultEquator();
-    if (!CollectionUtils.isEqualCollection(resultOld, resultNew, equator)) {
+    if (!Objects.equals(resultOld, resultNew)) {
       log.error(String.format(DIFFERENT_RESULTS_TEMPLATE), methodName);
       return false;
     }
