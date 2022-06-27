@@ -12,7 +12,7 @@ dependencies {
   compile spec.product.pegasus.restliClient
 
   compileOnly externalDependency.lombok
-
+  annotationProcessor externalDependency.lombokAnnotationProcessor
   testCompile project(':core-models-utils')
   testCompile project(':testing:core-models-testing')
   testCompile project(':testing:test-models')
