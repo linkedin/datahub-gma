@@ -411,14 +411,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   protected <ASPECT extends RecordTemplate> AspectEntry<ASPECT> getLatest(@Nonnull URN urn,
       @Nonnull Class<ASPECT> aspectClass) {
     final PrimaryKey key = new PrimaryKey(urn.toString(), ModelUtils.getAspectName(aspectClass), 0L);
-    EbeanMetadataAspect latest;
-    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY || _schemaConfig == SchemaConfig.DUAL_SCHEMA) {
-      List<EbeanMetadataAspect> result = batchGetHelper(
-          Collections.singletonList(new AspectKey<>(aspectClass, urn, LATEST_VERSION)), 1, 0);
-      latest = result.size() == 0 ? null : result.get(0);
-    } else {
-      latest = _server.find(EbeanMetadataAspect.class, key);
-    }
+    EbeanMetadataAspect latest = _server.find(EbeanMetadataAspect.class, key);
     if (latest == null) {
       return new AspectEntry<>(null, null);
     }
@@ -522,7 +515,11 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     final EbeanMetadataAspect aspect = buildMetadataAspectBean(urn, value, aspectClass, auditStamp, version);
 
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY || _schemaConfig == SchemaConfig.DUAL_SCHEMA) {
-      _localAccess.add(urn, value, auditStamp);
+      if (version == LATEST_VERSION) {
+        // save() could be called when updating log table (moving current versions into new history version)
+        // the metadata entity tables shouldn't been updated.
+        _localAccess.add(urn, value, auditStamp);
+      }
     }
 
     if (insert) {
