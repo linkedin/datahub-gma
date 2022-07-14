@@ -2,11 +2,13 @@ package com.linkedin.metadata.dao.utils;
 
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
+import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.ParametersAreNonnullByDefault;
 
 import static com.linkedin.metadata.dao.utils.SQLSchemaUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLIndexFilterUtils.*;
@@ -25,6 +27,14 @@ public class SQLStatementUtils {
       "SELECT urn, %s, lastmodifiedon, lastmodifiedby FROM %s WHERE urn = '%s';";
 
   private static final String SQL_URN_EXIST_TEMPLATE = "SELECT urn FROM %s WHERE urn = '%s'";
+
+  private static final String INSERT_LOCAL_RELATIONSHIP = "INSERT INTO %s (metadata, source, destination, source_type, "
+      + "destination_type, lastmodifiedon, lastmodifiedby) VALUE (:metadata, :source, :destination, :source_type,"
+      + " :destination_type, :lastmodifiedon, :lastmodifiedby)";
+
+  private static final String DELETE_BY_SOURCE = "DELETE FROM %s WHERE source = :source";
+  private static final String DELETE_BY_DESTINATION = "DELETE FROM %s WHERE destination = :destination";
+  private static final String DELETE_BY_SOURCE_AND_DESTINATION = "DELETE FROM %s WHERE destination = :destination AND source = :source";
 
   /**
    *  Filter query has pagination params in the existing APIs. To accommodate this, we use WITH query to include total result counts in the query response.
@@ -139,5 +149,28 @@ public class SQLStatementUtils {
       Class<ASPECT> aspectClass) {
     final String tableName = getTableName(entityType);
     return String.format(SQL_BROWSE_ASPECT_TEMPLATE, getColumnName(aspectClass), tableName, tableName);
+  }
+
+  /**
+   * Generate "Create Statement SQL" for local relation.
+   * @param tableName Name of the table where the local relation metadata will be inserted.
+   * @return SQL statement for inserting local relation.
+   */
+  public static String insertLocalRelationshipSQL(String tableName) {
+    return String.format(INSERT_LOCAL_RELATIONSHIP, tableName);
+  }
+
+  @Nonnull
+  @ParametersAreNonnullByDefault
+  public static String deleteLocaRelationshipSQL(final String tableName, final BaseGraphWriterDAO.RemovalOption removalOption) {
+    if (removalOption == BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE) {
+      return String.format(DELETE_BY_SOURCE, tableName);
+    } else if (removalOption == BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE_TO_DESTINATION) {
+      return String.format(DELETE_BY_SOURCE_AND_DESTINATION, tableName);
+    } else if (removalOption == BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION) {
+      return String.format(DELETE_BY_DESTINATION, tableName);
+    }
+
+    throw new IllegalArgumentException(String.format("Removal option %s is not valid.", removalOption));
   }
 }

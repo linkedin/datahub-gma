@@ -31,12 +31,13 @@ dependencies {
 // Therefore, these tests require connections to a full-fledged MySQL DB.
 //
 // If you would like to run these tests, please first establish a connection to a dev MySQL instance by running:
-// ssh -L 3309:makto-db-313.corp.linkedin.com:3306 [your-username]-ld3.linkedin.biz
+// ssh -L 23306:makto-db-313.corp.linkedin.com:3306 [your-username]-ld3.linkedin.biz
 // Then run: ./gradlew build -Ptest-ebean-dao
 test {
   if (!project.hasProperty('test-ebean-dao')) {
     exclude '**/EBeanLocalAccessTest.class'
     exclude '**/EbeanLocalDAOTest.class'
+    exclude '**/EbeanLocalRelationshipWriterDAOTest.class'
   }
 }
 
