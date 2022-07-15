@@ -2,6 +2,7 @@ package com.linkedin.metadata.dao.internal;
 
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
+import com.linkedin.metadata.dao.utils.GraphUtils;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -13,8 +14,6 @@ import org.neo4j.driver.Query;
 import org.neo4j.driver.SessionConfig;
 
 import static com.linkedin.metadata.dao.Neo4jUtil.*;
-import static com.linkedin.metadata.dao.utils.ModelUtils.*;
-import static com.linkedin.metadata.dao.utils.RecordUtils.*;
 
 
 /**
@@ -179,7 +178,7 @@ public class Neo4jGraphWriterDAO extends BaseGraphWriterDAO {
 
     _queriesTransformer.relationshipRemovalOptionQuery(relationships.get(0), removalOption).ifPresent(list::add);
 
-    checkSameUrn(relationships, removalOption);
+    GraphUtils.checkSameUrn(relationships, removalOption, SOURCE_FIELD, DESTINATION_FIELD);
 
     for (RELATIONSHIP relationship : relationships) {
       list.add(_queriesTransformer.addRelationshipQuery(relationship));
@@ -206,29 +205,5 @@ public class Neo4jGraphWriterDAO extends BaseGraphWriterDAO {
     log.trace("Removed {} relationships over {} retries, which took {} millis", relationships.size(),
         result.getTookMs(), result.getRetries());
     _metricListener.onRelationshipsRemoved(relationships.size(), result.getTookMs(), result.getRetries());
-  }
-
-  private void checkSameUrn(@Nonnull List<? extends RecordTemplate> relationships,
-      @Nonnull RemovalOption removalOption) {
-    final Urn source0Urn = getSourceUrnFromRelationship(relationships.get(0));
-    final Urn destination0Urn = getDestinationUrnFromRelationship(relationships.get(0));
-
-    if (removalOption == RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE) {
-      checkSameUrn(relationships, SOURCE_FIELD, source0Urn);
-    } else if (removalOption == RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION) {
-      checkSameUrn(relationships, DESTINATION_FIELD, destination0Urn);
-    } else if (removalOption == RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE_TO_DESTINATION) {
-      checkSameUrn(relationships, SOURCE_FIELD, source0Urn);
-      checkSameUrn(relationships, DESTINATION_FIELD, destination0Urn);
-    }
-  }
-
-  private void checkSameUrn(@Nonnull List<? extends RecordTemplate> records, @Nonnull String field,
-      @Nonnull Urn compare) {
-    for (RecordTemplate relation : records) {
-      if (!compare.equals(getRecordTemplateField(relation, field, Urn.class))) {
-        throw new IllegalArgumentException("Records have different " + field + " urn");
-      }
-    }
   }
 }
