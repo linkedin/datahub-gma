@@ -97,9 +97,9 @@ public class EbeanLocalDAOTest {
 
   // ONLY SET THIS TO FALSE IF YOU WANT TO TEST NEW_SCHEMA_ONLY OR DUAL_READ EbeanLocalDAO SchemaConfig values.
   private static final boolean NEW_SCHEMA_DISABLED = true;
-  private static final String DB_USER = "tester";
-  private static final String DB_PASS = "tester";
-  private static final String DB_SCHEMA = "ebeanlocaldaotest";
+  private static final String DB_USER = "gma";
+  private static final String DB_PASS = "Password_1";
+  private static final String DB_SCHEMA = "gma_dev";
 
   private EbeanServer _server;
   private BaseMetadataEventProducer _mockProducer;
@@ -154,7 +154,7 @@ public class EbeanLocalDAOTest {
     DataSourceConfig dataSourceConfig = new DataSourceConfig();
     dataSourceConfig.setUsername(DB_USER);
     dataSourceConfig.setPassword(DB_PASS);
-    dataSourceConfig.setUrl(String.format("jdbc:mysql://localhost:3306/%s?allowMultiQueries=true", DB_SCHEMA));
+    dataSourceConfig.setUrl(String.format("jdbc:mysql://localhost:3309/%s?allowMultiQueries=true", DB_SCHEMA));
     dataSourceConfig.setDriver("com.mysql.cj.jdbc.Driver");
 
     ServerConfig serverConfig = new ServerConfig();

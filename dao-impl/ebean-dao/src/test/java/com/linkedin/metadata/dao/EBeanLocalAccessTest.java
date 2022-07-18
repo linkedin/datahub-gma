@@ -42,9 +42,9 @@ import static org.testng.AssertJUnit.*;
  * 2. Set DB_USER, DB_PASS, DB_SCHEMA
  */
 public class EBeanLocalAccessTest {
-  private static final String DB_USER = "tester";
-  private static final String DB_PASS = "tester";
-  private static final String DB_SCHEMA = "ebeanlocaldaotest";
+  private static final String DB_USER = "gma";
+  private static final String DB_PASS = "Password_1";
+  private static final String DB_SCHEMA = "gma_dev";
 
   private static EbeanServer _server;
   private static IEBeanLocalAccess _IEBeanLocalAccess;
@@ -55,7 +55,7 @@ public class EBeanLocalAccessTest {
     DataSourceConfig dataSourceConfig = new DataSourceConfig();
     dataSourceConfig.setUsername(DB_USER);
     dataSourceConfig.setPassword(DB_PASS);
-    dataSourceConfig.setUrl(String.format("jdbc:mysql://localhost:3306/%s?allowMultiQueries=true", DB_SCHEMA));
+    dataSourceConfig.setUrl(String.format("jdbc:mysql://localhost:3309/%s?allowMultiQueries=true", DB_SCHEMA));
     dataSourceConfig.setDriver("com.mysql.cj.jdbc.Driver");
 
     ServerConfig serverConfig = new ServerConfig();
