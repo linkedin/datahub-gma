@@ -26,9 +26,20 @@ dependencies {
 
   enhance externalDependency.ebeanAgent
 }
+
+// Some unit tests require advanced MySQL syntax such as 'generated column' which is not supported by most in-memory DB.
+// Therefore, these tests require connections to a full-fledged MySQL DB.
+//
+// If you would like to run these tests, please first establish a connection to a dev MySQL instance by running:
+// ssh -L 3309:makto-db-313.corp.linkedin.com:3306 [your-username]-ld3.linkedin.biz
+// Then run: ./gradlew build -Ptest-ebean-dao
 test {
-  exclude '**/EBeanLocalAccessTest.class'
+  if (!project.hasProperty('test-ebean-dao')) {
+    exclude '**/EBeanLocalAccessTest.class'
+    exclude '**/EbeanLocalDAOTest.class'
+  }
 }
+
 project.compileJava {
   doLast {
     ant.taskdef(name: 'ebean', classname: 'io.ebean.enhance.ant.AntEnhanceTask',
