@@ -3,6 +3,7 @@ package com.linkedin.metadata.dao;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
+import com.linkedin.metadata.aspect.AuditedAspect;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
 import com.linkedin.metadata.dao.utils.SQLStatementUtils;
@@ -13,7 +14,7 @@ import io.ebean.EbeanServer;
 import io.ebean.SqlQuery;
 import io.ebean.SqlRow;
 import io.ebean.SqlUpdate;
-import java.net.URISyntaxException;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -42,6 +43,8 @@ public class EBeanLocalAccess<URN extends Urn> implements IEBeanLocalAccess<URN>
 
   // TODO confirm if the default page size is 1000 in other code context.
   private static final int DEFAULT_PAGE_SIZE = 1000;
+  private static final String DEFAULT_ACTOR = "urn:li:principal:UNKNOWN";
+  private static final long LATEST_VERSION = 1L;
 
   public EBeanLocalAccess(EbeanServer server, @Nonnull Class<URN> urnClass) {
     _server = server;
@@ -53,24 +56,21 @@ public class EBeanLocalAccess<URN extends Urn> implements IEBeanLocalAccess<URN>
   public <ASPECT extends RecordTemplate> int add(@Nonnull URN urn, @Nonnull ASPECT newValue,
       @Nonnull AuditStamp auditStamp) {
 
-    if (!auditStamp.hasTime()) {
-      auditStamp.setTime(System.currentTimeMillis());
-    }
-    if (!auditStamp.hasActor()) {
-      try {
-        auditStamp.setActor(Urn.createFromCharSequence("unknown"));
-      } catch (URISyntaxException uriSyntaxException) {
-        uriSyntaxException.printStackTrace();
-      }
-    }
-    // TODO wrap Aspect into a block with auditStamp as well, such as { aspect: $aspect, auditStamp: $auditStamp}, so
-    // TODO that it knows when this aspect is persisted
+    long timestamp = auditStamp.hasTime() ? auditStamp.getTime() : System.currentTimeMillis();
+    LocalDateTime localDateTime = LocalDateTime.from(Instant.ofEpochMilli(timestamp).atZone(ZoneId.systemDefault()));
+    String actor = auditStamp.hasActor() ? auditStamp.getActor().toString() : DEFAULT_ACTOR;
+
+    AuditedAspect auditedAspect = new AuditedAspect()
+        .setAspect(RecordUtils.toJsonString(newValue))
+        .setLastmodifiedby(actor)
+        .setLastmodifiedon(localDateTime.toString());
+
     final SqlUpdate sqlUpdate = _server.createSqlUpdate(SQLStatementUtils.createAspectUpsertSql(urn, newValue))
         .setParameter("urn", urn.toString())
-        .setParameter("lastmodifiedon",
-            LocalDateTime.from(Instant.ofEpochMilli(auditStamp.getTime()).atZone(ZoneId.systemDefault())))
-        .setParameter("lastmodifiedby", auditStamp.getActor().toString())
-        .setParameter("metadata", RecordUtils.toJsonString(newValue));
+        .setParameter("lastmodifiedon", localDateTime.toString())
+        .setParameter("lastmodifiedby", actor)
+        .setParameter("metadata", RecordUtils.toJsonString(auditedAspect));
+
     return sqlUpdate.execute();
   }
 
@@ -205,11 +205,12 @@ public class EBeanLocalAccess<URN extends Urn> implements IEBeanLocalAccess<URN>
       final String aspectName = COLUMN_ASPECT_MAP.get(columnName);
       EbeanMetadataAspect ebeanMetadataAspect = new EbeanMetadataAspect();
       String urn = sqlRow.getString("urn");
-      EbeanMetadataAspect.PrimaryKey primaryKey = new EbeanMetadataAspect.PrimaryKey(urn, aspectName, 0L);
+      EbeanMetadataAspect.PrimaryKey primaryKey = new EbeanMetadataAspect.PrimaryKey(urn, aspectName, LATEST_VERSION);
+      AuditedAspect auditedAspect = RecordUtils.toRecordTemplate(AuditedAspect.class, sqlRow.getString(columnName));
       ebeanMetadataAspect.setKey(primaryKey);
-      ebeanMetadataAspect.setCreatedBy(sqlRow.getString("lastmodifiedby"));
-      ebeanMetadataAspect.setCreatedOn(sqlRow.getTimestamp("lastmodifiedon"));
-      ebeanMetadataAspect.setMetadata(sqlRow.getString(columnName));
+      ebeanMetadataAspect.setCreatedBy(auditedAspect.getLastmodifiedby());
+      ebeanMetadataAspect.setCreatedOn(Timestamp.valueOf(auditedAspect.getLastmodifiedon()));
+      ebeanMetadataAspect.setMetadata(auditedAspect.getAspect());
       return ebeanMetadataAspect;
     }).collect(Collectors.toList());
   }

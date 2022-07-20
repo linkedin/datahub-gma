@@ -1,0 +1,21 @@
+namespace com.linkedin.metadata.aspect
+
+/**
+ * Metadata aspect wrapped by audit information.
+ */
+record AuditedAspect {
+  /**
+   * Metadata serialized into JSON string.
+   */
+  aspect: string
+
+  /**
+   * Audit timestamp to track when this aspect is last modified.
+   */
+  lastmodifiedon: string
+
+  /**
+   * Audit information to track who last modified this aspect.
+   */
+  lastmodifiedby: string
+}
