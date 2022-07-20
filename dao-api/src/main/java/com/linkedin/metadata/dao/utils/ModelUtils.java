@@ -136,6 +136,20 @@ public class ModelUtils {
   }
 
   /**
+   * Get the entity type of urn inside a snapshot class.
+   * @param snapshot a snapshot class
+   * @return entity type of urn
+   */
+  @Nonnull
+  public static <SNAPSHOT extends RecordTemplate> String getUrnTypeFromSnapshot(@Nonnull Class<SNAPSHOT> snapshot) {
+    try {
+      return (String) snapshot.getMethod("getUrn").getReturnType().getField("ENTITY_TYPE").get(null);
+    } catch (Exception ignored) {
+      throw new IllegalArgumentException(String.format("The snapshot class %s is not valid.", snapshot.getCanonicalName()));
+    }
+  }
+
+  /**
    * Similar to {@link #getUrnFromSnapshot(RecordTemplate)} but extracts from a Snapshot union instead.
    */
   @Nonnull
@@ -290,6 +304,23 @@ public class ModelUtils {
   @Nonnull
   public static <SNAPSHOT extends RecordTemplate, ASPECT_UNION extends UnionTemplate, URN extends Urn> SNAPSHOT newSnapshot(
       @Nonnull Class<SNAPSHOT> snapshotClass, @Nonnull URN urn, @Nonnull List<ASPECT_UNION> aspects) {
+    return newSnapshot(snapshotClass, urn.toString(), aspects);
+  }
+
+  /**
+   * Creates a snapshot with its urn field set.
+   *
+   * @param snapshotClass the type of snapshot to create
+   * @param urn value for the urn field as a string
+   * @param aspects value for the aspects field
+   * @param <SNAPSHOT> must be a valid snapshot model defined in com.linkedin.metadata.snapshot
+   * @param <ASPECT_UNION> must be a valid aspect union defined in com.linkedin.metadata.aspect
+   * @param <URN> must be a valid URN type
+   * @return the created snapshot
+   */
+  @Nonnull
+  public static <SNAPSHOT extends RecordTemplate, ASPECT_UNION extends UnionTemplate, URN extends Urn> SNAPSHOT newSnapshot(
+      @Nonnull Class<SNAPSHOT> snapshotClass, @Nonnull String urn, @Nonnull List<ASPECT_UNION> aspects) {
 
     SnapshotValidator.validateSnapshotSchema(snapshotClass);
 
@@ -297,7 +328,7 @@ public class ModelUtils {
 
     try {
       final SNAPSHOT snapshot = snapshotClass.newInstance();
-      RecordUtils.setRecordTemplatePrimitiveField(snapshot, "urn", urn.toString());
+      RecordUtils.setRecordTemplatePrimitiveField(snapshot, "urn", urn);
       WrappingArrayTemplate aspectArray = aspectArrayClass.newInstance();
       aspectArray.addAll(aspects);
       RecordUtils.setRecordTemplateComplexField(snapshot, "aspects", aspectArray);
@@ -558,6 +589,36 @@ public class ModelUtils {
       RecordUtils.setSelectedRecordTemplateInUnion(entityUnion, entity);
       return entityUnion;
     } catch (InstantiationException | IllegalAccessException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  /**
+   * Get all aspects' class canonical names from a aspect union.
+   * @param unionClass the union class contains all the aspects
+   * @return A list of aspect canonical names.
+   */
+  public static <ASPECT_UNION extends UnionTemplate> List<String> getAspectClassNames(Class<ASPECT_UNION> unionClass) {
+    try {
+      final UnionTemplate unionTemplate = unionClass.newInstance();
+      final UnionDataSchema unionDataSchema = (UnionDataSchema) unionTemplate.schema();
+      return unionDataSchema.getMembers().stream().map(UnionDataSchema.Member::getUnionMemberKey).collect(Collectors.toList());
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  /**
+   * Derive the aspect union class from a snapshot class.
+   * @param snapshotClass the snapshot class contains the aspect union.
+   * @return Aspect union class
+   */
+  public static <SNAPSHOT extends RecordTemplate, ASPECT_UNION extends UnionTemplate> Class<ASPECT_UNION> getUnionClassFromSnapshot(
+      Class<SNAPSHOT> snapshotClass) {
+    try {
+      Class<?> innerClass = ClassUtils.loadClass(snapshotClass.getMethod("getAspects").getReturnType().getCanonicalName() + "$Fields");
+      return (Class<ASPECT_UNION>) innerClass.newInstance().getClass().getMethod("items").getReturnType().getEnclosingClass();
+    } catch (Exception e) {
       throw new RuntimeException(e);
     }
   }

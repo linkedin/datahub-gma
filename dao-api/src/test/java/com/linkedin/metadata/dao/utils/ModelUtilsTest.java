@@ -3,6 +3,7 @@ package com.linkedin.metadata.dao.utils;
 import com.google.common.collect.ImmutableSet;
 import com.linkedin.common.CommonTestAspect;
 import com.linkedin.common.urn.Urn;
+import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.testing.AspectUnionWithSoftDeletedAspect;
 import com.linkedin.testing.DeltaUnionAlias;
 import com.linkedin.testing.EntityAspectUnionAliasArray;
@@ -405,5 +406,18 @@ public class ModelUtilsTest {
     EntityUnionAlias entityUnion = ModelUtils.newEntityUnion(EntityUnionAlias.class, entityFoo);
 
     assertEquals(entityUnion.getFoo(), entityFoo);
+  }
+
+  @Test
+  public void testGetAspectClassNames() {
+    List<String> classNames = ModelUtils.getAspectClassNames(EntityUnion.class);
+    assertEquals(classNames.get(0), "com.linkedin.testing.EntityFoo");
+    assertEquals(classNames.get(1), "com.linkedin.testing.EntityBar");
+  }
+
+  @Test
+  public void testGetUnionClassFromSnapshot() {
+    Class<UnionTemplate> unionTemplate = ModelUtils.getUnionClassFromSnapshot(EntitySnapshot.class);
+    assertEquals(unionTemplate.getCanonicalName(), "com.linkedin.testing.EntityAspectUnion");
   }
 }
