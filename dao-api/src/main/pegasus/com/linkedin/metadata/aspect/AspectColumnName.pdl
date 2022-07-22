@@ -1,0 +1,12 @@
+namespace com.linkedin.metadata.aspect
+
+/**
+ * Name of the column storing an aspect.
+ * Used in annotation @gma.aspect.column.name
+ */
+record AspectColumnName {
+  /**
+   * Name of the column as a string.
+   */
+  name: string
+}

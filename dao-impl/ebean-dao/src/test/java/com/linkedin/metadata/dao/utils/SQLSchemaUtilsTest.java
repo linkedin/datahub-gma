@@ -49,4 +49,9 @@ public class SQLSchemaUtilsTest {
       fail("should succeed to trim column name " + longClassName4);
     }
   }
+
+  @Test
+  public void testGetColumnNameFromAnnotation() {
+    assertEquals("a_bar_column", SQLSchemaUtils.getColumnNameFromAnnotation("com.linkedin.testing.AspectBar"));
+  }
 }
