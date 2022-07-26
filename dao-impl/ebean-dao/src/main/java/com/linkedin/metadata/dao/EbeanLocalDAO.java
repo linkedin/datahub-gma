@@ -7,6 +7,7 @@ import com.linkedin.data.schema.DataSchema;
 import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.UnionTemplate;
+import com.linkedin.metadata.dao.builder.LocalRelationshipBuilderRegistry;
 import com.linkedin.metadata.dao.exception.ModelConversionException;
 import com.linkedin.metadata.dao.exception.RetryLimitReached;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
@@ -82,6 +83,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   protected final EbeanServer _server;
   protected final Class<URN> _urnClass;
   private IEBeanLocalAccess<URN> _localAccess;
+  private EbeanLocalRelationshipWriterDAO _ebeanLocalRelationshipWriterDAO;
   private UrnPathExtractor<URN> _urnPathExtractor;
   private int _queryKeysCount = 0; // 0 means no pagination on keys
 
@@ -95,7 +97,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     DUAL_SCHEMA // Write to both the old and new tables and perform a comparison between values when reading
   }
   private SchemaConfig _schemaConfig = SchemaConfig.OLD_SCHEMA_ONLY;
-
+  private LocalRelationshipBuilderRegistry _localRelationshipBuilderRegistry;
   @Value
   static class GMAIndexPair {
     public String valueType;
@@ -122,6 +124,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     _server = server;
     _urnClass = urnClass;
     _urnPathExtractor = new EmptyPathExtractor<>();
+    _ebeanLocalRelationshipWriterDAO = new EbeanLocalRelationshipWriterDAO(server);
   }
 
   @VisibleForTesting
@@ -169,6 +172,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     _server = server;
     _urnClass = urnClass;
     _urnPathExtractor = urnPathExtractor;
+    _ebeanLocalRelationshipWriterDAO = new EbeanLocalRelationshipWriterDAO(server);
   }
 
   @VisibleForTesting
@@ -723,6 +727,13 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       throw new IllegalArgumentException("Query keys count must be non-negative: " + keysCount);
     }
     _queryKeysCount = keysCount;
+  }
+
+  /**
+   * Set a local relationship builder registry.
+   */
+  public void setLocalRelationshipBuilderRegistry(LocalRelationshipBuilderRegistry localRelationshipBuilderRegistry) {
+    _localRelationshipBuilderRegistry = localRelationshipBuilderRegistry;
   }
 
   /**

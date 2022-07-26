@@ -22,6 +22,7 @@ import com.linkedin.metadata.dao.utils.BarUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.BazUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.FooUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.ModelUtils;
+import com.linkedin.metadata.dao.utils.MysqlDevInstance;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.ExtraInfo;
@@ -49,8 +50,6 @@ import io.ebean.EbeanServer;
 import io.ebean.EbeanServerFactory;
 import io.ebean.PagedList;
 import io.ebean.Transaction;
-import io.ebean.config.ServerConfig;
-import io.ebean.datasource.DataSourceConfig;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.util.ArrayList;
@@ -83,24 +82,15 @@ import static org.testng.Assert.*;
 
 
 /**
- * IMPORTANT: set NEW_SCHEMA_DISABLED to true when creating a PR as tests involving the new schema require a local MySQL connection.
- * YOUR TESTS WILL FAIL IF YOU DON'T
- *
- * <p>TODO due to we have MySQL specific 'upsert' statement, therefore the following tests are executed on dev database
- * For local dev testing:
- *
- * 1. Have a local MySQL database running
- * 2. Set DB_USER, DB_PASS, DB_SCHEMA
- * </p>
+ * IMPORTANT: This test is skip by default since it requires a connection to a full-fledged MySQL instance.
+ * If you would like to run these tests, please first establish a connection to mysql instance by running:
+ * ssh -L 23306:makto-db-313.corp.linkedin.com:3306 [your-username]-ld3.linkedin.biz
+ * Then to run the tests via command line: ./gradlew build -Ptest-ebean-dao
  */
 public class EbeanLocalDAOTest {
 
   // ONLY SET THIS TO FALSE IF YOU WANT TO TEST NEW_SCHEMA_ONLY OR DUAL_READ EbeanLocalDAO SchemaConfig values.
   private static final boolean NEW_SCHEMA_DISABLED = true;
-  private static final String DB_USER = "gma";
-  private static final String DB_PASS = "Password_1";
-  private static final String DB_SCHEMA = "gma_dev";
-
   private EbeanServer _server;
   private BaseMetadataEventProducer _mockProducer;
   private AuditStamp _dummyAuditStamp;
@@ -140,29 +130,13 @@ public class EbeanLocalDAOTest {
     if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
       _server = EbeanServerFactory.create(EbeanLocalDAO.createTestingH2ServerConfig());
     } else {
-      _server = EbeanServerFactory.create(createLocalMySQLServerConfig());
+      _server = MysqlDevInstance.getServer();
       _server.execute(_server.createSqlUpdate("truncate metadata_aspect;"));
       _server.execute(_server.createSqlUpdate("truncate metadata_entity_foo;"));
 
     }
     _mockProducer = mock(BaseMetadataEventProducer.class);
     _dummyAuditStamp = makeAuditStamp("foo", 1234);
-  }
-
-  @Nonnull
-  public static ServerConfig createLocalMySQLServerConfig() {
-    DataSourceConfig dataSourceConfig = new DataSourceConfig();
-    dataSourceConfig.setUsername(DB_USER);
-    dataSourceConfig.setPassword(DB_PASS);
-    dataSourceConfig.setUrl(String.format("jdbc:mysql://localhost:3309/%s?allowMultiQueries=true", DB_SCHEMA));
-    dataSourceConfig.setDriver("com.mysql.cj.jdbc.Driver");
-
-    ServerConfig serverConfig = new ServerConfig();
-    serverConfig.setName("gma");
-    serverConfig.setDataSourceConfig(dataSourceConfig);
-    serverConfig.setDdlGenerate(false);
-    serverConfig.setDdlRun(false);
-    return serverConfig;
   }
 
   @Nonnull

@@ -3,6 +3,7 @@ package com.linkedin.metadata.dao;
 import com.google.common.io.Resources;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
+import com.linkedin.metadata.dao.utils.MysqlDevInstance;
 import com.linkedin.metadata.dao.utils.SQLIndexFilterUtils;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.IndexCriterion;
@@ -16,16 +17,12 @@ import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.urn.FooUrn;
 import io.ebean.Ebean;
 import io.ebean.EbeanServer;
-import io.ebean.EbeanServerFactory;
-import io.ebean.config.ServerConfig;
-import io.ebean.datasource.DataSourceConfig;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import javax.annotation.Nonnull;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
@@ -35,40 +32,18 @@ import static org.testng.AssertJUnit.*;
 
 
 /**
- * TODO due to we have MySQL specific 'upsert' statement, therefore the following tests are executed on dev database
- * For local dev testing:
- *
- * <p>1. Have a local MySQL running
- * 2. Set DB_USER, DB_PASS, DB_SCHEMA
+ * IMPORTANT: This test is skip by default since it requires a connection to a full-fledged MySQL instance.
+ * If you would like to run these tests, please first establish a connection to mysql instance by running:
+ * ssh -L 23306:makto-db-313.corp.linkedin.com:3306 [your-username]-ld3.linkedin.biz
+ * Then to run the tests via command line: ./gradlew build -Ptest-ebean-dao
  */
 public class EBeanLocalAccessTest {
-  private static final String DB_USER = "gma";
-  private static final String DB_PASS = "Password_1";
-  private static final String DB_SCHEMA = "gma_dev";
-
   private static EbeanServer _server;
   private static IEBeanLocalAccess _IEBeanLocalAccess;
 
-  @Nonnull
-  public static ServerConfig createLocalMySQLServerConfig() {
-
-    DataSourceConfig dataSourceConfig = new DataSourceConfig();
-    dataSourceConfig.setUsername(DB_USER);
-    dataSourceConfig.setPassword(DB_PASS);
-    dataSourceConfig.setUrl(String.format("jdbc:mysql://localhost:3309/%s?allowMultiQueries=true", DB_SCHEMA));
-    dataSourceConfig.setDriver("com.mysql.cj.jdbc.Driver");
-
-    ServerConfig serverConfig = new ServerConfig();
-    serverConfig.setName("gma");
-    serverConfig.setDataSourceConfig(dataSourceConfig);
-    serverConfig.setDdlGenerate(false);
-    serverConfig.setDdlRun(false);
-    return serverConfig;
-  }
-
   @BeforeClass
   public void init() throws IOException {
-    _server = EbeanServerFactory.create(createLocalMySQLServerConfig());
+    _server = MysqlDevInstance.getServer();
     _server.execute(Ebean.createSqlUpdate(
         Resources.toString(Resources.getResource("metadata-schema-create-all.sql"), StandardCharsets.UTF_8)));
     _IEBeanLocalAccess = new EBeanLocalAccess(_server, FooUrn.class);

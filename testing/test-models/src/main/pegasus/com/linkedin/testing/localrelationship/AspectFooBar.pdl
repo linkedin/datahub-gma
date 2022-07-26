@@ -1,0 +1,7 @@
+namespace com.linkedin.testing.localrelationship
+
+import com.linkedin.testing.BarUrn
+
+record AspectFooBar {
+  bars: array[BarUrn]
+}
