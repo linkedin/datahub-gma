@@ -6,6 +6,7 @@ import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder;
 import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
 import com.linkedin.metadata.dao.utils.GraphUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
+import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
 import com.linkedin.metadata.dao.utils.SQLStatementUtils;
 import com.linkedin.metadata.validator.RelationshipValidator;
 import io.ebean.EbeanServer;
@@ -22,8 +23,6 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import static com.linkedin.metadata.dao.utils.ModelUtils.*;
 
 public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
-
-  private static final String RELATIONSHIP_TABLE_PREFIX = "metadata_relationship_";
   private static final String DEFAULT_ACTOR = "urn:li:principal:UNKNOWN";
   private final EbeanServer _server;
 
@@ -97,7 +96,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
     RelationshipValidator.validateRelationshipSchema(firstRelationship.getClass());
 
     // Process remove option to delete some local relationships if nedded before adding new relationships.
-    processRemovalOption(deriveTableName(firstRelationship), firstRelationship, removalOption);
+    processRemovalOption(SQLSchemaUtils.getRelationshipTableName(firstRelationship), firstRelationship, removalOption);
 
     long now = Instant.now().toEpochMilli();
 
@@ -105,7 +104,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
       Urn source = getSourceUrnFromRelationship(relationship);
       Urn destination = getDestinationUrnFromRelationship(relationship);
 
-      _server.createSqlUpdate(SQLStatementUtils.insertLocalRelationshipSQL(deriveTableName(relationship)))
+      _server.createSqlUpdate(SQLStatementUtils.insertLocalRelationshipSQL(SQLSchemaUtils.getRelationshipTableName(relationship)))
           .setParameter(CommonColumnName.METADATA, RecordUtils.toJsonString(relationship))
           .setParameter(CommonColumnName.SOURCE_TYPE, source.getEntityType())
           .setParameter(CommonColumnName.DESTINATION_TYPE, destination.getEntityType())
@@ -134,15 +133,5 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
     }
 
     deletionSQL.execute();
-  }
-
-  /**
-   * Derive the local relation table name from RELATION record.
-   * @param relation The RELATION record.
-   * @return Local relation table name as a string.
-   */
-  @Nonnull
-  private <RELATION extends RecordTemplate> String deriveTableName(@Nonnull final RELATION relation) {
-    return RELATIONSHIP_TABLE_PREFIX + relation.getClass().getSimpleName().toLowerCase();
   }
 }
