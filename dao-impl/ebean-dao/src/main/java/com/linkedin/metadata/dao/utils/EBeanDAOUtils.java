@@ -9,7 +9,6 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.List;
-import java.util.Objects;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import lombok.extern.slf4j.Slf4j;
@@ -83,14 +82,21 @@ public class EBeanDAOUtils {
    * @return Boolean indicating equivalence
    */
   public static <T> boolean compareResults(List<T> resultOld, List<T> resultNew, String methodName) {
-    // TODO: This needs testing
-    // TODO: Need to compare each item in the list
-    // https://commons.apache.org/proper/commons-collections/javadocs/api-4.4/org/apache/commons/collections4/CollectionUtils.html#isEqualCollection-java.util.Collection-java.util.Collection-org.apache.commons.collections4.Equator-
-    if (!Objects.equals(resultOld, resultNew)) {
+    if (resultOld == null && resultNew == null) {
+      return true;
+    }
+    if (resultOld == null || resultNew == null) {
       log.error(String.format(DIFFERENT_RESULTS_TEMPLATE, methodName));
       return false;
     }
-    return true;
+    if (resultOld.size() != resultNew.size()) {
+      return false;
+    }
+    if (resultOld.containsAll(resultNew) && resultNew.containsAll(resultOld)) {
+      return true;
+    }
+    log.error(String.format(DIFFERENT_RESULTS_TEMPLATE, methodName));
+    return false;
   }
 
   /**
@@ -105,10 +111,12 @@ public class EBeanDAOUtils {
       String methodName) {
     if (resultOld == null && resultNew == null) {
       return true;
-    } else if (resultOld == null || resultNew == null) {
+    }
+    if (resultOld == null || resultNew == null) {
       log.error(String.format(DIFFERENT_RESULTS_TEMPLATE, methodName));
       return false;
-    } else if (Objects.equals(resultOld.getValues(), resultNew.getValues())) {
+    }
+    if (resultOld.equals(resultNew)) {
       return true;
     }
     log.error(String.format(DIFFERENT_RESULTS_TEMPLATE, methodName));
