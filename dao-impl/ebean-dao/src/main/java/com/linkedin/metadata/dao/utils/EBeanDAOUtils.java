@@ -92,6 +92,7 @@ public class EBeanDAOUtils {
     if (resultOld.size() != resultNew.size()) {
       return false;
     }
+    // TODO: need to add .equals to all T values possible.
     if (resultOld.containsAll(resultNew) && resultNew.containsAll(resultOld)) {
       return true;
     }

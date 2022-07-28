@@ -55,6 +55,7 @@ public class ListResult<T> {
     }
 
     // TODO: this comparison has worst case O(n^2) runtime. find a more efficient way.
+    // TODO: need to add .equals method for all T values possible.
     return this.values.containsAll(other.values)
         && other.values.containsAll(this.values)
         && this.nextStart == other.nextStart
