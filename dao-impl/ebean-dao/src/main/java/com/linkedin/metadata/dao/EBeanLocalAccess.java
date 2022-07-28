@@ -53,7 +53,7 @@ public class EBeanLocalAccess<URN extends Urn> implements IEBeanLocalAccess<URN>
   }
 
   @Override
-  public <ASPECT extends RecordTemplate> int add(@Nonnull URN urn, @Nonnull ASPECT newValue,
+  public <ASPECT extends RecordTemplate> int add(@Nonnull URN urn, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull AuditStamp auditStamp) {
 
     long timestamp = auditStamp.hasTime() ? auditStamp.getTime() : System.currentTimeMillis();
@@ -87,23 +87,38 @@ public class EBeanLocalAccess<URN extends Urn> implements IEBeanLocalAccess<URN>
   @Override
   public <ASPECT extends RecordTemplate> List<EbeanMetadataAspect> batchGetUnion(
       @Nonnull List<AspectKey<URN, ? extends RecordTemplate>> aspectKeys, int keysCount, int position) {
-    {
-      final StringBuilder sqlBuilder = new StringBuilder();
-      final int end = Math.min(aspectKeys.size(), position + keysCount);
-      for (int index = position; index < end; index++) {
-        final Urn entityUrn = aspectKeys.get(index).getUrn();
-        final Class<? extends RecordTemplate> aspectClass = aspectKeys.get(index).getAspectClass();
-        final String columnName = SQLSchemaUtils.getColumnName(aspectClass);
-        COLUMN_ASPECT_MAP.putIfAbsent(columnName, aspectClass.getCanonicalName());
-        sqlBuilder.append(SQLStatementUtils.createAspectReadSql(entityUrn, aspectClass));
-        if (index != end - 1) {
-          sqlBuilder.append(" UNION ALL ");
-        }
+    /*
+    TODO: change statement building logic in the case of getting multiple aspects with multiple urns.
+    current:
+      select aspect1 from table where urn=urn1
+      union
+      select aspect2 from table where urn=urn1
+      union
+      select aspect1 from table where urn=urn2
+      union
+      select aspect2 from table where urn=urn2
+    should be:
+      select aspect1, aspect2 from table where urn=urn1
+      union
+      select aspect1, aspect2 from table where urn=urn2
+     */
+    final StringBuilder sqlBuilder = new StringBuilder();
+    final int end = Math.min(aspectKeys.size(), position + keysCount);
+    for (int index = position; index < end; index++) {
+      final Urn entityUrn = aspectKeys.get(index).getUrn();
+      final Class<? extends RecordTemplate> aspectClass = aspectKeys.get(index).getAspectClass();
+      final String columnName = SQLSchemaUtils.getColumnName(aspectClass);
+      COLUMN_ASPECT_MAP.putIfAbsent(columnName, aspectClass.getCanonicalName());
+      sqlBuilder.append(SQLStatementUtils.createAspectReadSql(entityUrn, aspectClass));
+      if (index != end - 1) {
+        sqlBuilder.append(" UNION ALL ");
+      } else {
+        sqlBuilder.append(";");
       }
-      SqlQuery sqlQuery = _server.createSqlQuery(sqlBuilder.toString());
-      List<SqlRow> sqlRows = sqlQuery.findList();
-      return readSqlRows(sqlRows);
     }
+    SqlQuery sqlQuery = _server.createSqlQuery(sqlBuilder.toString());
+    List<SqlRow> sqlRows = sqlQuery.findList();
+    return readSqlRows(sqlRows);
   }
 
   @Override

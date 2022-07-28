@@ -53,7 +53,7 @@ public class SQLIndexFilterUtils {
     } else if (indexValue.isLong()) {
       return String.valueOf(indexValue.getLong());
     } else if (indexValue.isString()) {
-      return "'" + StringEscapeUtils.escapeSql(indexValue.getString()) + "'";
+      return StringEscapeUtils.escapeSql(indexValue.getString());
     } else if (indexValue.isNull()) {
       return "NULL";
     } else {
@@ -114,14 +114,15 @@ public class SQLIndexFilterUtils {
    */
   private static String parseConditionExpr(Condition condition, IndexValue indexValue) {
     switch (condition) {
+      case IN:
       case CONTAIN:
         return " IN " + parseIndexValue(indexValue);
       case EQUAL:
         return " = " + parseIndexValue(indexValue);
       case START_WITH:
-        return " LIKE " + parseIndexValue(indexValue) + "%";
+        return " LIKE '" + parseIndexValue(indexValue) + "%'";
       case END_WITH:
-        return " LIKE %" + parseIndexValue(indexValue);
+        return " LIKE '%" + parseIndexValue(indexValue) + "'";
       case GREATER_THAN_OR_EQUAL_TO:
         return " >= " + parseIndexValue(indexValue);
       case GREATER_THAN:

@@ -55,7 +55,7 @@ public class EBeanLocalAccessTest {
       AspectFoo aspectFoo = new AspectFoo();
       aspectFoo.setValue(String.valueOf(i));
       AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
-      _IEBeanLocalAccess.add(fooUrn, aspectFoo, auditStamp);
+      _IEBeanLocalAccess.add(fooUrn, aspectFoo, AspectFoo.class, auditStamp);
     }
   }
 
@@ -229,7 +229,7 @@ public class EBeanLocalAccessTest {
     AspectFoo aspectFoo = new AspectFoo();
     aspectFoo.setValue(String.valueOf(25));
     AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
-    _IEBeanLocalAccess.add(fooUrn, aspectFoo, auditStamp);
+    _IEBeanLocalAccess.add(fooUrn, aspectFoo, AspectFoo.class, auditStamp);
     countMap = _IEBeanLocalAccess.countAggregate(indexFilter, indexGroupByCriterion);
 
     // Expect: there are 2 counts for value 25

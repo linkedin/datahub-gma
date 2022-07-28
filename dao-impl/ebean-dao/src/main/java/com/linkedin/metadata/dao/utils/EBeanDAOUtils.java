@@ -86,7 +86,7 @@ public class EBeanDAOUtils {
     // TODO: Need to compare each item in the list
     // https://commons.apache.org/proper/commons-collections/javadocs/api-4.4/org/apache/commons/collections4/CollectionUtils.html#isEqualCollection-java.util.Collection-java.util.Collection-org.apache.commons.collections4.Equator-
     if (!Objects.equals(resultOld, resultNew)) {
-      log.error(String.format(DIFFERENT_RESULTS_TEMPLATE), methodName);
+      log.error(String.format(DIFFERENT_RESULTS_TEMPLATE, methodName));
       return false;
     }
     return true;
@@ -102,7 +102,7 @@ public class EBeanDAOUtils {
    */
   public static <T> boolean compareResults(ListResult<T> resultOld, ListResult<T> resultNew, String methodName) {
     if (!Objects.equals(resultOld.getValues(), resultNew.getValues())) {
-      log.error(String.format(DIFFERENT_RESULTS_TEMPLATE), methodName);
+      log.error(String.format(DIFFERENT_RESULTS_TEMPLATE, methodName));
       return false;
     }
     return true;

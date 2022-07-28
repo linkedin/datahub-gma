@@ -25,7 +25,7 @@ public interface IEBeanLocalAccess<URN extends Urn> {
    * @return number of rows inserted or updated
    */
   @Nonnull
-  <ASPECT extends RecordTemplate> int add(@Nonnull URN urn, @Nonnull ASPECT newValue,
+  public <ASPECT extends RecordTemplate> int add(@Nonnull URN urn, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull AuditStamp auditStamp);
 
 

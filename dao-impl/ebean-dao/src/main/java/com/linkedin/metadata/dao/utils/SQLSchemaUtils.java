@@ -33,16 +33,6 @@ public class SQLSchemaUtils {
   }
 
   /**
-   * Get a column name from aspect object follow MySQL column naming convention.
-   * @param aspect aspect value
-   * @param <ASPECT> aspect that extends {@link RecordTemplate}
-   * @return converted column name follow MySQL naming convention.
-   */
-  public static <ASPECT extends RecordTemplate> String getColumnName(@Nonnull ASPECT aspect) {
-    return getColumnName(aspect.getClass());
-  }
-
-  /**
    * Get MySQL table name from entity urn, e.g. urn:li:dataset to metadata_entity_dataset.
    * @param urn {@link Urn} of the entity
    * @return entity table name

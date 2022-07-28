@@ -463,7 +463,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY || _schemaConfig == SchemaConfig.DUAL_SCHEMA) {
         // ensure atomicity by running old schema update + new schema update in a transaction
         runInTransactionWithRetry(() -> {
-          _localAccess.add(urn, value, newAuditStamp);
+          _localAccess.add(urn, (ASPECT) value, aspectClass, newAuditStamp);
           _server.insert(aspect);
           return 0; // unused
         }, 1);
@@ -498,7 +498,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY || _schemaConfig == SchemaConfig.DUAL_SCHEMA) {
       // ensure atomicity by running old schema update + new schema update in a transaction
       numOfUpdatedRows = runInTransactionWithRetry(() -> {
-        _localAccess.add(urn, value, newAuditStamp);
+        _localAccess.add(urn, (ASPECT) value, aspectClass, newAuditStamp);
         return _server.execute(update);
       }, 1);
     } else {
@@ -522,7 +522,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       if (version == LATEST_VERSION) {
         // save() could be called when updating log table (moving current versions into new history version)
         // the metadata entity tables shouldn't been updated.
-        _localAccess.add(urn, value, auditStamp);
+        _localAccess.add(urn, (ASPECT) value, aspectClass, auditStamp);
       }
     }
 
