@@ -11,6 +11,7 @@ import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Objects;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import lombok.extern.slf4j.Slf4j;
 
 
@@ -100,12 +101,18 @@ public class EBeanDAOUtils {
    * @param methodName Name of method that called this function, for logging purposes
    * @return Boolean indicating equivalence
    */
-  public static <T> boolean compareResults(ListResult<T> resultOld, ListResult<T> resultNew, String methodName) {
-    if (!Objects.equals(resultOld.getValues(), resultNew.getValues())) {
+  public static <T> boolean compareResults(@Nullable ListResult<T> resultOld, @Nullable ListResult<T> resultNew,
+      String methodName) {
+    if (resultOld == null && resultNew == null) {
+      return true;
+    } else if (resultOld == null || resultNew == null) {
       log.error(String.format(DIFFERENT_RESULTS_TEMPLATE, methodName));
       return false;
+    } else if (Objects.equals(resultOld.getValues(), resultNew.getValues())) {
+      return true;
     }
-    return true;
+    log.error(String.format(DIFFERENT_RESULTS_TEMPLATE, methodName));
+    return false;
   }
 
   /**

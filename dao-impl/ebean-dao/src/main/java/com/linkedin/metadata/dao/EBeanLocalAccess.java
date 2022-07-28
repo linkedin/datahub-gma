@@ -65,7 +65,7 @@ public class EBeanLocalAccess<URN extends Urn> implements IEBeanLocalAccess<URN>
         .setLastmodifiedby(actor)
         .setLastmodifiedon(localDateTime.toString());
 
-    final SqlUpdate sqlUpdate = _server.createSqlUpdate(SQLStatementUtils.createAspectUpsertSql(urn, newValue))
+    final SqlUpdate sqlUpdate = _server.createSqlUpdate(SQLStatementUtils.createAspectUpsertSql(urn, aspectClass))
         .setParameter("urn", urn.toString())
         .setParameter("lastmodifiedon", localDateTime.toString())
         .setParameter("lastmodifiedby", actor)
