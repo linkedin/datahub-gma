@@ -3,12 +3,19 @@ package com.linkedin.metadata.dao.utils;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
+import com.linkedin.metadata.query.Condition;
+import com.linkedin.metadata.query.Filter;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
+import org.javatuples.Pair;
 
 import static com.linkedin.metadata.dao.utils.SQLSchemaUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLIndexFilterUtils.*;
@@ -55,7 +62,7 @@ public class SQLStatementUtils {
       "SELECT urn, %s, lastmodifiedon, lastmodifiedby, (SELECT COUNT(urn) FROM %s) as _total_count FROM %s";
 
   private SQLStatementUtils() {
-
+    // Util class
   }
 
   /**
@@ -172,5 +179,81 @@ public class SQLStatementUtils {
     }
 
     throw new IllegalArgumentException(String.format("Removal option %s is not valid.", removalOption));
+  }
+
+  /**
+   * Construct where clause SQL from mulitple filters. Return null if all filters are empty.
+   * @param supportedCondition contains supported conditions such as EQUAL.
+   * @param filters contains field, condition and value
+   * @return sql that can be appended after where clause.
+   */
+  @Nullable
+  public static String whereClause(@Nonnull Map<Condition, String> supportedCondition, @Nonnull Pair<Filter, String>... filters) {
+    List<String> andClauses = new ArrayList<>();
+    for (Pair<Filter, String> filter : filters) {
+      if (filter.getValue0().hasCriteria() && filter.getValue0().getCriteria().size() > 0) {
+        andClauses.add("(" + whereClause(filter.getValue0(), supportedCondition, filter.getValue1()) + ")");
+      }
+    }
+
+    if (andClauses.isEmpty()) {
+      return null;
+    } else if (andClauses.size() == 1) {
+      return andClauses.get(0).substring(1, andClauses.get(0).length() - 1);
+    } else {
+      return String.join(" AND ", andClauses);
+    }
+  }
+
+  /**
+   * Construct where clause SQL from a filter. Throw IllegalArgumentException if filter is empty.
+   * @param filter contains field, condition and value
+   * @param supportedCondition contains supported conditions such as EQUAL.
+   * @param tablePrefix Table prefix append to the field name. Useful during SQL joining across multiple tables.
+   * @return sql that can be appended after where clause.
+   */
+  @Nonnull
+  public static String whereClause(@Nonnull Filter filter, @Nonnull Map<Condition, String> supportedCondition, @Nullable String tablePrefix) {
+    if (!filter.hasCriteria() || filter.getCriteria().size() == 0) {
+      throw new IllegalArgumentException("Empty filter cannot construct where clause.");
+    }
+
+    if (tablePrefix != null) {
+      filter.getCriteria().forEach(criterion -> {
+        criterion.setField(tablePrefix + "." + criterion.getField());
+      });
+    }
+
+    // Group the conditions by field.
+    Map<String, List<Pair<Condition, String>>> groupByField = new HashMap<>();
+    filter.getCriteria().forEach(criterion -> {
+      List<Pair<Condition, String>> group = groupByField.getOrDefault(criterion.getField(), new ArrayList<>());
+      group.add(new Pair<>(criterion.getCondition(), criterion.getValue()));
+      groupByField.put(criterion.getField(), group);
+    });
+
+    List<String> andClauses = new ArrayList<>();
+    for (Map.Entry<String, List<Pair<Condition, String>>> entry : groupByField.entrySet()) {
+      List<String> orClauses = new ArrayList<>();
+      for (Pair<Condition, String> pair : entry.getValue()) {
+        orClauses.add(entry.getKey() + supportedCondition.get(pair.getValue0()) + pair.getValue1());
+      }
+
+      if (orClauses.size() == 1) {
+        andClauses.add(orClauses.get(0));
+      } else {
+        andClauses.add("(" + String.join(" OR ", orClauses) + ")");
+      }
+    }
+
+    if (andClauses.size() == 1) {
+      String andClause = andClauses.get(0);
+      if (andClauses.get(0).startsWith("(")) {
+        return andClause.substring(1, andClause.length() - 1);
+      }
+      return andClause;
+    }
+
+    return String.join(" AND ", andClauses);
   }
 }

@@ -6,13 +6,11 @@ import com.linkedin.data.template.DataTemplateUtil;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.aspect.AspectColumnMetadata;
 import com.linkedin.metadata.dao.exception.MissingAnnotationException;
-import com.linkedin.metadata.dao.exception.ModelConversionException;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.Nonnull;
 
 
@@ -20,10 +18,11 @@ import javax.annotation.Nonnull;
  * Generate schema related SQL script, such as normalized table / column names ..etc
  */
 public class SQLSchemaUtils {
-  private static final Map<String, Class> CACHED_CLASSES = new ConcurrentHashMap<>();
+
   private static final String LI_DOMAIN = "com.linkedin.";
   private static final String GMA = "gma";
   public static final String ENTITY_TABLE_PREFIX = "metadata_entity_";
+  public static final String RELATIONSHIP_TABLE_PREFIX = "metadata_relationship_";
   public static final String ASPECT_PREFIX = "a_";
   public static final String INDEX_PREFIX = "i_";
 
@@ -48,6 +47,26 @@ public class SQLSchemaUtils {
    */
   public static String getTableName(@Nonnull String entityType) {
     return ENTITY_TABLE_PREFIX + entityType.toLowerCase();
+  }
+
+  /**
+   * Derive the local relationship table name from RELATIONSHIP record.
+   * @param relationship The RELATIONSHIP record.
+   * @return Local relationship table name as a string.
+   */
+  @Nonnull
+  public static <RELATIONSHIP extends RecordTemplate> String getRelationshipTableName(@Nonnull final RELATIONSHIP relationship) {
+    return RELATIONSHIP_TABLE_PREFIX + relationship.getClass().getSimpleName().toLowerCase();
+  }
+
+  /**
+   * Derive the local relationship table name from RELATIONSHIP record class.
+   * @param relationship The RELATIONSHIP record.
+   * @return Local relationship table name as a string.
+   */
+  @Nonnull
+  public static <RELATIONSHIP extends RecordTemplate> String getRelationshipTableName(@Nonnull final Class<RELATIONSHIP> relationship) {
+    return RELATIONSHIP_TABLE_PREFIX + relationship.getSimpleName().toLowerCase();
   }
 
   /**
@@ -90,17 +109,8 @@ public class SQLSchemaUtils {
    */
   @Nonnull
   public static String getColumnNameFromAnnotation(@Nonnull final String aspectCanonicalName) {
-
-    Class aspectClass = CACHED_CLASSES.computeIfAbsent(aspectCanonicalName, className -> {
-      try {
-        return Class.forName(aspectCanonicalName);
-      } catch (ClassNotFoundException e) {
-        throw new ModelConversionException("Unable to find class " + aspectCanonicalName);
-      }
-    });
-
     try {
-      final RecordDataSchema schema = (RecordDataSchema) DataTemplateUtil.getSchema(aspectClass);
+      final RecordDataSchema schema = (RecordDataSchema) DataTemplateUtil.getSchema(ClassUtils.loadClass(aspectCanonicalName));
       final Map<String, Object> properties = schema.getProperties();
       final Object gmaObj = properties.get(GMA);
       final AspectColumnMetadata gmaAnnotation = DataTemplateUtil.wrap(gmaObj, AspectColumnMetadata.class);
