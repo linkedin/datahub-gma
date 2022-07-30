@@ -9,8 +9,8 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.List;
-import java.util.Objects;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import lombok.extern.slf4j.Slf4j;
 
 
@@ -82,14 +82,22 @@ public class EBeanDAOUtils {
    * @return Boolean indicating equivalence
    */
   public static <T> boolean compareResults(List<T> resultOld, List<T> resultNew, String methodName) {
-    // TODO: This needs testing
-    // TODO: Need to compare each item in the list
-    // https://commons.apache.org/proper/commons-collections/javadocs/api-4.4/org/apache/commons/collections4/CollectionUtils.html#isEqualCollection-java.util.Collection-java.util.Collection-org.apache.commons.collections4.Equator-
-    if (!Objects.equals(resultOld, resultNew)) {
-      log.error(String.format(DIFFERENT_RESULTS_TEMPLATE), methodName);
+    if (resultOld == null && resultNew == null) {
+      return true;
+    }
+    if (resultOld == null || resultNew == null) {
+      log.error(String.format(DIFFERENT_RESULTS_TEMPLATE, methodName));
       return false;
     }
-    return true;
+    if (resultOld.size() != resultNew.size()) {
+      return false;
+    }
+    // TODO: need to add .equals to all T values possible.
+    if (resultOld.containsAll(resultNew) && resultNew.containsAll(resultOld)) {
+      return true;
+    }
+    log.error(String.format(DIFFERENT_RESULTS_TEMPLATE, methodName));
+    return false;
   }
 
   /**
@@ -100,12 +108,20 @@ public class EBeanDAOUtils {
    * @param methodName Name of method that called this function, for logging purposes
    * @return Boolean indicating equivalence
    */
-  public static <T> boolean compareResults(ListResult<T> resultOld, ListResult<T> resultNew, String methodName) {
-    if (!Objects.equals(resultOld.getValues(), resultNew.getValues())) {
-      log.error(String.format(DIFFERENT_RESULTS_TEMPLATE), methodName);
+  public static <T> boolean compareResults(@Nullable ListResult<T> resultOld, @Nullable ListResult<T> resultNew,
+      String methodName) {
+    if (resultOld == null && resultNew == null) {
+      return true;
+    }
+    if (resultOld == null || resultNew == null) {
+      log.error(String.format(DIFFERENT_RESULTS_TEMPLATE, methodName));
       return false;
     }
-    return true;
+    if (resultOld.equals(resultNew)) {
+      return true;
+    }
+    log.error(String.format(DIFFERENT_RESULTS_TEMPLATE, methodName));
+    return false;
   }
 
   /**

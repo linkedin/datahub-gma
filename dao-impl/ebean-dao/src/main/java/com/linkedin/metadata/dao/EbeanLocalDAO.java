@@ -463,7 +463,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY || _schemaConfig == SchemaConfig.DUAL_SCHEMA) {
         // ensure atomicity by running old schema update + new schema update in a transaction
         runInTransactionWithRetry(() -> {
-          _localAccess.add(urn, value, newAuditStamp);
+          _localAccess.add(urn, (ASPECT) value, aspectClass, newAuditStamp);
           _server.insert(aspect);
           return 0; // unused
         }, 1);
@@ -498,7 +498,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY || _schemaConfig == SchemaConfig.DUAL_SCHEMA) {
       // ensure atomicity by running old schema update + new schema update in a transaction
       numOfUpdatedRows = runInTransactionWithRetry(() -> {
-        _localAccess.add(urn, value, newAuditStamp);
+        _localAccess.add(urn, (ASPECT) value, aspectClass, newAuditStamp);
         return _server.execute(update);
       }, 1);
     } else {
@@ -522,7 +522,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       if (version == LATEST_VERSION) {
         // save() could be called when updating log table (moving current versions into new history version)
         // the metadata entity tables shouldn't been updated.
-        _localAccess.add(urn, value, auditStamp);
+        _localAccess.add(urn, (ASPECT) value, aspectClass, auditStamp);
       }
     }
 
@@ -1352,6 +1352,11 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     final IndexCriterionArray indexCriterionArray = indexFilter.getCriteria();
     checkValidIndexCriterionArray(indexCriterionArray);
 
+    List<URN> urnsNew = null;
+    if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
+      urnsNew = _localAccess.listUrns(indexFilter, indexSortCriterion, lastUrn, pageSize);
+    }
+
     addEntityTypeFilter(indexFilter);
 
     final Query<EbeanMetadataIndex> query =
@@ -1363,7 +1368,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     final List<EbeanMetadataIndex> pagedList = query.findList();
     final List<URN> urnsOld = pagedList.stream().map(entry -> getUrn(entry.getUrn())).collect(Collectors.toList());
     if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
-      final List<URN> urnsNew = _localAccess.listUrns(indexFilter, indexSortCriterion, lastUrn, pageSize);
       EBeanDAOUtils.compareResults(urnsOld, urnsNew, "listUrns");
     }
     return urnsOld;
@@ -1391,6 +1395,11 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     final IndexCriterionArray indexCriterionArray = indexFilter.getCriteria();
     checkValidIndexCriterionArray(indexCriterionArray);
 
+    ListResult<URN> urnsNew = null;
+    if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
+      urnsNew = _localAccess.listUrns(indexFilter, indexSortCriterion, start, pageSize);
+    }
+
     addEntityTypeFilter(indexFilter);
 
     final Query<EbeanMetadataIndex> query =
@@ -1407,7 +1416,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
     final ListResult<URN> urnsOld = toListResult(urns, null, pagedList, start);
     if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
-      final ListResult<URN> urnsNew = _localAccess.listUrns(indexFilter, indexSortCriterion, start, pageSize);
       EBeanDAOUtils.compareResults(urnsOld, urnsNew, "listUrns");
     }
     return urnsOld;
@@ -1496,6 +1504,11 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     final IndexCriterionArray indexCriterionArray = indexFilter.getCriteria();
     checkValidIndexCriterionArray(indexCriterionArray);
 
+    Map<String, Long> resultNew = null;
+    if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
+      resultNew = _localAccess.countAggregate(indexFilter, indexGroupByCriterion);
+    }
+
     addEntityTypeFilter(indexFilter);
 
     final Query<EbeanMetadataIndex> query = _server.findNative(EbeanMetadataIndex.class,
@@ -1517,7 +1530,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }).collect(Collectors.toList());
     if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
       // TODO: print info log with performance (response time) and values
-      Map<String, Long> resultNew = _localAccess.countAggregate(indexFilter, indexGroupByCriterion);
       if (!resultOld.equals(resultNew)) {
         log.error(String.format(EBeanDAOUtils.DIFFERENT_RESULTS_TEMPLATE, "countAggregate"));
       }

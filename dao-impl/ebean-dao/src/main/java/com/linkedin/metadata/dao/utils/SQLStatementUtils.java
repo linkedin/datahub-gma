@@ -31,7 +31,7 @@ public class SQLStatementUtils {
           + "ON DUPLICATE KEY UPDATE %s = :metadata;";
 
   private static final String SQL_READ_ASPECT_TEMPLATE =
-      "SELECT urn, %s, lastmodifiedon, lastmodifiedby FROM %s WHERE urn = '%s';";
+      "SELECT urn, %s, lastmodifiedon, lastmodifiedby FROM %s WHERE urn = '%s'";
 
   private static final String SQL_URN_EXIST_TEMPLATE = "SELECT urn FROM %s WHERE urn = '%s'";
 
@@ -92,14 +92,14 @@ public class SQLStatementUtils {
   /**
    * Create Upsert SQL statement.
    * @param urn  entity urn
-   * @param newValue aspect value
    * @param <ASPECT> aspect type
+   * @param aspectClass aspect class
    * @return aspect upsert sql
    */
   public static <ASPECT extends RecordTemplate> String createAspectUpsertSql(@Nonnull Urn urn,
-      @Nonnull ASPECT newValue) {
+      @Nonnull Class<ASPECT> aspectClass) {
     final String tableName = getTableName(urn);
-    final String columnName = getColumnName(newValue);
+    final String columnName = getColumnName(aspectClass);
     return String.format(SQL_UPSERT_ASPECT_TEMPLATE, tableName, columnName, columnName);
   }
 

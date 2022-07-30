@@ -37,4 +37,36 @@ public class ListResult<T> {
 
   // Size of each page
   int pageSize;
+
+  @Override
+  public boolean equals(Object o) {
+    if (o == this) {
+      return true;
+    }
+
+    if (!(o instanceof ListResult)) {
+      return false;
+    }
+
+    ListResult<T> other = (ListResult<T>) o;
+
+    if (this.values.size() != other.values.size()) {
+      return false;
+    }
+
+    // TODO: this comparison has worst case O(n^2) runtime. find a more efficient way.
+    // TODO: need to add .equals method for all T values possible.
+    return this.values.containsAll(other.values)
+        && other.values.containsAll(this.values)
+        && this.nextStart == other.nextStart
+        && this.havingMore == other.havingMore
+        && this.totalCount == other.totalCount
+        && this.totalPageCount == other.totalPageCount
+        && this.pageSize == other.pageSize;
+  }
+
+  @Override
+  public int hashCode() {
+    return super.hashCode();
+  }
 }

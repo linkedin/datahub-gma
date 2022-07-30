@@ -12,7 +12,7 @@ public class SQLSchemaUtilsTest {
   @Test
   public void testFormatAspectName() {
     AspectFoo aspectFoo = new AspectFoo();
-    String formattedAspectName = getColumnName(aspectFoo);
+    String formattedAspectName = getColumnName(AspectFoo.class);
     assertEquals(formattedAspectName, "a_testing_aspectfoo");
   }
 

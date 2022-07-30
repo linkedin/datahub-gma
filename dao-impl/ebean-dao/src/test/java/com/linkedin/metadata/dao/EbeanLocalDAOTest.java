@@ -3,6 +3,7 @@ package com.linkedin.metadata.dao;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.io.Resources;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.common.urn.Urns;
@@ -46,10 +47,13 @@ import com.linkedin.testing.MixedRecord;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.BazUrn;
 import com.linkedin.testing.urn.FooUrn;
+import io.ebean.Ebean;
 import io.ebean.EbeanServer;
 import io.ebean.EbeanServerFactory;
 import io.ebean.PagedList;
 import io.ebean.Transaction;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.util.ArrayList;
@@ -69,6 +73,7 @@ import javax.annotation.Nullable;
 import javax.persistence.OptimisticLockException;
 import javax.persistence.RollbackException;
 import org.mockito.InOrder;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Factory;
@@ -101,11 +106,24 @@ public class EbeanLocalDAOTest {
   // run the tests 1 time for each of EbeanLocalDAO.SchemaConfig values (3 total)
   private SchemaConfig _schemaConfig;
 
+  private static final String NEW_SCHEMA_CREATE_ALL_SQL = "metadata-schema-create-all.sql";
+  private static final String GMA_CREATE_ALL_SQL = "gma-create-all.sql";
+  private static final String GMA_DROP_ALL_SQL = "gma-drop-all.sql";
+
   @Factory(dataProvider = "inputList")
   public EbeanLocalDAOTest(boolean useUnionForBatch, boolean useOptimisticLocking, SchemaConfig schemaConfig) {
     _useUnionForBatch = useUnionForBatch;
     _useOptimisticLocking = useOptimisticLocking;
     _schemaConfig = schemaConfig;
+  }
+
+  @Nonnull
+  private String readSQLfromFile(@Nonnull String resourcePath) {
+    try {
+      return Resources.toString(Resources.getResource(resourcePath), StandardCharsets.UTF_8);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @DataProvider
@@ -128,15 +146,22 @@ public class EbeanLocalDAOTest {
   @BeforeMethod
   public void setupTest() {
     if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
-      _server = EbeanServerFactory.create(EbeanLocalDAO.createTestingH2ServerConfig());
+      _server.execute(Ebean.createSqlUpdate(readSQLfromFile(GMA_DROP_ALL_SQL)));
+      _server.execute(Ebean.createSqlUpdate(readSQLfromFile(GMA_CREATE_ALL_SQL)));
     } else {
-      _server = MysqlDevInstance.getServer();
-      _server.execute(_server.createSqlUpdate("truncate metadata_aspect;"));
-      _server.execute(_server.createSqlUpdate("truncate metadata_entity_foo;"));
-
+      _server.execute(Ebean.createSqlUpdate(readSQLfromFile(NEW_SCHEMA_CREATE_ALL_SQL)));
     }
     _mockProducer = mock(BaseMetadataEventProducer.class);
     _dummyAuditStamp = makeAuditStamp("foo", 1234);
+  }
+
+  @BeforeClass
+  public void setupServer() {
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      _server = EbeanServerFactory.create(EbeanLocalDAO.createTestingH2ServerConfig());
+    } else {
+      _server = MysqlDevInstance.getServer();
+    }
   }
 
   @Nonnull
@@ -405,6 +430,7 @@ public class EbeanLocalDAOTest {
 
   @Test
   public void testGetCapsSensitivity() {
+    // This test will fail because Urn does not have an ENTITY_TYPE field which is required for EbeanDAOUtils::getEntityType
     final EbeanLocalDAO<EntityAspectUnion, Urn> dao = createDao(Urn.class);
     final Urn urnCaps = makeUrn("Dataset");
     final Urn urnLower = makeUrn("dataset");
@@ -427,6 +453,11 @@ public class EbeanLocalDAOTest {
 
   @Test
   public void testGetLatestVersion() {
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+      // the new schema will always return the latest version (if it exists) since it stores only the latest version.
+      // this test is mainly for the change log (i.e. old schema) which keeps track of all versions.
+      return;
+    }
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     FooUrn urn = makeFooUrn(1);
     AspectFoo v0 = new AspectFoo().setValue("foo");
@@ -442,6 +473,11 @@ public class EbeanLocalDAOTest {
 
   @Test
   public void testGetSpecificVersion() {
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+      // the new schema will always return the latest version (if it exists) since it stores only the latest version.
+      // this test is mainly for the change log (i.e. old schema) which keeps track of all versions.
+      return;
+    }
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     FooUrn urn = makeFooUrn(1);
     AspectFoo v0 = new AspectFoo().setValue("foo");
@@ -460,11 +496,14 @@ public class EbeanLocalDAOTest {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     FooUrn urn = makeFooUrn(1);
     AspectFoo fooV0 = new AspectFoo().setValue("foo");
-    addMetadata(urn, AspectFoo.class.getCanonicalName(), 0, fooV0);
+    dao.add(urn, fooV0, _dummyAuditStamp);
+    //addMetadata(urn, AspectFoo.class.getCanonicalName(), 0, fooV0);
     AspectFoo fooV1 = new AspectFoo().setValue("bar");
-    addMetadata(urn, AspectFoo.class.getCanonicalName(), 1, fooV1);
+    dao.add(urn, fooV1, _dummyAuditStamp);
+    // addMetadata(urn, AspectFoo.class.getCanonicalName(), 1, fooV1);
     AspectBar barV0 = new AspectBar().setValue("bar");
-    addMetadata(urn, AspectBar.class.getCanonicalName(), 0, barV0);
+    dao.add(urn, barV0, _dummyAuditStamp);
+    // addMetadata(urn, AspectBar.class.getCanonicalName(), 0, barV0);
 
     Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> result =
         dao.get(new HashSet<>(Arrays.asList(AspectBar.class, AspectFoo.class)), urn);
@@ -481,14 +520,17 @@ public class EbeanLocalDAOTest {
     // urn1 has both foo & bar
     FooUrn urn1 = makeFooUrn(1);
     AspectFoo foo1 = new AspectFoo().setValue("foo1");
-    addMetadata(urn1, AspectFoo.class.getCanonicalName(), 0, foo1);
+    dao.add(urn1, foo1, _dummyAuditStamp);
+    // addMetadata(urn1, AspectFoo.class.getCanonicalName(), 0, foo1);
     AspectBar bar1 = new AspectBar().setValue("bar1");
-    addMetadata(urn1, AspectBar.class.getCanonicalName(), 0, bar1);
+    dao.add(urn1, bar1, _dummyAuditStamp);
+    // addMetadata(urn1, AspectBar.class.getCanonicalName(), 0, bar1);
 
     // urn2 has only foo
     FooUrn urn2 = makeFooUrn(2);
     AspectFoo foo2 = new AspectFoo().setValue("foo2");
-    addMetadata(urn2, AspectFoo.class.getCanonicalName(), 0, foo2);
+    dao.add(urn2, foo2, _dummyAuditStamp);
+    // addMetadata(urn2, AspectFoo.class.getCanonicalName(), 0, foo2);
 
     // urn3 has nothing
     FooUrn urn3 = makeFooUrn(3);
@@ -536,7 +578,10 @@ public class EbeanLocalDAOTest {
     FooUrn urn = makeFooUrn(1);
 
     AspectFoo expected = new AspectFoo().setValue("foo");
-    addMetadata(urn, AspectFoo.class.getCanonicalName(), 0, expected);
+    dao.add(urn, expected, _dummyAuditStamp);
+    // MAE produced on successful add()
+    verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, expected);
+    //    addMetadata(urn, AspectFoo.class.getCanonicalName(), 0, expected);
 
     Optional<AspectFoo> foo = dao.backfill(AspectFoo.class, urn);
 
@@ -599,8 +644,10 @@ public class EbeanLocalDAOTest {
       AspectFoo aspectFoo = new AspectFoo().setValue("foo");
       AspectBar aspectBar = new AspectBar().setValue("bar");
       aspects.put(urn, ImmutableMap.of(AspectFoo.class, aspectFoo, AspectBar.class, aspectBar));
-      addMetadata(urn, AspectFoo.class.getCanonicalName(), 0, aspectFoo);
-      addMetadata(urn, AspectBar.class.getCanonicalName(), 0, aspectBar);
+      dao.add(urn, aspectFoo, _dummyAuditStamp);
+      dao.add(urn, aspectBar, _dummyAuditStamp);
+      // addMetadata(urn, AspectFoo.class.getCanonicalName(), 0, aspectFoo);
+      // addMetadata(urn, AspectBar.class.getCanonicalName(), 0, aspectBar);
     });
 
     // when
@@ -627,8 +674,10 @@ public class EbeanLocalDAOTest {
       AspectFoo aspectFoo = new AspectFoo().setValue("foo");
       AspectBar aspectBar = new AspectBar().setValue("bar");
       aspects.put(urn, ImmutableMap.of(AspectFoo.class, aspectFoo, AspectBar.class, aspectBar));
-      addMetadata(urn, AspectFoo.class.getCanonicalName(), 0, aspectFoo);
-      addMetadata(urn, AspectBar.class.getCanonicalName(), 0, aspectBar);
+      dao.add(urn, aspectFoo, _dummyAuditStamp);
+      dao.add(urn, aspectBar, _dummyAuditStamp);
+      // addMetadata(urn, AspectFoo.class.getCanonicalName(), 0, aspectFoo);
+      // addMetadata(urn, AspectBar.class.getCanonicalName(), 0, aspectBar);
     });
 
     // when
@@ -655,8 +704,13 @@ public class EbeanLocalDAOTest {
       AspectFoo aspectFoo = new AspectFoo().setValue("foo");
       AspectBar aspectBar = new AspectBar().setValue("bar");
       aspects.put(urn, ImmutableMap.of(AspectFoo.class, aspectFoo, AspectBar.class, aspectBar));
-      addMetadata(urn, AspectFoo.class.getCanonicalName(), 0, aspectFoo);
-      addMetadata(urn, AspectBar.class.getCanonicalName(), 0, aspectBar);
+      dao.add(urn, aspectFoo, _dummyAuditStamp);
+      dao.add(urn, aspectBar, _dummyAuditStamp);
+      // MAEs produced on successful add()
+      verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, aspectFoo);
+      verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, aspectBar);
+      // addMetadata(urn, AspectFoo.class.getCanonicalName(), 0, aspectFoo);
+      // addMetadata(urn, AspectBar.class.getCanonicalName(), 0, aspectBar);
     });
 
     // when
@@ -1111,6 +1165,8 @@ public class EbeanLocalDAOTest {
     FooUrn urn2 = makeFooUrn(2);
     FooUrn urn3 = makeFooUrn(3);
     String aspect = "aspect1" + System.currentTimeMillis();
+    // TODO: this test fails for the new schema because there's no column in metadata_entity_foo testing table that
+    // corresponds with this dynamically created aspect.
 
     addIndex(urn1, aspect, "/path1", "foo");
     addIndex(urn1, FooUrn.class.getCanonicalName(), "/fooId", 1);
@@ -1247,7 +1303,8 @@ public class EbeanLocalDAOTest {
     for (int i = 0; i < 3; i++) {
       FooUrn urn = makeFooUrn(i);
       for (int j = 0; j < 3; j++) {
-        addMetadata(urn, AspectFoo.class.getCanonicalName(), j, foo);
+        dao.add(urn, foo, _dummyAuditStamp);
+        // addMetadata(urn, AspectFoo.class.getCanonicalName(), j, foo);
       }
       urns.add(urn);
     }
@@ -1580,7 +1637,8 @@ public class EbeanLocalDAOTest {
 
     // add metadata
     AspectFoo fooV1 = new AspectFoo().setValue("foo");
-    addMetadata(urn, AspectFoo.class.getCanonicalName(), 1, fooV1);
+    // addMetadata(urn, AspectFoo.class.getCanonicalName(), 1, fooV1);
+    dao.add(urn, fooV1, _dummyAuditStamp);
 
     assertTrue(dao.exists(urn));
   }
@@ -1589,8 +1647,18 @@ public class EbeanLocalDAOTest {
   void testExistsInLocalIndex() {
     EbeanLocalDAO<EntityAspectUnion, BarUrn> dao = createDao(BarUrn.class);
     BarUrn urn = makeBarUrn(0);
-
-    assertFalse(dao.existsInLocalIndex(urn));
+    try {
+      assertFalse(dao.existsInLocalIndex(urn));
+      if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+        // since SCSI is not supported by the new schema, we should throw an exception
+        fail();
+      }
+    } catch (UnsupportedOperationException e) {
+      if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+        // pass since an exception is expected when using only the new schema
+        return;
+      }
+    }
 
     dao.saveSingleRecordToLocalIndex(urn, BarUrn.class.getCanonicalName(), "/barId", 0);
     assertTrue(dao.existsInLocalIndex(urn));
@@ -1611,8 +1679,19 @@ public class EbeanLocalDAOTest {
     AspectBar aspectBar = new AspectBar().setValue("val1");
     AspectBaz aspectBaz = new AspectBaz().setBoolField(true).setLongField(1234L).setStringField("val2");
 
-    dao1.updateLocalIndex(barUrn, aspectBar, 0);
-    dao2.updateLocalIndex(bazUrn, aspectBaz, 0);
+    try {
+      dao1.updateLocalIndex(barUrn, aspectBar, 0);
+      dao2.updateLocalIndex(bazUrn, aspectBaz, 0);
+      if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+        // since SCSI is not supported by the new schema, we should throw an exception
+        fail();
+      }
+    } catch (UnsupportedOperationException e) {
+      if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+        // pass since an exception is expected when using only the new schema
+        return;
+      }
+    }
 
     List<EbeanMetadataIndex> barRecords = getAllRecordsFromLocalIndex(barUrn);
     assertEquals(barRecords.size(), 1);
@@ -1747,7 +1826,18 @@ public class EbeanLocalDAOTest {
 
     // if the value of a path is null then the corresponding path should not be inserted. Again old aspect rows should be deleted, new inserted
     AspectFooEvolved aspect3 = new AspectFooEvolved().setValue("val3");
-    dao.updateLocalIndex(urn, aspect3, 2);
+    try {
+      dao.updateLocalIndex(urn, aspect3, 2);
+      if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+        // since SCSI is not supported by the new schema, we should throw an exception
+        fail();
+      }
+    } catch (UnsupportedOperationException e) {
+      if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+        // pass since an exception is expected when using only the new schema
+        return;
+      }
+    }
     assertEquals(getAllRecordsFromLocalIndex(urn).size(), 2);
     List<EbeanMetadataIndex> fooRecords3 = getAllRecordsFromLocalIndex(urn);
     EbeanMetadataIndex fooRecord7 = fooRecords1.get(0);
@@ -1771,7 +1861,18 @@ public class EbeanLocalDAOTest {
     BarUrn urn = makeBarUrn(1);
     AspectBar aspect = new AspectBar();
 
-    dao.updateLocalIndex(urn, aspect, 0);
+    try {
+      dao.updateLocalIndex(urn, aspect, 0);
+      if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+        // since SCSI is not supported by the new schema, we should throw an exception
+        fail();
+      }
+    } catch (UnsupportedOperationException e) {
+      if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+        // pass since an exception is expected when using only the new schema
+        return;
+      }
+    }
     List<EbeanMetadataIndex> barRecords = getAllRecordsFromLocalIndex(urn);
     assertEquals(barRecords.size(), 1);
     EbeanMetadataIndex barRecord = barRecords.get(0);
@@ -2087,6 +2188,11 @@ public class EbeanLocalDAOTest {
 
   @Test
   public void testGetWithExtraInfoLatestVersion() {
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+      // the new schema will always return the latest version (if it exists) since it stores only the latest version.
+      // this test is mainly for the change log (i.e. old schema) which keeps track of all versions.
+      return;
+    }
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     FooUrn urn = makeFooUrn(1);
     AspectFoo v0 = new AspectFoo().setValue("foo");
@@ -2109,6 +2215,11 @@ public class EbeanLocalDAOTest {
 
   @Test
   public void testGetWithExtraInfoSpecificVersion() {
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+      // the new schema will always return the latest version (if it exists) since it stores only the latest version.
+      // this test is mainly for the change log (i.e. old schema) which keeps track of all versions.
+      return;
+    }
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     FooUrn urn = makeFooUrn(1);
     AspectFoo v0 = new AspectFoo().setValue("foo");
