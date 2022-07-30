@@ -26,6 +26,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 
 import static com.linkedin.metadata.dao.utils.EBeanDAOUtils.*;
 
@@ -38,6 +41,7 @@ public class EBeanLocalAccess<URN extends Urn> implements IEBeanLocalAccess<URN>
 
   // a cache of (column_name, aspect_name)
   private static final ConcurrentHashMap<String, String> COLUMN_ASPECT_MAP = new ConcurrentHashMap();
+  private static final JSONParser JSON_PARSER = new JSONParser();
   protected final Class<URN> _urnClass;
   protected final String _entityType;
 
@@ -69,7 +73,7 @@ public class EBeanLocalAccess<URN extends Urn> implements IEBeanLocalAccess<URN>
         .setParameter("urn", urn.toString())
         .setParameter("lastmodifiedon", localDateTime.toString())
         .setParameter("lastmodifiedby", actor)
-        .setParameter("metadata", RecordUtils.toJsonString(auditedAspect));
+        .setParameter("metadata", toJsonString(auditedAspect));
 
     return sqlUpdate.execute();
   }
@@ -224,8 +228,8 @@ public class EBeanLocalAccess<URN extends Urn> implements IEBeanLocalAccess<URN>
       AuditedAspect auditedAspect = RecordUtils.toRecordTemplate(AuditedAspect.class, sqlRow.getString(columnName));
       ebeanMetadataAspect.setKey(primaryKey);
       ebeanMetadataAspect.setCreatedBy(auditedAspect.getLastmodifiedby());
-      ebeanMetadataAspect.setCreatedOn(Timestamp.valueOf(auditedAspect.getLastmodifiedon()));
-      ebeanMetadataAspect.setMetadata(auditedAspect.getAspect());
+      ebeanMetadataAspect.setCreatedOn(Timestamp.valueOf(LocalDateTime.parse(auditedAspect.getLastmodifiedon())));
+      ebeanMetadataAspect.setMetadata(extractAspectJsonString(sqlRow.getString(columnName)));
       return ebeanMetadataAspect;
     }).collect(Collectors.toList());
   }
@@ -302,5 +306,32 @@ public class EBeanLocalAccess<URN extends Urn> implements IEBeanLocalAccess<URN>
         .totalPageCount(totalPageCount)
         .pageSize(pageSize)
         .build();
+  }
+
+  /**
+   * Given an AuditedAspect object, serialize it into a json string in a format that will be saved in DB.
+   * @param auditedAspect AuditedAspect object to be serialized
+   * @return A json string that can be saved to DB.
+   */
+  @Nonnull
+  public static String toJsonString(@Nonnull final AuditedAspect auditedAspect) {
+    String aspect = auditedAspect.getAspect();
+    auditedAspect.setAspect("PLACEHOLDER");
+    return RecordUtils.toJsonString(auditedAspect).replace("\"PLACEHOLDER\"",  aspect);
+  }
+
+  /**
+   * Extract aspect json string from an AuditedAspect string in its DB format.
+   * @param auditedAspect an AuditedAspect string in its DB format
+   * @return A string which can be deserialized into Aspect object.
+   */
+  @Nonnull
+  public static String extractAspectJsonString(@Nonnull final String auditedAspect) {
+    try {
+      JSONObject map = (JSONObject) JSON_PARSER.parse(auditedAspect);
+      return map.get("aspect").toString();
+    } catch (ParseException e) {
+      throw new RuntimeException(String.format("Failed to parse string %s,", auditedAspect));
+    }
   }
 }

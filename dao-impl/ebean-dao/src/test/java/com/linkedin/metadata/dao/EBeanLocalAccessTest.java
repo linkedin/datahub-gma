@@ -3,7 +3,9 @@ package com.linkedin.metadata.dao;
 import com.google.common.io.Resources;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
+import com.linkedin.metadata.aspect.AuditedAspect;
 import com.linkedin.metadata.dao.utils.MysqlDevInstance;
+import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLIndexFilterUtils;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.IndexCriterion;
@@ -79,6 +81,9 @@ public class EBeanLocalAccessTest {
     assertEquals(fooUrn.toString(), ebeanMetadataAspect.getKey().getUrn());
     assertEquals("{\"value\":\"0\"}", ebeanMetadataAspect.getMetadata());
     assertEquals("urn:li:testActor:foo", ebeanMetadataAspect.getCreatedBy());
+
+    // Make sure json can be deserialized to Aspect.
+    assertNotNull(RecordUtils.toRecordTemplate(AspectFoo.class, ebeanMetadataAspect.getMetadata()));
 
     // When get AspectFoo from urn:li:foo:9999 (does not exist)
     FooUrn nonExistFooUrn = makeFooUrn(9999);
@@ -234,5 +239,20 @@ public class EBeanLocalAccessTest {
 
     // Expect: there are 2 counts for value 25
     assertEquals(countMap.get("25"), Long.valueOf(2));
+  }
+
+  @Test
+  public void testToAndFromJson() {
+    AspectFoo aspectFoo = new AspectFoo();
+    aspectFoo.setValue("test");
+    AuditedAspect auditedAspect = new AuditedAspect();
+
+    auditedAspect.setLastmodifiedby("0");
+    auditedAspect.setLastmodifiedon("1");
+    auditedAspect.setAspect(RecordUtils.toJsonString(aspectFoo));
+    String toJson = EBeanLocalAccess.toJsonString(auditedAspect);
+
+    assertEquals("{\"lastmodifiedby\":\"0\",\"lastmodifiedon\":\"1\",\"aspect\":{\"value\":\"test\"}}", toJson);
+    assertNotNull(RecordUtils.toRecordTemplate(AspectFoo.class, EBeanLocalAccess.extractAspectJsonString(toJson)));
   }
 }
