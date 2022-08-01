@@ -56,14 +56,14 @@ ALTER TABLE metadata_entity_foo ADD a_testing_aspectfoo LONGTEXT;
 
 -- add new index virtual column 'value'
 ALTER TABLE metadata_entity_foo ADD COLUMN i_testing_aspectfoo$value VARCHAR(255)
-    GENERATED ALWAYS AS (a_testing_aspectfoo ->> '$.value') VIRTUAL;
+    GENERATED ALWAYS AS (a_testing_aspectfoo ->> '$.aspect.value') VIRTUAL;
 
 -- add bar aspect to foo entity
 ALTER TABLE metadata_entity_foo ADD a_testing_aspectbar LONGTEXT;
 
 -- add new index virtual column 'value'
 ALTER TABLE metadata_entity_foo ADD COLUMN i_testing_aspectbar$value VARCHAR(255)
-    GENERATED ALWAYS AS (a_testing_aspectbar ->> '$.value') VIRTUAL;
+    GENERATED ALWAYS AS (a_testing_aspectbar ->> '$.aspect.value') VIRTUAL;
 
 -- create index for index column
 CREATE INDEX i_testing_aspectfoo$value ON metadata_entity_foo (urn(50), i_testing_aspectfoo$value);
