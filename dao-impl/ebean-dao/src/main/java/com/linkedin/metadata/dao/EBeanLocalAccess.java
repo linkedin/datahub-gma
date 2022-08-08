@@ -42,6 +42,7 @@ public class EBeanLocalAccess<URN extends Urn> implements IEBeanLocalAccess<URN>
   // a cache of (column_name, aspect_name)
   private static final ConcurrentHashMap<String, String> COLUMN_ASPECT_MAP = new ConcurrentHashMap();
   private static final JSONParser JSON_PARSER = new JSONParser();
+  private static final String ASPECT_JSON_PLACEHOLDER = "__PLACEHOLDER__";
   protected final Class<URN> _urnClass;
   protected final String _entityType;
 
@@ -316,22 +317,26 @@ public class EBeanLocalAccess<URN extends Urn> implements IEBeanLocalAccess<URN>
   @Nonnull
   public static String toJsonString(@Nonnull final AuditedAspect auditedAspect) {
     String aspect = auditedAspect.getAspect();
-    auditedAspect.setAspect("PLACEHOLDER");
-    return RecordUtils.toJsonString(auditedAspect).replace("\"PLACEHOLDER\"",  aspect);
+    auditedAspect.setAspect(ASPECT_JSON_PLACEHOLDER);
+    return RecordUtils.toJsonString(auditedAspect).replace("\"" + ASPECT_JSON_PLACEHOLDER + "\"",  aspect);
   }
 
   /**
-   * Extract aspect json string from an AuditedAspect string in its DB format.
+   * Extract aspect json string from an AuditedAspect string in its DB format. Return null if aspect json string does not exist.
    * @param auditedAspect an AuditedAspect string in its DB format
    * @return A string which can be deserialized into Aspect object.
    */
-  @Nonnull
+  @Nullable
   public static String extractAspectJsonString(@Nonnull final String auditedAspect) {
     try {
       JSONObject map = (JSONObject) JSON_PARSER.parse(auditedAspect);
-      return map.get("aspect").toString();
+      if (map.containsKey("aspect")) {
+        return map.get("aspect").toString();
+      }
+
+      return null;
     } catch (ParseException e) {
-      throw new RuntimeException(String.format("Failed to parse string %s,", auditedAspect));
+      throw new RuntimeException(String.format("Failed to parse string %s as AuditedAspect.", auditedAspect));
     }
   }
 }
