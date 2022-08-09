@@ -2168,14 +2168,10 @@ public class EbeanLocalDAOTest {
 
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY || _schemaConfig == SchemaConfig.DUAL_SCHEMA) {
       Set<String> addedColumns = new HashSet<>();
-      addIndex(urn1, FooUrn.class.getCanonicalName(), "/", "0",addedColumns);
-      addIndex(urn2, FooUrn.class.getCanonicalName(), "/", "0",addedColumns);
-      addIndex(urn3, FooUrn.class.getCanonicalName(), "/", "0",addedColumns);
-      addIndex(urn4, BarUrn.class.getCanonicalName(), "/", "0",addedColumns);
-//      dao1.add(urn1, aspectFoo, _dummyAuditStamp);
-//      dao1.add(urn2, aspectFoo, _dummyAuditStamp);
-//      dao1.add(urn3, aspectFoo, _dummyAuditStamp);
-//      dao2.add(urn4, aspectBar, _dummyAuditStamp);
+      addIndex(urn1, FooUrn.class.getCanonicalName(), "/", "0", addedColumns);
+      addIndex(urn2, FooUrn.class.getCanonicalName(), "/", "0", addedColumns);
+      addIndex(urn3, FooUrn.class.getCanonicalName(), "/", "0", addedColumns);
+      addIndex(urn4, BarUrn.class.getCanonicalName(), "/", "0", addedColumns);
     } else {
       dao1.updateLocalIndex(urn1, aspectFoo, 0);
       dao1.updateLocalIndex(urn2, aspectFoo, 0);
