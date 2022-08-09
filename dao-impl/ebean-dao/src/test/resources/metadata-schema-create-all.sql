@@ -1,4 +1,5 @@
 DROP TABLE IF EXISTS metadata_entity_foo;
+DROP TABLE IF EXISTS metadata_entity_bar;
 DROP TABLE IF EXISTS metadata_aspect;
 DROP TABLE IF EXISTS metadata_id;
 DROP TABLE IF EXISTS metadata_index;
@@ -10,6 +11,14 @@ CREATE TABLE IF NOT EXISTS metadata_entity_foo (
     lastmodifiedby VARCHAR(255) NOT NULL,
     CONSTRAINT pk_metadata_aspect PRIMARY KEY (urn)
 );
+
+-- initialize bar entity table
+CREATE TABLE IF NOT EXISTS metadata_entity_bar (
+    urn VARCHAR(100) NOT NULL,
+    lastmodifiedon DATETIME(6) NOT NULL,
+    lastmodifiedby VARCHAR(255) NOT NULL,
+    CONSTRAINT pk_metadata_aspect PRIMARY KEY (urn)
+    );
 
 CREATE TABLE IF NOT EXISTS metadata_relationship_belongsto (
     id BIGINT NOT NULL AUTO_INCREMENT,
@@ -32,7 +41,7 @@ CREATE TABLE metadata_id (
 CREATE TABLE metadata_aspect (
                                  urn                           VARCHAR(500) NOT NULL,
                                  aspect                        VARCHAR(200) NOT NULL,
-                                 version                       BIGINT not null,
+                                 version                       BIGINT NOT NULL,
                                  metadata                      VARCHAR(500) NOT NULL,
                                  createdon                     DATETIME(6) NOT NULL,
                                  createdby                     VARCHAR(255) NOT NULL,
@@ -41,7 +50,7 @@ CREATE TABLE metadata_aspect (
 );
 
 CREATE TABLE metadata_index (
-                                id                            bigint auto_increment NOT NULL,
+                                id                            BIGINT AUTO_INCREMENT NOT NULL,
                                 urn                           VARCHAR(500) NOT NULL,
                                 aspect                        VARCHAR(200) NOT NULL,
                                 path                          VARCHAR(200) NOT NULL,

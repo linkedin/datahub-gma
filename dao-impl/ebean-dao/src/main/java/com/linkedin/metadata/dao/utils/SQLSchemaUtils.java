@@ -79,7 +79,7 @@ public class SQLSchemaUtils {
    * @param aspectCanonicalName aspect name in canonical form.
    * @return normalized aspect name
    */
-  static String getNormalizedAspectName(@Nonnull String aspectCanonicalName) {
+  public static String getNormalizedAspectName(@Nonnull String aspectCanonicalName) {
     aspectCanonicalName = aspectCanonicalName.toLowerCase(Locale.ROOT);
     if (aspectCanonicalName.startsWith(LI_DOMAIN)) {
       aspectCanonicalName = aspectCanonicalName.substring(LI_DOMAIN.length());
@@ -163,7 +163,7 @@ public class SQLSchemaUtils {
    * @param path path in string e.g. /name/value, /name
    * @return $name$value or $name
    */
-  static String processPath(@Nonnull String path) {
+  public static String processPath(@Nonnull String path) {
     path = path.replace("/", "$");
     if (!path.startsWith("$")) {
       path = "$" + path;
