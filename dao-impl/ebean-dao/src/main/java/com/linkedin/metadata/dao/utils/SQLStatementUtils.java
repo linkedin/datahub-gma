@@ -36,6 +36,9 @@ public class SQLStatementUtils {
   private static final String SQL_READ_ASPECT_TEMPLATE_END =
       "lastmodifiedon, lastmodifiedby FROM %s WHERE urn = '%s'";
 
+  private static final String SQL_GROUP_BY_COLUMN_EXISTS_TEMPLATE =
+      "SELECT * FROM information_schema.COLUMNS WHERE TABLE_NAME = '%s' AND COLUMN_NAME = '%s'";
+
   private static final String SQL_URN_EXIST_TEMPLATE = "SELECT urn FROM %s WHERE urn = '%s'";
 
   private static final String INSERT_LOCAL_RELATIONSHIP = "INSERT INTO %s (metadata, source, destination, source_type, "
@@ -152,6 +155,10 @@ public class SQLStatementUtils {
     sb.append("\nGROUP BY ");
     sb.append(columnName);
     return sb.toString();
+  }
+
+  public static String createGroupByColumnExistsSql(String tableName, @Nonnull IndexGroupByCriterion indexGroupByCriterion) {
+    return String.format(SQL_GROUP_BY_COLUMN_EXISTS_TEMPLATE, tableName, getIndexGroupByColumn(indexGroupByCriterion));
   }
 
   /**

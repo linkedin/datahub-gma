@@ -14,7 +14,6 @@ import io.ebean.EbeanServer;
 import io.ebean.SqlQuery;
 import io.ebean.SqlRow;
 import io.ebean.SqlUpdate;
-import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -30,7 +29,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.persistence.PersistenceException;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
@@ -112,23 +110,14 @@ public class EBeanLocalAccess<URN extends Urn> implements IEBeanLocalAccess<URN>
     for (int index = position; index < end; index++) {
       final Urn entityUrn = aspectKeys.get(index).getUrn();
       final Class<ASPECT> aspectClass = (Class<ASPECT>) aspectKeys.get(index).getAspectClass();
-      columnsToQueryMap.putIfAbsent(entityUrn, new HashSet<>());
-      columnsToQueryMap.get(entityUrn).add(aspectClass);
+      columnsToQueryMap.computeIfAbsent(entityUrn, unused -> new HashSet<>()).add(aspectClass);
       final String columnName = SQLSchemaUtils.getColumnName(aspectClass);
       COLUMN_ASPECT_MAP.putIfAbsent(columnName, aspectClass.getCanonicalName());
     }
-
-    int numUrns = 0;
-    for (Map.Entry<Urn, Set<Class<ASPECT>>> entry : columnsToQueryMap.entrySet()) {
-      sqlBuilder.append(SQLStatementUtils.createAspectReadSql(entry.getKey(), entry.getValue()));
-      if (numUrns != columnsToQueryMap.size() - 1) {
-        sqlBuilder.append(" UNION ALL ");
-      } else {
-        sqlBuilder.append(";");
-      }
-      numUrns++;
-    }
-    SqlQuery sqlQuery = _server.createSqlQuery(sqlBuilder.toString());
+    List<String> selectStatements = columnsToQueryMap.entrySet().stream().map(entry ->
+        SQLStatementUtils.createAspectReadSql(entry.getKey(), entry.getValue())
+    ).collect(Collectors.toList());
+    SqlQuery sqlQuery = _server.createSqlQuery(String.join(" UNION ALL ", selectStatements));
     List<SqlRow> sqlRows = sqlQuery.findList();
     return readSqlRows(sqlRows);
   }
@@ -184,19 +173,19 @@ public class EBeanLocalAccess<URN extends Urn> implements IEBeanLocalAccess<URN>
   public Map<String, Long> countAggregate(@Nonnull IndexFilter indexFilter,
       @Nonnull IndexGroupByCriterion indexGroupByCriterion) {
     final String tableName = SQLSchemaUtils.getTableName(_entityType);
+
+    // first, check for existence of the column we want to GROUP BY
+    final String groupByColumnExistsSql = SQLStatementUtils.createGroupByColumnExistsSql(tableName, indexGroupByCriterion);
+    final SqlRow groupByColumnExistsResults = _server.createSqlQuery(groupByColumnExistsSql).findOne();
+    if (groupByColumnExistsResults == null) {
+      // if we are trying to GROUP BY the results on a column that does not exist, just return an empty map
+      return Collections.emptyMap();
+    }
+
+    // now run the actual GROUP BY query
     final String groupBySql = SQLStatementUtils.createGroupBySql(tableName, indexFilter, indexGroupByCriterion);
     final SqlQuery sqlQuery = _server.createSqlQuery(groupBySql);
-    List<SqlRow> sqlRows = new ArrayList<>();
-    try {
-      sqlRows = sqlQuery.findList();
-    } catch (PersistenceException e) {
-      if (e.getMessage().contains("Unknown column")) {
-        // this happens when we are trying to GROUP BY the results on a column that does not exist. we should return an
-        // empty map instead of throwing a persistence exception.
-        // reference: EbeanLocalDAOTest::countAggregate (test case involving indexGroupByCriterion5)
-        return Collections.emptyMap();
-      }
-    }
+    final List<SqlRow> sqlRows = sqlQuery.findList();
     Map<String, Long> resultMap = new HashMap<>();
     for (SqlRow sqlRow : sqlRows) {
       Long count = sqlRow.getLong("count");
@@ -236,10 +225,8 @@ public class EBeanLocalAccess<URN extends Urn> implements IEBeanLocalAccess<URN>
       filterSql.append(lastUrn.toString());
       filterSql.append("'");
     }
-    filterSql.append(String.format(" LIMIT %d", pageSize));
-    if (offset > 0) {
-      filterSql.append(String.format(" OFFSET %d", offset));
-    }
+    filterSql.append(String.format(" LIMIT %d", pageSize > 0 ? pageSize : 0));
+    filterSql.append(String.format(" OFFSET %d", offset > 0 ? offset : 0));
     return _server.createSqlQuery(filterSql.toString());
   }
 
@@ -250,7 +237,6 @@ public class EBeanLocalAccess<URN extends Urn> implements IEBeanLocalAccess<URN>
    */
   private List<EbeanMetadataAspect> readSqlRows(List<SqlRow> sqlRows) {
     return sqlRows.stream().flatMap(sqlRow -> {
-      // TODO we expect only one aspect per SqlRow
       List<String> columns = new ArrayList<>();
       sqlRow.keySet().stream().filter(key -> key.startsWith(SQLSchemaUtils.ASPECT_PREFIX) && sqlRow.get(key) != null).forEach(columns::add);
 
