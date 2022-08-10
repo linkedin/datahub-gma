@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
@@ -30,8 +31,13 @@ public class SQLStatementUtils {
       "INSERT INTO %s (urn, %s, lastmodifiedon, lastmodifiedby) VALUE (:urn, :metadata, :lastmodifiedon, :lastmodifiedby) "
           + "ON DUPLICATE KEY UPDATE %s = :metadata;";
 
-  private static final String SQL_READ_ASPECT_TEMPLATE =
-      "SELECT urn, %s, lastmodifiedon, lastmodifiedby FROM %s WHERE urn = '%s'";
+  private static final String SQL_READ_ASPECT_TEMPLATE_START =
+      "SELECT urn, ";
+  private static final String SQL_READ_ASPECT_TEMPLATE_END =
+      "lastmodifiedon, lastmodifiedby FROM %s WHERE urn = '%s'";
+
+  private static final String SQL_GROUP_BY_COLUMN_EXISTS_TEMPLATE =
+      "SELECT * FROM information_schema.COLUMNS WHERE TABLE_NAME = '%s' AND COLUMN_NAME = '%s'";
 
   private static final String SQL_URN_EXIST_TEMPLATE = "SELECT urn FROM %s WHERE urn = '%s'";
 
@@ -59,7 +65,7 @@ public class SQLStatementUtils {
       ")\nSELECT *, (SELECT COUNT(urn) FROM _temp_results) AS _total_count FROM _temp_results";
 
   private static final String SQL_BROWSE_ASPECT_TEMPLATE =
-      "SELECT urn, %s, lastmodifiedon, lastmodifiedby, (SELECT COUNT(urn) FROM %s) as _total_count FROM %s";
+      "SELECT urn, %s, lastmodifiedon, lastmodifiedby, (SELECT COUNT(urn) FROM %s) as _total_count FROM %s LIMIT %d";
 
   private SQLStatementUtils() {
     // Util class
@@ -83,10 +89,16 @@ public class SQLStatementUtils {
    * @return aspect read sql
    */
   public static <ASPECT extends RecordTemplate> String createAspectReadSql(@Nonnull Urn urn,
-      @Nonnull Class<ASPECT> aspectClasses) {
+      @Nonnull Set<Class<ASPECT>> aspectClasses) {
     final String tableName = getTableName(urn);
-    final String columnName = getColumnName(aspectClasses);
-    return String.format(SQL_READ_ASPECT_TEMPLATE, columnName, tableName, urn.toString());
+    StringBuilder stringBuilder = new StringBuilder();
+    stringBuilder.append(SQL_READ_ASPECT_TEMPLATE_START);
+    for (Class<ASPECT> aspectClass : aspectClasses) {
+      final String columnName = getColumnName(aspectClass);
+      stringBuilder.append(String.format("%s, ", columnName));
+    }
+    stringBuilder.append(String.format(SQL_READ_ASPECT_TEMPLATE_END, tableName, urn.toString()));
+    return stringBuilder.toString();
   }
 
   /**
@@ -145,6 +157,10 @@ public class SQLStatementUtils {
     return sb.toString();
   }
 
+  public static String createGroupByColumnExistsSql(String tableName, @Nonnull IndexGroupByCriterion indexGroupByCriterion) {
+    return String.format(SQL_GROUP_BY_COLUMN_EXISTS_TEMPLATE, tableName, getIndexGroupByColumn(indexGroupByCriterion));
+  }
+
   /**
    * Create aspect browse SQL statement.
    * @param entityType entity type.
@@ -153,9 +169,13 @@ public class SQLStatementUtils {
    * @return aspect browse SQL.
    */
   public static <ASPECT extends RecordTemplate> String createAspectBrowseSql(String entityType,
-      Class<ASPECT> aspectClass) {
+      Class<ASPECT> aspectClass, int offset, int pageSize) {
     final String tableName = getTableName(entityType);
-    return String.format(SQL_BROWSE_ASPECT_TEMPLATE, getColumnName(aspectClass), tableName, tableName);
+    String browseSql = String.format(SQL_BROWSE_ASPECT_TEMPLATE, getColumnName(aspectClass), tableName, tableName, pageSize);
+    if (offset > 0) {
+      browseSql += String.format(" OFFSET %d", offset);
+    }
+    return browseSql;
   }
 
   /**

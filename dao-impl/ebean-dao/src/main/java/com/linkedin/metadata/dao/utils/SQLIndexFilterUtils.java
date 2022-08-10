@@ -45,11 +45,11 @@ public class SQLIndexFilterUtils {
     } else if (indexValue.isBoolean()) {
       return indexValue.getBoolean().toString();
     } else if (indexValue.isInt()) {
-      return String.valueOf(indexValue.getInt());
+      return String.valueOf(Long.valueOf(indexValue.getInt()));
     } else if (indexValue.isDouble()) {
       return String.valueOf(indexValue.getDouble());
     } else if (indexValue.isFloat()) {
-      return String.valueOf(indexValue.getFloat());
+      return String.valueOf(indexValue.getFloat().doubleValue());
     } else if (indexValue.isLong()) {
       return String.valueOf(indexValue.getLong());
     } else if (indexValue.isString()) {
@@ -89,15 +89,22 @@ public class SQLIndexFilterUtils {
    * @return translated SQL condition expression, e.g. WHERE ...
    */
   public static String parseIndexFilter(@Nonnull IndexFilter indexFilter) {
-
     List<String> sqlFilters = new ArrayList<>();
     for (IndexCriterion indexCriterion : indexFilter.getCriteria()) {
       final String normalizedAspectName = getNormalizedAspectName(indexCriterion.getAspect());
-      final String path = indexCriterion.getPathParams().getPath();
-      final Condition condition = indexCriterion.getPathParams().getCondition();
-      final String indexColumn = INDEX_PREFIX + normalizedAspectName + processPath(path);
-      sqlFilters.add(
-          indexColumn + parseConditionExpr(condition, indexCriterion.getPathParams().getValue(GetMode.NULL)));
+      final IndexPathParams pathParams = indexCriterion.getPathParams();
+      if (pathParams != null) {
+        validateConditionAndValue(indexCriterion);
+        final String path = indexCriterion.getPathParams().getPath();
+        final Condition condition = pathParams.getCondition();
+        final String indexColumn = INDEX_PREFIX + normalizedAspectName + processPath(path);
+        sqlFilters.add(
+            indexColumn + parseConditionExpr(condition, indexCriterion.getPathParams().getValue(GetMode.NULL)));
+      } else {
+        // if not given a path and condition, assume we are checking if the aspect exists.
+        final String indexColumn = ASPECT_PREFIX + normalizedAspectName;
+        sqlFilters.add(indexColumn + " IS NOT NULL");
+      }
     }
     if (sqlFilters.isEmpty()) {
       return "";
@@ -118,6 +125,9 @@ public class SQLIndexFilterUtils {
       case CONTAIN:
         return " IN " + parseIndexValue(indexValue);
       case EQUAL:
+        if (indexValue.isString() || indexValue.isBoolean()) {
+          return " = '" + parseIndexValue(indexValue) + "'";
+        }
         return " = " + parseIndexValue(indexValue);
       case START_WITH:
         return " LIKE '" + parseIndexValue(indexValue) + "%'";
@@ -155,5 +165,20 @@ public class SQLIndexFilterUtils {
     indexSortCriterion.setPath(path);
     indexSortCriterion.setOrder(sortOrder);
     return indexSortCriterion;
+  }
+
+  /**
+   * Validate IN condition to ensure the target is an array of at least 1 length.
+   * @param criterion IndexCriterion
+   * @throws IllegalArgumentException when IN targets a non-array value or empty array
+   */
+  @Nonnull
+  public static void validateConditionAndValue(@Nonnull IndexCriterion criterion) {
+    final Condition condition = criterion.getPathParams().getCondition();
+    final IndexValue indexValue = criterion.getPathParams().getValue();
+
+    if (condition == Condition.IN && (!indexValue.isArray() || indexValue.getArray().size() == 0)) {
+      throw new IllegalArgumentException("Invalid condition " + condition + " for index value " + indexValue);
+    }
   }
 }

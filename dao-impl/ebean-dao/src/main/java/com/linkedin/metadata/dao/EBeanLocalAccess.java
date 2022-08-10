@@ -18,10 +18,13 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
@@ -49,7 +52,7 @@ public class EBeanLocalAccess<URN extends Urn> implements IEBeanLocalAccess<URN>
   // TODO confirm if the default page size is 1000 in other code context.
   private static final int DEFAULT_PAGE_SIZE = 1000;
   private static final String DEFAULT_ACTOR = "urn:li:principal:UNKNOWN";
-  private static final long LATEST_VERSION = 1L;
+  private static final long LATEST_VERSION = 0L;
 
   public EBeanLocalAccess(EbeanServer server, @Nonnull Class<URN> urnClass) {
     _server = server;
@@ -65,8 +68,9 @@ public class EBeanLocalAccess<URN extends Urn> implements IEBeanLocalAccess<URN>
     LocalDateTime localDateTime = LocalDateTime.from(Instant.ofEpochMilli(timestamp).atZone(ZoneId.systemDefault()));
     String actor = auditStamp.hasActor() ? auditStamp.getActor().toString() : DEFAULT_ACTOR;
 
+    // TODO: set auditedAspect to null if soft-deleted
     AuditedAspect auditedAspect = new AuditedAspect()
-        .setAspect(RecordUtils.toJsonString(newValue))
+        .setAspect(newValue == null ? DELETED_VALUE : RecordUtils.toJsonString(newValue))
         .setLastmodifiedby(actor)
         .setLastmodifiedon(localDateTime.toString());
 
@@ -89,39 +93,31 @@ public class EBeanLocalAccess<URN extends Urn> implements IEBeanLocalAccess<URN>
     return batchGetUnion(aspectKeys, keysCount, position);
   }
 
+  /*
+    Construct and execute a SQL statement as follows:
+    select aspect1, aspect2,... from table where urn=urn1
+      union all
+    select aspect1, aspect2,... from table where urn=urn2
+    ...etc
+   */
   @Override
   public <ASPECT extends RecordTemplate> List<EbeanMetadataAspect> batchGetUnion(
       @Nonnull List<AspectKey<URN, ? extends RecordTemplate>> aspectKeys, int keysCount, int position) {
-    /*
-    TODO: change statement building logic in the case of getting multiple aspects with multiple urns.
-    current:
-      select aspect1 from table where urn=urn1
-      union
-      select aspect2 from table where urn=urn1
-      union
-      select aspect1 from table where urn=urn2
-      union
-      select aspect2 from table where urn=urn2
-    should be:
-      select aspect1, aspect2 from table where urn=urn1
-      union
-      select aspect1, aspect2 from table where urn=urn2
-     */
+
     final StringBuilder sqlBuilder = new StringBuilder();
     final int end = Math.min(aspectKeys.size(), position + keysCount);
+    final Map<Urn, Set<Class<ASPECT>>> columnsToQueryMap = new HashMap<>();
     for (int index = position; index < end; index++) {
       final Urn entityUrn = aspectKeys.get(index).getUrn();
-      final Class<? extends RecordTemplate> aspectClass = aspectKeys.get(index).getAspectClass();
+      final Class<ASPECT> aspectClass = (Class<ASPECT>) aspectKeys.get(index).getAspectClass();
+      columnsToQueryMap.computeIfAbsent(entityUrn, unused -> new HashSet<>()).add(aspectClass);
       final String columnName = SQLSchemaUtils.getColumnName(aspectClass);
       COLUMN_ASPECT_MAP.putIfAbsent(columnName, aspectClass.getCanonicalName());
-      sqlBuilder.append(SQLStatementUtils.createAspectReadSql(entityUrn, aspectClass));
-      if (index != end - 1) {
-        sqlBuilder.append(" UNION ALL ");
-      } else {
-        sqlBuilder.append(";");
-      }
     }
-    SqlQuery sqlQuery = _server.createSqlQuery(sqlBuilder.toString());
+    List<String> selectStatements = columnsToQueryMap.entrySet().stream().map(entry ->
+        SQLStatementUtils.createAspectReadSql(entry.getKey(), entry.getValue())
+    ).collect(Collectors.toList());
+    SqlQuery sqlQuery = _server.createSqlQuery(String.join(" UNION ALL ", selectStatements));
     List<SqlRow> sqlRows = sqlQuery.findList();
     return readSqlRows(sqlRows);
   }
@@ -129,17 +125,21 @@ public class EBeanLocalAccess<URN extends Urn> implements IEBeanLocalAccess<URN>
   @Override
   public List<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       @Nullable URN lastUrn, int pageSize) {
-    SqlQuery sqlQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, lastUrn);
-    final List<SqlRow> sqlRows = sqlQuery.setFirstRow(0).setMaxRows(pageSize).findList();
+    SqlQuery sqlQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, lastUrn, 0, pageSize);
+    final List<SqlRow> sqlRows = sqlQuery.setFirstRow(0).findList();
     return sqlRows.stream().map(sqlRow -> getUrn(sqlRow.getString("urn"), _urnClass)).collect(Collectors.toList());
   }
 
   @Override
   public ListResult<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       int start, int pageSize) {
-    SqlQuery sqlQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, null);
-
-    final List<SqlRow> sqlRows = sqlQuery.setFirstRow(start).setMaxRows(pageSize).findList();
+    SqlQuery sqlQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, null, start, pageSize);
+    final List<SqlRow> sqlRows = sqlQuery.findList();
+    /*
+    TODO: filter out soft-deleted aspects
+    TODO: start/OFFSET in sql query causes _total_count to be inaccurate.
+     (e.g. if there are 3 results but the start/OFFSET is 4, _total_count will be 0 even though it is expected to be 3.
+    */
     final List<URN> values =
         sqlRows.stream().map(sqlRow -> getUrn(sqlRow.getString("urn"), _urnClass)).collect(Collectors.toList());
     return toListResult(values, sqlRows, start, pageSize);
@@ -156,12 +156,15 @@ public class EBeanLocalAccess<URN extends Urn> implements IEBeanLocalAccess<URN>
   @Override
   public <ASPECT extends RecordTemplate> ListResult<URN> listUrns(@Nonnull Class<ASPECT> aspectClass, int start,
       int pageSize) {
-    final String browseSql = SQLStatementUtils.createAspectBrowseSql(_entityType, aspectClass);
+    final String columnName = SQLSchemaUtils.getColumnName(aspectClass);
+    final String browseSql = SQLStatementUtils.createAspectBrowseSql(_entityType, aspectClass, start, pageSize);
     final SqlQuery sqlQuery = _server.createSqlQuery(browseSql);
 
-    final List<SqlRow> sqlRows = sqlQuery.setFirstRow(start).setMaxRows(pageSize).findList();
-    final List<URN> values =
-        sqlRows.stream().map(sqlRow -> getUrn(sqlRow.getString("urn"), _urnClass)).collect(Collectors.toList());
+    final List<SqlRow> sqlRows = sqlQuery.findList();
+    // TODO: filter out soft-deleted aspects
+    final List<URN> values = sqlRows.stream()
+        .map(sqlRow -> getUrn(sqlRow.getString("urn"), _urnClass))
+        .collect(Collectors.toList());
     return toListResult(values, sqlRows, start, pageSize);
   }
 
@@ -170,6 +173,16 @@ public class EBeanLocalAccess<URN extends Urn> implements IEBeanLocalAccess<URN>
   public Map<String, Long> countAggregate(@Nonnull IndexFilter indexFilter,
       @Nonnull IndexGroupByCriterion indexGroupByCriterion) {
     final String tableName = SQLSchemaUtils.getTableName(_entityType);
+
+    // first, check for existence of the column we want to GROUP BY
+    final String groupByColumnExistsSql = SQLStatementUtils.createGroupByColumnExistsSql(tableName, indexGroupByCriterion);
+    final SqlRow groupByColumnExistsResults = _server.createSqlQuery(groupByColumnExistsSql).findOne();
+    if (groupByColumnExistsResults == null) {
+      // if we are trying to GROUP BY the results on a column that does not exist, just return an empty map
+      return Collections.emptyMap();
+    }
+
+    // now run the actual GROUP BY query
     final String groupBySql = SQLStatementUtils.createGroupBySql(tableName, indexFilter, indexGroupByCriterion);
     final SqlQuery sqlQuery = _server.createSqlQuery(groupBySql);
     final List<SqlRow> sqlRows = sqlQuery.findList();
@@ -197,19 +210,24 @@ public class EBeanLocalAccess<URN extends Urn> implements IEBeanLocalAccess<URN>
    * @return
    */
   private <URN> SqlQuery createFilterSqlQuery(@Nonnull IndexFilter indexFilter,
-      @Nullable IndexSortCriterion indexSortCriterion, @Nullable URN lastUrn) {
+      @Nullable IndexSortCriterion indexSortCriterion, @Nullable URN lastUrn, int offset, int pageSize) {
     if (indexFilter.hasCriteria() && indexFilter.getCriteria().isEmpty()) {
       throw new UnsupportedOperationException("Empty Index Filter is not supported by EbeanLocalDAO");
     }
 
     final String tableName = SQLSchemaUtils.getTableName(_entityType);
-    String filterSql = SQLStatementUtils.createFilterSql(tableName, indexFilter, indexSortCriterion);
+    StringBuilder filterSql = new StringBuilder();
+    filterSql.append(SQLStatementUtils.createFilterSql(tableName, indexFilter, indexSortCriterion));
 
     // append last urn where condition
     if (lastUrn != null) {
-      filterSql = filterSql + " WHERE urn > '" + lastUrn.toString() + "'";
+      filterSql.append(" WHERE urn > '");
+      filterSql.append(lastUrn.toString());
+      filterSql.append("'");
     }
-    return _server.createSqlQuery(filterSql);
+    filterSql.append(String.format(" LIMIT %d", pageSize > 0 ? pageSize : 0));
+    filterSql.append(String.format(" OFFSET %d", offset > 0 ? offset : 0));
+    return _server.createSqlQuery(filterSql.toString());
   }
 
   /**
@@ -218,20 +236,22 @@ public class EBeanLocalAccess<URN extends Urn> implements IEBeanLocalAccess<URN>
    * @return list of {@link EbeanMetadataAspect}
    */
   private List<EbeanMetadataAspect> readSqlRows(List<SqlRow> sqlRows) {
-    return sqlRows.stream().map(sqlRow -> {
-      // TODO we expect only one aspect per SqlRow
-      final String columnName =
-          sqlRow.keySet().stream().filter(key -> key.startsWith(SQLSchemaUtils.ASPECT_PREFIX)).findFirst().get();
-      final String aspectName = COLUMN_ASPECT_MAP.get(columnName);
-      EbeanMetadataAspect ebeanMetadataAspect = new EbeanMetadataAspect();
-      String urn = sqlRow.getString("urn");
-      EbeanMetadataAspect.PrimaryKey primaryKey = new EbeanMetadataAspect.PrimaryKey(urn, aspectName, LATEST_VERSION);
-      AuditedAspect auditedAspect = RecordUtils.toRecordTemplate(AuditedAspect.class, sqlRow.getString(columnName));
-      ebeanMetadataAspect.setKey(primaryKey);
-      ebeanMetadataAspect.setCreatedBy(auditedAspect.getLastmodifiedby());
-      ebeanMetadataAspect.setCreatedOn(Timestamp.valueOf(LocalDateTime.parse(auditedAspect.getLastmodifiedon())));
-      ebeanMetadataAspect.setMetadata(extractAspectJsonString(sqlRow.getString(columnName)));
-      return ebeanMetadataAspect;
+    return sqlRows.stream().flatMap(sqlRow -> {
+      List<String> columns = new ArrayList<>();
+      sqlRow.keySet().stream().filter(key -> key.startsWith(SQLSchemaUtils.ASPECT_PREFIX) && sqlRow.get(key) != null).forEach(columns::add);
+
+      return columns.stream().map(columnName -> {
+        final String aspectName = COLUMN_ASPECT_MAP.get(columnName);
+        EbeanMetadataAspect ebeanMetadataAspect = new EbeanMetadataAspect();
+        String urn = sqlRow.getString("urn");
+        EbeanMetadataAspect.PrimaryKey primaryKey = new EbeanMetadataAspect.PrimaryKey(urn, aspectName, LATEST_VERSION);
+        AuditedAspect auditedAspect = RecordUtils.toRecordTemplate(AuditedAspect.class, sqlRow.getString(columnName));
+        ebeanMetadataAspect.setKey(primaryKey);
+        ebeanMetadataAspect.setCreatedBy(auditedAspect.getLastmodifiedby());
+        ebeanMetadataAspect.setCreatedOn(Timestamp.valueOf(LocalDateTime.parse(auditedAspect.getLastmodifiedon())));
+        ebeanMetadataAspect.setMetadata(extractAspectJsonString(sqlRow.getString(columnName)));
+        return ebeanMetadataAspect;
+      });
     }).collect(Collectors.toList());
   }
 

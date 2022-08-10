@@ -20,6 +20,7 @@ import com.linkedin.metadata.dao.utils.EBeanDAOUtils;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.QueryUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
+import com.linkedin.metadata.dao.utils.SQLIndexFilterUtils;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.ExtraInfoArray;
@@ -190,6 +191,12 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull EbeanServer server,
       @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass) {
     this(producer, server, storageConfig, urnClass, new EmptyPathExtractor<>());
+  }
+
+  @VisibleForTesting
+  EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull EbeanServer server,
+      @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass, @Nonnull SchemaConfig schemaConfig) {
+    this(producer, server, storageConfig, urnClass, new EmptyPathExtractor<>(), schemaConfig);
   }
 
   /**
@@ -834,31 +841,35 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   List<EbeanMetadataAspect> batchGetHelper(@Nonnull List<AspectKey<URN, ? extends RecordTemplate>> keys,
       int keysCount, int position) {
     // TODO remove batchGetOr, make batchGetUnion the only implementation.
-    switch (_schemaConfig) {
-      case NEW_SCHEMA_ONLY:
-        return _useUnionForBatch
-            ? _localAccess.batchGetUnion(keys, keysCount, position)
-            : _localAccess.batchGetOr(keys, keysCount, position);
-      case DUAL_SCHEMA:
-        // Compare results from both new and old schemas
-        final List<EbeanMetadataAspect> resultsOldSchema = _useUnionForBatch
-            ? batchGetUnion(keys, keysCount, position)
-            : batchGetOr(keys, keysCount, position);
-        final List<EbeanMetadataAspect> resultsNewSchema = _useUnionForBatch
-            ? _localAccess.batchGetUnion(keys, keysCount, position)
-            : _localAccess.batchGetOr(keys, keysCount, position);
-
-        EBeanDAOUtils.compareResults(resultsOldSchema, resultsNewSchema, "batchGet");
-        return resultsOldSchema;
-      default:
-        log.error("Please check that the SchemaConfig supplied to EbeanLocalDAO constructor is valid."
-          + "Defaulting to using the old schema.");
-        // FALLTHROUGH
-      case OLD_SCHEMA_ONLY:
-        return _useUnionForBatch
-            ? batchGetUnion(keys, keysCount, position)
-            : batchGetOr(keys, keysCount, position);
+    boolean nonLatestVersionFlag = false;
+    for (AspectKey<URN, ?> key : keys) {
+      if (key.getVersion() != 0) {
+        nonLatestVersionFlag = true;
+        break;
+      }
     }
+    if (nonLatestVersionFlag || _schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      return _useUnionForBatch
+          ? batchGetUnion(keys, keysCount, position)
+          : batchGetOr(keys, keysCount, position);
+    }
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+      return _useUnionForBatch
+          ? _localAccess.batchGetUnion(keys, keysCount, position)
+          : _localAccess.batchGetOr(keys, keysCount, position);
+    }
+    if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
+      // Compare results from both new and old schemas
+      final List<EbeanMetadataAspect> resultsOldSchema =
+          _useUnionForBatch ? batchGetUnion(keys, keysCount, position) : batchGetOr(keys, keysCount, position);
+      final List<EbeanMetadataAspect> resultsNewSchema =
+          _useUnionForBatch ? _localAccess.batchGetUnion(keys, keysCount, position)
+              : _localAccess.batchGetOr(keys, keysCount, position);
+      EBeanDAOUtils.compareResults(resultsOldSchema, resultsNewSchema, "batchGet");
+      return resultsOldSchema;
+    }
+    log.error("Please check that the SchemaConfig supplied to EbeanLocalDAO constructor is valid.");
+    return Collections.emptyList();
   }
 
   /**
@@ -1181,16 +1192,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Nonnull
-  private static void validateConditionAndValue(@Nonnull IndexCriterion criterion) {
-    final Condition condition = criterion.getPathParams().getCondition();
-    final IndexValue indexValue = criterion.getPathParams().getValue();
-
-    if (condition == Condition.IN && (!indexValue.isArray() || indexValue.getArray().size() == 0)) {
-      throw new IllegalArgumentException("Invalid condition " + condition + " for index value " + indexValue);
-    }
-  }
-
-  @Nonnull
   static <ASPECT extends RecordTemplate> String getFieldColumn(@Nonnull String path, @Nonnull String aspectName) {
     final String[] pathSpecArray = RecordUtils.getPathSpecAsArray(path);
 
@@ -1281,7 +1282,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       }
       whereClause.append(" t").append(i).append(".aspect = ?");
       if (criterion.getPathParams() != null) {
-        validateConditionAndValue(criterion);
+        SQLIndexFilterUtils.validateConditionAndValue(criterion);
         whereClause.append(" AND t")
             .append(i)
             .append(".path = ? AND t")
@@ -1345,12 +1346,12 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       throw new UnsupportedOperationException("Local secondary index isn't supported");
     }
 
+    final IndexCriterionArray indexCriterionArray = indexFilter.getCriteria();
+    checkValidIndexCriterionArray(indexCriterionArray);
+
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
       return _localAccess.listUrns(indexFilter, indexSortCriterion, lastUrn, pageSize);
     }
-
-    final IndexCriterionArray indexCriterionArray = indexFilter.getCriteria();
-    checkValidIndexCriterionArray(indexCriterionArray);
 
     List<URN> urnsNew = null;
     if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
@@ -1388,12 +1389,13 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       throw new UnsupportedOperationException("Local secondary index isn't supported");
     }
 
+    final IndexCriterionArray indexCriterionArray = indexFilter.getCriteria();
+    checkValidIndexCriterionArray(indexCriterionArray);
+
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
       return _localAccess.listUrns(indexFilter, indexSortCriterion, start, pageSize);
     }
 
-    final IndexCriterionArray indexCriterionArray = indexFilter.getCriteria();
-    checkValidIndexCriterionArray(indexCriterionArray);
 
     ListResult<URN> urnsNew = null;
     if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
@@ -1448,7 +1450,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       }
       whereClause.append(" t").append(i).append(".aspect = ?");
       if (criterion.getPathParams() != null) {
-        validateConditionAndValue(criterion);
+        SQLIndexFilterUtils.validateConditionAndValue(criterion);
         whereClause.append(" AND t")
             .append(i)
             .append(".path = ? AND t")
@@ -1497,12 +1499,12 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       throw new UnsupportedOperationException("Local secondary index isn't supported");
     }
 
+    final IndexCriterionArray indexCriterionArray = indexFilter.getCriteria();
+    checkValidIndexCriterionArray(indexCriterionArray);
+
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
       return _localAccess.countAggregate(indexFilter, indexGroupByCriterion);
     }
-
-    final IndexCriterionArray indexCriterionArray = indexFilter.getCriteria();
-    checkValidIndexCriterionArray(indexCriterionArray);
 
     Map<String, Long> resultNew = null;
     if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {

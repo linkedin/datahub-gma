@@ -25,6 +25,7 @@ import com.linkedin.metadata.dao.utils.FooUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.MysqlDevInstance;
 import com.linkedin.metadata.dao.utils.RecordUtils;
+import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.IndexCriterion;
@@ -81,6 +82,7 @@ import org.testng.annotations.Test;
 
 import static com.linkedin.common.AuditStamps.*;
 import static com.linkedin.metadata.dao.utils.EBeanDAOUtils.*;
+import static com.linkedin.metadata.dao.utils.SQLSchemaUtils.*;
 import static com.linkedin.testing.TestUtils.*;
 import static org.mockito.Mockito.*;
 import static org.testng.Assert.*;
@@ -95,7 +97,7 @@ import static org.testng.Assert.*;
 public class EbeanLocalDAOTest {
 
   // ONLY SET THIS TO FALSE IF YOU WANT TO TEST NEW_SCHEMA_ONLY OR DUAL_READ EbeanLocalDAO SchemaConfig values.
-  private static final boolean NEW_SCHEMA_DISABLED = true;
+  private static final boolean NEW_SCHEMA_DISABLED = false;
   private EbeanServer _server;
   private BaseMetadataEventProducer _mockProducer;
   private AuditStamp _dummyAuditStamp;
@@ -495,15 +497,12 @@ public class EbeanLocalDAOTest {
   public void testGetMultipleAspects() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     FooUrn urn = makeFooUrn(1);
-    AspectFoo fooV0 = new AspectFoo().setValue("foo");
-    dao.add(urn, fooV0, _dummyAuditStamp);
-    //addMetadata(urn, AspectFoo.class.getCanonicalName(), 0, fooV0);
     AspectFoo fooV1 = new AspectFoo().setValue("bar");
     dao.add(urn, fooV1, _dummyAuditStamp);
-    // addMetadata(urn, AspectFoo.class.getCanonicalName(), 1, fooV1);
+    AspectFoo fooV0 = new AspectFoo().setValue("foo");
+    dao.add(urn, fooV0, _dummyAuditStamp);
     AspectBar barV0 = new AspectBar().setValue("bar");
     dao.add(urn, barV0, _dummyAuditStamp);
-    // addMetadata(urn, AspectBar.class.getCanonicalName(), 0, barV0);
 
     Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> result =
         dao.get(new HashSet<>(Arrays.asList(AspectBar.class, AspectFoo.class)), urn);
@@ -521,16 +520,13 @@ public class EbeanLocalDAOTest {
     FooUrn urn1 = makeFooUrn(1);
     AspectFoo foo1 = new AspectFoo().setValue("foo1");
     dao.add(urn1, foo1, _dummyAuditStamp);
-    // addMetadata(urn1, AspectFoo.class.getCanonicalName(), 0, foo1);
     AspectBar bar1 = new AspectBar().setValue("bar1");
     dao.add(urn1, bar1, _dummyAuditStamp);
-    // addMetadata(urn1, AspectBar.class.getCanonicalName(), 0, bar1);
 
     // urn2 has only foo
     FooUrn urn2 = makeFooUrn(2);
     AspectFoo foo2 = new AspectFoo().setValue("foo2");
     dao.add(urn2, foo2, _dummyAuditStamp);
-    // addMetadata(urn2, AspectFoo.class.getCanonicalName(), 0, foo2);
 
     // urn3 has nothing
     FooUrn urn3 = makeFooUrn(3);
@@ -581,7 +577,6 @@ public class EbeanLocalDAOTest {
     dao.add(urn, expected, _dummyAuditStamp);
     // MAE produced on successful add()
     verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, expected);
-    //    addMetadata(urn, AspectFoo.class.getCanonicalName(), 0, expected);
 
     Optional<AspectFoo> foo = dao.backfill(AspectFoo.class, urn);
 
@@ -615,10 +610,22 @@ public class EbeanLocalDAOTest {
 
     FooUrn urn = makeFooUrn(1);
     AspectFoo expected = new AspectFoo().setValue("foo");
-    addMetadata(urn, AspectFoo.class.getCanonicalName(), 0, expected);
+    dao.add(urn, expected, _dummyAuditStamp);
 
     dao.enableLocalSecondaryIndex(true);
-    dao.backfill(AspectFoo.class, urn);
+    try {
+      dao.backfill(AspectFoo.class, urn);
+      if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+        // since SCSI is not supported by the new schema, we should throw an exception
+        fail();
+      }
+    } catch (UnsupportedOperationException e) {
+      if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+        // pass since an exception is expected when using only the new schema
+        return;
+      }
+      fail();
+    }
 
     // when
     List<EbeanMetadataIndex> fooRecords = getAllRecordsFromLocalIndex(urn);
@@ -646,8 +653,6 @@ public class EbeanLocalDAOTest {
       aspects.put(urn, ImmutableMap.of(AspectFoo.class, aspectFoo, AspectBar.class, aspectBar));
       dao.add(urn, aspectFoo, _dummyAuditStamp);
       dao.add(urn, aspectBar, _dummyAuditStamp);
-      // addMetadata(urn, AspectFoo.class.getCanonicalName(), 0, aspectFoo);
-      // addMetadata(urn, AspectBar.class.getCanonicalName(), 0, aspectBar);
     });
 
     // when
@@ -676,8 +681,6 @@ public class EbeanLocalDAOTest {
       aspects.put(urn, ImmutableMap.of(AspectFoo.class, aspectFoo, AspectBar.class, aspectBar));
       dao.add(urn, aspectFoo, _dummyAuditStamp);
       dao.add(urn, aspectBar, _dummyAuditStamp);
-      // addMetadata(urn, AspectFoo.class.getCanonicalName(), 0, aspectFoo);
-      // addMetadata(urn, AspectBar.class.getCanonicalName(), 0, aspectBar);
     });
 
     // when
@@ -709,8 +712,6 @@ public class EbeanLocalDAOTest {
       // MAEs produced on successful add()
       verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, aspectFoo);
       verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, aspectBar);
-      // addMetadata(urn, AspectFoo.class.getCanonicalName(), 0, aspectFoo);
-      // addMetadata(urn, AspectBar.class.getCanonicalName(), 0, aspectBar);
     });
 
     // when
@@ -744,6 +745,7 @@ public class EbeanLocalDAOTest {
 
     Map<FooUrn, Map<Class<? extends RecordTemplate>, RecordTemplate>> aspects = new HashMap<>();
 
+    Set<String> addedColumns = new HashSet<>();
     urns.forEach(urn -> {
       AspectFoo aspectFoo = new AspectFoo().setValue("foo");
       AspectBar aspectBar = new AspectBar().setValue("bar");
@@ -754,7 +756,7 @@ public class EbeanLocalDAOTest {
       addMetadata(urn, AspectBar.class.getCanonicalName(), 0, aspectBar);
 
       // only index urn
-      addIndex(urn, FooUrn.class.getCanonicalName(), "/fooId", urn.getFooIdEntity());
+      addIndex(urn, FooUrn.class.getCanonicalName(), "/fooId", urn.getFooIdEntity(), addedColumns);
     });
 
     // Backfill in SCSI_ONLY mode
@@ -854,28 +856,29 @@ public class EbeanLocalDAOTest {
     FooUrn urn1 = makeFooUrn(1);
     FooUrn urn2 = makeFooUrn(2);
     FooUrn urn3 = makeFooUrn(3);
-    String aspect1 = "aspect1" + System.currentTimeMillis();
-    String aspect2 = "aspect2" + System.currentTimeMillis();
+    String aspect1 = AspectFoo.class.getCanonicalName();
+    String aspect2 = AspectBar.class.getCanonicalName();
 
-    addIndex(urn1, aspect1, "/path1", true); // boolean
-    addIndex(urn1, aspect1, "/path2", 1.534e2); // double
-    addIndex(urn1, aspect1, "/path3", 123.4f); // float
-    addIndex(urn1, aspect2, "/path4", 123); // int
-    addIndex(urn1, aspect2, "/path5", 1234L); // long
-    addIndex(urn1, aspect2, "/path6", "val"); // string
-    addIndex(urn1, FooUrn.class.getCanonicalName(), "/fooId", 1);
+    Set<String> addedColumns = new HashSet<>();
+    addIndex(urn1, aspect1, "/path1", true, addedColumns); // boolean
+    addIndex(urn1, aspect1, "/path2", 1.534e2, addedColumns); // double
+    addIndex(urn1, aspect1, "/path3", 123.4f, addedColumns); // float
+    addIndex(urn1, aspect2, "/path4", 123, addedColumns); // int
+    addIndex(urn1, aspect2, "/path5", 1234L, addedColumns); // long
+    addIndex(urn1, aspect2, "/path6", "val", addedColumns); // string
+    addIndex(urn1, FooUrn.class.getCanonicalName(), "/fooId", 1, addedColumns);
 
-    addIndex(urn2, aspect1, "/path1", true); // boolean
-    addIndex(urn2, aspect1, "/path2", 1.534e2); // double
-    addIndex(urn2, FooUrn.class.getCanonicalName(), "/fooId", 2);
+    addIndex(urn2, aspect1, "/path1", true, addedColumns); // boolean
+    addIndex(urn2, aspect1, "/path2", 1.534e2, addedColumns); // double
+    addIndex(urn2, FooUrn.class.getCanonicalName(), "/fooId", 2, addedColumns);
 
-    addIndex(urn3, aspect1, "/path1", true); // boolean
-    addIndex(urn3, aspect1, "/path2", 1.534e2); // double
-    addIndex(urn3, aspect1, "/path3", 123.4f); // float
-    addIndex(urn3, aspect2, "/path4", 123); // int
-    addIndex(urn3, aspect2, "/path5", 1234L); // long
-    addIndex(urn3, aspect2, "/path6", "val"); // string
-    addIndex(urn3, FooUrn.class.getCanonicalName(), "/fooId", 3);
+    addIndex(urn3, aspect1, "/path1", true, addedColumns); // boolean
+    addIndex(urn3, aspect1, "/path2", 1.534e2, addedColumns); // double
+    addIndex(urn3, aspect1, "/path3", 123.4f, addedColumns); // float
+    addIndex(urn3, aspect2, "/path4", 123, addedColumns); // int
+    addIndex(urn3, aspect2, "/path5", 1234L, addedColumns); // long
+    addIndex(urn3, aspect2, "/path6", "val", addedColumns); // string
+    addIndex(urn3, FooUrn.class.getCanonicalName(), "/fooId", 3, addedColumns);
 
     IndexValue indexValue1 = new IndexValue();
     indexValue1.setBoolean(true);
@@ -986,11 +989,12 @@ public class EbeanLocalDAOTest {
     FooUrn urn2 = makeFooUrn(2);
     String aspect = "aspect" + System.currentTimeMillis();
 
-    addIndex(urn1, aspect, "/path", "value1");
-    addIndex(urn1, FooUrn.class.getCanonicalName(), "/fooId", 1);
+    Set<String> addedColumns = new HashSet<>();
+    addIndex(urn1, aspect, "/path", "value1", addedColumns);
+    addIndex(urn1, FooUrn.class.getCanonicalName(), "/fooId", 1, addedColumns);
 
-    addIndex(urn2, aspect, "/path", "value2");
-    addIndex(urn2, FooUrn.class.getCanonicalName(), "/fooId", 2);
+    addIndex(urn2, aspect, "/path", "value2", addedColumns);
+    addIndex(urn2, FooUrn.class.getCanonicalName(), "/fooId", 2, addedColumns);
 
     // starts with substring
     IndexValue indexValue1 = new IndexValue();
@@ -1088,23 +1092,24 @@ public class EbeanLocalDAOTest {
     String aspect1 = AspectFoo.class.getCanonicalName();
     String aspect2 = AspectBaz.class.getCanonicalName();
 
-    addIndex(urn1, aspect1, "/value", "valB");
-    addIndex(urn1, aspect2, "/stringField", "dolphin");
-    addIndex(urn1, aspect2, "/longField", 10);
-    addIndex(urn1, aspect2, "/recordField/value", "nestedC");
-    addIndex(urn1, FooUrn.class.getCanonicalName(), "/fooId", 1);
+    Set<String> addedColumns = new HashSet<>();
+    addIndex(urn1, aspect1, "/value", "valB", addedColumns);
+    addIndex(urn1, aspect2, "/stringField", "dolphin", addedColumns);
+    addIndex(urn1, aspect2, "/longField", 10, addedColumns);
+    addIndex(urn1, aspect2, "/recordField/value", "nestedC", addedColumns);
+    addIndex(urn1, FooUrn.class.getCanonicalName(), "/fooId", 1, addedColumns);
 
-    addIndex(urn2, aspect1, "/value", "valC");
-    addIndex(urn2, aspect2, "/stringField", "reindeer");
-    addIndex(urn2, aspect2, "/longField", 8);
-    addIndex(urn2, aspect2, "/recordField/value", "nestedB");
-    addIndex(urn2, FooUrn.class.getCanonicalName(), "/fooId", 2);
+    addIndex(urn2, aspect1, "/value", "valC", addedColumns);
+    addIndex(urn2, aspect2, "/stringField", "reindeer", addedColumns);
+    addIndex(urn2, aspect2, "/longField", 8, addedColumns);
+    addIndex(urn2, aspect2, "/recordField/value", "nestedB", addedColumns);
+    addIndex(urn2, FooUrn.class.getCanonicalName(), "/fooId", 2, addedColumns);
 
-    addIndex(urn3, aspect1, "/value", "valA");
-    addIndex(urn3, aspect2, "/stringField", "dog");
-    addIndex(urn3, aspect2, "/longField", 100);
-    addIndex(urn3, aspect2, "/recordField/value", "nestedA");
-    addIndex(urn3, FooUrn.class.getCanonicalName(), "/fooId", 3);
+    addIndex(urn3, aspect1, "/value", "valA", addedColumns);
+    addIndex(urn3, aspect2, "/stringField", "dog", addedColumns);
+    addIndex(urn3, aspect2, "/longField", 100, addedColumns);
+    addIndex(urn3, aspect2, "/recordField/value", "nestedA", addedColumns);
+    addIndex(urn3, FooUrn.class.getCanonicalName(), "/fooId", 3, addedColumns);
 
     // filter and no sorting criterion
     IndexValue indexValue1 = new IndexValue();
@@ -1164,18 +1169,17 @@ public class EbeanLocalDAOTest {
     FooUrn urn1 = makeFooUrn(1);
     FooUrn urn2 = makeFooUrn(2);
     FooUrn urn3 = makeFooUrn(3);
-    String aspect = "aspect1" + System.currentTimeMillis();
-    // TODO: this test fails for the new schema because there's no column in metadata_entity_foo testing table that
-    // corresponds with this dynamically created aspect.
+    String aspect = ModelUtils.getAspectName(AspectFoo.class);
 
-    addIndex(urn1, aspect, "/path1", "foo");
-    addIndex(urn1, FooUrn.class.getCanonicalName(), "/fooId", 1);
+    Set<String> addedColumns = new HashSet<>();
+    addIndex(urn1, aspect, "/path1", "foo", addedColumns);
+    addIndex(urn1, FooUrn.class.getCanonicalName(), "/fooId", 1, addedColumns);
 
-    addIndex(urn2, aspect, "/path1", "baz");
-    addIndex(urn2, FooUrn.class.getCanonicalName(), "/fooId", 2);
+    addIndex(urn2, aspect, "/path1", "baz", addedColumns);
+    addIndex(urn2, FooUrn.class.getCanonicalName(), "/fooId", 2, addedColumns);
 
-    addIndex(urn3, aspect, "/path1", "val");
-    addIndex(urn3, FooUrn.class.getCanonicalName(), "/fooId", 3);
+    addIndex(urn3, aspect, "/path1", "val", addedColumns);
+    addIndex(urn3, FooUrn.class.getCanonicalName(), "/fooId", 3, addedColumns);
 
     IndexValue indexValue1 = new IndexValue();
     indexValue1.setArray(new StringArray("foo", "baz"));
@@ -1244,17 +1248,18 @@ public class EbeanLocalDAOTest {
     String aspect1 = AspectFoo.class.getCanonicalName();
     String aspect2 = AspectBaz.class.getCanonicalName();
 
-    addIndex(urn1, aspect1, "/value", "valB");
-    addIndex(urn1, aspect2, "/stringField", "dolphin");
-    addIndex(urn1, FooUrn.class.getCanonicalName(), "/fooId", 1);
+    Set<String> addedColumns = new HashSet<>();
+    addIndex(urn1, aspect1, "/value", "valB", addedColumns);
+    addIndex(urn1, aspect2, "/stringField", "dolphin", addedColumns);
+    addIndex(urn1, FooUrn.class.getCanonicalName(), "/fooId", 1, addedColumns);
 
-    addIndex(urn2, aspect1, "/value", "valC");
-    addIndex(urn2, aspect2, "/stringField", "reindeer");
-    addIndex(urn2, FooUrn.class.getCanonicalName(), "/fooId", 2);
+    addIndex(urn2, aspect1, "/value", "valC", addedColumns);
+    addIndex(urn2, aspect2, "/stringField", "reindeer", addedColumns);
+    addIndex(urn2, FooUrn.class.getCanonicalName(), "/fooId", 2, addedColumns);
 
-    addIndex(urn3, aspect1, "/value", "valA");
-    addIndex(urn3, aspect2, "/stringField", "dog");
-    addIndex(urn3, FooUrn.class.getCanonicalName(), "/fooId", 3);
+    addIndex(urn3, aspect1, "/value", "valA", addedColumns);
+    addIndex(urn3, aspect2, "/stringField", "dog", addedColumns);
+    addIndex(urn3, FooUrn.class.getCanonicalName(), "/fooId", 3, addedColumns);
 
     IndexValue indexValue = new IndexValue();
     indexValue.setString("val");
@@ -1304,7 +1309,6 @@ public class EbeanLocalDAOTest {
       FooUrn urn = makeFooUrn(i);
       for (int j = 0; j < 3; j++) {
         dao.add(urn, foo, _dummyAuditStamp);
-        // addMetadata(urn, AspectFoo.class.getCanonicalName(), j, foo);
       }
       urns.add(urn);
     }
@@ -1637,7 +1641,6 @@ public class EbeanLocalDAOTest {
 
     // add metadata
     AspectFoo fooV1 = new AspectFoo().setValue("foo");
-    // addMetadata(urn, AspectFoo.class.getCanonicalName(), 1, fooV1);
     dao.add(urn, fooV1, _dummyAuditStamp);
 
     assertTrue(dao.exists(urn));
@@ -1658,6 +1661,7 @@ public class EbeanLocalDAOTest {
         // pass since an exception is expected when using only the new schema
         return;
       }
+      fail();
     }
 
     dao.saveSingleRecordToLocalIndex(urn, BarUrn.class.getCanonicalName(), "/barId", 0);
@@ -1691,6 +1695,7 @@ public class EbeanLocalDAOTest {
         // pass since an exception is expected when using only the new schema
         return;
       }
+      fail();
     }
 
     List<EbeanMetadataIndex> barRecords = getAllRecordsFromLocalIndex(barUrn);
@@ -1776,7 +1781,7 @@ public class EbeanLocalDAOTest {
   @Test
   void testUpdateUrnAndAspectInLocalIndex() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = new EbeanLocalDAO<>(_mockProducer, _server,
-        makeLocalDAOStorageConfig(AspectFooEvolved.class, Arrays.asList("/value", "/newValue")), FooUrn.class);
+        makeLocalDAOStorageConfig(AspectFooEvolved.class, Arrays.asList("/value", "/newValue")), FooUrn.class, _schemaConfig);
     dao.setUseUnionForBatch(_useUnionForBatch);
     dao.setUseOptimisticLocking(_useOptimisticLocking);
     dao.enableLocalSecondaryIndex(true);
@@ -1784,7 +1789,19 @@ public class EbeanLocalDAOTest {
     FooUrn urn = makeFooUrn(1);
     AspectFooEvolved aspect1 = new AspectFooEvolved().setValue("val1").setNewValue("newVal1");
 
-    dao.updateLocalIndex(urn, aspect1, 0);
+    try {
+      dao.updateLocalIndex(urn, aspect1, 0);
+      if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+        // since SCSI is not supported by the new schema, we should throw an exception
+        fail();
+      }
+    } catch (UnsupportedOperationException e) {
+      if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+        // pass since an exception is expected when using only the new schema
+        return;
+      }
+      fail();
+    }
     List<EbeanMetadataIndex> fooRecords1 = getAllRecordsFromLocalIndex(urn);
     assertEquals(fooRecords1.size(), 3);
     EbeanMetadataIndex fooRecord1 = fooRecords1.get(0);
@@ -1826,18 +1843,7 @@ public class EbeanLocalDAOTest {
 
     // if the value of a path is null then the corresponding path should not be inserted. Again old aspect rows should be deleted, new inserted
     AspectFooEvolved aspect3 = new AspectFooEvolved().setValue("val3");
-    try {
-      dao.updateLocalIndex(urn, aspect3, 2);
-      if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
-        // since SCSI is not supported by the new schema, we should throw an exception
-        fail();
-      }
-    } catch (UnsupportedOperationException e) {
-      if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
-        // pass since an exception is expected when using only the new schema
-        return;
-      }
-    }
+    dao.updateLocalIndex(urn, aspect3, 2);
     assertEquals(getAllRecordsFromLocalIndex(urn).size(), 2);
     List<EbeanMetadataIndex> fooRecords3 = getAllRecordsFromLocalIndex(urn);
     EbeanMetadataIndex fooRecord7 = fooRecords1.get(0);
@@ -1872,6 +1878,7 @@ public class EbeanLocalDAOTest {
         // pass since an exception is expected when using only the new schema
         return;
       }
+      fail();
     }
     List<EbeanMetadataIndex> barRecords = getAllRecordsFromLocalIndex(urn);
     assertEquals(barRecords.size(), 1);
@@ -1945,15 +1952,17 @@ public class EbeanLocalDAOTest {
     FooUrn urn1 = makeFooUrn(1);
     FooUrn urn2 = makeFooUrn(2);
     FooUrn urn3 = makeFooUrn(3);
-    String aspect = "aspect" + System.currentTimeMillis();
-    addIndex(urn1, aspect, "/path1", "val1");
-    addIndex(urn1, aspect, "/path2", "val2");
-    addIndex(urn1, aspect, "/path3", "val3");
-    addIndex(urn1, FooUrn.class.getCanonicalName(), "/fooId", 1);
-    addIndex(urn2, aspect, "/path1", "val1");
-    addIndex(urn2, FooUrn.class.getCanonicalName(), "/fooId", 2);
-    addIndex(urn3, aspect, "/path1", "val1");
-    addIndex(urn3, FooUrn.class.getCanonicalName(), "/fooId", 3);
+    String aspect = ModelUtils.getAspectName(AspectFoo.class);
+
+    Set<String> addedColumns = new HashSet<>();
+    addIndex(urn1, aspect, "/path1", "val1", addedColumns);
+    addIndex(urn1, aspect, "/path2", "val2", addedColumns);
+    addIndex(urn1, aspect, "/path3", "val3", addedColumns);
+    addIndex(urn1, FooUrn.class.getCanonicalName(), "/fooId", 1, addedColumns);
+    addIndex(urn2, aspect, "/path1", "val1", addedColumns);
+    addIndex(urn2, FooUrn.class.getCanonicalName(), "/fooId", 2, addedColumns);
+    addIndex(urn3, aspect, "/path1", "val1", addedColumns);
+    addIndex(urn3, FooUrn.class.getCanonicalName(), "/fooId", 3, addedColumns);
 
     // 1. local secondary index is not enabled, should throw exception
     IndexCriterion indexCriterion = new IndexCriterion().setAspect(aspect);
@@ -2094,12 +2103,14 @@ public class EbeanLocalDAOTest {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     FooUrn urn1 = makeFooUrn(1);
     FooUrn urn2 = makeFooUrn(2);
-    String aspect = "aspect" + System.currentTimeMillis();
-    addIndex(urn1, aspect, "/path1", "val1");
-    addIndex(urn1, aspect, "/path2", "val2");
-    addIndex(urn1, FooUrn.class.getCanonicalName(), "/fooId", 1);
-    addIndex(urn2, aspect, "/path1", "val1");
-    addIndex(urn2, FooUrn.class.getCanonicalName(), "/fooId", 2);
+    String aspect = ModelUtils.getAspectName(AspectFoo.class);
+
+    Set<String> addedColumns = new HashSet<>();
+    addIndex(urn1, aspect, "/path1", "val1", addedColumns);
+    addIndex(urn1, aspect, "/path2", "val2", addedColumns);
+    addIndex(urn1, FooUrn.class.getCanonicalName(), "/fooId", 1, addedColumns);
+    addIndex(urn2, aspect, "/path1", "val1", addedColumns);
+    addIndex(urn2, FooUrn.class.getCanonicalName(), "/fooId", 2, addedColumns);
 
     dao.enableLocalSecondaryIndex(true);
 
@@ -2154,10 +2165,19 @@ public class EbeanLocalDAOTest {
     AspectFoo aspectFoo = new AspectFoo();
     AspectBar aspectBar = new AspectBar();
 
-    dao1.updateLocalIndex(urn1, aspectFoo, 0);
-    dao1.updateLocalIndex(urn2, aspectFoo, 0);
-    dao1.updateLocalIndex(urn3, aspectFoo, 0);
-    dao2.updateLocalIndex(urn4, aspectBar, 0);
+
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY || _schemaConfig == SchemaConfig.DUAL_SCHEMA) {
+      Set<String> addedColumns = new HashSet<>();
+      addIndex(urn1, FooUrn.class.getCanonicalName(), "/", "0", addedColumns);
+      addIndex(urn2, FooUrn.class.getCanonicalName(), "/", "0", addedColumns);
+      addIndex(urn3, FooUrn.class.getCanonicalName(), "/", "0", addedColumns);
+      addIndex(urn4, BarUrn.class.getCanonicalName(), "/", "0", addedColumns);
+    } else {
+      dao1.updateLocalIndex(urn1, aspectFoo, 0);
+      dao1.updateLocalIndex(urn2, aspectFoo, 0);
+      dao1.updateLocalIndex(urn3, aspectFoo, 0);
+      dao2.updateLocalIndex(urn4, aspectBar, 0);
+    }
 
     // List foo urns
     List<FooUrn> urns1 = dao1.listUrns(FooUrn.class, null, 2);
@@ -2641,26 +2661,27 @@ public class EbeanLocalDAOTest {
     String aspect1 = AspectFoo.class.getCanonicalName();
     String aspect2 = AspectBaz.class.getCanonicalName();
 
-    addIndex(urn1, aspect1, "/value", "valB");
-    addIndex(urn1, aspect2, "/stringField", "valC");
-    addIndex(urn1, aspect2, "/longField", 10);
-    addIndex(urn1, aspect2, "/doubleField", 1.2);
-    addIndex(urn1, aspect2, "/recordField/value", "nestedC");
-    addIndex(urn1, FooUrn.class.getCanonicalName(), "/fooId", 1);
+    Set<String> addedColumns = new HashSet<>();
+    addIndex(urn1, aspect1, "/value", "valB", addedColumns);
+    addIndex(urn1, aspect2, "/stringField", "valC", addedColumns);
+    addIndex(urn1, aspect2, "/longField", 10, addedColumns);
+    addIndex(urn1, aspect2, "/doubleField", 1.2, addedColumns);
+    addIndex(urn1, aspect2, "/recordField/value", "nestedC", addedColumns);
+    addIndex(urn1, FooUrn.class.getCanonicalName(), "/fooId", 1, addedColumns);
 
-    addIndex(urn2, aspect1, "/value", "valB");
-    addIndex(urn2, aspect2, "/stringField", "valC");
-    addIndex(urn2, aspect2, "/longField", 8);
-    addIndex(urn2, aspect2, "/doubleField", 1.2);
-    addIndex(urn2, aspect2, "/recordField/value", "nestedB");
-    addIndex(urn2, FooUrn.class.getCanonicalName(), "/fooId", 2);
+    addIndex(urn2, aspect1, "/value", "valB", addedColumns);
+    addIndex(urn2, aspect2, "/stringField", "valC", addedColumns);
+    addIndex(urn2, aspect2, "/longField", 8, addedColumns);
+    addIndex(urn2, aspect2, "/doubleField", 1.2, addedColumns);
+    addIndex(urn2, aspect2, "/recordField/value", "nestedB", addedColumns);
+    addIndex(urn2, FooUrn.class.getCanonicalName(), "/fooId", 2, addedColumns);
 
-    addIndex(urn3, aspect1, "/value", "valA");
-    addIndex(urn3, aspect2, "/stringField", "valC");
-    addIndex(urn3, aspect2, "/longField", 100);
-    addIndex(urn3, aspect2, "/doubleField", 1.2);
-    addIndex(urn3, aspect2, "/recordField/value", "nestedA");
-    addIndex(urn3, FooUrn.class.getCanonicalName(), "/fooId", 3);
+    addIndex(urn3, aspect1, "/value", "valA", addedColumns);
+    addIndex(urn3, aspect2, "/stringField", "valC", addedColumns);
+    addIndex(urn3, aspect2, "/longField", 100, addedColumns);
+    addIndex(urn3, aspect2, "/doubleField", 1.2, addedColumns);
+    addIndex(urn3, aspect2, "/recordField/value", "nestedA", addedColumns);
+    addIndex(urn3, FooUrn.class.getCanonicalName(), "/fooId", 3, addedColumns);
 
     // group by string
     IndexValue indexValue1 = new IndexValue();
@@ -2907,25 +2928,86 @@ public class EbeanLocalDAOTest {
     return _server.find(EbeanMetadataIndex.class).where().eq(EbeanMetadataIndex.URN_COLUMN, urn.toString()).findList();
   }
 
-  private void addIndex(Urn urn, String aspectName, String pathName, Object val) {
+  private void addIndex(Urn urn, String aspectName, String pathName, Object val, Set<String> addedColumns) {
     EbeanMetadataIndex index = new EbeanMetadataIndex();
     index.setUrn(urn.toString()).setAspect(aspectName).setPath(pathName);
+    Object trueVal = null;
     if (val instanceof String) {
       index.setStringVal(val.toString());
+      trueVal = "'" + val + "'";
     } else if (val instanceof Boolean) {
       index.setStringVal(String.valueOf(val));
+      trueVal = "'" + String.valueOf(val) + "'";
     } else if (val instanceof Double) {
       index.setDoubleVal((Double) val);
+      trueVal = (Double) val;
     } else if (val instanceof Float) {
       index.setDoubleVal(((Float) val).doubleValue());
+      trueVal = ((Float) val).doubleValue();
     } else if (val instanceof Integer) {
       index.setLongVal(Long.valueOf((Integer) val));
+      trueVal = Long.valueOf((Integer) val);
     } else if (val instanceof Long) {
       index.setLongVal((Long) val);
+      trueVal = (Long) val;
     } else {
       return;
     }
     _server.save(index);
+
+    /*
+    this next section of code aims to "convert" SCSI-related indices to fit in the new schema tables.
+    we don't have SCSI in our new tables, but we have something that behaves in an equivalent manner.
+    for example, instead of
+    metadata_index:
+    id | urn   | aspect    | path        | longval | stringval | doubleval
+    1  | urn:1 | aspectFoo | "/longval"  | 3       | null      | null
+    2  | urn:1 | aspectFoo | "/stringval"| null    | "hello"   | null
+    3  | urn:2 | aspectFoo | "/longval"  | 5       | null      | null
+
+    we will have
+    metadata_entity_foo:
+    urn  | lastmodifiedon   | lastmodifiedby |         a_testing_aspectfoo                | i_testing_aspectfoo$longval | i_testing_aspectfoo$stringval
+    urn:1| <some_timestamp> | "actor"        | "{..."longval":3, "stringval":"hello"...}  |              3              |             "hello"
+    urn:2| <some_timestamp> | "actor"        | "{..."longval":5...}                       |              5              |             <empty>
+    */
+
+    // these two columns have already been added in the setup script (metadata-schema-create-all.sql)
+    addedColumns.add("a_testing_aspectfoo");
+    addedColumns.add("a_testing_aspectbar");
+    String normalizedAspectName = SQLSchemaUtils.getNormalizedAspectName(aspectName); // e.g. com.linkedin.testing.AspectFoo -> testing_aspectfoo
+    String indexColumnName = SQLSchemaUtils.INDEX_PREFIX + normalizedAspectName; // e.g. testing_aspectfoo -> i_testing_aspectfoo
+    String aspectColumnName = SQLSchemaUtils.ASPECT_PREFIX + normalizedAspectName; // e.g. testing_aspectfoo -> a_testing_aspectfoo
+    String processedPathName = SQLSchemaUtils.processPath(pathName); // e.g. /path1/value1 -> $path1$value1
+    String fullIndexColumnName = indexColumnName + processedPathName; // e.g. i_testing_aspectfoo$path1$value1
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY || _schemaConfig == SchemaConfig.DUAL_SCHEMA) {
+      // only need to add columns if they haven't already been added (we will get a persistence exception if we try to add
+      // a column that already exists)
+      if (!addedColumns.contains(fullIndexColumnName)) {
+        if (fullIndexColumnName.equals("i_testing_aspectfoo$value") || fullIndexColumnName.equals("i_testing_aspectbar$value")) {
+          // since these columns have already been created in the metadata-schema-create-all.sql script as virtual columns,
+          // we need to drop them first so they can be regenerated in the way that the test(s) want it to be generated.
+          String sqlQuery = String.format("ALTER TABLE %s DROP COLUMN %s$value;", getTableName(urn), indexColumnName);
+          _server.execute(Ebean.createSqlUpdate(sqlQuery));
+        }
+        String sqlQuery = String.format("ALTER TABLE %s ADD COLUMN %s VARCHAR(255);",
+            getTableName(urn), fullIndexColumnName);
+        _server.execute(Ebean.createSqlUpdate(sqlQuery));
+        addedColumns.add(fullIndexColumnName);
+      }
+      // similarly for index columns (i_*), we need to add any new aspect columns (a_*)
+      if (!addedColumns.contains(aspectColumnName)) {
+        String sqlQuery = String.format("ALTER TABLE %s ADD COLUMN %s VARCHAR(255);", getTableName(urn), aspectColumnName);
+        _server.execute(Ebean.createSqlUpdate(sqlQuery));
+        addedColumns.add(aspectColumnName);
+      }
+      // finally, we need to update the newly added column with the passed-in value.
+      final String dummyAspectValue = "{\"value\": \"dummy_value\"}";
+      String sqlQuery = String.format("INSERT INTO %s (urn, lastmodifiedon, lastmodifiedby, %s, %s) "
+          + "VALUES ('%s', '00-01-01 00:00:00.000000', 'tester', '%s', %s) ON DUPLICATE KEY UPDATE %s = %s, %s = '%s';", getTableName(urn),
+          aspectColumnName, fullIndexColumnName, urn.toString(), dummyAspectValue, trueVal, fullIndexColumnName, trueVal, aspectColumnName, dummyAspectValue);
+      _server.execute(Ebean.createSqlUpdate(sqlQuery));
+    }
   }
 
   private EbeanMetadataAspect getMetadata(Urn urn, String aspectName, long version) {
