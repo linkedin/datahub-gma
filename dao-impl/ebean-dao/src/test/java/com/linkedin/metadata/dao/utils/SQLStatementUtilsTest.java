@@ -27,8 +27,8 @@ public class SQLStatementUtilsTest {
     FooUrn fooUrn = makeFooUrn(1);
     AspectFoo aspectFoo = new AspectFoo();
     String expectedSql =
-        "INSERT INTO metadata_entity_foo (urn, a_testing_aspectfoo, lastmodifiedon, lastmodifiedby) VALUE (:urn, "
-            + ":metadata, :lastmodifiedon, :lastmodifiedby) ON DUPLICATE KEY UPDATE a_testing_aspectfoo = :metadata;";
+        "INSERT INTO metadata_entity_foo (urn, a_aspectfoo, lastmodifiedon, lastmodifiedby) VALUE (:urn, "
+            + ":metadata, :lastmodifiedon, :lastmodifiedby) ON DUPLICATE KEY UPDATE a_aspectfoo = :metadata;";
     assertEquals(SQLStatementUtils.createAspectUpsertSql(fooUrn, AspectFoo.class), expectedSql);
   }
 
@@ -51,8 +51,8 @@ public class SQLStatementUtilsTest {
     String sql = SQLStatementUtils.createFilterSql("metadata_entity_foo", indexFilter,
         SQLIndexFilterUtils.createIndexSortCriterion(AspectFoo.class, "value", SortOrder.ASCENDING));
     String expectedSql = "WITH _temp_results AS (SELECT * FROM metadata_entity_foo\n" + "WHERE "
-        + "i_testing_aspectfoo$value >= 25\nAND " + "i_testing_aspectfoo$value < 50\n"
-        + "ORDER BY i_testing_aspectfoo$value ASC)\nSELECT *, (SELECT COUNT(urn) FROM _temp_results) AS _total_count FROM _temp_results";
+        + "i_aspectfoo$value >= 25\nAND " + "i_aspectfoo$value < 50\n"
+        + "ORDER BY i_aspectfoo$value ASC)\nSELECT *, (SELECT COUNT(urn) FROM _temp_results) AS _total_count FROM _temp_results";
     assertEquals(sql, expectedSql);
   }
 
@@ -76,9 +76,9 @@ public class SQLStatementUtilsTest {
     indexGroupByCriterion.setPath("/value");
 
     String sql = SQLStatementUtils.createGroupBySql("metadata_entity_foo", indexFilter, indexGroupByCriterion);
-    assertEquals(sql, "SELECT count(*) as COUNT, i_testing_aspectfoo$value FROM metadata_entity_foo\n"
-        + "WHERE i_testing_aspectfoo$value >= 25\n" + "AND i_testing_aspectfoo$value < 50\n"
-        + "GROUP BY i_testing_aspectfoo$value");
+    assertEquals(sql, "SELECT count(*) as COUNT, i_aspectfoo$value FROM metadata_entity_foo\n"
+        + "WHERE i_aspectfoo$value >= 25\n" + "AND i_aspectfoo$value < 50\n"
+        + "GROUP BY i_aspectfoo$value");
   }
 
   @Test

@@ -10,6 +10,11 @@ record AuditedAspect {
   aspect: string
 
   /**
+   * The canonical class name of the aspect.
+   */
+  canonicalName: string
+
+  /**
    * Audit timestamp to track when this aspect is last modified.
    */
   lastmodifiedon: string

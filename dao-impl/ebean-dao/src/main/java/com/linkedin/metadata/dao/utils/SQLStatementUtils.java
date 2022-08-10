@@ -31,10 +31,9 @@ public class SQLStatementUtils {
       "INSERT INTO %s (urn, %s, lastmodifiedon, lastmodifiedby) VALUE (:urn, :metadata, :lastmodifiedon, :lastmodifiedby) "
           + "ON DUPLICATE KEY UPDATE %s = :metadata;";
 
-  private static final String SQL_READ_ASPECT_TEMPLATE_START =
-      "SELECT urn, ";
-  private static final String SQL_READ_ASPECT_TEMPLATE_END =
-      "lastmodifiedon, lastmodifiedby FROM %s WHERE urn = '%s'";
+  private static final String SQL_READ_ASPECT_TEMPLATE_START = "SELECT urn, ";
+
+  private static final String SQL_READ_ASPECT_TEMPLATE_END = "lastmodifiedon, lastmodifiedby FROM %s WHERE urn = '%s'";
 
   private static final String SQL_GROUP_BY_COLUMN_EXISTS_TEMPLATE =
       "SELECT * FROM information_schema.COLUMNS WHERE TABLE_NAME = '%s' AND COLUMN_NAME = '%s'";
@@ -46,7 +45,9 @@ public class SQLStatementUtils {
       + " :destination_type, :lastmodifiedon, :lastmodifiedby)";
 
   private static final String DELETE_BY_SOURCE = "DELETE FROM %s WHERE source = :source";
+
   private static final String DELETE_BY_DESTINATION = "DELETE FROM %s WHERE destination = :destination";
+
   private static final String DELETE_BY_SOURCE_AND_DESTINATION = "DELETE FROM %s WHERE destination = :destination AND source = :source";
 
   /**
@@ -60,6 +61,7 @@ public class SQLStatementUtils {
    *      ORDER BY i_testing_aspectfoo$value ASC)
    *    SELECT *, (SELECT count(urn) FROM _temp_results) AS _total_count FROM _temp_results
    */
+  // TODO: IMPORTANT - WITH expression only available since MySQL version 8. Rewrite this SQL to make it compatible with older version.
   private static final String SQL_FILTER_TEMPLATE_START = "WITH _temp_results AS (SELECT * FROM %s";
   private static final String SQL_FILTER_TEMPLATE_FINISH =
       ")\nSELECT *, (SELECT COUNT(urn) FROM _temp_results) AS _total_count FROM _temp_results";
@@ -94,7 +96,7 @@ public class SQLStatementUtils {
     StringBuilder stringBuilder = new StringBuilder();
     stringBuilder.append(SQL_READ_ASPECT_TEMPLATE_START);
     for (Class<ASPECT> aspectClass : aspectClasses) {
-      final String columnName = getColumnName(aspectClass);
+      final String columnName = getAspectColumnName(aspectClass);
       stringBuilder.append(String.format("%s, ", columnName));
     }
     stringBuilder.append(String.format(SQL_READ_ASPECT_TEMPLATE_END, tableName, urn.toString()));
@@ -111,7 +113,7 @@ public class SQLStatementUtils {
   public static <ASPECT extends RecordTemplate> String createAspectUpsertSql(@Nonnull Urn urn,
       @Nonnull Class<ASPECT> aspectClass) {
     final String tableName = getTableName(urn);
-    final String columnName = getColumnName(aspectClass);
+    final String columnName = getAspectColumnName(aspectClass);
     return String.format(SQL_UPSERT_ASPECT_TEMPLATE, tableName, columnName, columnName);
   }
 
@@ -147,7 +149,7 @@ public class SQLStatementUtils {
    */
   public static String createGroupBySql(String tableName, @Nonnull IndexFilter indexFilter,
       @Nonnull IndexGroupByCriterion indexGroupByCriterion) {
-    final String columnName = SQLSchemaUtils.getIndexGroupByColumn(indexGroupByCriterion);
+    final String columnName = getGeneratedColumnName(indexGroupByCriterion.getAspect(), indexGroupByCriterion.getPath());
     StringBuilder sb = new StringBuilder();
     sb.append(String.format(INDEX_GROUP_BY_CRITERION, columnName, tableName));
     sb.append("\n");
@@ -158,7 +160,8 @@ public class SQLStatementUtils {
   }
 
   public static String createGroupByColumnExistsSql(String tableName, @Nonnull IndexGroupByCriterion indexGroupByCriterion) {
-    return String.format(SQL_GROUP_BY_COLUMN_EXISTS_TEMPLATE, tableName, getIndexGroupByColumn(indexGroupByCriterion));
+    return String.format(SQL_GROUP_BY_COLUMN_EXISTS_TEMPLATE, tableName, getGeneratedColumnName(indexGroupByCriterion.getAspect(),
+        indexGroupByCriterion.getPath()));
   }
 
   /**
@@ -171,7 +174,7 @@ public class SQLStatementUtils {
   public static <ASPECT extends RecordTemplate> String createAspectBrowseSql(String entityType,
       Class<ASPECT> aspectClass, int offset, int pageSize) {
     final String tableName = getTableName(entityType);
-    String browseSql = String.format(SQL_BROWSE_ASPECT_TEMPLATE, getColumnName(aspectClass), tableName, tableName, pageSize);
+    String browseSql = String.format(SQL_BROWSE_ASPECT_TEMPLATE, getAspectColumnName(aspectClass), tableName, tableName, pageSize);
     if (offset > 0) {
       browseSql += String.format(" OFFSET %d", offset);
     }

@@ -1,0 +1,23 @@
+namespace com.linkedin.testing
+
+/**
+ * Burger identifier.
+ */
+@java = {
+  "class" : "com.linkedin.testing.urn.BurgerUrn",
+  "coercerClass" : "com.linkedin.testing.urn.BurgerUrnCoercer"
+}
+@validate.`com.linkedin.common.validator.TypedUrnValidator` = {
+  "owningTeam" : "urn:li:internalTeam:metadata",
+  "entityType" : "burger",
+  "namespace" : "li",
+  "name" : "Burger",
+  "doc" : "Burger identifier.",
+  "owners" : [ "urn:li:corpuser:fbar", "urn:li:corpuser:bfoo" ],
+  "fields" : [ {
+    "type" : "String",
+    "name" : "burgerName",
+    "doc" : "Name for this burger"
+  } ]
+}
+typeref BurgerUrn = string

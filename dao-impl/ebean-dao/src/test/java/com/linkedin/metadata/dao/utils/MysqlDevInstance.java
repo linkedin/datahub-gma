@@ -14,9 +14,9 @@ public class MysqlDevInstance {
   private MysqlDevInstance() {
   }
 
+  public static final String DB_SCHEMA = "gma_dev";
   private static final String DB_USER = "gma";
   private static final String DB_PASS = "Password_1";
-  private static final String DB_SCHEMA = "gma_dev";
   private static final String PORT = "23306";
 
   public static EbeanServer getServer() {
