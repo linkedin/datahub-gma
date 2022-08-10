@@ -25,16 +25,16 @@ public class GraphUtils {
       return;
     }
 
-    final Urn source0Urn = getSourceUrnFromRelationship(relationships.get(0));
-    final Urn destination0Urn = getDestinationUrnFromRelationship(relationships.get(0));
+    final Urn sourceUrn = getSourceUrnFromRelationship(relationships.get(0));
+    final Urn destinationUrn = getDestinationUrnFromRelationship(relationships.get(0));
 
     if (removalOption == BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE) {
-      checkSameUrn(relationships, sourceField, source0Urn);
+      checkSameUrn(relationships, sourceField, sourceUrn);
     } else if (removalOption == BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION) {
-      checkSameUrn(relationships, destinationField, destination0Urn);
+      checkSameUrn(relationships, destinationField, destinationUrn);
     } else if (removalOption == BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE_TO_DESTINATION) {
-      checkSameUrn(relationships, sourceField, source0Urn);
-      checkSameUrn(relationships, destinationField, destination0Urn);
+      checkSameUrn(relationships, sourceField, sourceUrn);
+      checkSameUrn(relationships, destinationField, destinationUrn);
     }
   }
 

@@ -89,7 +89,7 @@ public class SQLSchemaUtils {
    */
   @Nonnull
   public static String getGeneratedColumnName(@Nonnull String aspect, @Nonnull String path) {
-    if (Urn.class.isAssignableFrom(ClassUtils.loadClass(aspect))) {
+    if (isUrn(aspect)) {
       return INDEX_PREFIX + "urn" + processPath(path);
     }
 

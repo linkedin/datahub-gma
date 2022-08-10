@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS metadata_entity_foo (
     lastmodifiedon DATETIME(6) NOT NULL,
     lastmodifiedby VARCHAR(255) NOT NULL,
     CONSTRAINT pk_metadata_aspect PRIMARY KEY (urn)
-    );
+);
 
 -- initialize bar entity table
 CREATE TABLE IF NOT EXISTS metadata_entity_bar (

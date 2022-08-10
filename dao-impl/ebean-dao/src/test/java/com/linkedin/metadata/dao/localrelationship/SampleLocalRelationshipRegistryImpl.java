@@ -4,6 +4,7 @@ import com.google.common.collect.ImmutableMap;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder;
 import com.linkedin.metadata.dao.builder.LocalRelationshipBuilderRegistry;
+import com.linkedin.metadata.dao.localrelationship.builder.BelongsToLocalRelationshipBuilder;
 import com.linkedin.testing.localrelationship.AspectFooBar;
 import java.util.Map;
 import javax.annotation.Nonnull;

@@ -38,6 +38,7 @@ test {
     exclude '**/EBeanLocalAccessTest.class'
     exclude '**/EbeanLocalDAOTest.class'
     exclude '**/EbeanLocalRelationshipWriterDAOTest.class'
+    exclude '**/EbeanLocalRelationshipQueryDAOTest.class'
   }
 }
 

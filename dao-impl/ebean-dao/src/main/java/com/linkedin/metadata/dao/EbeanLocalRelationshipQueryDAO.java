@@ -2,15 +2,17 @@ package com.linkedin.metadata.dao;
 
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.UnionTemplate;
-import com.linkedin.metadata.aspect.AuditedAspect;
 import com.linkedin.metadata.dao.utils.ClassUtils;
 import com.linkedin.metadata.dao.utils.ModelUtils;
+import com.linkedin.metadata.dao.utils.MultiHopsTraversalSqlGenerator;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
 import com.linkedin.metadata.dao.utils.SQLStatementUtils;
 import com.linkedin.metadata.dao.utils.Statement;
 import com.linkedin.metadata.query.Condition;
+import com.linkedin.metadata.query.CriterionArray;
 import com.linkedin.metadata.query.Filter;
+import com.linkedin.metadata.query.RelationshipDirection;
 import com.linkedin.metadata.query.RelationshipFilter;
 import io.ebean.EbeanServer;
 import io.ebean.SqlRow;
@@ -26,13 +28,16 @@ import org.javatuples.Pair;
 import org.javatuples.Triplet;
 
 
+/**
+ * An Ebean implementation of {@link BaseQueryDAO} backed by local relationship tables.
+ */
 public class EbeanLocalRelationshipQueryDAO extends BaseQueryDAO {
   private final EbeanServer _server;
-  private static final int DEFAULT_COUNT = 10;
-  private static final int DEFAULT_OFFSET = 0;
+  private final MultiHopsTraversalSqlGenerator _sqlGenerator;
 
   public EbeanLocalRelationshipQueryDAO(EbeanServer server) {
     _server = server;
+    _sqlGenerator = new MultiHopsTraversalSqlGenerator(SUPPORTED_CONDITIONS);
   }
 
   static final Map<Condition, String> SUPPORTED_CONDITIONS =
@@ -60,9 +65,7 @@ public class EbeanLocalRelationshipQueryDAO extends BaseQueryDAO {
   @Override
   public <SNAPSHOT extends RecordTemplate> List<SNAPSHOT> findEntities(@Nonnull Class<SNAPSHOT> snapshotClass,
       @Nonnull Filter filter, int offset, int count) {
-    count = count <= 0 ? DEFAULT_COUNT : count;
-    offset = offset < 0 ? DEFAULT_OFFSET : offset;
-    validateFilterForEntity(filter, snapshotClass);
+    validateEntityFilter(filter, snapshotClass);
 
     // Build SQL
     final String tableName = SQLSchemaUtils.getTableName(ModelUtils.getUrnTypeFromSnapshot(snapshotClass));
@@ -71,7 +74,7 @@ public class EbeanLocalRelationshipQueryDAO extends BaseQueryDAO {
     if (filter.hasCriteria() && filter.getCriteria().size() > 0) {
       sqlBuilder.append(" WHERE ").append(SQLStatementUtils.whereClause(filter, SUPPORTED_CONDITIONS, null));
     }
-    sqlBuilder.append(" ORDER BY source LIMIT ").append(count).append(" OFFSET ").append(offset);
+    sqlBuilder.append(" ORDER BY urn LIMIT ").append(Math.max(1, count)).append(" OFFSET ").append(Math.max(0, offset));
 
     // Execute SQL
     return _server.createSqlQuery(sqlBuilder.toString()).findList().stream()
@@ -81,12 +84,28 @@ public class EbeanLocalRelationshipQueryDAO extends BaseQueryDAO {
 
   @Nonnull
   @Override
-  public <SRC_ENTITY extends RecordTemplate, DEST_ENTITY extends RecordTemplate, RELATIONSHIP extends RecordTemplate> List<RecordTemplate> findEntities(
-      @Nullable Class<SRC_ENTITY> sourceEntityClass, @Nonnull Filter sourceEntityFilter,
-      @Nullable Class<DEST_ENTITY> destinationEntityClass, @Nonnull Filter destinationEntityFilter,
+  public <SRC_SNAPSHOT extends RecordTemplate, DEST_SNAPSHOT extends RecordTemplate, RELATIONSHIP extends RecordTemplate> List<RecordTemplate> findEntities(
+      @Nonnull Class<SRC_SNAPSHOT> sourceEntityClass, @Nonnull Filter sourceEntityFilter,
+      @Nonnull Class<DEST_SNAPSHOT> destinationEntityClass, @Nonnull Filter destinationEntityFilter,
       @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull RelationshipFilter relationshipFilter, int minHops,
       int maxHops, int offset, int count) {
-    return null;
+
+    validateRelationshipFilter(relationshipFilter);
+    validateEntityFilter(sourceEntityFilter, sourceEntityClass);
+    validateEntityFilter(destinationEntityFilter, destinationEntityClass);
+
+    final String relationshipTable = SQLSchemaUtils.getRelationshipTableName(relationshipType);
+    final String srcEntityTable = SQLSchemaUtils.getTableName(ModelUtils.getUrnTypeFromSnapshot(sourceEntityClass));
+    final String destEntityTable = SQLSchemaUtils.getTableName(ModelUtils.getUrnTypeFromSnapshot(destinationEntityClass));
+    final String sql = _sqlGenerator.multiHopTraversalSql(minHops, maxHops, Math.max(1, count), Math.max(0, offset), relationshipTable,
+        srcEntityTable, destEntityTable, relationshipFilter, sourceEntityFilter, destinationEntityFilter);
+
+    final Class snapshotClass = relationshipFilter.getDirection() == RelationshipDirection.INCOMING ? sourceEntityClass : destinationEntityClass;
+
+    // Execute SQL
+    List<RecordTemplate> results = new ArrayList<>();
+    _server.createSqlQuery(sql).findList().forEach(sqlRow -> results.add(constructSnapshot(sqlRow, snapshotClass)));
+    return results;
   }
 
   @Nonnull
@@ -95,7 +114,7 @@ public class EbeanLocalRelationshipQueryDAO extends BaseQueryDAO {
       @Nullable Class<SRC_ENTITY> sourceEntityClass, @Nonnull Filter sourceEntityFilter,
       @Nonnull List<Triplet<Class<RELATIONSHIP>, RelationshipFilter, Class<INTER_ENTITY>>> traversePaths, int offset,
       int count) {
-    return null;
+    throw new UnsupportedOperationException("Multi-hops traversal by traversePaths is not supported yet.");
   }
 
   /**
@@ -118,12 +137,20 @@ public class EbeanLocalRelationshipQueryDAO extends BaseQueryDAO {
       @Nullable Class<SRC_SNAPSHOT> sourceEntityClass, @Nonnull Filter sourceEntityFilter,
       @Nullable Class<DEST_SNAPSHOT> destinationEntityClass, @Nonnull Filter destinationEntityFilter,
       @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull Filter relationshipFilter, int offset, int count) {
-    validateFilterForEntity(sourceEntityFilter, sourceEntityClass);
-    validateFilterForEntity(destinationEntityFilter, destinationEntityClass);
-    validateFilterForEntity(relationshipFilter, relationshipType);
+    validateEntityFilter(sourceEntityFilter, sourceEntityClass);
+    validateEntityFilter(destinationEntityFilter, destinationEntityClass);
+    validateEntityFilter(relationshipFilter, relationshipType);
 
-    final String destTableName = destinationEntityClass != null ? SQLSchemaUtils.getTableName(ModelUtils.getUrnTypeFromSnapshot(destinationEntityClass)) : null;
-    final String sourceTableName = sourceEntityClass != null ? SQLSchemaUtils.getTableName(ModelUtils.getUrnTypeFromSnapshot(sourceEntityClass)) : null;
+    String destTableName = null;
+    if (destinationEntityClass != null) {
+      destTableName = SQLSchemaUtils.getTableName(ModelUtils.getUrnTypeFromSnapshot(destinationEntityClass));
+    }
+
+    String sourceTableName = null;
+    if (sourceEntityClass != null) {
+      sourceTableName = SQLSchemaUtils.getTableName(ModelUtils.getUrnTypeFromSnapshot(sourceEntityClass));
+    }
+
     final String relationshipTableName = SQLSchemaUtils.getRelationshipTableName(relationshipType);
 
     final String sql = buildFindRelationshipSQL(
@@ -171,16 +198,36 @@ public class EbeanLocalRelationshipQueryDAO extends BaseQueryDAO {
    * 2. if entity class is null, then filter should be emtpy.
    * If any of above is violated, throw IllegalArgumentException.
    */
-  private <ENTITY extends RecordTemplate> void validateFilterForEntity(@Nonnull Filter filter, @Nullable Class<ENTITY> entityClass) {
-    if (entityClass == null) {
-      if (filter.hasCriteria() && filter.getCriteria().size() > 0) {
-        throw new IllegalArgumentException("snapshotClass is null but filter is not empty");
-      }
+  private <ENTITY extends RecordTemplate> void validateEntityFilter(@Nonnull Filter filter, @Nullable Class<ENTITY> entityClass) {
+    if (entityClass == null && filter.hasCriteria() && filter.getCriteria().size() > 0) {
+      throw new IllegalArgumentException("Entity class is null but filter is not empty.");
     }
 
-    filter.getCriteria().forEach(criterion -> {
+    validateFilterCriteria(filter.getCriteria());
+  }
+
+  /**
+   * Validate:
+   * 1. The relationship filter only contains supported condition.
+   * 2. Relationship direction cannot be unknown.
+   * If any of above is violated, throw IllegalArgumentException.
+   */
+  private void validateRelationshipFilter(@Nonnull RelationshipFilter filter) {
+    if (filter.getDirection() == RelationshipDirection.$UNKNOWN) {
+      throw new IllegalArgumentException("Relationship direction cannot be UNKNOWN.");
+    }
+
+    validateFilterCriteria(filter.getCriteria());
+  }
+
+  /**
+   * Validate whether filter criteria contains unsupported condition.
+   * @param criteria An array of criteria contained in a filter.
+   */
+  private void validateFilterCriteria(@Nonnull CriterionArray criteria) {
+    criteria.forEach(criterion -> {
       if (!SUPPORTED_CONDITIONS.containsKey(criterion.getCondition())) {
-        throw new IllegalArgumentException(String.format("Condition %s is not supported by local relationship DAO",
+        throw new IllegalArgumentException(String.format("Condition %s is not supported by local relationship DAO.",
             criterion.getCondition()));
       }
     });
@@ -203,8 +250,8 @@ public class EbeanLocalRelationshipQueryDAO extends BaseQueryDAO {
       String auditedAspectStr = sqlRow.getString(colName);
 
       if (auditedAspectStr != null) {
-        AuditedAspect auditedAspect = RecordUtils.toRecordTemplate(AuditedAspect.class, auditedAspectStr);
-        RecordTemplate aspect = RecordUtils.toRecordTemplate(ClassUtils.loadClass(aspectCanonicalName), auditedAspect.getAspect());
+        RecordTemplate aspect = RecordUtils.toRecordTemplate(ClassUtils.loadClass(aspectCanonicalName),
+            EbeanLocalAccess.extractAspectJsonString(auditedAspectStr));
         aspects.add(ModelUtils.newAspectUnion(ModelUtils.getUnionClassFromSnapshot(snapshotClass), aspect));
       }
     }

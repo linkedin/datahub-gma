@@ -1,0 +1,17 @@
+namespace com.linkedin.testing
+
+/**
+ * For unit tests
+ */
+record BarSnapshot {
+
+  /**
+   * For unit tests
+   */
+  urn: BarUrn
+
+  /**
+   * For unit tests
+   */
+  aspects: array[EntityAspectUnion]
+}

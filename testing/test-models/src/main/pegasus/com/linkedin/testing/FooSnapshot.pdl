@@ -1,0 +1,17 @@
+namespace com.linkedin.testing
+
+/**
+ * For unit tests
+ */
+record FooSnapshot {
+
+  /**
+   * For unit tests
+   */
+  urn: FooUrn
+
+  /**
+   * For unit tests
+   */
+  aspects: array[EntityAspectUnion]
+}
