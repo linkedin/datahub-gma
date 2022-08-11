@@ -23,11 +23,11 @@ public class SQLIndexFilterUtilsTest {
     assertEquals(indexSortCriterion.getAspect(), AspectFoo.class.getCanonicalName());
 
     String sql = SQLIndexFilterUtils.parseSortCriteria(indexSortCriterion);
-    assertEquals(sql, "ORDER BY i_testing_aspectfoo$id ASC");
+    assertEquals(sql, "ORDER BY i_aspectfoo$id ASC");
 
     indexSortCriterion.setOrder(SortOrder.DESCENDING);
     sql = SQLIndexFilterUtils.parseSortCriteria(indexSortCriterion);
-    assertEquals(sql, "ORDER BY i_testing_aspectfoo$id DESC");
+    assertEquals(sql, "ORDER BY i_aspectfoo$id DESC");
   }
 
   @Test
@@ -40,6 +40,6 @@ public class SQLIndexFilterUtilsTest {
     indexFilter.setCriteria(indexCriterionArray);
 
     String sql = SQLIndexFilterUtils.parseIndexFilter(indexFilter);
-    assertEquals(sql, "WHERE " + "i_testing_aspectfoo$id < 12");
+    assertEquals(sql, "WHERE " + "i_aspectfoo$id < 12");
   }
 }

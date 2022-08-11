@@ -3,6 +3,7 @@ namespace com.linkedin.testing
 /**
  * For unit tests
  */
+@gma.aspect.column.name = "aspectbaz"
 record AspectBaz {
 
   /**

@@ -41,14 +41,14 @@ import static org.testng.AssertJUnit.*;
  */
 public class EBeanLocalAccessTest {
   private static EbeanServer _server;
-  private static IEBeanLocalAccess _IEBeanLocalAccess;
+  private static IEbeanLocalAccess _ebeanLocalAccess;
 
   @BeforeClass
   public void init() throws IOException {
     _server = MysqlDevInstance.getServer();
     _server.execute(Ebean.createSqlUpdate(
         Resources.toString(Resources.getResource("metadata-schema-create-all.sql"), StandardCharsets.UTF_8)));
-    _IEBeanLocalAccess = new EBeanLocalAccess(_server, FooUrn.class);
+    _ebeanLocalAccess = new EbeanLocalAccess(_server, FooUrn.class);
 
     // initialize data with metadata_entity_foo table with fooUrns from 0 ~ 99
     int numOfRecords = 100;
@@ -57,7 +57,7 @@ public class EBeanLocalAccessTest {
       AspectFoo aspectFoo = new AspectFoo();
       aspectFoo.setValue(String.valueOf(i));
       AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
-      _IEBeanLocalAccess.add(fooUrn, aspectFoo, AspectFoo.class, auditStamp);
+      _ebeanLocalAccess.add(fooUrn, aspectFoo, AspectFoo.class, auditStamp);
     }
   }
 
@@ -71,7 +71,7 @@ public class EBeanLocalAccessTest {
 
     // When get AspectFoo from urn:li:foo:0
     List<EbeanMetadataAspect> ebeanMetadataAspectList =
-        _IEBeanLocalAccess.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0);
+        _ebeanLocalAccess.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0);
     assertEquals(1, ebeanMetadataAspectList.size());
 
     EbeanMetadataAspect ebeanMetadataAspect = ebeanMetadataAspectList.get(0);
@@ -88,7 +88,7 @@ public class EBeanLocalAccessTest {
     // When get AspectFoo from urn:li:foo:9999 (does not exist)
     FooUrn nonExistFooUrn = makeFooUrn(9999);
     AspectKey<FooUrn, AspectFoo> nonExistKey = new AspectKey(AspectFoo.class, nonExistFooUrn, 0L);
-    ebeanMetadataAspectList = _IEBeanLocalAccess.batchGetUnion(Collections.singletonList(nonExistKey), 1000, 0);
+    ebeanMetadataAspectList = _ebeanLocalAccess.batchGetUnion(Collections.singletonList(nonExistKey), 1000, 0);
 
     // Expect: get AspectFoo from urn:li:foo:9999 returns empty result
     assertTrue(ebeanMetadataAspectList.isEmpty());
@@ -118,7 +118,7 @@ public class EBeanLocalAccessTest {
 
     // When: list out results with start = 5 and pageSize = 5
 
-    ListResult<Urn> listUrns = _IEBeanLocalAccess.listUrns(indexFilter, indexSortCriterion, 5, 5);
+    ListResult<Urn> listUrns = _ebeanLocalAccess.listUrns(indexFilter, indexSortCriterion, 5, 5);
 
     assertEquals(5, listUrns.getValues().size());
     assertEquals(5, listUrns.getPageSize());
@@ -153,7 +153,7 @@ public class EBeanLocalAccessTest {
 
     // When: list out results with lastUrn = 'urn:li:foo:29' and pageSize = 5
 
-    List<Urn> listUrns = _IEBeanLocalAccess.listUrns(indexFilter, indexSortCriterion, lastUrn, 5);
+    List<Urn> listUrns = _ebeanLocalAccess.listUrns(indexFilter, indexSortCriterion, lastUrn, 5);
 
     // Expect: 5 rows are returns (30~34) and the first element is 'urn:li:foo:30'
     assertEquals(5, listUrns.size());
@@ -168,13 +168,13 @@ public class EBeanLocalAccessTest {
     FooUrn foo0 = new FooUrn(0);
 
     // Expect: urn:li:foo:0 exists
-    assertTrue(_IEBeanLocalAccess.exists(foo0));
+    assertTrue(_ebeanLocalAccess.exists(foo0));
 
     // When: check whether urn:li:foo:9999 exist
     FooUrn foo9999 = new FooUrn(9999);
 
     // Expect: urn:li:foo:9999 does not exists
-    assertFalse(_IEBeanLocalAccess.exists(foo9999));
+    assertFalse(_ebeanLocalAccess.exists(foo9999));
   }
 
   @Test
@@ -182,21 +182,21 @@ public class EBeanLocalAccessTest {
     // Given: metadata_entity_foo table with fooUrns from 0 ~ 99
 
     // When: list urns from the 1st record, with 50 page size
-    ListResult<AspectFoo> fooUrnListResult = _IEBeanLocalAccess.listUrns(AspectFoo.class, 0, 50);
+    ListResult<AspectFoo> fooUrnListResult = _ebeanLocalAccess.listUrns(AspectFoo.class, 0, 50);
 
     // Expect: 50 results is returned and 100 total records
     assertEquals(50, fooUrnListResult.getValues().size());
     assertEquals(100, fooUrnListResult.getTotalCount());
 
     // When: list urns from the 55th record, with 50 page size
-    fooUrnListResult = _IEBeanLocalAccess.listUrns(AspectFoo.class, 55, 50);
+    fooUrnListResult = _ebeanLocalAccess.listUrns(AspectFoo.class, 55, 50);
 
     // Expect: 45 results is returned and 100 total records
     assertEquals(45, fooUrnListResult.getValues().size());
     assertEquals(100, fooUrnListResult.getTotalCount());
 
     // When: list urns from the 101th record, with 50 page size
-    fooUrnListResult = _IEBeanLocalAccess.listUrns(AspectFoo.class, 101, 50);
+    fooUrnListResult = _ebeanLocalAccess.listUrns(AspectFoo.class, 101, 50);
 
     // Expect: 0 results is returned and 0 total records
     assertEquals(0, fooUrnListResult.getValues().size());
@@ -223,7 +223,7 @@ public class EBeanLocalAccessTest {
     IndexGroupByCriterion indexGroupByCriterion = new IndexGroupByCriterion();
     indexGroupByCriterion.setPath("/value");
     indexGroupByCriterion.setAspect(AspectFoo.class.getCanonicalName());
-    Map<String, Long> countMap = _IEBeanLocalAccess.countAggregate(indexFilter, indexGroupByCriterion);
+    Map<String, Long> countMap = _ebeanLocalAccess.countAggregate(indexFilter, indexGroupByCriterion);
 
     // Expect: there is 1 count for value 25
     assertEquals(countMap.get("25"), Long.valueOf(1));
@@ -234,8 +234,8 @@ public class EBeanLocalAccessTest {
     AspectFoo aspectFoo = new AspectFoo();
     aspectFoo.setValue(String.valueOf(25));
     AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
-    _IEBeanLocalAccess.add(fooUrn, aspectFoo, AspectFoo.class, auditStamp);
-    countMap = _IEBeanLocalAccess.countAggregate(indexFilter, indexGroupByCriterion);
+    _ebeanLocalAccess.add(fooUrn, aspectFoo, AspectFoo.class, auditStamp);
+    countMap = _ebeanLocalAccess.countAggregate(indexFilter, indexGroupByCriterion);
 
     // Expect: there are 2 counts for value 25
     assertEquals(countMap.get("25"), Long.valueOf(2));
@@ -250,9 +250,9 @@ public class EBeanLocalAccessTest {
     auditedAspect.setLastmodifiedby("0");
     auditedAspect.setLastmodifiedon("1");
     auditedAspect.setAspect(RecordUtils.toJsonString(aspectFoo));
-    String toJson = EBeanLocalAccess.toJsonString(auditedAspect);
+    String toJson = EbeanLocalAccess.toJsonString(auditedAspect);
 
     assertEquals("{\"lastmodifiedby\":\"0\",\"lastmodifiedon\":\"1\",\"aspect\":{\"value\":\"test\"}}", toJson);
-    assertNotNull(RecordUtils.toRecordTemplate(AspectFoo.class, EBeanLocalAccess.extractAspectJsonString(toJson)));
+    assertNotNull(RecordUtils.toRecordTemplate(AspectFoo.class, EbeanLocalAccess.extractAspectJsonString(toJson)));
   }
 }

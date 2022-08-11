@@ -83,7 +83,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   protected final EbeanServer _server;
   protected final Class<URN> _urnClass;
-  private IEBeanLocalAccess<URN> _localAccess;
+  private IEbeanLocalAccess<URN> _localAccess;
   private EbeanLocalRelationshipWriterDAO _ebeanLocalRelationshipWriterDAO;
   private UrnPathExtractor<URN> _urnPathExtractor;
   private int _queryKeysCount = 0; // 0 means no pagination on keys
@@ -134,7 +134,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     this(aspectUnionClass, producer, server, urnClass);
     _schemaConfig = schemaConfig;
     if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
-      _localAccess = new EBeanLocalAccess<>(server, urnClass);
+      _localAccess = new EbeanLocalAccess<>(server, urnClass);
     }
   }
 
@@ -183,7 +183,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     this(producer, server, storageConfig, urnClass, urnPathExtractor);
     _schemaConfig = schemaConfig;
     if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
-      _localAccess = new EBeanLocalAccess<>(server, urnClass);
+      _localAccess = new EbeanLocalAccess<>(server, urnClass);
     }
   }
 

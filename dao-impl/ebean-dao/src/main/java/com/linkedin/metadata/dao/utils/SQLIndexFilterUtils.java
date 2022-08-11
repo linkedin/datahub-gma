@@ -71,9 +71,7 @@ public class SQLIndexFilterUtils {
     if (indexSortCriterion == null) {
       return "";
     }
-    final String normalizedAspectName = getNormalizedAspectName(indexSortCriterion.getAspect());
-    final String path = indexSortCriterion.getPath();
-    final String indexColumn = INDEX_PREFIX + normalizedAspectName + processPath(path);
+    final String indexColumn = SQLSchemaUtils.getGeneratedColumnName(indexSortCriterion.getAspect(), indexSortCriterion.getPath());
 
     if (!indexSortCriterion.hasOrder()) {
       return "ORDER BY " + indexColumn;
@@ -91,19 +89,18 @@ public class SQLIndexFilterUtils {
   public static String parseIndexFilter(@Nonnull IndexFilter indexFilter) {
     List<String> sqlFilters = new ArrayList<>();
     for (IndexCriterion indexCriterion : indexFilter.getCriteria()) {
-      final String normalizedAspectName = getNormalizedAspectName(indexCriterion.getAspect());
       final IndexPathParams pathParams = indexCriterion.getPathParams();
       if (pathParams != null) {
         validateConditionAndValue(indexCriterion);
         final String path = indexCriterion.getPathParams().getPath();
         final Condition condition = pathParams.getCondition();
-        final String indexColumn = INDEX_PREFIX + normalizedAspectName + processPath(path);
+        final String indexColumn = getGeneratedColumnName(indexCriterion.getAspect(), path);
         sqlFilters.add(
             indexColumn + parseConditionExpr(condition, indexCriterion.getPathParams().getValue(GetMode.NULL)));
-      } else {
+      } else if (!isUrn(indexCriterion.getAspect())) {
         // if not given a path and condition, assume we are checking if the aspect exists.
-        final String indexColumn = ASPECT_PREFIX + normalizedAspectName;
-        sqlFilters.add(indexColumn + " IS NOT NULL");
+        final String aspectColumn = getAspectColumnName(indexCriterion.getAspect());
+        sqlFilters.add(aspectColumn + " IS NOT NULL");
       }
     }
     if (sqlFilters.isEmpty()) {

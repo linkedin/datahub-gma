@@ -199,7 +199,7 @@ public class EbeanLocalRelationshipQueryDAO extends BaseQueryDAO {
     final List<UnionTemplate> aspects = new ArrayList<>();
 
     for (String aspectCanonicalName : ModelUtils.getAspectClassNames(unionTemplateClass)) {
-      String colName = SQLSchemaUtils.getColumnNameFromAnnotation(aspectCanonicalName);
+      String colName = SQLSchemaUtils.getAspectColumnName(aspectCanonicalName);
       String auditedAspectStr = sqlRow.getString(colName);
 
       if (auditedAspectStr != null) {

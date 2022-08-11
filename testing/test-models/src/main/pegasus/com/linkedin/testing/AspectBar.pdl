@@ -3,7 +3,7 @@ namespace com.linkedin.testing
 /**
  * For unit tests
  */
-@gma.aspect.column.name = "bar_column"
+@gma.aspect.column.name = "aspectbar"
 record AspectBar {
 
   /**

@@ -6,10 +6,6 @@ import com.linkedin.data.template.DataTemplateUtil;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.aspect.AspectColumnMetadata;
 import com.linkedin.metadata.dao.exception.MissingAnnotationException;
-import com.linkedin.metadata.query.IndexGroupByCriterion;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import javax.annotation.Nonnull;
 
@@ -19,7 +15,6 @@ import javax.annotation.Nonnull;
  */
 public class SQLSchemaUtils {
 
-  private static final String LI_DOMAIN = "com.linkedin.";
   private static final String GMA = "gma";
   public static final String ENTITY_TABLE_PREFIX = "metadata_entity_";
   public static final String RELATIONSHIP_TABLE_PREFIX = "metadata_relationship_";
@@ -36,6 +31,7 @@ public class SQLSchemaUtils {
    * @param urn {@link Urn} of the entity
    * @return entity table name
    */
+  @Nonnull
   public static String getTableName(@Nonnull Urn urn) {
     return getTableName(urn.getEntityType());
   }
@@ -45,6 +41,7 @@ public class SQLSchemaUtils {
    * @param entityType entity type as string, such as "dataset", "chart" ..etc
    * @return entity table name
    */
+  @Nonnull
   public static String getTableName(@Nonnull String entityType) {
     return ENTITY_TABLE_PREFIX + entityType.toLowerCase();
   }
@@ -70,35 +67,54 @@ public class SQLSchemaUtils {
   }
 
   /**
-   * Get normalized aspect name. Normalization Rules:
-   * 1. remove LI prefix (com.linkedin.) to save column length
-   * 2. all lower cases
-   * 3. substitute "." with "_"
-   * 4. If length is longer than 64, chopping namespace from left to right
-   * TODO: Deprecate this method and after switching to getColumnNameFromAnnotation method
-   * @param aspectCanonicalName aspect name in canonical form.
-   * @return normalized aspect name
+   * Get column name from aspect class canonical name.
    */
-  public static String getNormalizedAspectName(@Nonnull String aspectCanonicalName) {
-    aspectCanonicalName = aspectCanonicalName.toLowerCase(Locale.ROOT);
-    if (aspectCanonicalName.startsWith(LI_DOMAIN)) {
-      aspectCanonicalName = aspectCanonicalName.substring(LI_DOMAIN.length());
-    }
-    if (aspectCanonicalName.length() > MYSQL_MAX_COLUMN_NAME_LENGTH) {
-      throw new IllegalArgumentException("Aspect name is too long to be normalized: " + aspectCanonicalName);
-    }
-    aspectCanonicalName = trimColumnName(aspectCanonicalName);
-    return aspectCanonicalName.replace(".", "_");
+  @Nonnull
+  public static String getAspectColumnName(@Nonnull final String aspectCanonicalName) {
+    return ASPECT_PREFIX + getColumnNameFromAnnotation(aspectCanonicalName);
   }
 
   /**
-   * Get Column name from aspect canonical name.
-   * TODO: Deprecate this method and switch to getColumnNameFromAnnotation method
-   * @param aspectCanonicalName aspect name in canonical form.
+   * Get column name from aspect class.
+   * @param aspectClass aspect class
+   * @param <ASPECT> aspect that extends {@link RecordTemplate}
    * @return aspect column name
    */
-  public static String getColumnName(@Nonnull String aspectCanonicalName) {
-    return ASPECT_PREFIX + getNormalizedAspectName(aspectCanonicalName);
+  public static <ASPECT extends RecordTemplate> String getAspectColumnName(@Nonnull Class<ASPECT> aspectClass) {
+    return getAspectColumnName(aspectClass.getCanonicalName());
+  }
+
+  /**
+   * Get generated column name from aspect and path.
+   */
+  @Nonnull
+  public static String getGeneratedColumnName(@Nonnull String aspect, @Nonnull String path) {
+    if (Urn.class.isAssignableFrom(ClassUtils.loadClass(aspect))) {
+      return INDEX_PREFIX + "urn" + processPath(path);
+    }
+
+    return INDEX_PREFIX + getColumnNameFromAnnotation(aspect) + processPath(path);
+  }
+
+  /**
+   * Check the given class name is for urn class.
+   */
+  public static boolean isUrn(@Nonnull String className) {
+    return Urn.class.isAssignableFrom(ClassUtils.loadClass(className));
+  }
+
+  /**
+   * process 'path' into mysql column name convention.
+   * @param path path in string e.g. /name/value, /name
+   * @return $name$value or $name
+   */
+  @Nonnull
+  private static String processPath(@Nonnull String path) {
+    path = path.replace("/", "$");
+    if (!path.startsWith("$")) {
+      path = "$" + path;
+    }
+    return path;
   }
 
   /**
@@ -108,77 +124,16 @@ public class SQLSchemaUtils {
    * @return aspect column name
    */
   @Nonnull
-  public static String getColumnNameFromAnnotation(@Nonnull final String aspectCanonicalName) {
+  private static String getColumnNameFromAnnotation(@Nonnull final String aspectCanonicalName) {
     try {
       final RecordDataSchema schema = (RecordDataSchema) DataTemplateUtil.getSchema(ClassUtils.loadClass(aspectCanonicalName));
       final Map<String, Object> properties = schema.getProperties();
       final Object gmaObj = properties.get(GMA);
       final AspectColumnMetadata gmaAnnotation = DataTemplateUtil.wrap(gmaObj, AspectColumnMetadata.class);
-      return ASPECT_PREFIX + gmaAnnotation.getAspect().getColumn().getName();
+      return gmaAnnotation.getAspect().getColumn().getName();
     } catch (Exception e) {
       throw new MissingAnnotationException(String.format("Aspect %s should be annotated with @gma.aspect.column.name.",
-            aspectCanonicalName), e);
+          aspectCanonicalName), e);
     }
-  }
-
-  /**
-   * Get MySQL column name from aspect class.
-   * TODO: Deprecate this method and switch to getColumnNameFromAnnotation method
-   * @param aspectClass aspect class
-   * @param <ASPECT> aspect that extends {@link RecordTemplate}
-   * @return aspect column name
-   */
-  public static <ASPECT extends RecordTemplate> String getColumnName(@Nonnull Class<ASPECT> aspectClass) {
-    return getColumnName(aspectClass.getCanonicalName());
-  }
-
-  /**
-   * Trim column name to keep it within 64 characters.
-   * TODO: it has the restriction to trim class with longer than 64 chars in the class name and resolve the
-   * TODO: different classes has the same classname and package prefix to resolve the above restriction, a
-   * TODO: smarter trim algorithm or naming registry is required.
-   * TODO: Deprecate this method and switch to getColumnNameFromAnnotation method
-   * @param aspectCanonicalName column name in canonical format, e.g: com.linkedin.foo.ClassName
-   * @return
-   */
-  static String trimColumnName(String aspectCanonicalName) {
-    if (aspectCanonicalName.length() <= MYSQL_MAX_COLUMN_NAME_LENGTH) {
-      return aspectCanonicalName;
-    }
-    final List<String> packageTokens = Arrays.asList(aspectCanonicalName.split("\\."));
-    int charsToChop = aspectCanonicalName.length() - MYSQL_MAX_COLUMN_NAME_LENGTH;
-    int curToken = 0;
-    while (charsToChop > 0 && curToken < packageTokens.size() - 1) {
-      charsToChop -= packageTokens.get(curToken).length() + 1;
-      curToken++;
-    }
-    if (charsToChop > 0) {
-      throw new RuntimeException("unable to further trim column name: " + aspectCanonicalName);
-    }
-    return String.join(".", packageTokens.subList(curToken, packageTokens.size()));
-  }
-
-  /**
-   * process 'path' into mysql column name convention.
-   * @param path path in string e.g. /name/value, /name
-   * @return $name$value or $name
-   */
-  public static String processPath(@Nonnull String path) {
-    path = path.replace("/", "$");
-    if (!path.startsWith("$")) {
-      path = "$" + path;
-    }
-    return path;
-  }
-
-  /**
-   * Get index group by column from group by criterion.
-   * @param indexGroupByCriterion {@link IndexGroupByCriterion}
-   * @return GROUP BY i_{aspect}${path}
-   */
-  public static String getIndexGroupByColumn(IndexGroupByCriterion indexGroupByCriterion) {
-    final String normalizedAspectName = getNormalizedAspectName(indexGroupByCriterion.getAspect());
-    final String indexColumn = INDEX_PREFIX + normalizedAspectName + processPath(indexGroupByCriterion.getPath());
-    return indexColumn;
   }
 }

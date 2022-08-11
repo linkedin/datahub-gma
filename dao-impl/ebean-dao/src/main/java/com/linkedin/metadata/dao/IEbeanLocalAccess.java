@@ -14,7 +14,7 @@ import javax.annotation.Nullable;
 /**
  * EBeanLocalAccess provides model-agnostic data access (read / write) to MySQL database.
  */
-public interface IEBeanLocalAccess<URN extends Urn> {
+public interface IEbeanLocalAccess<URN extends Urn> {
 
   /**
    * Upsert aspect into entity table.
