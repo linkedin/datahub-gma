@@ -13,11 +13,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
 import org.javatuples.Pair;
 
+import static com.linkedin.metadata.dao.utils.EBeanDAOUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLSchemaUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLIndexFilterUtils.*;
 
@@ -31,10 +33,10 @@ public class SQLStatementUtils {
       "INSERT INTO %s (urn, %s, lastmodifiedon, lastmodifiedby) VALUE (:urn, :metadata, :lastmodifiedon, :lastmodifiedby) "
           + "ON DUPLICATE KEY UPDATE %s = :metadata;";
 
-  private static final String SQL_READ_ASPECT_TEMPLATE_START = "SELECT urn, ";
+  private static final String SQL_READ_ASPECT_TEMPLATE =
+      String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby FROM %%s WHERE urn = '%%s' AND %%s != '%s'", DELETED_VALUE);
 
-  private static final String SQL_READ_ASPECT_TEMPLATE_END = "lastmodifiedon, lastmodifiedby FROM %s WHERE urn = '%s'";
-
+  private static final String INDEX_GROUP_BY_CRITERION = "SELECT count(*) as COUNT, %s FROM %s";
   private static final String SQL_GROUP_BY_COLUMN_EXISTS_TEMPLATE =
       "SELECT * FROM information_schema.COLUMNS WHERE TABLE_NAME = '%s' AND COLUMN_NAME = '%s'";
 
@@ -67,7 +69,8 @@ public class SQLStatementUtils {
       ")\nSELECT *, (SELECT COUNT(urn) FROM _temp_results) AS _total_count FROM _temp_results";
 
   private static final String SQL_BROWSE_ASPECT_TEMPLATE =
-      "SELECT urn, %s, lastmodifiedon, lastmodifiedby, (SELECT COUNT(urn) FROM %s) as _total_count FROM %s LIMIT %d";
+      String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby, (SELECT COUNT(urn) FROM %%s) as _total_count "
+          + "FROM %%s WHERE %%s != '%s' LIMIT %%d OFFSET %%d", DELETED_VALUE);
 
   private SQLStatementUtils() {
     // Util class
@@ -84,22 +87,33 @@ public class SQLStatementUtils {
   }
 
   /**
-   * Create read aspect SQL statement.
-   * @param urn entity urn
-   * @param aspectClasses aspect urn class
+   * Create read aspect SQL statement for one aspect class (but could include many urns). Essentially, this will query for a
+   * single aspect column in the metadata entity tables. The query includes a filter for filtering out soft-deleted aspects.
+   *
+   * <p>Example:
+   * SELECT urn, aspect1, lastmodifiedon, lastmodifiedby FROM metadata_entity_foo WHERE urn = 'urn:1' AND aspect1 != '{"gma_deleted":true}'
+   * UNION ALL
+   * SELECT urn, aspect1, lastmodifiedon, lastmodifiedby FROM metadata_entity_foo WHERE urn = 'urn:2' AND aspect1 != '{"gma_deleted":true}'
+   * UNION ALL
+   * SELECT urn, aspect1, lastmodifiedon, lastmodifiedby FROM metadata_entity_bar WHERE urn = 'urn:1' AND aspect1 != '{"gma_deleted":true}'
+   * </p>
+   * @param aspectClass aspect class to query for
+   * @param urns a Set of Urns to query for
    * @param <ASPECT> aspect type
-   * @return aspect read sql
+   * @return aspect read sql statement for a single aspect (across multiple tables and urns)
    */
-  public static <ASPECT extends RecordTemplate> String createAspectReadSql(@Nonnull Urn urn,
-      @Nonnull Set<Class<ASPECT>> aspectClasses) {
-    final String tableName = getTableName(urn);
-    StringBuilder stringBuilder = new StringBuilder();
-    stringBuilder.append(SQL_READ_ASPECT_TEMPLATE_START);
-    for (Class<ASPECT> aspectClass : aspectClasses) {
-      final String columnName = getAspectColumnName(aspectClass);
-      stringBuilder.append(String.format("%s, ", columnName));
+  public static <ASPECT extends RecordTemplate> String createAspectReadSql(@Nonnull Class<ASPECT> aspectClass,
+      @Nonnull Set<Urn> urns) {
+    if (urns.size() == 0) {
+      throw new IllegalArgumentException("Need at least 1 urn to query.");
     }
-    stringBuilder.append(String.format(SQL_READ_ASPECT_TEMPLATE_END, tableName, urn.toString()));
+    final String columnName = getAspectColumnName(aspectClass);
+    StringBuilder stringBuilder = new StringBuilder();
+    List<String> selectStatements = urns.stream().map(urn -> {
+          final String tableName = getTableName(urn);
+          return String.format(SQL_READ_ASPECT_TEMPLATE, columnName, tableName, urn.toString(), columnName);
+        }).collect(Collectors.toList());
+    stringBuilder.append(String.join(" UNION ALL ", selectStatements));
     return stringBuilder.toString();
   }
 
@@ -138,8 +152,6 @@ public class SQLStatementUtils {
     return sb.toString();
   }
 
-  private static final String INDEX_GROUP_BY_CRITERION = "SELECT count(*) as COUNT, %s FROM %s";
-
   /**
    * Create index group by SQL statement.
    * @param tableName table name
@@ -174,11 +186,9 @@ public class SQLStatementUtils {
   public static <ASPECT extends RecordTemplate> String createAspectBrowseSql(String entityType,
       Class<ASPECT> aspectClass, int offset, int pageSize) {
     final String tableName = getTableName(entityType);
-    String browseSql = String.format(SQL_BROWSE_ASPECT_TEMPLATE, getAspectColumnName(aspectClass), tableName, tableName, pageSize);
-    if (offset > 0) {
-      browseSql += String.format(" OFFSET %d", offset);
-    }
-    return browseSql;
+    final String columnName = getAspectColumnName(aspectClass);
+    return String.format(SQL_BROWSE_ASPECT_TEMPLATE, columnName, tableName, tableName, columnName,
+        Math.max(pageSize, 0), Math.max(offset, 0));
   }
 
   /**
