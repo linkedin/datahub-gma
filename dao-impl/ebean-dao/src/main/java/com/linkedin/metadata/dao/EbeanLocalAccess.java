@@ -14,22 +14,17 @@ import io.ebean.EbeanServer;
 import io.ebean.SqlQuery;
 import io.ebean.SqlRow;
 import io.ebean.SqlUpdate;
-import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -143,9 +138,9 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     final SqlQuery sqlQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, null, start, pageSize);
     final List<SqlRow> sqlRows = sqlQuery.findList();
     if (sqlRows.size() == 0) {
-      int actualTotalCount = createFilterSqlQuery(indexFilter, indexSortCriterion, null, 0, DEFAULT_PAGE_SIZE).findList().size();
-      final SqlRow dummyRow = new DummySqlRow(actualTotalCount);
-      return toListResult(Collections.emptyList(), Collections.singletonList(dummyRow), start, pageSize);
+      final List<SqlRow> totalCountResults = createFilterSqlQuery(indexFilter, indexSortCriterion, null, 0, DEFAULT_PAGE_SIZE).findList();
+      final int actualTotalCount = totalCountResults.isEmpty() ? 0 : totalCountResults.get(0).getInteger("_total_count");
+      return toListResult(actualTotalCount, start, pageSize);
     }
     final List<URN> values = sqlRows.stream().map(sqlRow -> getUrn(sqlRow.getString("urn"), _urnClass)).collect(Collectors.toList());
     return toListResult(values, sqlRows, start, pageSize);
@@ -167,10 +162,10 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
     final List<SqlRow> sqlRows = sqlQuery.findList();
     if (sqlRows.size() == 0) {
-      final int actualTotalCount = _server.createSqlQuery(
-          SQLStatementUtils.createAspectBrowseSql(_entityType, aspectClass, 0, DEFAULT_PAGE_SIZE)).findList().size();
-      final SqlRow dummyRow = new DummySqlRow(actualTotalCount);
-      return toListResult(Collections.emptyList(), Collections.singletonList(dummyRow), start, pageSize);
+      final List<SqlRow> totalCountResults = _server.createSqlQuery(
+          SQLStatementUtils.createAspectBrowseSql(_entityType, aspectClass, 0, DEFAULT_PAGE_SIZE)).findList();
+      final int actualTotalCount = totalCountResults.isEmpty() ? 0 : totalCountResults.get(0).getInteger("_total_count");
+      return toListResult(actualTotalCount, start, pageSize);
     }
     final List<URN> values = sqlRows.stream()
         .map(sqlRow -> getUrn(sqlRow.getString("urn"), _urnClass))
@@ -265,6 +260,48 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   }
 
   /**
+   * Convert sqlRows into {@link ListResult}. This version of toListResult is used when the original SQL query
+   * returned nothing, but that doesn't necessarily mean that _total_count is 0 (thought it still could be). For example:
+   *
+   * <p>
+   * If &lt;start&gt; (e.g. 5) is greater than _total_count (e.g. 2), the SQL query will return an empty list, but _total_count
+   * is not 0. If we pass in the empty list into the other toListResult method, we will not be able to get the _total_count
+   * value (since that is stored within each SqlRow of that list. We must use a second query (with &lt;start&gt; = 0) to check for
+   * the actual _total_count, then pass that into this toListResult method.
+   * </p>
+   * @param totalCount total count from ebean query execution
+   * @param start starting position
+   * @param pageSize number of rows in a page
+   * @param <T> type of query response
+   * @return {@link ListResult} which contains paging metadata information
+   */
+  @Nonnull
+  protected <T> ListResult<T> toListResult(int totalCount, int start, int pageSize) {
+    if (pageSize == 0) {
+      pageSize = DEFAULT_PAGE_SIZE;
+    }
+    final int totalPageCount = ceilDiv(totalCount, pageSize);
+    boolean hasNext;
+    int nextStart;
+    if (totalCount - start > 0) {
+      hasNext = true;
+      nextStart = start;
+    } else {
+      hasNext = false;
+      nextStart = ListResult.INVALID_NEXT_START;
+    }
+    return ListResult.<T>builder()
+        .values(Collections.emptyList())
+        .metadata(null)
+        .nextStart(nextStart)
+        .havingMore(hasNext)
+        .totalCount(totalCount)
+        .totalPageCount(totalPageCount)
+        .pageSize(pageSize)
+        .build();
+  }
+
+  /**
    * Convert sqlRows into {@link ListResult}.
    * @param values a list of query response result
    * @param sqlRows list of {@link SqlRow} from ebean query execution
@@ -295,7 +332,6 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
               totalCount, start));
     }
     return ListResult.<T>builder()
-        // Format
         .values(values)
         .metadata(null)
         .nextStart(nextStart)
@@ -334,149 +370,6 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       return null;
     } catch (ParseException e) {
       throw new RuntimeException(String.format("Failed to parse string %s as AuditedAspect.", auditedAspect));
-    }
-  }
-
-  /*
-   Dummy SqlRow to handle a specific edge case for the listUrns methods:
-
-   If <start> is greater than _total_count, the SQL query will return an empty list, but _total_count is not necessarily 0.
-   If we pass in the empty list into toListResult, we will not be able to get the _total_count value (since that is stored
-   within each SqlRow of that list. We must use a second query (with <start> = 0) to check for the actual _total_count,
-   then pass the results into toListResult. However, we cannot pass in the results of that second query to toListResult,
-   as this will result in inaccurate ListResults being returned. Instead, we pass in a singleton list of this DummySqlRow
-   which contains the _total_count information, but nothing else.
-  */
-  private static class DummySqlRow implements SqlRow {
-    private final int _totalCount;
-
-    DummySqlRow(int totalCount) {
-      _totalCount = totalCount;
-    }
-
-    @Override
-    public Iterator<String> keys() {
-      return null;
-    }
-
-    @Override
-    public Object remove(Object name) {
-      return null;
-    }
-
-    @Override
-    public Object get(Object name) {
-      return null;
-    }
-
-    @Override
-    public Object put(String name, Object value) {
-      return null;
-    }
-
-    @Override
-    public Object set(String name, Object value) {
-      return null;
-    }
-
-    @Override
-    public Boolean getBoolean(String name) {
-      return null;
-    }
-
-    @Override
-    public UUID getUUID(String name) {
-      return null;
-    }
-
-    @Override
-    public Integer getInteger(String name) {
-      return name != null && name.equals("_total_count") ? _totalCount : null;
-    }
-
-    @Override
-    public BigDecimal getBigDecimal(String name) {
-      return null;
-    }
-
-    @Override
-    public Long getLong(String name) {
-      return null;
-    }
-
-    @Override
-    public Double getDouble(String name) {
-      return null;
-    }
-
-    @Override
-    public Float getFloat(String name) {
-      return null;
-    }
-
-    @Override
-    public String getString(String name) {
-      return null;
-    }
-
-    @Override
-    public Date getUtilDate(String name) {
-      return null;
-    }
-
-    @Override
-    public java.sql.Date getDate(String name) {
-      return null;
-    }
-
-    @Override
-    public Timestamp getTimestamp(String name) {
-      return null;
-    }
-
-    @Override
-    public void clear() {
-
-    }
-
-    @Override
-    public boolean containsKey(Object key) {
-      return false;
-    }
-
-    @Override
-    public boolean containsValue(Object value) {
-      return false;
-    }
-
-    @Override
-    public Set<Entry<String, Object>> entrySet() {
-      return null;
-    }
-
-    @Override
-    public boolean isEmpty() {
-      return false;
-    }
-
-    @Override
-    public Set<String> keySet() {
-      return null;
-    }
-
-    @Override
-    public void putAll(Map<? extends String, ?> t) {
-
-    }
-
-    @Override
-    public int size() {
-      return 0;
-    }
-
-    @Override
-    public Collection<Object> values() {
-      return null;
     }
   }
 }
