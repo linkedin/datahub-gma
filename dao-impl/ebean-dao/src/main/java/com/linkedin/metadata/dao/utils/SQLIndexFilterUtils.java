@@ -11,12 +11,15 @@ import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.query.IndexValue;
 import com.linkedin.metadata.query.SortOrder;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import org.apache.commons.lang.StringEscapeUtils;
 
+import static com.linkedin.metadata.dao.utils.EBeanDAOUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLSchemaUtils.*;
 
 
@@ -88,7 +91,13 @@ public class SQLIndexFilterUtils {
    */
   public static String parseIndexFilter(@Nonnull IndexFilter indexFilter) {
     List<String> sqlFilters = new ArrayList<>();
+    Set<String> aspectColumns = new HashSet<>(); // aspect columns (i.e. start with a_) to check if soft-deleted
     for (IndexCriterion indexCriterion : indexFilter.getCriteria()) {
+      final String aspect = indexCriterion.getAspect();
+      if (!(isUrn(aspect))) {
+        // urns, which are entities, cannot be soft-deleted so no need to check them
+        aspectColumns.add(getAspectColumnName(aspect));
+      }
       final IndexPathParams pathParams = indexCriterion.getPathParams();
       if (pathParams != null) {
         validateConditionAndValue(indexCriterion);
@@ -103,6 +112,9 @@ public class SQLIndexFilterUtils {
         sqlFilters.add(aspectColumn + " IS NOT NULL");
       }
     }
+    // add filters to check that each aspect being queried is not soft deleted
+    // e.g. WHERE a_aspect1 != '{"gma_deleted":true}' AND a_aspect2 != '{"gma_deleted":true}'
+    aspectColumns.forEach(aspect -> sqlFilters.add(String.format("%s != '%s'", aspect, DELETED_VALUE)));
     if (sqlFilters.isEmpty()) {
       return "";
     } else {

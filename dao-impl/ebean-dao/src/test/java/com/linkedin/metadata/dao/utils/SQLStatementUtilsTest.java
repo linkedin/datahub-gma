@@ -1,5 +1,6 @@
 package com.linkedin.metadata.dao.utils;
 
+import com.linkedin.common.urn.Urn;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.Criterion;
 import com.linkedin.metadata.query.CriterionArray;
@@ -13,6 +14,8 @@ import com.linkedin.metadata.query.SortOrder;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.urn.FooUrn;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import org.javatuples.Pair;
 import org.testng.annotations.Test;
 
@@ -33,6 +36,20 @@ public class SQLStatementUtilsTest {
   }
 
   @Test
+  public void testCreateAspectReadSql() {
+    FooUrn fooUrn1 = makeFooUrn(1);
+    FooUrn fooUrn2 = makeFooUrn(2);
+    Set<Urn> set = new HashSet<>();
+    set.add(fooUrn1);
+    set.add(fooUrn2);
+    String expectedSql =
+        "SELECT urn, a_aspectfoo, lastmodifiedon, lastmodifiedby FROM metadata_entity_foo WHERE urn = 'urn:li:foo:1' "
+            + "AND a_aspectfoo != '{\"gma_deleted\":true}' UNION ALL SELECT urn, a_aspectfoo, lastmodifiedon, lastmodifiedby "
+            + "FROM metadata_entity_foo WHERE urn = 'urn:li:foo:2' AND a_aspectfoo != '{\"gma_deleted\":true}'";
+    assertEquals(SQLStatementUtils.createAspectReadSql(AspectFoo.class, set), expectedSql);
+  }
+
+  @Test
   public void testCreateFilterSql() {
 
     IndexFilter indexFilter = new IndexFilter();
@@ -50,9 +67,10 @@ public class SQLStatementUtilsTest {
 
     String sql = SQLStatementUtils.createFilterSql("metadata_entity_foo", indexFilter,
         SQLIndexFilterUtils.createIndexSortCriterion(AspectFoo.class, "value", SortOrder.ASCENDING));
-    String expectedSql = "WITH _temp_results AS (SELECT * FROM metadata_entity_foo\n" + "WHERE "
-        + "i_aspectfoo$value >= 25\nAND " + "i_aspectfoo$value < 50\n"
-        + "ORDER BY i_aspectfoo$value ASC)\nSELECT *, (SELECT COUNT(urn) FROM _temp_results) AS _total_count FROM _temp_results";
+    String expectedSql = "WITH _temp_results AS (SELECT * FROM metadata_entity_foo\nWHERE i_aspectfoo$value >= 25\n"
+        + "AND " + "i_aspectfoo$value < 50\nAND a_aspectfoo != '{\"gma_deleted\":true}'\n"
+        + "ORDER BY i_aspectfoo$value ASC)\n"
+        + "SELECT *, (SELECT COUNT(urn) FROM _temp_results) AS _total_count FROM _temp_results";
     assertEquals(sql, expectedSql);
   }
 
@@ -77,8 +95,8 @@ public class SQLStatementUtilsTest {
 
     String sql = SQLStatementUtils.createGroupBySql("metadata_entity_foo", indexFilter, indexGroupByCriterion);
     assertEquals(sql, "SELECT count(*) as COUNT, i_aspectfoo$value FROM metadata_entity_foo\n"
-        + "WHERE i_aspectfoo$value >= 25\n" + "AND i_aspectfoo$value < 50\n"
-        + "GROUP BY i_aspectfoo$value");
+        + "WHERE i_aspectfoo$value >= 25\nAND i_aspectfoo$value < 50\n"
+        + "AND a_aspectfoo != '{\"gma_deleted\":true}'\nGROUP BY i_aspectfoo$value");
   }
 
   @Test

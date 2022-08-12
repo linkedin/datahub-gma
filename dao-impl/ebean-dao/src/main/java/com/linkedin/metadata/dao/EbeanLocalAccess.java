@@ -14,17 +14,22 @@ import io.ebean.EbeanServer;
 import io.ebean.SqlQuery;
 import io.ebean.SqlRow;
 import io.ebean.SqlUpdate;
+import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -64,19 +69,21 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     LocalDateTime localDateTime = LocalDateTime.from(Instant.ofEpochMilli(timestamp).atZone(ZoneId.systemDefault()));
     String actor = auditStamp.hasActor() ? auditStamp.getActor().toString() : DEFAULT_ACTOR;
 
-    // TODO: set auditedAspect to null if soft-deleted
-    AuditedAspect auditedAspect = new AuditedAspect()
-        .setAspect(newValue == null ? DELETED_VALUE : RecordUtils.toJsonString(newValue))
-        .setCanonicalName(aspectClass.getCanonicalName())
-        .setLastmodifiedby(actor)
-        .setLastmodifiedon(localDateTime.toString());
-
     final SqlUpdate sqlUpdate = _server.createSqlUpdate(SQLStatementUtils.createAspectUpsertSql(urn, aspectClass))
         .setParameter("urn", urn.toString())
         .setParameter("lastmodifiedon", localDateTime.toString())
-        .setParameter("lastmodifiedby", actor)
-        .setParameter("metadata", toJsonString(auditedAspect));
+        .setParameter("lastmodifiedby", actor);
 
+    if (newValue != null) {
+      AuditedAspect auditedAspect = new AuditedAspect()
+          .setAspect(RecordUtils.toJsonString(newValue))
+          .setCanonicalName(aspectClass.getCanonicalName())
+          .setLastmodifiedby(actor)
+          .setLastmodifiedon(localDateTime.toString());
+      sqlUpdate.setParameter("metadata", toJsonString(auditedAspect));
+    } else {
+      sqlUpdate.setParameter("metadata", DELETED_VALUE);
+    }
     return sqlUpdate.execute();
   }
 
@@ -90,31 +97,35 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     return batchGetUnion(aspectKeys, keysCount, position);
   }
 
-  /*
-    Construct and execute a SQL statement as follows:
-    select aspect1, aspect2,... from table where urn=urn1
-      union all
-    select aspect1, aspect2,... from table where urn=urn2
-    ...etc
+  /**
+   * Construct and execute a SQL statement as follows.
+   * SELECT urn, aspect1, lastmodifiedon, lastmodifiedby FROM metadata_entity_foo WHERE urn = 'urn:1' AND aspect1 != '{"gma_deleted":true}'
+   * UNION ALL
+   * SELECT urn, aspect2, lastmodifiedon, lastmodifiedby FROM metadata_entity_foo WHERE urn = 'urn:1' AND aspect2 != '{"gma_deleted":true}'
+   * UNION ALL
+   * SELECT urn, aspect1, lastmodifiedon, lastmodifiedby FROM metadata_entity_foo WHERE urn = 'urn:2' AND aspect1 != '{"gma_deleted":true}'
+   * @param aspectKeys a List of keys (urn, aspect pairings) to query for
+   * @param keysCount number of keys to query
+   * @param position position of the key to start from
    */
   @Override
   public <ASPECT extends RecordTemplate> List<EbeanMetadataAspect> batchGetUnion(
       @Nonnull List<AspectKey<URN, ? extends RecordTemplate>> aspectKeys, int keysCount, int position) {
 
     final int end = Math.min(aspectKeys.size(), position + keysCount);
-    final Map<Urn, Set<Class<ASPECT>>> columnsToQueryMap = new HashMap<>();
+    final Map<Class<ASPECT>, Set<Urn>> keysToQueryMap = new HashMap<>();
     for (int index = position; index < end; index++) {
       final Urn entityUrn = aspectKeys.get(index).getUrn();
       final Class<ASPECT> aspectClass = (Class<ASPECT>) aspectKeys.get(index).getAspectClass();
-      columnsToQueryMap.computeIfAbsent(entityUrn, unused -> new HashSet<>()).add(aspectClass);
+      keysToQueryMap.computeIfAbsent(aspectClass, unused -> new HashSet<>()).add(entityUrn);
     }
+    // each statement is for a single aspect class
+    List<String> selectStatements = keysToQueryMap.entrySet().stream()
+        .map(entry -> SQLStatementUtils.createAspectReadSql(entry.getKey(), entry.getValue()))
+        .collect(Collectors.toList());
 
-    List<String> selectStatements = columnsToQueryMap.entrySet().stream().map(entry ->
-        SQLStatementUtils.createAspectReadSql(entry.getKey(), entry.getValue())
-    ).collect(Collectors.toList());
-
-    SqlQuery sqlQuery = _server.createSqlQuery(String.join(" UNION ALL ", selectStatements));
-    List<SqlRow> sqlRows = sqlQuery.findList();
+    // consolidate/join the results
+    List<SqlRow> sqlRows = selectStatements.stream().flatMap(sql -> _server.createSqlQuery(sql).findList().stream()).collect(Collectors.toList());
     return readSqlRows(sqlRows);
   }
 
@@ -129,15 +140,14 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   @Override
   public ListResult<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       int start, int pageSize) {
-    SqlQuery sqlQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, null, start, pageSize);
+    final SqlQuery sqlQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, null, start, pageSize);
     final List<SqlRow> sqlRows = sqlQuery.findList();
-    /*
-    TODO: filter out soft-deleted aspects
-    TODO: start/OFFSET in sql query causes _total_count to be inaccurate.
-     (e.g. if there are 3 results but the start/OFFSET is 4, _total_count will be 0 even though it is expected to be 3.
-    */
-    final List<URN> values =
-        sqlRows.stream().map(sqlRow -> getUrn(sqlRow.getString("urn"), _urnClass)).collect(Collectors.toList());
+    if (sqlRows.size() == 0) {
+      int actualTotalCount = createFilterSqlQuery(indexFilter, indexSortCriterion, null, 0, DEFAULT_PAGE_SIZE).findList().size();
+      final SqlRow dummyRow = new DummySqlRow(actualTotalCount);
+      return toListResult(Collections.emptyList(), Collections.singletonList(dummyRow), start, pageSize);
+    }
+    final List<URN> values = sqlRows.stream().map(sqlRow -> getUrn(sqlRow.getString("urn"), _urnClass)).collect(Collectors.toList());
     return toListResult(values, sqlRows, start, pageSize);
   }
 
@@ -156,7 +166,12 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     final SqlQuery sqlQuery = _server.createSqlQuery(browseSql);
 
     final List<SqlRow> sqlRows = sqlQuery.findList();
-    // TODO: filter out soft-deleted aspects
+    if (sqlRows.size() == 0) {
+      final int actualTotalCount = _server.createSqlQuery(
+          SQLStatementUtils.createAspectBrowseSql(_entityType, aspectClass, 0, DEFAULT_PAGE_SIZE)).findList().size();
+      final SqlRow dummyRow = new DummySqlRow(actualTotalCount);
+      return toListResult(Collections.emptyList(), Collections.singletonList(dummyRow), start, pageSize);
+    }
     final List<URN> values = sqlRows.stream()
         .map(sqlRow -> getUrn(sqlRow.getString("urn"), _urnClass))
         .collect(Collectors.toList());
@@ -183,7 +198,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     final List<SqlRow> sqlRows = sqlQuery.findList();
     Map<String, Long> resultMap = new HashMap<>();
     for (SqlRow sqlRow : sqlRows) {
-      Long count = sqlRow.getLong("count");
+      final Long count = sqlRow.getLong("count");
       String value = null;
       for (Map.Entry<String, Object> entry : sqlRow.entrySet()) {
         if (!entry.getKey().equalsIgnoreCase("count")) {
@@ -220,8 +235,8 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       filterSql.append(lastUrn.toString());
       filterSql.append("'");
     }
-    filterSql.append(String.format(" LIMIT %d", pageSize > 0 ? pageSize : 0));
-    filterSql.append(String.format(" OFFSET %d", offset > 0 ? offset : 0));
+    filterSql.append(String.format(" LIMIT %d", Math.max(pageSize, 0)));
+    filterSql.append(String.format(" OFFSET %d", Math.max(offset, 0)));
     return _server.createSqlQuery(filterSql.toString());
   }
 
@@ -260,56 +275,24 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    */
   @Nonnull
   protected <T> ListResult<T> toListResult(@Nonnull List<T> values, @Nonnull List<SqlRow> sqlRows,
-      @Nullable Integer start, @Nullable Integer pageSize) {
-
-    boolean hasNext = false;
-    int nextStart = -1;
-    int totalPageCount = 0;
-    int totalCount = 0;
-    if (pageSize == null) {
+      int start, int pageSize) {
+    if (pageSize == 0) {
       pageSize = DEFAULT_PAGE_SIZE;
     }
-    if (sqlRows.isEmpty()) {
-      // TODO, sqlRows could be empty but totalCount is not necessarily 0.  It requires a secondary query to get the actual total count
+    final int totalCount = sqlRows.get(0).getInteger("_total_count");
+    final int totalPageCount = ceilDiv(totalCount, pageSize);
+    boolean hasNext;
+    int nextStart;
+    if (sqlRows.size() < totalCount - start) {
+      hasNext = true;
+      nextStart = sqlRows.size() + start;
+    } else if (sqlRows.size() == totalCount - start || totalCount == 0 || totalCount - start < 0) {
       hasNext = false;
-      return ListResult.<T>builder()
-          // Format
-          .values(Collections.EMPTY_LIST)
-          .metadata(null)
-          .nextStart(nextStart)
-          .havingMore(hasNext)
-          .totalCount(totalCount)
-          .totalPageCount(totalPageCount)
-          .pageSize(pageSize)
-          .build();
-    }
-
-    totalCount = sqlRows.get(0).getInteger("_total_count");
-    totalPageCount = ceilDiv(totalCount, pageSize);
-    if (start == null) {
-      if (sqlRows.size() < totalCount) {
-        hasNext = true;
-        nextStart = sqlRows.size();
-      } else if (sqlRows.size() == totalCount) {
-        hasNext = false;
-        nextStart = -1;
-      } else {
-        throw new RuntimeException(
-            String.format("Row count (%d) is more than total count of (%d) started from (%s)", sqlRows.size(),
-                totalCount));
-      }
+      nextStart = ListResult.INVALID_NEXT_START;
     } else {
-      if (sqlRows.size() < totalCount - start) {
-        hasNext = true;
-        nextStart = sqlRows.size() + start;
-      } else if (sqlRows.size() == totalCount - start) {
-        hasNext = false;
-        nextStart = -1;
-      } else {
-        throw new RuntimeException(
-            String.format("Row count (%d) is more than total count of (%d) started from (%s)", sqlRows.size(),
-                totalCount, start));
-      }
+      throw new RuntimeException(
+          String.format("Row count (%d) is more than total count of (%d) starting from offset of (%s)", sqlRows.size(),
+              totalCount, start));
     }
     return ListResult.<T>builder()
         // Format
@@ -351,6 +334,149 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       return null;
     } catch (ParseException e) {
       throw new RuntimeException(String.format("Failed to parse string %s as AuditedAspect.", auditedAspect));
+    }
+  }
+
+  /*
+   Dummy SqlRow to handle a specific edge case for the listUrns methods:
+
+   If <start> is greater than _total_count, the SQL query will return an empty list, but _total_count is not necessarily 0.
+   If we pass in the empty list into toListResult, we will not be able to get the _total_count value (since that is stored
+   within each SqlRow of that list. We must use a second query (with <start> = 0) to check for the actual _total_count,
+   then pass the results into toListResult. However, we cannot pass in the results of that second query to toListResult,
+   as this will result in inaccurate ListResults being returned. Instead, we pass in a singleton list of this DummySqlRow
+   which contains the _total_count information, but nothing else.
+  */
+  private static class DummySqlRow implements SqlRow {
+    private final int _totalCount;
+
+    DummySqlRow(int totalCount) {
+      _totalCount = totalCount;
+    }
+
+    @Override
+    public Iterator<String> keys() {
+      return null;
+    }
+
+    @Override
+    public Object remove(Object name) {
+      return null;
+    }
+
+    @Override
+    public Object get(Object name) {
+      return null;
+    }
+
+    @Override
+    public Object put(String name, Object value) {
+      return null;
+    }
+
+    @Override
+    public Object set(String name, Object value) {
+      return null;
+    }
+
+    @Override
+    public Boolean getBoolean(String name) {
+      return null;
+    }
+
+    @Override
+    public UUID getUUID(String name) {
+      return null;
+    }
+
+    @Override
+    public Integer getInteger(String name) {
+      return name != null && name.equals("_total_count") ? _totalCount : null;
+    }
+
+    @Override
+    public BigDecimal getBigDecimal(String name) {
+      return null;
+    }
+
+    @Override
+    public Long getLong(String name) {
+      return null;
+    }
+
+    @Override
+    public Double getDouble(String name) {
+      return null;
+    }
+
+    @Override
+    public Float getFloat(String name) {
+      return null;
+    }
+
+    @Override
+    public String getString(String name) {
+      return null;
+    }
+
+    @Override
+    public Date getUtilDate(String name) {
+      return null;
+    }
+
+    @Override
+    public java.sql.Date getDate(String name) {
+      return null;
+    }
+
+    @Override
+    public Timestamp getTimestamp(String name) {
+      return null;
+    }
+
+    @Override
+    public void clear() {
+
+    }
+
+    @Override
+    public boolean containsKey(Object key) {
+      return false;
+    }
+
+    @Override
+    public boolean containsValue(Object value) {
+      return false;
+    }
+
+    @Override
+    public Set<Entry<String, Object>> entrySet() {
+      return null;
+    }
+
+    @Override
+    public boolean isEmpty() {
+      return false;
+    }
+
+    @Override
+    public Set<String> keySet() {
+      return null;
+    }
+
+    @Override
+    public void putAll(Map<? extends String, ?> t) {
+
+    }
+
+    @Override
+    public int size() {
+      return 0;
+    }
+
+    @Override
+    public Collection<Object> values() {
+      return null;
     }
   }
 }

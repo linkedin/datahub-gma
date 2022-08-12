@@ -153,7 +153,9 @@ public class EbeanLocalDAOTest {
       _server.execute(Ebean.createSqlUpdate(readSQLfromFile(GMA_DROP_ALL_SQL)));
       _server.execute(Ebean.createSqlUpdate(readSQLfromFile(GMA_CREATE_ALL_SQL)));
     } else {
-      _server.execute(Ebean.createSqlUpdate(readSQLfromFile(NEW_SCHEMA_CREATE_ALL_SQL)));
+      synchronized (this) {
+        _server.execute(Ebean.createSqlUpdate(readSQLfromFile(NEW_SCHEMA_CREATE_ALL_SQL)));
+      }
     }
     _mockProducer = mock(BaseMetadataEventProducer.class);
     _dummyAuditStamp = makeAuditStamp("foo", 1234);
