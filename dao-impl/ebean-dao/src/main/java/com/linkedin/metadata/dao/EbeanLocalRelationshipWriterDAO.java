@@ -41,16 +41,6 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
     _server = server;
   }
 
-  @Override
-  public <ENTITY extends RecordTemplate> void addEntities(@Nonnull List<ENTITY> entities) throws Exception {
-    throw new UnsupportedOperationException("Local relationship does not support adding entity. Please consider using metadata entity table.");
-  }
-
-  @Override
-  public <URN extends Urn> void removeEntities(@Nonnull List<URN> urns) throws Exception {
-    throw new UnsupportedOperationException("Local relationship does not support removing entity. Please consider using metadata entity table.");
-  }
-
   /**
    * Process the local relationship updates with transaction guarantee.
    * @param relationshipUpdates Updates to local relationship tables.
@@ -86,6 +76,16 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
     throw new UnsupportedOperationException("Local relationship only supports adding relationships.");
   }
 
+  @Override
+  public <ENTITY extends RecordTemplate> void addEntities(@Nonnull List<ENTITY> entities) throws Exception {
+    throw new UnsupportedOperationException("Local relationship does not support adding entity. Please consider using metadata entity table.");
+  }
+
+  @Override
+  public <URN extends Urn> void removeEntities(@Nonnull List<URN> urns) throws Exception {
+    throw new UnsupportedOperationException("Local relationship does not support removing entity. Please consider using metadata entity table.");
+  }
+
   private <RELATIONSHIP extends RecordTemplate> void addRelationshipGroup(@Nonnull final List<RELATIONSHIP> relationshipGroup,
       @Nonnull RemovalOption removalOption) {
     if (relationshipGroup.size() == 0) {
@@ -119,6 +119,11 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
   @ParametersAreNonnullByDefault
   private <RELATIONSHIP extends RecordTemplate> void processRemovalOption(String tableName, RELATIONSHIP relationship,
       RemovalOption removalOption) {
+
+    if (removalOption == RemovalOption.REMOVE_NONE) {
+      return;
+    }
+
     SqlUpdate deletionSQL = _server.createSqlUpdate(SQLStatementUtils.deleteLocaRelationshipSQL(tableName, removalOption));
     Urn source = getSourceUrnFromRelationship(relationship);
     Urn destination = getDestinationUrnFromRelationship(relationship);

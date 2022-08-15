@@ -198,12 +198,9 @@ public class EBeanLocalAccessTest {
     // When: list urns from the 101th record, with 50 page size
     fooUrnListResult = _ebeanLocalAccess.listUrns(AspectFoo.class, 101, 50);
 
-    // Expect: 0 results is returned and 0 total records
+    // Expect: 0 results is returned and 100 total records
     assertEquals(0, fooUrnListResult.getValues().size());
-
-    // TODO, if no results is returned, the TotalCount is 0. It is a temporary workaround and should be fixed before the release
-    // For details, see EBeanLocalAccess.toResultList
-    assertEquals(0, fooUrnListResult.getTotalCount());
+    assertEquals(100, fooUrnListResult.getTotalCount());
   }
 
   @Test

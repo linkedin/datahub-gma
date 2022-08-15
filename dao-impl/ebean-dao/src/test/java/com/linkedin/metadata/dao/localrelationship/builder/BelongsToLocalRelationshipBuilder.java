@@ -1,4 +1,4 @@
-package com.linkedin.metadata.dao.localrelationship;
+package com.linkedin.metadata.dao.localrelationship.builder;
 
 import com.linkedin.common.urn.Urn;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder;
@@ -24,9 +24,9 @@ public class BelongsToLocalRelationshipBuilder extends BaseLocalRelationshipBuil
       belongsToRelationships.add(new BelongsTo().setSource(barUrn).setDestination(urn));
     }
 
-    LocalRelationshipUpdates localRelationUpdates = new LocalRelationshipUpdates(belongsToRelationships,
+    LocalRelationshipUpdates localRelationshipUpdates = new LocalRelationshipUpdates(belongsToRelationships,
         BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION);
 
-    return Collections.singletonList(localRelationUpdates);
+    return Collections.singletonList(localRelationshipUpdates);
   }
 }

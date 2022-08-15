@@ -104,7 +104,7 @@ public class SQLStatementUtilsTest {
     Criterion criterion = new Criterion().setField("field1").setCondition(Condition.EQUAL).setValue("value1");
     CriterionArray criteria = new CriterionArray(criterion);
     Filter filter = new Filter().setCriteria(criteria);
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null), "field1=value1");
+    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null), "field1='value1'");
   }
 
   @Test
@@ -113,7 +113,7 @@ public class SQLStatementUtilsTest {
     Criterion criterion2 = new Criterion().setField("field1").setCondition(Condition.EQUAL).setValue("value2");
     CriterionArray criteria = new CriterionArray(criterion1, criterion2);
     Filter filter = new Filter().setCriteria(criteria);
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null), "field1=value1 OR field1=value2");
+    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null), "field1='value1' OR field1='value2'");
   }
 
   @Test
@@ -122,7 +122,7 @@ public class SQLStatementUtilsTest {
     Criterion criterion2 = new Criterion().setField("field2").setCondition(Condition.EQUAL).setValue("value2");
     CriterionArray criteria = new CriterionArray(criterion1, criterion2);
     Filter filter = new Filter().setCriteria(criteria);
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null), "field1=value1 AND field2=value2");
+    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null), "field1='value1' AND field2='value2'");
   }
 
   @Test
@@ -134,7 +134,7 @@ public class SQLStatementUtilsTest {
     CriterionArray criteria = new CriterionArray(criterion1, criterion2, criterion3, criterion4);
     Filter filter = new Filter().setCriteria(criteria);
     assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null),
-        "(field1=value1 OR field1=value2) AND field3=value3 AND field2=value2");
+        "(field1='value1' OR field1='value2') AND field3='value3' AND field2='value2'");
   }
 
   @Test
@@ -152,6 +152,6 @@ public class SQLStatementUtilsTest {
     Filter filter2 = new Filter().setCriteria(criteria2);
 
     assertEquals(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), new Pair<>(filter1, "foo"), new Pair<>(filter2, "bar")),
-        "(foo.field3=value3 AND foo.field2=value2 AND (foo.field1=value1 OR foo.field1=value2)) AND (bar.field1=value1 OR bar.field1=value2)");
+        "(foo.field3='value3' AND foo.field2='value2' AND (foo.field1='value1' OR foo.field1='value2')) AND (bar.field1='value1' OR bar.field1='value2')");
   }
 }

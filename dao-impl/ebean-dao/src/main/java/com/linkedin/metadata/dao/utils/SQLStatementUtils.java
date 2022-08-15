@@ -215,11 +215,12 @@ public class SQLStatementUtils {
   }
 
   /**
-   * Construct where clause SQL from mulitple filters. Return null if all filters are empty.
+   * Construct where clause SQL from multiple filters. Return null if all filters are empty.
    * @param supportedCondition contains supported conditions such as EQUAL.
-   * @param filters contains field, condition and value
+   * @param filters An array of pairs which are filter and table prefix.
    * @return sql that can be appended after where clause.
    */
+  @SafeVarargs
   @Nullable
   public static String whereClause(@Nonnull Map<Condition, String> supportedCondition, @Nonnull Pair<Filter, String>... filters) {
     List<String> andClauses = new ArrayList<>();
@@ -269,7 +270,7 @@ public class SQLStatementUtils {
     for (Map.Entry<String, List<Pair<Condition, String>>> entry : groupByField.entrySet()) {
       List<String> orClauses = new ArrayList<>();
       for (Pair<Condition, String> pair : entry.getValue()) {
-        orClauses.add(entry.getKey() + supportedCondition.get(pair.getValue0()) + pair.getValue1());
+        orClauses.add(entry.getKey() + supportedCondition.get(pair.getValue0()) + "'" + pair.getValue1() + "'");
       }
 
       if (orClauses.size() == 1) {
