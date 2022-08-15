@@ -10,6 +10,7 @@ dependencies {
   compile project(':core-models-utils')
   compile project(':dao-api')
   compile externalDependency.ebean
+  compile externalDependency.flywayCore
   compile externalDependency.guava
   compile externalDependency.jsonSimple
   compile externalDependency.log4j
@@ -40,6 +41,7 @@ test {
     exclude '**/EbeanLocalDAOTest.class'
     exclude '**/EbeanLocalRelationshipWriterDAOTest.class'
     exclude '**/EbeanLocalRelationshipQueryDAOTest.class'
+    exclude '**/FlywaySchemaEvolutionManagerTest.class'
   }
 }
 

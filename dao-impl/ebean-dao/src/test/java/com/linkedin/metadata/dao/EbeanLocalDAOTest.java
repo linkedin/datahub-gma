@@ -172,7 +172,7 @@ public class EbeanLocalDAOTest {
   private <URN extends Urn> EbeanLocalDAO<EntityAspectUnion, URN> createDao(@Nonnull EbeanServer server,
       @Nonnull Class<URN> urnClass) {
     final EbeanLocalDAO<EntityAspectUnion, URN> dao =
-        new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, server, urnClass, _schemaConfig);
+        new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, server, MysqlDevInstance.SERVER_CONFIG, urnClass, _schemaConfig);
     dao.setUseUnionForBatch(_useUnionForBatch);
     dao.setUseOptimisticLocking(_useOptimisticLocking);
     return dao;
@@ -1771,7 +1771,7 @@ public class EbeanLocalDAOTest {
 
   @Test
   void testUpdateUrnAndAspectInLocalIndex() {
-    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = new EbeanLocalDAO<>(_mockProducer, _server,
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = new EbeanLocalDAO<>(_mockProducer, _server, MysqlDevInstance.SERVER_CONFIG,
         makeLocalDAOStorageConfig(AspectFooEvolved.class, Arrays.asList("/value", "/newValue")), FooUrn.class, _schemaConfig);
     dao.setUseUnionForBatch(_useUnionForBatch);
     dao.setUseOptimisticLocking(_useOptimisticLocking);
