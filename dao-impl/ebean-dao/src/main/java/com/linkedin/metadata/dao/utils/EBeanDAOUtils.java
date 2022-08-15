@@ -75,7 +75,8 @@ public class EBeanDAOUtils {
 
   /**
    * Compare lists, which should be results from reading the old and new schema tables. If different, log an error and
-   * return false. Otherwise, return true.
+   * return false. Otherwise, return true. Currently, this method is only used to compare List&lt;EbeanMetadataAspect&gt;
+   * and List&lt;URN&gt; objects.
    * @param resultOld Results from reading the old schema table
    * @param resultNew Results from reading the new schema table
    * @param methodName Name of method that called this function, for logging purposes
@@ -92,8 +93,7 @@ public class EBeanDAOUtils {
     if (resultOld.size() != resultNew.size()) {
       return false;
     }
-    // TODO: need to add .equals to all T values possible.
-    if (resultOld.containsAll(resultNew) && resultNew.containsAll(resultOld)) {
+    if (resultOld.containsAll(resultNew)) {
       return true;
     }
     log.error(String.format(DIFFERENT_RESULTS_TEMPLATE, methodName));
@@ -102,7 +102,7 @@ public class EBeanDAOUtils {
 
   /**
    * Compare lists, which should be results from reading the old and new schema tables. If different, log an error and
-   * return false. Otherwise, return true.
+   * return false. Otherwise, return true. Currently, this method is only used to compare ListResult&lt;URN&gt; objects.
    * @param resultOld Results from reading the old schema table
    * @param resultNew Results from reading the new schema table
    * @param methodName Name of method that called this function, for logging purposes

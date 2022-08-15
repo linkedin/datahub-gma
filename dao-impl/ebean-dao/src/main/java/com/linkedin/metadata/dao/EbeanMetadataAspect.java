@@ -10,7 +10,6 @@ import javax.persistence.Entity;
 import javax.persistence.Lob;
 import javax.persistence.Table;
 import lombok.AllArgsConstructor;
-import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.NonNull;
@@ -45,7 +44,6 @@ public class EbeanMetadataAspect extends Model {
   @Getter
   @AllArgsConstructor
   @NoArgsConstructor
-  @EqualsAndHashCode
   public static class PrimaryKey {
 
     private static final long serialVersionUID = 1L;
@@ -63,6 +61,23 @@ public class EbeanMetadataAspect extends Model {
     @Index
     @Column(name = VERSION_COLUMN, nullable = false)
     private long version;
+
+    @Override
+    public boolean equals(Object o) {
+      if (o == null) {
+        return false;
+      }
+      if (o.getClass() != this.getClass()) {
+        return false;
+      }
+      PrimaryKey other = (PrimaryKey) o;
+      return this.urn.equals(other.getUrn()) && this.aspect.equals(other.getAspect()) && this.version == other.getVersion();
+    }
+
+    @Override
+    public int hashCode() {
+      return super.hashCode();
+    }
   }
 
   @NonNull
@@ -84,4 +99,25 @@ public class EbeanMetadataAspect extends Model {
 
   @Column(name = CREATED_FOR_COLUMN, nullable = true)
   private String createdFor;
+
+  @Override
+  public boolean equals(Object o) {
+    if (o == null) {
+      return false;
+    }
+    if (o.getClass() != this.getClass()) {
+      return false;
+    }
+    EbeanMetadataAspect other = (EbeanMetadataAspect) o;
+    return this.key.equals(other.key)
+        && this.metadata != null && this.metadata.equals(other.getMetadata())
+        && this.createdOn.equals(other.getCreatedOn())
+        && this.createdBy.equals(other.getCreatedBy())
+        && this.createdFor != null && this.createdFor.equals(other.getCreatedFor());
+  }
+
+  @Override
+  public int hashCode() {
+    return super.hashCode();
+  }
 }
