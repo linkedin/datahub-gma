@@ -63,6 +63,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     long timestamp = auditStamp.hasTime() ? auditStamp.getTime() : System.currentTimeMillis();
     LocalDateTime localDateTime = LocalDateTime.from(Instant.ofEpochMilli(timestamp).atZone(ZoneId.systemDefault()));
     String actor = auditStamp.hasActor() ? auditStamp.getActor().toString() : DEFAULT_ACTOR;
+    String impersonator = auditStamp.hasImpersonator() ? auditStamp.getImpersonator().toString() : null;
 
     final SqlUpdate sqlUpdate = _server.createSqlUpdate(SQLStatementUtils.createAspectUpsertSql(urn, aspectClass))
         .setParameter("urn", urn.toString())
@@ -74,7 +75,8 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
           .setAspect(RecordUtils.toJsonString(newValue))
           .setCanonicalName(aspectClass.getCanonicalName())
           .setLastmodifiedby(actor)
-          .setLastmodifiedon(localDateTime.toString());
+          .setLastmodifiedon(localDateTime.toString())
+          .setCreatedfor(impersonator);
       sqlUpdate.setParameter("metadata", toJsonString(auditedAspect));
     } else {
       sqlUpdate.setParameter("metadata", DELETED_VALUE);
@@ -253,6 +255,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
         ebeanMetadataAspect.setKey(primaryKey);
         ebeanMetadataAspect.setCreatedBy(auditedAspect.getLastmodifiedby());
         ebeanMetadataAspect.setCreatedOn(Timestamp.valueOf(LocalDateTime.parse(auditedAspect.getLastmodifiedon())));
+        ebeanMetadataAspect.setCreatedFor(auditedAspect.getCreatedfor());
         ebeanMetadataAspect.setMetadata(extractAspectJsonString(sqlRow.getString(columnName)));
         return ebeanMetadataAspect;
       });

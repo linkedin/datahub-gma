@@ -23,4 +23,9 @@ record AuditedAspect {
    * Audit information to track who last modified this aspect.
    */
   lastmodifiedby: string
+
+  /**
+   * Audit information to track who this aspect was created for.
+   */
+  createdfor: optional string
 }
