@@ -54,6 +54,7 @@ project.ext.externalDependency = [
     'junitJupiterParams': "org.junit.jupiter:junit-jupiter-params:$junitJupiterVersion",
     'junitJupiterEngine': "org.junit.jupiter:junit-jupiter-engine:$junitJupiterVersion",
     'junitVintageEngine': "org.junit.vintage:junit-vintage-engine:$junitJupiterVersion",
+    'log4j': 'org.apache.logging.log4j:log4j-slf4j-impl:2.18.0',
     'lombok': 'org.projectlombok:lombok:1.18.22',
     'lombokAnnotationProcessor': 'org.projectlombok:lombok:1.18.22',
     'mockito': 'org.mockito:mockito-core:3.0.0',

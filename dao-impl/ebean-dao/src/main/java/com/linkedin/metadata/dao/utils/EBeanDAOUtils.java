@@ -20,7 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class EBeanDAOUtils {
 
-  public static final String DIFFERENT_RESULTS_TEMPLATE = "The results of %s from the new schema table and old schema table are not equal."
+  public static final String DIFFERENT_RESULTS_TEMPLATE = "The results of %s from the new schema table and old schema table are not equal. "
       + "Defaulting to using the value(s) from the old schema table.";
   // String stored in metadata_aspect table for soft deleted aspect
   private static final RecordTemplate DELETED_METADATA = new SoftDeletedAspect().setGma_deleted(true);
