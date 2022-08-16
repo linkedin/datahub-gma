@@ -40,24 +40,21 @@ public class ListResult<T> {
 
   @Override
   public boolean equals(Object o) {
-    if (o == this) {
-      return true;
-    }
-
-    if (!(o instanceof ListResult)) {
+    if (o == null) {
       return false;
     }
-
+    if (o.getClass() != this.getClass()) {
+      return false;
+    }
     ListResult<T> other = (ListResult<T>) o;
 
     if (this.values.size() != other.values.size()) {
       return false;
     }
 
-    // TODO: this comparison has worst case O(n^2) runtime. find a more efficient way.
-    // TODO: need to add .equals method for all T values possible.
     return this.values.containsAll(other.values)
-        && other.values.containsAll(this.values)
+        // either both metadata fields are null or both are equal (need to check this.metadata != null to avoid NPE)
+        && ((this.metadata == null && other.metadata == null) || (this.metadata != null && this.metadata.equals(other.metadata)))
         && this.nextStart == other.nextStart
         && this.havingMore == other.havingMore
         && this.totalCount == other.totalCount

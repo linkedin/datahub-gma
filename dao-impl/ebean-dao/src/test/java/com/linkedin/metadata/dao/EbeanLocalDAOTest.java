@@ -351,7 +351,6 @@ public class EbeanLocalDAOTest {
 
   @Test
   public void testAddSuccessAfterRetry() {
-    // TODO investigate to make it work with new schema DAO
     if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
       EbeanServer server = mock(EbeanServer.class);
       Transaction mockTransaction = mock(Transaction.class);
