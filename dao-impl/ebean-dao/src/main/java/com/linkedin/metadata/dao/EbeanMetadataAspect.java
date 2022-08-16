@@ -110,7 +110,8 @@ public class EbeanMetadataAspect extends Model {
     }
     EbeanMetadataAspect other = (EbeanMetadataAspect) o;
     return this.key.equals(other.key)
-        && this.metadata != null && this.metadata.equals(other.getMetadata())
+        // either both metadata fields are null or both are equal (need to check this.metadata != null to avoid NPE)
+        && ((this.metadata == null && other.metadata == null) || (this.metadata != null && this.metadata.equals(other.getMetadata())))
         && this.createdOn.equals(other.getCreatedOn())
         && this.createdBy.equals(other.getCreatedBy())
         && this.createdFor != null && this.createdFor.equals(other.getCreatedFor());
