@@ -48,7 +48,7 @@ public class EBeanLocalAccessTest {
     _server = MysqlDevInstance.getServer();
     _server.execute(Ebean.createSqlUpdate(
         Resources.toString(Resources.getResource("metadata-schema-create-all.sql"), StandardCharsets.UTF_8)));
-    _ebeanLocalAccess = new EbeanLocalAccess(_server, FooUrn.class);
+    _ebeanLocalAccess = new EbeanLocalAccess(_server, MysqlDevInstance.SERVER_CONFIG, FooUrn.class);
 
     // initialize data with metadata_entity_foo table with fooUrns from 0 ~ 99
     int numOfRecords = 100;

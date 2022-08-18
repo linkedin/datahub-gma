@@ -11,6 +11,8 @@ import javax.annotation.Nonnull;
  * Create a connection to mysql dev instance.
  */
 public class MysqlDevInstance {
+  public static final ServerConfig SERVER_CONFIG = createLocalMySQLServerConfig();
+
   private MysqlDevInstance() {
   }
 

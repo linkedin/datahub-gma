@@ -52,8 +52,8 @@ public class EbeanLocalRelationshipQueryDAOTest {
     _server = MysqlDevInstance.getServer();
     _localRelationshipWriterDAO = new EbeanLocalRelationshipWriterDAO(_server);
     _localRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server);
-    _fooUrnEBeanLocalAccess = new EbeanLocalAccess<>(_server, FooUrn.class);
-    _barUrnEBeanLocalAccess = new EbeanLocalAccess<>(_server, BarUrn.class);
+    _fooUrnEBeanLocalAccess = new EbeanLocalAccess<>(_server, MysqlDevInstance.SERVER_CONFIG, FooUrn.class);
+    _barUrnEBeanLocalAccess = new EbeanLocalAccess<>(_server, MysqlDevInstance.SERVER_CONFIG, BarUrn.class);
   }
 
   @BeforeMethod

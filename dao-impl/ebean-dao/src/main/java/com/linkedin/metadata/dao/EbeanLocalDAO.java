@@ -130,11 +130,11 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   @VisibleForTesting
   EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
-      @Nonnull EbeanServer server, @Nonnull Class<URN> urnClass, @Nonnull SchemaConfig schemaConfig) {
+      @Nonnull EbeanServer server, @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass, @Nonnull SchemaConfig schemaConfig) {
     this(aspectUnionClass, producer, server, urnClass);
     _schemaConfig = schemaConfig;
     if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
-      _localAccess = new EbeanLocalAccess<>(server, urnClass);
+      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass);
     }
   }
 
@@ -162,7 +162,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    */
   public EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
       @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass, @Nonnull SchemaConfig schemaConfig) {
-    this(aspectUnionClass, producer, createServer(serverConfig), urnClass, schemaConfig);
+    this(aspectUnionClass, producer, createServer(serverConfig), serverConfig, urnClass, schemaConfig);
   }
 
   @VisibleForTesting
@@ -178,12 +178,12 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   @VisibleForTesting
   EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull EbeanServer server,
-      @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass,
+      @Nonnull ServerConfig serverConfig, @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass,
       @Nonnull UrnPathExtractor<URN> urnPathExtractor, @Nonnull SchemaConfig schemaConfig) {
     this(producer, server, storageConfig, urnClass, urnPathExtractor);
     _schemaConfig = schemaConfig;
     if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
-      _localAccess = new EbeanLocalAccess<>(server, urnClass);
+      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass);
     }
   }
 
@@ -194,9 +194,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @VisibleForTesting
-  EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull EbeanServer server,
+  EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull EbeanServer server, @Nonnull ServerConfig serverConfig,
       @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass, @Nonnull SchemaConfig schemaConfig) {
-    this(producer, server, storageConfig, urnClass, new EmptyPathExtractor<>(), schemaConfig);
+    this(producer, server, serverConfig, storageConfig, urnClass, new EmptyPathExtractor<>(), schemaConfig);
   }
 
   /**
@@ -227,7 +227,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   public EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull ServerConfig serverConfig,
       @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass,
       @Nonnull UrnPathExtractor<URN> urnPathExtractor, @Nonnull SchemaConfig schemaConfig) {
-    this(producer, createServer(serverConfig), storageConfig, urnClass, urnPathExtractor, schemaConfig);
+    this(producer, createServer(serverConfig), serverConfig, storageConfig, urnClass, urnPathExtractor, schemaConfig);
   }
 
   /**
@@ -254,7 +254,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    */
   public EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull ServerConfig serverConfig,
       @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass, @Nonnull SchemaConfig schemaConfig) {
-    this(producer, createServer(serverConfig), storageConfig, urnClass, new EmptyPathExtractor<>(), schemaConfig);
+    this(producer, createServer(serverConfig), serverConfig, storageConfig, urnClass, new EmptyPathExtractor<>(), schemaConfig);
   }
 
   /**

@@ -3,6 +3,7 @@ package com.linkedin.metadata.dao;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
+import com.linkedin.data.template.SetMode;
 import com.linkedin.metadata.aspect.AuditedAspect;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
@@ -14,6 +15,7 @@ import io.ebean.EbeanServer;
 import io.ebean.SqlQuery;
 import io.ebean.SqlRow;
 import io.ebean.SqlUpdate;
+import io.ebean.config.ServerConfig;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -50,10 +52,11 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   private static final String ASPECT_JSON_PLACEHOLDER = "__PLACEHOLDER__";
   private static final String DEFAULT_ACTOR = "urn:li:principal:UNKNOWN";
 
-  public EbeanLocalAccess(EbeanServer server, @Nonnull Class<URN> urnClass) {
+  public EbeanLocalAccess(EbeanServer server, ServerConfig serverConfig, @Nonnull Class<URN> urnClass) {
     _server = server;
     _urnClass = urnClass;
     _entityType = getEntityType(_urnClass);
+    createSchemaEvolutionManager(serverConfig).ensureSchemaUpToDate();
   }
 
   @Override
@@ -76,7 +79,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
           .setCanonicalName(aspectClass.getCanonicalName())
           .setLastmodifiedby(actor)
           .setLastmodifiedon(localDateTime.toString())
-          .setCreatedfor(impersonator);
+          .setCreatedfor(impersonator, SetMode.IGNORE_NULL);
       sqlUpdate.setParameter("metadata", toJsonString(auditedAspect));
     } else {
       sqlUpdate.setParameter("metadata", DELETED_VALUE);
@@ -374,5 +377,15 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     } catch (ParseException e) {
       throw new RuntimeException(String.format("Failed to parse string %s as AuditedAspect.", auditedAspect));
     }
+  }
+
+  @Nonnull
+  private SchemaEvolutionManager createSchemaEvolutionManager(@Nonnull ServerConfig serverConfig) {
+    SchemaEvolutionManager.Config config = new SchemaEvolutionManager.Config(
+        serverConfig.getDataSourceConfig().getUrl(),
+        serverConfig.getDataSourceConfig().getPassword(),
+        serverConfig.getDataSourceConfig().getUsername());
+
+    return new FlywaySchemaEvolutionManager(config);
   }
 }
