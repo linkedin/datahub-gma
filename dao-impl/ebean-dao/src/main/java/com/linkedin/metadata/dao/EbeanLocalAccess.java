@@ -5,6 +5,7 @@ import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.SetMode;
 import com.linkedin.metadata.aspect.AuditedAspect;
+import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
 import com.linkedin.metadata.dao.utils.SQLStatementUtils;
@@ -55,7 +56,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   public EbeanLocalAccess(EbeanServer server, ServerConfig serverConfig, @Nonnull Class<URN> urnClass) {
     _server = server;
     _urnClass = urnClass;
-    _entityType = getEntityType(_urnClass);
+    _entityType = ModelUtils.getEntityTypeFromUrnClass(_urnClass);
     createSchemaEvolutionManager(serverConfig).ensureSchemaUpToDate();
   }
 

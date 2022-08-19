@@ -21,6 +21,7 @@ import com.linkedin.metadata.dao.retention.VersionBasedRetention;
 import com.linkedin.metadata.dao.storage.LocalDAOStorageConfig;
 import com.linkedin.metadata.dao.utils.BarUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.BazUrnPathExtractor;
+import com.linkedin.metadata.dao.utils.EbeanServerUtils;
 import com.linkedin.metadata.dao.utils.FooUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.MysqlDevInstance;
@@ -162,7 +163,7 @@ public class EbeanLocalDAOTest {
   @BeforeClass
   public void setupServer() {
     if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
-      _server = EbeanServerFactory.create(EbeanLocalDAO.createTestingH2ServerConfig());
+      _server = EbeanServerFactory.create(EbeanServerUtils.createTestingH2ServerConfig());
     } else {
       _server = MysqlDevInstance.getServer();
     }

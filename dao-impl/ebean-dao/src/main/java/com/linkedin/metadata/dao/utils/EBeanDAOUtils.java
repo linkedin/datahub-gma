@@ -1,11 +1,9 @@
 package com.linkedin.metadata.dao.utils;
 
-import com.linkedin.common.urn.Urn;
 import com.linkedin.metadata.dao.EbeanMetadataAspect;
 import com.linkedin.metadata.dao.ListResult;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.aspect.SoftDeletedAspect;
-import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.List;
@@ -27,22 +25,7 @@ public class EBeanDAOUtils {
   public static final String DELETED_VALUE = RecordUtils.toJsonString(DELETED_METADATA);
 
   private EBeanDAOUtils() {
-
-  }
-
-  /**
-   * Given urn class, return the entity type as string.
-   * @param urnClass urn class that extends {@link Urn}
-   * @param <URN> Urn type
-   * @return entity type as string
-   */
-  public static <URN extends Urn> String getEntityType(Class<URN> urnClass) {
-    try {
-      Field field  = urnClass.getDeclaredField("ENTITY_TYPE");
-      return (String) field.get(null);
-    } catch (NoSuchFieldException | IllegalAccessException e) {
-      throw new IllegalArgumentException("invalid Urn class: " + urnClass.getName());
-    }
+    // Utils class
   }
 
   /**
@@ -53,7 +36,7 @@ public class EBeanDAOUtils {
    * @return Urn instance
    */
   @Nonnull
-  public static <URN> URN getUrn(@Nonnull String urn, Class<URN> urnClass) {
+  public static <URN> URN getUrn(@Nonnull String urn, @Nonnull Class<URN> urnClass) {
     try {
       final Method getUrn = urnClass.getMethod("createFromString", String.class);
       return urnClass.cast(getUrn.invoke(null, urn));
@@ -81,7 +64,7 @@ public class EBeanDAOUtils {
    * @param methodName Name of method that called this function, for logging purposes
    * @return Boolean indicating equivalence
    */
-  public static <T> boolean compareResults(List<T> resultOld, List<T> resultNew, String methodName) {
+  public static <T> boolean compareResults(@Nullable List<T> resultOld, @Nullable List<T> resultNew, @Nonnull String methodName) {
     if (resultOld == null && resultNew == null) {
       return true;
     }
@@ -108,7 +91,7 @@ public class EBeanDAOUtils {
    * @return Boolean indicating equivalence
    */
   public static <T> boolean compareResults(@Nullable ListResult<T> resultOld, @Nullable ListResult<T> resultNew,
-      String methodName) {
+      @Nonnull String methodName) {
     if (resultOld == null && resultNew == null) {
       return true;
     }
