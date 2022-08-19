@@ -25,6 +25,8 @@ import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
+import static com.linkedin.metadata.dao.utils.EbeanServerUtils.*;
+
 
 /**
  * An immutable implementation of {@link BaseLocalDAO}. Suitable for serving statically declared metadata.

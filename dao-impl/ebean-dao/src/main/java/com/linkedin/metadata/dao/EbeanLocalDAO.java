@@ -34,14 +34,12 @@ import com.linkedin.metadata.query.ListResultMetadata;
 import com.linkedin.metadata.query.SortOrder;
 import io.ebean.DuplicateKeyException;
 import io.ebean.EbeanServer;
-import io.ebean.EbeanServerFactory;
 import io.ebean.ExpressionList;
 import io.ebean.PagedList;
 import io.ebean.Query;
 import io.ebean.SqlUpdate;
 import io.ebean.Transaction;
 import io.ebean.config.ServerConfig;
-import io.ebean.datasource.DataSourceConfig;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URISyntaxException;
@@ -68,6 +66,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import static com.linkedin.metadata.dao.EbeanMetadataAspect.*;
 import static com.linkedin.metadata.dao.utils.EBeanDAOUtils.*;
+import static com.linkedin.metadata.dao.utils.EbeanServerUtils.*;
 
 
 /**
@@ -78,15 +77,16 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     extends BaseLocalDAO<ASPECT_UNION, URN> {
 
   private static final int INDEX_QUERY_TIMEOUT_IN_SEC = 5;
-  private static final String EBEAN_MODEL_PACKAGE = EbeanMetadataAspect.class.getPackage().getName();
-  private static final String EBEAN_INDEX_PACKAGE = EbeanMetadataIndex.class.getPackage().getName();
 
   protected final EbeanServer _server;
   protected final Class<URN> _urnClass;
+
+  private int _queryKeysCount = 0; // 0 means no pagination on keys
   private IEbeanLocalAccess<URN> _localAccess;
   private EbeanLocalRelationshipWriterDAO _ebeanLocalRelationshipWriterDAO;
   private UrnPathExtractor<URN> _urnPathExtractor;
-  private int _queryKeysCount = 0; // 0 means no pagination on keys
+  private SchemaConfig _schemaConfig = SchemaConfig.OLD_SCHEMA_ONLY;
+  private LocalRelationshipBuilderRegistry _localRelationshipBuilderRegistry;
 
   // TODO feature flags, remove when vetted.
   private boolean _useUnionForBatch = false;
@@ -97,8 +97,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     NEW_SCHEMA_ONLY, // Read from and write to the new schema tables
     DUAL_SCHEMA // Write to both the old and new tables and perform a comparison between values when reading
   }
-  private SchemaConfig _schemaConfig = SchemaConfig.OLD_SCHEMA_ONLY;
-  private LocalRelationshipBuilderRegistry _localRelationshipBuilderRegistry;
+
   @Value
   static class GMAIndexPair {
     public String valueType;
@@ -284,16 +283,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     _useOptimisticLocking = useOptimisticLocking;
   }
 
-  @Nonnull
-  private static EbeanServer createServer(@Nonnull ServerConfig serverConfig) {
-    // Make sure that the serverConfig includes the package that contains DAO's Ebean model.
-    if (!serverConfig.getPackages().contains(EBEAN_MODEL_PACKAGE)) {
-      serverConfig.getPackages().add(EBEAN_MODEL_PACKAGE);
-    }
-    if (!serverConfig.getPackages().contains(EBEAN_INDEX_PACKAGE)) {
-      serverConfig.getPackages().add(EBEAN_INDEX_PACKAGE);
-    }
-    return EbeanServerFactory.create(serverConfig);
+  public void setUrnPathExtractor(@Nonnull UrnPathExtractor<URN> urnPathExtractor) {
+    _urnPathExtractor = urnPathExtractor;
   }
 
   /**
@@ -301,52 +292,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    */
   public EbeanServer getServer() {
     return _server;
-  }
-
-  public void setUrnPathExtractor(@Nonnull UrnPathExtractor<URN> urnPathExtractor) {
-    _urnPathExtractor = urnPathExtractor;
-  }
-
-  /**
-   * Creates a private in-memory {@link EbeanServer} based on H2 for production.
-   */
-  @Nonnull
-  public static ServerConfig createProductionH2ServerConfig(@Nonnull String dbName) {
-
-    DataSourceConfig dataSourceConfig = new DataSourceConfig();
-    dataSourceConfig.setUsername("tester");
-    dataSourceConfig.setPassword("");
-    String url = "jdbc:h2:mem:" + dbName + ";IGNORECASE=TRUE;DB_CLOSE_DELAY=-1;";
-    dataSourceConfig.setUrl(url);
-    dataSourceConfig.setDriver("org.h2.Driver");
-
-    ServerConfig serverConfig = new ServerConfig();
-    serverConfig.setName(dbName);
-    serverConfig.setDataSourceConfig(dataSourceConfig);
-    serverConfig.setDdlGenerate(false);
-    serverConfig.setDdlRun(false);
-
-    return serverConfig;
-  }
-
-  /**
-   * Creates a private in-memory {@link EbeanServer} based on H2 for testing purpose.
-   */
-  @Nonnull
-  public static ServerConfig createTestingH2ServerConfig() {
-    DataSourceConfig dataSourceConfig = new DataSourceConfig();
-    dataSourceConfig.setUsername("tester");
-    dataSourceConfig.setPassword("");
-    dataSourceConfig.setUrl("jdbc:h2:mem:testdb;IGNORECASE=TRUE;");
-    dataSourceConfig.setDriver("org.h2.Driver");
-
-    ServerConfig serverConfig = new ServerConfig();
-    serverConfig.setName("gma");
-    serverConfig.setDataSourceConfig(dataSourceConfig);
-    serverConfig.setDdlGenerate(true);
-    serverConfig.setDdlRun(true);
-
-    return serverConfig;
   }
 
   @Nonnull
@@ -436,7 +381,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Nonnull
-  <ASPECT extends RecordTemplate> EbeanMetadataAspect buildMetadataAspectBean(@Nonnull URN urn,
+  private <ASPECT extends RecordTemplate> EbeanMetadataAspect buildMetadataAspectBean(@Nonnull URN urn,
       @Nullable RecordTemplate value, @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, long version) {
 
     final String aspectName = ModelUtils.getAspectName(aspectClass);
@@ -459,7 +404,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     return aspect;
   }
 
-  // visible for testing
+  @VisibleForTesting
   protected <ASPECT extends RecordTemplate> void saveWithOptimisticLocking(@Nonnull URN urn,
       @Nullable RecordTemplate value, @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp newAuditStamp,
       long version, boolean insert, @Nonnull Object oldTimestamp) {
@@ -739,7 +684,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   /**
    * Set a local relationship builder registry.
    */
-  public void setLocalRelationshipBuilderRegistry(LocalRelationshipBuilderRegistry localRelationshipBuilderRegistry) {
+  public void setLocalRelationshipBuilderRegistry(@Nonnull LocalRelationshipBuilderRegistry localRelationshipBuilderRegistry) {
     _localRelationshipBuilderRegistry = localRelationshipBuilderRegistry;
   }
 

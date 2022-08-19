@@ -30,7 +30,7 @@ public class EBeanDAOUtilsTest {
 
   @Test
   public void testGetEntityType() {
-    assertEquals(EBeanDAOUtils.getEntityType(FooUrn.class), "foo");
+    assertEquals(ModelUtils.getEntityTypeFromUrnClass(FooUrn.class), "foo");
   }
 
   @Test
