@@ -66,6 +66,11 @@ public class BaseLocalDAOTest {
 
     }
 
+    @Override
+    public <ASPECT extends RecordTemplate> void updateEntityTables(@Nonnull FooUrn urn, @Nullable ASPECT newValue) {
+
+    }
+
     @Nonnull
     @Override
     protected <T> T runInTransactionWithRetry(Supplier<T> block, int maxTransactionRetry) {

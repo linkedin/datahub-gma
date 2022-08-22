@@ -2881,6 +2881,39 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
+  public void testBackfillEntityTables() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = mock(EbeanLocalDAO.class);
+    Set<Class<? extends RecordTemplate>> aspectClasses = new HashSet<>();
+    aspectClasses.add(AspectFoo.class);
+
+    FooUrn urn1 = makeFooUrn(1);
+    FooUrn urn2 = makeFooUrn(2);
+    List<FooUrn> urns = new ArrayList<>();
+    urns.add(urn1);
+    urns.add(urn2);
+
+    // make sure to actually call the backfill() method when using our mock dao
+    AspectFoo foo1 = new AspectFoo().setValue("foo1");
+    doCallRealMethod().when(dao).backfill(any(), any(), any());
+
+    // set up mock get() method so that we successfully call updateEntityTables()
+    Map<FooUrn, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> map = new HashMap<>();
+    Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> map1 = new HashMap<>();
+    map1.put(AspectFoo.class, Optional.of(foo1));
+    map.put(urn1, map1);
+    map.put(urn2, map1);
+    when(dao.get(anySet(), anySet())).thenReturn(map);
+
+
+    // when
+    dao.backfill(BackfillMode.ENTITY_TABLES_ONLY, Collections.singleton(AspectFoo.class), new HashSet<>(urns));
+
+    // then
+    verify(dao, times(1)).updateEntityTables(urn1, foo1);
+    verify(dao, times(1)).updateEntityTables(urn2, foo1);
+  }
+
+  @Test
   public void testUpdateEntityTables() throws URISyntaxException {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
 
