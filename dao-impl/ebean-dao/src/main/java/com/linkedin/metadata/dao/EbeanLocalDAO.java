@@ -369,12 +369,15 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
           + "parameter is properly set to NEW_SCHEMA_ONLY or DUAL_SCHEMA if you wish to use entity tables.");
     }
     PrimaryKey key = new PrimaryKey(urn.toString(), ModelUtils.getAspectName(newValue.getClass()), LATEST_VERSION);
-    EbeanMetadataAspect result = _server.find(EbeanMetadataAspect.class, key);
-    if (result == null) {
-      return;
-    }
-    AuditStamp auditStamp = makeAuditStamp(result);
-    _localAccess.add(urn, newValue, (Class<ASPECT>) newValue.getClass(), auditStamp);
+    runInTransactionWithRetry(() -> {
+      EbeanMetadataAspect result = _server.find(EbeanMetadataAspect.class, key);
+      if (result == null) {
+        return null; // return value not used
+      }
+      AuditStamp auditStamp = makeAuditStamp(result);
+      _localAccess.add(urn, newValue, (Class<ASPECT>) newValue.getClass(), auditStamp);
+      return null; // return value not used
+    }, 1);
   }
 
   @Override
