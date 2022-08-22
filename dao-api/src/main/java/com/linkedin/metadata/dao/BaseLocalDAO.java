@@ -618,6 +618,15 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       long version);
 
   /**
+   * Saves the new value of an aspect to entity tables. This is used when backfilling metadata from the old schema to
+   * the new schema.
+   *
+   * @param urn the URN for the entity the aspect is attached to
+   * @param newValue {@link RecordTemplate} of the new value of aspect
+   */
+  public abstract <ASPECT extends RecordTemplate> void updateEntityTables(@Nonnull URN urn, @Nullable ASPECT newValue);
+
+  /**
    * Returns list of urns from local secondary index that satisfy the given filter conditions.
    *
    * <p>Results are ordered by the order criterion but defaults to sorting lexicographically by the string
@@ -920,6 +929,10 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nonnull URN urn) {
     if (_enableLocalSecondaryIndex && (mode == BackfillMode.SCSI_ONLY || mode == BackfillMode.BACKFILL_ALL)) {
       updateLocalIndex(urn, aspect, FIRST_VERSION);
+    }
+
+    if (mode == BackfillMode.ENTITY_TABLES_ONLY) {
+      updateEntityTables(urn, aspect);
     }
 
     if (mode == BackfillMode.MAE_ONLY || mode == BackfillMode.BACKFILL_ALL) {

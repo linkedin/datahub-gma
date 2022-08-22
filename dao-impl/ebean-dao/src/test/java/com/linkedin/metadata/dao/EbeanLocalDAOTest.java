@@ -54,6 +54,7 @@ import io.ebean.Ebean;
 import io.ebean.EbeanServer;
 import io.ebean.EbeanServerFactory;
 import io.ebean.PagedList;
+import io.ebean.SqlRow;
 import io.ebean.Transaction;
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -2877,6 +2878,44 @@ public class EbeanLocalDAOTest {
     // expect OptimisticLockException if optimistic locking is enabled
     dao.saveWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", 789), 0, false,
         new Timestamp(123));
+  }
+
+  @Test
+  public void testUpdateEntityTables() throws URISyntaxException {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+
+    // fill in old schema
+    FooUrn urn1 = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    addMetadata(urn1, AspectFoo.class.getCanonicalName(), 0, foo); // this function only adds to old schema
+
+    // check nothing in new schema right now
+    if (_schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
+      List<SqlRow> initial = _server.createSqlQuery("SELECT * FROM metadata_entity_foo").findList();
+      assertEquals(initial.size(), 0);
+    }
+
+    // perform the migration
+    try {
+      dao.updateEntityTables(urn1, foo);
+      if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+        // expect an exception here since there is no new schema to update
+        fail();
+      }
+    } catch (UnsupportedOperationException e) {
+      if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+        // pass since an exception is expected when using only the old schema
+        return;
+      }
+      fail();
+    }
+
+    // check new schema
+    List<SqlRow> result = _server.createSqlQuery("SELECT * FROM metadata_entity_foo").findList();
+    assertEquals(result.size(), 1);
+    assertEquals(result.get(0).get("urn"), "urn:li:foo:1");
+    assertNotNull(result.get(0).get("a_aspectfoo"));
+    assertNull(result.get(0).get("a_aspectbar"));
   }
 
   @Nonnull

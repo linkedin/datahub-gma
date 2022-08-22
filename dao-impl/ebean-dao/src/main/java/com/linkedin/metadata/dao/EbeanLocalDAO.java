@@ -363,6 +363,21 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Override
+  public <ASPECT extends RecordTemplate> void updateEntityTables(@Nonnull URN urn, @Nonnull ASPECT newValue) {
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      throw new UnsupportedOperationException("The DAO is set to use the OLD_SCHEMA_ONLY. Please check that the schemaConfig"
+          + "parameter is properly set to NEW_SCHEMA_ONLY or DUAL_SCHEMA if you wish to use entity tables.");
+    }
+    PrimaryKey key = new PrimaryKey(urn.toString(), ModelUtils.getAspectName(newValue.getClass()), LATEST_VERSION);
+    EbeanMetadataAspect result = _server.find(EbeanMetadataAspect.class, key);
+    if (result == null) {
+      return;
+    }
+    AuditStamp auditStamp = makeAuditStamp(result);
+    _localAccess.add(urn, newValue, (Class<ASPECT>) newValue.getClass(), auditStamp);
+  }
+
+  @Override
   @Nonnull
   protected <ASPECT extends RecordTemplate> AspectEntry<ASPECT> getLatest(@Nonnull URN urn,
       @Nonnull Class<ASPECT> aspectClass) {
