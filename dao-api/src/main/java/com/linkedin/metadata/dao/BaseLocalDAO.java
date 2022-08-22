@@ -350,16 +350,16 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nonnull AuditStamp auditStamp, @Nonnull EqualityTester<ASPECT> equalityTester) {
 
     final ASPECT oldValue = latest.getAspect() == null ? null : latest.getAspect();
+    final AuditStamp oldAuditStamp = latest.getExtraInfo() == null ? null : latest.getExtraInfo().getAudit();
+
     // Skip saving if there's no actual change
-    if ((oldValue == null && newValue == null) || oldValue != null && newValue != null && equalityTester.equals(
-        oldValue, newValue)) {
+    if ((oldValue == null && newValue == null) || oldValue != null && newValue != null
+        && equalityTester.equals(oldValue, newValue)) {
       return new AddResult<>(oldValue, oldValue, aspectClass);
     }
 
     // Save the newValue as the latest version
-    long largestVersion =
-        saveLatest(urn, aspectClass, oldValue, latest.getExtraInfo() == null ? null : latest.getExtraInfo().getAudit(),
-            newValue, auditStamp, latest.isSoftDeleted);
+    long largestVersion = saveLatest(urn, aspectClass, oldValue, oldAuditStamp, newValue, auditStamp, latest.isSoftDeleted);
 
     // Apply retention policy
     applyRetention(urn, aspectClass, getRetention(aspectClass), largestVersion);
@@ -498,7 +498,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * <p>
    * The new aspect will have an automatically assigned version number, which is guaranteed to be positive and monotonically
    * increasing. Older versions of the aspect will be purged automatically based on the retention setting. A MetadataAuditEvent
-   * is also emitted if an actualy update occurs.
+   * is also emitted if an actual update occurs.
    * </p>
    *
    * @param urn the URN for the entity to which the aspect is attached

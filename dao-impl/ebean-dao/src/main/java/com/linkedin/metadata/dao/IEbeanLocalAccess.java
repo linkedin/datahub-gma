@@ -3,6 +3,7 @@ package com.linkedin.metadata.dao;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
+import com.linkedin.metadata.dao.builder.LocalRelationshipBuilderRegistry;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
@@ -109,6 +110,11 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * @return a {@link ListResult} containing a list of URN and other pagination information
    */
   @Nonnull
-  public abstract <ASPECT extends RecordTemplate> ListResult<URN> listUrns(@Nonnull Class<ASPECT> aspectClass,
-      int start, int pageSize);
+  <ASPECT extends RecordTemplate> ListResult<URN> listUrns(@Nonnull Class<ASPECT> aspectClass, int start, int pageSize);
+
+  /**
+   * Provide a local relationship builder registry. Local relationships will be built based on the builders during data ingestion.
+   * @param localRelationshipBuilderRegistry All local relationship builders should be registered in this registry.
+   */
+  void setLocalRelationshipBuilderRegistry(LocalRelationshipBuilderRegistry localRelationshipBuilderRegistry);
 }

@@ -30,8 +30,26 @@ public class TestUtils {
   }
 
   @Nonnull
+  public static FooUrn makeFooUrn(String urn) {
+    try {
+      return FooUrn.createFromString(urn);
+    } catch (URISyntaxException e) {
+      throw new RuntimeException(String.format("Invalid urn %s", urn));
+    }
+  }
+
+  @Nonnull
   public static BarUrn makeBarUrn(int id) {
     return new BarUrn(id);
+  }
+
+  @Nonnull
+  public static BarUrn makeBarUrn(String urn) {
+    try {
+      return BarUrn.createFromString(urn);
+    } catch (URISyntaxException e) {
+      throw new RuntimeException(String.format("Invalid urn %s", urn));
+    }
   }
 
   @Nonnull

@@ -5,6 +5,8 @@ import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.SetMode;
 import com.linkedin.metadata.aspect.AuditedAspect;
+import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder;
+import com.linkedin.metadata.dao.builder.LocalRelationshipBuilderRegistry;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
@@ -16,6 +18,7 @@ import io.ebean.EbeanServer;
 import io.ebean.SqlQuery;
 import io.ebean.SqlRow;
 import io.ebean.SqlUpdate;
+import io.ebean.annotation.Transactional;
 import io.ebean.config.ServerConfig;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -45,6 +48,8 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   private final EbeanServer _server;
   private final Class<URN> _urnClass;
   private final String _entityType;
+  private final EbeanLocalRelationshipWriterDAO _localRelationshipWriterDAO;
+  private LocalRelationshipBuilderRegistry _localRelationshipBuilderRegistry;
 
   // TODO confirm if the default page size is 1000 in other code context.
   private static final int DEFAULT_PAGE_SIZE = 1000;
@@ -57,35 +62,60 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     _server = server;
     _urnClass = urnClass;
     _entityType = ModelUtils.getEntityTypeFromUrnClass(_urnClass);
+    _localRelationshipWriterDAO = new EbeanLocalRelationshipWriterDAO(_server);
     createSchemaEvolutionManager(serverConfig).ensureSchemaUpToDate();
   }
 
   @Override
+  @Transactional
   public <ASPECT extends RecordTemplate> int add(@Nonnull URN urn, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull AuditStamp auditStamp) {
 
-    long timestamp = auditStamp.hasTime() ? auditStamp.getTime() : System.currentTimeMillis();
-    LocalDateTime localDateTime = LocalDateTime.from(Instant.ofEpochMilli(timestamp).atZone(ZoneId.systemDefault()));
-    String actor = auditStamp.hasActor() ? auditStamp.getActor().toString() : DEFAULT_ACTOR;
-    String impersonator = auditStamp.hasImpersonator() ? auditStamp.getImpersonator().toString() : null;
+    final long timestamp = auditStamp.hasTime() ? auditStamp.getTime() : System.currentTimeMillis();
+    final LocalDateTime localDateTime = LocalDateTime.from(Instant.ofEpochMilli(timestamp).atZone(ZoneId.systemDefault()));
+    final String actor = auditStamp.hasActor() ? auditStamp.getActor().toString() : DEFAULT_ACTOR;
+    final String impersonator = auditStamp.hasImpersonator() ? auditStamp.getImpersonator().toString() : null;
 
     final SqlUpdate sqlUpdate = _server.createSqlUpdate(SQLStatementUtils.createAspectUpsertSql(urn, aspectClass))
         .setParameter("urn", urn.toString())
         .setParameter("lastmodifiedon", localDateTime.toString())
         .setParameter("lastmodifiedby", actor);
 
-    if (newValue != null) {
-      AuditedAspect auditedAspect = new AuditedAspect()
-          .setAspect(RecordUtils.toJsonString(newValue))
-          .setCanonicalName(aspectClass.getCanonicalName())
-          .setLastmodifiedby(actor)
-          .setLastmodifiedon(localDateTime.toString())
-          .setCreatedfor(impersonator, SetMode.IGNORE_NULL);
-      sqlUpdate.setParameter("metadata", toJsonString(auditedAspect));
-    } else {
-      sqlUpdate.setParameter("metadata", DELETED_VALUE);
+    // newValue is null if soft-delete aspect.
+    if (newValue == null) {
+
+      /*
+      TODO:
+      Local relationship is derived from an aspect. If an aspect metadata is deleted, then the local relationships derived from it
+      should also be invalidated. But how this invalidation process should work is still unclear. We can re-visited this part
+      once we see clear use case. For now, to prevent inconsistency between entity table and local relationship table, we do not allow
+      an aspect to be deleted if there's local relationship being derived from it.
+       */
+      if (_localRelationshipBuilderRegistry != null && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
+        throw new UnsupportedOperationException(
+            String.format("Aspect %s cannot be soft-deleted because it has a local relationship builder registered.",
+                aspectClass.getCanonicalName()));
+      }
+
+      return sqlUpdate.setParameter("metadata", DELETED_VALUE).execute();
     }
-    return sqlUpdate.execute();
+
+    // Add local relationships if builder is provided.
+    if (_localRelationshipBuilderRegistry != null && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
+      List<BaseLocalRelationshipBuilder<ASPECT>.LocalRelationshipUpdates> localRelationshipUpdates =
+          _localRelationshipBuilderRegistry.getLocalRelationshipBuilder(newValue).buildRelationships(urn, newValue);
+
+      _localRelationshipWriterDAO.processLocalRelationshipUpdates(localRelationshipUpdates);
+    }
+
+    AuditedAspect auditedAspect = new AuditedAspect()
+        .setAspect(RecordUtils.toJsonString(newValue))
+        .setCanonicalName(aspectClass.getCanonicalName())
+        .setLastmodifiedby(actor)
+        .setLastmodifiedon(localDateTime.toString())
+        .setCreatedfor(impersonator, SetMode.IGNORE_NULL);
+
+    return sqlUpdate.setParameter("metadata", toJsonString(auditedAspect)).execute();
   }
 
   @Nonnull
@@ -120,6 +150,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       final Class<ASPECT> aspectClass = (Class<ASPECT>) aspectKeys.get(index).getAspectClass();
       keysToQueryMap.computeIfAbsent(aspectClass, unused -> new HashSet<>()).add(entityUrn);
     }
+
     // each statement is for a single aspect class
     List<String> selectStatements = keysToQueryMap.entrySet().stream()
         .map(entry -> SQLStatementUtils.createAspectReadSql(entry.getKey(), entry.getValue()))
@@ -378,6 +409,13 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     } catch (ParseException e) {
       throw new RuntimeException(String.format("Failed to parse string %s as AuditedAspect.", auditedAspect));
     }
+  }
+
+  /**
+   * Set local relationship builder registry.
+   */
+  public void setLocalRelationshipBuilderRegistry(@Nonnull LocalRelationshipBuilderRegistry localRelationshipBuilderRegistry) {
+    _localRelationshipBuilderRegistry = localRelationshipBuilderRegistry;
   }
 
   @Nonnull

@@ -38,6 +38,7 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import static com.linkedin.testing.TestUtils.*;
 import static org.testng.Assert.*;
 
 public class EbeanLocalRelationshipQueryDAOTest {
@@ -266,21 +267,5 @@ public class EbeanLocalRelationshipQueryDAOTest {
     // Asserts Alice paired with Bob and John
     Set<FooUrn> expected = ImmutableSet.of(bob, john);
     assertEquals(actual, expected);
-  }
-
-  private FooUrn makeFooUrn(String urn) {
-    try {
-      return FooUrn.createFromString(urn);
-    } catch (URISyntaxException e) {
-      throw new RuntimeException(String.format("Invalid urn %s", urn));
-    }
-  }
-
-  private BarUrn makeBarUrn(String urn) {
-    try {
-      return BarUrn.createFromString(urn);
-    } catch (URISyntaxException e) {
-      throw new RuntimeException(String.format("Invalid urn %s", urn));
-    }
   }
 }

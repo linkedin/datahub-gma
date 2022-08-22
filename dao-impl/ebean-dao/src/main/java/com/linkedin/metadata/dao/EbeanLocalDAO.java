@@ -83,10 +83,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   private int _queryKeysCount = 0; // 0 means no pagination on keys
   private IEbeanLocalAccess<URN> _localAccess;
-  private EbeanLocalRelationshipWriterDAO _ebeanLocalRelationshipWriterDAO;
   private UrnPathExtractor<URN> _urnPathExtractor;
   private SchemaConfig _schemaConfig = SchemaConfig.OLD_SCHEMA_ONLY;
-  private LocalRelationshipBuilderRegistry _localRelationshipBuilderRegistry;
 
   // TODO feature flags, remove when vetted.
   private boolean _useUnionForBatch = false;
@@ -124,7 +122,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     _server = server;
     _urnClass = urnClass;
     _urnPathExtractor = new EmptyPathExtractor<>();
-    _ebeanLocalRelationshipWriterDAO = new EbeanLocalRelationshipWriterDAO(server);
   }
 
   @VisibleForTesting
@@ -172,7 +169,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     _server = server;
     _urnClass = urnClass;
     _urnPathExtractor = urnPathExtractor;
-    _ebeanLocalRelationshipWriterDAO = new EbeanLocalRelationshipWriterDAO(server);
   }
 
   @VisibleForTesting
@@ -493,7 +489,16 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       if (version == LATEST_VERSION) {
         // save() could be called when updating log table (moving current versions into new history version)
         // the metadata entity tables shouldn't been updated.
-        _localAccess.add(urn, (ASPECT) value, aspectClass, auditStamp);
+        runInTransactionWithRetry(() -> {
+          _localAccess.add(urn, (ASPECT) value, aspectClass, auditStamp);
+          if (insert) {
+            _server.insert(aspect);
+          } else {
+            _server.update(aspect);
+          }
+          return null; // Unused.
+        }, 1);
+        return;
       }
     }
 
@@ -704,7 +709,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * Set a local relationship builder registry.
    */
   public void setLocalRelationshipBuilderRegistry(@Nonnull LocalRelationshipBuilderRegistry localRelationshipBuilderRegistry) {
-    _localRelationshipBuilderRegistry = localRelationshipBuilderRegistry;
+    _localAccess.setLocalRelationshipBuilderRegistry(localRelationshipBuilderRegistry);
   }
 
   /**

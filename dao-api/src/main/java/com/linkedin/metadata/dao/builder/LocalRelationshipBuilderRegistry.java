@@ -15,4 +15,9 @@ public interface LocalRelationshipBuilderRegistry {
    */
   @Nullable
   <ASPECT extends RecordTemplate> BaseLocalRelationshipBuilder getLocalRelationshipBuilder(@Nonnull final ASPECT aspect);
+
+  /**
+   * Check if a local relationship builder is registered for an aspect.
+   */
+  <ASPECT extends RecordTemplate> boolean isRegistered(@Nonnull final Class<ASPECT> aspectClass);
 }
