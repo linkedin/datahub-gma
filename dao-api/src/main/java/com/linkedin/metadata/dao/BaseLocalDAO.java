@@ -622,9 +622,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * the new schema.
    *
    * @param urn the URN for the entity the aspect is attached to
-   * @param newValue {@link RecordTemplate} of the new value of aspect
+   * @param latestValue {@link RecordTemplate} of the new value of aspect
    */
-  public abstract <ASPECT extends RecordTemplate> void updateEntityTables(@Nonnull URN urn, @Nullable ASPECT newValue);
+  public abstract <ASPECT extends RecordTemplate> void updateEntityTables(@Nonnull URN urn, @Nullable ASPECT latestValue);
 
   /**
    * Returns list of urns from local secondary index that satisfy the given filter conditions.

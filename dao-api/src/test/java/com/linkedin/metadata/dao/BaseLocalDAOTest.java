@@ -67,7 +67,7 @@ public class BaseLocalDAOTest {
     }
 
     @Override
-    public <ASPECT extends RecordTemplate> void updateEntityTables(@Nonnull FooUrn urn, @Nullable ASPECT newValue) {
+    public <ASPECT extends RecordTemplate> void updateEntityTables(@Nonnull FooUrn urn, @Nullable ASPECT latestValue) {
 
     }
 

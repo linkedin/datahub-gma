@@ -262,7 +262,7 @@ public abstract class BaseEntityResource<
   }
 
   /**
-   * An action method for emitting MAE backfill messages for a set of entities.
+   * An action method for backfilling the new schema's entity tables with metadata from the old schema.
    */
   @Action(name = ACTION_BACKFILL_ENTITY_TABLES)
   @Nonnull
