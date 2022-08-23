@@ -6,17 +6,22 @@ namespace com.linkedin.metadata.backfill
 enum BackfillMode {
 
   /**
-   * To backfill only SCSI
+   * Backfill only SCSI
    */
   SCSI_ONLY
 
   /**
-   * To backfill only using MAE
+   * Backfill only using MAE
    */
   MAE_ONLY
 
   /**
-   * To backfill all secondary stores
+   * Backfill only new entity tables
+   */
+  ENTITY_TABLES_ONLY
+
+  /**
+   * Backfill all secondary stores, excluding ENTITY_TABLES_ONLY
    */
   BACKFILL_ALL
 }

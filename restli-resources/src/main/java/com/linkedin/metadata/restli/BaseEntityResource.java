@@ -262,6 +262,20 @@ public abstract class BaseEntityResource<
   }
 
   /**
+   * An action method for backfilling the new schema's entity tables with metadata from the old schema.
+   */
+  @Action(name = ACTION_BACKFILL_ENTITY_TABLES)
+  @Nonnull
+  public Task<BackfillResult> backfillEntityTables(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
+      @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
+
+    return RestliUtils.toTask(() -> {
+      final Set<URN> urnSet = Arrays.stream(urns).map(urnString -> parseUrnParam(urnString)).collect(Collectors.toSet());
+      return RestliUtils.buildBackfillResult(getLocalDAO().backfill(BackfillMode.ENTITY_TABLES_ONLY, parseAspectsParam(aspectNames), urnSet));
+    });
+  }
+
+  /**
    * An action method for emitting MAE backfill messages for a set of entities using SCSI.
    */
   @Action(name = ACTION_BACKFILL)

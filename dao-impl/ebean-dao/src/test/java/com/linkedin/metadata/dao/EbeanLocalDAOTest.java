@@ -54,6 +54,7 @@ import io.ebean.Ebean;
 import io.ebean.EbeanServer;
 import io.ebean.EbeanServerFactory;
 import io.ebean.PagedList;
+import io.ebean.SqlRow;
 import io.ebean.Transaction;
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -101,6 +102,10 @@ public class EbeanLocalDAOTest {
 
   // ONLY SET THIS TO FALSE IF YOU WANT TO TEST NEW_SCHEMA_ONLY OR DUAL_READ EbeanLocalDAO SchemaConfig values.
   private static final boolean NEW_SCHEMA_DISABLED = false;
+  // Switching this option to true will run all tests for each schema twice, once with _useUnionForBatch and _useOptimisticLocking
+  // flags set to false and once with the flags set to true. This results in these tests being run 6 times, which takes ~30 minutes.
+  private static final boolean FULL_TEST_SUITE = false;
+
   private EbeanServer _server;
   private BaseMetadataEventProducer _mockProducer;
   private AuditStamp _dummyAuditStamp;
@@ -133,19 +138,27 @@ public class EbeanLocalDAOTest {
 
   @DataProvider
   public static Object[][] inputList() {
-    return NEW_SCHEMA_DISABLED
-      ? new Object[][]{
+    if (NEW_SCHEMA_DISABLED) {
+      return new Object[][]{
           {false, false, SchemaConfig.OLD_SCHEMA_ONLY},
           {true, true, SchemaConfig.OLD_SCHEMA_ONLY}
-        }
-      : new Object[][]{
+      };
+    }
+    if (FULL_TEST_SUITE) {
+      return new Object[][]{
           {false, false, SchemaConfig.OLD_SCHEMA_ONLY},
           {false, false, SchemaConfig.NEW_SCHEMA_ONLY},
           {false, false, SchemaConfig.DUAL_SCHEMA},
           {true, true, SchemaConfig.OLD_SCHEMA_ONLY},
           {true, true, SchemaConfig.NEW_SCHEMA_ONLY},
           {true, true, SchemaConfig.DUAL_SCHEMA}
-        };
+      };
+    }
+    return new Object[][]{
+        {false, false, SchemaConfig.OLD_SCHEMA_ONLY},
+        {false, false, SchemaConfig.NEW_SCHEMA_ONLY},
+        {false, false, SchemaConfig.DUAL_SCHEMA}
+    };
   }
 
   @BeforeMethod
@@ -2877,6 +2890,77 @@ public class EbeanLocalDAOTest {
     // expect OptimisticLockException if optimistic locking is enabled
     dao.saveWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", 789), 0, false,
         new Timestamp(123));
+  }
+
+  @Test
+  public void testBackfillEntityTables() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = mock(EbeanLocalDAO.class);
+    Set<Class<? extends RecordTemplate>> aspectClasses = new HashSet<>();
+    aspectClasses.add(AspectFoo.class);
+
+    FooUrn urn1 = makeFooUrn(1);
+    FooUrn urn2 = makeFooUrn(2);
+    List<FooUrn> urns = new ArrayList<>();
+    urns.add(urn1);
+    urns.add(urn2);
+
+    // make sure to actually call the backfill() method when using our mock dao
+    AspectFoo foo1 = new AspectFoo().setValue("foo1");
+    doCallRealMethod().when(dao).backfill(any(), any(), any());
+
+    // set up mock get() method so that we successfully call pTables()
+    Map<FooUrn, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> map = new HashMap<>();
+    Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> map1 = new HashMap<>();
+    map1.put(AspectFoo.class, Optional.of(foo1));
+    map.put(urn1, map1);
+    map.put(urn2, map1);
+    when(dao.get(anySet(), anySet())).thenReturn(map);
+
+
+    // when
+    dao.backfill(BackfillMode.ENTITY_TABLES_ONLY, Collections.singleton(AspectFoo.class), new HashSet<>(urns));
+
+    // then
+    verify(dao, times(1)).updateEntityTables(urn1, foo1);
+    verify(dao, times(1)).updateEntityTables(urn2, foo1);
+  }
+
+  @Test
+  public void testUpdateEntityTables() throws URISyntaxException {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+
+    // fill in old schema
+    FooUrn urn1 = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    addMetadata(urn1, AspectFoo.class.getCanonicalName(), 0, foo); // this function only adds to old schema
+
+    // check nothing in new schema right now
+    if (_schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
+      List<SqlRow> initial = _server.createSqlQuery("SELECT * FROM metadata_entity_foo").findList();
+      assertEquals(initial.size(), 0);
+    }
+
+    // perform the migration
+    try {
+      dao.updateEntityTables(urn1, foo);
+      if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+        // expect an exception here since there is no new schema to update
+        fail();
+      }
+    } catch (UnsupportedOperationException e) {
+      if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+        // pass since an exception is expected when using only the old schema
+        return;
+      }
+      fail();
+    }
+
+    // check new schema
+    List<SqlRow> result = _server.createSqlQuery("SELECT * FROM metadata_entity_foo").findList();
+    assertEquals(result.size(), 1);
+    assertEquals(result.get(0).get("urn"), "urn:li:foo:1");
+    assertNotNull(result.get(0).get("a_aspectfoo"));
+    assertNull(result.get(0).get("a_aspectbar"));
   }
 
   @Nonnull
