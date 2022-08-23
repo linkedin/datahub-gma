@@ -363,19 +363,20 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Override
-  public <ASPECT extends RecordTemplate> void updateEntityTables(@Nonnull URN urn, @Nonnull ASPECT newValue) {
+  public <ASPECT extends RecordTemplate> void updateEntityTables(@Nonnull URN urn, @Nonnull ASPECT latestValue) {
     if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
       throw new UnsupportedOperationException("The DAO is set to use the OLD_SCHEMA_ONLY. Please check that the schemaConfig"
           + "parameter is properly set to NEW_SCHEMA_ONLY or DUAL_SCHEMA if you wish to use entity tables.");
     }
-    PrimaryKey key = new PrimaryKey(urn.toString(), ModelUtils.getAspectName(newValue.getClass()), LATEST_VERSION);
+    PrimaryKey key = new PrimaryKey(urn.toString(), ModelUtils.getAspectName(latestValue.getClass()), LATEST_VERSION);
     runInTransactionWithRetry(() -> {
-      EbeanMetadataAspect result = _server.find(EbeanMetadataAspect.class, key);
+      // use forUpdate() to lock the row during this transaction so that we can guarantee a consistent update
+      EbeanMetadataAspect result = _server.createQuery(EbeanMetadataAspect.class).setId(key).forUpdate().findOne();
       if (result == null) {
         return null; // return value not used
       }
       AuditStamp auditStamp = makeAuditStamp(result);
-      _localAccess.add(urn, newValue, (Class<ASPECT>) newValue.getClass(), auditStamp);
+      _localAccess.add(urn, latestValue, (Class<ASPECT>) latestValue.getClass(), auditStamp);
       return null; // return value not used
     }, 1);
   }

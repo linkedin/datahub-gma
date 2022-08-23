@@ -102,6 +102,10 @@ public class EbeanLocalDAOTest {
 
   // ONLY SET THIS TO FALSE IF YOU WANT TO TEST NEW_SCHEMA_ONLY OR DUAL_READ EbeanLocalDAO SchemaConfig values.
   private static final boolean NEW_SCHEMA_DISABLED = false;
+  // Switching this option to true will run all tests for each schema twice, once with _useUnionForBatch and _useOptimisticLocking
+  // flags set to false and once with the flags set to true. This results in these tests being run 6 times, which takes ~30 minutes.
+  private static final boolean FULL_TEST_SUITE = false;
+
   private EbeanServer _server;
   private BaseMetadataEventProducer _mockProducer;
   private AuditStamp _dummyAuditStamp;
@@ -134,19 +138,27 @@ public class EbeanLocalDAOTest {
 
   @DataProvider
   public static Object[][] inputList() {
-    return NEW_SCHEMA_DISABLED
-      ? new Object[][]{
+    if (NEW_SCHEMA_DISABLED) {
+      return new Object[][]{
           {false, false, SchemaConfig.OLD_SCHEMA_ONLY},
           {true, true, SchemaConfig.OLD_SCHEMA_ONLY}
-        }
-      : new Object[][]{
+      };
+    }
+    if (FULL_TEST_SUITE) {
+      return new Object[][]{
           {false, false, SchemaConfig.OLD_SCHEMA_ONLY},
           {false, false, SchemaConfig.NEW_SCHEMA_ONLY},
           {false, false, SchemaConfig.DUAL_SCHEMA},
           {true, true, SchemaConfig.OLD_SCHEMA_ONLY},
           {true, true, SchemaConfig.NEW_SCHEMA_ONLY},
           {true, true, SchemaConfig.DUAL_SCHEMA}
-        };
+      };
+    }
+    return new Object[][]{
+        {false, false, SchemaConfig.OLD_SCHEMA_ONLY},
+        {false, false, SchemaConfig.NEW_SCHEMA_ONLY},
+        {false, false, SchemaConfig.DUAL_SCHEMA}
+    };
   }
 
   @BeforeMethod
@@ -2896,7 +2908,7 @@ public class EbeanLocalDAOTest {
     AspectFoo foo1 = new AspectFoo().setValue("foo1");
     doCallRealMethod().when(dao).backfill(any(), any(), any());
 
-    // set up mock get() method so that we successfully call updateEntityTables()
+    // set up mock get() method so that we successfully call pTables()
     Map<FooUrn, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> map = new HashMap<>();
     Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> map1 = new HashMap<>();
     map1.put(AspectFoo.class, Optional.of(foo1));
