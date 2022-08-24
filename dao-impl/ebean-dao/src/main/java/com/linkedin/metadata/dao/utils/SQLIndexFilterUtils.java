@@ -70,7 +70,7 @@ public class SQLIndexFilterUtils {
    * @param indexSortCriterion filter sorting criterion
    * @return SQL statement of sorting, e.g. ORDER BY ... DESC ..etc.
    */
-  static String parseSortCriteria(@Nullable IndexSortCriterion indexSortCriterion) {
+  public static String parseSortCriteria(@Nullable IndexSortCriterion indexSortCriterion) {
     if (indexSortCriterion == null) {
       return "";
     }

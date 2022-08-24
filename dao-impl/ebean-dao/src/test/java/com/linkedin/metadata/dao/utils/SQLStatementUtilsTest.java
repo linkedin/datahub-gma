@@ -67,10 +67,12 @@ public class SQLStatementUtilsTest {
 
     String sql = SQLStatementUtils.createFilterSql("metadata_entity_foo", indexFilter,
         SQLIndexFilterUtils.createIndexSortCriterion(AspectFoo.class, "value", SortOrder.ASCENDING));
-    String expectedSql = "WITH _temp_results AS (SELECT * FROM metadata_entity_foo\nWHERE i_aspectfoo$value >= 25\n"
-        + "AND " + "i_aspectfoo$value < 50\nAND a_aspectfoo != '{\"gma_deleted\":true}'\n"
-        + "ORDER BY i_aspectfoo$value ASC)\n"
-        + "SELECT *, (SELECT COUNT(urn) FROM _temp_results) AS _total_count FROM _temp_results";
+    String expectedSql = "SELECT *, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE i_aspectfoo$value >= 25\n"
+        + "AND i_aspectfoo$value < 50\n"
+        + "AND a_aspectfoo != '{\"gma_deleted\":true}') as _total_count FROM metadata_entity_foo\n"
+        + "WHERE i_aspectfoo$value >= 25\n" + "AND i_aspectfoo$value < 50\n"
+        + "AND a_aspectfoo != '{\"gma_deleted\":true}'";
+
     assertEquals(sql, expectedSql);
   }
 

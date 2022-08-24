@@ -170,7 +170,6 @@ public class EbeanLocalAccessTest {
     FooUrn lastUrn = new FooUrn(29);
 
     // When: list out results with lastUrn = 'urn:li:foo:29' and pageSize = 5
-
     List<FooUrn> listUrns = _ebeanLocalAccessFoo.listUrns(indexFilter, indexSortCriterion, lastUrn, 5);
 
     // Expect: 5 rows are returns (30~34) and the first element is 'urn:li:foo:30'
