@@ -39,6 +39,7 @@ import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
 import static com.linkedin.metadata.dao.utils.EBeanDAOUtils.*;
+import static com.linkedin.metadata.dao.utils.SQLIndexFilterUtils.*;
 
 
 /**
@@ -247,11 +248,10 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    * Produce {@link SqlQuery} for list urn by offset (start) and by lastUrn.
    * @param indexFilter index filter conditions
    * @param indexSortCriterion sorting criterion, default ACS
-   * @param lastUrn
-   * @param <URN>
-   * @return
+   * @param lastUrn last urn of the previous fetched page. For the first page, this should be set as NULL
+   * @return SqlQuery a SQL query which can be executed by ebean server.
    */
-  private <URN> SqlQuery createFilterSqlQuery(@Nonnull IndexFilter indexFilter,
+  private SqlQuery createFilterSqlQuery(@Nonnull IndexFilter indexFilter,
       @Nullable IndexSortCriterion indexSortCriterion, @Nullable URN lastUrn, int offset, int pageSize) {
     if (indexFilter.hasCriteria() && indexFilter.getCriteria().isEmpty()) {
       throw new UnsupportedOperationException("Empty Index Filter is not supported by EbeanLocalDAO");
@@ -263,10 +263,16 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
     // append last urn where condition
     if (lastUrn != null) {
-      filterSql.append(" WHERE urn > '");
-      filterSql.append(lastUrn.toString());
+      filterSql.append(" AND urn > '");
+      filterSql.append(lastUrn);
       filterSql.append("'");
     }
+
+    if (indexSortCriterion != null) {
+      filterSql.append("\n");
+      filterSql.append(parseSortCriteria(indexSortCriterion));
+    }
+
     filterSql.append(String.format(" LIMIT %d", Math.max(pageSize, 0)));
     filterSql.append(String.format(" OFFSET %d", Math.max(offset, 0)));
     return _server.createSqlQuery(filterSql.toString());

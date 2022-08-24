@@ -53,21 +53,14 @@ public class SQLStatementUtils {
   private static final String DELETE_BY_SOURCE_AND_DESTINATION = "DELETE FROM %s WHERE destination = :destination AND source = :source";
 
   /**
-   *  Filter query has pagination params in the existing APIs. To accommodate this, we use WITH query to include total result counts in the query response.
+   *  Filter query has pagination params in the existing APIs. To accommodate this, we use subquery to include total result counts in the query response.
    *  For example, we will build the following filter query statement:
    *
-   *  <p>WITH _temp_results AS (SELECT * FROM metadata_entity_foo
-   *      WHERE
-   *        i_testing_aspectfoo$value >= 25 AND
-   *        i_testing_aspectfoo$value < 50
-   *      ORDER BY i_testing_aspectfoo$value ASC)
-   *    SELECT *, (SELECT count(urn) FROM _temp_results) AS _total_count FROM _temp_results
+   *  <p>SELECT *, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE i_aspectfoo$value >= 25\n"
+   *  AND i_aspectfoo$value < 50 AND a_aspectfoo != '{\"gma_deleted\":true}') as _total_count FROM metadata_entity_foo\n"
+   *  WHERE i_aspectfoo$value >= 25 AND i_aspectfoo$value < 50 AND a_aspectfoo != '{\"gma_deleted\":true}';
    */
-  // TODO: IMPORTANT - WITH expression only available since MySQL version 8. Rewrite this SQL to make it compatible with older version.
-  private static final String SQL_FILTER_TEMPLATE_START = "WITH _temp_results AS (SELECT * FROM %s";
-  private static final String SQL_FILTER_TEMPLATE_FINISH =
-      ")\nSELECT *, (SELECT COUNT(urn) FROM _temp_results) AS _total_count FROM _temp_results";
-
+  private static final String SQL_FILTER_TEMPLATE = "SELECT *, (%s) as _total_count FROM %s";
   private static final String SQL_BROWSE_ASPECT_TEMPLATE =
       String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby, (SELECT COUNT(urn) FROM %%s) as _total_count "
           + "FROM %%s WHERE %%s != '%s' LIMIT %%d OFFSET %%d", DELETED_VALUE);
@@ -140,15 +133,12 @@ public class SQLStatementUtils {
    */
   public static String createFilterSql(String tableName, @Nonnull IndexFilter indexFilter,
       @Nullable IndexSortCriterion indexSortCriterion) {
+    String whereClause = parseIndexFilter(indexFilter);
+    String totalCountSql = String.format("SELECT COUNT(urn) FROM %s %s", tableName, whereClause);
     StringBuilder sb = new StringBuilder();
-    sb.append(String.format(SQL_FILTER_TEMPLATE_START, tableName));
+    sb.append(String.format(SQL_FILTER_TEMPLATE, totalCountSql, tableName));
     sb.append("\n");
-    sb.append(parseIndexFilter(indexFilter));
-    if (indexSortCriterion != null) {
-      sb.append("\n");
-      sb.append(parseSortCriteria(indexSortCriterion));
-    }
-    sb.append(SQL_FILTER_TEMPLATE_FINISH);
+    sb.append(whereClause);
     return sb.toString();
   }
 
