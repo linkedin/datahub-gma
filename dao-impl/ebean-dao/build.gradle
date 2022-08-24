@@ -37,7 +37,7 @@ dependencies {
 // Then run: ./gradlew build -Ptest-ebean-dao
 test {
   if (!project.hasProperty('test-ebean-dao')) {
-    exclude '**/EBeanLocalAccessTest.class'
+    exclude '**/EbeanLocalAccessTest.class'
     exclude '**/EbeanLocalDAOTest.class'
     exclude '**/EbeanLocalRelationshipWriterDAOTest.class'
     exclude '**/EbeanLocalRelationshipQueryDAOTest.class'

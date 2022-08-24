@@ -563,7 +563,7 @@ public abstract class BaseEntityResource<
     final IndexFilter filter = indexFilter == null ? getDefaultIndexFilter() : indexFilter;
 
     return RestliUtils.toTask(() -> {
-      Map<String, Long> countAggregateMap = getLocalDAO().countAggregate(indexFilter, indexGroupByCriterion);
+      Map<String, Long> countAggregateMap = getLocalDAO().countAggregate(filter, indexGroupByCriterion);
       MapMetadata mapMetadata = new MapMetadata().setLongMap(new LongMap(countAggregateMap));
       return new CollectionResult<EmptyRecord, MapMetadata>(new ArrayList<>(), mapMetadata);
     });
@@ -585,7 +585,7 @@ public abstract class BaseEntityResource<
   ) {
     final IndexFilter filter = indexFilter == null ? getDefaultIndexFilter() : indexFilter;
 
-    return RestliUtils.toTask(() -> getLocalDAO().countAggregate(indexFilter, indexGroupByCriterion));
+    return RestliUtils.toTask(() -> getLocalDAO().countAggregate(filter, indexGroupByCriterion));
   }
 
   @Nonnull

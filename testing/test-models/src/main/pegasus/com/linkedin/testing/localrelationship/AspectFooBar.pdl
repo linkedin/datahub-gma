@@ -2,6 +2,7 @@ namespace com.linkedin.testing.localrelationship
 
 import com.linkedin.testing.BarUrn
 
+@gma.aspect.column.name = "aspectfoobar"
 record AspectFooBar {
   bars: array[BarUrn]
 }

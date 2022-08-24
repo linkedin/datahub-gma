@@ -2,12 +2,14 @@ package com.linkedin.metadata.dao;
 
 import com.google.common.io.Resources;
 import com.linkedin.common.AuditStamp;
-import com.linkedin.common.urn.Urn;
 import com.linkedin.metadata.aspect.AuditedAspect;
+import com.linkedin.metadata.dao.localrelationship.SampleLocalRelationshipRegistryImpl;
 import com.linkedin.metadata.dao.utils.MysqlDevInstance;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLIndexFilterUtils;
 import com.linkedin.metadata.query.Condition;
+import com.linkedin.metadata.query.CriterionArray;
+import com.linkedin.metadata.query.Filter;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
@@ -16,9 +18,16 @@ import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.query.IndexValue;
 import com.linkedin.metadata.query.SortOrder;
 import com.linkedin.testing.AspectFoo;
+import com.linkedin.testing.BarSnapshot;
+import com.linkedin.testing.BarUrnArray;
+import com.linkedin.testing.FooSnapshot;
+import com.linkedin.testing.localrelationship.AspectFooBar;
+import com.linkedin.testing.localrelationship.BelongsTo;
+import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.FooUrn;
 import io.ebean.Ebean;
 import io.ebean.EbeanServer;
+import io.ebean.SqlRow;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
@@ -26,6 +35,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.testng.annotations.BeforeClass;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import static com.linkedin.common.AuditStamps.*;
@@ -39,16 +49,24 @@ import static org.testng.AssertJUnit.*;
  * ssh -L 23306:makto-db-313.corp.linkedin.com:3306 [your-username]-ld3.linkedin.biz
  * Then to run the tests via command line: ./gradlew build -Ptest-ebean-dao
  */
-public class EBeanLocalAccessTest {
+public class EbeanLocalAccessTest {
   private static EbeanServer _server;
-  private static IEbeanLocalAccess _ebeanLocalAccess;
+  private static IEbeanLocalAccess<FooUrn> _ebeanLocalAccessFoo;
+  private static IEbeanLocalAccess<BarUrn> _ebeanLocalAccessBar;
+  private static final Filter EMPTY_FILTER = new Filter().setCriteria(new CriterionArray());
 
   @BeforeClass
   public void init() throws IOException {
     _server = MysqlDevInstance.getServer();
+    _ebeanLocalAccessFoo = new EbeanLocalAccess<>(_server, MysqlDevInstance.SERVER_CONFIG, FooUrn.class);
+    _ebeanLocalAccessBar = new EbeanLocalAccess<>(_server, MysqlDevInstance.SERVER_CONFIG, BarUrn.class);
+    _ebeanLocalAccessFoo.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
+  }
+
+  @BeforeMethod
+  public void setupTest() throws IOException {
     _server.execute(Ebean.createSqlUpdate(
         Resources.toString(Resources.getResource("metadata-schema-create-all.sql"), StandardCharsets.UTF_8)));
-    _ebeanLocalAccess = new EbeanLocalAccess(_server, MysqlDevInstance.SERVER_CONFIG, FooUrn.class);
 
     // initialize data with metadata_entity_foo table with fooUrns from 0 ~ 99
     int numOfRecords = 100;
@@ -57,7 +75,7 @@ public class EBeanLocalAccessTest {
       AspectFoo aspectFoo = new AspectFoo();
       aspectFoo.setValue(String.valueOf(i));
       AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
-      _ebeanLocalAccess.add(fooUrn, aspectFoo, AspectFoo.class, auditStamp);
+      _ebeanLocalAccessFoo.add(fooUrn, aspectFoo, AspectFoo.class, auditStamp);
     }
   }
 
@@ -71,7 +89,7 @@ public class EBeanLocalAccessTest {
 
     // When get AspectFoo from urn:li:foo:0
     List<EbeanMetadataAspect> ebeanMetadataAspectList =
-        _ebeanLocalAccess.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0);
+        _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0);
     assertEquals(1, ebeanMetadataAspectList.size());
 
     EbeanMetadataAspect ebeanMetadataAspect = ebeanMetadataAspectList.get(0);
@@ -88,7 +106,7 @@ public class EBeanLocalAccessTest {
     // When get AspectFoo from urn:li:foo:9999 (does not exist)
     FooUrn nonExistFooUrn = makeFooUrn(9999);
     AspectKey<FooUrn, AspectFoo> nonExistKey = new AspectKey(AspectFoo.class, nonExistFooUrn, 0L);
-    ebeanMetadataAspectList = _ebeanLocalAccess.batchGetUnion(Collections.singletonList(nonExistKey), 1000, 0);
+    ebeanMetadataAspectList = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(nonExistKey), 1000, 0);
 
     // Expect: get AspectFoo from urn:li:foo:9999 returns empty result
     assertTrue(ebeanMetadataAspectList.isEmpty());
@@ -118,7 +136,7 @@ public class EBeanLocalAccessTest {
 
     // When: list out results with start = 5 and pageSize = 5
 
-    ListResult<Urn> listUrns = _ebeanLocalAccess.listUrns(indexFilter, indexSortCriterion, 5, 5);
+    ListResult<FooUrn> listUrns = _ebeanLocalAccessFoo.listUrns(indexFilter, indexSortCriterion, 5, 5);
 
     assertEquals(5, listUrns.getValues().size());
     assertEquals(5, listUrns.getPageSize());
@@ -153,7 +171,7 @@ public class EBeanLocalAccessTest {
 
     // When: list out results with lastUrn = 'urn:li:foo:29' and pageSize = 5
 
-    List<Urn> listUrns = _ebeanLocalAccess.listUrns(indexFilter, indexSortCriterion, lastUrn, 5);
+    List<FooUrn> listUrns = _ebeanLocalAccessFoo.listUrns(indexFilter, indexSortCriterion, lastUrn, 5);
 
     // Expect: 5 rows are returns (30~34) and the first element is 'urn:li:foo:30'
     assertEquals(5, listUrns.size());
@@ -168,13 +186,13 @@ public class EBeanLocalAccessTest {
     FooUrn foo0 = new FooUrn(0);
 
     // Expect: urn:li:foo:0 exists
-    assertTrue(_ebeanLocalAccess.exists(foo0));
+    assertTrue(_ebeanLocalAccessFoo.exists(foo0));
 
     // When: check whether urn:li:foo:9999 exist
     FooUrn foo9999 = new FooUrn(9999);
 
     // Expect: urn:li:foo:9999 does not exists
-    assertFalse(_ebeanLocalAccess.exists(foo9999));
+    assertFalse(_ebeanLocalAccessFoo.exists(foo9999));
   }
 
   @Test
@@ -182,21 +200,21 @@ public class EBeanLocalAccessTest {
     // Given: metadata_entity_foo table with fooUrns from 0 ~ 99
 
     // When: list urns from the 1st record, with 50 page size
-    ListResult<AspectFoo> fooUrnListResult = _ebeanLocalAccess.listUrns(AspectFoo.class, 0, 50);
+    ListResult<FooUrn> fooUrnListResult = _ebeanLocalAccessFoo.listUrns(AspectFoo.class, 0, 50);
 
     // Expect: 50 results is returned and 100 total records
     assertEquals(50, fooUrnListResult.getValues().size());
     assertEquals(100, fooUrnListResult.getTotalCount());
 
     // When: list urns from the 55th record, with 50 page size
-    fooUrnListResult = _ebeanLocalAccess.listUrns(AspectFoo.class, 55, 50);
+    fooUrnListResult = _ebeanLocalAccessFoo.listUrns(AspectFoo.class, 55, 50);
 
     // Expect: 45 results is returned and 100 total records
     assertEquals(45, fooUrnListResult.getValues().size());
     assertEquals(100, fooUrnListResult.getTotalCount());
 
     // When: list urns from the 101th record, with 50 page size
-    fooUrnListResult = _ebeanLocalAccess.listUrns(AspectFoo.class, 101, 50);
+    fooUrnListResult = _ebeanLocalAccessFoo.listUrns(AspectFoo.class, 101, 50);
 
     // Expect: 0 results is returned and 100 total records
     assertEquals(0, fooUrnListResult.getValues().size());
@@ -220,7 +238,7 @@ public class EBeanLocalAccessTest {
     IndexGroupByCriterion indexGroupByCriterion = new IndexGroupByCriterion();
     indexGroupByCriterion.setPath("/value");
     indexGroupByCriterion.setAspect(AspectFoo.class.getCanonicalName());
-    Map<String, Long> countMap = _ebeanLocalAccess.countAggregate(indexFilter, indexGroupByCriterion);
+    Map<String, Long> countMap = _ebeanLocalAccessFoo.countAggregate(indexFilter, indexGroupByCriterion);
 
     // Expect: there is 1 count for value 25
     assertEquals(countMap.get("25"), Long.valueOf(1));
@@ -231,8 +249,8 @@ public class EBeanLocalAccessTest {
     AspectFoo aspectFoo = new AspectFoo();
     aspectFoo.setValue(String.valueOf(25));
     AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
-    _ebeanLocalAccess.add(fooUrn, aspectFoo, AspectFoo.class, auditStamp);
-    countMap = _ebeanLocalAccess.countAggregate(indexFilter, indexGroupByCriterion);
+    _ebeanLocalAccessFoo.add(fooUrn, aspectFoo, AspectFoo.class, auditStamp);
+    countMap = _ebeanLocalAccessFoo.countAggregate(indexFilter, indexGroupByCriterion);
 
     // Expect: there are 2 counts for value 25
     assertEquals(countMap.get("25"), Long.valueOf(2));
@@ -251,5 +269,52 @@ public class EBeanLocalAccessTest {
 
     assertEquals("{\"lastmodifiedby\":\"0\",\"lastmodifiedon\":\"1\",\"aspect\":{\"value\":\"test\"}}", toJson);
     assertNotNull(RecordUtils.toRecordTemplate(AspectFoo.class, EbeanLocalAccess.extractAspectJsonString(toJson)));
+  }
+
+  @Test
+  public void testAddWithLocalRelationshipBuilder() throws URISyntaxException {
+    FooUrn fooUrn = makeFooUrn(1);
+    BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
+    BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:2");
+    BarUrn barUrn3 = BarUrn.createFromString("urn:li:bar:3");
+    AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(barUrn1, barUrn2, barUrn3));
+    AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
+
+    _ebeanLocalAccessFoo.add(fooUrn, aspectFooBar, AspectFooBar.class, auditStamp);
+    _ebeanLocalAccessBar.add(barUrn1, new AspectFoo().setValue("1"), AspectFoo.class, auditStamp);
+    _ebeanLocalAccessBar.add(barUrn2, new AspectFoo().setValue("2"), AspectFoo.class, auditStamp);
+    _ebeanLocalAccessBar.add(barUrn3, new AspectFoo().setValue("3"), AspectFoo.class, auditStamp);
+
+    // Verify local relationships and entity are added.
+    EbeanLocalRelationshipQueryDAO ebeanLocalRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server);
+    List<BelongsTo> relationships = ebeanLocalRelationshipQueryDAO.findRelationships(
+        BarSnapshot.class, EMPTY_FILTER, FooSnapshot.class, EMPTY_FILTER, BelongsTo.class, EMPTY_FILTER, 0, 10);
+
+    AspectKey<FooUrn, AspectFooBar> key = new AspectKey<>(AspectFooBar.class, fooUrn, 0L);
+    List<EbeanMetadataAspect> aspects = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(key), 10, 0);
+
+    assertEquals(3, relationships.size());
+    assertEquals(1, aspects.size());
+  }
+
+  @Test
+  public void testAtomicityWithLocalRelationshipBuilder() throws URISyntaxException {
+    // Drop the entity table should fail add operation.
+    _server.createSqlUpdate("DROP TABLE metadata_entity_foo").execute();
+
+    AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(
+        BarUrn.createFromString("urn:li:bar:123"),
+        BarUrn.createFromString("urn:li:bar:456"),
+        BarUrn.createFromString("urn:li:bar:789")));
+
+    AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
+
+    try {
+      _ebeanLocalAccessFoo.add(makeFooUrn(1), aspectFooBar, AspectFooBar.class, auditStamp);
+    } catch (Exception exception) {
+      // Verify no relationship is added.
+      List<SqlRow> relationships = _server.createSqlQuery("SELECT * FROM metadata_relationship_belongsto").findList();
+      assertEquals(0, relationships.size());
+    }
   }
 }

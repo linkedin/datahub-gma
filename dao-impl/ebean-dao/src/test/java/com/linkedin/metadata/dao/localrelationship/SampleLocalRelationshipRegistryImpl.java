@@ -21,4 +21,9 @@ public class SampleLocalRelationshipRegistryImpl implements LocalRelationshipBui
       @Nonnull ASPECT aspect) {
     return builders.get(aspect.getClass());
   }
+
+  @Override
+  public <ASPECT extends RecordTemplate> boolean isRegistered(@Nonnull Class<ASPECT> aspectClass) {
+    return builders.containsKey(aspectClass);
+  }
 }
