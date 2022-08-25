@@ -51,7 +51,7 @@ public class ImmutableLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends U
     _server.execute(Ebean.createSqlUpdate(readSQLfromFile(GMA_CREATE_ALL_SQL)));
     urnAspectMap.forEach((key, value) -> {
       if (value != null) {
-        super.save(key, value, value.getClass(), DUMMY_AUDIT_STAMP, LATEST_VERSION, true);
+        super.insert(key, value, value.getClass(), DUMMY_AUDIT_STAMP, LATEST_VERSION);
       }
     });
   }
@@ -63,7 +63,7 @@ public class ImmutableLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends U
     super(aspectUnionClass, new DummyMetadataEventProducer<>(), createTestingH2ServerConfig(), urnClass);
     urnAspectMap.forEach((key, value) -> {
       if (value != null) {
-        super.save(key, value, value.getClass(), DUMMY_AUDIT_STAMP, LATEST_VERSION, true);
+        super.insert(key, value, value.getClass(), DUMMY_AUDIT_STAMP, LATEST_VERSION);
       }
     });
   }

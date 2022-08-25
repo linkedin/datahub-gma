@@ -27,6 +27,7 @@ import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
+import java.sql.Timestamp;
 import java.time.Clock;
 import java.util.Collections;
 import java.util.ArrayList;
@@ -797,17 +798,30 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nonnull Class<ASPECT> aspectClass);
 
   /**
-   * Saves an aspect for an entity with specific version and {@link AuditStamp}.
+   * Insert an aspect for an entity with specific version and {@link AuditStamp}.
    *
    * @param urn {@link Urn} for the entity
-   * @param value the aspect to save
-   * @param aspectClass the type of aspect to save
+   * @param value the aspect to insert
+   * @param aspectClass the type of aspect to insert
    * @param auditStamp the {@link AuditStamp} for the aspect
    * @param version the version for the aspect
-   * @param insert use insert, instead of update, operation to save
    */
-  protected abstract <ASPECT extends RecordTemplate> void save(@Nonnull URN urn, @Nullable RecordTemplate value,
-      @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, long version, boolean insert);
+  protected abstract <ASPECT extends RecordTemplate> void insert(@Nonnull URN urn, @Nullable RecordTemplate value,
+      @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, long version);
+
+  /**
+   * Update an aspect for an entity with specific version and {@link AuditStamp} with optimistic locking.
+   *
+   * @param urn {@link Urn} for the entity
+   * @param value the aspect to update
+   * @param aspectClass the type of aspect to update
+   * @param newAuditStamp the {@link AuditStamp} for the new aspect
+   * @param version the version for the aspect
+   * @param oldTimestamp the timestamp for the old aspect
+   */
+  protected abstract <ASPECT extends RecordTemplate> void updateWithOptimisticLocking(@Nonnull URN urn,
+      @Nullable RecordTemplate value, @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp newAuditStamp,
+      long version, @Nonnull Timestamp oldTimestamp);
 
   /**
    * Returns a boolean representing if an Urn has any Aspects associated with it (i.e. if it exists in the DB).

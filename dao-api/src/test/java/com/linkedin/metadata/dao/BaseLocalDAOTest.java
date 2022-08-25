@@ -14,6 +14,7 @@ import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.EntityAspectUnion;
 import com.linkedin.testing.urn.FooUrn;
 import java.net.URISyntaxException;
+import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -88,8 +89,15 @@ public class BaseLocalDAOTest {
     }
 
     @Override
-    protected <ASPECT extends RecordTemplate> void save(FooUrn urn, RecordTemplate value, Class<ASPECT> aspectClass,
-        AuditStamp auditStamp, long version, boolean insert) {
+    protected <ASPECT extends RecordTemplate> void insert(FooUrn urn, RecordTemplate value, Class<ASPECT> aspectClass,
+        AuditStamp auditStamp, long version) {
+
+    }
+
+    @Override
+    protected <ASPECT extends RecordTemplate> void updateWithOptimisticLocking(@Nonnull FooUrn urn,
+        @Nullable RecordTemplate value, @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp newAuditStamp,
+        long version, @Nonnull Timestamp oldTimestamp) {
 
     }
 

@@ -99,31 +99,19 @@ import static org.testng.Assert.*;
  * Then to run the tests via command line: ./gradlew build -Ptest-ebean-dao
  */
 public class EbeanLocalDAOTest {
-
-  // ONLY SET THIS TO FALSE IF YOU WANT TO TEST NEW_SCHEMA_ONLY OR DUAL_READ EbeanLocalDAO SchemaConfig values.
-  private static final boolean NEW_SCHEMA_DISABLED = false;
-  // Switching this option to true will run all tests for each schema twice, once with _useUnionForBatch and _useOptimisticLocking
-  // flags set to false and once with the flags set to true. This results in these tests being run 6 times, which takes ~30 minutes.
-  private static final boolean FULL_TEST_SUITE = false;
-
   private EbeanServer _server;
   private BaseMetadataEventProducer _mockProducer;
   private AuditStamp _dummyAuditStamp;
-  // TODO delete these flags and stop running all tests twice for these.
-  private boolean _useUnionForBatch;
-  private boolean _useOptimisticLocking;
 
   // run the tests 1 time for each of EbeanLocalDAO.SchemaConfig values (3 total)
-  private SchemaConfig _schemaConfig;
+  private final SchemaConfig _schemaConfig;
 
   private static final String NEW_SCHEMA_CREATE_ALL_SQL = "ebean-local-dao-create-all.sql";
   private static final String GMA_CREATE_ALL_SQL = "gma-create-all.sql";
   private static final String GMA_DROP_ALL_SQL = "gma-drop-all.sql";
 
   @Factory(dataProvider = "inputList")
-  public EbeanLocalDAOTest(boolean useUnionForBatch, boolean useOptimisticLocking, SchemaConfig schemaConfig) {
-    _useUnionForBatch = useUnionForBatch;
-    _useOptimisticLocking = useOptimisticLocking;
+  public EbeanLocalDAOTest(SchemaConfig schemaConfig) {
     _schemaConfig = schemaConfig;
   }
 
@@ -138,26 +126,10 @@ public class EbeanLocalDAOTest {
 
   @DataProvider
   public static Object[][] inputList() {
-    if (NEW_SCHEMA_DISABLED) {
-      return new Object[][]{
-          {false, false, SchemaConfig.OLD_SCHEMA_ONLY},
-          {true, true, SchemaConfig.OLD_SCHEMA_ONLY}
-      };
-    }
-    if (FULL_TEST_SUITE) {
-      return new Object[][]{
-          {false, false, SchemaConfig.OLD_SCHEMA_ONLY},
-          {false, false, SchemaConfig.NEW_SCHEMA_ONLY},
-          {false, false, SchemaConfig.DUAL_SCHEMA},
-          {true, true, SchemaConfig.OLD_SCHEMA_ONLY},
-          {true, true, SchemaConfig.NEW_SCHEMA_ONLY},
-          {true, true, SchemaConfig.DUAL_SCHEMA}
-      };
-    }
     return new Object[][]{
-        {false, false, SchemaConfig.OLD_SCHEMA_ONLY},
-        {false, false, SchemaConfig.NEW_SCHEMA_ONLY},
-        {false, false, SchemaConfig.DUAL_SCHEMA}
+        {SchemaConfig.OLD_SCHEMA_ONLY},
+        {SchemaConfig.NEW_SCHEMA_ONLY},
+        {SchemaConfig.DUAL_SCHEMA}
     };
   }
 
@@ -185,11 +157,7 @@ public class EbeanLocalDAOTest {
   @Nonnull
   private <URN extends Urn> EbeanLocalDAO<EntityAspectUnion, URN> createDao(@Nonnull EbeanServer server,
       @Nonnull Class<URN> urnClass) {
-    final EbeanLocalDAO<EntityAspectUnion, URN> dao =
-        new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, server, MysqlDevInstance.SERVER_CONFIG, urnClass, _schemaConfig);
-    dao.setUseUnionForBatch(_useUnionForBatch);
-    dao.setUseOptimisticLocking(_useOptimisticLocking);
-    return dao;
+    return new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, server, MysqlDevInstance.SERVER_CONFIG, urnClass, _schemaConfig);
   }
 
   @Nonnull
@@ -749,8 +717,6 @@ public class EbeanLocalDAOTest {
             Collections.singletonList("/value"));
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao =
         new EbeanLocalDAO<>(_mockProducer, _server, storageConfig, FooUrn.class);
-    dao.setUseUnionForBatch(_useUnionForBatch);
-    dao.setUseOptimisticLocking(_useOptimisticLocking);
     dao.enableLocalSecondaryIndex(true);
 
     List<FooUrn> urns = ImmutableList.of(makeFooUrn(1), makeFooUrn(2), makeFooUrn(3));
@@ -1352,8 +1318,6 @@ public class EbeanLocalDAOTest {
         makeLocalDAOStorageConfig(AspectFoo.class, Collections.singletonList("/value"));
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao =
         new EbeanLocalDAO<>(_mockProducer, _server, storageConfig, FooUrn.class);
-    dao.setUseUnionForBatch(_useUnionForBatch);
-    dao.setUseOptimisticLocking(_useOptimisticLocking);
     dao.enableLocalSecondaryIndex(true);
     dao.setUrnPathExtractor(new FooUrnPathExtractor());
 
@@ -1737,9 +1701,7 @@ public class EbeanLocalDAOTest {
     // default storage config constructed, resulting in empty aspect storage config map
     LocalDAOStorageConfig storageConfig = LocalDAOStorageConfig.builder().build();
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao =
-        new EbeanLocalDAO<EntityAspectUnion, FooUrn>(_mockProducer, _server, storageConfig, FooUrn.class,
-            new FooUrnPathExtractor());
-    dao.setUseUnionForBatch(_useUnionForBatch);
+        new EbeanLocalDAO<>(_mockProducer, _server, storageConfig, FooUrn.class, new FooUrnPathExtractor());
     dao.enableLocalSecondaryIndex(true);
     AspectFoo aspect = new AspectFoo().setValue("val1");
 
@@ -1766,8 +1728,6 @@ public class EbeanLocalDAOTest {
         LocalDAOStorageConfig.builder().aspectStorageConfigMap(aspectStorageConfigMap).build();
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao =
         new EbeanLocalDAO<>(_mockProducer, _server, storageConfig, FooUrn.class);
-    dao.setUseUnionForBatch(_useUnionForBatch);
-    dao.setUseOptimisticLocking(_useOptimisticLocking);
     dao.enableLocalSecondaryIndex(true);
     dao.setUrnPathExtractor(new FooUrnPathExtractor());
     AspectFoo aspect = new AspectFoo().setValue("val2");
@@ -1787,8 +1747,6 @@ public class EbeanLocalDAOTest {
   void testUpdateUrnAndAspectInLocalIndex() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = new EbeanLocalDAO<>(_mockProducer, _server, MysqlDevInstance.SERVER_CONFIG,
         makeLocalDAOStorageConfig(AspectFooEvolved.class, Arrays.asList("/value", "/newValue")), FooUrn.class, _schemaConfig);
-    dao.setUseUnionForBatch(_useUnionForBatch);
-    dao.setUseOptimisticLocking(_useOptimisticLocking);
     dao.enableLocalSecondaryIndex(true);
     dao.setUrnPathExtractor(new FooUrnPathExtractor());
     FooUrn urn = makeFooUrn(1);
@@ -2868,7 +2826,6 @@ public class EbeanLocalDAOTest {
   @Test(expectedExceptions = OptimisticLockException.class)
   public void testOptimisticLockException() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
-    dao.setUseOptimisticLocking(true);
     FooUrn fooUrn = makeFooUrn(1);
     AspectFoo fooAspect = new AspectFoo().setValue("foo");
 
@@ -2888,8 +2845,7 @@ public class EbeanLocalDAOTest {
 
     // call save method with timestamp 123 but timestamp is already changed to 456
     // expect OptimisticLockException if optimistic locking is enabled
-    dao.saveWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", 789), 0, false,
-        new Timestamp(123));
+    dao.updateWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", 789), 0, new Timestamp(123));
   }
 
   @Test

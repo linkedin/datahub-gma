@@ -86,10 +86,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   private UrnPathExtractor<URN> _urnPathExtractor;
   private SchemaConfig _schemaConfig = SchemaConfig.OLD_SCHEMA_ONLY;
 
-  // TODO feature flags, remove when vetted.
-  private boolean _useUnionForBatch = false;
-  private boolean _useOptimisticLocking = false;
-
   public enum SchemaConfig {
     OLD_SCHEMA_ONLY, // Default: read from and write to the old schema table
     NEW_SCHEMA_ONLY, // Read from and write to the new schema tables
@@ -252,33 +248,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     this(producer, createServer(serverConfig), serverConfig, storageConfig, urnClass, new EmptyPathExtractor<>(), schemaConfig);
   }
 
-  /**
-   * Determines whether we should use UNION ALL statements for batch gets, rather than a large series of OR statements.
-   *
-   * <p>DO NOT USE THIS FLAG! This is for LinkedIn use to help us test this feature without a rollback. Once we've
-   * vetted this in production we will be removing this flag and making the the default behavior. So if you set this
-   * to true by calling this method, your code will break when we remove this method. Just wait a bit for us to turn
-   * it on by default!
-   *
-   * <p>While this can increase performance, it can also cause a stack overflow error if {@link #setQueryKeysCount(int)}
-   * is either not set or set too high. See https://groups.google.com/g/ebean/c/ILpii41dJPA/m/VxMbPlqEBwAJ.
-   */
-  public void setUseUnionForBatch(boolean useUnionForBatch) {
-    _useUnionForBatch = useUnionForBatch;
-  }
-
-  /**
-   * Determines whether we should use optimistic locking in updates. Optimistic locking is done on {@code createdOn} column
-   *
-   * <p>DO NOT USE THIS FLAG! This is for LinkedIn use to help us test this feature without a rollback. Once we've
-   * vetted this in production we will be removing this flag and making the the default behavior. So if you set this
-   * to true by calling this method, your code will break when we remove this method. Just wait a bit for us to turn
-   * it on by default!
-   */
-  public void setUseOptimisticLocking(boolean useOptimisticLocking) {
-    _useOptimisticLocking = useOptimisticLocking;
-  }
-
   public void setUrnPathExtractor(@Nonnull UrnPathExtractor<URN> urnPathExtractor) {
     _urnPathExtractor = urnPathExtractor;
   }
@@ -323,17 +292,12 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     long largestVersion = 0;
     if ((isSoftDeleted || oldValue != null) && oldAuditStamp != null) {
       largestVersion = getNextVersion(urn, aspectClass);
-      save(urn, oldValue, aspectClass, oldAuditStamp, largestVersion, true);
-
+      // Move latest version to historical version by insert a new record.
+      insert(urn, oldValue, aspectClass, oldAuditStamp, largestVersion);
       // update latest version
-      if (_useOptimisticLocking) {
-        saveWithOptimisticLocking(urn, newValue, aspectClass, newAuditStamp, LATEST_VERSION, false,
-            new Timestamp(oldAuditStamp.getTime()));
-      } else {
-        save(urn, newValue, aspectClass, newAuditStamp, LATEST_VERSION, false);
-      }
+      updateWithOptimisticLocking(urn, newValue, aspectClass, newAuditStamp, LATEST_VERSION, new Timestamp(oldAuditStamp.getTime()));
     } else {
-      save(urn, newValue, aspectClass, newAuditStamp, LATEST_VERSION, true);
+      insert(urn, newValue, aspectClass, newAuditStamp, LATEST_VERSION);
     }
 
     return largestVersion;
@@ -420,25 +384,12 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @VisibleForTesting
-  protected <ASPECT extends RecordTemplate> void saveWithOptimisticLocking(@Nonnull URN urn,
+  @Override
+  protected <ASPECT extends RecordTemplate> void updateWithOptimisticLocking(@Nonnull URN urn,
       @Nullable RecordTemplate value, @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp newAuditStamp,
-      long version, boolean insert, @Nonnull Object oldTimestamp) {
+      long version, @Nonnull Timestamp oldTimestamp) {
 
     final EbeanMetadataAspect aspect = buildMetadataAspectBean(urn, value, aspectClass, newAuditStamp, version);
-
-    if (insert) {
-      if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY || _schemaConfig == SchemaConfig.DUAL_SCHEMA) {
-        // ensure atomicity by running old schema update + new schema update in a transaction
-        runInTransactionWithRetry(() -> {
-          _localAccess.add(urn, (ASPECT) value, aspectClass, newAuditStamp);
-          _server.insert(aspect);
-          return 0; // unused
-        }, 1);
-      } else {
-        _server.insert(aspect);
-      }
-      return;
-    }
 
     // Build manual SQL update query to enable optimistic locking on a given column
     // Optimistic locking is supported on ebean using @version, see https://ebean.io/docs/mapping/jpa/version
@@ -448,9 +399,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     //      by disregarding any user change.
     // Ideally, another column for the sake of optimistic locking would be preferred but that means a change to
     // metadata_aspect schema and we don't take this route here to keep this change backward compatible.
-    final String updateQuery = String.format("UPDATE metadata_aspect "
+    final String updateQuery = "UPDATE metadata_aspect "
         + "SET urn = :urn, aspect = :aspect, version = :version, metadata = :metadata, createdOn = :createdOn, createdBy = :createdBy "
-        + "WHERE urn = :urn and aspect = :aspect and version = :version and createdOn = :oldTimestamp");
+        + "WHERE urn = :urn and aspect = :aspect and version = :version and createdOn = :oldTimestamp";
 
     final SqlUpdate update = _server.createSqlUpdate(updateQuery);
     update.setParameter("urn", aspect.getKey().getUrn());
@@ -480,33 +431,25 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Override
-  protected <ASPECT extends RecordTemplate> void save(@Nonnull URN urn, @Nullable RecordTemplate value,
-      @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, long version, boolean insert) {
+  protected <ASPECT extends RecordTemplate> void insert(@Nonnull URN urn, @Nullable RecordTemplate value,
+      @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, long version) {
 
     final EbeanMetadataAspect aspect = buildMetadataAspectBean(urn, value, aspectClass, auditStamp, version);
 
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY || _schemaConfig == SchemaConfig.DUAL_SCHEMA) {
       if (version == LATEST_VERSION) {
-        // save() could be called when updating log table (moving current versions into new history version)
+        // insert() could be called when updating log table (moving current versions into new history version)
         // the metadata entity tables shouldn't been updated.
         runInTransactionWithRetry(() -> {
           _localAccess.add(urn, (ASPECT) value, aspectClass, auditStamp);
-          if (insert) {
-            _server.insert(aspect);
-          } else {
-            _server.update(aspect);
-          }
+          _server.insert(aspect);
           return null; // Unused.
         }, 1);
         return;
       }
     }
 
-    if (insert) {
-      _server.insert(aspect);
-    } else {
-      _server.update(aspect);
-    }
+    _server.insert(aspect);
   }
 
   protected void saveRecordsToLocalIndex(@Nonnull URN urn, @Nonnull String aspect, @Nonnull String path,
@@ -809,34 +752,25 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @SuppressWarnings({"checkstyle:FallThrough", "checkstyle:DefaultComesLast"})
   List<EbeanMetadataAspect> batchGetHelper(@Nonnull List<AspectKey<URN, ? extends RecordTemplate>> keys,
       int keysCount, int position) {
-    // TODO remove batchGetOr, make batchGetUnion the only implementation.
-    boolean nonLatestVersionFlag = false;
-    for (AspectKey<URN, ?> key : keys) {
-      if (key.getVersion() != 0) {
-        nonLatestVersionFlag = true;
-        break;
-      }
-    }
+
+    boolean nonLatestVersionFlag = keys.stream().anyMatch(key -> key.getVersion() != LATEST_VERSION);
+
     if (nonLatestVersionFlag || _schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
-      return _useUnionForBatch
-          ? batchGetUnion(keys, keysCount, position)
-          : batchGetOr(keys, keysCount, position);
+      return batchGetUnion(keys, keysCount, position);
     }
+
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
-      return _useUnionForBatch
-          ? _localAccess.batchGetUnion(keys, keysCount, position)
-          : _localAccess.batchGetOr(keys, keysCount, position);
+      return _localAccess.batchGetUnion(keys, keysCount, position);
     }
+
     if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
       // Compare results from both new and old schemas
-      final List<EbeanMetadataAspect> resultsOldSchema =
-          _useUnionForBatch ? batchGetUnion(keys, keysCount, position) : batchGetOr(keys, keysCount, position);
-      final List<EbeanMetadataAspect> resultsNewSchema =
-          _useUnionForBatch ? _localAccess.batchGetUnion(keys, keysCount, position)
-              : _localAccess.batchGetOr(keys, keysCount, position);
+      final List<EbeanMetadataAspect> resultsOldSchema = batchGetUnion(keys, keysCount, position);
+      final List<EbeanMetadataAspect> resultsNewSchema = _localAccess.batchGetUnion(keys, keysCount, position);
       EBeanDAOUtils.compareResults(resultsOldSchema, resultsNewSchema, "batchGet");
       return resultsOldSchema;
     }
+
     log.error("Please check that the SchemaConfig supplied to EbeanLocalDAO constructor is valid.");
     return Collections.emptyList();
   }
