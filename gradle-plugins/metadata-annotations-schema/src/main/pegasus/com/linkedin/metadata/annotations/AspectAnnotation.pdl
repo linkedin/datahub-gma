@@ -10,6 +10,11 @@ record AspectAnnotation {
   entity: optional AspectEntityAnnotation
 
   /**
+   * Information about this aspect relating to the new schema's entity tables.
+   */
+  column: optional ColumnNameAnnotation
+
+  /**
    * Information on multiple entities this aspect is associated with. Deprecated; it is an error to use outside of a limited set of allowed models. Used to help migrate existing "common aspects" to v5 only.
    */
   @deprecated
