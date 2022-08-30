@@ -1,0 +1,11 @@
+namespace com.linkedin.metadata.annotations
+
+/**
+ * Annotation for defining the column name for each aspect in the new schema entity tables.
+ */
+record ColumnNameAnnotation {
+  /**
+   * Column name, limited to 32 characters.
+   */
+  name: string
+}
