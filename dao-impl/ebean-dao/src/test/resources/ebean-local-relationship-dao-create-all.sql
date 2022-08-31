@@ -8,47 +8,47 @@ DROP TABLE IF EXISTS metadata_entity_bar;
 CREATE TABLE IF NOT EXISTS metadata_relationship_belongsto (
     id BIGINT NOT NULL AUTO_INCREMENT,
     metadata LONGTEXT NOT NULL,
-    source VARCHAR(255) NOT NULL,
+    source VARCHAR(1000) NOT NULL,
     source_type VARCHAR(100) NOT NULL,
-    destination VARCHAR(255) NOT NULL,
+    destination VARCHAR(1000) NOT NULL,
     destination_type VARCHAR(100) NOT NULL,
-    lastmodifiedon DATETIME(6) NOT NULL,
+    lastmodifiedon TIMESTAMP NOT NULL,
     lastmodifiedby VARCHAR(255) NOT NULL,
     PRIMARY KEY (id)
 );
 
 CREATE TABLE IF NOT EXISTS metadata_relationship_reportsto (
     id BIGINT NOT NULL AUTO_INCREMENT,
-    metadata LONGTEXT NOT NULL,
-    source VARCHAR(255) NOT NULL,
+    metadata JSON NOT NULL,
+    source VARCHAR(1000) NOT NULL,
     source_type VARCHAR(100) NOT NULL,
-    destination VARCHAR(255) NOT NULL,
+    destination VARCHAR(1000) NOT NULL,
     destination_type VARCHAR(100) NOT NULL,
-    lastmodifiedon DATETIME(6) NOT NULL,
+    lastmodifiedon TIMESTAMP NOT NULL,
     lastmodifiedby VARCHAR(255) NOT NULL,
     PRIMARY KEY (id)
 );
 
 CREATE TABLE IF NOT EXISTS metadata_relationship_pairswith (
     id BIGINT NOT NULL AUTO_INCREMENT,
-    metadata LONGTEXT NOT NULL,
-    source VARCHAR(255) NOT NULL,
+    metadata JSON NOT NULL,
+    source VARCHAR(1000) NOT NULL,
     source_type VARCHAR(100) NOT NULL,
-    destination VARCHAR(255) NOT NULL,
+    destination VARCHAR(1000) NOT NULL,
     destination_type VARCHAR(100) NOT NULL,
-    lastmodifiedon DATETIME(6) NOT NULL,
+    lastmodifiedon TIMESTAMP NOT NULL,
     lastmodifiedby VARCHAR(255) NOT NULL,
     PRIMARY KEY (id)
 );
 
 CREATE TABLE IF NOT EXISTS metadata_relationship_versionof (
     id BIGINT NOT NULL AUTO_INCREMENT,
-    metadata LONGTEXT NOT NULL,
-    source VARCHAR(255) NOT NULL,
+    metadata JSON NOT NULL,
+    source VARCHAR(1000) NOT NULL,
     source_type VARCHAR(100) NOT NULL,
-    destination VARCHAR(255) NOT NULL,
+    destination VARCHAR(1000) NOT NULL,
     destination_type VARCHAR(100) NOT NULL,
-    lastmodifiedon DATETIME(6) NOT NULL,
+    lastmodifiedon TIMESTAMP NOT NULL,
     lastmodifiedby VARCHAR(255) NOT NULL,
     PRIMARY KEY (id)
 );
@@ -56,17 +56,26 @@ CREATE TABLE IF NOT EXISTS metadata_relationship_versionof (
 -- initialize foo entity table
 CREATE TABLE IF NOT EXISTS metadata_entity_foo (
     urn VARCHAR(100) NOT NULL,
-    lastmodifiedon DATETIME(6) NOT NULL,
+    lastmodifiedon TIMESTAMP NOT NULL,
     lastmodifiedby VARCHAR(255) NOT NULL,
     createdfor VARCHAR(255),
-    CONSTRAINT pk_metadata_aspect PRIMARY KEY (urn)
+    CONSTRAINT pk_metadata_entity_foo PRIMARY KEY (urn)
+);
+
+-- initialize foo entity table
+CREATE TABLE IF NOT EXISTS metadata_entity_bar (
+    urn VARCHAR(100) NOT NULL,
+    lastmodifiedon TIMESTAMP NOT NULL,
+    lastmodifiedby VARCHAR(255) NOT NULL,
+    createdfor VARCHAR(255),
+    CONSTRAINT pk_metadata_entity_bar PRIMARY KEY (urn)
 );
 
 -- add foo aspect to foo entity
-ALTER TABLE metadata_entity_foo ADD a_aspectfoo LONGTEXT;
+ALTER TABLE metadata_entity_foo ADD a_aspectfoo JSON;
 
 -- add foo aspect to foo entity
-ALTER TABLE metadata_entity_foo ADD a_aspectbar LONGTEXT;
+ALTER TABLE metadata_entity_foo ADD a_aspectbar JSON;
 
 -- add new index virtual column 'value'
 ALTER TABLE metadata_entity_foo ADD COLUMN i_aspectfoo$value VARCHAR(255)
@@ -76,17 +85,8 @@ ALTER TABLE metadata_entity_foo ADD COLUMN i_aspectfoo$value VARCHAR(255)
 ALTER TABLE metadata_entity_foo ADD COLUMN i_aspectbar$value VARCHAR(255)
     GENERATED ALWAYS AS (a_aspectbar ->> '$.aspect.value') VIRTUAL;
 
--- initialize foo entity table
-CREATE TABLE IF NOT EXISTS metadata_entity_bar (
-    urn VARCHAR(100) NOT NULL,
-    lastmodifiedon DATETIME(6) NOT NULL,
-    lastmodifiedby VARCHAR(255) NOT NULL,
-    createdfor VARCHAR(255),
-    CONSTRAINT pk_metadata_aspect PRIMARY KEY (urn)
-);
-
 -- add foo aspect to bar entity
-ALTER TABLE metadata_entity_bar ADD a_aspectfoo LONGTEXT;
+ALTER TABLE metadata_entity_bar ADD a_aspectfoo JSON;
 
 -- add new index virtual column 'value'
 ALTER TABLE metadata_entity_bar ADD COLUMN i_aspectfoo$value VARCHAR(255)

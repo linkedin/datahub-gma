@@ -106,7 +106,7 @@ public class SQLIndexFilterUtils {
         final String indexColumn = getGeneratedColumnName(indexCriterion.getAspect(), path);
         sqlFilters.add(
             indexColumn + parseConditionExpr(condition, indexCriterion.getPathParams().getValue(GetMode.NULL)));
-      } else if (!isUrn(indexCriterion.getAspect())) {
+      } else if (!isUrn(aspect)) {
         // if not given a path and condition, assume we are checking if the aspect exists.
         final String aspectColumn = getAspectColumnName(indexCriterion.getAspect());
         sqlFilters.add(aspectColumn + " IS NOT NULL");
@@ -114,7 +114,7 @@ public class SQLIndexFilterUtils {
     }
     // add filters to check that each aspect being queried is not soft deleted
     // e.g. WHERE a_aspect1 != '{"gma_deleted":true}' AND a_aspect2 != '{"gma_deleted":true}'
-    aspectColumns.forEach(aspect -> sqlFilters.add(String.format("%s != '%s'", aspect, DELETED_VALUE)));
+    aspectColumns.forEach(aspect -> sqlFilters.add(String.format("%s != CAST('%s' AS JSON)", aspect, DELETED_VALUE)));
     if (sqlFilters.isEmpty()) {
       return "";
     } else {

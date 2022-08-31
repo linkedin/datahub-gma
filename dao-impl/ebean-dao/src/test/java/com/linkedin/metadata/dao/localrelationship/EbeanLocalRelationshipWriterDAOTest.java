@@ -163,7 +163,7 @@ public class EbeanLocalRelationshipWriterDAOTest {
 
   private String insertRelationships(String table, String sourceUrn, String sourceType, String destinationUrn, String destinationType) {
     String insertTemplate = "INSERT INTO %s (metadata, source, source_type, destination, destination_type, lastmodifiedon, lastmodifiedby)"
-        + " VALUES ('metadata', '%s', '%s', '%s', '%s', '1970-01-01 00:00:01', 'unknown')";
+        + " VALUES ('{\"metadata\": true}', '%s', '%s', '%s', '%s', '1970-01-01 00:00:01', 'unknown')";
     return String.format(insertTemplate, table, sourceUrn, sourceType, destinationUrn, destinationType);
   }
 }

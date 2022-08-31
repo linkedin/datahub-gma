@@ -11,11 +11,11 @@ CREATE TABLE metadata_id (
 );
 
 CREATE TABLE metadata_aspect (
-    urn VARCHAR(500) NOT NULL,
+    urn VARCHAR(1000) NOT NULL,
     aspect VARCHAR(200) NOT NULL,
     version BIGINT NOT NULL,
-    metadata VARCHAR(500) NOT NULL,
-    createdon DATETIME(6) NOT NULL,
+    metadata JSON NOT NULL,
+    createdon TIMESTAMP NOT NULL,
     createdby VARCHAR(255) NOT NULL,
     createdfor VARCHAR(255),
     CONSTRAINT pk_metadata_aspect_ PRIMARY KEY (urn,aspect,version)

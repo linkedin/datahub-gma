@@ -99,6 +99,7 @@ import static org.testng.Assert.*;
  * Then to run the tests via command line: ./gradlew build -Ptest-ebean-dao
  */
 public class EbeanLocalDAOTest {
+  private long _now;
   private EbeanServer _server;
   private BaseMetadataEventProducer _mockProducer;
   private AuditStamp _dummyAuditStamp;
@@ -142,7 +143,8 @@ public class EbeanLocalDAOTest {
       _server.execute(Ebean.createSqlUpdate(readSQLfromFile(NEW_SCHEMA_CREATE_ALL_SQL)));
     }
     _mockProducer = mock(BaseMetadataEventProducer.class);
-    _dummyAuditStamp = makeAuditStamp("foo", 1234);
+    _now = System.currentTimeMillis();
+    _dummyAuditStamp = makeAuditStamp("foo", _now);
   }
 
   @BeforeClass
@@ -175,7 +177,7 @@ public class EbeanLocalDAOTest {
   @Test
   public void testAddOne() {
     Clock mockClock = mock(Clock.class);
-    when(mockClock.millis()).thenReturn(1234L);
+    when(mockClock.millis()).thenReturn(_now);
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     dao.setClock(mockClock);
     FooUrn urn = makeFooUrn(1);
@@ -184,7 +186,7 @@ public class EbeanLocalDAOTest {
     Urn actor = Urns.createFromTypeSpecificString("test", "actor");
     Urn impersonator = Urns.createFromTypeSpecificString("test", "impersonator");
 
-    dao.add(urn, expected, makeAuditStamp(actor, impersonator, 1234));
+    dao.add(urn, expected, makeAuditStamp(actor, impersonator, _now));
 
     EbeanMetadataAspect aspect = getMetadata(urn, aspectName, 0);
 
@@ -192,7 +194,7 @@ public class EbeanLocalDAOTest {
     assertEquals(aspect.getKey().getUrn(), urn.toString());
     assertEquals(aspect.getKey().getAspect(), aspectName);
     assertEquals(aspect.getKey().getVersion(), 0);
-    assertEquals(aspect.getCreatedOn(), new Timestamp(1234));
+    assertEquals(aspect.getCreatedOn(), new Timestamp(_now));
     assertEquals(aspect.getCreatedBy(), "urn:li:test:actor");
     assertEquals(aspect.getCreatedFor(), "urn:li:test:impersonator");
 
@@ -1401,7 +1403,7 @@ public class EbeanLocalDAOTest {
     assertNotNull(results.getMetadata());
     List<Long> expectedVersions = Arrays.asList(0L, 1L, 2L, 3L, 4L);
     List<Urn> expectedUrns = Collections.singletonList(urn0);
-    assertVersionMetadata(results.getMetadata(), expectedVersions, expectedUrns, 1234L,
+    assertVersionMetadata(results.getMetadata(), expectedVersions, expectedUrns, _now,
         Urns.createFromTypeSpecificString("test", "foo"), Urns.createFromTypeSpecificString("test", "bar"));
 
     // List next page
@@ -1483,7 +1485,7 @@ public class EbeanLocalDAOTest {
     assertEquals(results.getTotalPageCount(), 2);
 
     assertNotNull(results.getMetadata());
-    assertVersionMetadata(results.getMetadata(), Collections.singletonList(0L), Arrays.asList(makeFooUrn(0), makeFooUrn(1)), 1234L,
+    assertVersionMetadata(results.getMetadata(), Collections.singletonList(0L), Arrays.asList(makeFooUrn(0), makeFooUrn(1)), _now,
         Urns.createFromTypeSpecificString("test", "foo"), Urns.createFromTypeSpecificString("test", "bar"));
 
     // Test list latest aspects
@@ -1511,7 +1513,7 @@ public class EbeanLocalDAOTest {
 
     assertNotNull(results.getMetadata());
     assertVersionMetadata(results.getMetadata(), Collections.singletonList(1L),
-        Arrays.asList(makeFooUrn(0), makeFooUrn(1), makeFooUrn(2)), 1234L,
+        Arrays.asList(makeFooUrn(0), makeFooUrn(1), makeFooUrn(2)), _now,
         Urns.createFromTypeSpecificString("test", "foo"), Urns.createFromTypeSpecificString("test", "bar"));
   }
 
@@ -1650,7 +1652,7 @@ public class EbeanLocalDAOTest {
     BarUrn barUrn = makeBarUrn(1);
     BazUrn bazUrn = makeBazUrn(2);
     AspectBar aspectBar = new AspectBar().setValue("val1");
-    AspectBaz aspectBaz = new AspectBaz().setBoolField(true).setLongField(1234L).setStringField("val2");
+    AspectBaz aspectBaz = new AspectBaz().setBoolField(true).setLongField(_now).setStringField("val2");
 
     try {
       dao1.updateLocalIndex(barUrn, aspectBar, 0);
@@ -2179,17 +2181,17 @@ public class EbeanLocalDAOTest {
     Urn impersonator1 = Urns.createFromTypeSpecificString("test", "testImpersonator1");
     Urn creator2 = Urns.createFromTypeSpecificString("test", "testCreator2");
     Urn impersonator2 = Urns.createFromTypeSpecificString("test", "testImpersonator2");
-    addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 0, v0, 123, creator1.toString(),
+    addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 0, v0, _now, creator1.toString(),
         impersonator1.toString());
     AspectFoo v1 = new AspectFoo().setValue("bar");
-    addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 1, v1, 456, creator2.toString(),
+    addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 1, v1, _now, creator2.toString(),
         impersonator2.toString());
 
     Optional<AspectWithExtraInfo<AspectFoo>> foo = dao.getWithExtraInfo(AspectFoo.class, urn);
 
     assertTrue(foo.isPresent());
     assertEquals(foo.get(), new AspectWithExtraInfo<>(v0,
-        new ExtraInfo().setAudit(makeAuditStamp(creator1, impersonator1, 123)).setUrn(urn).setVersion(0)));
+        new ExtraInfo().setAudit(makeAuditStamp(creator1, impersonator1, _now)).setUrn(urn).setVersion(0)));
   }
 
   @Test
@@ -2206,17 +2208,17 @@ public class EbeanLocalDAOTest {
     Urn impersonator1 = Urns.createFromTypeSpecificString("test", "testImpersonator1");
     Urn creator2 = Urns.createFromTypeSpecificString("test", "testCreator2");
     Urn impersonator2 = Urns.createFromTypeSpecificString("test", "testImpersonator2");
-    addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 0, v0, 123, creator1.toString(),
+    addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 0, v0, _now, creator1.toString(),
         impersonator1.toString());
     AspectFoo v1 = new AspectFoo().setValue("bar");
-    addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 1, v1, 456, creator2.toString(),
+    addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 1, v1, _now, creator2.toString(),
         impersonator2.toString());
 
     Optional<AspectWithExtraInfo<AspectFoo>> foo = dao.getWithExtraInfo(AspectFoo.class, urn, 1);
 
     assertTrue(foo.isPresent());
     assertEquals(foo.get(), new AspectWithExtraInfo<>(v1,
-        new ExtraInfo().setAudit(makeAuditStamp(creator2, impersonator2, 456)).setVersion(1).setUrn(urn)));
+        new ExtraInfo().setAudit(makeAuditStamp(creator2, impersonator2, _now)).setVersion(1).setUrn(urn)));
   }
 
   @Test
@@ -2228,9 +2230,9 @@ public class EbeanLocalDAOTest {
     Urn impersonator1 = Urns.createFromTypeSpecificString("test", "testImpersonator1");
     Urn creator2 = Urns.createFromTypeSpecificString("test", "testCreator2");
     Urn impersonator2 = Urns.createFromTypeSpecificString("test", "testImpersonator2");
-    addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 0, null, 123, creator1.toString(),
+    addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 0, null, _now, creator1.toString(),
         impersonator1.toString());
-    addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 1, v1, 456, creator2.toString(),
+    addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 1, v1, _now, creator2.toString(),
         impersonator2.toString());
 
     Optional<AspectFoo> foo = dao.get(AspectFoo.class, urn);
@@ -2247,9 +2249,9 @@ public class EbeanLocalDAOTest {
     Urn impersonator1 = Urns.createFromTypeSpecificString("test", "testImpersonator1");
     Urn creator2 = Urns.createFromTypeSpecificString("test", "testCreator2");
     Urn impersonator2 = Urns.createFromTypeSpecificString("test", "testImpersonator2");
-    addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 0, v0, 123, creator1.toString(),
+    addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 0, v0, _now, creator1.toString(),
         impersonator1.toString());
-    addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 1, null, 456, creator2.toString(),
+    addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 1, null, _now, creator2.toString(),
         impersonator2.toString());
 
     Optional<AspectWithExtraInfo<AspectFoo>> foo = dao.getWithExtraInfo(AspectFoo.class, urn, 1);
@@ -2290,7 +2292,7 @@ public class EbeanLocalDAOTest {
     // latest version i.e. version=0 is soft deleted, hence will not be present in the metadata
     List<Long> expectedVersions = Arrays.asList(1L, 2L, 3L, 4L, 5L);
     List<Urn> expectedUrns = Collections.singletonList(urn0);
-    assertVersionMetadata(results.getMetadata(), expectedVersions, expectedUrns, 1234L,
+    assertVersionMetadata(results.getMetadata(), expectedVersions, expectedUrns, _now,
         Urns.createFromTypeSpecificString("test", "foo"), Urns.createFromTypeSpecificString("test", "bar"));
 
     // List next page
@@ -2552,13 +2554,13 @@ public class EbeanLocalDAOTest {
     Urn creator3 = Urns.createFromTypeSpecificString("test", "testCreator3");
     Urn impersonator3 = Urns.createFromTypeSpecificString("test", "testImpersonator3");
     AspectFoo fooV0 = new AspectFoo().setValue("foo");
-    addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 0, fooV0, 123, creator1.toString(),
+    addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 0, fooV0, _now, creator1.toString(),
         impersonator1.toString());
     AspectFoo fooV1 = new AspectFoo().setValue("bar");
-    addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 1, fooV1, 456, creator2.toString(),
+    addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 1, fooV1, _now, creator2.toString(),
         impersonator2.toString());
     AspectBar barV0 = new AspectBar().setValue("bar");
-    addMetadataWithAuditStamp(urn, AspectBar.class.getCanonicalName(), 0, barV0, 1234, creator3.toString(),
+    addMetadataWithAuditStamp(urn, AspectBar.class.getCanonicalName(), 0, barV0, _now, creator3.toString(),
         impersonator3.toString());
 
     // both aspect keys exist
@@ -2570,9 +2572,9 @@ public class EbeanLocalDAOTest {
 
     assertEquals(result.keySet().size(), 2);
     assertEquals(result.get(aspectKey1), new AspectWithExtraInfo<>(fooV1,
-        new ExtraInfo().setAudit(makeAuditStamp(creator2, impersonator2, 456)).setVersion(1).setUrn(urn)));
+        new ExtraInfo().setAudit(makeAuditStamp(creator2, impersonator2, _now)).setVersion(1).setUrn(urn)));
     assertEquals(result.get(aspectKey2), new AspectWithExtraInfo<>(barV0,
-        new ExtraInfo().setAudit(makeAuditStamp(creator3, impersonator3, 1234)).setVersion(0).setUrn(urn)));
+        new ExtraInfo().setAudit(makeAuditStamp(creator3, impersonator3, _now)).setVersion(0).setUrn(urn)));
 
     // one of the aspect keys does not exist
     AspectKey<FooUrn, AspectBar> aspectKey3 = new AspectKey<>(AspectBar.class, urn, 1L);
@@ -2581,7 +2583,7 @@ public class EbeanLocalDAOTest {
 
     assertEquals(result.keySet().size(), 1);
     assertEquals(result.get(aspectKey1), new AspectWithExtraInfo<>(fooV1,
-        new ExtraInfo().setAudit(makeAuditStamp(creator2, impersonator2, 456)).setVersion(1).setUrn(urn)));
+        new ExtraInfo().setAudit(makeAuditStamp(creator2, impersonator2, _now)).setVersion(1).setUrn(urn)));
   }
 
   @Test
@@ -2833,19 +2835,19 @@ public class EbeanLocalDAOTest {
     EbeanMetadataAspect aspect = new EbeanMetadataAspect();
     aspect.setKey(new EbeanMetadataAspect.PrimaryKey(fooUrn.toString(), AspectFoo.class.getCanonicalName(), 0));
     aspect.setMetadata(RecordUtils.toJsonString(fooAspect));
-    aspect.setCreatedOn(new Timestamp(123));
+    aspect.setCreatedOn(new Timestamp(_now - 100));
     aspect.setCreatedBy("fooActor");
 
     // add aspect to the db
     _server.insert(aspect);
 
     // change timestamp and update the inserted row. this simulates a change in the version 0 row by a concurrent transaction
-    aspect.setCreatedOn(new Timestamp(456));
+    aspect.setCreatedOn(new Timestamp(_now));
     _server.update(aspect);
 
-    // call save method with timestamp 123 but timestamp is already changed to 456
+    // call save method with timestamp (_now - 100) but timestamp is already changed to _now
     // expect OptimisticLockException if optimistic locking is enabled
-    dao.updateWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", 789), 0, new Timestamp(123));
+    dao.updateWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now + 100), 0, new Timestamp(_now - 100));
   }
 
   @Test
@@ -2928,7 +2930,7 @@ public class EbeanLocalDAOTest {
     } else {
       aspect.setMetadata(DELETED_VALUE);
     }
-    aspect.setCreatedOn(new Timestamp(1234));
+    aspect.setCreatedOn(new Timestamp(_now));
     aspect.setCreatedBy("urn:li:test:foo");
     aspect.setCreatedFor("urn:li:test:bar");
     return aspect;

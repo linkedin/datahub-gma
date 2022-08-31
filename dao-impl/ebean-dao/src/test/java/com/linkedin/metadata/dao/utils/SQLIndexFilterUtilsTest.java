@@ -40,6 +40,6 @@ public class SQLIndexFilterUtilsTest {
     indexFilter.setCriteria(indexCriterionArray);
 
     String sql = SQLIndexFilterUtils.parseIndexFilter(indexFilter);
-    assertEquals(sql, "WHERE i_aspectfoo$id < 12\nAND a_aspectfoo != '{\"gma_deleted\":true}'");
+    assertEquals(sql, "WHERE i_aspectfoo$id < 12\nAND a_aspectfoo != CAST('{\"gma_deleted\":true}' AS JSON)");
   }
 }

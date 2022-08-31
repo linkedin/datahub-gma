@@ -8,28 +8,28 @@ DROP TABLE IF EXISTS metadata_index;
 -- initialize foo entity table
 CREATE TABLE IF NOT EXISTS metadata_entity_foo (
     urn VARCHAR(100) NOT NULL,
-    lastmodifiedon DATETIME(6) NOT NULL,
+    lastmodifiedon TIMESTAMP NOT NULL,
     lastmodifiedby VARCHAR(255) NOT NULL,
     createdfor VARCHAR(255),
-    CONSTRAINT pk_metadata_aspect PRIMARY KEY (urn)
+    CONSTRAINT pk_metadata_entity_foo PRIMARY KEY (urn)
 );
 
 -- initialize bar entity table
 CREATE TABLE IF NOT EXISTS metadata_entity_bar (
     urn VARCHAR(100) NOT NULL,
-    lastmodifiedon DATETIME(6) NOT NULL,
+    lastmodifiedon TIMESTAMP NOT NULL,
     lastmodifiedby VARCHAR(255) NOT NULL,
     createdfor VARCHAR(255),
-    CONSTRAINT pk_metadata_aspect PRIMARY KEY (urn)
+    CONSTRAINT pk_metadata_entity_bar PRIMARY KEY (urn)
 );
 
 -- initialize bar entity table
 CREATE TABLE IF NOT EXISTS metadata_entity_burger (
     urn VARCHAR(100) NOT NULL,
-    lastmodifiedon DATETIME(6) NOT NULL,
+    lastmodifiedon TIMESTAMP NOT NULL,
     lastmodifiedby VARCHAR(255) NOT NULL,
     createdfor VARCHAR(255),
-    CONSTRAINT pk_metadata_aspect PRIMARY KEY (urn)
+    CONSTRAINT pk_metadata_entity_burger PRIMARY KEY (urn)
 );
 
 CREATE TABLE metadata_id (
@@ -46,7 +46,7 @@ CREATE TABLE metadata_aspect (
     createdon DATETIME(6) NOT NULL,
     createdby VARCHAR(255) NOT NULL,
     createdfor VARCHAR(255),
-    CONSTRAINT pk_metadata_aspect_ PRIMARY KEY (urn,aspect,version)
+    CONSTRAINT pk_metadata_aspect PRIMARY KEY (urn,aspect,version)
 );
 
 CREATE TABLE metadata_index (
@@ -61,13 +61,13 @@ CREATE TABLE metadata_index (
 );
 
 -- add foo aspect to foo entity
-ALTER TABLE metadata_entity_foo ADD a_aspectfoo LONGTEXT;
+ALTER TABLE metadata_entity_foo ADD a_aspectfoo JSON;
 
 -- add bar aspect to foo entity
-ALTER TABLE metadata_entity_foo ADD a_aspectbar LONGTEXT;
+ALTER TABLE metadata_entity_foo ADD a_aspectbar JSON;
 
 -- add baz aspect to foo entity
-ALTER TABLE metadata_entity_foo ADD a_aspectbaz LONGTEXT;
+ALTER TABLE metadata_entity_foo ADD a_aspectbaz JSON;
 
 -- add baz aspect to burger entity
-ALTER TABLE metadata_entity_burger ADD a_aspectfoo LONGTEXT;
+ALTER TABLE metadata_entity_burger ADD a_aspectfoo JSON;

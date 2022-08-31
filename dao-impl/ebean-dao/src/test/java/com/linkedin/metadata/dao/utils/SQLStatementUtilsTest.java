@@ -44,8 +44,8 @@ public class SQLStatementUtilsTest {
     set.add(fooUrn2);
     String expectedSql =
         "SELECT urn, a_aspectfoo, lastmodifiedon, lastmodifiedby FROM metadata_entity_foo WHERE urn = 'urn:li:foo:1' "
-            + "AND a_aspectfoo != '{\"gma_deleted\":true}' UNION ALL SELECT urn, a_aspectfoo, lastmodifiedon, lastmodifiedby "
-            + "FROM metadata_entity_foo WHERE urn = 'urn:li:foo:2' AND a_aspectfoo != '{\"gma_deleted\":true}'";
+            + "AND a_aspectfoo != CAST('{\"gma_deleted\":true}' AS JSON) UNION ALL SELECT urn, a_aspectfoo, lastmodifiedon, lastmodifiedby "
+            + "FROM metadata_entity_foo WHERE urn = 'urn:li:foo:2' AND a_aspectfoo != CAST('{\"gma_deleted\":true}' AS JSON)";
     assertEquals(SQLStatementUtils.createAspectReadSql(AspectFoo.class, set), expectedSql);
   }
 
@@ -69,9 +69,9 @@ public class SQLStatementUtilsTest {
         SQLIndexFilterUtils.createIndexSortCriterion(AspectFoo.class, "value", SortOrder.ASCENDING));
     String expectedSql = "SELECT *, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE i_aspectfoo$value >= 25\n"
         + "AND i_aspectfoo$value < 50\n"
-        + "AND a_aspectfoo != '{\"gma_deleted\":true}') as _total_count FROM metadata_entity_foo\n"
+        + "AND a_aspectfoo != CAST('{\"gma_deleted\":true}' AS JSON)) as _total_count FROM metadata_entity_foo\n"
         + "WHERE i_aspectfoo$value >= 25\n" + "AND i_aspectfoo$value < 50\n"
-        + "AND a_aspectfoo != '{\"gma_deleted\":true}'";
+        + "AND a_aspectfoo != CAST('{\"gma_deleted\":true}' AS JSON)";
 
     assertEquals(sql, expectedSql);
   }
@@ -98,7 +98,7 @@ public class SQLStatementUtilsTest {
     String sql = SQLStatementUtils.createGroupBySql("metadata_entity_foo", indexFilter, indexGroupByCriterion);
     assertEquals(sql, "SELECT count(*) as COUNT, i_aspectfoo$value FROM metadata_entity_foo\n"
         + "WHERE i_aspectfoo$value >= 25\nAND i_aspectfoo$value < 50\n"
-        + "AND a_aspectfoo != '{\"gma_deleted\":true}'\nGROUP BY i_aspectfoo$value");
+        + "AND a_aspectfoo != CAST('{\"gma_deleted\":true}' AS JSON)\nGROUP BY i_aspectfoo$value");
   }
 
   @Test
