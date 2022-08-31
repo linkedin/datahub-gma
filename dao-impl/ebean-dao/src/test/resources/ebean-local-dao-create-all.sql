@@ -60,6 +60,9 @@ CREATE TABLE metadata_index (
    CONSTRAINT pk_metadata_index PRIMARY KEY (id)
 );
 
+ALTER TABLE metadata_entity_foo ADD a_urn JSON;
+ALTER TABLE metadata_entity_bar ADD a_urn JSON;
+
 -- add foo aspect to foo entity
 ALTER TABLE metadata_entity_foo ADD a_aspectfoo JSON;
 

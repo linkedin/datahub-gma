@@ -28,11 +28,17 @@ public class SQLStatementUtilsTest {
   @Test
   public void testCreateUpsertAspectSql() {
     FooUrn fooUrn = makeFooUrn(1);
-    AspectFoo aspectFoo = new AspectFoo();
     String expectedSql =
+        "INSERT INTO metadata_entity_foo (urn, a_urn, a_aspectfoo, lastmodifiedon, lastmodifiedby) VALUE (:urn, "
+            + ":a_urn, :metadata, :lastmodifiedon, :lastmodifiedby) ON DUPLICATE KEY UPDATE a_aspectfoo = :metadata;";
+    assertEquals(SQLStatementUtils.createAspectUpsertSql(fooUrn, AspectFoo.class, true), expectedSql);
+
+    expectedSql =
         "INSERT INTO metadata_entity_foo (urn, a_aspectfoo, lastmodifiedon, lastmodifiedby) VALUE (:urn, "
             + ":metadata, :lastmodifiedon, :lastmodifiedby) ON DUPLICATE KEY UPDATE a_aspectfoo = :metadata;";
-    assertEquals(SQLStatementUtils.createAspectUpsertSql(fooUrn, AspectFoo.class), expectedSql);
+    assertEquals(SQLStatementUtils.createAspectUpsertSql(fooUrn, AspectFoo.class, false), expectedSql);
+
+
   }
 
   @Test

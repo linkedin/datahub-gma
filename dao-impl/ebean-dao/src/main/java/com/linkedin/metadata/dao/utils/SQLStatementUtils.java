@@ -33,6 +33,10 @@ public class SQLStatementUtils {
       "INSERT INTO %s (urn, %s, lastmodifiedon, lastmodifiedby) VALUE (:urn, :metadata, :lastmodifiedon, :lastmodifiedby) "
           + "ON DUPLICATE KEY UPDATE %s = :metadata;";
 
+  private static final String SQL_UPSERT_ASPECT_WITH_URN_TEMPLATE =
+      "INSERT INTO %s (urn, a_urn, %s, lastmodifiedon, lastmodifiedby) VALUE (:urn, :a_urn, :metadata, :lastmodifiedon, :lastmodifiedby) "
+          + "ON DUPLICATE KEY UPDATE %s = :metadata;";
+
   private static final String SQL_READ_ASPECT_TEMPLATE =
       String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby FROM %%s WHERE urn = '%%s' AND %%s != CAST('%s' AS JSON)", DELETED_VALUE);
 
@@ -118,10 +122,10 @@ public class SQLStatementUtils {
    * @return aspect upsert sql
    */
   public static <ASPECT extends RecordTemplate> String createAspectUpsertSql(@Nonnull Urn urn,
-      @Nonnull Class<ASPECT> aspectClass) {
+      @Nonnull Class<ASPECT> aspectClass, boolean urnExtraction) {
     final String tableName = getTableName(urn);
     final String columnName = getAspectColumnName(aspectClass);
-    return String.format(SQL_UPSERT_ASPECT_TEMPLATE, tableName, columnName, columnName);
+    return String.format(urnExtraction ? SQL_UPSERT_ASPECT_WITH_URN_TEMPLATE : SQL_UPSERT_ASPECT_TEMPLATE, tableName, columnName, columnName);
   }
 
   /**
