@@ -46,6 +46,10 @@ public class FlywaySchemaEvolutionManagerTest {
 
     // V2__create_bar_entity_table.sql create metadata_entity_bar table.
     assertTrue(checkTableExists("metadata_entity_bar"));
+
+    // Make sure version table is created.
+    assertTrue(checkTableExists("my_version_table"));
+    _server.createSqlUpdate("DROP TABLE my_version_table").execute();
   }
 
   private boolean checkTableExists(String tableName) {
