@@ -34,7 +34,7 @@ public class SQLStatementUtils {
           + "ON DUPLICATE KEY UPDATE %s = :metadata;";
 
   private static final String SQL_READ_ASPECT_TEMPLATE =
-      String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby FROM %%s WHERE urn = '%%s' AND %%s != '%s'", DELETED_VALUE);
+      String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby FROM %%s WHERE urn = '%%s' AND %%s != CAST('%s' AS JSON)", DELETED_VALUE);
 
   private static final String INDEX_GROUP_BY_CRITERION = "SELECT count(*) as COUNT, %s FROM %s";
   private static final String SQL_GROUP_BY_COLUMN_EXISTS_TEMPLATE =
@@ -63,7 +63,7 @@ public class SQLStatementUtils {
   private static final String SQL_FILTER_TEMPLATE = "SELECT *, (%s) as _total_count FROM %s";
   private static final String SQL_BROWSE_ASPECT_TEMPLATE =
       String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby, (SELECT COUNT(urn) FROM %%s) as _total_count "
-          + "FROM %%s WHERE %%s != '%s' LIMIT %%d OFFSET %%d", DELETED_VALUE);
+          + "FROM %%s WHERE %%s != CAST('%s' AS JSON) LIMIT %%d OFFSET %%d", DELETED_VALUE);
 
   private SQLStatementUtils() {
     // Util class
@@ -104,7 +104,7 @@ public class SQLStatementUtils {
     StringBuilder stringBuilder = new StringBuilder();
     List<String> selectStatements = urns.stream().map(urn -> {
           final String tableName = getTableName(urn);
-          return String.format(SQL_READ_ASPECT_TEMPLATE, columnName, tableName, urn.toString(), columnName);
+          return String.format(SQL_READ_ASPECT_TEMPLATE, columnName, tableName, urn, columnName);
         }).collect(Collectors.toList());
     stringBuilder.append(String.join(" UNION ALL ", selectStatements));
     return stringBuilder.toString();

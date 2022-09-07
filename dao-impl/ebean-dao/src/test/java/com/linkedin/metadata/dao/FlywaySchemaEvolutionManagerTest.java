@@ -31,7 +31,7 @@ public class FlywaySchemaEvolutionManagerTest {
   }
 
   @Test
-  public void testSchemaUpToDate() throws IOException {
+  public void testSchemaUpToDate() {
     _schemaEvolutionManager.clean();
 
     // make sure table did not exists

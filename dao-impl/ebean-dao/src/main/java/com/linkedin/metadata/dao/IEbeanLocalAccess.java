@@ -43,18 +43,6 @@ public interface IEbeanLocalAccess<URN extends Urn> {
       int keysCount, int position);
 
   /**
-   * Get read aspects from entity table. This a new schema implementation for batchGetOr() in {@link EbeanLocalDAO}
-   * @param keys {@link AspectKey} to retrieve aspect metadata
-   * @param keysCount pagination key count limit
-   * @param position starting position of pagination
-   * @return a list of {@link EbeanMetadataAspect} as get response
-   */
-  @Nonnull
-  <ASPECT extends RecordTemplate> List<EbeanMetadataAspect> batchGetOr(@Nonnull List<AspectKey<URN, ? extends RecordTemplate>> keys,
-      int keysCount, int position);
-
-
-  /**
    * Returns list of urns that satisfy the given filter conditions.
    *
    * <p>Results are ordered by the order criterion but defaults to sorting lexicographically by the string
@@ -68,7 +56,6 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    */
   List<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       @Nullable URN lastUrn, int pageSize);
-
 
   /**
    * Similar to {@link #listUrns(IndexFilter, IndexSortCriterion, Urn, int)} but returns a list result with pagination

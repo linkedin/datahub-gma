@@ -21,9 +21,6 @@ import io.ebean.SqlUpdate;
 import io.ebean.annotation.Transactional;
 import io.ebean.config.ServerConfig;
 import java.sql.Timestamp;
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -73,13 +70,12 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       @Nonnull AuditStamp auditStamp) {
 
     final long timestamp = auditStamp.hasTime() ? auditStamp.getTime() : System.currentTimeMillis();
-    final LocalDateTime localDateTime = LocalDateTime.from(Instant.ofEpochMilli(timestamp).atZone(ZoneId.systemDefault()));
     final String actor = auditStamp.hasActor() ? auditStamp.getActor().toString() : DEFAULT_ACTOR;
     final String impersonator = auditStamp.hasImpersonator() ? auditStamp.getImpersonator().toString() : null;
 
     final SqlUpdate sqlUpdate = _server.createSqlUpdate(SQLStatementUtils.createAspectUpsertSql(urn, aspectClass))
         .setParameter("urn", urn.toString())
-        .setParameter("lastmodifiedon", localDateTime.toString())
+        .setParameter("lastmodifiedon", new Timestamp(timestamp).toString())
         .setParameter("lastmodifiedby", actor);
 
     // newValue is null if soft-delete aspect.
@@ -113,20 +109,10 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
         .setAspect(RecordUtils.toJsonString(newValue))
         .setCanonicalName(aspectClass.getCanonicalName())
         .setLastmodifiedby(actor)
-        .setLastmodifiedon(localDateTime.toString())
+        .setLastmodifiedon(new Timestamp(timestamp).toString())
         .setCreatedfor(impersonator, SetMode.IGNORE_NULL);
 
     return sqlUpdate.setParameter("metadata", toJsonString(auditedAspect)).execute();
-  }
-
-  @Nonnull
-  @Override
-  public <ASPECT extends RecordTemplate> List<EbeanMetadataAspect> batchGetOr(
-      @Nonnull List<AspectKey<URN, ? extends RecordTemplate>> aspectKeys, int keysCount, int position) {
-    // batchGetOr is discouraged due to its performance disadvantage comparing to batchGetUnion approach
-    // TODO one optimization could be done is to group queries for the same entity type, to reduce union query statements,
-    // TODO but it should be done on batchGetUnion() method.
-    return batchGetUnion(aspectKeys, keysCount, position);
   }
 
   /**
@@ -295,7 +281,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
         EbeanMetadataAspect.PrimaryKey primaryKey = new EbeanMetadataAspect.PrimaryKey(urn, auditedAspect.getCanonicalName(), LATEST_VERSION);
         ebeanMetadataAspect.setKey(primaryKey);
         ebeanMetadataAspect.setCreatedBy(auditedAspect.getLastmodifiedby());
-        ebeanMetadataAspect.setCreatedOn(Timestamp.valueOf(LocalDateTime.parse(auditedAspect.getLastmodifiedon())));
+        ebeanMetadataAspect.setCreatedOn(Timestamp.valueOf(auditedAspect.getLastmodifiedon()));
         ebeanMetadataAspect.setCreatedFor(auditedAspect.getCreatedfor());
         ebeanMetadataAspect.setMetadata(extractAspectJsonString(sqlRow.getString(columnName)));
         return ebeanMetadataAspect;

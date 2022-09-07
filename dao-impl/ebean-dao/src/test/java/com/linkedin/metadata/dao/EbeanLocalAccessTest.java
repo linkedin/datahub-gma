@@ -56,7 +56,7 @@ public class EbeanLocalAccessTest {
   private static final Filter EMPTY_FILTER = new Filter().setCriteria(new CriterionArray());
 
   @BeforeClass
-  public void init() throws IOException {
+  public void init() {
     _server = MysqlDevInstance.getServer();
     _ebeanLocalAccessFoo = new EbeanLocalAccess<>(_server, MysqlDevInstance.SERVER_CONFIG, FooUrn.class);
     _ebeanLocalAccessBar = new EbeanLocalAccess<>(_server, MysqlDevInstance.SERVER_CONFIG, BarUrn.class);
