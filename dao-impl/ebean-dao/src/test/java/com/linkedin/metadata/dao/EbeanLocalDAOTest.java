@@ -18,6 +18,7 @@ import com.linkedin.metadata.dao.exception.RetryLimitReached;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
 import com.linkedin.metadata.dao.retention.VersionBasedRetention;
+import com.linkedin.metadata.dao.scsi.UrnPathExtractor;
 import com.linkedin.metadata.dao.storage.LocalDAOStorageConfig;
 import com.linkedin.metadata.dao.utils.BarUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.BazUrnPathExtractor;
@@ -159,7 +160,17 @@ public class EbeanLocalDAOTest {
   @Nonnull
   private <URN extends Urn> EbeanLocalDAO<EntityAspectUnion, URN> createDao(@Nonnull EbeanServer server,
       @Nonnull Class<URN> urnClass) {
-    return new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, server, MysqlDevInstance.SERVER_CONFIG, urnClass, _schemaConfig);
+    EbeanLocalDAO<EntityAspectUnion, URN> dao = new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, server,
+        MysqlDevInstance.SERVER_CONFIG, urnClass, _schemaConfig);
+    // Since we added a_urn columns to both metadata_entity_foo and metadata_entity_bar tables in the SQL initialization scripts,
+    // it is required that we set non-default UrnPathExtractors for the corresponding DAOs when initialized.
+    if (urnClass == FooUrn.class) {
+      dao.setUrnPathExtractor((UrnPathExtractor<URN>) new FooUrnPathExtractor());
+    }
+    if (urnClass == BarUrn.class) {
+      dao.setUrnPathExtractor((UrnPathExtractor<URN>) new BarUrnPathExtractor());
+    }
+    return dao;
   }
 
   @Nonnull
@@ -3026,12 +3037,12 @@ public class EbeanLocalDAOTest {
       String sqlUpdate;
       if (aspectColumnName != null) {
         final String dummyAspectValue = "{\"value\": \"dummy_value\"}";
-        sqlUpdate = String.format("INSERT INTO %s (urn, lastmodifiedon, lastmodifiedby, %s, %s) "
-                + "VALUES ('%s', '00-01-01 00:00:00.000000', 'tester', '%s', %s) ON DUPLICATE KEY UPDATE %s = %s, %s = '%s';", getTableName(urn),
+        sqlUpdate = String.format("INSERT INTO %s (urn, a_urn, lastmodifiedon, lastmodifiedby, %s, %s) "
+                + "VALUES ('%s', '{}','00-01-01 00:00:00.000000', 'tester', '%s', %s) ON DUPLICATE KEY UPDATE %s = %s, %s = '%s';", getTableName(urn),
             aspectColumnName, fullIndexColumnName, urn, dummyAspectValue, trueVal, fullIndexColumnName, trueVal, aspectColumnName, dummyAspectValue);
       } else {
-        sqlUpdate = String.format("INSERT INTO %s (urn, lastmodifiedon, lastmodifiedby, %s) "
-                + "VALUES ('%s', '00-01-01 00:00:00.000000', 'tester', %s) ON DUPLICATE KEY UPDATE %s = %s;", getTableName(urn),
+        sqlUpdate = String.format("INSERT INTO %s (urn, a_urn, lastmodifiedon, lastmodifiedby, %s) "
+                + "VALUES ('%s', '{}', '00-01-01 00:00:00.000000', 'tester', %s) ON DUPLICATE KEY UPDATE %s = %s;", getTableName(urn),
             fullIndexColumnName, urn, trueVal, fullIndexColumnName, trueVal);
       }
 

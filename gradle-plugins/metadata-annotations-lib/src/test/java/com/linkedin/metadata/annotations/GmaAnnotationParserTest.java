@@ -15,10 +15,12 @@ import static org.assertj.core.api.Assertions.*;
 public class GmaAnnotationParserTest {
   @Test
   public void parseBar() {
+    // has both @gma.aspect.entity.urn and @gma.aspect.column.name annotations
     final Optional<GmaAnnotation> gma =
         new GmaAnnotationParser().parse((RecordDataSchema) DataTemplateUtil.getSchema(AnnotatedAspectBar.class));
     assertThat(gma).contains(new GmaAnnotation().setAspect(
-        new AspectAnnotation().setEntity(new AspectEntityAnnotation().setUrn("com.linkedin.testing.BarUrn"))));
+        new AspectAnnotation().setEntity(new AspectEntityAnnotation().setUrn("com.linkedin.testing.BarUrn"))
+            .setColumn(new ColumnNameAnnotation().setName("barurn"))));
   }
 
   @Test

@@ -4,6 +4,7 @@ import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.builder.LocalRelationshipBuilderRegistry;
+import com.linkedin.metadata.dao.scsi.UrnPathExtractor;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
@@ -16,6 +17,8 @@ import javax.annotation.Nullable;
  * EBeanLocalAccess provides model-agnostic data access (read / write) to MySQL database.
  */
 public interface IEbeanLocalAccess<URN extends Urn> {
+
+   void setUrnPathExtractor(@Nonnull UrnPathExtractor<URN> urnPathExtractor);
 
   /**
    * Upsert aspect into entity table.
@@ -103,5 +106,5 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * Provide a local relationship builder registry. Local relationships will be built based on the builders during data ingestion.
    * @param localRelationshipBuilderRegistry All local relationship builders should be registered in this registry.
    */
-  void setLocalRelationshipBuilderRegistry(LocalRelationshipBuilderRegistry localRelationshipBuilderRegistry);
+  void setLocalRelationshipBuilderRegistry(@Nonnull LocalRelationshipBuilderRegistry localRelationshipBuilderRegistry);
 }

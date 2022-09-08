@@ -4,6 +4,8 @@ import com.google.common.io.Resources;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.metadata.aspect.AuditedAspect;
 import com.linkedin.metadata.dao.localrelationship.SampleLocalRelationshipRegistryImpl;
+import com.linkedin.metadata.dao.utils.BarUrnPathExtractor;
+import com.linkedin.metadata.dao.utils.FooUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.MysqlDevInstance;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLIndexFilterUtils;
@@ -58,15 +60,15 @@ public class EbeanLocalAccessTest {
   @BeforeClass
   public void init() {
     _server = MysqlDevInstance.getServer();
-    _ebeanLocalAccessFoo = new EbeanLocalAccess<>(_server, MysqlDevInstance.SERVER_CONFIG, FooUrn.class);
-    _ebeanLocalAccessBar = new EbeanLocalAccess<>(_server, MysqlDevInstance.SERVER_CONFIG, BarUrn.class);
+    _ebeanLocalAccessFoo = new EbeanLocalAccess<>(_server, MysqlDevInstance.SERVER_CONFIG, FooUrn.class, new FooUrnPathExtractor());
+    _ebeanLocalAccessBar = new EbeanLocalAccess<>(_server, MysqlDevInstance.SERVER_CONFIG, BarUrn.class, new BarUrnPathExtractor());
     _ebeanLocalAccessFoo.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
   }
 
   @BeforeMethod
   public void setupTest() throws IOException {
     _server.execute(Ebean.createSqlUpdate(
-        Resources.toString(Resources.getResource("metadata-schema-create-all.sql"), StandardCharsets.UTF_8)));
+        Resources.toString(Resources.getResource("ebean-local-access-create-all.sql"), StandardCharsets.UTF_8)));
 
     // initialize data with metadata_entity_foo table with fooUrns from 0 ~ 99
     int numOfRecords = 100;
@@ -315,5 +317,20 @@ public class EbeanLocalAccessTest {
       List<SqlRow> relationships = _server.createSqlQuery("SELECT * FROM metadata_relationship_belongsto").findList();
       assertEquals(0, relationships.size());
     }
+  }
+
+  @Test
+  public void testUrnExtraction() {
+    FooUrn urn1 = makeFooUrn(1);
+    AspectFoo foo1 = new AspectFoo().setValue("foo");
+    _ebeanLocalAccessFoo.add(urn1, foo1, AspectFoo.class, makeAuditStamp("actor", 1234L));
+
+    // get content of virtual column
+    List<SqlRow> results = _server.createSqlQuery("SELECT i_urn$fooId as id FROM metadata_entity_foo").findList();
+    assertEquals(100, results.size());
+
+    // ensure content is as expected
+    SqlRow firstResult = results.get(0);
+    assertEquals("0", firstResult.getString("id"));
   }
 }

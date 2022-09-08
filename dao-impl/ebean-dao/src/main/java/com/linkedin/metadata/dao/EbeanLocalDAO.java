@@ -126,7 +126,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     this(aspectUnionClass, producer, server, urnClass);
     _schemaConfig = schemaConfig;
     if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
-      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass);
+      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, _urnPathExtractor);
     }
   }
 
@@ -174,7 +174,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     this(producer, server, storageConfig, urnClass, urnPathExtractor);
     _schemaConfig = schemaConfig;
     if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
-      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass);
+      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, urnPathExtractor);
     }
   }
 
@@ -249,6 +249,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   public void setUrnPathExtractor(@Nonnull UrnPathExtractor<URN> urnPathExtractor) {
+    if (_schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
+      _localAccess.setUrnPathExtractor(urnPathExtractor);
+    }
     _urnPathExtractor = urnPathExtractor;
   }
 

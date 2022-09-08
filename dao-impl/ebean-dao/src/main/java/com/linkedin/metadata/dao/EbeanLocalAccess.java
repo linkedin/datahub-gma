@@ -7,6 +7,8 @@ import com.linkedin.data.template.SetMode;
 import com.linkedin.metadata.aspect.AuditedAspect;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder;
 import com.linkedin.metadata.dao.builder.LocalRelationshipBuilderRegistry;
+import com.linkedin.metadata.dao.scsi.EmptyPathExtractor;
+import com.linkedin.metadata.dao.scsi.UrnPathExtractor;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
@@ -46,6 +48,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   private final EbeanServer _server;
   private final Class<URN> _urnClass;
   private final String _entityType;
+  private UrnPathExtractor<URN> _urnPathExtractor;
   private final EbeanLocalRelationshipWriterDAO _localRelationshipWriterDAO;
   private LocalRelationshipBuilderRegistry _localRelationshipBuilderRegistry;
 
@@ -56,12 +59,17 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   private static final String ASPECT_JSON_PLACEHOLDER = "__PLACEHOLDER__";
   private static final String DEFAULT_ACTOR = "urn:li:principal:UNKNOWN";
 
-  public EbeanLocalAccess(EbeanServer server, ServerConfig serverConfig, @Nonnull Class<URN> urnClass) {
+  public EbeanLocalAccess(EbeanServer server, ServerConfig serverConfig, @Nonnull Class<URN> urnClass, UrnPathExtractor<URN> urnPathExtractor) {
     _server = server;
     _urnClass = urnClass;
+    _urnPathExtractor = urnPathExtractor;
     _entityType = ModelUtils.getEntityTypeFromUrnClass(_urnClass);
     _localRelationshipWriterDAO = new EbeanLocalRelationshipWriterDAO(_server);
     createSchemaEvolutionManager(serverConfig).ensureSchemaUpToDate();
+  }
+
+  public void setUrnPathExtractor(@Nonnull UrnPathExtractor<URN> urnPathExtractor) {
+    _urnPathExtractor = urnPathExtractor;
   }
 
   @Override
@@ -72,13 +80,14 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     final long timestamp = auditStamp.hasTime() ? auditStamp.getTime() : System.currentTimeMillis();
     final String actor = auditStamp.hasActor() ? auditStamp.getActor().toString() : DEFAULT_ACTOR;
     final String impersonator = auditStamp.hasImpersonator() ? auditStamp.getImpersonator().toString() : null;
+    final boolean urnExtraction = _urnPathExtractor != null && !(_urnPathExtractor instanceof EmptyPathExtractor);
 
-    final SqlUpdate sqlUpdate = _server.createSqlUpdate(SQLStatementUtils.createAspectUpsertSql(urn, aspectClass))
+    final SqlUpdate sqlUpdate = _server.createSqlUpdate(SQLStatementUtils.createAspectUpsertSql(urn, aspectClass, urnExtraction))
         .setParameter("urn", urn.toString())
         .setParameter("lastmodifiedon", new Timestamp(timestamp).toString())
         .setParameter("lastmodifiedby", actor);
 
-    // newValue is null if soft-delete aspect.
+    // newValue is null if aspect is to be soft-deleted.
     if (newValue == null) {
 
       /*
@@ -95,6 +104,12 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       }
 
       return sqlUpdate.setParameter("metadata", DELETED_VALUE).execute();
+    }
+
+    // If a non-default UrnPathExtractor is provided, the user MUST specify in their schema generation scripts
+    // 'ALTER TABLE table ADD COLUMN a_urn JSON'.
+    if (urnExtraction) {
+      sqlUpdate.setParameter("a_urn", toJsonString(urn));
     }
 
     // Add local relationships if builder is provided.
@@ -382,6 +397,21 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     String aspect = auditedAspect.getAspect();
     auditedAspect.setAspect(ASPECT_JSON_PLACEHOLDER);
     return RecordUtils.toJsonString(auditedAspect).replace("\"" + ASPECT_JSON_PLACEHOLDER + "\"",  aspect);
+  }
+
+  /**
+   * Extract paths from urn into a map using the UrnPathExtractor, and convert this map into a JSON string so that it
+   * can be used to index urn paths in the MySQL tables.
+   * For example, assuming a FooUrnPathExtractor is implemented in a certain way, "urn:li:foo:(urn:li:bar,baz)" can be converted to
+   * "{"/name":"foo", "/field1":"urn:li:bar", "/field1/value":"bar", "/field2":"baz"}".
+   * @param urn urn
+   * @return JSON string representation of the urn
+   */
+  @Nonnull
+  private String toJsonString(@Nonnull URN urn) {
+    final Map<String, Object> pathValueMap = _urnPathExtractor.extractPaths(urn);
+    final JSONObject jsonObject = new JSONObject(pathValueMap);
+    return jsonObject.toJSONString();
   }
 
   /**
