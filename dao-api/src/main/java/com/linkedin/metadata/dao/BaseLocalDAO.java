@@ -623,9 +623,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * the new schema.
    *
    * @param urn the URN for the entity the aspect is attached to
-   * @param latestValue {@link RecordTemplate} of the new value of aspect
+   * @param aspectClass class of the aspect to backfill
    */
-  public abstract <ASPECT extends RecordTemplate> void updateEntityTables(@Nonnull URN urn, @Nullable ASPECT latestValue);
+  public abstract <ASPECT extends RecordTemplate> void updateEntityTables(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass);
 
   /**
    * Returns list of urns from local secondary index that satisfy the given filter conditions.
@@ -911,6 +911,13 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     return urnToAspects;
   }
 
+  @Nonnull
+  public Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfillEntityTables(
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nonnull Set<URN> urns) {
+    urns.forEach(urn -> aspectClasses.forEach(aspect -> updateEntityTables(urn, aspect)));
+    return get(aspectClasses, urns);
+  }
+
   /**
    * Emits backfill MAE for the latest version of a set of aspects for a set of urns
    * and also backfills SCSI (if it exists and is enabled) depending on the backfill mode.
@@ -943,10 +950,6 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nonnull URN urn) {
     if (_enableLocalSecondaryIndex && (mode == BackfillMode.SCSI_ONLY || mode == BackfillMode.BACKFILL_ALL)) {
       updateLocalIndex(urn, aspect, FIRST_VERSION);
-    }
-
-    if (mode == BackfillMode.ENTITY_TABLES_ONLY) {
-      updateEntityTables(urn, aspect);
     }
 
     if (mode == BackfillMode.MAE_ONLY || mode == BackfillMode.BACKFILL_ALL) {

@@ -2864,8 +2864,6 @@ public class EbeanLocalDAOTest {
   @Test
   public void testBackfillEntityTables() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = mock(EbeanLocalDAO.class);
-    Set<Class<? extends RecordTemplate>> aspectClasses = new HashSet<>();
-    aspectClasses.add(AspectFoo.class);
 
     FooUrn urn1 = makeFooUrn(1);
     FooUrn urn2 = makeFooUrn(2);
@@ -2874,24 +2872,14 @@ public class EbeanLocalDAOTest {
     urns.add(urn2);
 
     // make sure to actually call the backfill() method when using our mock dao
-    AspectFoo foo1 = new AspectFoo().setValue("foo1");
-    doCallRealMethod().when(dao).backfill(any(), any(), any());
-
-    // set up mock get() method so that we successfully call pTables()
-    Map<FooUrn, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> map = new HashMap<>();
-    Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> map1 = new HashMap<>();
-    map1.put(AspectFoo.class, Optional.of(foo1));
-    map.put(urn1, map1);
-    map.put(urn2, map1);
-    when(dao.get(anySet(), anySet())).thenReturn(map);
-
+    doCallRealMethod().when(dao).backfillEntityTables(any(), any());
 
     // when
-    dao.backfill(BackfillMode.ENTITY_TABLES_ONLY, Collections.singleton(AspectFoo.class), new HashSet<>(urns));
+    dao.backfillEntityTables(Collections.singleton(AspectFoo.class), new HashSet<>(urns));
 
     // then
-    verify(dao, times(1)).updateEntityTables(urn1, foo1);
-    verify(dao, times(1)).updateEntityTables(urn2, foo1);
+    verify(dao, times(1)).updateEntityTables(urn1, AspectFoo.class);
+    verify(dao, times(1)).updateEntityTables(urn2, AspectFoo.class);
   }
 
   @Test
@@ -2903,7 +2891,7 @@ public class EbeanLocalDAOTest {
     AspectFoo foo = new AspectFoo().setValue("foo");
     addMetadata(urn1, AspectFoo.class.getCanonicalName(), 0, foo); // this function only adds to old schema
 
-    // check nothing in new schema right now
+    // check that there is nothing in the entity table right now
     if (_schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
       List<SqlRow> initial = _server.createSqlQuery("SELECT * FROM metadata_entity_foo").findList();
       assertEquals(initial.size(), 0);
@@ -2911,7 +2899,7 @@ public class EbeanLocalDAOTest {
 
     // perform the migration
     try {
-      dao.updateEntityTables(urn1, foo);
+      dao.updateEntityTables(urn1, AspectFoo.class);
       if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
         // expect an exception here since there is no new schema to update
         fail();

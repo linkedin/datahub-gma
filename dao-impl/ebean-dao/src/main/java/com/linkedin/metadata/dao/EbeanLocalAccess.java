@@ -87,6 +87,12 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
         .setParameter("lastmodifiedon", new Timestamp(timestamp).toString())
         .setParameter("lastmodifiedby", actor);
 
+    // If a non-default UrnPathExtractor is provided, the user MUST specify in their schema generation scripts
+    // 'ALTER TABLE <table> ADD COLUMN a_urn JSON'.
+    if (urnExtraction) {
+      sqlUpdate.setParameter("a_urn", toJsonString(urn));
+    }
+
     // newValue is null if aspect is to be soft-deleted.
     if (newValue == null) {
 
@@ -104,12 +110,6 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       }
 
       return sqlUpdate.setParameter("metadata", DELETED_VALUE).execute();
-    }
-
-    // If a non-default UrnPathExtractor is provided, the user MUST specify in their schema generation scripts
-    // 'ALTER TABLE table ADD COLUMN a_urn JSON'.
-    if (urnExtraction) {
-      sqlUpdate.setParameter("a_urn", toJsonString(urn));
     }
 
     // Add local relationships if builder is provided.

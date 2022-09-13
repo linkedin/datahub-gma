@@ -16,12 +16,7 @@ enum BackfillMode {
   MAE_ONLY
 
   /**
-   * Backfill only new entity tables
-   */
-  ENTITY_TABLES_ONLY
-
-  /**
-   * Backfill all secondary stores, excluding ENTITY_TABLES_ONLY
+   * Backfill all secondary stores
    */
   BACKFILL_ALL
 }

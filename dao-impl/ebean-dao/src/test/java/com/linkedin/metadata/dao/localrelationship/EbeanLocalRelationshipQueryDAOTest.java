@@ -8,8 +8,7 @@ import com.linkedin.metadata.dao.EbeanLocalAccess;
 import com.linkedin.metadata.dao.EbeanLocalRelationshipQueryDAO;
 import com.linkedin.metadata.dao.EbeanLocalRelationshipWriterDAO;
 import com.linkedin.metadata.dao.IEbeanLocalAccess;
-import com.linkedin.metadata.dao.utils.BarUrnPathExtractor;
-import com.linkedin.metadata.dao.utils.FooUrnPathExtractor;
+import com.linkedin.metadata.dao.scsi.EmptyPathExtractor;
 import com.linkedin.metadata.dao.utils.MysqlDevInstance;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.Criterion;
@@ -55,8 +54,8 @@ public class EbeanLocalRelationshipQueryDAOTest {
     _server = MysqlDevInstance.getServer();
     _localRelationshipWriterDAO = new EbeanLocalRelationshipWriterDAO(_server);
     _localRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server);
-    _fooUrnEBeanLocalAccess = new EbeanLocalAccess<>(_server, MysqlDevInstance.SERVER_CONFIG, FooUrn.class, new FooUrnPathExtractor());
-    _barUrnEBeanLocalAccess = new EbeanLocalAccess<>(_server, MysqlDevInstance.SERVER_CONFIG, BarUrn.class, new BarUrnPathExtractor());
+    _fooUrnEBeanLocalAccess = new EbeanLocalAccess<>(_server, MysqlDevInstance.SERVER_CONFIG, FooUrn.class, new EmptyPathExtractor<>());
+    _barUrnEBeanLocalAccess = new EbeanLocalAccess<>(_server, MysqlDevInstance.SERVER_CONFIG, BarUrn.class, new EmptyPathExtractor<>());
   }
 
   @BeforeMethod
