@@ -55,6 +55,7 @@ public class EbeanLocalAccessTest {
   private static EbeanServer _server;
   private static IEbeanLocalAccess<FooUrn> _ebeanLocalAccessFoo;
   private static IEbeanLocalAccess<BarUrn> _ebeanLocalAccessBar;
+  private static long _now;
   private static final Filter EMPTY_FILTER = new Filter().setCriteria(new CriterionArray());
 
   @BeforeClass
@@ -63,6 +64,7 @@ public class EbeanLocalAccessTest {
     _ebeanLocalAccessFoo = new EbeanLocalAccess<>(_server, MysqlDevInstance.SERVER_CONFIG, FooUrn.class, new FooUrnPathExtractor());
     _ebeanLocalAccessBar = new EbeanLocalAccess<>(_server, MysqlDevInstance.SERVER_CONFIG, BarUrn.class, new BarUrnPathExtractor());
     _ebeanLocalAccessFoo.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
+    _now = System.currentTimeMillis();
   }
 
   @BeforeMethod
@@ -323,7 +325,7 @@ public class EbeanLocalAccessTest {
   public void testUrnExtraction() {
     FooUrn urn1 = makeFooUrn(1);
     AspectFoo foo1 = new AspectFoo().setValue("foo");
-    _ebeanLocalAccessFoo.add(urn1, foo1, AspectFoo.class, makeAuditStamp("actor", 1234L));
+    _ebeanLocalAccessFoo.add(urn1, foo1, AspectFoo.class, makeAuditStamp("actor", _now));
 
     // get content of virtual column
     List<SqlRow> results = _server.createSqlQuery("SELECT i_urn$fooId as id FROM metadata_entity_foo").findList();

@@ -271,7 +271,7 @@ public abstract class BaseEntityResource<
 
     return RestliUtils.toTask(() -> {
       final Set<URN> urnSet = Arrays.stream(urns).map(urnString -> parseUrnParam(urnString)).collect(Collectors.toSet());
-      return RestliUtils.buildBackfillResult(getLocalDAO().backfill(BackfillMode.ENTITY_TABLES_ONLY, parseAspectsParam(aspectNames), urnSet));
+      return RestliUtils.buildBackfillResult(getLocalDAO().backfillEntityTables(parseAspectsParam(aspectNames), urnSet));
     });
   }
 

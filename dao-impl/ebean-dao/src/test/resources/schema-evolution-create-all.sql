@@ -11,7 +11,7 @@ CREATE TABLE metadata_id (
 );
 
 CREATE TABLE metadata_aspect (
-    urn VARCHAR(1000) NOT NULL,
+    urn VARCHAR(500) NOT NULL,
     aspect VARCHAR(200) NOT NULL,
     version BIGINT NOT NULL,
     metadata JSON NOT NULL,
