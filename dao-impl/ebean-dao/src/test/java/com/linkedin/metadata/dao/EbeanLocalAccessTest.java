@@ -4,6 +4,7 @@ import com.google.common.io.Resources;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.metadata.aspect.AuditedAspect;
 import com.linkedin.metadata.dao.localrelationship.SampleLocalRelationshipRegistryImpl;
+import com.linkedin.metadata.dao.scsi.EmptyPathExtractor;
 import com.linkedin.metadata.dao.utils.BarUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.FooUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.MysqlDevInstance;
@@ -26,6 +27,7 @@ import com.linkedin.testing.FooSnapshot;
 import com.linkedin.testing.localrelationship.AspectFooBar;
 import com.linkedin.testing.localrelationship.BelongsTo;
 import com.linkedin.testing.urn.BarUrn;
+import com.linkedin.testing.urn.BurgerUrn;
 import com.linkedin.testing.urn.FooUrn;
 import io.ebean.Ebean;
 import io.ebean.EbeanServer;
@@ -55,6 +57,7 @@ public class EbeanLocalAccessTest {
   private static EbeanServer _server;
   private static IEbeanLocalAccess<FooUrn> _ebeanLocalAccessFoo;
   private static IEbeanLocalAccess<BarUrn> _ebeanLocalAccessBar;
+  private static IEbeanLocalAccess<BurgerUrn> _ebeanLocalAccessBurger;
   private static long _now;
   private static final Filter EMPTY_FILTER = new Filter().setCriteria(new CriterionArray());
 
@@ -63,6 +66,7 @@ public class EbeanLocalAccessTest {
     _server = MysqlDevInstance.getServer();
     _ebeanLocalAccessFoo = new EbeanLocalAccess<>(_server, MysqlDevInstance.SERVER_CONFIG, FooUrn.class, new FooUrnPathExtractor());
     _ebeanLocalAccessBar = new EbeanLocalAccess<>(_server, MysqlDevInstance.SERVER_CONFIG, BarUrn.class, new BarUrnPathExtractor());
+    _ebeanLocalAccessBurger = new EbeanLocalAccess<>(_server, MysqlDevInstance.SERVER_CONFIG, BurgerUrn.class, new EmptyPathExtractor<>());
     _ebeanLocalAccessFoo.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
     _now = System.currentTimeMillis();
   }
@@ -272,6 +276,41 @@ public class EbeanLocalAccessTest {
 
     assertEquals("{\"lastmodifiedby\":\"0\",\"lastmodifiedon\":\"1\",\"aspect\":{\"value\":\"test\"}}", toJson);
     assertNotNull(RecordUtils.toRecordTemplate(AspectFoo.class, EbeanLocalAccess.extractAspectJsonString(toJson)));
+  }
+
+  @Test
+  public void testEscapeSpecialCharInUrn() {
+    // Single quote is a special char in SQL.
+    BurgerUrn johnsBurgerUrn1 = makeBurgerUrn("urn:li:burger:John's burger");
+    AspectFoo aspectFoo = new AspectFoo();
+    aspectFoo.setValue("test");
+    AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
+    _ebeanLocalAccessBurger.add(johnsBurgerUrn1, aspectFoo, AspectFoo.class, auditStamp);
+
+    AspectKey aspectKey1 = new AspectKey(AspectFoo.class, johnsBurgerUrn1, 0L);
+    List<EbeanMetadataAspect> ebeanMetadataAspectList = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey1), 1, 0);
+    assertEquals(1, ebeanMetadataAspectList.size());
+    assertEquals(ebeanMetadataAspectList.get(0).getKey().getUrn(), johnsBurgerUrn1.toString());
+
+    // Double quote is a special char in SQL.
+    BurgerUrn johnsBurgerUrn2 = makeBurgerUrn("urn:li:burger:John\"s burger");
+    aspectFoo.setValue("test");
+    _ebeanLocalAccessBurger.add(johnsBurgerUrn2, aspectFoo, AspectFoo.class, auditStamp);
+
+    AspectKey aspectKey2 = new AspectKey(AspectFoo.class, johnsBurgerUrn2, 0L);
+    ebeanMetadataAspectList = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey2), 1, 0);
+    assertEquals(1, ebeanMetadataAspectList.size());
+    assertEquals(ebeanMetadataAspectList.get(0).getKey().getUrn(), johnsBurgerUrn2.toString());
+
+    // Backslash is a special char in SQL.
+    BurgerUrn johnsBurgerUrn3 = makeBurgerUrn("urn:li:burger:John\\s burger");
+    aspectFoo.setValue("test");
+    _ebeanLocalAccessBurger.add(johnsBurgerUrn3, aspectFoo, AspectFoo.class, auditStamp);
+
+    AspectKey aspectKey3 = new AspectKey(AspectFoo.class, johnsBurgerUrn3, 0L);
+    ebeanMetadataAspectList = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey3), 1, 0);
+    assertEquals(1, ebeanMetadataAspectList.size());
+    assertEquals(ebeanMetadataAspectList.get(0).getKey().getUrn(), johnsBurgerUrn3.toString());
   }
 
   @Test

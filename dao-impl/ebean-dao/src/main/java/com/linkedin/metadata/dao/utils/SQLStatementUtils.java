@@ -1,5 +1,7 @@
 package com.linkedin.metadata.dao.utils;
 
+import com.google.common.escape.Escaper;
+import com.google.common.escape.Escapers;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
@@ -28,6 +30,9 @@ import static com.linkedin.metadata.dao.utils.SQLIndexFilterUtils.*;
  * SQL statement util class to generate executable SQL query / execution statements.
  */
 public class SQLStatementUtils {
+  private static final Escaper URN_ESCAPER = Escapers.builder()
+      .addEscape('\'', "''")
+      .addEscape('\\', "\\\\").build();
 
   private static final String SQL_UPSERT_ASPECT_TEMPLATE =
       "INSERT INTO %s (urn, %s, lastmodifiedon, lastmodifiedby) VALUE (:urn, :metadata, :lastmodifiedon, :lastmodifiedby) "
@@ -80,7 +85,7 @@ public class SQLStatementUtils {
    */
   public static String createExistSql(@Nonnull Urn urn) {
     final String tableName = getTableName(urn);
-    return String.format(SQL_URN_EXIST_TEMPLATE, tableName, urn.toString());
+    return String.format(SQL_URN_EXIST_TEMPLATE, tableName, escapeReservedCharInUrn(urn.toString()));
   }
 
   /**
@@ -108,7 +113,7 @@ public class SQLStatementUtils {
     StringBuilder stringBuilder = new StringBuilder();
     List<String> selectStatements = urns.stream().map(urn -> {
           final String tableName = getTableName(urn);
-          return String.format(SQL_READ_ASPECT_TEMPLATE, columnName, tableName, urn, columnName);
+          return String.format(SQL_READ_ASPECT_TEMPLATE, columnName, tableName, escapeReservedCharInUrn(urn.toString()), columnName);
         }).collect(Collectors.toList());
     stringBuilder.append(String.join(" UNION ALL ", selectStatements));
     return stringBuilder.toString();
@@ -192,6 +197,15 @@ public class SQLStatementUtils {
    */
   public static String insertLocalRelationshipSQL(String tableName) {
     return String.format(INSERT_LOCAL_RELATIONSHIP, tableName);
+  }
+
+  /**
+   * Some chars such as single quote (') are reserved chars. We need to escape them.
+   * @param strInSql String in SQL which could contain reserved chars.
+   * @return String which has reserved chars escaped.
+   */
+  public static String escapeReservedCharInUrn(String strInSql) {
+    return URN_ESCAPER.escape(strInSql);
   }
 
   @Nonnull

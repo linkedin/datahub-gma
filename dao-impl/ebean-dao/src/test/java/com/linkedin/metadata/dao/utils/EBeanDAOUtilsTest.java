@@ -12,6 +12,7 @@ import java.util.Collections;
 import java.util.List;
 import org.testng.annotations.Test;
 
+import static com.linkedin.testing.TestUtils.*;
 import static org.testng.Assert.*;
 
 
@@ -191,16 +192,16 @@ public class EBeanDAOUtilsTest {
     FooUrn urn3 = new FooUrn(2);
     assertFalse(EBeanDAOUtils.compareResults(Collections.singletonList(urn1), Collections.singletonList(urn3), "testMethod"));
 
-    BurgerUrn urn4 = BurgerUrn.createFromString("urn:li:burger:1");
-    BurgerUrn urn5 = BurgerUrn.createFromString("urn:li:burger:1");
+    BurgerUrn urn4 = makeBurgerUrn("urn:li:burger:1");
+    BurgerUrn urn5 = makeBurgerUrn("urn:li:burger:1");
     assertTrue(EBeanDAOUtils.compareResults(Collections.singletonList(urn4), Collections.singletonList(urn5), "testMethod"));
 
-    BurgerUrn urn6 = BurgerUrn.createFromString("urn:li:burger:2");
+    BurgerUrn urn6 = makeBurgerUrn("urn:li:burger:2");
     assertFalse(EBeanDAOUtils.compareResults(Collections.singletonList(urn4), Collections.singletonList(urn6), "testMethod"));
 
 
-    BurgerUrn urn7 = BurgerUrn.createFromString("urn:li:burger:cheeseburger");
-    BurgerUrn urn8 = BurgerUrn.createFromString("urn:li:burger:CHEESEburger");
+    BurgerUrn urn7 = makeBurgerUrn("urn:li:burger:cheeseburger");
+    BurgerUrn urn8 = makeBurgerUrn("urn:li:burger:CHEESEburger");
     assertFalse(EBeanDAOUtils.compareResults(Collections.singletonList(urn7), Collections.singletonList(urn8), "testMethod"));
   }
 
