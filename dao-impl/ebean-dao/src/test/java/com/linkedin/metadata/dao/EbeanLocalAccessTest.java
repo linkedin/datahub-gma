@@ -280,11 +280,11 @@ public class EbeanLocalAccessTest {
 
   @Test
   public void testEscapeSpecialCharInUrn() {
+    AspectFoo aspectFoo = new AspectFoo().setValue("test");
+    AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
+
     // Single quote is a special char in SQL.
     BurgerUrn johnsBurgerUrn1 = makeBurgerUrn("urn:li:burger:John's burger");
-    AspectFoo aspectFoo = new AspectFoo();
-    aspectFoo.setValue("test");
-    AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
     _ebeanLocalAccessBurger.add(johnsBurgerUrn1, aspectFoo, AspectFoo.class, auditStamp);
 
     AspectKey aspectKey1 = new AspectKey(AspectFoo.class, johnsBurgerUrn1, 0L);
@@ -294,7 +294,6 @@ public class EbeanLocalAccessTest {
 
     // Double quote is a special char in SQL.
     BurgerUrn johnsBurgerUrn2 = makeBurgerUrn("urn:li:burger:John\"s burger");
-    aspectFoo.setValue("test");
     _ebeanLocalAccessBurger.add(johnsBurgerUrn2, aspectFoo, AspectFoo.class, auditStamp);
 
     AspectKey aspectKey2 = new AspectKey(AspectFoo.class, johnsBurgerUrn2, 0L);
@@ -304,7 +303,6 @@ public class EbeanLocalAccessTest {
 
     // Backslash is a special char in SQL.
     BurgerUrn johnsBurgerUrn3 = makeBurgerUrn("urn:li:burger:John\\s burger");
-    aspectFoo.setValue("test");
     _ebeanLocalAccessBurger.add(johnsBurgerUrn3, aspectFoo, AspectFoo.class, auditStamp);
 
     AspectKey aspectKey3 = new AspectKey(AspectFoo.class, johnsBurgerUrn3, 0L);

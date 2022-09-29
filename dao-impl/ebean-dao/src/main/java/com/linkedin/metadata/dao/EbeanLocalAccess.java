@@ -429,7 +429,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
       return null;
     } catch (ParseException e) {
-      throw new RuntimeException(String.format("Failed to parse string %s as AuditedAspect.", auditedAspect));
+      throw new RuntimeException(String.format("Failed to parse string %s as AuditedAspect.", auditedAspect), e);
     }
   }
 
