@@ -1,5 +1,6 @@
 DROP TABLE IF EXISTS metadata_entity_foo;
 DROP TABLE IF EXISTS metadata_entity_bar;
+DROP TABLE IF EXISTS metadata_entity_burger;
 DROP TABLE IF EXISTS metadata_aspect;
 DROP TABLE IF EXISTS metadata_id;
 DROP TABLE IF EXISTS metadata_index;
@@ -21,6 +22,15 @@ CREATE TABLE IF NOT EXISTS metadata_entity_bar (
     lastmodifiedby VARCHAR(255) NOT NULL,
     createdfor VARCHAR(255),
     CONSTRAINT pk_metadata_entity_bar PRIMARY KEY (urn)
+);
+
+-- initialize burger entity table
+CREATE TABLE IF NOT EXISTS metadata_entity_burger (
+    urn VARCHAR(100) NOT NULL,
+    lastmodifiedon TIMESTAMP NOT NULL,
+    lastmodifiedby VARCHAR(255) NOT NULL,
+    createdfor VARCHAR(255),
+    CONSTRAINT pk_metadata_entity_burger PRIMARY KEY (urn)
 );
 
 CREATE TABLE metadata_id (
@@ -72,7 +82,7 @@ ALTER TABLE metadata_entity_foo ADD COLUMN i_urn$fooId VARCHAR(255)
 -- add foo aspect to foo entity
 ALTER TABLE metadata_entity_foo ADD a_aspectfoo JSON;
 
--- add foo aspect to foo entity
+-- add foo aspect to bar entity
 ALTER TABLE metadata_entity_bar ADD a_aspectfoo JSON;
 
 -- add bar aspect to foo entity
@@ -80,6 +90,9 @@ ALTER TABLE metadata_entity_foo ADD a_aspectbar JSON;
 
 -- add foobar aspect to foo entity
 ALTER TABLE metadata_entity_foo ADD a_aspectfoobar JSON;
+
+-- add foo aspect to burger entity
+ALTER TABLE metadata_entity_burger ADD a_aspectfoo JSON;
 
 -- add new index virtual column 'value'
 ALTER TABLE metadata_entity_foo ADD COLUMN i_aspectbar$value VARCHAR(255)

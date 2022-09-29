@@ -425,10 +425,10 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
-  public void testGetCapsSensitivity() throws URISyntaxException {
+  public void testGetCapsSensitivity() {
     final EbeanLocalDAO<EntityAspectUnion, BurgerUrn> dao = createDao(BurgerUrn.class);
-    final BurgerUrn urnCaps = BurgerUrn.createFromString("urn:li:burger:CHEESEburger");
-    final BurgerUrn urnLower = BurgerUrn.createFromString("urn:li:burger:cheeseburger");
+    final BurgerUrn urnCaps = makeBurgerUrn("urn:li:burger:CHEESEburger");
+    final BurgerUrn urnLower = makeBurgerUrn("urn:li:burger:cheeseburger");
 
     final AspectFoo v0 = new AspectFoo().setValue("baz");
     final AspectFoo v1 = new AspectFoo().setValue("foo");

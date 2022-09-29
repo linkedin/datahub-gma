@@ -5,6 +5,7 @@ import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.BazUrn;
 import com.linkedin.testing.urn.FooUrn;
+import com.linkedin.testing.urn.BurgerUrn;
 import com.linkedin.restli.common.ComplexResourceKey;
 import com.linkedin.restli.common.EmptyRecord;
 import java.net.URISyntaxException;
@@ -33,6 +34,15 @@ public class TestUtils {
   public static FooUrn makeFooUrn(String urn) {
     try {
       return FooUrn.createFromString(urn);
+    } catch (URISyntaxException e) {
+      throw new RuntimeException(String.format("Invalid urn %s", urn));
+    }
+  }
+
+  @Nonnull
+  public static BurgerUrn makeBurgerUrn(String urn) {
+    try {
+      return BurgerUrn.createFromString(urn);
     } catch (URISyntaxException e) {
       throw new RuntimeException(String.format("Invalid urn %s", urn));
     }
