@@ -8,12 +8,13 @@ import org.flywaydb.core.Flyway;
 public class FlywaySchemaEvolutionManager implements SchemaEvolutionManager {
   private static final String EVOLUTION_SCRIPTS_LOCATION = "script_directory";
   private static final String VERSION_TABLE = "version_table";
-  private static final String CONFIG_FILE = "evolution.conf";
+  private static final String CONFIG_FILE_TEMPLATE = "%s.conf";
   private static final String DISABLE_CLEAN = "disable_clean";
   private final Flyway _flyway;
 
   public FlywaySchemaEvolutionManager(Config config) {
-    InputStream configFile = getClass().getClassLoader().getResourceAsStream(CONFIG_FILE);
+    String databaseName = getDatabaseName(config);
+    InputStream configFile = getClass().getClassLoader().getResourceAsStream(String.format(CONFIG_FILE_TEMPLATE, databaseName));
     Properties configProp = new Properties();
 
     try {
@@ -47,5 +48,28 @@ public class FlywaySchemaEvolutionManager implements SchemaEvolutionManager {
   @Override
   public void clean() {
     _flyway.clean();
+  }
+
+  /**
+   *   This function assumes that all database connection URLs are in the following format:
+   *   jdbc:mysql://(host):(port)/(db_name)?(options)
+   *   The ?(options) part may or may not be present.
+   *   For example - jdbc:mysql://example.linkedin.com:1234/my_first_db?autoReconnect=true
+   *   This function will return "my_first_db", using the example above.
+    */
+  private String getDatabaseName(Config config) throws IllegalArgumentException {
+    String connectionUrl = config.getConnectionUrl();
+    if (connectionUrl.lastIndexOf('/') == -1) {
+      throw new IllegalArgumentException("Please double check that your database connection URL is in the following format:"
+          + "jdbc:mysql://<host>:<port>/<db_name>?<options>");
+    }
+    // First, get the path, which includes the database name. In our example above, it would be "my_first_db?autoReconnect=true"
+    String databaseNameWithOptions = connectionUrl.substring(connectionUrl.lastIndexOf('/') + 1);
+    if (databaseNameWithOptions.contains(":")) {
+      throw new IllegalArgumentException("Please double check that your database connection URL is in the following format:"
+          + "jdbc:mysql://<host>:<port>/<db_name>?<options>");
+    }
+    // Next, strip off any characters after the '?' so that we are left with just the database name. Ex. "my_first_db"
+    return databaseNameWithOptions.contains("?") ? databaseNameWithOptions.split("\\?")[0] : databaseNameWithOptions;
   }
 }
