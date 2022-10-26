@@ -21,6 +21,7 @@ import org.apache.commons.lang.StringEscapeUtils;
 
 import static com.linkedin.metadata.dao.utils.EBeanDAOUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLSchemaUtils.*;
+import static com.linkedin.metadata.dao.utils.SQLStatementUtils.SOFT_DELETED_CHECK;
 
 
 /**
@@ -113,8 +114,7 @@ public class SQLIndexFilterUtils {
       }
     }
     // add filters to check that each aspect being queried is not soft deleted
-    // e.g. WHERE a_aspect1 != '{"gma_deleted":true}' AND a_aspect2 != '{"gma_deleted":true}'
-    aspectColumns.forEach(aspect -> sqlFilters.add(String.format("%s != CAST('%s' AS JSON)", aspect, DELETED_VALUE)));
+    aspectColumns.forEach(aspect -> sqlFilters.add(String.format(SOFT_DELETED_CHECK, aspect)));
     if (sqlFilters.isEmpty()) {
       return "";
     } else {
