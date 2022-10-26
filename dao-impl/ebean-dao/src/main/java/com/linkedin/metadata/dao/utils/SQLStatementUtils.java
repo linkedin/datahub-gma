@@ -34,6 +34,8 @@ public class SQLStatementUtils {
       .addEscape('\'', "''")
       .addEscape('\\', "\\\\").build();
 
+  protected static final String SOFT_DELETED_CHECK = "JSON_EXTRACT(%s, '$.gma_deleted') IS NULL"; // true when not soft deleted
+
   private static final String SQL_UPSERT_ASPECT_TEMPLATE =
       "INSERT INTO %s (urn, %s, lastmodifiedon, lastmodifiedby) VALUE (:urn, :metadata, :lastmodifiedon, :lastmodifiedby) "
           + "ON DUPLICATE KEY UPDATE %s = :metadata;";
@@ -43,7 +45,7 @@ public class SQLStatementUtils {
           + "ON DUPLICATE KEY UPDATE %s = :metadata;";
 
   private static final String SQL_READ_ASPECT_TEMPLATE =
-      String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby FROM %%s WHERE urn = '%%s' AND %%s != CAST('%s' AS JSON)", DELETED_VALUE);
+      String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby FROM %%s WHERE urn = '%%s' AND %s", SOFT_DELETED_CHECK);
 
   private static final String INDEX_GROUP_BY_CRITERION = "SELECT count(*) as COUNT, %s FROM %s";
   private static final String SQL_GROUP_BY_COLUMN_EXISTS_TEMPLATE =
@@ -66,13 +68,13 @@ public class SQLStatementUtils {
    *  For example, we will build the following filter query statement:
    *
    *  <p>SELECT *, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE i_aspectfoo$value >= 25\n"
-   *  AND i_aspectfoo$value < 50 AND a_aspectfoo != '{\"gma_deleted\":true}') as _total_count FROM metadata_entity_foo\n"
-   *  WHERE i_aspectfoo$value >= 25 AND i_aspectfoo$value < 50 AND a_aspectfoo != '{\"gma_deleted\":true}';
+   *  AND i_aspectfoo$value < 50 AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL) as _total_count FROM metadata_entity_foo\n"
+   *  WHERE i_aspectfoo$value >= 25 AND i_aspectfoo$value < 50 AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL;
    */
   private static final String SQL_FILTER_TEMPLATE = "SELECT *, (%s) as _total_count FROM %s";
   private static final String SQL_BROWSE_ASPECT_TEMPLATE =
       String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby, (SELECT COUNT(urn) FROM %%s) as _total_count "
-          + "FROM %%s WHERE %%s != CAST('%s' AS JSON) LIMIT %%d OFFSET %%d", DELETED_VALUE);
+          + "FROM %%s WHERE %s LIMIT %%d OFFSET %%d", SOFT_DELETED_CHECK);
 
   private SQLStatementUtils() {
     // Util class

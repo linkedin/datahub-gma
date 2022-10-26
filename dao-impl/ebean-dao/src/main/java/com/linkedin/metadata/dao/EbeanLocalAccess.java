@@ -132,11 +132,11 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
   /**
    * Construct and execute a SQL statement as follows.
-   * SELECT urn, aspect1, lastmodifiedon, lastmodifiedby FROM metadata_entity_foo WHERE urn = 'urn:1' AND aspect1 != '{"gma_deleted":true}'
+   * SELECT urn, aspect1, lastmodifiedon, lastmodifiedby FROM metadata_entity_foo WHERE urn = 'urn:1' AND JSON_EXTRACT(aspect1, '$.gma_deleted') IS NULL
    * UNION ALL
-   * SELECT urn, aspect2, lastmodifiedon, lastmodifiedby FROM metadata_entity_foo WHERE urn = 'urn:1' AND aspect2 != '{"gma_deleted":true}'
+   * SELECT urn, aspect2, lastmodifiedon, lastmodifiedby FROM metadata_entity_foo WHERE urn = 'urn:1' AND JSON_EXTRACT(aspect2, '$.gma_deleted') IS NULL
    * UNION ALL
-   * SELECT urn, aspect1, lastmodifiedon, lastmodifiedby FROM metadata_entity_foo WHERE urn = 'urn:2' AND aspect1 != '{"gma_deleted":true}'
+   * SELECT urn, aspect1, lastmodifiedon, lastmodifiedby FROM metadata_entity_foo WHERE urn = 'urn:2' AND JSON_EXTRACT(aspect1, '$.gma_deleted') IS NULL
    * @param aspectKeys a List of keys (urn, aspect pairings) to query for
    * @param keysCount number of keys to query
    * @param position position of the key to start from
