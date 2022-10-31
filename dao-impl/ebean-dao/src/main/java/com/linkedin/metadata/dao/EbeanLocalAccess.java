@@ -410,8 +410,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   @Nonnull
   private String toJsonString(@Nonnull URN urn) {
     final Map<String, Object> pathValueMap = _urnPathExtractor.extractPaths(urn);
-    final JSONObject jsonObject = new JSONObject(pathValueMap);
-    return jsonObject.toJSONString();
+    return JSONObject.toJSONString(pathValueMap);
   }
 
   /**
