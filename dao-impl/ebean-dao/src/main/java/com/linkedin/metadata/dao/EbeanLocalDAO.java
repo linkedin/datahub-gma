@@ -262,6 +262,14 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     return _server;
   }
 
+  /**
+   * Getter for which SchemaConfig this DAO is using.
+   * @return _schemaConfig
+   */
+  public SchemaConfig getSchemaConfig() {
+    return _schemaConfig;
+  }
+
   @Nonnull
   @Override
   protected <T> T runInTransactionWithRetry(@Nonnull Supplier<T> block, int maxTransactionRetry) {
