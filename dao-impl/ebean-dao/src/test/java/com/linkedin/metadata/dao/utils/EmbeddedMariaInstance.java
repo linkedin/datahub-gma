@@ -21,7 +21,7 @@ import javax.annotation.Nonnull;
  * supported in MariaDB but not in MySQL and vice versa. We should use syntax that's both MySQL and MariaDB compatible.
  */
 public class EmbeddedMariaInstance {
-  public static final ServerConfig SERVER_CONFIG = createLocalMySQLServerConfig();
+  public static final ServerConfig SERVER_CONFIG = createEmbeddedMariaServerConfig();
   private static volatile DB db;
   private EmbeddedMariaInstance() {
   }
@@ -32,11 +32,11 @@ public class EmbeddedMariaInstance {
   private static final int PORT = 23306;
 
   public static EbeanServer getServer() {
-    return EbeanServerFactory.create(createLocalMySQLServerConfig());
+    return EbeanServerFactory.create(createEmbeddedMariaServerConfig());
   }
 
   @Nonnull
-  private static ServerConfig createLocalMySQLServerConfig() {
+  private static ServerConfig createEmbeddedMariaServerConfig() {
     initDB();
     DataSourceConfig dataSourceConfig = new DataSourceConfig();
     dataSourceConfig.setUsername(DB_USER);
