@@ -1,7 +1,7 @@
 package com.linkedin.metadata.dao;
 
 import com.google.common.io.Resources;
-import com.linkedin.metadata.dao.utils.MysqlDevInstance;
+import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
 import io.ebean.Ebean;
 import io.ebean.EbeanServer;
 import java.io.IOException;
@@ -20,13 +20,13 @@ public class FlywaySchemaEvolutionManagerTest {
 
   @BeforeClass
   public void init() throws IOException {
-    _server = MysqlDevInstance.getServer();
+    _server = EmbeddedMariaInstance.getServer();
     _server.execute(Ebean.createSqlUpdate(
         Resources.toString(Resources.getResource("schema-evolution-create-all.sql"), StandardCharsets.UTF_8)));
     SchemaEvolutionManager.Config config = new SchemaEvolutionManager.Config(
-        MysqlDevInstance.SERVER_CONFIG.getDataSourceConfig().getUrl(),
-        MysqlDevInstance.SERVER_CONFIG.getDataSourceConfig().getPassword(),
-        MysqlDevInstance.SERVER_CONFIG.getDataSourceConfig().getUsername()
+        EmbeddedMariaInstance.SERVER_CONFIG.getDataSourceConfig().getUrl(),
+        EmbeddedMariaInstance.SERVER_CONFIG.getDataSourceConfig().getPassword(),
+        EmbeddedMariaInstance.SERVER_CONFIG.getDataSourceConfig().getUsername()
     );
 
     _schemaEvolutionManager = new FlywaySchemaEvolutionManager(config);
@@ -56,7 +56,7 @@ public class FlywaySchemaEvolutionManagerTest {
 
   private boolean checkTableExists(String tableName) {
     String checkTableExistsSql = String.format("SELECT count(*) as count FROM information_schema.TABLES WHERE TABLE_SCHEMA = '%s' AND"
-        + " TABLE_NAME = '%s'", MysqlDevInstance.DB_SCHEMA, tableName);
+        + " TABLE_NAME = '%s'", EmbeddedMariaInstance.DB_SCHEMA, tableName);
 
     return _server.createSqlQuery(checkTableExistsSql).findOne().getInteger("count") == 1;
   }
