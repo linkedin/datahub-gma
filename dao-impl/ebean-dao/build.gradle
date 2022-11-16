@@ -15,6 +15,7 @@ dependencies {
   compile externalDependency.jsonSimple
   compile externalDependency.log4j
 
+
   compileOnly externalDependency.ebeanAgent
   compileOnly externalDependency.lombok
 
@@ -25,24 +26,8 @@ dependencies {
   testCompile externalDependency.mysql
   testCompile externalDependency.h2
   testCompile externalDependency.mockito
-
+  testCompile externalDependency.maria4j
   enhance externalDependency.ebeanAgent
-}
-
-// Some unit tests require advanced MySQL syntax such as 'generated column' which is not supported by most in-memory DB.
-// Therefore, these tests require connections to a full-fledged MySQL DB.
-//
-// If you would like to run these tests, please first establish a connection to a dev MySQL instance by running:
-// ssh -L 23306:makto-db-313.corp.linkedin.com:3306 [your-username]-ld3.linkedin.biz
-// Then run: ./gradlew build -Ptest-ebean-dao
-test {
-  if (!project.hasProperty('test-ebean-dao')) {
-    exclude '**/EbeanLocalAccessTest.class'
-    exclude '**/EbeanLocalDAOTest.class'
-    exclude '**/EbeanLocalRelationshipWriterDAOTest.class'
-    exclude '**/EbeanLocalRelationshipQueryDAOTest.class'
-    exclude '**/FlywaySchemaEvolutionManagerTest.class'
-  }
 }
 
 project.compileJava {

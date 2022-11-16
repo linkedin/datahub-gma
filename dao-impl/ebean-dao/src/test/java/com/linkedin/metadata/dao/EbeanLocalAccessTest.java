@@ -7,7 +7,7 @@ import com.linkedin.metadata.dao.localrelationship.SampleLocalRelationshipRegist
 import com.linkedin.metadata.dao.scsi.EmptyPathExtractor;
 import com.linkedin.metadata.dao.utils.BarUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.FooUrnPathExtractor;
-import com.linkedin.metadata.dao.utils.MysqlDevInstance;
+import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLIndexFilterUtils;
 import com.linkedin.metadata.query.Condition;
@@ -46,13 +46,6 @@ import static com.linkedin.common.AuditStamps.*;
 import static com.linkedin.testing.TestUtils.*;
 import static org.testng.AssertJUnit.*;
 
-
-/**
- * IMPORTANT: This test is skip by default since it requires a connection to a full-fledged MySQL instance.
- * If you would like to run these tests, please first establish a connection to mysql instance by running:
- * ssh -L 23306:makto-db-313.corp.linkedin.com:3306 [your-username]-ld3.linkedin.biz
- * Then to run the tests via command line: ./gradlew build -Ptest-ebean-dao
- */
 public class EbeanLocalAccessTest {
   private static EbeanServer _server;
   private static IEbeanLocalAccess<FooUrn> _ebeanLocalAccessFoo;
@@ -63,10 +56,10 @@ public class EbeanLocalAccessTest {
 
   @BeforeClass
   public void init() {
-    _server = MysqlDevInstance.getServer();
-    _ebeanLocalAccessFoo = new EbeanLocalAccess<>(_server, MysqlDevInstance.SERVER_CONFIG, FooUrn.class, new FooUrnPathExtractor());
-    _ebeanLocalAccessBar = new EbeanLocalAccess<>(_server, MysqlDevInstance.SERVER_CONFIG, BarUrn.class, new BarUrnPathExtractor());
-    _ebeanLocalAccessBurger = new EbeanLocalAccess<>(_server, MysqlDevInstance.SERVER_CONFIG, BurgerUrn.class, new EmptyPathExtractor<>());
+    _server = EmbeddedMariaInstance.getServer();
+    _ebeanLocalAccessFoo = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG, FooUrn.class, new FooUrnPathExtractor());
+    _ebeanLocalAccessBar = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG, BarUrn.class, new BarUrnPathExtractor());
+    _ebeanLocalAccessBurger = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG, BurgerUrn.class, new EmptyPathExtractor<>());
     _ebeanLocalAccessFoo.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
     _now = System.currentTimeMillis();
   }
