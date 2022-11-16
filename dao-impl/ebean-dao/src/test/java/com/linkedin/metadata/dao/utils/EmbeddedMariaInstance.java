@@ -17,12 +17,13 @@ import javax.annotation.Nonnull;
 
 
 /**
- * Create a connection to mysql dev instance.
+ * Create embedded MariaDB instance. Even though MariaDB is a fork of the MySQL, some SQL syntax are only
+ * supported in MariaDB but not in MySQL and vice versa. We should use syntax that's both MySQL and MariaDB compatible.
  */
-public class MysqlDevInstance {
+public class EmbeddedMariaInstance {
   public static final ServerConfig SERVER_CONFIG = createLocalMySQLServerConfig();
   private static volatile DB db;
-  private MysqlDevInstance() {
+  private EmbeddedMariaInstance() {
   }
 
   public static final String DB_SCHEMA = "gma_dev";

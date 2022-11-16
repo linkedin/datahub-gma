@@ -6,7 +6,7 @@ import com.linkedin.metadata.dao.localrelationship.builder.BelongsToLocalRelatio
 import com.linkedin.metadata.dao.localrelationship.builder.PairsWithLocalRelationshipBuilder;
 import com.linkedin.metadata.dao.localrelationship.builder.ReportsToLocalRelationshipBuilder;
 import com.linkedin.metadata.dao.localrelationship.builder.VersionOfLocalRelationshipBuilder;
-import com.linkedin.metadata.dao.utils.MysqlDevInstance;
+import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder;
 import com.linkedin.testing.BarUrnArray;
 import com.linkedin.testing.localrelationship.AspectFooBar;
@@ -31,7 +31,7 @@ public class EbeanLocalRelationshipWriterDAOTest {
 
   @BeforeClass
   public void init() throws IOException {
-    _server = MysqlDevInstance.getServer();
+    _server = EmbeddedMariaInstance.getServer();
     _server.execute(Ebean.createSqlUpdate(
         Resources.toString(Resources.getResource("ebean-local-relationship-dao-create-all.sql"), StandardCharsets.UTF_8)));
     _localRelationshipWriterDAO = new EbeanLocalRelationshipWriterDAO(_server);

@@ -7,7 +7,7 @@ import com.linkedin.metadata.dao.localrelationship.SampleLocalRelationshipRegist
 import com.linkedin.metadata.dao.scsi.EmptyPathExtractor;
 import com.linkedin.metadata.dao.utils.BarUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.FooUrnPathExtractor;
-import com.linkedin.metadata.dao.utils.MysqlDevInstance;
+import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLIndexFilterUtils;
 import com.linkedin.metadata.query.Condition;
@@ -56,10 +56,10 @@ public class EbeanLocalAccessTest {
 
   @BeforeClass
   public void init() {
-    _server = MysqlDevInstance.getServer();
-    _ebeanLocalAccessFoo = new EbeanLocalAccess<>(_server, MysqlDevInstance.SERVER_CONFIG, FooUrn.class, new FooUrnPathExtractor());
-    _ebeanLocalAccessBar = new EbeanLocalAccess<>(_server, MysqlDevInstance.SERVER_CONFIG, BarUrn.class, new BarUrnPathExtractor());
-    _ebeanLocalAccessBurger = new EbeanLocalAccess<>(_server, MysqlDevInstance.SERVER_CONFIG, BurgerUrn.class, new EmptyPathExtractor<>());
+    _server = EmbeddedMariaInstance.getServer();
+    _ebeanLocalAccessFoo = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG, FooUrn.class, new FooUrnPathExtractor());
+    _ebeanLocalAccessBar = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG, BarUrn.class, new BarUrnPathExtractor());
+    _ebeanLocalAccessBurger = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG, BurgerUrn.class, new EmptyPathExtractor<>());
     _ebeanLocalAccessFoo.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
     _now = System.currentTimeMillis();
   }
