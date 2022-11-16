@@ -62,6 +62,7 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -92,13 +93,6 @@ import static com.linkedin.testing.TestUtils.*;
 import static org.mockito.Mockito.*;
 import static org.testng.Assert.*;
 
-
-/**
- * IMPORTANT: This test is skip by default since it requires a connection to a full-fledged MySQL instance.
- * If you would like to run these tests, please first establish a connection to mysql instance by running:
- * ssh -L 23306:makto-db-313.corp.linkedin.com:3306 [your-username]-ld3.linkedin.biz
- * Then to run the tests via command line: ./gradlew build -Ptest-ebean-dao
- */
 public class EbeanLocalDAOTest {
   private long _now;
   private EbeanServer _server;
@@ -144,7 +138,7 @@ public class EbeanLocalDAOTest {
       _server.execute(Ebean.createSqlUpdate(readSQLfromFile(NEW_SCHEMA_CREATE_ALL_SQL)));
     }
     _mockProducer = mock(BaseMetadataEventProducer.class);
-    _now = System.currentTimeMillis();
+    _now = Instant.now().getEpochSecond() * 1000;
     _dummyAuditStamp = makeAuditStamp("foo", _now);
   }
 

@@ -79,15 +79,15 @@ ALTER TABLE metadata_entity_foo ADD a_aspectbar JSON;
 
 -- add new index virtual column 'value'
 ALTER TABLE metadata_entity_foo ADD COLUMN i_aspectfoo$value VARCHAR(255)
-    GENERATED ALWAYS AS (a_aspectfoo ->> '$.aspect.value') VIRTUAL;
+    GENERATED ALWAYS AS (JSON_UNQUOTE(JSON_EXTRACT(a_aspectfoo, '$.aspect.value')));
 
 -- add new index virtual column 'value'
 ALTER TABLE metadata_entity_foo ADD COLUMN i_aspectbar$value VARCHAR(255)
-    GENERATED ALWAYS AS (a_aspectbar ->> '$.aspect.value') VIRTUAL;
+    GENERATED ALWAYS AS (JSON_UNQUOTE(JSON_EXTRACT(a_aspectbar, '$.aspect.value')));
 
 -- add foo aspect to bar entity
 ALTER TABLE metadata_entity_bar ADD a_aspectfoo JSON;
 
 -- add new index virtual column 'value'
 ALTER TABLE metadata_entity_bar ADD COLUMN i_aspectfoo$value VARCHAR(255)
-    GENERATED ALWAYS AS (a_aspectfoo ->> '$.aspect.value') VIRTUAL;
+    GENERATED ALWAYS AS (JSON_UNQUOTE(JSON_EXTRACT(a_aspectfoo, '$.aspect.value')));

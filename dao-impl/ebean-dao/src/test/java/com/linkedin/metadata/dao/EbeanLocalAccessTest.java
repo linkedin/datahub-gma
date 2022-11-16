@@ -46,13 +46,6 @@ import static com.linkedin.common.AuditStamps.*;
 import static com.linkedin.testing.TestUtils.*;
 import static org.testng.AssertJUnit.*;
 
-
-/**
- * IMPORTANT: This test is skip by default since it requires a connection to a full-fledged MySQL instance.
- * If you would like to run these tests, please first establish a connection to mysql instance by running:
- * ssh -L 23306:makto-db-313.corp.linkedin.com:3306 [your-username]-ld3.linkedin.biz
- * Then to run the tests via command line: ./gradlew build -Ptest-ebean-dao
- */
 public class EbeanLocalAccessTest {
   private static EbeanServer _server;
   private static IEbeanLocalAccess<FooUrn> _ebeanLocalAccessFoo;
