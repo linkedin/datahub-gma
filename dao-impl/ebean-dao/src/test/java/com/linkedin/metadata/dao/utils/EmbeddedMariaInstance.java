@@ -23,6 +23,7 @@ import javax.annotation.Nonnull;
 public class EmbeddedMariaInstance {
   public static final ServerConfig SERVER_CONFIG = createEmbeddedMariaServerConfig();
   private static volatile DB db;
+  private static volatile EbeanServer server;
   private EmbeddedMariaInstance() {
   }
 
@@ -31,8 +32,12 @@ public class EmbeddedMariaInstance {
   private static final String DB_PASS = "password";
   private static final int PORT = 23306;
 
-  public static EbeanServer getServer() {
-    return EbeanServerFactory.create(createEmbeddedMariaServerConfig());
+  public static synchronized EbeanServer getServer() {
+    if (server == null) {
+      server = EbeanServerFactory.create(createEmbeddedMariaServerConfig());
+    }
+
+    return server;
   }
 
   @Nonnull

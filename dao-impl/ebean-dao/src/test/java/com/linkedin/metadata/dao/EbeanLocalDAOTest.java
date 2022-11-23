@@ -39,6 +39,7 @@ import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.query.IndexValue;
 import com.linkedin.metadata.query.ListResultMetadata;
 import com.linkedin.metadata.query.SortOrder;
+import com.linkedin.testing.AspectAttributes;
 import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectBaz;
 import com.linkedin.testing.AspectFoo;
@@ -1933,12 +1934,14 @@ public class EbeanLocalDAOTest {
     addIndex(urn3, aspect, "/path1", "val1");
     addIndex(urn3, FooUrn.class.getCanonicalName(), "/fooId", 3);
 
-    // 1. local secondary index is not enabled, should throw exception
     IndexCriterion indexCriterion = new IndexCriterion().setAspect(aspect);
     final IndexFilter indexFilter1 = new IndexFilter().setCriteria(new IndexCriterionArray(indexCriterion));
-    dao.enableLocalSecondaryIndex(false);
 
-    assertThrows(UnsupportedOperationException.class, () -> dao.listUrns(indexFilter1, null, 2));
+    // 1. local secondary index is not enabled, should throw exception if other than new schema mode.
+    dao.enableLocalSecondaryIndex(false);
+    if (_schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      assertThrows(UnsupportedOperationException.class, () -> dao.listUrns(indexFilter1, null, 2));
+    }
 
     // for the remaining tests, enable writes to local secondary index
     dao.enableLocalSecondaryIndex(true);
@@ -1948,9 +1951,12 @@ public class EbeanLocalDAOTest {
 
     assertThrows(UnsupportedOperationException.class, () -> dao.listUrns(indexFilter2, null, 2));
 
-    // 3. index criterion array contains more than 10 criterion, should throw an exception
-    final IndexFilter indexFilter3 = new IndexFilter().setCriteria(makeIndexCriterionArray(11));
-    assertThrows(UnsupportedOperationException.class, () -> dao.listUrns(indexFilter3, null, 2));
+    // 3. index criterion array contains more than 10 criterion, should throw an exception if not using new schema only mode.
+    // New schema does NOT have the limit of 10 criteria.\
+    if (_schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      final IndexFilter indexFilter3 = new IndexFilter().setCriteria(makeIndexCriterionArray(11));
+      assertThrows(UnsupportedOperationException.class, () -> dao.listUrns(indexFilter3, null, 2));
+    }
 
     // 3. only aspect and not path or value is provided in Index Filter
     indexCriterion = new IndexCriterion().setAspect(aspect);
@@ -2912,6 +2918,104 @@ public class EbeanLocalDAOTest {
     assertEquals(result.get(0).get("urn"), "urn:li:foo:1");
     assertNotNull(result.get(0).get("a_aspectfoo"));
     assertNull(result.get(0).get("a_aspectbar"));
+  }
+
+  @Test
+  public void testNewSchemaFilterByArray() {
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+
+      // Prepare data with attributes being ["foo", "bar", "baz"]
+      EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+      FooUrn fooUrn = makeFooUrn(1);
+      AspectAttributes attributes = new AspectAttributes().setAttributes(new StringArray("foo", "bar", "baz"));
+
+      // Create index filter with value "bar"
+      IndexPathParams indexPathParams = new IndexPathParams().setPath("/attributes").setValue(IndexValue.create("bar")).setCondition(Condition.CONTAIN);
+      IndexCriterion criterion = new IndexCriterion().setAspect(AspectAttributes.class.getCanonicalName()).setPathParams(indexPathParams);
+      IndexFilter indexFilter = new IndexFilter().setCriteria(new IndexCriterionArray(criterion));
+      dao.add(fooUrn, attributes, _dummyAuditStamp);
+      List<FooUrn> urns = dao.listUrns(indexFilter, null, 5);
+
+      // Verify find one
+      assertEquals(urns, Collections.singletonList(fooUrn));
+
+      // Create index filter with value "zoo"
+      IndexPathParams indexPathParams2 = new IndexPathParams().setPath("/attributes").setValue(IndexValue.create("zoo")).setCondition(Condition.CONTAIN);
+      IndexCriterion criterion2 = new IndexCriterion().setAspect(AspectAttributes.class.getCanonicalName()).setPathParams(indexPathParams2);
+      IndexFilter indexFilter2 = new IndexFilter().setCriteria(new IndexCriterionArray(criterion2));
+      dao.add(fooUrn, attributes, _dummyAuditStamp);
+      List<FooUrn> empty = dao.listUrns(indexFilter2, null, 5);
+
+      // Verify nothing found
+      assertTrue(empty.isEmpty());
+    }
+  }
+
+  @Test
+  public void testNewSchemaExactMatchArray() {
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+
+      // Prepare data with attributes being ["foo", "bar", "baz"]
+      EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+      FooUrn fooUrn = makeFooUrn(1);
+      AspectAttributes attributes = new AspectAttributes().setAttributes(new StringArray("foo", "bar", "baz"));
+      dao.add(fooUrn, attributes, _dummyAuditStamp);
+
+      // Create index filter with value ["foo", "bar", "baz"]
+      IndexValue arrayValue = IndexValue.create(new StringArray("foo", "bar", "baz"));
+      IndexPathParams indexPathParams = new IndexPathParams().setPath("/attributes").setValue(arrayValue).setCondition(Condition.EQUAL);
+      IndexCriterion criterion = new IndexCriterion().setAspect(AspectAttributes.class.getCanonicalName()).setPathParams(indexPathParams);
+      IndexFilter indexFilter = new IndexFilter().setCriteria(new IndexCriterionArray(criterion));
+
+      List<FooUrn> urns = dao.listUrns(indexFilter, null, 5);
+
+      // Verify find one
+      assertEquals(urns, Collections.singletonList(fooUrn));
+
+      // Create index filter with value ["bar", "foo", "baz"]. Order is different.
+      IndexValue arrayValue2 = IndexValue.create(new StringArray("bar", "foo", "baz"));
+      IndexPathParams indexPathParams2 = new IndexPathParams().setPath("/attributes").setValue(arrayValue2).setCondition(Condition.EQUAL);
+      IndexCriterion criterion2 = new IndexCriterion().setAspect(AspectAttributes.class.getCanonicalName()).setPathParams(indexPathParams2);
+      IndexFilter indexFilter2 = new IndexFilter().setCriteria(new IndexCriterionArray(criterion2));
+      List<FooUrn> empty1 = dao.listUrns(indexFilter2, null, 5);
+
+      // Verify nothing found
+      assertTrue(empty1.isEmpty());
+
+      // Create index filter with value ["foo", "bar"]. Missing baz element.
+      IndexValue arrayValue3 = IndexValue.create(new StringArray("foo", "bar"));
+      IndexPathParams indexPathParams3 = new IndexPathParams().setPath("/attributes").setValue(arrayValue3).setCondition(Condition.EQUAL);
+      IndexCriterion criterion3 = new IndexCriterion().setAspect(AspectAttributes.class.getCanonicalName()).setPathParams(indexPathParams3);
+      IndexFilter indexFilter3 = new IndexFilter().setCriteria(new IndexCriterionArray(criterion3));
+      List<FooUrn> empty2 = dao.listUrns(indexFilter3, null, 5);
+
+      // Verify nothing found
+      assertTrue(empty2.isEmpty());
+    }
+  }
+
+  @Test
+  public void testNewSchemaExactMatchEmptyArray() {
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+      // Prepare data with attributes being empty array
+      EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+      FooUrn fooUrn = makeFooUrn(2);
+      AspectAttributes emptyAttr = new AspectAttributes().setAttributes(new StringArray());
+      dao.add(fooUrn, emptyAttr, _dummyAuditStamp);
+
+      // Create index filter with empty array
+      IndexValue arrayValue = IndexValue.create(new StringArray());
+      IndexPathParams indexPathParams =
+          new IndexPathParams().setPath("/attributes").setValue(arrayValue).setCondition(Condition.EQUAL);
+      IndexCriterion criterion =
+          new IndexCriterion().setAspect(AspectAttributes.class.getCanonicalName()).setPathParams(indexPathParams);
+      IndexFilter indexFilter = new IndexFilter().setCriteria(new IndexCriterionArray(criterion));
+
+      List<FooUrn> urns = dao.listUrns(indexFilter, null, 5);
+
+      // Verify find one
+      assertEquals(urns, Collections.singletonList(fooUrn));
+    }
   }
 
   @Nonnull

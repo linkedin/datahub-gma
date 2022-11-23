@@ -4,6 +4,7 @@ import com.google.common.collect.ImmutableSet;
 import com.linkedin.common.CommonTestAspect;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.UnionTemplate;
+import com.linkedin.testing.AspectAttributes;
 import com.linkedin.testing.AspectUnionWithSoftDeletedAspect;
 import com.linkedin.testing.DeltaUnionAlias;
 import com.linkedin.testing.EntityAspectUnionAliasArray;
@@ -78,7 +79,7 @@ public class ModelUtilsTest {
   public void testGetValidAspectTypes() {
     Set<Class<? extends RecordTemplate>> validTypes = ModelUtils.getValidAspectTypes(EntityAspectUnion.class);
 
-    assertEquals(validTypes, ImmutableSet.of(AspectFoo.class, AspectBar.class));
+    assertEquals(validTypes, ImmutableSet.of(AspectFoo.class, AspectBar.class, AspectAttributes.class));
   }
 
   @Test

@@ -1,0 +1,13 @@
+namespace com.linkedin.testing
+
+/**
+ * For unit tests
+ */
+@gma.aspect.column.name = "aspectattributes"
+record AspectAttributes {
+
+  /**
+   * For unit tests
+   */
+  attributes: array[string]
+}

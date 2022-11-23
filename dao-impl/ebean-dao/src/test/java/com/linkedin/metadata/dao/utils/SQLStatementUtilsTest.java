@@ -71,11 +71,13 @@ public class SQLStatementUtilsTest {
 
     String sql = SQLStatementUtils.createFilterSql("metadata_entity_foo", indexFilter,
         SQLIndexFilterUtils.createIndexSortCriterion(AspectFoo.class, "value", SortOrder.ASCENDING));
-    String expectedSql = "SELECT *, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE i_aspectfoo$value >= 25\n"
-        + "AND i_aspectfoo$value < 50\n"
-        + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL) as _total_count FROM metadata_entity_foo\n"
-        + "WHERE i_aspectfoo$value >= 25\n" + "AND i_aspectfoo$value < 50\n"
-        + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL";
+    String expectedSql = "SELECT *, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE a_aspectfoo IS NOT NULL\n"
+        + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo$value >= 25\n"
+        + "AND a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
+        + "AND i_aspectfoo$value < 50) as _total_count FROM metadata_entity_foo\n" + "WHERE a_aspectfoo IS NOT NULL\n"
+        + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo$value >= 25\n"
+        + "AND a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
+        + "AND i_aspectfoo$value < 50";
 
     assertEquals(sql, expectedSql);
   }
@@ -101,8 +103,10 @@ public class SQLStatementUtilsTest {
 
     String sql = SQLStatementUtils.createGroupBySql("metadata_entity_foo", indexFilter, indexGroupByCriterion);
     assertEquals(sql, "SELECT count(*) as COUNT, i_aspectfoo$value FROM metadata_entity_foo\n"
-        + "WHERE i_aspectfoo$value >= 25\nAND i_aspectfoo$value < 50\n"
-        + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\nGROUP BY i_aspectfoo$value");
+        + "WHERE a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
+        + "AND i_aspectfoo$value >= 25\n" + "AND a_aspectfoo IS NOT NULL\n"
+        + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo$value < 50\n"
+        + "GROUP BY i_aspectfoo$value");
   }
 
   @Test
