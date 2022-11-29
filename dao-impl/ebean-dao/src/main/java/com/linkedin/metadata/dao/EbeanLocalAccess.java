@@ -1,6 +1,5 @@
 package com.linkedin.metadata.dao;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
