@@ -88,7 +88,6 @@ public interface IEbeanLocalAccess<URN extends Urn> {
   Map<String, Long> countAggregate(@Nonnull IndexFilter indexFilter,
       @Nonnull IndexGroupByCriterion indexGroupByCriterion);
 
-
   /**
    * Paginates over all URNs for entities that have a specific aspect. This does not include the urn(s) for which the
    * aspect is soft deleted in the latest version.

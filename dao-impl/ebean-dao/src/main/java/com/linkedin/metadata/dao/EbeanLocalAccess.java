@@ -1,5 +1,6 @@
 package com.linkedin.metadata.dao;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
@@ -33,6 +34,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import lombok.extern.slf4j.Slf4j;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
@@ -44,6 +46,7 @@ import static com.linkedin.metadata.dao.utils.SQLIndexFilterUtils.*;
 /**
  * EBeanLocalAccess provides model agnostic data access (read / write) to MySQL database.
  */
+@Slf4j
 public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN> {
   private final EbeanServer _server;
   private final Class<URN> _urnClass;
@@ -55,7 +58,6 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   // TODO confirm if the default page size is 1000 in other code context.
   private static final int DEFAULT_PAGE_SIZE = 1000;
   private static final long LATEST_VERSION = 0L;
-  private static final JSONParser JSON_PARSER = new JSONParser();
   private static final String ASPECT_JSON_PLACEHOLDER = "__PLACEHOLDER__";
   private static final String DEFAULT_ACTOR = "urn:li:principal:UNKNOWN";
 
@@ -419,16 +421,19 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    * @return A string which can be deserialized into Aspect object.
    */
   @Nullable
-  public static String extractAspectJsonString(@Nonnull final String auditedAspect) {
+  @VisibleForTesting
+  public String extractAspectJsonString(@Nonnull final String auditedAspect) {
     try {
-      JSONObject map = (JSONObject) JSON_PARSER.parse(auditedAspect);
+      JSONParser jsonParser = new JSONParser();
+      JSONObject map = (JSONObject) jsonParser.parse(auditedAspect);
       if (map.containsKey("aspect")) {
         return map.get("aspect").toString();
       }
 
       return null;
-    } catch (ParseException e) {
-      throw new RuntimeException(String.format("Failed to parse string %s as AuditedAspect.", auditedAspect), e);
+    } catch (ParseException parseException) {
+      log.error(String.format("Failed to parse string %s as AuditedAspect. Exception: %s", auditedAspect, parseException));
+      throw new RuntimeException(parseException);
     }
   }
 

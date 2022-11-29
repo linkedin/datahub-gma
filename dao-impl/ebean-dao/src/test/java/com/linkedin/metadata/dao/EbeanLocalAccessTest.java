@@ -48,9 +48,9 @@ import static org.testng.AssertJUnit.*;
 
 public class EbeanLocalAccessTest {
   private static EbeanServer _server;
-  private static IEbeanLocalAccess<FooUrn> _ebeanLocalAccessFoo;
-  private static IEbeanLocalAccess<BarUrn> _ebeanLocalAccessBar;
-  private static IEbeanLocalAccess<BurgerUrn> _ebeanLocalAccessBurger;
+  private static EbeanLocalAccess<FooUrn> _ebeanLocalAccessFoo;
+  private static EbeanLocalAccess<BarUrn> _ebeanLocalAccessBar;
+  private static EbeanLocalAccess<BurgerUrn> _ebeanLocalAccessBurger;
   private static long _now;
   private static final Filter EMPTY_FILTER = new Filter().setCriteria(new CriterionArray());
 
@@ -268,7 +268,7 @@ public class EbeanLocalAccessTest {
     String toJson = EbeanLocalAccess.toJsonString(auditedAspect);
 
     assertEquals("{\"lastmodifiedby\":\"0\",\"lastmodifiedon\":\"1\",\"aspect\":{\"value\":\"test\"}}", toJson);
-    assertNotNull(RecordUtils.toRecordTemplate(AspectFoo.class, EbeanLocalAccess.extractAspectJsonString(toJson)));
+    assertNotNull(RecordUtils.toRecordTemplate(AspectFoo.class, _ebeanLocalAccessFoo.extractAspectJsonString(toJson)));
   }
 
   @Test
