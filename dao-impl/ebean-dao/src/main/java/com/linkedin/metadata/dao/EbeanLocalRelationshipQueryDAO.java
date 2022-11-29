@@ -24,13 +24,18 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import lombok.extern.slf4j.Slf4j;
 import org.javatuples.Pair;
 import org.javatuples.Triplet;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 
 
 /**
  * An Ebean implementation of {@link BaseQueryDAO} backed by local relationship tables.
  */
+@Slf4j
 public class EbeanLocalRelationshipQueryDAO extends BaseQueryDAO {
   private final EbeanServer _server;
   private final MultiHopsTraversalSqlGenerator _sqlGenerator;
@@ -250,8 +255,7 @@ public class EbeanLocalRelationshipQueryDAO extends BaseQueryDAO {
       String auditedAspectStr = sqlRow.getString(colName);
 
       if (auditedAspectStr != null) {
-        RecordTemplate aspect = RecordUtils.toRecordTemplate(ClassUtils.loadClass(aspectCanonicalName),
-            EbeanLocalAccess.extractAspectJsonString(auditedAspectStr));
+        RecordTemplate aspect = RecordUtils.toRecordTemplate(ClassUtils.loadClass(aspectCanonicalName), extractAspectJsonString(auditedAspectStr));
         aspects.add(ModelUtils.newAspectUnion(ModelUtils.getUnionClassFromSnapshot(snapshotClass), aspect));
       }
     }
@@ -293,5 +297,21 @@ public class EbeanLocalRelationshipQueryDAO extends BaseQueryDAO {
     }
 
     return sqlBuilder.toString();
+  }
+
+  @Nullable
+  private String extractAspectJsonString(@Nonnull final String auditedAspect) {
+    try {
+      JSONParser jsonParser = new JSONParser();
+      JSONObject map = (JSONObject) jsonParser.parse(auditedAspect);
+      if (map.containsKey("aspect")) {
+        return map.get("aspect").toString();
+      }
+
+      return null;
+    } catch (ParseException parseException) {
+      log.error(String.format("Failed to parse string %s as AuditedAspect. Exception: %s", auditedAspect, parseException));
+      throw new RuntimeException(parseException);
+    }
   }
 }

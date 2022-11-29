@@ -33,6 +33,8 @@ import io.ebean.Ebean;
 import io.ebean.EbeanServer;
 import io.ebean.SqlRow;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
@@ -257,7 +259,7 @@ public class EbeanLocalAccessTest {
   }
 
   @Test
-  public void testToAndFromJson() {
+  public void testToAndFromJson() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
     AspectFoo aspectFoo = new AspectFoo();
     aspectFoo.setValue("test");
     AuditedAspect auditedAspect = new AuditedAspect();
@@ -267,8 +269,9 @@ public class EbeanLocalAccessTest {
     auditedAspect.setAspect(RecordUtils.toJsonString(aspectFoo));
     String toJson = EbeanLocalAccess.toJsonString(auditedAspect);
 
+    Method extractAspectJsonString = EbeanLocalAccess.class.getDeclaredMethod("extractAspectJsonString", String.class);
     assertEquals("{\"lastmodifiedby\":\"0\",\"lastmodifiedon\":\"1\",\"aspect\":{\"value\":\"test\"}}", toJson);
-    assertNotNull(RecordUtils.toRecordTemplate(AspectFoo.class, EbeanLocalAccess.extractAspectJsonString(toJson)));
+    assertNotNull(RecordUtils.toRecordTemplate(AspectFoo.class, (String) extractAspectJsonString.invoke(_ebeanLocalAccessFoo, toJson)));
   }
 
   @Test
