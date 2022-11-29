@@ -421,8 +421,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    * @return A string which can be deserialized into Aspect object.
    */
   @Nullable
-  @VisibleForTesting
-  public String extractAspectJsonString(@Nonnull final String auditedAspect) {
+  private String extractAspectJsonString(@Nonnull final String auditedAspect) {
     try {
       JSONParser jsonParser = new JSONParser();
       JSONObject map = (JSONObject) jsonParser.parse(auditedAspect);
