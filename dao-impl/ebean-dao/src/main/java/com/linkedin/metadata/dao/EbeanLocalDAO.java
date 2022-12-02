@@ -317,12 +317,12 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Override
   public <ASPECT extends RecordTemplate> void updateLocalIndex(@Nonnull URN urn, @Nonnull ASPECT newValue,
       long version) {
-    if (!isLocalSecondaryIndexEnabled()) {
-      throw new UnsupportedOperationException("Local secondary index isn't supported");
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+      throw new UnsupportedOperationException("Local secondary index isn't supported by new schema");
     }
 
-    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
-      throw new UnsupportedOperationException("Local secondary index isn't supported when using only the new schema");
+    if (!isLocalSecondaryIndexEnabled()) {
+      throw new UnsupportedOperationException("Local secondary index isn't supported");
     }
 
     // Process and save URN
@@ -1256,16 +1256,16 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Nonnull
   public List<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       @Nullable URN lastUrn, int pageSize) {
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+      return _localAccess.listUrns(indexFilter, indexSortCriterion, lastUrn, pageSize);
+    }
+
     if (!isLocalSecondaryIndexEnabled()) {
       throw new UnsupportedOperationException("Local secondary index isn't supported");
     }
 
     final IndexCriterionArray indexCriterionArray = indexFilter.getCriteria();
     checkValidIndexCriterionArray(indexCriterionArray);
-
-    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
-      return _localAccess.listUrns(indexFilter, indexSortCriterion, lastUrn, pageSize);
-    }
 
     List<URN> urnsNew = null;
     if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
@@ -1274,17 +1274,18 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
     addEntityTypeFilter(indexFilter);
 
-    final Query<EbeanMetadataIndex> query =
-        _server.findNative(EbeanMetadataIndex.class, constructSQLQuery(indexCriterionArray, indexSortCriterion, false))
-            .setTimeout(INDEX_QUERY_TIMEOUT_IN_SEC);
-    setParameters(indexCriterionArray, indexSortCriterion, query, lastUrn == null ? "" : lastUrn.toString(), pageSize,
-        false);
+    final Query<EbeanMetadataIndex> query = _server.findNative(EbeanMetadataIndex.class, constructSQLQuery(indexCriterionArray,
+        indexSortCriterion, false));
 
-    final List<EbeanMetadataIndex> pagedList = query.findList();
-    final List<URN> urnsOld = pagedList.stream().map(entry -> getUrn(entry.getUrn())).collect(Collectors.toList());
+    query.setTimeout(INDEX_QUERY_TIMEOUT_IN_SEC);
+    setParameters(indexCriterionArray, indexSortCriterion, query, lastUrn == null ? "" : lastUrn.toString(), pageSize, false);
+
+    final List<URN> urnsOld = query.findList().stream().map(entry -> getUrn(entry.getUrn())).collect(Collectors.toList());
+
     if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
       EBeanDAOUtils.compareResults(urnsOld, urnsNew, "listUrns");
     }
+
     return urnsOld;
   }
 
@@ -1299,17 +1300,17 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Nonnull
   public ListResult<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       int start, int pageSize) {
+
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+      return _localAccess.listUrns(indexFilter, indexSortCriterion, start, pageSize);
+    }
+
     if (!isLocalSecondaryIndexEnabled()) {
       throw new UnsupportedOperationException("Local secondary index isn't supported");
     }
 
     final IndexCriterionArray indexCriterionArray = indexFilter.getCriteria();
     checkValidIndexCriterionArray(indexCriterionArray);
-
-    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
-      return _localAccess.listUrns(indexFilter, indexSortCriterion, start, pageSize);
-    }
-
 
     ListResult<URN> urnsNew = null;
     if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
@@ -1318,22 +1319,22 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
     addEntityTypeFilter(indexFilter);
 
-    final Query<EbeanMetadataIndex> query =
-        _server.findNative(EbeanMetadataIndex.class, constructSQLQuery(indexCriterionArray, indexSortCriterion, true))
-            .setTimeout(INDEX_QUERY_TIMEOUT_IN_SEC);
+    final Query<EbeanMetadataIndex> query = _server.findNative(EbeanMetadataIndex.class, constructSQLQuery(indexCriterionArray,
+        indexSortCriterion, true));
+    query.setTimeout(INDEX_QUERY_TIMEOUT_IN_SEC);
     setParameters(indexCriterionArray, indexSortCriterion, query, "", pageSize, true);
 
     final PagedList<EbeanMetadataIndex> pagedList = query.setFirstRow(start).setMaxRows(pageSize).findPagedList();
 
     pagedList.loadCount();
 
-    final List<URN> urns =
-        pagedList.getList().stream().map(entry -> getUrn(entry.getUrn())).collect(Collectors.toList());
-
+    final List<URN> urns = pagedList.getList().stream().map(entry -> getUrn(entry.getUrn())).collect(Collectors.toList());
     final ListResult<URN> urnsOld = toListResult(urns, null, pagedList, start);
+
     if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
       EBeanDAOUtils.compareResults(urnsOld, urnsNew, "listUrns");
     }
+
     return urnsOld;
   }
 
@@ -1409,16 +1410,16 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Nonnull
   public Map<String, Long> countAggregate(@Nonnull IndexFilter indexFilter,
       @Nonnull IndexGroupByCriterion indexGroupByCriterion) {
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+      return _localAccess.countAggregate(indexFilter, indexGroupByCriterion);
+    }
+
     if (!isLocalSecondaryIndexEnabled()) {
       throw new UnsupportedOperationException("Local secondary index isn't supported");
     }
 
     final IndexCriterionArray indexCriterionArray = indexFilter.getCriteria();
     checkValidIndexCriterionArray(indexCriterionArray);
-
-    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
-      return _localAccess.countAggregate(indexFilter, indexGroupByCriterion);
-    }
 
     Map<String, Long> resultNew = null;
     if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
@@ -1428,28 +1429,28 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     addEntityTypeFilter(indexFilter);
 
     final Query<EbeanMetadataIndex> query = _server.findNative(EbeanMetadataIndex.class,
-        constructCountAggregateSQLQuery(indexCriterionArray, indexGroupByCriterion))
-        .setTimeout(INDEX_QUERY_TIMEOUT_IN_SEC);
+        constructCountAggregateSQLQuery(indexCriterionArray, indexGroupByCriterion));
+
+    query.setTimeout(INDEX_QUERY_TIMEOUT_IN_SEC);
+
     setCountAggregateParameters(indexCriterionArray, indexGroupByCriterion, query);
 
-    final List<EbeanMetadataIndex> list = query.setDistinct(true).findList();
     Map<String, Long> resultOld = new HashMap<>();
-    list.stream().map(entry -> {
+    query.setDistinct(true).findList().forEach(entry -> {
       if (entry.getStringVal() != null) {
-        return resultOld.put(entry.getStringVal(), entry.getTotalCount());
+        resultOld.put(entry.getStringVal(), entry.getTotalCount());
       } else if (entry.getDoubleVal() != null) {
-        return resultOld.put(entry.getDoubleVal().toString(), entry.getTotalCount());
+        resultOld.put(entry.getDoubleVal().toString(), entry.getTotalCount());
       } else if (entry.getLongVal() != null) {
-        return resultOld.put(entry.getLongVal().toString(), entry.getTotalCount());
+        resultOld.put(entry.getLongVal().toString(), entry.getTotalCount());
       }
-      return resultOld;
-    }).collect(Collectors.toList());
-    if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
+    });
+
+    if (_schemaConfig == SchemaConfig.DUAL_SCHEMA && !resultOld.equals(resultNew)) {
       // TODO: print info log with performance (response time) and values
-      if (!resultOld.equals(resultNew)) {
-        log.error(String.format(EBeanDAOUtils.DIFFERENT_RESULTS_TEMPLATE, "countAggregate"));
-      }
+      log.error(String.format(EBeanDAOUtils.DIFFERENT_RESULTS_TEMPLATE, "countAggregate"));
     }
+
     return resultOld;
   }
 }

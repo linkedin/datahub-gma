@@ -69,6 +69,13 @@ ALTER TABLE metadata_entity_foo ADD a_aspectfoo JSON;
 -- add bar aspect to foo entity
 ALTER TABLE metadata_entity_foo ADD a_aspectbar JSON;
 
+-- add array aspect to foo entity
+ALTER TABLE metadata_entity_foo ADD a_aspectattributes JSON;
+
+-- add new index virtual column 'attributes'
+ALTER TABLE metadata_entity_foo ADD COLUMN i_aspectattributes$attributes VARCHAR(255)
+    GENERATED ALWAYS AS (JSON_UNQUOTE(JSON_EXTRACT(a_aspectattributes, '$.aspect.attributes')));
+
 -- add baz aspect to foo entity
 ALTER TABLE metadata_entity_foo ADD a_aspectbaz JSON;
 

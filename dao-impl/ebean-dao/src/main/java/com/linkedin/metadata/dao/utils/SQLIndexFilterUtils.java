@@ -11,15 +11,12 @@ import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.query.IndexValue;
 import com.linkedin.metadata.query.SortOrder;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import org.apache.commons.lang.StringEscapeUtils;
 
-import static com.linkedin.metadata.dao.utils.EBeanDAOUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLSchemaUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLStatementUtils.SOFT_DELETED_CHECK;
 
@@ -80,8 +77,7 @@ public class SQLIndexFilterUtils {
     if (!indexSortCriterion.hasOrder()) {
       return "ORDER BY " + indexColumn;
     } else {
-      return "ORDER BY " + indexColumn + " " + (indexSortCriterion.getOrder() == SortOrder.ASCENDING ? "ASC"
-          : "DESC");
+      return "ORDER BY " + indexColumn + " " + (indexSortCriterion.getOrder() == SortOrder.ASCENDING ? "ASC" : "DESC");
     }
   }
 
@@ -92,29 +88,25 @@ public class SQLIndexFilterUtils {
    */
   public static String parseIndexFilter(@Nonnull IndexFilter indexFilter) {
     List<String> sqlFilters = new ArrayList<>();
-    Set<String> aspectColumns = new HashSet<>(); // aspect columns (i.e. start with a_) to check if soft-deleted
+
     for (IndexCriterion indexCriterion : indexFilter.getCriteria()) {
       final String aspect = indexCriterion.getAspect();
-      if (!(isUrn(aspect))) {
-        // urns, which are entities, cannot be soft-deleted so no need to check them
-        aspectColumns.add(getAspectColumnName(aspect));
-      }
-      final IndexPathParams pathParams = indexCriterion.getPathParams();
-      if (pathParams != null) {
-        validateConditionAndValue(indexCriterion);
-        final String path = indexCriterion.getPathParams().getPath();
-        final Condition condition = pathParams.getCondition();
-        final String indexColumn = getGeneratedColumnName(indexCriterion.getAspect(), path);
-        sqlFilters.add(
-            indexColumn + parseConditionExpr(condition, indexCriterion.getPathParams().getValue(GetMode.NULL)));
-      } else if (!isUrn(aspect)) {
-        // if not given a path and condition, assume we are checking if the aspect exists.
+      if (!isUrn(aspect)) {
+        // if aspect is not urn, then check aspect is not soft deleted and is not null
         final String aspectColumn = getAspectColumnName(indexCriterion.getAspect());
         sqlFilters.add(aspectColumn + " IS NOT NULL");
+        sqlFilters.add(String.format(SOFT_DELETED_CHECK, aspectColumn));
+      }
+
+      final IndexPathParams pathParams = indexCriterion.getPathParams(GetMode.NULL);
+      if (pathParams != null) {
+        validateConditionAndValue(indexCriterion);
+        final Condition condition = pathParams.getCondition();
+        final String indexColumn = getGeneratedColumnName(aspect, pathParams.getPath());
+        sqlFilters.add(parseSqlFilter(indexColumn, condition, pathParams.getValue()));
       }
     }
-    // add filters to check that each aspect being queried is not soft deleted
-    aspectColumns.forEach(aspect -> sqlFilters.add(String.format(SOFT_DELETED_CHECK, aspect)));
+
     if (sqlFilters.isEmpty()) {
       return "";
     } else {
@@ -124,32 +116,39 @@ public class SQLIndexFilterUtils {
 
   /**
    * Parse condition expression.
+   * @param indexColumn the virtual generated column
    * @param condition {@link Condition} filter condition
    * @param indexValue {@link IndexValue} index value
    * @return SQL expression of the condition expression
    */
-  private static String parseConditionExpr(Condition condition, IndexValue indexValue) {
+  private static String parseSqlFilter(String indexColumn, Condition condition, IndexValue indexValue) {
     switch (condition) {
-      case IN:
       case CONTAIN:
-        return " IN " + parseIndexValue(indexValue);
+        return String.format("JSON_SEARCH(%s, 'one', '%s') IS NOT NULL", indexColumn, parseIndexValue(indexValue));
+      case IN:
+        return indexColumn + " IN " + parseIndexValue(indexValue);
       case EQUAL:
         if (indexValue.isString() || indexValue.isBoolean()) {
-          return " = '" + parseIndexValue(indexValue) + "'";
+          return indexColumn + " = '" + parseIndexValue(indexValue) + "'";
         }
-        return " = " + parseIndexValue(indexValue);
+
+        if (indexValue.isArray()) {
+          return indexColumn + " = '" + convertToJsonArray(indexValue.getArray()) + "'";
+        }
+
+        return indexColumn + " = " + parseIndexValue(indexValue);
       case START_WITH:
-        return " LIKE '" + parseIndexValue(indexValue) + "%'";
+        return indexColumn + " LIKE '" + parseIndexValue(indexValue) + "%'";
       case END_WITH:
-        return " LIKE '%" + parseIndexValue(indexValue) + "'";
+        return indexColumn + " LIKE '%" + parseIndexValue(indexValue) + "'";
       case GREATER_THAN_OR_EQUAL_TO:
-        return " >= " + parseIndexValue(indexValue);
+        return indexColumn + " >= " + parseIndexValue(indexValue);
       case GREATER_THAN:
-        return " > " + parseIndexValue(indexValue);
+        return indexColumn + " > " + parseIndexValue(indexValue);
       case LESS_THAN_OR_EQUAL_TO:
-        return " <= " + parseIndexValue(indexValue);
+        return indexColumn + " <= " + parseIndexValue(indexValue);
       case LESS_THAN:
-        return " < " + parseIndexValue(indexValue);
+        return indexColumn + " < " + parseIndexValue(indexValue);
       default:
         throw new UnsupportedOperationException("Unsupported condition operation: " + condition);
     }
@@ -181,7 +180,6 @@ public class SQLIndexFilterUtils {
    * @param criterion IndexCriterion
    * @throws IllegalArgumentException when IN targets a non-array value or empty array
    */
-  @Nonnull
   public static void validateConditionAndValue(@Nonnull IndexCriterion criterion) {
     final Condition condition = criterion.getPathParams().getCondition();
     final IndexValue indexValue = criterion.getPathParams().getValue();
@@ -189,5 +187,28 @@ public class SQLIndexFilterUtils {
     if (condition == Condition.IN && (!indexValue.isArray() || indexValue.getArray().size() == 0)) {
       throw new IllegalArgumentException("Invalid condition " + condition + " for index value " + indexValue);
     }
+  }
+
+  /**
+   * Convert a StringArray to json format.
+   * @param stringArray an array of strings
+   * @return a json representation of an array.
+   */
+  @Nonnull
+  private static String convertToJsonArray(@Nonnull final StringArray stringArray) {
+    if (stringArray.isEmpty()) {
+      return "[]";
+    }
+
+    StringBuilder jsonArray = new StringBuilder();
+    jsonArray.append("[").append("\"").append(stringArray.get(0)).append("\"");
+
+    for (int idx = 1; idx < stringArray.size(); idx++) {
+      jsonArray.append(", ").append("\"").append(stringArray.get(idx)).append("\"");
+    }
+
+    jsonArray.append("]");
+
+    return jsonArray.toString();
   }
 }

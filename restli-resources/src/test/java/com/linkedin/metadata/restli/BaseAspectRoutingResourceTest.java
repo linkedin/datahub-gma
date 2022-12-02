@@ -15,6 +15,7 @@ import com.linkedin.parseq.BaseEngineTest;
 import com.linkedin.restli.common.ComplexResourceKey;
 import com.linkedin.restli.common.EmptyRecord;
 import com.linkedin.restli.server.ResourceContext;
+import com.linkedin.testing.AspectAttributes;
 import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.EntityAspectUnion;
@@ -106,6 +107,8 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
           value.setFoo(AspectFoo.class.cast(a));
         } else if (a instanceof AspectBar) {
           value.setBar(AspectBar.class.cast(a));
+        } else if (a instanceof AspectAttributes) {
+          value.setAttributes(AspectAttributes.class.cast(a));
         }
       });
       return value;
