@@ -173,11 +173,23 @@ public class EbeanLocalAccessTest {
     FooUrn lastUrn = new FooUrn(29);
 
     // When: list out results with lastUrn = 'urn:li:foo:29' and pageSize = 5
-    List<FooUrn> listUrns = _ebeanLocalAccessFoo.listUrns(indexFilter, indexSortCriterion, lastUrn, 5);
+    List<FooUrn> result1 = _ebeanLocalAccessFoo.listUrns(indexFilter, indexSortCriterion, lastUrn, 5);
 
     // Expect: 5 rows are returns (30~34) and the first element is 'urn:li:foo:30'
-    assertEquals(5, listUrns.size());
-    assertEquals("30", listUrns.get(0).getId());
+    assertEquals(5, result1.size());
+    assertEquals("30", result1.get(0).getId());
+
+    lastUrn = result1.get(result1.size() - 1);
+
+    // When: list out results with lastUrn = 'urn:li:foo:34' and pageSize = 5, but with only a filter on the aspect
+    IndexCriterion indexCriterion3 = new IndexCriterion().setAspect(FooUrn.class.getCanonicalName());
+    indexCriterionArray = new IndexCriterionArray(Collections.singleton(indexCriterion3));
+    IndexFilter filter = new IndexFilter().setCriteria(indexCriterionArray);
+    List<FooUrn> result2 = _ebeanLocalAccessFoo.listUrns(filter, indexSortCriterion, lastUrn, 5);
+
+    // Expect: 5 rows are returns (35~39) and the first element is 'urn:li:foo:35'
+    assertEquals(5, result2.size());
+    assertEquals("35", result2.get(0).getId());
   }
 
   @Test
@@ -270,6 +282,7 @@ public class EbeanLocalAccessTest {
     String toJson = EbeanLocalAccess.toJsonString(auditedAspect);
 
     Method extractAspectJsonString = EbeanLocalAccess.class.getDeclaredMethod("extractAspectJsonString", String.class);
+    extractAspectJsonString.setAccessible(true);
     assertEquals("{\"lastmodifiedby\":\"0\",\"lastmodifiedon\":\"1\",\"aspect\":{\"value\":\"test\"}}", toJson);
     assertNotNull(RecordUtils.toRecordTemplate(AspectFoo.class, (String) extractAspectJsonString.invoke(_ebeanLocalAccessFoo, toJson)));
   }
