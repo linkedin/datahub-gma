@@ -40,6 +40,7 @@ import org.json.simple.parser.ParseException;
 
 import static com.linkedin.metadata.dao.utils.EBeanDAOUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLIndexFilterUtils.*;
+import static com.linkedin.metadata.dao.utils.SQLSchemaUtils.*;
 
 
 /**
@@ -265,7 +266,11 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
     // append last urn where condition
     if (lastUrn != null) {
-      filterSql.append(" AND urn > '");
+      // because createFilterSql will only include a WHERE clause if there are non-urn filters, we need to make sure
+      // that we add a WHERE if it wasn't added already.
+      final boolean filterOnlyOnUrns = indexFilter.getCriteria().stream().allMatch(criteria -> isUrn(criteria.getAspect()));
+      filterSql.append(filterOnlyOnUrns ? " WHERE " : " AND ");
+      filterSql.append("urn > '");
       filterSql.append(lastUrn);
       filterSql.append("'");
     }
