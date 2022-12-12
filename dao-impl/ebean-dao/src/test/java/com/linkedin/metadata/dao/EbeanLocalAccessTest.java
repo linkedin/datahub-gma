@@ -2,7 +2,6 @@ package com.linkedin.metadata.dao;
 
 import com.google.common.io.Resources;
 import com.linkedin.common.AuditStamp;
-import com.linkedin.metadata.aspect.AuditedAspect;
 import com.linkedin.metadata.dao.localrelationship.SampleLocalRelationshipRegistryImpl;
 import com.linkedin.metadata.dao.scsi.EmptyPathExtractor;
 import com.linkedin.metadata.dao.utils.BarUrnPathExtractor;
@@ -33,8 +32,6 @@ import io.ebean.Ebean;
 import io.ebean.EbeanServer;
 import io.ebean.SqlRow;
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
@@ -268,23 +265,6 @@ public class EbeanLocalAccessTest {
 
     // Expect: there are 2 counts for value 25
     assertEquals(countMap.get("25"), Long.valueOf(2));
-  }
-
-  @Test
-  public void testToAndFromJson() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
-    AspectFoo aspectFoo = new AspectFoo();
-    aspectFoo.setValue("test");
-    AuditedAspect auditedAspect = new AuditedAspect();
-
-    auditedAspect.setLastmodifiedby("0");
-    auditedAspect.setLastmodifiedon("1");
-    auditedAspect.setAspect(RecordUtils.toJsonString(aspectFoo));
-    String toJson = EbeanLocalAccess.toJsonString(auditedAspect);
-
-    Method extractAspectJsonString = EbeanLocalAccess.class.getDeclaredMethod("extractAspectJsonString", String.class);
-    extractAspectJsonString.setAccessible(true);
-    assertEquals("{\"lastmodifiedby\":\"0\",\"lastmodifiedon\":\"1\",\"aspect\":{\"value\":\"test\"}}", toJson);
-    assertNotNull(RecordUtils.toRecordTemplate(AspectFoo.class, (String) extractAspectJsonString.invoke(_ebeanLocalAccessFoo, toJson)));
   }
 
   @Test
