@@ -1,10 +1,15 @@
 package com.linkedin.metadata.dao.utils;
 
+import com.linkedin.metadata.aspect.AuditedAspect;
+import com.linkedin.metadata.dao.EbeanLocalAccess;
 import com.linkedin.metadata.dao.EbeanMetadataAspect;
 import com.linkedin.metadata.dao.ListResult;
 import com.linkedin.metadata.query.ListResultMetadata;
+import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.urn.BurgerUrn;
 import com.linkedin.testing.urn.FooUrn;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.URISyntaxException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
@@ -14,6 +19,8 @@ import org.testng.annotations.Test;
 
 import static com.linkedin.testing.TestUtils.*;
 import static org.testng.Assert.*;
+import static org.testng.AssertJUnit.assertEquals;
+import static org.testng.AssertJUnit.assertNotNull;
 
 
 public class EBeanDAOUtilsTest {
@@ -415,5 +422,22 @@ public class EBeanDAOUtilsTest {
         .build();
 
     assertTrue(EBeanDAOUtils.compareResults(listResult1, listResult2, "testMethod"));
+  }
+
+  @Test
+  public void testToAndFromJson() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
+    AspectFoo aspectFoo = new AspectFoo();
+    aspectFoo.setValue("test");
+    AuditedAspect auditedAspect = new AuditedAspect();
+
+    auditedAspect.setLastmodifiedby("0");
+    auditedAspect.setLastmodifiedon("1");
+    auditedAspect.setAspect(RecordUtils.toJsonString(aspectFoo));
+    String toJson = EbeanLocalAccess.toJsonString(auditedAspect);
+
+    Method extractAspectJsonString = EBeanDAOUtils.class.getDeclaredMethod("extractAspectJsonString", String.class);
+    extractAspectJsonString.setAccessible(true);
+    assertEquals("{\"lastmodifiedby\":\"0\",\"lastmodifiedon\":\"1\",\"aspect\":{\"value\":\"test\"}}", toJson);
+    assertNotNull(RecordUtils.toRecordTemplate(AspectFoo.class, (String) extractAspectJsonString.invoke(EBeanDAOUtils.class, toJson)));
   }
 }

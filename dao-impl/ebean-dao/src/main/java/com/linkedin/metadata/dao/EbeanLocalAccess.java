@@ -9,6 +9,7 @@ import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder;
 import com.linkedin.metadata.dao.builder.LocalRelationshipBuilderRegistry;
 import com.linkedin.metadata.dao.scsi.EmptyPathExtractor;
 import com.linkedin.metadata.dao.scsi.UrnPathExtractor;
+import com.linkedin.metadata.dao.utils.EBeanDAOUtils;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
@@ -23,7 +24,6 @@ import io.ebean.SqlUpdate;
 import io.ebean.annotation.Transactional;
 import io.ebean.config.ServerConfig;
 import java.sql.Timestamp;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -35,8 +35,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import lombok.extern.slf4j.Slf4j;
 import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
 
 import static com.linkedin.metadata.dao.utils.EBeanDAOUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLIndexFilterUtils.*;
@@ -57,7 +55,6 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
   // TODO confirm if the default page size is 1000 in other code context.
   private static final int DEFAULT_PAGE_SIZE = 1000;
-  private static final long LATEST_VERSION = 0L;
   private static final String ASPECT_JSON_PLACEHOLDER = "__PLACEHOLDER__";
   private static final String DEFAULT_ACTOR = "urn:li:principal:UNKNOWN";
 
@@ -162,7 +159,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
     // consolidate/join the results
     List<SqlRow> sqlRows = selectStatements.stream().flatMap(sql -> _server.createSqlQuery(sql).findList().stream()).collect(Collectors.toList());
-    return readSqlRows(sqlRows);
+    return EBeanDAOUtils.readSqlRows(sqlRows);
   }
 
   @Override
@@ -285,30 +282,6 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     return _server.createSqlQuery(filterSql.toString());
   }
 
-  /**
-   * Read {@link SqlRow} list into a {@link EbeanMetadataAspect} list.
-   * @param sqlRows list of {@link SqlRow}
-   * @return list of {@link EbeanMetadataAspect}
-   */
-  private List<EbeanMetadataAspect> readSqlRows(List<SqlRow> sqlRows) {
-    return sqlRows.stream().flatMap(sqlRow -> {
-      List<String> columns = new ArrayList<>();
-      sqlRow.keySet().stream().filter(key -> key.startsWith(SQLSchemaUtils.ASPECT_PREFIX) && sqlRow.get(key) != null).forEach(columns::add);
-
-      return columns.stream().map(columnName -> {
-        EbeanMetadataAspect ebeanMetadataAspect = new EbeanMetadataAspect();
-        String urn = sqlRow.getString("urn");
-        AuditedAspect auditedAspect = RecordUtils.toRecordTemplate(AuditedAspect.class, sqlRow.getString(columnName));
-        EbeanMetadataAspect.PrimaryKey primaryKey = new EbeanMetadataAspect.PrimaryKey(urn, auditedAspect.getCanonicalName(), LATEST_VERSION);
-        ebeanMetadataAspect.setKey(primaryKey);
-        ebeanMetadataAspect.setCreatedBy(auditedAspect.getLastmodifiedby());
-        ebeanMetadataAspect.setCreatedOn(Timestamp.valueOf(auditedAspect.getLastmodifiedon()));
-        ebeanMetadataAspect.setCreatedFor(auditedAspect.getCreatedfor());
-        ebeanMetadataAspect.setMetadata(extractAspectJsonString(sqlRow.getString(columnName)));
-        return ebeanMetadataAspect;
-      });
-    }).collect(Collectors.toList());
-  }
 
   /**
    * Convert sqlRows into {@link ListResult}. This version of toListResult is used when the original SQL query
@@ -417,27 +390,6 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   private String toJsonString(@Nonnull URN urn) {
     final Map<String, Object> pathValueMap = _urnPathExtractor.extractPaths(urn);
     return JSONObject.toJSONString(pathValueMap);
-  }
-
-  /**
-   * Extract aspect json string from an AuditedAspect string in its DB format. Return null if aspect json string does not exist.
-   * @param auditedAspect an AuditedAspect string in its DB format
-   * @return A string which can be deserialized into Aspect object.
-   */
-  @Nullable
-  private String extractAspectJsonString(@Nonnull final String auditedAspect) {
-    try {
-      JSONParser jsonParser = new JSONParser();
-      JSONObject map = (JSONObject) jsonParser.parse(auditedAspect);
-      if (map.containsKey("aspect")) {
-        return map.get("aspect").toString();
-      }
-
-      return null;
-    } catch (ParseException parseException) {
-      log.error(String.format("Failed to parse string %s as AuditedAspect. Exception: %s", auditedAspect, parseException));
-      throw new RuntimeException(parseException);
-    }
   }
 
   /**
