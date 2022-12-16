@@ -4,6 +4,7 @@ import com.linkedin.metadata.query.ListResultMetadata;
 import java.util.List;
 import lombok.Builder;
 import lombok.Value;
+import lombok.extern.slf4j.Slf4j;
 
 
 /**
@@ -12,6 +13,7 @@ import lombok.Value;
  * @param <T> the result type
  */
 @Builder
+@Slf4j
 @Value
 public class ListResult<T> {
 
@@ -49,17 +51,31 @@ public class ListResult<T> {
     ListResult<T> other = (ListResult<T>) o;
 
     if (this.values.size() != other.values.size()) {
+      log.warn("ListResults have different sizes.");
       return false;
     }
 
-    return this.values.containsAll(other.values)
-        // either both metadata fields are null or both are equal (need to check this.metadata != null to avoid NPE)
-        && ((this.metadata == null && other.metadata == null) || (this.metadata != null && this.metadata.equals(other.metadata)))
-        && this.nextStart == other.nextStart
-        && this.havingMore == other.havingMore
-        && this.totalCount == other.totalCount
-        && this.totalPageCount == other.totalPageCount
-        && this.pageSize == other.pageSize;
+    final boolean samePrimitiveValues = this.nextStart == other.nextStart
+            && this.havingMore == other.havingMore
+            && this.totalCount == other.totalCount
+            && this.totalPageCount == other.totalPageCount
+            && this.pageSize == other.pageSize;
+    if (!samePrimitiveValues) {
+      log.warn("ListResults have different values for primitive fields.");
+      return false;
+    }
+
+    // either both metadata fields are null or both are equal (need to check this.metadata != null to avoid NPE)
+    if (!((this.metadata == null && other.metadata == null) || (this.metadata != null && this.metadata.equals(other.metadata)))) {
+      log.warn("ListResults have different search result metadata values.");
+      return false;
+    }
+
+    if (!this.values.containsAll(other.values)) {
+      log.warn("ListResults contain different elements.");
+      return false;
+    }
+    return true;
   }
 
   @Override

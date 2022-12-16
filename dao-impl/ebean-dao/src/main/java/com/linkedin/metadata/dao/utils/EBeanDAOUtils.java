@@ -26,8 +26,8 @@ import org.json.simple.parser.ParseException;
 @Slf4j
 public class EBeanDAOUtils {
 
-  public static final String DIFFERENT_RESULTS_TEMPLATE = "The results of %s from the new schema table and old schema table are not equal. "
-      + "Defaulting to using the value(s) from the old schema table.";
+  public static final String DIFFERENT_RESULTS_TEMPLATE = "The results of %s from the new schema table and old schema table are not equal. Reason: %s."
+      + "Defaulting to using the value(s) from the old schema table.\nOld schema results: %s\nNew schema results: %s";
   // String stored in metadata_aspect table for soft deleted aspect
   private static final RecordTemplate DELETED_METADATA = new SoftDeletedAspect().setGma_deleted(true);
   public static final String DELETED_VALUE = RecordUtils.toJsonString(DELETED_METADATA);
@@ -78,16 +78,18 @@ public class EBeanDAOUtils {
       return true;
     }
     if (resultOld == null || resultNew == null) {
-      log.error(String.format(DIFFERENT_RESULTS_TEMPLATE, methodName));
+      log.warn(String.format(DIFFERENT_RESULTS_TEMPLATE, "One of the results was null.", methodName, resultOld, resultNew));
       return false;
     }
     if (resultOld.size() != resultNew.size()) {
+      log.warn(String.format(DIFFERENT_RESULTS_TEMPLATE, "The results are different sizes.", methodName, resultOld, resultNew));
       return false;
     }
     if (resultOld.containsAll(resultNew)) {
       return true;
     }
-    log.error(String.format(DIFFERENT_RESULTS_TEMPLATE, methodName));
+    log.warn(String.format(DIFFERENT_RESULTS_TEMPLATE, "The elements in the old schema result do not match the elements "
+        + "in the new schema result.", methodName, resultOld, resultNew));
     return false;
   }
 
@@ -105,13 +107,14 @@ public class EBeanDAOUtils {
       return true;
     }
     if (resultOld == null || resultNew == null) {
-      log.error(String.format(DIFFERENT_RESULTS_TEMPLATE, methodName));
+      log.warn(String.format(DIFFERENT_RESULTS_TEMPLATE, "One of the results was null.", methodName, resultOld, resultNew));
       return false;
     }
     if (resultOld.equals(resultNew)) {
       return true;
     }
-    log.error(String.format(DIFFERENT_RESULTS_TEMPLATE, methodName));
+    log.warn(String.format(DIFFERENT_RESULTS_TEMPLATE, "Check preceding WARN logs for the reason that the ListResults are not equal",
+        methodName, resultOld, resultNew));
     return false;
   }
 
