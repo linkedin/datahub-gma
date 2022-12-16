@@ -99,7 +99,8 @@ public class EbeanMetadataAspect extends Model {
         && ((this.metadata == null && other.metadata == null) || (this.metadata != null && this.metadata.equals(other.getMetadata())))
         && this.createdOn.equals(other.getCreatedOn())
         && this.createdBy.equals(other.getCreatedBy())
-        && this.createdFor != null && this.createdFor.equals(other.getCreatedFor());
+        // either both createdFor fields are null or both are equal (need to check this.createdFor != null to avoid NPE)
+        && ((this.createdFor == null && other.getCreatedFor() == null) || (this.createdFor != null && this.createdFor.equals(other.getCreatedFor())));
   }
 
   @Override

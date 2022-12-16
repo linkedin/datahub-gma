@@ -629,7 +629,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         final boolean existsInNewSchema = _localAccess.exists(urn);
         final boolean existsInOldSchema = _server.find(EbeanMetadataAspect.class).where().eq(URN_COLUMN, urn.toString()).exists();
         if (existsInNewSchema != existsInOldSchema) {
-          log.error(String.format("The following urn does%s exist in the old schema but does%s exist in the new schema: %s",
+          log.warn(String.format("The following urn does%s exist in the old schema but does%s exist in the new schema: %s",
               existsInOldSchema ? "" : " not", existsInNewSchema ? "" : " not", urn.toString()));
         }
         return existsInOldSchema;
@@ -1448,7 +1448,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
     if (_schemaConfig == SchemaConfig.DUAL_SCHEMA && !resultOld.equals(resultNew)) {
       // TODO: print info log with performance (response time) and values
-      log.error(String.format(EBeanDAOUtils.DIFFERENT_RESULTS_TEMPLATE, "countAggregate"));
+      log.warn(String.format(EBeanDAOUtils.DIFFERENT_RESULTS_TEMPLATE, "Result maps are not equal.", "countAggregate", resultOld, resultNew));
     }
 
     return resultOld;

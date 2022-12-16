@@ -95,6 +95,14 @@ public class EBeanDAOUtilsTest {
 
     assertFalse(EBeanDAOUtils.compareResults(Collections.singletonList(ema1), Collections.singletonList(ema5), "testMethod"));
 
+    // createdFor is nullable, set one EbeanMetadataAspect's createdFor field to null
+    ema1.setCreatedFor(null);
+    assertFalse(EBeanDAOUtils.compareResults(Collections.singletonList(ema1), Collections.singletonList(ema2), "testMethod"));
+
+    // both createdFor fields being null should return true
+    ema2.setCreatedFor(null);
+    assertTrue(EBeanDAOUtils.compareResults(Collections.singletonList(ema1), Collections.singletonList(ema2), "testMethod"));
+
     // null
     assertFalse(EBeanDAOUtils.compareResults(Collections.singletonList(ema1), Collections.singletonList(null), "testMethod"));
   }
@@ -163,6 +171,10 @@ public class EBeanDAOUtilsTest {
 
     assertFalse(EBeanDAOUtils.compareResults(list1, list2, "testMethod"));
 
+    // remove different elements so list1 and list2 should be equal again
+    list1.remove(ema3);
+    list2.remove(ema3DifferentCopy);
+
     // different size lists
     EbeanMetadataAspect ema4 = new EbeanMetadataAspect();
     ema4.setKey(new EbeanMetadataAspect.PrimaryKey("urn1", "aspect1", 0L));
@@ -171,9 +183,6 @@ public class EBeanDAOUtilsTest {
     ema4.setCreatedFor("tester");
     ema4.setCreatedOn(new Timestamp(1234567890L));
 
-    // remove different elements so lists should be equal again
-    list1.remove(ema3);
-    list2.remove(ema3DifferentCopy);
     // add one more element to the first list
     list1.add(ema4);
 
