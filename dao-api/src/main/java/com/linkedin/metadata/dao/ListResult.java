@@ -1,6 +1,7 @@
 package com.linkedin.metadata.dao;
 
 import com.linkedin.metadata.query.ListResultMetadata;
+import java.util.ArrayList;
 import java.util.List;
 import lombok.Builder;
 import lombok.Value;
@@ -40,6 +41,8 @@ public class ListResult<T> {
   // Size of each page
   int pageSize;
 
+  // Assume this will be called when comparing old schema vs new schema results (in EbeanDAOUtils::compareResults).
+  // The logs are written under the assumption that we are calling oldSchemaListResult.equals(newSchemaListResult).
   @Override
   public boolean equals(Object o) {
     if (o == null) {
@@ -51,7 +54,7 @@ public class ListResult<T> {
     ListResult<T> other = (ListResult<T>) o;
 
     if (this.values.size() != other.values.size()) {
-      log.warn("ListResults have different sizes.");
+      log.warn(String.format("The old schema returned %d result(s) while the new schema returned %d result(s).", this.values.size(), other.values.size()));
       return false;
     }
 
@@ -61,18 +64,30 @@ public class ListResult<T> {
             && this.totalPageCount == other.totalPageCount
             && this.pageSize == other.pageSize;
     if (!samePrimitiveValues) {
-      log.warn("ListResults have different values for primitive fields.");
+      log.warn(String.format("ListResults have different values for primitive fields."
+          + "\nOld schema: {nextStart: %d, havingMore: %b, totalCount: %d, totalPageCount: %d, pageSize: %d}"
+          + "\nNew schema: {nextStart: %d, havingMore: %b, totalCount: %d, totalPageCount: %d, pageSize: %d}",
+          this.nextStart, this.havingMore, this.totalCount, this.totalPageCount, this.pageSize,
+          other.nextStart, other.havingMore, other.totalCount, other.totalPageCount, other.pageSize));
       return false;
     }
 
     // either both metadata fields are null or both are equal (need to check this.metadata != null to avoid NPE)
     if (!((this.metadata == null && other.metadata == null) || (this.metadata != null && this.metadata.equals(other.metadata)))) {
-      log.warn("ListResults have different search result metadata values.");
+      log.warn(String.format("ListResults have different search result metadata values."
+          + "\nOld schema ListResult metadata: %s\nNew schema ListResult metadata: %s", this.metadata, other.metadata));
       return false;
     }
 
+    // assuming this = old schema result and other = new schema result
     if (!this.values.containsAll(other.values)) {
-      log.warn("ListResults contain different elements.");
+      List<T> onlyInOldSchema = new ArrayList<>(this.values);
+      List<T> onlyInNewSchema = new ArrayList<>(other.values);
+      onlyInOldSchema.removeAll(other.values);
+      onlyInNewSchema.removeAll(this.values);
+      final String message = String.format("ListResults contain different elements."
+          + "\nExists in old schema but not in new: %s\nExists in new schema but not in old: %s", onlyInOldSchema, onlyInNewSchema);
+      log.warn(message);
       return false;
     }
     return true;

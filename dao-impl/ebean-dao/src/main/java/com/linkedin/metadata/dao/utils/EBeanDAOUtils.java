@@ -27,7 +27,7 @@ import org.json.simple.parser.ParseException;
 public class EBeanDAOUtils {
 
   public static final String DIFFERENT_RESULTS_TEMPLATE = "The results of %s from the new schema table and old schema table are not equal. Reason: %s."
-      + "Defaulting to using the value(s) from the old schema table.\nOld schema results: %s\nNew schema results: %s";
+      + "Defaulting to using the value(s) from the old schema table.";
   // String stored in metadata_aspect table for soft deleted aspect
   private static final RecordTemplate DELETED_METADATA = new SoftDeletedAspect().setGma_deleted(true);
   public static final String DELETED_VALUE = RecordUtils.toJsonString(DELETED_METADATA);
@@ -78,18 +78,29 @@ public class EBeanDAOUtils {
       return true;
     }
     if (resultOld == null || resultNew == null) {
-      log.warn(String.format(DIFFERENT_RESULTS_TEMPLATE, "One of the results was null.", methodName, resultOld, resultNew));
+      final String message = resultOld == null
+          ? "The old schema result was null while the new schema result wasn't."
+          : "The new schema result was null while the old schema result wasn't.";
+      log.warn(String.format(DIFFERENT_RESULTS_TEMPLATE, methodName, message));
       return false;
     }
     if (resultOld.size() != resultNew.size()) {
-      log.warn(String.format(DIFFERENT_RESULTS_TEMPLATE, "The results are different sizes.", methodName, resultOld, resultNew));
+      final String message = String.format("The old schema returned %d result(s) while the new schema returned %d result(s).",
+          resultOld.size(), resultNew.size());
+      log.warn(String.format(DIFFERENT_RESULTS_TEMPLATE, methodName, message));
       return false;
     }
     if (resultOld.containsAll(resultNew)) {
       return true;
     }
-    log.warn(String.format(DIFFERENT_RESULTS_TEMPLATE, "The elements in the old schema result do not match the elements "
-        + "in the new schema result.", methodName, resultOld, resultNew));
+
+    List<T> onlyInOldSchema = new ArrayList<>(resultOld);
+    List<T> onlyInNewSchema = new ArrayList<>(resultNew);
+    onlyInOldSchema.removeAll(resultNew);
+    onlyInNewSchema.removeAll(resultOld);
+    final String message = String.format("The elements in the old schema result do not match the elements in the new schema result."
+        + "\nExists in old schema but not in new: %s\nExists in new schema but not in old: %s", onlyInOldSchema, onlyInNewSchema);
+    log.warn(String.format(DIFFERENT_RESULTS_TEMPLATE, methodName, message));
     return false;
   }
 
@@ -107,14 +118,16 @@ public class EBeanDAOUtils {
       return true;
     }
     if (resultOld == null || resultNew == null) {
-      log.warn(String.format(DIFFERENT_RESULTS_TEMPLATE, "One of the results was null.", methodName, resultOld, resultNew));
+      final String message = resultOld == null
+          ? "The old schema result was null while the new schema result wasn't."
+          : "The new schema result was null while the old schema result wasn't.";
+      log.warn(String.format(DIFFERENT_RESULTS_TEMPLATE, methodName, message));
       return false;
     }
     if (resultOld.equals(resultNew)) {
       return true;
     }
-    log.warn(String.format(DIFFERENT_RESULTS_TEMPLATE, "Check preceding WARN logs for the reason that the ListResults are not equal",
-        methodName, resultOld, resultNew));
+    log.warn(String.format(DIFFERENT_RESULTS_TEMPLATE, methodName, "Check preceding WARN logs for the reason that the ListResults are not equal"));
     return false;
   }
 
