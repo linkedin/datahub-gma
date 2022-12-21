@@ -107,4 +107,10 @@ public class EbeanMetadataAspect extends Model {
   public int hashCode() {
     return super.hashCode();
   }
+
+  @Override
+  public String toString() {
+    final String str = "EbeanMetadataAspect: {key: <urn:%s, aspect:%s, version:%s>, createdOn: %s, createdBy: %s, createdFor: %s, metadata: %s}";
+    return String.format(str, key.getUrn(), key.getAspect(), key.getVersion(), createdOn, createdBy, createdFor, metadata);
+  }
 }
