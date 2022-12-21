@@ -6,10 +6,12 @@ import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
 import com.linkedin.metadata.query.Condition;
-import com.linkedin.metadata.query.Filter;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
+import com.linkedin.metadata.query.LocalRelationshipCriterion;
+import com.linkedin.metadata.query.LocalRelationshipFilter;
+import com.linkedin.metadata.query.LocalRelationshipValue;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -19,9 +21,9 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
+import org.apache.commons.lang.StringEscapeUtils;
 import org.javatuples.Pair;
 
-import static com.linkedin.metadata.dao.utils.EBeanDAOUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLSchemaUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLIndexFilterUtils.*;
 
@@ -34,7 +36,7 @@ public class SQLStatementUtils {
       .addEscape('\'', "''")
       .addEscape('\\', "\\\\").build();
 
-  protected static final String SOFT_DELETED_CHECK = "JSON_EXTRACT(%s, '$.gma_deleted') IS NULL"; // true when not soft deleted
+  public static final String SOFT_DELETED_CHECK = "JSON_EXTRACT(%s, '$.gma_deleted') IS NULL"; // true when not soft deleted
 
   private static final String SQL_UPSERT_ASPECT_TEMPLATE =
       "INSERT INTO %s (urn, %s, lastmodifiedon, lastmodifiedby) VALUE (:urn, :metadata, :lastmodifiedon, :lastmodifiedby) "
@@ -232,9 +234,10 @@ public class SQLStatementUtils {
    */
   @SafeVarargs
   @Nullable
-  public static String whereClause(@Nonnull Map<Condition, String> supportedCondition, @Nonnull Pair<Filter, String>... filters) {
+  public static String whereClause(@Nonnull Map<Condition, String> supportedCondition,
+      @Nonnull Pair<LocalRelationshipFilter, String>... filters) {
     List<String> andClauses = new ArrayList<>();
-    for (Pair<Filter, String> filter : filters) {
+    for (Pair<LocalRelationshipFilter, String> filter : filters) {
       if (filter.getValue0().hasCriteria() && filter.getValue0().getCriteria().size() > 0) {
         andClauses.add("(" + whereClause(filter.getValue0(), supportedCondition, filter.getValue1()) + ")");
       }
@@ -257,30 +260,32 @@ public class SQLStatementUtils {
    * @return sql that can be appended after where clause.
    */
   @Nonnull
-  public static String whereClause(@Nonnull Filter filter, @Nonnull Map<Condition, String> supportedCondition, @Nullable String tablePrefix) {
+  public static String whereClause(@Nonnull LocalRelationshipFilter filter, @Nonnull Map<Condition, String> supportedCondition, @Nullable String tablePrefix) {
     if (!filter.hasCriteria() || filter.getCriteria().size() == 0) {
       throw new IllegalArgumentException("Empty filter cannot construct where clause.");
     }
 
-    if (tablePrefix != null) {
-      filter.getCriteria().forEach(criterion -> {
-        criterion.setField(tablePrefix + "." + criterion.getField());
-      });
-    }
-
     // Group the conditions by field.
-    Map<String, List<Pair<Condition, String>>> groupByField = new HashMap<>();
+    Map<String, List<Pair<Condition, LocalRelationshipValue>>> groupByField = new HashMap<>();
     filter.getCriteria().forEach(criterion -> {
-      List<Pair<Condition, String>> group = groupByField.getOrDefault(criterion.getField(), new ArrayList<>());
+      String field = parseLocalRelationshipField(criterion, tablePrefix);
+      List<Pair<Condition, LocalRelationshipValue>> group = groupByField.getOrDefault(field, new ArrayList<>());
       group.add(new Pair<>(criterion.getCondition(), criterion.getValue()));
-      groupByField.put(criterion.getField(), group);
+      groupByField.put(field, group);
     });
 
     List<String> andClauses = new ArrayList<>();
-    for (Map.Entry<String, List<Pair<Condition, String>>> entry : groupByField.entrySet()) {
+    for (Map.Entry<String, List<Pair<Condition, LocalRelationshipValue>>> entry : groupByField.entrySet()) {
       List<String> orClauses = new ArrayList<>();
-      for (Pair<Condition, String> pair : entry.getValue()) {
-        orClauses.add(entry.getKey() + supportedCondition.get(pair.getValue0()) + "'" + pair.getValue1() + "'");
+      for (Pair<Condition, LocalRelationshipValue> pair : entry.getValue()) {
+        if (pair.getValue0() == Condition.IN) {
+          if (!pair.getValue1().isArray()) {
+            throw new IllegalArgumentException("IN condition must be paired with array value");
+          }
+          orClauses.add(entry.getKey() + " IN " +  parseLocalRelationshipValue(pair.getValue1()));
+        } else {
+          orClauses.add(entry.getKey() + supportedCondition.get(pair.getValue0()) + "'" + parseLocalRelationshipValue(pair.getValue1()) + "'");
+        }
       }
 
       if (orClauses.size() == 1) {
@@ -299,5 +304,37 @@ public class SQLStatementUtils {
     }
 
     return String.join(" AND ", andClauses);
+  }
+
+  private static String parseLocalRelationshipField(@Nonnull final LocalRelationshipCriterion localRelationshipCriterion, @Nullable String tablePrefix) {
+    tablePrefix = tablePrefix == null ? "" : tablePrefix + ".";
+    LocalRelationshipCriterion.Field field = localRelationshipCriterion.getField();
+
+    if (field.isUrnField()) {
+      return tablePrefix + field.getUrnField().getName();
+    }
+
+    if (field.isRelationshipField()) {
+      return tablePrefix + field.getRelationshipField().getName() + SQLSchemaUtils.processPath(field.getRelationshipField().getPath());
+    }
+
+    if (field.isAspectField()) {
+      return tablePrefix + SQLSchemaUtils.getGeneratedColumnName(field.getAspectField().getAspect(), field.getAspectField().getPath());
+    }
+
+    throw new IllegalArgumentException("Unrecognized field type");
+  }
+
+  private static String parseLocalRelationshipValue(@Nonnull final LocalRelationshipValue localRelationshipValue) {
+    if (localRelationshipValue.isArray()) {
+      return  "(" + localRelationshipValue.getArray().stream().map(s -> "'" + StringEscapeUtils.escapeSql(s) + "'")
+          .collect(Collectors.joining(", ")) + ")";
+    }
+
+    if (localRelationshipValue.isString()) {
+      return localRelationshipValue.getString();
+    }
+
+    throw new IllegalArgumentException("Unrecognized field value");
   }
 }

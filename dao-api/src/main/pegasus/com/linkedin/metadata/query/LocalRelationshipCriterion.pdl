@@ -1,0 +1,26 @@
+namespace com.linkedin.metadata.query
+
+/**
+ * A criterion for matching a field with given value
+ */
+record LocalRelationshipCriterion {
+
+  /**
+   * The name of the field that the criterion refers to
+   */
+  field: union[
+    UrnField,
+    AspectField,
+    RelationshipField
+  ]
+
+  /**
+   * The value of the intended field
+   */
+  value: LocalRelationshipValue
+
+  /**
+   * The condition for the criterion, e.g. EQUAL, START_WITH
+   */
+  condition: Condition = "EQUAL"
+}

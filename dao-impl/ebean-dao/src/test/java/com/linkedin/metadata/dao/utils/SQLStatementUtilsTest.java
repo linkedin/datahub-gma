@@ -1,16 +1,20 @@
 package com.linkedin.metadata.dao.utils;
 
 import com.linkedin.common.urn.Urn;
+import com.linkedin.metadata.query.AspectField;
 import com.linkedin.metadata.query.Condition;
-import com.linkedin.metadata.query.Criterion;
-import com.linkedin.metadata.query.CriterionArray;
-import com.linkedin.metadata.query.Filter;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexValue;
+import com.linkedin.metadata.query.LocalRelationshipCriterion;
+import com.linkedin.metadata.query.LocalRelationshipCriterionArray;
+import com.linkedin.metadata.query.LocalRelationshipFilter;
+import com.linkedin.metadata.query.LocalRelationshipValue;
+import com.linkedin.metadata.query.RelationshipField;
 import com.linkedin.metadata.query.SortOrder;
+import com.linkedin.metadata.query.UrnField;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.urn.FooUrn;
 import java.util.Collections;
@@ -111,57 +115,147 @@ public class SQLStatementUtilsTest {
 
   @Test
   public void testWhereClauseSingleCondition() {
-    Criterion criterion = new Criterion().setField("field1").setCondition(Condition.EQUAL).setValue("value1");
-    CriterionArray criteria = new CriterionArray(criterion);
-    Filter filter = new Filter().setCriteria(criteria);
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null), "field1='value1'");
+    LocalRelationshipCriterion.Field field = new LocalRelationshipCriterion.Field();
+    field.setUrnField(new UrnField());
+    LocalRelationshipCriterion criterion = new LocalRelationshipCriterion()
+        .setField(field)
+        .setCondition(Condition.EQUAL)
+        .setValue(LocalRelationshipValue.create("value1"));
+    LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion);
+    LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
+    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null), "urn='value1'");
   }
 
   @Test
   public void testWhereClauseMultiConditionSameName() {
-    Criterion criterion1 = new Criterion().setField("field1").setCondition(Condition.EQUAL).setValue("value1");
-    Criterion criterion2 = new Criterion().setField("field1").setCondition(Condition.EQUAL).setValue("value2");
-    CriterionArray criteria = new CriterionArray(criterion1, criterion2);
-    Filter filter = new Filter().setCriteria(criteria);
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null), "field1='value1' OR field1='value2'");
+    LocalRelationshipCriterion.Field field1 = new LocalRelationshipCriterion.Field();
+    field1.setUrnField(new UrnField());
+    LocalRelationshipCriterion criterion1 = new LocalRelationshipCriterion()
+        .setField(field1)
+        .setCondition(Condition.EQUAL)
+        .setValue(LocalRelationshipValue.create("value1"));
+
+    LocalRelationshipCriterion.Field field2 = new LocalRelationshipCriterion.Field();
+    field2.setUrnField(new UrnField());
+    LocalRelationshipCriterion criterion2 = new LocalRelationshipCriterion()
+        .setField(field2)
+        .setCondition(Condition.EQUAL)
+        .setValue(LocalRelationshipValue.create("value2"));
+
+    LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion1, criterion2);
+    LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
+    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null), "urn='value1' OR urn='value2'");
   }
 
   @Test
   public void testWhereClauseMultiConditionDifferentName() {
-    Criterion criterion1 = new Criterion().setField("field1").setCondition(Condition.EQUAL).setValue("value1");
-    Criterion criterion2 = new Criterion().setField("field2").setCondition(Condition.EQUAL).setValue("value2");
-    CriterionArray criteria = new CriterionArray(criterion1, criterion2);
-    Filter filter = new Filter().setCriteria(criteria);
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null), "field1='value1' AND field2='value2'");
+    LocalRelationshipCriterion.Field field1 = new LocalRelationshipCriterion.Field();
+    field1.setUrnField(new UrnField());
+    LocalRelationshipCriterion criterion1 = new LocalRelationshipCriterion()
+        .setField(field1)
+        .setCondition(Condition.EQUAL)
+        .setValue(LocalRelationshipValue.create("value1"));
+
+    LocalRelationshipCriterion.Field field2 = new LocalRelationshipCriterion.Field();
+    field2.setAspectField((new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value")));
+    LocalRelationshipCriterion criterion2 = new LocalRelationshipCriterion()
+        .setField(field2)
+        .setCondition(Condition.EQUAL)
+        .setValue(LocalRelationshipValue.create("value2"));
+
+    LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion1, criterion2);
+    LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
+    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null), "urn='value1' AND i_aspectfoo$value='value2'");
   }
 
   @Test
   public void testWhereClauseMultiConditionMixedName() {
-    Criterion criterion1 = new Criterion().setField("field1").setCondition(Condition.EQUAL).setValue("value1");
-    Criterion criterion2 = new Criterion().setField("field1").setCondition(Condition.EQUAL).setValue("value2");
-    Criterion criterion3 = new Criterion().setField("field2").setCondition(Condition.EQUAL).setValue("value2");
-    Criterion criterion4 = new Criterion().setField("field3").setCondition(Condition.EQUAL).setValue("value3");
-    CriterionArray criteria = new CriterionArray(criterion1, criterion2, criterion3, criterion4);
-    Filter filter = new Filter().setCriteria(criteria);
+    LocalRelationshipCriterion.Field field1 = new LocalRelationshipCriterion.Field();
+    field1.setUrnField(new UrnField());
+    LocalRelationshipCriterion criterion1 = new LocalRelationshipCriterion()
+        .setField(field1)
+        .setCondition(Condition.EQUAL)
+        .setValue(LocalRelationshipValue.create("value1"));
+
+    LocalRelationshipCriterion.Field field2 = new LocalRelationshipCriterion.Field();
+    field2.setAspectField((new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value")));
+    LocalRelationshipCriterion criterion2 = new LocalRelationshipCriterion()
+        .setField(field2)
+        .setCondition(Condition.EQUAL)
+        .setValue(LocalRelationshipValue.create("value2"));
+
+    LocalRelationshipCriterion.Field field3 = new LocalRelationshipCriterion.Field();
+    field3.setUrnField(new UrnField());
+    LocalRelationshipCriterion criterion3 = new LocalRelationshipCriterion()
+        .setField(field3)
+        .setCondition(Condition.EQUAL)
+        .setValue(LocalRelationshipValue.create("value3"));
+
+    LocalRelationshipCriterion.Field field4 = new LocalRelationshipCriterion.Field();
+    field4.setRelationshipField(((new RelationshipField().setPath("/value"))));
+    LocalRelationshipCriterion criterion4 = new LocalRelationshipCriterion()
+        .setField(field4)
+        .setCondition(Condition.EQUAL)
+        .setValue(LocalRelationshipValue.create("value4"));
+
+    LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion1, criterion2, criterion3, criterion4);
+    LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
     assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null),
-        "(field1='value1' OR field1='value2') AND field3='value3' AND field2='value2'");
+        "(urn='value1' OR urn='value3') AND metadata$value='value4' AND i_aspectfoo$value='value2'");
   }
 
   @Test
   public void testWhereClauseMultiFilters() {
-    Criterion criterion1 = new Criterion().setField("field1").setCondition(Condition.EQUAL).setValue("value1");
-    Criterion criterion2 = new Criterion().setField("field1").setCondition(Condition.EQUAL).setValue("value2");
-    Criterion criterion3 = new Criterion().setField("field2").setCondition(Condition.EQUAL).setValue("value2");
-    Criterion criterion4 = new Criterion().setField("field3").setCondition(Condition.EQUAL).setValue("value3");
-    CriterionArray criteria1 = new CriterionArray(criterion1, criterion2, criterion3, criterion4);
-    Filter filter1 = new Filter().setCriteria(criteria1);
+    LocalRelationshipCriterion.Field field1 = new LocalRelationshipCriterion.Field();
+    field1.setUrnField(new UrnField());
+    LocalRelationshipCriterion criterion1 = new LocalRelationshipCriterion()
+        .setField(field1)
+        .setCondition(Condition.EQUAL)
+        .setValue(LocalRelationshipValue.create("value1"));
 
-    Criterion criterion5 = new Criterion().setField("field1").setCondition(Condition.EQUAL).setValue("value1");
-    Criterion criterion6 = new Criterion().setField("field1").setCondition(Condition.EQUAL).setValue("value2");
-    CriterionArray criteria2 = new CriterionArray(criterion5, criterion6);
-    Filter filter2 = new Filter().setCriteria(criteria2);
+    LocalRelationshipCriterion.Field field2 = new LocalRelationshipCriterion.Field();
+    field2.setAspectField((new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value")));
+    LocalRelationshipCriterion criterion2 = new LocalRelationshipCriterion()
+        .setField(field2)
+        .setCondition(Condition.EQUAL)
+        .setValue(LocalRelationshipValue.create("value2"));
 
-    assertEquals(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), new Pair<>(filter1, "foo"), new Pair<>(filter2, "bar")),
-        "(foo.field3='value3' AND foo.field2='value2' AND (foo.field1='value1' OR foo.field1='value2')) AND (bar.field1='value1' OR bar.field1='value2')");
+    LocalRelationshipCriterion.Field field3 = new LocalRelationshipCriterion.Field();
+    field3.setUrnField(new UrnField());
+    LocalRelationshipCriterion criterion3 = new LocalRelationshipCriterion()
+        .setField(field3)
+        .setCondition(Condition.EQUAL)
+        .setValue(LocalRelationshipValue.create("value3"));
+
+    LocalRelationshipCriterion.Field field4 = new LocalRelationshipCriterion.Field();
+    field4.setRelationshipField(((new RelationshipField().setPath("/value"))));
+    LocalRelationshipCriterion criterion4 = new LocalRelationshipCriterion()
+        .setField(field4)
+        .setCondition(Condition.EQUAL)
+        .setValue(LocalRelationshipValue.create("value4"));
+
+    LocalRelationshipCriterionArray criteria1 = new LocalRelationshipCriterionArray(criterion1, criterion2, criterion3, criterion4);
+    LocalRelationshipFilter filter1 = new LocalRelationshipFilter().setCriteria(criteria1);
+
+    LocalRelationshipCriterion.Field field5 = new LocalRelationshipCriterion.Field();
+    field5.setUrnField(new UrnField());
+    LocalRelationshipCriterion criterion5 = new LocalRelationshipCriterion()
+        .setField(field5)
+        .setCondition(Condition.EQUAL)
+        .setValue(LocalRelationshipValue.create("value1"));
+
+    LocalRelationshipCriterion.Field field6 = new LocalRelationshipCriterion.Field();
+    field6.setUrnField(new UrnField());
+    LocalRelationshipCriterion criterion6 = new LocalRelationshipCriterion()
+        .setField(field6)
+        .setCondition(Condition.EQUAL)
+        .setValue(LocalRelationshipValue.create("value2"));
+
+    LocalRelationshipCriterionArray criteria2 = new LocalRelationshipCriterionArray(criterion5, criterion6);
+    LocalRelationshipFilter filter2 = new LocalRelationshipFilter().setCriteria(criteria2);
+
+    assertEquals(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), new Pair<>(filter1, "foo"),
+        new Pair<>(filter2, "bar")), "(foo.i_aspectfoo$value='value2' AND (foo.urn='value1' OR foo.urn='value3')"
+        + " AND foo.metadata$value='value4') AND (bar.urn='value1' OR bar.urn='value2')");
   }
 }

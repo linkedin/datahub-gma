@@ -1,0 +1,9 @@
+namespace com.linkedin.metadata.query
+
+/**
+ * A union of all supported value types in the local relationship
+ */
+typeref LocalRelationshipValue = union[
+  array[string],
+  string
+]

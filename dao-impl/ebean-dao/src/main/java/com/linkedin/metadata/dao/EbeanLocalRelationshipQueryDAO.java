@@ -3,15 +3,16 @@ package com.linkedin.metadata.dao;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.utils.ClassUtils;
+import com.linkedin.metadata.dao.utils.EBeanDAOUtils;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.MultiHopsTraversalSqlGenerator;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
 import com.linkedin.metadata.dao.utils.SQLStatementUtils;
-import com.linkedin.metadata.dao.utils.Statement;
 import com.linkedin.metadata.query.Condition;
-import com.linkedin.metadata.query.CriterionArray;
 import com.linkedin.metadata.query.Filter;
+import com.linkedin.metadata.query.LocalRelationshipCriterion;
+import com.linkedin.metadata.query.LocalRelationshipFilter;
 import com.linkedin.metadata.query.RelationshipDirection;
 import com.linkedin.metadata.query.RelationshipFilter;
 import io.ebean.EbeanServer;
@@ -27,16 +28,12 @@ import javax.annotation.Nullable;
 import lombok.extern.slf4j.Slf4j;
 import org.javatuples.Pair;
 import org.javatuples.Triplet;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
-
 
 /**
  * An Ebean implementation of {@link BaseQueryDAO} backed by local relationship tables.
  */
 @Slf4j
-public class EbeanLocalRelationshipQueryDAO extends BaseQueryDAO {
+public class EbeanLocalRelationshipQueryDAO {
   private final EbeanServer _server;
   private final MultiHopsTraversalSqlGenerator _sqlGenerator;
 
@@ -67,9 +64,8 @@ public class EbeanLocalRelationshipQueryDAO extends BaseQueryDAO {
    * @return A list of entity records of class SNAPSHOT.
    */
   @Nonnull
-  @Override
   public <SNAPSHOT extends RecordTemplate> List<SNAPSHOT> findEntities(@Nonnull Class<SNAPSHOT> snapshotClass,
-      @Nonnull Filter filter, int offset, int count) {
+      @Nonnull LocalRelationshipFilter filter, int offset, int count) {
     validateEntityFilter(filter, snapshotClass);
 
     // Build SQL
@@ -88,11 +84,10 @@ public class EbeanLocalRelationshipQueryDAO extends BaseQueryDAO {
   }
 
   @Nonnull
-  @Override
   public <SRC_SNAPSHOT extends RecordTemplate, DEST_SNAPSHOT extends RecordTemplate, RELATIONSHIP extends RecordTemplate> List<RecordTemplate> findEntities(
-      @Nonnull Class<SRC_SNAPSHOT> sourceEntityClass, @Nonnull Filter sourceEntityFilter,
-      @Nonnull Class<DEST_SNAPSHOT> destinationEntityClass, @Nonnull Filter destinationEntityFilter,
-      @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull RelationshipFilter relationshipFilter, int minHops,
+      @Nonnull Class<SRC_SNAPSHOT> sourceEntityClass, @Nonnull LocalRelationshipFilter sourceEntityFilter,
+      @Nonnull Class<DEST_SNAPSHOT> destinationEntityClass, @Nonnull LocalRelationshipFilter destinationEntityFilter,
+      @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter, int minHops,
       int maxHops, int offset, int count) {
 
     validateRelationshipFilter(relationshipFilter);
@@ -114,7 +109,6 @@ public class EbeanLocalRelationshipQueryDAO extends BaseQueryDAO {
   }
 
   @Nonnull
-  @Override
   public <SRC_ENTITY extends RecordTemplate, RELATIONSHIP extends RecordTemplate, INTER_ENTITY extends RecordTemplate> List<RecordTemplate> findEntities(
       @Nullable Class<SRC_ENTITY> sourceEntityClass, @Nonnull Filter sourceEntityFilter,
       @Nonnull List<Triplet<Class<RELATIONSHIP>, RelationshipFilter, Class<INTER_ENTITY>>> traversePaths, int offset,
@@ -137,11 +131,10 @@ public class EbeanLocalRelationshipQueryDAO extends BaseQueryDAO {
    * @return A list of relationship records.
    */
   @Nonnull
-  @Override
   public <SRC_SNAPSHOT extends RecordTemplate, DEST_SNAPSHOT extends RecordTemplate, RELATIONSHIP extends RecordTemplate> List<RELATIONSHIP> findRelationships(
-      @Nullable Class<SRC_SNAPSHOT> sourceEntityClass, @Nonnull Filter sourceEntityFilter,
-      @Nullable Class<DEST_SNAPSHOT> destinationEntityClass, @Nonnull Filter destinationEntityFilter,
-      @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull Filter relationshipFilter, int offset, int count) {
+      @Nullable Class<SRC_SNAPSHOT> sourceEntityClass, @Nonnull LocalRelationshipFilter sourceEntityFilter,
+      @Nullable Class<DEST_SNAPSHOT> destinationEntityClass, @Nonnull LocalRelationshipFilter destinationEntityFilter,
+      @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter, int offset, int count) {
     validateEntityFilter(sourceEntityFilter, sourceEntityClass);
     validateEntityFilter(destinationEntityFilter, destinationEntityClass);
     validateEntityFilter(relationshipFilter, relationshipType);
@@ -171,44 +164,18 @@ public class EbeanLocalRelationshipQueryDAO extends BaseQueryDAO {
         .collect(Collectors.toList());
   }
 
-  @Nonnull
-  @Override
-  public <ENTITY extends RecordTemplate> List<ENTITY> findEntities(@Nonnull Class<ENTITY> entityClass,
-      @Nonnull Statement queryStatement) {
-    throw new UnsupportedOperationException("Local relationship does not support query statement.");
-  }
-
-  @Nonnull
-  @Override
-  public List<RecordTemplate> findMixedTypesEntities(@Nonnull Statement queryStatement) {
-    throw new UnsupportedOperationException("Local relationship does not support query statement.");
-  }
-
-  @Nonnull
-  @Override
-  public <RELATIONSHIP extends RecordTemplate> List<RELATIONSHIP> findRelationships(
-      @Nonnull Class<RELATIONSHIP> relationshipClass, @Nonnull Statement queryStatement) {
-    throw new UnsupportedOperationException("Local relationship does not support query statement.");
-  }
-
-  @Nonnull
-  @Override
-  public List<RecordTemplate> findMixedTypesRelationships(@Nonnull Statement queryStatement) {
-    throw new UnsupportedOperationException("Local relationship does not support query statement.");
-  }
-
   /**
    * Validate:
    * 1. The entity filter only contains supported condition.
    * 2. if entity class is null, then filter should be emtpy.
    * If any of above is violated, throw IllegalArgumentException.
    */
-  private <ENTITY extends RecordTemplate> void validateEntityFilter(@Nonnull Filter filter, @Nullable Class<ENTITY> entityClass) {
+  private <ENTITY extends RecordTemplate> void validateEntityFilter(@Nonnull LocalRelationshipFilter filter, @Nullable Class<ENTITY> entityClass) {
     if (entityClass == null && filter.hasCriteria() && filter.getCriteria().size() > 0) {
       throw new IllegalArgumentException("Entity class is null but filter is not empty.");
     }
 
-    validateFilterCriteria(filter.getCriteria());
+    validateFilterCriteria(filter.getCriteria().stream().map(LocalRelationshipCriterion::getCondition).collect(Collectors.toList()));
   }
 
   /**
@@ -217,23 +184,22 @@ public class EbeanLocalRelationshipQueryDAO extends BaseQueryDAO {
    * 2. Relationship direction cannot be unknown.
    * If any of above is violated, throw IllegalArgumentException.
    */
-  private void validateRelationshipFilter(@Nonnull RelationshipFilter filter) {
+  private void validateRelationshipFilter(@Nonnull LocalRelationshipFilter filter) {
     if (filter.getDirection() == RelationshipDirection.$UNKNOWN) {
       throw new IllegalArgumentException("Relationship direction cannot be UNKNOWN.");
     }
 
-    validateFilterCriteria(filter.getCriteria());
+    validateFilterCriteria(filter.getCriteria().stream().map(LocalRelationshipCriterion::getCondition).collect(Collectors.toList()));
   }
 
   /**
    * Validate whether filter criteria contains unsupported condition.
-   * @param criteria An array of criteria contained in a filter.
+   * @param criterionConditions An array of conditions.
    */
-  private void validateFilterCriteria(@Nonnull CriterionArray criteria) {
-    criteria.forEach(criterion -> {
-      if (!SUPPORTED_CONDITIONS.containsKey(criterion.getCondition())) {
-        throw new IllegalArgumentException(String.format("Condition %s is not supported by local relationship DAO.",
-            criterion.getCondition()));
+  private void validateFilterCriteria(@Nonnull List<Condition> criterionConditions) {
+    criterionConditions.forEach(condition -> {
+      if (!SUPPORTED_CONDITIONS.containsKey(condition)) {
+        throw new IllegalArgumentException(String.format("Condition %s is not supported by local relationship DAO.", condition));
       }
     });
   }
@@ -255,7 +221,8 @@ public class EbeanLocalRelationshipQueryDAO extends BaseQueryDAO {
       String auditedAspectStr = sqlRow.getString(colName);
 
       if (auditedAspectStr != null) {
-        RecordTemplate aspect = RecordUtils.toRecordTemplate(ClassUtils.loadClass(aspectCanonicalName), extractAspectJsonString(auditedAspectStr));
+        RecordTemplate aspect = RecordUtils.toRecordTemplate(ClassUtils.loadClass(aspectCanonicalName),
+            EBeanDAOUtils.extractAspectJsonString(auditedAspectStr));
         aspects.add(ModelUtils.newAspectUnion(ModelUtils.getUnionClassFromSnapshot(snapshotClass), aspect));
       }
     }
@@ -273,8 +240,8 @@ public class EbeanLocalRelationshipQueryDAO extends BaseQueryDAO {
    */
   @Nonnull
   private String buildFindRelationshipSQL(@Nullable final String destTableName, @Nullable final String sourceTableName,
-      @Nonnull final String relationshipTableName, @Nonnull final Filter sourceEntityFilter, @Nonnull final Filter destinationEntityFilter,
-      @Nonnull final Filter relationshipFilter) {
+      @Nonnull final String relationshipTableName, @Nonnull final LocalRelationshipFilter sourceEntityFilter,
+      @Nonnull final LocalRelationshipFilter destinationEntityFilter, @Nonnull final LocalRelationshipFilter relationshipFilter) {
 
     StringBuilder sqlBuilder = new StringBuilder();
     sqlBuilder.append("SELECT rt.* FROM ").append(relationshipTableName).append(" rt ");
@@ -297,21 +264,5 @@ public class EbeanLocalRelationshipQueryDAO extends BaseQueryDAO {
     }
 
     return sqlBuilder.toString();
-  }
-
-  @Nullable
-  private String extractAspectJsonString(@Nonnull final String auditedAspect) {
-    try {
-      JSONParser jsonParser = new JSONParser();
-      JSONObject map = (JSONObject) jsonParser.parse(auditedAspect);
-      if (map.containsKey("aspect")) {
-        return map.get("aspect").toString();
-      }
-
-      return null;
-    } catch (ParseException parseException) {
-      log.error(String.format("Failed to parse string %s as AuditedAspect. Exception: %s", auditedAspect, parseException));
-      throw new RuntimeException(parseException);
-    }
   }
 }

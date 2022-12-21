@@ -10,14 +10,14 @@ import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLIndexFilterUtils;
 import com.linkedin.metadata.query.Condition;
-import com.linkedin.metadata.query.CriterionArray;
-import com.linkedin.metadata.query.Filter;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.query.IndexValue;
+import com.linkedin.metadata.query.LocalRelationshipCriterionArray;
+import com.linkedin.metadata.query.LocalRelationshipFilter;
 import com.linkedin.metadata.query.SortOrder;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.BarSnapshot;
@@ -51,7 +51,7 @@ public class EbeanLocalAccessTest {
   private static IEbeanLocalAccess<BarUrn> _ebeanLocalAccessBar;
   private static IEbeanLocalAccess<BurgerUrn> _ebeanLocalAccessBurger;
   private static long _now;
-  private static final Filter EMPTY_FILTER = new Filter().setCriteria(new CriterionArray());
+  private static final LocalRelationshipFilter EMPTY_FILTER = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray());
 
   @BeforeClass
   public void init() {

@@ -1,0 +1,13 @@
+namespace com.linkedin.metadata.query
+
+record RelationshipField {
+  /**
+   * The column that store local relationship metadata.
+   */
+  name: string = "metadata"
+
+  /**
+   * Corresponding path to the indexed column. ex "/dataset/name"
+   */
+  path: string
+}
