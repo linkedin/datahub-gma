@@ -51,14 +51,14 @@ public class EBeanDAOUtilsTest {
     // test equality between two instances of EbeanMetadataAspect
     EbeanMetadataAspect ema1 = new EbeanMetadataAspect();
     ema1.setKey(new EbeanMetadataAspect.PrimaryKey("urn1", "aspect1", 0L));
-    ema1.setMetadata("metadata");
+    ema1.setMetadata("{\"metadata\": \"value1\"}");
     ema1.setCreatedBy("tester");
     ema1.setCreatedFor("tester");
     ema1.setCreatedOn(new Timestamp(1234567890L));
 
     EbeanMetadataAspect ema2 = new EbeanMetadataAspect();
     ema2.setKey(new EbeanMetadataAspect.PrimaryKey("urn1", "aspect1", 0L));
-    ema2.setMetadata("metadata");
+    ema2.setMetadata("{\"metadata\": \"value1\"}");
     ema2.setCreatedBy("tester");
     ema2.setCreatedFor("tester");
     ema2.setCreatedOn(new Timestamp(1234567890L));
@@ -68,7 +68,7 @@ public class EBeanDAOUtilsTest {
     // different urn in key
     EbeanMetadataAspect ema3 = new EbeanMetadataAspect();
     ema3.setKey(new EbeanMetadataAspect.PrimaryKey("urn2", "aspect1", 0L));
-    ema3.setMetadata("metadata");
+    ema3.setMetadata("{\"metadata\": \"value1\"}");
     ema3.setCreatedBy("tester");
     ema3.setCreatedFor("tester");
     ema3.setCreatedOn(new Timestamp(1234567890L));
@@ -78,17 +78,28 @@ public class EBeanDAOUtilsTest {
     // different metadata
     EbeanMetadataAspect ema4 = new EbeanMetadataAspect();
     ema4.setKey(new EbeanMetadataAspect.PrimaryKey("urn1", "aspect1", 0L));
-    ema4.setMetadata("different metadata");
+    ema4.setMetadata("{\"metadata\": \"value2\"}");
     ema4.setCreatedBy("tester");
     ema4.setCreatedFor("tester");
     ema4.setCreatedOn(new Timestamp(1234567890L));
 
     assertFalse(EBeanDAOUtils.compareResults(Collections.singletonList(ema1), Collections.singletonList(ema4), "testMethod"));
 
+    // same metadata, different order
+    EbeanMetadataAspect ema4Different = new EbeanMetadataAspect();
+    ema4Different.setKey(new EbeanMetadataAspect.PrimaryKey("urn1", "aspect1", 0L));
+    ema4Different.setMetadata("{\"field1\": \"value1\", \"field2\": \"value2\"}");
+    ema4Different.setCreatedBy("tester");
+    ema4Different.setCreatedFor("tester");
+    ema4Different.setCreatedOn(new Timestamp(1234567890L));
+
+    ema4.setMetadata("{\"field2\": \"value2\", \"field1\": \"value1\"}");
+    assertTrue(EBeanDAOUtils.compareResults(Collections.singletonList(ema4), Collections.singletonList(ema4Different), "testMethod"));
+
     // different createdon
     EbeanMetadataAspect ema5 = new EbeanMetadataAspect();
     ema5.setKey(new EbeanMetadataAspect.PrimaryKey("urn1", "aspect1", 0L));
-    ema5.setMetadata("metadata");
+    ema5.setMetadata("{\"metadata\": \"value1\"}");
     ema5.setCreatedBy("tester");
     ema5.setCreatedFor("tester");
     ema5.setCreatedOn(new Timestamp(987654321L));
@@ -112,14 +123,14 @@ public class EBeanDAOUtilsTest {
     // test equality where lists contain the same elements but in different order
     EbeanMetadataAspect ema1 = new EbeanMetadataAspect();
     ema1.setKey(new EbeanMetadataAspect.PrimaryKey("urn1", "aspect1", 0L));
-    ema1.setMetadata("metadata");
+    ema1.setMetadata("{\"metadata\": \"value1\"}");
     ema1.setCreatedBy("tester");
     ema1.setCreatedFor("tester");
     ema1.setCreatedOn(new Timestamp(1234567890L));
 
     EbeanMetadataAspect ema2 = new EbeanMetadataAspect();
     ema2.setKey(new EbeanMetadataAspect.PrimaryKey("urn2", "aspect2", 0L));
-    ema2.setMetadata("different metadata");
+    ema2.setMetadata("{\"metadata\": \"value2\"}");
     ema2.setCreatedBy("tester");
     ema2.setCreatedFor("tester");
     ema2.setCreatedOn(new Timestamp(1234567890L));
@@ -130,14 +141,14 @@ public class EBeanDAOUtilsTest {
 
     EbeanMetadataAspect ema1Copy = new EbeanMetadataAspect();
     ema1Copy.setKey(new EbeanMetadataAspect.PrimaryKey("urn1", "aspect1", 0L));
-    ema1Copy.setMetadata("metadata");
+    ema1Copy.setMetadata("{\"metadata\": \"value1\"}");
     ema1Copy.setCreatedBy("tester");
     ema1Copy.setCreatedFor("tester");
     ema1Copy.setCreatedOn(new Timestamp(1234567890L));
 
     EbeanMetadataAspect ema2Copy = new EbeanMetadataAspect();
     ema2Copy.setKey(new EbeanMetadataAspect.PrimaryKey("urn2", "aspect2", 0L));
-    ema2Copy.setMetadata("different metadata");
+    ema2Copy.setMetadata("{\"metadata\": \"value2\"}");
     ema2Copy.setCreatedBy("tester");
     ema2Copy.setCreatedFor("tester");
     ema2Copy.setCreatedOn(new Timestamp(1234567890L));
@@ -151,7 +162,7 @@ public class EBeanDAOUtilsTest {
     // different urn in key
     EbeanMetadataAspect ema3 = new EbeanMetadataAspect();
     ema3.setKey(new EbeanMetadataAspect.PrimaryKey("urn2", "aspect1", 0L));
-    ema3.setMetadata("metadata");
+    ema3.setMetadata("{\"metadata\": \"value1\"}");
     ema3.setCreatedBy("tester");
     ema3.setCreatedFor("tester");
     ema3.setCreatedOn(new Timestamp(1234567890L));
@@ -161,7 +172,7 @@ public class EBeanDAOUtilsTest {
     // different urn in key
     EbeanMetadataAspect ema3DifferentCopy = new EbeanMetadataAspect();
     ema3DifferentCopy.setKey(new EbeanMetadataAspect.PrimaryKey("urn3", "aspect1", 0L));
-    ema3DifferentCopy.setMetadata("metadata");
+    ema3DifferentCopy.setMetadata("{\"metadata\": \"value1\"}");
     ema3DifferentCopy.setCreatedBy("tester");
     ema3DifferentCopy.setCreatedFor("tester");
     ema3DifferentCopy.setCreatedOn(new Timestamp(1234567890L));
@@ -178,7 +189,7 @@ public class EBeanDAOUtilsTest {
     // different size lists
     EbeanMetadataAspect ema4 = new EbeanMetadataAspect();
     ema4.setKey(new EbeanMetadataAspect.PrimaryKey("urn1", "aspect1", 0L));
-    ema4.setMetadata("different metadata");
+    ema4.setMetadata("{\"metadata\": \"value1\"}");
     ema4.setCreatedBy("tester");
     ema4.setCreatedFor("tester");
     ema4.setCreatedOn(new Timestamp(1234567890L));

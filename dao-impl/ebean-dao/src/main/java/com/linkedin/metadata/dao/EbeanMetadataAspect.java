@@ -15,6 +15,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.NonNull;
 import lombok.Setter;
+import lombok.SneakyThrows;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
 
 
 /**
@@ -85,6 +88,7 @@ public class EbeanMetadataAspect extends Model {
   @Column(name = CREATED_FOR_COLUMN, nullable = true)
   private String createdFor;
 
+  @SneakyThrows
   @Override
   public boolean equals(Object o) {
     if (o == null) {
@@ -94,13 +98,22 @@ public class EbeanMetadataAspect extends Model {
       return false;
     }
     EbeanMetadataAspect other = (EbeanMetadataAspect) o;
-    return this.key.equals(other.key)
-        // either both metadata fields are null or both are equal (need to check this.metadata != null to avoid NPE)
-        && ((this.metadata == null && other.metadata == null) || (this.metadata != null && this.metadata.equals(other.getMetadata())))
+
+    boolean primitiveEqualityCheck = this.key.equals(other.key)
+        // either both metadata fields are null or both are equal (will check non-null equality after)
+        && ((this.metadata == null && other.metadata == null) || (this.metadata != null && other.metadata != null))
         && this.createdOn.equals(other.getCreatedOn())
         && this.createdBy.equals(other.getCreatedBy())
         // either both createdFor fields are null or both are equal (need to check this.createdFor != null to avoid NPE)
         && ((this.createdFor == null && other.getCreatedFor() == null) || (this.createdFor != null && this.createdFor.equals(other.getCreatedFor())));
+    if (!primitiveEqualityCheck) {
+      return false;
+    }
+
+    JSONParser parser = new JSONParser();
+    JSONObject thisMetadata = (JSONObject) parser.parse(this.metadata);
+    JSONObject otherMetadata = (JSONObject) parser.parse(other.metadata);
+    return thisMetadata.equals(otherMetadata);
   }
 
   @Override
