@@ -185,11 +185,13 @@ public class EbeanLocalRelationshipQueryDAO {
    * If any of above is violated, throw IllegalArgumentException.
    */
   private void validateRelationshipFilter(@Nonnull LocalRelationshipFilter filter) {
-    if (filter.getDirection() == RelationshipDirection.$UNKNOWN) {
-      throw new IllegalArgumentException("Relationship direction cannot be UNKNOWN.");
+    if (filter.getDirection() == null || filter.getDirection() == RelationshipDirection.$UNKNOWN) {
+      throw new IllegalArgumentException("Relationship direction cannot be null or UNKNOWN.");
     }
 
-    validateFilterCriteria(filter.getCriteria().stream().map(LocalRelationshipCriterion::getCondition).collect(Collectors.toList()));
+    if (filter.hasCriteria()) {
+      validateFilterCriteria(filter.getCriteria().stream().map(LocalRelationshipCriterion::getCondition).collect(Collectors.toList()));
+    }
   }
 
   /**

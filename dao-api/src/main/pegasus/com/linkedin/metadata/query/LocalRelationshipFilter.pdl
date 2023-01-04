@@ -12,5 +12,5 @@ record LocalRelationshipFilter {
   /**
    * The relationship direction between two nodes.
    */
-  direction: optional RelationshipDirection = "UNDIRECTED"
+  direction: optional RelationshipDirection
 }

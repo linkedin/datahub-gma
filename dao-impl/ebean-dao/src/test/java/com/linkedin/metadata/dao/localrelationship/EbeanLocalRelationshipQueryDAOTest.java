@@ -44,6 +44,7 @@ import org.testng.annotations.Test;
 import static com.linkedin.testing.TestUtils.*;
 import static org.testng.Assert.*;
 
+
 public class EbeanLocalRelationshipQueryDAOTest {
   private EbeanServer _server;
   private EbeanLocalRelationshipWriterDAO _localRelationshipWriterDAO;
@@ -394,5 +395,21 @@ public class EbeanLocalRelationshipQueryDAOTest {
     List<FooSnapshot> fooSnapshotList = _localRelationshipQueryDAO.findEntities(FooSnapshot.class, filter, 0, 10);
 
     assertEquals(fooSnapshotList.size(), 0);
+  }
+
+  @Test
+  public void testFindEntitiesWithEmptyRelationshipFilter() throws URISyntaxException {
+    // Ingest data
+    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp());
+
+    // Create empty filter
+    LocalRelationshipFilter emptyFilter = new LocalRelationshipFilter();
+
+    try {
+      _localRelationshipQueryDAO.findEntities(FooSnapshot.class, emptyFilter, FooSnapshot.class, emptyFilter, PairsWith.class, emptyFilter, 1, 1, 0, 10);
+    } catch (Exception ex) {
+      assertTrue(ex instanceof IllegalArgumentException);
+      assertEquals(ex.getMessage(), "Relationship direction cannot be null or UNKNOWN.");
+    }
   }
 }
