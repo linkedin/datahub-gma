@@ -1,0 +1,14 @@
+namespace com.linkedin.metadata.query
+
+record AspectField {
+
+  /**
+   * FQCN of the aspect class e.g. com.linkedin.common.Status
+   */
+  aspect: string
+
+  /**
+   * Corresponding path to the indexed column. ex "/dataset/name"
+   */
+  path: string
+}

@@ -1,0 +1,16 @@
+namespace com.linkedin.metadata.query
+
+/**
+ * The filter for finding an record or a collection of records
+ */
+record LocalRelationshipFilter {
+  /**
+   * A list of criteria the filter applies to the query
+   */
+  criteria: array[LocalRelationshipCriterion]
+
+  /**
+   * The relationship direction between two nodes.
+   */
+  direction: optional RelationshipDirection
+}

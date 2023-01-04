@@ -109,7 +109,7 @@ public class SQLSchemaUtils {
    * @return $name$value or $name
    */
   @Nonnull
-  private static String processPath(@Nonnull String path) {
+  public static String processPath(@Nonnull String path) {
     path = path.replace("/", "$");
     if (!path.startsWith("$")) {
       path = "$" + path;

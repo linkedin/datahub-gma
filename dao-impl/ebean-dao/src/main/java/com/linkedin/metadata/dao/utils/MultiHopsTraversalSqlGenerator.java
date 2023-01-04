@@ -1,9 +1,8 @@
 package com.linkedin.metadata.dao.utils;
 
 import com.linkedin.metadata.query.Condition;
-import com.linkedin.metadata.query.Filter;
+import com.linkedin.metadata.query.LocalRelationshipFilter;
 import com.linkedin.metadata.query.RelationshipDirection;
-import com.linkedin.metadata.query.RelationshipFilter;
 import java.util.Collections;
 import java.util.Map;
 import javax.annotation.Nonnull;
@@ -27,7 +26,8 @@ public class MultiHopsTraversalSqlGenerator {
   @Nonnull
   @ParametersAreNonnullByDefault
   public String multiHopTraversalSql(int minHop, int maxHop, int count, int offset, String relationshipTable,
-      String srcEntityTable, String destEntityTable, RelationshipFilter relationshipFilter, Filter srcFilter, Filter destFilter) {
+      String srcEntityTable, String destEntityTable, LocalRelationshipFilter relationshipFilter, LocalRelationshipFilter srcFilter,
+      LocalRelationshipFilter destFilter) {
 
     /*
      * For now, only one-hop traversal is supported because multi-hops traversal using SQL is expensive
@@ -64,7 +64,7 @@ public class MultiHopsTraversalSqlGenerator {
   @Nonnull
   @ParametersAreNonnullByDefault
   private String firstHopUrnsDirected(String relationshipTable, String srcEntityTable, String destEntityTable,
-      RelationshipFilter relationshipFilter, Filter srcFilter, Filter destFilter, RelationshipDirection direction) {
+      LocalRelationshipFilter relationshipFilter, LocalRelationshipFilter srcFilter, LocalRelationshipFilter destFilter, RelationshipDirection direction) {
 
     String urnColumn = "destination";
     if (direction == RelationshipDirection.INCOMING) {
@@ -76,7 +76,7 @@ public class MultiHopsTraversalSqlGenerator {
             urnColumn, relationshipTable, destEntityTable, srcEntityTable));
 
     String whereClause = SQLStatementUtils.whereClause(_supportedConditions,
-        new Pair<>(new Filter().setCriteria(relationshipFilter.getCriteria()), "rt"),
+        new Pair<>(relationshipFilter, "rt"),
         new Pair<>(destFilter, "dt"),
         new Pair<>(srcFilter, "st"));
 
@@ -92,8 +92,8 @@ public class MultiHopsTraversalSqlGenerator {
    */
   @Nonnull
   @ParametersAreNonnullByDefault
-  private String firstHopUrnsUndirected(String relationshipTable, String entityTable, RelationshipFilter relationshipFilter,
-      Filter srcFilter) {
+  private String firstHopUrnsUndirected(String relationshipTable, String entityTable, LocalRelationshipFilter relationshipFilter,
+      LocalRelationshipFilter srcFilter) {
 
     StringBuilder sourceUrnsSql = new StringBuilder(
         String.format("SELECT rt.source FROM %s rt INNER JOIN %s et ON rt.source=et.urn", relationshipTable, entityTable));
@@ -102,7 +102,7 @@ public class MultiHopsTraversalSqlGenerator {
         String.format("SELECT rt.destination FROM %s rt INNER JOIN %s et ON rt.destination=et.urn", relationshipTable, entityTable));
 
     String whereClause = SQLStatementUtils.whereClause(_supportedConditions,
-        new Pair<>(new Filter().setCriteria(relationshipFilter.getCriteria()), "rt"),
+        new Pair<>(relationshipFilter, "rt"),
         new Pair<>(srcFilter, "et"));
 
     if (whereClause != null) {
@@ -118,7 +118,7 @@ public class MultiHopsTraversalSqlGenerator {
    */
   @Nonnull
   @ParametersAreNonnullByDefault
-  private String findEntitiesUndirected(String entityTable, String relationshipTable, String firstHopUrnSql, Filter destFilter) {
+  private String findEntitiesUndirected(String entityTable, String relationshipTable, String firstHopUrnSql, LocalRelationshipFilter destFilter) {
     String whereClause = SQLStatementUtils.whereClause(_supportedConditions, new Pair<>(destFilter, "et"));
 
     StringBuilder sourceEntitySql = new StringBuilder(

@@ -178,7 +178,7 @@ public class EBeanDAOUtils {
    * @return A string which can be deserialized into Aspect object.
    */
   @Nullable
-  private static String extractAspectJsonString(@Nonnull final String auditedAspect) {
+  public static String extractAspectJsonString(@Nonnull final String auditedAspect) {
     try {
       JSONParser jsonParser = new JSONParser();
       JSONObject map = (JSONObject) jsonParser.parse(auditedAspect);

@@ -1,0 +1,8 @@
+namespace com.linkedin.metadata.query
+
+record UrnField {
+  /**
+   * This field refers to source / destination entity urn.
+   */
+  name: string = "urn"
+}
