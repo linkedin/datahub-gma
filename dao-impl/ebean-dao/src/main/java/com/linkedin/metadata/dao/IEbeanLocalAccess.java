@@ -18,20 +18,27 @@ import javax.annotation.Nullable;
  */
 public interface IEbeanLocalAccess<URN extends Urn> {
 
-   void setUrnPathExtractor(@Nonnull UrnPathExtractor<URN> urnPathExtractor);
+  void setUrnPathExtractor(@Nonnull UrnPathExtractor<URN> urnPathExtractor);
 
   /**
    * Upsert aspect into entity table.
    * @param urn entity urn
    * @param newValue aspect value in {@link RecordTemplate}
+   * @param aspectClass class of the aspect
    * @param auditStamp audit timestamp
    * @param <ASPECT> metadata aspect value
    * @return number of rows inserted or updated
    */
-  @Nonnull
-   <ASPECT extends RecordTemplate> int add(@Nonnull URN urn, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
+  <ASPECT extends RecordTemplate> int add(@Nonnull URN urn, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull AuditStamp auditStamp);
 
+  /**
+   * Upsert relationships to the local relationship table(s).
+   * @param urn urn associated with the relationships
+   * @param relationship aspect from which the relationships are derived from
+   * @param aspectClass class of the aspect
+   */
+  <ASPECT extends RecordTemplate> void addRelationships(@Nonnull URN urn, @Nonnull ASPECT relationship, @Nonnull Class<ASPECT> aspectClass);
 
   /**
    * Get read aspects from entity table. This a new schema implementation for batchGetUnion() in {@link EbeanLocalDAO}
@@ -104,6 +111,7 @@ public interface IEbeanLocalAccess<URN extends Urn> {
   /**
    * Provide a local relationship builder registry. Local relationships will be built based on the builders during data ingestion.
    * @param localRelationshipBuilderRegistry All local relationship builders should be registered in this registry.
+   *                                         Can be set to null to turn off local relationship ingestion.
    */
-  void setLocalRelationshipBuilderRegistry(@Nonnull LocalRelationshipBuilderRegistry localRelationshipBuilderRegistry);
+  void setLocalRelationshipBuilderRegistry(@Nullable LocalRelationshipBuilderRegistry localRelationshipBuilderRegistry);
 }

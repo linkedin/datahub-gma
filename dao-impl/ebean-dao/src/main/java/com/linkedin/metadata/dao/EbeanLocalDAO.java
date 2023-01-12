@@ -336,19 +336,34 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Override
   public <ASPECT extends RecordTemplate> void updateEntityTables(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass) {
     if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
-      throw new UnsupportedOperationException("The DAO is set to use the OLD_SCHEMA_ONLY. Please check that the schemaConfig"
-          + "parameter is properly set to NEW_SCHEMA_ONLY or DUAL_SCHEMA if you wish to use entity tables.");
+      throw new UnsupportedOperationException("Entity tables cannot be used in OLD_SCHEMA_ONLY mode, so they cannot be backfilled.");
     }
     PrimaryKey key = new PrimaryKey(urn.toString(), aspectClass.getCanonicalName(), LATEST_VERSION);
     runInTransactionWithRetry(() -> {
       // use forUpdate() to lock the row during this transaction so that we can guarantee a consistent update
       EbeanMetadataAspect result = _server.createQuery(EbeanMetadataAspect.class).setId(key).forUpdate().findOne();
       if (result == null) {
-        return null; // return value not used
+        return null; // unused
       }
       AuditStamp auditStamp = makeAuditStamp(result);
       _localAccess.add(urn, toRecordTemplate(aspectClass, result).orElse(null), aspectClass, auditStamp);
-      return null; // return value not used
+      return null; // unused
+    }, 1);
+  }
+
+  public <ASPECT extends RecordTemplate> void backfillLocalRelationshipsFromEntityTables(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass) {
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      throw new UnsupportedOperationException("Local relationship tables cannot be used in OLD_SCHEMA_ONLY mode, so they cannot be backfilled.");
+    }
+    AspectKey<URN, ASPECT> key = new AspectKey<>(aspectClass, urn, LATEST_VERSION);
+    runInTransactionWithRetry(() -> {
+      List<EbeanMetadataAspect> results = _localAccess.batchGetUnion(Collections.singletonList(key), 1, 0);
+      if (results.size() == 0) {
+        return null; // unused
+      }
+      Optional<ASPECT> aspect = toRecordTemplate(aspectClass, results.get(0));
+      aspect.ifPresent(value -> _localAccess.addRelationships(urn, value, aspectClass));
+      return null; // unused
     }, 1);
   }
 

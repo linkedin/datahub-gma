@@ -72,6 +72,11 @@ public class BaseLocalDAOTest {
 
     }
 
+    @Override
+    public <ASPECT extends RecordTemplate> void backfillLocalRelationshipsFromEntityTables(@Nonnull FooUrn urn, @Nonnull Class<ASPECT> aspectClass) {
+
+    }
+
     @Nonnull
     @Override
     protected <T> T runInTransactionWithRetry(Supplier<T> block, int maxTransactionRetry) {
