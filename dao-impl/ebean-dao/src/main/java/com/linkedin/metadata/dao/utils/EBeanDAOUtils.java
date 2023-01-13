@@ -26,7 +26,7 @@ import org.json.simple.parser.ParseException;
 @Slf4j
 public class EBeanDAOUtils {
 
-  public static final String DIFFERENT_RESULTS_TEMPLATE = "The results of %s from the new schema table and old schema table are not equal. Reason: %s."
+  public static final String DIFFERENT_RESULTS_TEMPLATE = "The results of %s from the new schema table and old schema table are not equal. Reason: %s. "
       + "Defaulting to using the value(s) from the old schema table.";
   // String stored in metadata_aspect table for soft deleted aspect
   private static final RecordTemplate DELETED_METADATA = new SoftDeletedAspect().setGma_deleted(true);
@@ -79,13 +79,13 @@ public class EBeanDAOUtils {
     }
     if (resultOld == null || resultNew == null) {
       final String message = resultOld == null
-          ? "The old schema result was null while the new schema result wasn't."
-          : "The new schema result was null while the old schema result wasn't.";
+          ? "The old schema result was null while the new schema result wasn't"
+          : "The new schema result was null while the old schema result wasn't";
       log.warn(String.format(DIFFERENT_RESULTS_TEMPLATE, methodName, message));
       return false;
     }
     if (resultOld.size() != resultNew.size()) {
-      final String message = String.format("The old schema returned %d result(s) while the new schema returned %d result(s).",
+      final String message = String.format("The old schema returned %d result(s) while the new schema returned %d result(s)",
           resultOld.size(), resultNew.size());
       log.warn(String.format(DIFFERENT_RESULTS_TEMPLATE, methodName, message));
       return false;
@@ -119,15 +119,15 @@ public class EBeanDAOUtils {
     }
     if (resultOld == null || resultNew == null) {
       final String message = resultOld == null
-          ? "The old schema result was null while the new schema result wasn't."
-          : "The new schema result was null while the old schema result wasn't.";
+          ? "The old schema result was null while the new schema result wasn't"
+          : "The new schema result was null while the old schema result wasn't";
       log.warn(String.format(DIFFERENT_RESULTS_TEMPLATE, methodName, message));
       return false;
     }
     if (resultOld.equals(resultNew)) {
       return true;
     }
-    log.warn(String.format(DIFFERENT_RESULTS_TEMPLATE, methodName, "Check preceding WARN logs for the reason that the ListResults are not equal"));
+    log.warn("Check preceding WARN logs for the reason that the ListResults are not equal");
     return false;
   }
 

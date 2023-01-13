@@ -361,4 +361,39 @@ public class EbeanLocalAccessTest {
     SqlRow firstResult = results.get(0);
     assertEquals("0", firstResult.getString("id"));
   }
+
+  @Test
+  public void testAddRelationships() throws URISyntaxException {
+    FooUrn fooUrn = makeFooUrn(1);
+    BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
+    BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:2");
+    BarUrn barUrn3 = BarUrn.createFromString("urn:li:bar:3");
+    AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(barUrn1, barUrn2, barUrn3));
+    AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
+
+    // Turn off local relationship ingestion first, to fill only the entity tables.
+    _ebeanLocalAccessFoo.setLocalRelationshipBuilderRegistry(null);
+    _ebeanLocalAccessFoo.add(fooUrn, aspectFooBar, AspectFooBar.class, auditStamp);
+    _ebeanLocalAccessBar.add(barUrn1, new AspectFoo().setValue("1"), AspectFoo.class, auditStamp);
+    _ebeanLocalAccessBar.add(barUrn2, new AspectFoo().setValue("2"), AspectFoo.class, auditStamp);
+    _ebeanLocalAccessBar.add(barUrn3, new AspectFoo().setValue("3"), AspectFoo.class, auditStamp);
+
+    // Verify that NO local relationships were added
+    EbeanLocalRelationshipQueryDAO ebeanLocalRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server);
+    List<BelongsTo> relationships = ebeanLocalRelationshipQueryDAO.findRelationships(
+        BarSnapshot.class, EMPTY_FILTER, FooSnapshot.class, EMPTY_FILTER, BelongsTo.class, EMPTY_FILTER, 0, 10);
+    assertEquals(0, relationships.size());
+
+    // Turn on local relationship ingestion now
+    _ebeanLocalAccessFoo.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
+
+    // Add only the local relationships
+    _ebeanLocalAccessFoo.addRelationships(fooUrn, aspectFooBar, AspectFooBar.class);
+
+    // Verify that the local relationships were added
+    relationships = ebeanLocalRelationshipQueryDAO.findRelationships(
+        BarSnapshot.class, EMPTY_FILTER, FooSnapshot.class, EMPTY_FILTER, BelongsTo.class, EMPTY_FILTER, 0, 10);
+
+    assertEquals(3, relationships.size());
+  }
 }

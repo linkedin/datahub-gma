@@ -15,6 +15,7 @@ import com.linkedin.metadata.dao.equality.AlwaysFalseEqualityTester;
 import com.linkedin.metadata.dao.equality.DefaultEqualityTester;
 import com.linkedin.metadata.dao.exception.InvalidMetadataType;
 import com.linkedin.metadata.dao.exception.RetryLimitReached;
+import com.linkedin.metadata.dao.localrelationship.SampleLocalRelationshipRegistryImpl;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
 import com.linkedin.metadata.dao.retention.VersionBasedRetention;
@@ -46,8 +47,10 @@ import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.AspectFooArray;
 import com.linkedin.testing.AspectFooEvolved;
 import com.linkedin.testing.AspectInvalid;
+import com.linkedin.testing.BarUrnArray;
 import com.linkedin.testing.EntityAspectUnion;
 import com.linkedin.testing.MixedRecord;
+import com.linkedin.testing.localrelationship.AspectFooBar;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.BazUrn;
 import com.linkedin.testing.urn.BurgerUrn;
@@ -2918,6 +2921,28 @@ public class EbeanLocalDAOTest {
     assertEquals(result.get(0).get("urn"), "urn:li:foo:1");
     assertNotNull(result.get(0).get("a_aspectfoo"));
     assertNull(result.get(0).get("a_aspectbar"));
+  }
+
+  @Test
+  public void testBackfillLocalRelationshipsFromEntityTables() throws URISyntaxException {
+    if (_schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
+      EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+      dao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
+      FooUrn fooUrn = makeFooUrn(1);
+      BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
+      BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:2");
+      BarUrn barUrn3 = BarUrn.createFromString("urn:li:bar:3");
+      AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(barUrn1, barUrn2, barUrn3));
+      dao.add(fooUrn, aspectFooBar, _dummyAuditStamp);
+
+      // clear local relationship table
+      _server.createSqlUpdate("delete from metadata_relationship_belongsto").execute();
+
+      dao.backfillLocalRelationshipsFromEntityTables(fooUrn, AspectFooBar.class);
+
+      List<SqlRow> results = _server.createSqlQuery("select * from metadata_relationship_belongsto").findList();
+      assertEquals(3, results.size());
+    }
   }
 
   @Test

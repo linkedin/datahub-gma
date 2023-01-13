@@ -17,6 +17,7 @@ import com.linkedin.testing.PizzaInfo;
 import com.linkedin.testing.PizzaOrder;
 import com.linkedin.testing.SnapshotUnionAlias;
 import com.linkedin.testing.TyperefPizzaAspect;
+import com.linkedin.testing.localrelationship.AspectFooBar;
 import com.linkedin.testing.urn.PizzaUrn;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.data.template.RecordTemplate;
@@ -79,7 +80,7 @@ public class ModelUtilsTest {
   public void testGetValidAspectTypes() {
     Set<Class<? extends RecordTemplate>> validTypes = ModelUtils.getValidAspectTypes(EntityAspectUnion.class);
 
-    assertEquals(validTypes, ImmutableSet.of(AspectFoo.class, AspectBar.class, AspectAttributes.class));
+    assertEquals(validTypes, ImmutableSet.of(AspectFoo.class, AspectBar.class, AspectFooBar.class, AspectAttributes.class));
   }
 
   @Test

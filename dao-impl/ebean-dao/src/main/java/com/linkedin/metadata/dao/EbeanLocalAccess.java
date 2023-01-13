@@ -94,7 +94,6 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
     // newValue is null if aspect is to be soft-deleted.
     if (newValue == null) {
-
       /*
       TODO:
       Local relationship is derived from an aspect. If an aspect metadata is deleted, then the local relationships derived from it
@@ -112,12 +111,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     }
 
     // Add local relationships if builder is provided.
-    if (_localRelationshipBuilderRegistry != null && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
-      List<BaseLocalRelationshipBuilder<ASPECT>.LocalRelationshipUpdates> localRelationshipUpdates =
-          _localRelationshipBuilderRegistry.getLocalRelationshipBuilder(newValue).buildRelationships(urn, newValue);
-
-      _localRelationshipWriterDAO.processLocalRelationshipUpdates(localRelationshipUpdates);
-    }
+    addRelationships(urn, newValue, aspectClass);
 
     AuditedAspect auditedAspect = new AuditedAspect()
         .setAspect(RecordUtils.toJsonString(newValue))
@@ -127,6 +121,16 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
         .setCreatedfor(impersonator, SetMode.IGNORE_NULL);
 
     return sqlUpdate.setParameter("metadata", toJsonString(auditedAspect)).execute();
+  }
+
+  @Override
+  public <ASPECT extends RecordTemplate> void addRelationships(@Nonnull URN urn, @Nonnull ASPECT aspect, @Nonnull Class<ASPECT> aspectClass) {
+    if (_localRelationshipBuilderRegistry != null && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
+      List<BaseLocalRelationshipBuilder<ASPECT>.LocalRelationshipUpdates> localRelationshipUpdates =
+          _localRelationshipBuilderRegistry.getLocalRelationshipBuilder(aspect).buildRelationships(urn, aspect);
+
+      _localRelationshipWriterDAO.processLocalRelationshipUpdates(localRelationshipUpdates);
+    }
   }
 
   /**
@@ -395,7 +399,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   /**
    * Set local relationship builder registry.
    */
-  public void setLocalRelationshipBuilderRegistry(@Nonnull LocalRelationshipBuilderRegistry localRelationshipBuilderRegistry) {
+  public void setLocalRelationshipBuilderRegistry(@Nullable LocalRelationshipBuilderRegistry localRelationshipBuilderRegistry) {
     _localRelationshipBuilderRegistry = localRelationshipBuilderRegistry;
   }
 
