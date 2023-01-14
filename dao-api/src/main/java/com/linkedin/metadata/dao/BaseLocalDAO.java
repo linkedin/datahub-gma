@@ -625,7 +625,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param urn the URN for the entity the aspect is attached to
    * @param aspectClass class of the aspect to backfill
    */
-  public abstract <ASPECT extends RecordTemplate> void updateEntityTables(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass);
+  public <ASPECT extends RecordTemplate> void updateEntityTables(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass) {
+    // Needs to be implemented by child classes if they want to use this functionality.
+  }
 
   /**
    * Backfill local relationships from the new schema entity tables. This method is new/dual schema only. It should NOT
@@ -636,7 +638,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param urn the URN for the entity the aspect (which the local relationship is derived from) is attached to
    * @param aspectClass class of the aspect to backfill
    */
-  public abstract <ASPECT extends RecordTemplate> void backfillLocalRelationshipsFromEntityTables(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass);
+  public <ASPECT extends RecordTemplate> void backfillLocalRelationshipsFromEntityTables(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass) {
+    // Needs to be implemented by child classes if they want to use this functionality.
+  }
 
   /**
    * Returns list of urns from local secondary index that satisfy the given filter conditions.
