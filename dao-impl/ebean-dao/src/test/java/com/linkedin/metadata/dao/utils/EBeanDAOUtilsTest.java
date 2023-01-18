@@ -96,14 +96,18 @@ public class EBeanDAOUtilsTest {
     ema4.setMetadata("{\"field2\": \"value2\", \"field1\": \"value1\"}");
     assertTrue(EBeanDAOUtils.compareResults(Collections.singletonList(ema4), Collections.singletonList(ema4Different), "testMethod"));
 
-    // different createdon
+    // different createdon, but within 1s of each other
     EbeanMetadataAspect ema5 = new EbeanMetadataAspect();
     ema5.setKey(new EbeanMetadataAspect.PrimaryKey("urn1", "aspect1", 0L));
     ema5.setMetadata("{\"metadata\": \"value1\"}");
     ema5.setCreatedBy("tester");
     ema5.setCreatedFor("tester");
-    ema5.setCreatedOn(new Timestamp(987654321L));
+    ema5.setCreatedOn(new Timestamp(1234567000L)); // 890 ms different than Timestamp(1234567890L)
 
+    assertTrue(EBeanDAOUtils.compareResults(Collections.singletonList(ema1), Collections.singletonList(ema5), "testMethod"));
+
+    // different createdon
+    ema5.setCreatedOn(new Timestamp(1234560000L)); // 7890 ms different than Timestamp(1234567890L)
     assertFalse(EBeanDAOUtils.compareResults(Collections.singletonList(ema1), Collections.singletonList(ema5), "testMethod"));
 
     // createdFor is nullable, set one EbeanMetadataAspect's createdFor field to null

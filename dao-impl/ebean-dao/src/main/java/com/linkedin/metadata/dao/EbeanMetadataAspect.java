@@ -102,7 +102,7 @@ public class EbeanMetadataAspect extends Model {
     boolean primitiveEqualityCheck = this.key.equals(other.key)
         // either both metadata fields are null or both are equal (will check non-null equality after)
         && ((this.metadata == null && other.metadata == null) || (this.metadata != null && other.metadata != null))
-        && this.createdOn.equals(other.getCreatedOn())
+        && Math.abs(this.createdOn.getTime() - other.getCreatedOn().getTime()) < 1000 // timestamps are considered equal if within 1s of each other
         && this.createdBy.equals(other.getCreatedBy())
         // either both createdFor fields are null or both are equal (need to check this.createdFor != null to avoid NPE)
         && ((this.createdFor == null && other.getCreatedFor() == null) || (this.createdFor != null && this.createdFor.equals(other.getCreatedFor())));
