@@ -76,7 +76,7 @@ import static com.linkedin.metadata.dao.utils.EbeanServerUtils.*;
 public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     extends BaseLocalDAO<ASPECT_UNION, URN> {
 
-  private static final int INDEX_QUERY_TIMEOUT_IN_SEC = 5;
+  private static final int INDEX_QUERY_TIMEOUT_IN_SEC = 10;
 
   protected final EbeanServer _server;
   protected final Class<URN> _urnClass;
