@@ -35,6 +35,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
     private static final String METADATA = "metadata";
     private static final String LAST_MODIFIED_ON = "lastmodifiedon";
     private static final String LAST_MODIFIED_BY = "lastmodifiedby";
+    private static final String DELETED_TS = "deleted_ts";
   }
 
   public EbeanLocalRelationshipWriterDAO(EbeanServer server) {
@@ -71,18 +72,17 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
   }
 
   @Override
-  public <RELATIONSHIP extends RecordTemplate> void removeRelationships(@Nonnull List<RELATIONSHIP> relationships)
-      throws Exception {
+  public <RELATIONSHIP extends RecordTemplate> void removeRelationships(@Nonnull List<RELATIONSHIP> relationships) {
     throw new UnsupportedOperationException("Local relationship only supports adding relationships.");
   }
 
   @Override
-  public <ENTITY extends RecordTemplate> void addEntities(@Nonnull List<ENTITY> entities) throws Exception {
+  public <ENTITY extends RecordTemplate> void addEntities(@Nonnull List<ENTITY> entities) {
     throw new UnsupportedOperationException("Local relationship does not support adding entity. Please consider using metadata entity table.");
   }
 
   @Override
-  public <URN extends Urn> void removeEntities(@Nonnull List<URN> urns) throws Exception {
+  public <URN extends Urn> void removeEntities(@Nonnull List<URN> urns) {
     throw new UnsupportedOperationException("Local relationship does not support removing entity. Please consider using metadata entity table.");
   }
 

@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS metadata_relationship_belongsto (
     destination_type VARCHAR(100) NOT NULL,
     lastmodifiedon TIMESTAMP NOT NULL,
     lastmodifiedby VARCHAR(255) NOT NULL,
+    deleted_ts DATETIME(6) DEFAULT NULL,
     PRIMARY KEY (id)
 );
 

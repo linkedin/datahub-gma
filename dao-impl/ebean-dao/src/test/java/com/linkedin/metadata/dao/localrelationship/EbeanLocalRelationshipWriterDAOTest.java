@@ -57,10 +57,16 @@ public class EbeanLocalRelationshipWriterDAOTest {
     _localRelationshipWriterDAO.processLocalRelationshipUpdates(updates);
 
     // After processing verification
-    List<SqlRow> after = _server.createSqlQuery("select * from metadata_relationship_belongsto where destination='urn:li:foo:123'").findList();
-    assertEquals(after.size(), 3);
-    List<SqlRow> edges = _server.createSqlQuery("select * from metadata_relationship_belongsto where source='urn:li:bar:000'").findList();
-    assertEquals(edges.size(), 0);
+    List<SqlRow> all = _server.createSqlQuery("select * from metadata_relationship_belongsto").findList();
+    assertEquals(all.size(), 4); // Total number of edges is 4
+
+    List<SqlRow> softDeleted = _server.createSqlQuery("select * from metadata_relationship_belongsto where deleted_ts IS NOT NULL").findList();
+    assertEquals(softDeleted.size(), 1); // 1 soft deleted edge
+
+    List<SqlRow> newEdges = _server.createSqlQuery(
+        "select * from metadata_relationship_belongsto where destination='urn:li:foo:123' and deleted_ts IS NULL").findList();
+
+    assertEquals(newEdges.size(), 3); // 3 new edges added.
 
     // Clean up
     _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_belongsto"));
@@ -118,10 +124,15 @@ public class EbeanLocalRelationshipWriterDAOTest {
     _localRelationshipWriterDAO.processLocalRelationshipUpdates(updates);
 
     // After processing verification
-    List<SqlRow> after = _server.createSqlQuery("select * from metadata_relationship_pairswith where destination='urn:li:foo:123'").findList();
-    assertEquals(after.size(), 2);
-    List<SqlRow> edges = _server.createSqlQuery("select * from metadata_relationship_pairswith where source='urn:li:bar:000'").findList();
-    assertEquals(edges.size(), 1);
+    List<SqlRow> all = _server.createSqlQuery("select * from metadata_relationship_pairswith").findList();
+    assertEquals(all.size(), 4); // Total number of edges is 4
+
+    List<SqlRow> softDeleted = _server.createSqlQuery("select * from metadata_relationship_pairswith where deleted_ts IS NOT NULL").findList();
+    assertEquals(softDeleted.size(), 2); // 2 edges are soft-deleted.
+
+    List<SqlRow> oldEdge = _server.createSqlQuery(
+        "select * from metadata_relationship_pairswith where source='urn:li:bar:000' and deleted_ts IS NULL").findList();
+    assertEquals(oldEdge.size(), 1); // 1 old edge untouched.
 
     // Clean up
     _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_pairswith"));
@@ -150,12 +161,19 @@ public class EbeanLocalRelationshipWriterDAOTest {
     _localRelationshipWriterDAO.processLocalRelationshipUpdates(updates);
 
     // After processing verification
-    List<SqlRow> after = _server.createSqlQuery("select * from metadata_relationship_versionof").findList();
-    assertEquals(after.size(), 2);
-    List<SqlRow> edges = _server.createSqlQuery("select * from metadata_relationship_versionof where source='urn:li:bar:123'").findList();
-    assertEquals(edges.size(), 1);
-    edges = _server.createSqlQuery("select * from metadata_relationship_versionof where source='urn:li:bar:000'").findList();
-    assertEquals(edges.size(), 1);
+    List<SqlRow> all = _server.createSqlQuery("select * from metadata_relationship_versionof").findList();
+    assertEquals(all.size(), 4); // Total number of edges
+
+    List<SqlRow> softDeleted = _server.createSqlQuery("select * from metadata_relationship_versionof where deleted_ts IS NOT NULL").findList();
+    assertEquals(softDeleted.size(), 2); // 2 out of 4 edges are soft-deleted
+
+    List<SqlRow> newEdge = _server.createSqlQuery(
+        "select * from metadata_relationship_versionof where source='urn:li:bar:123' and deleted_ts IS NULL").findList();
+    assertEquals(newEdge.size(), 1); // Newly insert 1 edge
+
+    List<SqlRow> oldEdge = _server.createSqlQuery(
+        "select * from metadata_relationship_versionof where source='urn:li:bar:000' and deleted_ts IS NULL").findList();
+    assertEquals(oldEdge.size(), 1);
 
     // Clean up
     _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_versionof"));
