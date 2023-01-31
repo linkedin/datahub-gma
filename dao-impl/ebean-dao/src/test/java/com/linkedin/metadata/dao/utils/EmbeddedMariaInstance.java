@@ -30,7 +30,7 @@ public class EmbeddedMariaInstance {
 
   private static final String DB_USER = "user";
   private static final String DB_PASS = "password";
-  private static final int PORT = 23306;
+  private static final int PORT = 60273;
 
   public static synchronized EbeanServer getServer(String dbSchema) {
     initDB(); // initDB is idempotent
