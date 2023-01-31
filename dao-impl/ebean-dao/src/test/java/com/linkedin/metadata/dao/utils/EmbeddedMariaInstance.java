@@ -37,8 +37,8 @@ public class EmbeddedMariaInstance {
 
     try {
       db.createDB(dbSchema);
-    } catch (Exception e) {
-      // Ignored
+    } catch (ManagedProcessException e) {
+      throw new RuntimeException(e);
     }
 
     DataSourceConfig dataSourceConfig = new DataSourceConfig();
