@@ -52,6 +52,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   private UrnPathExtractor<URN> _urnPathExtractor;
   private final EbeanLocalRelationshipWriterDAO _localRelationshipWriterDAO;
   private LocalRelationshipBuilderRegistry _localRelationshipBuilderRegistry;
+  private final SchemaEvolutionManager _schemaEvolutionManager;
 
   // TODO confirm if the default page size is 1000 in other code context.
   private static final int DEFAULT_PAGE_SIZE = 1000;
@@ -64,11 +65,15 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     _urnPathExtractor = urnPathExtractor;
     _entityType = ModelUtils.getEntityTypeFromUrnClass(_urnClass);
     _localRelationshipWriterDAO = new EbeanLocalRelationshipWriterDAO(_server);
-    createSchemaEvolutionManager(serverConfig).ensureSchemaUpToDate();
+    _schemaEvolutionManager = createSchemaEvolutionManager(serverConfig);
   }
 
   public void setUrnPathExtractor(@Nonnull UrnPathExtractor<URN> urnPathExtractor) {
     _urnPathExtractor = urnPathExtractor;
+  }
+
+  public void ensureSchemaUpToDate() {
+    _schemaEvolutionManager.ensureSchemaUpToDate();
   }
 
   @Override

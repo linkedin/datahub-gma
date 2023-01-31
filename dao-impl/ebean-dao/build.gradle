@@ -30,15 +30,15 @@ dependencies {
   enhance externalDependency.ebeanAgent
 }
 
-test {
-  if (!project.hasProperty('test-ebean-dao')) {
-    exclude '**/EbeanLocalAccessTest.class'
-    exclude '**/EbeanLocalDAOTest.class'
-    exclude '**/EbeanLocalRelationshipWriterDAOTest.class'
-    exclude '**/EbeanLocalRelationshipQueryDAOTest.class'
-    exclude '**/FlywaySchemaEvolutionManagerTest.class'
-  }
-}
+//test {
+//  if (!project.hasProperty('test-ebean-dao')) {
+//    exclude '**/EbeanLocalAccessTest.class'
+//    exclude '**/EbeanLocalDAOTest.class'
+//    exclude '**/EbeanLocalRelationshipWriterDAOTest.class'
+//    exclude '**/EbeanLocalRelationshipQueryDAOTest.class'
+//    exclude '**/FlywaySchemaEvolutionManagerTest.class'
+//  }
+//}
 
 project.compileJava {
   doLast {

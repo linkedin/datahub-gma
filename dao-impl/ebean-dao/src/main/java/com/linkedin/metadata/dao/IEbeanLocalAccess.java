@@ -114,4 +114,9 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    *                                         Can be set to null to turn off local relationship ingestion.
    */
   void setLocalRelationshipBuilderRegistry(@Nullable LocalRelationshipBuilderRegistry localRelationshipBuilderRegistry);
+
+  /**
+   * Ensure table schemas are up-to-date according to db evolution scripts.
+   */
+  void ensureSchemaUpToDate();
 }

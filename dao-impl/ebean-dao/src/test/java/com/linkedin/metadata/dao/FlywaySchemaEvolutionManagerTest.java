@@ -20,13 +20,13 @@ public class FlywaySchemaEvolutionManagerTest {
 
   @BeforeClass
   public void init() throws IOException {
-    _server = EmbeddedMariaInstance.getServer();
+    _server = EmbeddedMariaInstance.getServer(FlywaySchemaEvolutionManagerTest.class.getSimpleName());
     _server.execute(Ebean.createSqlUpdate(
         Resources.toString(Resources.getResource("schema-evolution-create-all.sql"), StandardCharsets.UTF_8)));
     SchemaEvolutionManager.Config config = new SchemaEvolutionManager.Config(
-        EmbeddedMariaInstance.SERVER_CONFIG.getDataSourceConfig().getUrl(),
-        EmbeddedMariaInstance.SERVER_CONFIG.getDataSourceConfig().getPassword(),
-        EmbeddedMariaInstance.SERVER_CONFIG.getDataSourceConfig().getUsername()
+        EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()).getDataSourceConfig().getUrl(),
+        EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()).getDataSourceConfig().getPassword(),
+        EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()).getDataSourceConfig().getUsername()
     );
 
     _schemaEvolutionManager = new FlywaySchemaEvolutionManager(config);
@@ -56,7 +56,7 @@ public class FlywaySchemaEvolutionManagerTest {
 
   private boolean checkTableExists(String tableName) {
     String checkTableExistsSql = String.format("SELECT count(*) as count FROM information_schema.TABLES WHERE TABLE_SCHEMA = '%s' AND"
-        + " TABLE_NAME = '%s'", EmbeddedMariaInstance.DB_SCHEMA, tableName);
+        + " TABLE_NAME = '%s'", _server.getName(), tableName);
 
     return _server.createSqlQuery(checkTableExistsSql).findOne().getInteger("count") == 1;
   }

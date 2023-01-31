@@ -31,7 +31,7 @@ public class EbeanLocalRelationshipWriterDAOTest {
 
   @BeforeClass
   public void init() throws IOException {
-    _server = EmbeddedMariaInstance.getServer();
+    _server = EmbeddedMariaInstance.getServer(EbeanLocalRelationshipWriterDAOTest.class.getSimpleName());
     _server.execute(Ebean.createSqlUpdate(
         Resources.toString(Resources.getResource("ebean-local-relationship-dao-create-all.sql"), StandardCharsets.UTF_8)));
     _localRelationshipWriterDAO = new EbeanLocalRelationshipWriterDAO(_server);

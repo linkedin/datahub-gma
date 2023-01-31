@@ -54,11 +54,13 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
   @BeforeClass
   public void init() {
-    _server = EmbeddedMariaInstance.getServer();
+    _server = EmbeddedMariaInstance.getServer(EbeanLocalRelationshipQueryDAOTest.class.getSimpleName());
     _localRelationshipWriterDAO = new EbeanLocalRelationshipWriterDAO(_server);
     _localRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server);
-    _fooUrnEBeanLocalAccess = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG, FooUrn.class, new EmptyPathExtractor<>());
-    _barUrnEBeanLocalAccess = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG, BarUrn.class, new EmptyPathExtractor<>());
+    _fooUrnEBeanLocalAccess = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()),
+        FooUrn.class, new EmptyPathExtractor<>());
+    _barUrnEBeanLocalAccess = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()),
+        BarUrn.class, new EmptyPathExtractor<>());
   }
 
   @BeforeMethod
