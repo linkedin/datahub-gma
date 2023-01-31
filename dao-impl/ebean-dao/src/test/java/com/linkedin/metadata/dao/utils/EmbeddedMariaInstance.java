@@ -24,7 +24,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class EmbeddedMariaInstance {
   public static final ConcurrentHashMap<String, ServerConfig> SERVER_CONFIG_MAP = new ConcurrentHashMap<>();
   private static volatile DB db;
-  private static final AtomicInteger COUNTER = new AtomicInteger();
   private EmbeddedMariaInstance() {
   }
 
