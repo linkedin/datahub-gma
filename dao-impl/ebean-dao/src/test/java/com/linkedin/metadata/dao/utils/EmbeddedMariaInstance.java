@@ -13,7 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Comparator;
-import javax.annotation.Nonnull;
+import java.util.concurrent.ConcurrentHashMap;
 
 
 /**
@@ -21,40 +21,37 @@ import javax.annotation.Nonnull;
  * supported in MariaDB but not in MySQL and vice versa. We should use syntax that's both MySQL and MariaDB compatible.
  */
 public class EmbeddedMariaInstance {
-  public static final ServerConfig SERVER_CONFIG = createEmbeddedMariaServerConfig();
+  public static final ConcurrentHashMap<String, ServerConfig> SERVER_CONFIG_MAP = new ConcurrentHashMap<>();
   private static volatile DB db;
-  private static volatile EbeanServer server;
   private EmbeddedMariaInstance() {
   }
 
-  public static final String DB_SCHEMA = "gma_dev";
   private static final String DB_USER = "user";
   private static final String DB_PASS = "password";
-  private static final int PORT = 23306;
+  private static final int PORT = 60273;
 
-  public static synchronized EbeanServer getServer() {
-    if (server == null) {
-      server = EbeanServerFactory.create(createEmbeddedMariaServerConfig());
+  public static synchronized EbeanServer getServer(String dbSchema) {
+    initDB(); // initDB is idempotent
+
+    try {
+      db.createDB(dbSchema);
+    } catch (ManagedProcessException e) {
+      throw new RuntimeException(e);
     }
 
-    return server;
-  }
-
-  @Nonnull
-  private static ServerConfig createEmbeddedMariaServerConfig() {
-    initDB();
     DataSourceConfig dataSourceConfig = new DataSourceConfig();
     dataSourceConfig.setUsername(DB_USER);
     dataSourceConfig.setPassword(DB_PASS);
-    dataSourceConfig.setUrl(String.format("jdbc:mysql://localhost:%s/%s?allowMultiQueries=true", PORT, DB_SCHEMA));
+    dataSourceConfig.setUrl(String.format("jdbc:mysql://localhost:%s/%s?allowMultiQueries=true", PORT, dbSchema));
     dataSourceConfig.setDriver("com.mysql.cj.jdbc.Driver");
 
     ServerConfig serverConfig = new ServerConfig();
-    serverConfig.setName("gma");
+    serverConfig.setName(dbSchema);
     serverConfig.setDataSourceConfig(dataSourceConfig);
     serverConfig.setDdlGenerate(false);
     serverConfig.setDdlRun(false);
-    return serverConfig;
+    SERVER_CONFIG_MAP.put(serverConfig.getName(), serverConfig);
+    return EbeanServerFactory.create(serverConfig);
   }
 
   private static void initDB() {
@@ -66,7 +63,6 @@ public class EmbeddedMariaInstance {
           String baseDbDir = getBaseDbDir();
           configurationBuilder.setDataDir(baseDbDir + File.separator + "data");
           configurationBuilder.setBaseDir(baseDbDir + File.separator + "base");
-
           try {
             // ensure the DB directory is deleted before we start to have a clean start
             if (new File(baseDbDir).exists()) {
@@ -76,7 +72,6 @@ public class EmbeddedMariaInstance {
             }
             db = DB.newEmbeddedDB(configurationBuilder.build());
             db.start();
-            db.createDB(DB_SCHEMA);
           } catch (ManagedProcessException | IOException e) {
             throw new RuntimeException(e);
           }

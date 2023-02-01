@@ -151,7 +151,7 @@ public class EbeanLocalDAOTest {
     if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
       _server = EbeanServerFactory.create(EbeanServerUtils.createTestingH2ServerConfig());
     } else {
-      _server = EmbeddedMariaInstance.getServer();
+      _server = EmbeddedMariaInstance.getServer(EbeanLocalDAOTest.class.getSimpleName());
     }
   }
 
@@ -159,7 +159,7 @@ public class EbeanLocalDAOTest {
   private <URN extends Urn> EbeanLocalDAO<EntityAspectUnion, URN> createDao(@Nonnull EbeanServer server,
       @Nonnull Class<URN> urnClass) {
     EbeanLocalDAO<EntityAspectUnion, URN> dao = new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, server,
-        EmbeddedMariaInstance.SERVER_CONFIG, urnClass, _schemaConfig);
+        EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()), urnClass, _schemaConfig);
     // Since we added a_urn columns to both metadata_entity_foo and metadata_entity_bar tables in the SQL initialization scripts,
     // it is required that we set non-default UrnPathExtractors for the corresponding DAOs when initialized.
     if (urnClass == FooUrn.class) {
@@ -1756,7 +1756,7 @@ public class EbeanLocalDAOTest {
 
   @Test
   void testUpdateUrnAndAspectInLocalIndex() {
-    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = new EbeanLocalDAO<>(_mockProducer, _server, EmbeddedMariaInstance.SERVER_CONFIG,
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = new EbeanLocalDAO<>(_mockProducer, _server, EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()),
         makeLocalDAOStorageConfig(AspectFooEvolved.class, Arrays.asList("/value", "/newValue")), FooUrn.class, _schemaConfig);
     dao.enableLocalSecondaryIndex(true);
     dao.setUrnPathExtractor(new FooUrnPathExtractor());
@@ -3131,14 +3131,14 @@ public class EbeanLocalDAOTest {
       String checkColumnExistance = "SELECT * FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '%s' AND"
           + " TABLE_NAME = '%s' AND COLUMN_NAME = '%s'";
 
-      if (_server.createSqlQuery(String.format(checkColumnExistance, EmbeddedMariaInstance.DB_SCHEMA, getTableName(urn),
+      if (_server.createSqlQuery(String.format(checkColumnExistance, _server.getName(), getTableName(urn),
           fullIndexColumnName)).findList().isEmpty()) {
         String sqlUpdate = String.format("ALTER TABLE %s ADD COLUMN %s VARCHAR(255);", getTableName(urn), fullIndexColumnName);
         _server.execute(Ebean.createSqlUpdate(sqlUpdate));
       }
 
       // similarly for index columns (i_*), we need to add any new aspect columns (a_*)
-      if (aspectColumnName != null && _server.createSqlQuery(String.format(checkColumnExistance, EmbeddedMariaInstance.DB_SCHEMA,
+      if (aspectColumnName != null && _server.createSqlQuery(String.format(checkColumnExistance, _server.getName(),
           getTableName(urn), aspectColumnName)).findList().isEmpty()) {
         String sqlUpdate = String.format("ALTER TABLE %s ADD COLUMN %s VARCHAR(255);", getTableName(urn), aspectColumnName);
         _server.execute(Ebean.createSqlUpdate(sqlUpdate));

@@ -24,8 +24,8 @@ public interface SchemaEvolutionManager {
    */
   @Value
   class Config {
-     String connectionUrl;
-     String password;
-     String username;
+    String connectionUrl;
+    String password;
+    String username;
   }
 }

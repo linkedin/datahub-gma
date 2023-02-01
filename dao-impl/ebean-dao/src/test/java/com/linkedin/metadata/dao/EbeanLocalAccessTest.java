@@ -55,10 +55,13 @@ public class EbeanLocalAccessTest {
 
   @BeforeClass
   public void init() {
-    _server = EmbeddedMariaInstance.getServer();
-    _ebeanLocalAccessFoo = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG, FooUrn.class, new FooUrnPathExtractor());
-    _ebeanLocalAccessBar = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG, BarUrn.class, new BarUrnPathExtractor());
-    _ebeanLocalAccessBurger = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG, BurgerUrn.class, new EmptyPathExtractor<>());
+    _server = EmbeddedMariaInstance.getServer(EbeanLocalAccessTest.class.getSimpleName());
+    _ebeanLocalAccessFoo = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()),
+        FooUrn.class, new FooUrnPathExtractor());
+    _ebeanLocalAccessBar = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()),
+        BarUrn.class, new BarUrnPathExtractor());
+    _ebeanLocalAccessBurger = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()),
+        BurgerUrn.class, new EmptyPathExtractor<>());
     _ebeanLocalAccessFoo.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
     _now = System.currentTimeMillis();
   }

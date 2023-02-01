@@ -270,6 +270,17 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     return _schemaConfig;
   }
 
+  /**
+   * Ensure table schemas is up-to-date with db evolution scripts.
+   */
+  public void ensureSchemaUpToDate() {
+    if (_schemaConfig.equals(SchemaConfig.OLD_SCHEMA_ONLY)) {
+      throw new UnsupportedOperationException("DB evolution script is not supported in old schema mode.");
+    }
+
+    _localAccess.ensureSchemaUpToDate();
+  }
+
   @Nonnull
   @Override
   protected <T> T runInTransactionWithRetry(@Nonnull Supplier<T> block, int maxTransactionRetry) {
@@ -1463,7 +1474,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
     if (_schemaConfig == SchemaConfig.DUAL_SCHEMA && !resultOld.equals(resultNew)) {
       // TODO: print info log with performance (response time) and values
-      log.warn(String.format(EBeanDAOUtils.DIFFERENT_RESULTS_TEMPLATE, "Result maps are not equal.", "countAggregate", resultOld, resultNew));
+      String message = String.format("Old result: %s. New result: %s", resultOld, resultNew);
+      log.warn(String.format(EBeanDAOUtils.DIFFERENT_RESULTS_TEMPLATE, "countAggregate", message));
     }
 
     return resultOld;

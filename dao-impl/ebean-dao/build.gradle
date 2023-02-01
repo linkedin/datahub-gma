@@ -15,7 +15,6 @@ dependencies {
   compile externalDependency.jsonSimple
   compile externalDependency.log4j
 
-
   compileOnly externalDependency.ebeanAgent
   compileOnly externalDependency.lombok
 
@@ -28,16 +27,6 @@ dependencies {
   testCompile externalDependency.mockito
   testCompile externalDependency.maria4j
   enhance externalDependency.ebeanAgent
-}
-
-test {
-  if (!project.hasProperty('test-ebean-dao')) {
-    exclude '**/EbeanLocalAccessTest.class'
-    exclude '**/EbeanLocalDAOTest.class'
-    exclude '**/EbeanLocalRelationshipWriterDAOTest.class'
-    exclude '**/EbeanLocalRelationshipQueryDAOTest.class'
-    exclude '**/FlywaySchemaEvolutionManagerTest.class'
-  }
 }
 
 project.compileJava {
