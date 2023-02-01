@@ -23,6 +23,7 @@ import com.linkedin.parseq.BaseEngineTest;
 import com.linkedin.restli.common.ComplexResourceKey;
 import com.linkedin.restli.common.EmptyRecord;
 import com.linkedin.restli.common.HttpStatus;
+import com.linkedin.restli.server.BatchResult;
 import com.linkedin.restli.server.CollectionResult;
 import com.linkedin.restli.server.PagingContext;
 import com.linkedin.restli.server.ResourceContext;
@@ -184,11 +185,7 @@ public class BaseEntityResourceTest extends BaseEngineTest {
   public void testGetWithEmptyAspects() {
     FooUrn urn = makeFooUrn(1234);
 
-    AspectKey<FooUrn, AspectFoo> aspect1Key = new AspectKey<>(AspectFoo.class, urn, LATEST_VERSION);
-    AspectKey<FooUrn, AspectBar> aspect2Key = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
-
     when(_mockLocalDAO.exists(urn)).thenReturn(true);
-    when(_mockLocalDAO.get(new HashSet<>(Arrays.asList(aspect1Key, aspect2Key)))).thenReturn(Collections.emptyMap());
 
     try {
       EntityValue value = runAndWait(_resource.get(makeResourceKey(urn), new String[0]));
@@ -275,6 +272,169 @@ public class BaseEntityResourceTest extends BaseEngineTest {
 
     verify(_mockLocalDAO, times(1)).get(ImmutableSet.of(fooKey1, fooKey2));
     verifyNoMoreInteractions(_mockLocalDAO);
+  }
+
+  @Test
+  public void testBatchGetWithErrorsUrnsNotFound() {
+    FooUrn urn1 = makeFooUrn(1);
+    FooUrn urn2 = makeFooUrn(2);
+    String[] aspectNames = {ModelUtils.getAspectName(AspectFoo.class)};
+
+    AspectKey<FooUrn, AspectFoo> aspectFooKey1 = new AspectKey<>(AspectFoo.class, urn1, LATEST_VERSION);
+    AspectKey<FooUrn, AspectFoo> aspectFooKey2 = new AspectKey<>(AspectFoo.class, urn1, LATEST_VERSION);
+
+    when(_mockLocalDAO.get(ImmutableSet.of(aspectFooKey1, aspectFooKey2)))
+        .thenReturn(Collections.emptyMap());
+
+    BatchResult<ComplexResourceKey<EntityKey, EmptyRecord>, EntityValue> result =
+        runAndWait(_resource.batchGetWithErrors(ImmutableSet.of(makeResourceKey(urn1), makeResourceKey(urn2)), aspectNames));
+
+    // convert BatchResult<ComplexResourceKey<EntityKey, EmptyRecord>, EntityValue> to BatchResult<EntityKey, EntityValue>
+    BatchResult<EntityKey, EntityValue> batchResultMap = convertBatchResult(result);
+
+    // ensure there are 2 404s in the form of HttpStatus
+    Map<EntityKey, HttpStatus> statuses = batchResultMap.getStatuses();
+    assertEquals(statuses.size(), 2);
+    assertEquals(statuses.get(makeKey(1)), HttpStatus.S_404_NOT_FOUND);
+    assertEquals(statuses.get(makeKey(2)), HttpStatus.S_404_NOT_FOUND);
+
+    // ensure there are 2 404s in the form of RestLiServiceException
+    Map<EntityKey, RestLiServiceException> errors = batchResultMap.getErrors();
+    assertEquals(errors.size(), 2);
+    assertEquals(errors.get(makeKey(1)).getStatus(), HttpStatus.S_404_NOT_FOUND);
+    assertEquals(errors.get(makeKey(2)).getStatus(), HttpStatus.S_404_NOT_FOUND);
+
+    // ensure the urns that don't exist are not in the result data map
+    assertEquals(batchResultMap.size(), 0);
+  }
+
+  @Test
+  public void testBatchGetWithErrorsWithEmptyAspects() {
+    FooUrn urn1 = makeFooUrn(1);
+    FooUrn urn2 = makeFooUrn(2);
+
+    AspectKey<FooUrn, AspectFoo> aspectFooKey1 = new AspectKey<>(AspectFoo.class, urn1, LATEST_VERSION);
+    AspectKey<FooUrn, AspectBar> aspectBarKey1 = new AspectKey<>(AspectBar.class, urn1, LATEST_VERSION);
+    AspectKey<FooUrn, AspectFooBar> aspectFooBarKey1 = new AspectKey<>(AspectFooBar.class, urn1, LATEST_VERSION);
+    AspectKey<FooUrn, AspectAttributes> aspectAttKey1 = new AspectKey<>(AspectAttributes.class, urn1, LATEST_VERSION);
+    AspectKey<FooUrn, AspectFoo> aspectFooKey2 = new AspectKey<>(AspectFoo.class, urn2, LATEST_VERSION);
+    AspectKey<FooUrn, AspectBar> aspectBarKey2 = new AspectKey<>(AspectBar.class, urn2, LATEST_VERSION);
+    AspectKey<FooUrn, AspectFooBar> aspectFooBarKey2 = new AspectKey<>(AspectFooBar.class, urn2, LATEST_VERSION);
+    AspectKey<FooUrn, AspectAttributes> aspectAttKey2 = new AspectKey<>(AspectAttributes.class, urn2, LATEST_VERSION);
+
+    when(_mockLocalDAO.get(ImmutableSet.of(aspectFooBarKey1, aspectFooBarKey2, aspectFooKey1, aspectBarKey1, aspectFooKey2,
+        aspectBarKey2, aspectAttKey1, aspectAttKey2)))
+        .thenReturn(Collections.emptyMap());
+
+    BatchResult<ComplexResourceKey<EntityKey, EmptyRecord>, EntityValue> result =
+        runAndWait(_resource.batchGetWithErrors(ImmutableSet.of(makeResourceKey(urn1), makeResourceKey(urn2)), new String[0]));
+
+    // convert BatchResult<ComplexResourceKey<EntityKey, EmptyRecord>, EntityValue> to BatchResult<EntityKey, EntityValue>
+    BatchResult<EntityKey, EntityValue> batchResultMap = convertBatchResult(result);
+
+    // ensure there are 2 404s in the form of HttpStatus
+    Map<EntityKey, HttpStatus> statuses = batchResultMap.getStatuses();
+    assertEquals(statuses.size(), 2);
+    assertEquals(statuses.get(makeKey(1)), HttpStatus.S_404_NOT_FOUND);
+    assertEquals(statuses.get(makeKey(2)), HttpStatus.S_404_NOT_FOUND);
+
+    // ensure there are 2 404s in the form of RestLiServiceException
+    Map<EntityKey, RestLiServiceException> errors = batchResultMap.getErrors();
+    assertEquals(errors.size(), 2);
+    assertEquals(errors.get(makeKey(1)).getStatus(), HttpStatus.S_404_NOT_FOUND);
+    assertEquals(errors.get(makeKey(2)).getStatus(), HttpStatus.S_404_NOT_FOUND);
+
+    // ensure the urns that don't exist are not in the result data map
+    assertEquals(batchResultMap.size(), 0);
+  }
+
+  @Test
+  public void testBatchGetWithErrorsSpecificAspectsPartialSuccess() {
+    FooUrn urn1 = makeFooUrn(1);
+    FooUrn urn2 = makeFooUrn(2);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectBar bar = new AspectBar().setValue("bar");
+    String[] aspectNames = {AspectFoo.class.getCanonicalName(), AspectBar.class.getCanonicalName()};
+
+    AspectKey<FooUrn, AspectFoo> aspectFooKey1 = new AspectKey<>(AspectFoo.class, urn1, LATEST_VERSION);
+    AspectKey<FooUrn, AspectBar> aspectBarKey1 = new AspectKey<>(AspectBar.class, urn1, LATEST_VERSION);
+    AspectKey<FooUrn, AspectFoo> aspectFooKey2 = new AspectKey<>(AspectFoo.class, urn2, LATEST_VERSION);
+    AspectKey<FooUrn, AspectBar> aspectBarKey2 = new AspectKey<>(AspectBar.class, urn2, LATEST_VERSION);
+
+    when(_mockLocalDAO.get(ImmutableSet.of(aspectFooKey1, aspectBarKey1, aspectFooKey2, aspectBarKey2)))
+        .thenReturn(ImmutableMap.of(aspectFooKey1, Optional.of(foo), aspectBarKey2, Optional.of(bar)));
+
+    BatchResult<ComplexResourceKey<EntityKey, EmptyRecord>, EntityValue> result =
+        runAndWait(_resource.batchGetWithErrors(ImmutableSet.of(makeResourceKey(urn1), makeResourceKey(urn2)), aspectNames));
+
+    // convert BatchResult<ComplexResourceKey<EntityKey, EmptyRecord>, EntityValue> to BatchResult<EntityKey, EntityValue>
+    BatchResult<EntityKey, EntityValue> batchResultMap = convertBatchResult(result);
+
+    // ensure there are 2 200s and 0 404s in the form of HttpStatus
+    Map<EntityKey, HttpStatus> statuses = batchResultMap.getStatuses();
+    assertEquals(statuses.size(), 2);
+    assertEquals(statuses.get(makeKey(1)), HttpStatus.S_200_OK);
+    assertEquals(statuses.get(makeKey(2)), HttpStatus.S_200_OK);
+
+    // ensure there are 0 404s in the form of RestLiServiceException
+    Map<EntityKey, RestLiServiceException> errors = batchResultMap.getErrors();
+    assertEquals(errors.size(), 0);
+
+    // ensure there are 2 results in the result data map
+    assertEquals(batchResultMap.size(), 2);
+    assertEquals(batchResultMap.get(makeKey(1)).getFoo(), foo);
+    assertFalse(batchResultMap.get(makeKey(1)).hasBar());
+    assertEquals(batchResultMap.get(makeKey(2)).getBar(), bar);
+    assertFalse(batchResultMap.get(makeKey(2)).hasFoo());
+  }
+
+  @Test
+  public void testBatchGetWithErrorsUrnsPartialSuccess() {
+    FooUrn urn1 = makeFooUrn(1);
+    FooUrn urn2 = makeFooUrn(2);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    String[] aspectNames = {AspectFoo.class.getCanonicalName(), AspectBar.class.getCanonicalName()};
+
+    AspectKey<FooUrn, AspectFoo> aspectFooKey1 = new AspectKey<>(AspectFoo.class, urn1, LATEST_VERSION);
+    AspectKey<FooUrn, AspectBar> aspectBarKey1 = new AspectKey<>(AspectBar.class, urn1, LATEST_VERSION);
+    AspectKey<FooUrn, AspectFoo> aspectFooKey2 = new AspectKey<>(AspectFoo.class, urn2, LATEST_VERSION);
+    AspectKey<FooUrn, AspectBar> aspectBarKey2 = new AspectKey<>(AspectBar.class, urn2, LATEST_VERSION);
+
+    when(_mockLocalDAO.get(ImmutableSet.of(aspectFooKey1, aspectBarKey1, aspectFooKey2, aspectBarKey2)))
+        .thenReturn(ImmutableMap.of(aspectFooKey1, Optional.of(foo), aspectBarKey2, Optional.empty()));
+
+    BatchResult<ComplexResourceKey<EntityKey, EmptyRecord>, EntityValue> result =
+        runAndWait(_resource.batchGetWithErrors(ImmutableSet.of(makeResourceKey(urn1), makeResourceKey(urn2)), aspectNames));
+
+    // convert BatchResult<ComplexResourceKey<EntityKey, EmptyRecord>, EntityValue> to BatchResult<EntityKey, EntityValue>
+    BatchResult<EntityKey, EntityValue> batchResultMap = convertBatchResult(result);
+
+    // ensure there is 1 200 (urn1) and 1 404 (urn2) in the form of HttpStatus
+    Map<EntityKey, HttpStatus> statuses = batchResultMap.getStatuses();
+    assertEquals(statuses.size(), 2);
+    assertEquals(statuses.get(makeKey(1)), HttpStatus.S_200_OK);
+    assertEquals(statuses.get(makeKey(2)), HttpStatus.S_404_NOT_FOUND);
+
+    // ensure there is 1 404 in the form of RestLiServiceException (urn2)
+    Map<EntityKey, RestLiServiceException> errors = batchResultMap.getErrors();
+    assertEquals(errors.size(), 1);
+    assertEquals(errors.get(makeKey(2)).getStatus(), HttpStatus.S_404_NOT_FOUND);
+
+    // ensure there is 1 result in the result data map (urn1)
+    assertEquals(batchResultMap.size(), 1);
+    assertEquals(batchResultMap.get(makeKey(1)).getFoo(), foo);
+    assertFalse(batchResultMap.get(makeKey(1)).hasBar());
+  }
+
+  // convert BatchResult<ComplexResourceKey<EntityKey, EmptyRecord>, EntityValue> to BatchResult<EntityKey, EntityValue>
+  private BatchResult<EntityKey, EntityValue> convertBatchResult(BatchResult<ComplexResourceKey<EntityKey, EmptyRecord>, EntityValue> result) {
+    Map<EntityKey, EntityValue> dataMap =
+        result.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().getKey(), Map.Entry::getValue));
+    Map<EntityKey, HttpStatus> statusMap =
+        result.getStatuses().entrySet().stream().collect(Collectors.toMap(e -> e.getKey().getKey(), Map.Entry::getValue));
+    Map<EntityKey, RestLiServiceException> errorMap =
+        result.getErrors().entrySet().stream().collect(Collectors.toMap(e -> e.getKey().getKey(), Map.Entry::getValue));
+    return new BatchResult<>(dataMap, statusMap, errorMap);
   }
 
   @Test

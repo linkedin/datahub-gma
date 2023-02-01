@@ -21,8 +21,11 @@ import com.linkedin.metadata.query.ListResultMetadata;
 import com.linkedin.metadata.query.MapMetadata;
 import com.linkedin.parseq.Task;
 import com.linkedin.restli.common.EmptyRecord;
+import com.linkedin.restli.common.HttpStatus;
+import com.linkedin.restli.server.BatchResult;
 import com.linkedin.restli.server.CollectionResult;
 import com.linkedin.restli.server.PagingContext;
+import com.linkedin.restli.server.RestLiServiceException;
 import com.linkedin.restli.server.annotations.Action;
 import com.linkedin.restli.server.annotations.ActionParam;
 import com.linkedin.restli.server.annotations.Finder;
@@ -36,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -157,21 +161,58 @@ public abstract class BaseEntityResource<
   }
 
   /**
-   * Similar to {@link #get(Object, String[])} but for multiple entities.
+   * Similar to {@link #get(Object, String[])} but for multiple entities. This method is deprecated in favor of
+   * {@link #batchGetWithErrors}. This method has incorrect behavior when dealing with keys which don't exist
+   * in the database (<a href="https://github.com/linkedin/datahub-gma/issues/136">Issue #136</a>). The latter method
+   * properly returns a BatchResult which includes a map of errors in addition to the successful batch results.
    */
   @RestMethod.BatchGet
+  @Deprecated
   @Nonnull
   public Task<Map<KEY, VALUE>> batchGet(
       @Nonnull Set<KEY> ids,
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
-    // TODO: discuss and sync with get()'s intended behavior (check if urn exists). https://github.com/linkedin/datahub-gma/issues/136
     return RestliUtils.toTask(() -> {
       final Map<URN, KEY> urnMap =
-          ids.stream().collect(Collectors.toMap(id -> toUrn(id), Function.identity()));
+          ids.stream().collect(Collectors.toMap(this::toUrn, Function.identity()));
       return getInternal(urnMap.keySet(), parseAspectsParam(aspectNames)).entrySet()
           .stream()
           .collect(
-              Collectors.toMap(e -> urnMap.get(e.getKey()), e -> e.getValue()));
+              Collectors.toMap(e -> urnMap.get(e.getKey()), Map.Entry::getValue));
+    });
+  }
+
+  /**
+   * Similar to {@link #get(Object, String[])} but for multiple entities. Compared to the deprecated {@link #batchGet}
+   * method, this method properly returns a BatchResult which includes a map of errors in addition to the successful
+   * batch results.
+   */
+  @RestMethod.BatchGet
+  @Nonnull
+  public Task<BatchResult<KEY, VALUE>> batchGetWithErrors(
+      @Nonnull Set<KEY> ids,
+      @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
+    return RestliUtils.toTask(() -> {
+      final Map<KEY, RestLiServiceException> errors = new HashMap<>();
+      final Map<KEY, HttpStatus> statuses = new HashMap<>();
+      final Map<URN, KEY> urnMap =
+          ids.stream().collect(Collectors.toMap(this::toUrn, Function.identity()));
+      final Map<URN, VALUE> batchResult = getInternal(urnMap.keySet(), parseAspectsParam(aspectNames));
+      batchResult.entrySet().removeIf(entry -> {
+        if (!entry.getValue().data().isEmpty()) {
+          // don't remove if there is a non-empty value associated with the key
+          statuses.put(urnMap.get(entry.getKey()), HttpStatus.S_200_OK);
+          return false;
+        }
+        // if this key's value is empty, then this key doesn't exist in the db.
+        // mark this key with 404 and remove the entry from the map
+        errors.put(urnMap.get(entry.getKey()), new RestLiServiceException(HttpStatus.S_404_NOT_FOUND));
+        statuses.put(urnMap.get(entry.getKey()), HttpStatus.S_404_NOT_FOUND);
+        return true;
+      });
+      return new BatchResult<>(
+          batchResult.entrySet().stream().collect(Collectors.toMap(e -> urnMap.get(e.getKey()), Map.Entry::getValue)),
+          statuses, errors);
     });
   }
 
