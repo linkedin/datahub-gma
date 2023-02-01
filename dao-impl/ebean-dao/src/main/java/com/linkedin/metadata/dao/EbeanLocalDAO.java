@@ -274,6 +274,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * Ensure table schemas is up-to-date with db evolution scripts.
    */
   public void ensureSchemaUpToDate() {
+    if (_schemaConfig.equals(SchemaConfig.OLD_SCHEMA_ONLY)) {
+      throw new UnsupportedOperationException("DB evolution script is not supported in old schema mode.");
+    }
+
     _localAccess.ensureSchemaUpToDate();
   }
 
