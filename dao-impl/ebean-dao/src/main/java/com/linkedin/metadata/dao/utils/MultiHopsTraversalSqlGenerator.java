@@ -72,7 +72,7 @@ public class MultiHopsTraversalSqlGenerator {
     }
 
     StringBuilder sqlBuilder = new StringBuilder(
-        String.format("SELECT rt.%s FROM %s rt INNER JOIN %s dt ON rt.destination=dt.urn INNER JOIN %s st ON rt.source=st.urn",
+        String.format("SELECT rt.%s FROM %s rt INNER JOIN %s dt ON rt.destination=dt.urn INNER JOIN %s st ON rt.source=st.urn WHERE rt.deleted_ts IS NULL",
             urnColumn, relationshipTable, destEntityTable, srcEntityTable));
 
     String whereClause = SQLStatementUtils.whereClause(_supportedConditions,
@@ -81,7 +81,7 @@ public class MultiHopsTraversalSqlGenerator {
         new Pair<>(srcFilter, "st"));
 
     if (whereClause != null) {
-      sqlBuilder.append(" WHERE ").append(whereClause);
+      sqlBuilder.append(" AND ").append(whereClause);
     }
 
     return sqlBuilder.toString();
@@ -96,18 +96,20 @@ public class MultiHopsTraversalSqlGenerator {
       LocalRelationshipFilter srcFilter) {
 
     StringBuilder sourceUrnsSql = new StringBuilder(
-        String.format("SELECT rt.source FROM %s rt INNER JOIN %s et ON rt.source=et.urn", relationshipTable, entityTable));
+        String.format("SELECT rt.source FROM %s rt INNER JOIN %s et ON rt.source=et.urn WHERE rt.deleted_ts IS NULL",
+            relationshipTable, entityTable));
 
     StringBuilder destUrnsSql = new StringBuilder(
-        String.format("SELECT rt.destination FROM %s rt INNER JOIN %s et ON rt.destination=et.urn", relationshipTable, entityTable));
+        String.format("SELECT rt.destination FROM %s rt INNER JOIN %s et ON rt.destination=et.urn WHERE rt.deleted_ts IS NULL",
+            relationshipTable, entityTable));
 
     String whereClause = SQLStatementUtils.whereClause(_supportedConditions,
         new Pair<>(relationshipFilter, "rt"),
         new Pair<>(srcFilter, "et"));
 
     if (whereClause != null) {
-      sourceUrnsSql.append(" WHERE ").append(whereClause);
-      destUrnsSql.append(" WHERE ").append(whereClause);
+      sourceUrnsSql.append(" AND ").append(whereClause);
+      destUrnsSql.append(" AND ").append(whereClause);
     }
 
     return String.format("%s UNION %s", sourceUrnsSql, destUrnsSql);

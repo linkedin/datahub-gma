@@ -10,11 +10,9 @@ import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
 import com.linkedin.metadata.dao.utils.SQLStatementUtils;
 import com.linkedin.metadata.query.Condition;
-import com.linkedin.metadata.query.Filter;
 import com.linkedin.metadata.query.LocalRelationshipCriterion;
 import com.linkedin.metadata.query.LocalRelationshipFilter;
 import com.linkedin.metadata.query.RelationshipDirection;
-import com.linkedin.metadata.query.RelationshipFilter;
 import io.ebean.EbeanServer;
 import io.ebean.SqlRow;
 import java.util.ArrayList;
@@ -27,7 +25,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import lombok.extern.slf4j.Slf4j;
 import org.javatuples.Pair;
-import org.javatuples.Triplet;
 
 /**
  * An Ebean implementation of {@link BaseQueryDAO} backed by local relationship tables.
@@ -106,14 +103,6 @@ public class EbeanLocalRelationshipQueryDAO {
     List<RecordTemplate> results = new ArrayList<>();
     _server.createSqlQuery(sql).findList().forEach(sqlRow -> results.add(constructSnapshot(sqlRow, snapshotClass)));
     return results;
-  }
-
-  @Nonnull
-  public <SRC_ENTITY extends RecordTemplate, RELATIONSHIP extends RecordTemplate, INTER_ENTITY extends RecordTemplate> List<RecordTemplate> findEntities(
-      @Nullable Class<SRC_ENTITY> sourceEntityClass, @Nonnull Filter sourceEntityFilter,
-      @Nonnull List<Triplet<Class<RELATIONSHIP>, RelationshipFilter, Class<INTER_ENTITY>>> traversePaths, int offset,
-      int count) {
-    throw new UnsupportedOperationException("Multi-hops traversal by traversePaths is not supported yet.");
   }
 
   /**

@@ -59,11 +59,11 @@ public class SQLStatementUtils {
       + "destination_type, lastmodifiedon, lastmodifiedby) VALUE (:metadata, :source, :destination, :source_type,"
       + " :destination_type, :lastmodifiedon, :lastmodifiedby)";
 
-  private static final String DELETE_BY_SOURCE = "DELETE FROM %s WHERE source = :source";
+  private static final String DELETE_BY_SOURCE = "UPDATE %s SET deleted_ts=NOW() WHERE source = :source";
 
-  private static final String DELETE_BY_DESTINATION = "DELETE FROM %s WHERE destination = :destination";
+  private static final String DELETE_BY_DESTINATION = "UPDATE %s SET deleted_ts=NOW() WHERE destination = :destination";
 
-  private static final String DELETE_BY_SOURCE_AND_DESTINATION = "DELETE FROM %s WHERE destination = :destination AND source = :source";
+  private static final String DELETE_BY_SOURCE_AND_DESTINATION = "UPDATE %s SET deleted_ts=NOW() WHERE destination = :destination AND source = :source";
 
   /**
    *  Filter query has pagination params in the existing APIs. To accommodate this, we use subquery to include total result counts in the query response.

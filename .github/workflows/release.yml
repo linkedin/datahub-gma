@@ -15,6 +15,10 @@ jobs:
         with:
           # Needed to get all tags
           fetch-depth: 0
+
+      - name: Install lib
+        run: sudo apt-get install libncurses5
+
       - name: Release
         uses: ./.github/actions/release
         env:
