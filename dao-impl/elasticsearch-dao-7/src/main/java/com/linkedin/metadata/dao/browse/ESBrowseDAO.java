@@ -191,7 +191,7 @@ public class ESBrowseDAO extends BaseBrowseDAO {
 
     final BoolQueryBuilder queryBuilder = QueryBuilders.boolQuery();
 
-    queryBuilder.must(QueryBuilders.termQuery(removedFieldName, "false"));
+    queryBuilder.mustNot(QueryBuilders.termQuery(removedFieldName, "true"));
 
     if (!path.isEmpty()) {
       queryBuilder.filter(QueryBuilders.termQuery(browsePathFieldName, path));

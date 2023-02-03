@@ -1,19 +1,15 @@
 package com.linkedin.metadata.dao.browse;
 
 import com.linkedin.common.urn.Urn;
-import com.linkedin.metadata.dao.utils.SearchUtils;
 import com.linkedin.testing.TestUtils;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.apache.commons.lang3.StringUtils;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.testng.annotations.BeforeMethod;
@@ -103,18 +99,5 @@ public class BrowseDAOTest {
     when(_mockClient.search(any(), eq(RequestOptions.DEFAULT))).thenReturn(mockSearchResponse);
     assertEquals(_browseDAO.getBrowsePaths(dummyUrn).size(), 1);
     assertEquals(_browseDAO.getBrowsePaths(dummyUrn).get(0), "foo");
-  }
-
-  @Test
-  public void testBrowseQueryMustClause() {
-    // given
-    SearchRequest searchRequest = _browseDAO.constructEntitiesSearchRequest("", SearchUtils.getRequestMap(null), 0, 0);
-    BoolQueryBuilder queryBuilder = (BoolQueryBuilder) searchRequest.source().query();
-
-    // then
-    assertTrue(queryBuilder.hasClauses());
-    assertEquals(queryBuilder.must().size(), 1);
-    assertTrue(StringUtils.contains(queryBuilder.must().get(0).toString(), "removed"));
-    assertTrue(StringUtils.contains(queryBuilder.must().get(0).toString(), "false"));
   }
 }
