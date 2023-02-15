@@ -473,17 +473,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
     final EbeanMetadataAspect aspect = buildMetadataAspectBean(urn, value, aspectClass, auditStamp, version);
 
-    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY || _schemaConfig == SchemaConfig.DUAL_SCHEMA) {
-      if (version == LATEST_VERSION) {
-        // insert() could be called when updating log table (moving current versions into new history version)
-        // the metadata entity tables shouldn't been updated.
-        runInTransactionWithRetry(() -> {
-          _localAccess.add(urn, (ASPECT) value, aspectClass, auditStamp);
-          _server.insert(aspect);
-          return null; // Unused.
-        }, 1);
-        return;
-      }
+    if (_schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY && version == LATEST_VERSION) {
+      // insert() could be called when updating log table (moving current versions into new history version)
+      // the metadata entity tables shouldn't been updated.
+      _localAccess.add(urn, (ASPECT) value, aspectClass, auditStamp);
     }
 
     _server.insert(aspect);
