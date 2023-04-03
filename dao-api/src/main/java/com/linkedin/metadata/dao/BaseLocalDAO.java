@@ -1,5 +1,6 @@
 package com.linkedin.metadata.dao;
 
+import com.google.common.base.Preconditions;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.schema.validation.CoercionMode;
@@ -151,6 +152,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   // Always emit MAE on every update regardless if there's any actual change in value
   private boolean _alwaysEmitAuditEvent = false;
 
+  // Whether to emit the general MAE. This takes precedence over _alwaysEmitAuditEvent if general audit events are disabled.
+  private boolean _enableGeneralAuditEvent = true;
+
   private boolean _emitAspectSpecificAuditEvent = false;
 
   private boolean _alwaysEmitAspectSpecificAuditEvent = false;
@@ -288,6 +292,15 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    */
   public void enableModelValidationOnWrite(boolean enabled) {
     _modelValidationOnWrite = enabled;
+  }
+
+  /**
+   * Enables or disables the emission of general audit events.
+   */
+  public void enableGeneralAuditEvent(boolean generalAuditEventEnabled) {
+    Preconditions.checkState(generalAuditEventEnabled || _emitAspectSpecificAuditEvent,
+        "Emission of general audit events cannot be disabled without enabling aspect-specific audit events");
+    _enableGeneralAuditEvent = generalAuditEventEnabled;
   }
 
   /**
@@ -455,7 +468,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     final ASPECT newValue = result.getNewValue();
 
     // Produce MAE after a successful update
-    if (_alwaysEmitAuditEvent || oldValue != newValue) {
+    if (_enableGeneralAuditEvent && (_alwaysEmitAuditEvent || oldValue != newValue)) {
       _producer.produceMetadataAuditEvent(urn, oldValue, newValue);
     }
 
