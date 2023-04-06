@@ -151,6 +151,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   // Always emit MAE on every update regardless if there's any actual change in value
   private boolean _alwaysEmitAuditEvent = false;
 
+  // emit v4 MAE, provide an option for GMS service to stop sending v4 MAE (https://jira01.corp.linkedin.com:8443/browse/APA-80115), default: true
+  private boolean _emitAspectAuditEvent = true;
+
   private boolean _emitAspectSpecificAuditEvent = false;
 
   private boolean _alwaysEmitAspectSpecificAuditEvent = false;
@@ -454,9 +457,11 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     final ASPECT oldValue = result.getOldValue();
     final ASPECT newValue = result.getNewValue();
 
-    // Produce MAE after a successful update
-    if (_alwaysEmitAuditEvent || oldValue != newValue) {
-      _producer.produceMetadataAuditEvent(urn, oldValue, newValue);
+    if (_emitAspectAuditEvent) {
+      // Produce MAE after a successful update
+      if (_alwaysEmitAuditEvent || oldValue != newValue) {
+        _producer.produceMetadataAuditEvent(urn, oldValue, newValue);
+      }
     }
 
     // TODO: Replace the previous step with the step below, after pipeline is fully migrated to aspect specific events.
