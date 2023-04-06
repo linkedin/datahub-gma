@@ -462,6 +462,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     // Produce MAE after a successful update
     if (_emitAuditEvent) {
+      // https://jira01.corp.linkedin.com:8443/browse/APA-80115
       if (_alwaysEmitAuditEvent || oldValue != newValue) {
         _producer.produceMetadataAuditEvent(urn, oldValue, newValue);
       }
