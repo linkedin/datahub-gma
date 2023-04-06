@@ -161,6 +161,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   // Enable updating multiple aspects within a single transaction
   private boolean _enableAtomicMultipleUpdate = false;
 
+  private boolean _enableMAEv4 = true;
+
   private Clock _clock = Clock.systemUTC();
 
   /**
@@ -311,6 +313,10 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     _alwaysEmitAspectSpecificAuditEvent = alwaysEmitAspectSpecificAuditEvent;
   }
 
+  public void setEnableMAEv4(boolean enableMAEv4) {
+    _enableMAEv4 = enableMAEv4;
+  }
+  
   /**
    * Sets if writes to local secondary index enabled.
    *
@@ -455,8 +461,10 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     final ASPECT newValue = result.getNewValue();
 
     // Produce MAE after a successful update
-    if (_alwaysEmitAuditEvent || oldValue != newValue) {
-      _producer.produceMetadataAuditEvent(urn, oldValue, newValue);
+    if (_enableMAEv4) {
+      if (_alwaysEmitAuditEvent || oldValue != newValue) {
+        _producer.produceMetadataAuditEvent(urn, oldValue, newValue);
+      }
     }
 
     // TODO: Replace the previous step with the step below, after pipeline is fully migrated to aspect specific events.
