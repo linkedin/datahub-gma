@@ -1,7 +1,5 @@
 package com.linkedin.metadata.generator;
 
-import com.google.common.collect.ImmutableMap;
-import java.util.Map;
 import javax.annotation.Nonnull;
 
 
@@ -12,27 +10,34 @@ public class SchemaGeneratorConstants {
   private SchemaGeneratorConstants() {
   }
 
+  // used in EventSchemaComposer
+  static final String PDL_SUFFIX = ".pdl";
+
   public enum MetadataEventType {
-    CHANGE("MetadataChangeEvent"), AUDIT("MetadataAuditEvent"), FAILED_CHANGE("FailedMetadataChangeEvent");
+    CHANGE("MetadataChangeEvent", "MetadataChangeEvent.rythm"),
+    AUDIT("MetadataAuditEvent", "MetadataAuditEvent.rythm"),
+    FAILED_CHANGE("FailedMetadataChangeEvent", "FailedMetadataChangeEvent.rythm");
 
     private final String _name;
+    private final String _templateName;
 
-    MetadataEventType(@Nonnull String name) {
+    MetadataEventType(@Nonnull String name, @Nonnull String templateName) {
       _name = name;
+      _templateName = templateName;
     }
 
     @Nonnull
     public String getName() {
       return _name;
     }
+
+    public String getTemplateName() {
+      return _templateName;
+    }
+
+    public String getDefaultFileName() {
+      return _name + PDL_SUFFIX;
+    }
   }
 
-  // used in EventSchemaComposer
-  static final String PDL_SUFFIX = ".pdl";
-  static final Map<MetadataEventType, String> EVENT_TEMPLATES =
-      ImmutableMap.<MetadataEventType, String>builder().put(MetadataEventType.FAILED_CHANGE,
-          "FailedMetadataChangeEvent.rythm")
-          .put(MetadataEventType.AUDIT, "MetadataAuditEvent.rythm")
-          .put(MetadataEventType.CHANGE, "MetadataChangeEvent.rythm")
-          .build();
 }

@@ -1,0 +1,41 @@
+@import com.linkedin.metadata.generator.AspectUnionEventSpec;
+@import com.linkedin.metadata.generator.SchemaGeneratorUtil;
+@args AspectUnionEventSpec eventSpec
+namespace @(eventSpec.getNamespace())
+
+import com.linkedin.avro2pegasus.events.KafkaAuditHeader
+import com.linkedin.metadata.events.ChangeType
+import @eventSpec.getUrnType()
+@for (String valueType: eventSpec.getValueTypes()) {
+import @valueType
+}
+
+/**
+ * MetadataChangeEvent for aspects of @(eventSpec.getShortUrn()).
+ */
+@@MetadataChangeEvent
+record MCE_@(eventSpec.getShortTyperefName()) {
+
+  /**
+   * Kafka audit header. See go/kafkaauditheader for more info.
+   */
+  auditHeader: optional KafkaAuditHeader
+
+  /**
+   * @(eventSpec.getShortUrn()) as the key for the MetadataChangeEvent.
+   */
+  urn: @(eventSpec.getShortUrn())
+
+  /**
+   * The proposed aspect values for this entity.
+   */
+  proposedValues: array[union[
+  @for (String valueType: eventSpec.getValueTypes()) {
+    record Proposed@(SchemaGeneratorUtil.stripNamespace(valueType)) {
+      proposed: optional @(SchemaGeneratorUtil.stripNamespace(valueType))
+      changeType: ChangeType = "UPSERT"
+    }
+  }
+  ]]
+
+}

@@ -36,11 +36,13 @@ public class TestEventSpec {
     assertThat(eventSpecMap.asMap()).containsOnlyKeys("com.linkedin.testing.FooUrn", "com.linkedin.testing.BarUrn");
     assertThat(eventSpecMap.get("com.linkedin.testing.FooUrn")
         .stream()
-        .map(EventSpec::getValueType)
+        .map(s -> (SingleAspectEventSpec)s)
+        .map(SingleAspectEventSpec::getShortValueType)
         .collect(Collectors.toList())).contains("AnnotatedAspectFoo", "AnnotatedAspectOtherFoo");
     assertThat(eventSpecMap.get("com.linkedin.testing.BarUrn")
         .stream()
-        .map(EventSpec::getValueType)
+        .map(s -> (SingleAspectEventSpec)s)
+        .map(SingleAspectEventSpec::getShortValueType)
         .collect(Collectors.toList())).contains("AnnotatedAspectBar");
   }
 
@@ -51,7 +53,7 @@ public class TestEventSpec {
         inputDir.toPath().resolve("com/linkedin/testing/CommonAspect.pdl").toFile());
 
     final SchemaAnnotationRetriever schemaAnnotationRetriever =
-        new SchemaAnnotationRetriever(inputDir.toString(), new AlwaysAllowList());
+        new SchemaAnnotationRetriever(inputDir.toString(), new AlwaysAllowList(), null);
     final String[] sources = {inputDir.toString()};
     final List<EventSpec> eventSpecs = schemaAnnotationRetriever.generate(sources);
 
@@ -60,16 +62,18 @@ public class TestEventSpec {
     assertThat(eventSpecMap.asMap()).containsOnlyKeys("com.linkedin.testing.FooUrn", "com.linkedin.testing.BarUrn");
     assertThat(eventSpecMap.get("com.linkedin.testing.FooUrn")
         .stream()
-        .map(EventSpec::getValueType)
+        .map(s -> (SingleAspectEventSpec)s)
+        .map(SingleAspectEventSpec::getShortValueType)
         .collect(Collectors.toList())).contains("CommonAspect");
     assertThat(eventSpecMap.get("com.linkedin.testing.BarUrn")
         .stream()
-        .map(EventSpec::getValueType)
+        .map(s -> (SingleAspectEventSpec)s)
+        .map(SingleAspectEventSpec::getShortValueType)
         .collect(Collectors.toList())).contains("CommonAspect");
   }
 
   @Nonnull
   private Multimap<String, EventSpec> mapAspectToUrn(@Nonnull List<EventSpec> eventSpecs) {
-    return Multimaps.index(eventSpecs, EventSpec::getUrn);
+    return Multimaps.index(eventSpecs, spec -> spec.getUrnType());
   }
 }

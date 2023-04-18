@@ -1,15 +1,21 @@
 package com.linkedin.metadata.generator;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.linkedin.data.schema.DataSchema;
+import com.linkedin.data.schema.UnionDataSchema;
 import com.linkedin.metadata.annotations.AspectEntityAnnotation;
 import com.linkedin.metadata.annotations.DataSchemaUtil;
+import com.linkedin.metadata.annotations.GmaAnnotation;
 import com.linkedin.metadata.annotations.GmaAnnotationParser;
 import com.linkedin.metadata.annotations.GmaEntitiesAnnotationAllowList;
 import com.linkedin.pegasus.generator.DataSchemaParser;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import lombok.extern.slf4j.Slf4j;
 
@@ -22,18 +28,22 @@ public class SchemaAnnotationRetriever {
 
   private final DataSchemaParser _dataSchemaParser;
   private final GmaAnnotationParser _gmaAnnotationParser;
+  private final String _baseNamespace;
 
-  private SchemaAnnotationRetriever(@Nonnull String resolverPath, @Nonnull GmaAnnotationParser gmaAnnotationParser) {
+  private SchemaAnnotationRetriever(@Nonnull String resolverPath, @Nonnull GmaAnnotationParser gmaAnnotationParser,
+                                    String baseNamespace) {
     _dataSchemaParser = new DataSchemaParser(resolverPath);
     _gmaAnnotationParser = gmaAnnotationParser;
+    _baseNamespace = baseNamespace;
   }
 
-  public SchemaAnnotationRetriever(@Nonnull String resolverPath, @Nonnull GmaEntitiesAnnotationAllowList allowList) {
-    this(resolverPath, new GmaAnnotationParser(allowList));
+  public SchemaAnnotationRetriever(@Nonnull String resolverPath, @Nonnull GmaEntitiesAnnotationAllowList allowList,
+                                   String baseNamespace) {
+    this(resolverPath, new GmaAnnotationParser(allowList), baseNamespace);
   }
 
   public SchemaAnnotationRetriever(@Nonnull String resolverPath) {
-    this(resolverPath, new GmaAnnotationParser());
+    this(resolverPath, new GmaAnnotationParser(), null);
   }
 
   public List<EventSpec> generate(@Nonnull String[] sources) throws IOException {
@@ -43,14 +53,35 @@ public class SchemaAnnotationRetriever {
     for (DataSchema dataSchema : parseResult.getSchemaAndLocations().keySet()) {
       if (dataSchema.getType() == DataSchema.Type.RECORD
           || dataSchema.getType() == DataSchema.Type.TYPEREF && dataSchema.getDereferencedType() == DataSchema.Type.RECORD) {
-        eventSpecs.addAll(generate(dataSchema));
+        eventSpecs.addAll(generateSingleAspectSpec(dataSchema));
+      } else if (dataSchema.getType() == DataSchema.Type.TYPEREF && dataSchema.getDereferencedType() == DataSchema.Type.UNION) {
+        Optional<GmaAnnotation> gmaAnnotation = _gmaAnnotationParser.parse(dataSchema);
+        if (gmaAnnotation.isPresent()) {
+          UnionDataSchema unionSchema = ((UnionDataSchema) dataSchema.getDereferencedDataSchema());
+          eventSpecs.addAll(generateAspectUnionSpec(DataSchemaUtil.getFullName(dataSchema),
+                  unionSchema, gmaAnnotation.get()));
+        }
       }
     }
     return eventSpecs;
   }
 
+  private Collection<AspectUnionEventSpec> generateAspectUnionSpec(String typerefName, UnionDataSchema schema,
+                                                                   GmaAnnotation gma) {
+    if (gma.hasAspect() && gma.getAspect().hasEntity()) {
+      AspectEntityAnnotation entityAnnotation = gma.getAspect().getEntity();
+      Collection<String> valueTypes = schema.getMembers().stream().map(UnionDataSchema.Member::getType)
+          .filter(member -> member.getType() == DataSchema.Type.RECORD)
+          .map(DataSchemaUtil::getFullName).collect(Collectors.toList());
+      return Collections.singleton(new AspectUnionEventSpec(entityAnnotation.getUrn(), typerefName, valueTypes,
+              _baseNamespace));
+    } else {
+      return Collections.emptyList();
+    }
+  }
+
   @Nonnull
-  private List<EventSpec> generate(@Nonnull DataSchema schema) {
+  private List<EventSpec> generateSingleAspectSpec(@Nonnull DataSchema schema) {
     return _gmaAnnotationParser.parse(schema).map(gma -> {
       final List<EventSpec> eventSpecs = new ArrayList<>();
 
@@ -67,20 +98,8 @@ public class SchemaAnnotationRetriever {
       }
 
       for (AspectEntityAnnotation entityAnnotation : entityAnnotations) {
-        final EventSpec.EventSpecBuilder builder = EventSpec.builder();
-        builder.namespace(DataSchemaUtil.getNamespace(schema));
-        builder.fullValueType(DataSchemaUtil.getFullName(schema));
-        builder.valueType(SchemaGeneratorUtil.stripNamespace(DataSchemaUtil.getFullName(schema)));
-        builder.urn(entityAnnotation.getUrn());
-
-        builder.eventType(SchemaGeneratorConstants.MetadataEventType.CHANGE);
-        eventSpecs.add(builder.build());
-
-        builder.eventType(SchemaGeneratorConstants.MetadataEventType.AUDIT);
-        eventSpecs.add(builder.build());
-
-        builder.eventType(SchemaGeneratorConstants.MetadataEventType.FAILED_CHANGE);
-        eventSpecs.add(builder.build());
+        eventSpecs.add(new SingleAspectEventSpec(DataSchemaUtil.getFullName(schema), entityAnnotation.getUrn(),
+                _baseNamespace));
       }
 
       return eventSpecs;

@@ -1,0 +1,9 @@
+namespace com.linkedin.testing
+
+/**
+ * For unit tests
+ */
+record AnotherAspectBar {
+  /** For unit tests */
+  stringField: string
+}

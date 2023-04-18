@@ -1,73 +1,118 @@
 package com.linkedin.metadata.generator;
 
+import com.linkedin.avro2pegasus.events.KafkaAuditHeader;
+import com.linkedin.data.schema.DataSchema;
+import com.linkedin.data.schema.RecordDataSchema;
+import com.linkedin.metadata.annotations.GmaEntitiesAnnotationAllowListImpl;
 import com.linkedin.metadata.annotations.testing.TestModels;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URISyntaxException;
-import javax.annotation.Nonnull;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import com.linkedin.metadata.events.ChangeType;
+import com.linkedin.pegasus.generator.DataSchemaParser;
 import org.apache.commons.io.FileUtils;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.rythmengine.Rythm;
 
 import static com.linkedin.metadata.generator.SchemaGeneratorConstants.*;
-import static com.linkedin.metadata.generator.TestEventSpec.*;
 import static org.assertj.core.api.Assertions.*;
 
 
 public class TestEventSchemaComposer {
 
-  private static final String TEST_NAMESPACE = "bar" + File.separator + "annotatedAspectBar";
+  private static final String TEST_NAMESPACE = "com/linkedin/testing/mxe/bar" + File.separator + "annotatedAspectBar";
 
   @TempDir
-  File tempDir;
-  File inputDir;
-  File outputDir;
+  static File tempDir;
+  static File inputDir;
+  static File outputDir;
 
-  @BeforeEach
-  public void copyTestData() throws IOException {
+  @BeforeAll
+  public static void prepareTests() throws Exception {
     inputDir = tempDir.toPath().resolve("testModels").toFile();
     outputDir = tempDir.toPath().resolve("events").toFile();
     FileUtils.copyInputStreamToFile(TestModels.getTestModelStream("com/linkedin/testing/AnnotatedAspectBar.pdl"),
-        inputDir.toPath().resolve("com/linkedin/testing/AnnotatedAspectBar.pdl").toFile());
+            inputDir.toPath().resolve("com/linkedin/testing/AnnotatedAspectBar.pdl").toFile());
+    FileUtils.copyInputStreamToFile(TestModels.getTestModelStream("com/linkedin/testing/AnotherAspectBar.pdl"),
+            inputDir.toPath().resolve("com/linkedin/testing/AnotherAspectBar.pdl").toFile());
+    FileUtils.copyInputStreamToFile(TestModels.getTestModelStream("com/linkedin/testing/BarUrn.pdl"),
+            inputDir.toPath().resolve("com/linkedin/testing/BarUrn.pdl").toFile());
+    FileUtils.copyInputStreamToFile(TestModels.getTestModelStream("com/linkedin/testing/BarAspect.pdl"),
+            inputDir.toPath().resolve("com/linkedin/testing/BarAspect.pdl").toFile());
+
+    populateEvents();
   }
 
-  private void populateEvents() throws Exception {
-    SchemaAnnotationRetriever schemaAnnotationRetriever = new SchemaAnnotationRetriever(inputDir.getPath());
+  private static void populateEvents() throws Exception {
+    SchemaAnnotationRetriever schemaAnnotationRetriever = new SchemaAnnotationRetriever(inputDir.getPath(),
+            GmaEntitiesAnnotationAllowListImpl.DEFAULT, "com.linkedin.testing.mxe");
     final String[] sources = {inputDir.getPath()};
     EventSchemaComposer eventSchemaComposer = new EventSchemaComposer();
     eventSchemaComposer.setupRythmEngine();
-    eventSchemaComposer.render(schemaAnnotationRetriever.generate(sources), outputDir.toString());
+    eventSchemaComposer.render(schemaAnnotationRetriever.generate(sources), outputDir.toString() + "/com/linkedin/testing/mxe");
     Rythm.shutdown();
   }
 
-  private void assertSame(@Nonnull MetadataEventType eventType) throws URISyntaxException {
-    assertThat(outputDir).exists();
-    final File actualEvent =
-        outputDir.toPath().resolve(TEST_NAMESPACE).resolve(eventType.getName() + PDL_SUFFIX).toFile();
-    assertThat(actualEvent).hasSameContentAs(new File(this.getClass()
-        .getClassLoader()
-        .getResource("expectedSchemas/pegasus/com/linkedin/mxe" + File.separator + TEST_NAMESPACE + File.separator
-            + eventType.getName() + PDL_SUFFIX)
-        .toURI()));
+  @Test
+  public void testOutputEventsAreParseable() throws Exception {
+    List<String> outputResolutionSources = new ArrayList<>();
+    outputResolutionSources.add(KafkaAuditHeader.class.getProtectionDomain().getCodeSource().getLocation().toString());
+    outputResolutionSources.add(ChangeType.class.getProtectionDomain().getCodeSource().getLocation().toString());
+    outputResolutionSources.add(inputDir.getPath());
+    outputResolutionSources.add(outputDir.getPath());
+    DataSchemaParser outputParser = new DataSchemaParser(String.join(File.pathSeparator, outputResolutionSources));
+    DataSchemaParser.ParseResult result = outputParser.parseSources(new String[]{outputDir.getPath()});
+
+    Set<String> outputs = result.getSchemaAndLocations().keySet().stream().filter(schema -> schema.getType() == DataSchema.Type.RECORD)
+            .map(s -> (RecordDataSchema)s).map(RecordDataSchema::getFullName).collect(Collectors.toSet());
+    assertThat(outputs).contains(
+            "com.linkedin.testing.mxe.bar.annotatedAspectBar.MetadataChangeEvent",
+            "com.linkedin.testing.mxe.bar.annotatedAspectBar.FailedMetadataChangeEvent",
+            "com.linkedin.testing.mxe.bar.annotatedAspectBar.MetadataAuditEvent",
+            "com.linkedin.testing.mxe.bar.MCE_BarAspect",
+            "com.linkedin.testing.mxe.bar.FailedMCE_BarAspect"
+    );
+  }
+
+  private void assertSame(File baseOutputDir, File relativeFilePath) throws URISyntaxException, IOException {
+    File outputPath = baseOutputDir.toPath().resolve(relativeFilePath.toPath()).toFile();
+    assertThat(outputPath).exists();
+
+    try(InputStream expected = this.getClass().getClassLoader().getResourceAsStream(relativeFilePath.toString());
+        InputStream actual = FileUtils.openInputStream(outputPath)) {
+      assertThat(expected).hasSameContentAs(actual);
+    }
   }
 
   @Test
   public void testMCESchemaRender() throws Exception {
-    populateEvents();
-    assertSame(MetadataEventType.CHANGE);
+    assertSame(outputDir,
+            new File(TEST_NAMESPACE).toPath().resolve(MetadataEventType.CHANGE.getName() + PDL_SUFFIX).toFile());
   }
 
   @Test
   public void testFMCESchemaRender() throws Exception {
-    populateEvents();
-    assertSame(MetadataEventType.FAILED_CHANGE);
+    assertSame(outputDir,
+            new File(TEST_NAMESPACE).toPath().resolve(MetadataEventType.FAILED_CHANGE.getName() + PDL_SUFFIX).toFile());
   }
 
   @Test
   public void testMAESchemaRender() throws Exception {
-    populateEvents();
-    assertSame(MetadataEventType.AUDIT);
+    assertSame(outputDir,
+            new File(TEST_NAMESPACE).toPath().resolve(MetadataEventType.AUDIT.getName() + PDL_SUFFIX).toFile());
+  }
+
+  @Test
+  public void testUnionSchemaRender() throws Exception {
+    assertSame(outputDir, new File("com/linkedin/testing/mxe/bar/MCE_BarAspect.pdl"));
+    assertSame(outputDir, new File("com/linkedin/testing/mxe/bar/FailedMCE_BarAspect.pdl"));
   }
 }

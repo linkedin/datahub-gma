@@ -6,8 +6,11 @@ project.ext.publications = ['dataTemplate']
 
 apply from: "$rootDir/gradle/java-publishing.gradle"
 
+pegasus.main.generationModes = [PegasusGenerationMode.PEGASUS, PegasusGenerationMode.AVRO]
+
 dependencies {
   dataModel project(':core-models')
+  dataModel project(':dao-api')
 
   testCompile externalDependency.assertJ
 
@@ -35,3 +38,8 @@ sourceSets {
 }
 
 sourceSets.mainGeneratedDataTemplate.java.srcDirs('src/main/java/com/linkedin/testing/urn')
+
+clean {
+  project.delete("mainGeneratedAvroSchema")
+  project.delete("mainGeneratedDataTemplate")
+}
