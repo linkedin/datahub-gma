@@ -16,10 +16,14 @@ public abstract class EventSpec {
   /** Entity that this aspect refers to, such as: com.linkedin.common.CorpuserUrn. */
   private final String urnType;
 
-  /** Short name without namespace for the {@link #urnType}. */
+  /**
+   * Short name without namespace for the {@link #urnType}.
+   */
   private final String shortUrn;
 
-  /** {@link #shortUrn} without Urn ending. */
+  /**
+   * {@link #shortUrn} without Urn ending.
+   */
   private final String entityName;
 
   /** Base namespace where rendered events will be created. */

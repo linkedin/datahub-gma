@@ -6,7 +6,7 @@ import com.linkedin.avro2pegasus.events.KafkaAuditHeader
  * Failed MetadataChangeEvent for aspects of BarUrn.
  */
 @FailedMetadataChangeEvent
-record FailedMCE_BarAspect {
+record FailedMCEBarAspect {
 
   /**
    * Kafka audit header. See go/kafkaauditheader for more info.
@@ -16,7 +16,7 @@ record FailedMCE_BarAspect {
   /**
    * The event that failed to be processed.
    */
-  metadataChangeEvent: MCE_BarAspect
+  metadataChangeEvent: MCEBarAspect
 
   /**
    * The error message or the stacktrace for the failure.

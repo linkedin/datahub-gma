@@ -14,7 +14,7 @@ import @valueType
  * MetadataChangeEvent for aspects of @(eventSpec.getShortUrn()).
  */
 @@MetadataChangeEvent
-record MCE_@(eventSpec.getShortTyperefName()) {
+record MCE@(eventSpec.getShortTyperefName()) {
 
   /**
    * Kafka audit header. See go/kafkaauditheader for more info.

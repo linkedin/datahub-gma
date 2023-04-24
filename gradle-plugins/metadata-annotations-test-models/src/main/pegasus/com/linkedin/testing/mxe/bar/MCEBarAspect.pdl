@@ -10,7 +10,7 @@ import com.linkedin.testing.AnotherAspectBar
  * MetadataChangeEvent for aspects of BarUrn.
  */
 @MetadataChangeEvent
-record MCE_BarAspect {
+record MCEBarAspect {
 
   /**
    * Kafka audit header. See go/kafkaauditheader for more info.

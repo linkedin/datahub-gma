@@ -1,6 +1,5 @@
 package com.linkedin.metadata.generator;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.linkedin.data.schema.DataSchema;
 import com.linkedin.data.schema.UnionDataSchema;
 import com.linkedin.metadata.annotations.AspectEntityAnnotation;

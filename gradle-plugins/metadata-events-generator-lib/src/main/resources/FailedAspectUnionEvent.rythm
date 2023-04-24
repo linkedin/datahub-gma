@@ -9,7 +9,7 @@ import com.linkedin.avro2pegasus.events.KafkaAuditHeader
  * Failed MetadataChangeEvent for aspects of @(eventSpec.getShortUrn()).
  */
 @@FailedMetadataChangeEvent
-record FailedMCE_@(eventSpec.getShortTyperefName()) {
+record FailedMCE@(eventSpec.getShortTyperefName()) {
 
   /**
    * Kafka audit header. See go/kafkaauditheader for more info.
@@ -19,7 +19,7 @@ record FailedMCE_@(eventSpec.getShortTyperefName()) {
   /**
    * The event that failed to be processed.
    */
-  metadataChangeEvent: MCE_@(eventSpec.getShortTyperefName())
+  metadataChangeEvent: MCE@(eventSpec.getShortTyperefName())
 
   /**
    * The error message or the stacktrace for the failure.

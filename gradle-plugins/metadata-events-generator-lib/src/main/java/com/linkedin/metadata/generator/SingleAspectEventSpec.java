@@ -32,7 +32,7 @@ public class SingleAspectEventSpec extends EventSpec {
 
   @Override
   public Collection<File> renderEventSchemas(File baseDirectory) throws IOException {
-    File subdirectory = new File (new File(baseDirectory, SchemaGeneratorUtil.deCapitalize(getEntityName())),
+    File subdirectory = new File(new File(baseDirectory, SchemaGeneratorUtil.deCapitalize(getEntityName())),
             SchemaGeneratorUtil.deCapitalize(this.getShortValueType()));
     return Lists.newArrayList(
             renderFile(new File(subdirectory, SchemaGeneratorConstants.MetadataEventType.CHANGE.getDefaultFileName()),

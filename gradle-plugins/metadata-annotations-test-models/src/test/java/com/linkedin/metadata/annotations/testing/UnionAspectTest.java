@@ -3,8 +3,8 @@ package com.linkedin.metadata.annotations.testing;
 import com.linkedin.metadata.events.ChangeType;
 import com.linkedin.testing.AnnotatedAspectBar;
 import com.linkedin.testing.AnotherAspectBar;
-import com.linkedin.testing.mxe.bar.FailedMCE_BarAspect;
-import com.linkedin.testing.mxe.bar.MCE_BarAspect;
+import com.linkedin.testing.mxe.bar.FailedMCEBarAspect;
+import com.linkedin.testing.mxe.bar.MCEBarAspect;
 import com.linkedin.testing.mxe.bar.ProposedAnnotatedAspectBar;
 import com.linkedin.testing.mxe.bar.ProposedAnotherAspectBar;
 import com.linkedin.testing.urn.BarUrn;
@@ -16,7 +16,7 @@ public class UnionAspectTest {
   // to ensure event building is reasonable.
   @Test
   public void test() throws Exception {
-    MCE_BarAspect unionAspect = new MCE_BarAspect().setUrn(new BarUrn(123));
+    MCEBarAspect unionAspect = new MCEBarAspect().setUrn(new BarUrn(123));
 
     AnnotatedAspectBar bar = new AnnotatedAspectBar().setBoolField(true);
     ProposedAnnotatedAspectBar proposedBar = new ProposedAnnotatedAspectBar().setProposed(bar);
@@ -25,11 +25,11 @@ public class UnionAspectTest {
     ProposedAnotherAspectBar proposedAnotherBar =
             new ProposedAnotherAspectBar().setProposed(anotherBar).setChangeType(ChangeType.DELETE);
 
-    unionAspect.setProposedValues(new MCE_BarAspect.ProposedValuesArray(
-            MCE_BarAspect.ProposedValues.create(proposedBar),
-            MCE_BarAspect.ProposedValues.create(proposedAnotherBar)));
+    unionAspect.setProposedValues(new MCEBarAspect.ProposedValuesArray(
+            MCEBarAspect.ProposedValues.create(proposedBar),
+            MCEBarAspect.ProposedValues.create(proposedAnotherBar)));
 
-    FailedMCE_BarAspect failedAspect = new FailedMCE_BarAspect();
+    FailedMCEBarAspect failedAspect = new FailedMCEBarAspect();
     failedAspect.setMetadataChangeEvent(unionAspect);
     failedAspect.setError("test");
   }

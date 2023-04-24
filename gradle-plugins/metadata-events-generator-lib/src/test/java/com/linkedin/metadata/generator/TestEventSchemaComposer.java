@@ -77,8 +77,8 @@ public class TestEventSchemaComposer {
             "com.linkedin.testing.mxe.bar.annotatedAspectBar.MetadataChangeEvent",
             "com.linkedin.testing.mxe.bar.annotatedAspectBar.FailedMetadataChangeEvent",
             "com.linkedin.testing.mxe.bar.annotatedAspectBar.MetadataAuditEvent",
-            "com.linkedin.testing.mxe.bar.MCE_BarAspect",
-            "com.linkedin.testing.mxe.bar.FailedMCE_BarAspect"
+            "com.linkedin.testing.mxe.bar.MCEBarAspect",
+            "com.linkedin.testing.mxe.bar.FailedMCEBarAspect"
     );
   }
 
@@ -112,7 +112,7 @@ public class TestEventSchemaComposer {
 
   @Test
   public void testUnionSchemaRender() throws Exception {
-    assertSame(outputDir, new File("com/linkedin/testing/mxe/bar/MCE_BarAspect.pdl"));
-    assertSame(outputDir, new File("com/linkedin/testing/mxe/bar/FailedMCE_BarAspect.pdl"));
+    assertSame(outputDir, new File("com/linkedin/testing/mxe/bar/MCEBarAspect.pdl"));
+    assertSame(outputDir, new File("com/linkedin/testing/mxe/bar/FailedMCEBarAspect.pdl"));
   }
 }

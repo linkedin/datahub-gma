@@ -29,9 +29,9 @@ public class AspectUnionEventSpec extends EventSpec {
   Collection<File> renderEventSchemas(File baseDirectory) throws IOException {
     File subdirectory = new File(baseDirectory, SchemaGeneratorUtil.deCapitalize(getEntityName()));
     return Lists.newArrayList(
-            renderFile(new File(subdirectory, "MCE_" + getShortTyperefName() + SchemaGeneratorConstants.PDL_SUFFIX),
+            renderFile(new File(subdirectory, "MCE" + getShortTyperefName() + SchemaGeneratorConstants.PDL_SUFFIX),
                     "AspectUnionEvent.rythm"),
-            renderFile(new File(subdirectory, "FailedMCE_" + getShortTyperefName() + SchemaGeneratorConstants.PDL_SUFFIX),
+            renderFile(new File(subdirectory, "FailedMCE" + getShortTyperefName() + SchemaGeneratorConstants.PDL_SUFFIX),
                     "FailedAspectUnionEvent.rythm")
     );
   }
