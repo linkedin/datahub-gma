@@ -72,7 +72,7 @@ public class TestEventSchemaComposer {
     DataSchemaParser.ParseResult result = outputParser.parseSources(new String[]{outputDir.getPath()});
 
     Set<String> outputs = result.getSchemaAndLocations().keySet().stream().filter(schema -> schema.getType() == DataSchema.Type.RECORD)
-            .map(s -> (RecordDataSchema)s).map(RecordDataSchema::getFullName).collect(Collectors.toSet());
+            .map(s -> (RecordDataSchema) s).map(RecordDataSchema::getFullName).collect(Collectors.toSet());
     assertThat(outputs).contains(
             "com.linkedin.testing.mxe.bar.annotatedAspectBar.MetadataChangeEvent",
             "com.linkedin.testing.mxe.bar.annotatedAspectBar.FailedMetadataChangeEvent",
@@ -86,7 +86,7 @@ public class TestEventSchemaComposer {
     File outputPath = baseOutputDir.toPath().resolve(relativeFilePath.toPath()).toFile();
     assertThat(outputPath).exists();
 
-    try(InputStream expected = this.getClass().getClassLoader().getResourceAsStream(relativeFilePath.toString());
+    try (InputStream expected = this.getClass().getClassLoader().getResourceAsStream(relativeFilePath.toString());
         InputStream actual = FileUtils.openInputStream(outputPath)) {
       assertThat(expected).hasSameContentAs(actual);
     }

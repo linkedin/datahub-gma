@@ -36,12 +36,12 @@ public class TestEventSpec {
     assertThat(eventSpecMap.asMap()).containsOnlyKeys("com.linkedin.testing.FooUrn", "com.linkedin.testing.BarUrn");
     assertThat(eventSpecMap.get("com.linkedin.testing.FooUrn")
         .stream()
-        .map(s -> (SingleAspectEventSpec)s)
+        .map(s -> (SingleAspectEventSpec) s)
         .map(SingleAspectEventSpec::getShortValueType)
         .collect(Collectors.toList())).contains("AnnotatedAspectFoo", "AnnotatedAspectOtherFoo");
     assertThat(eventSpecMap.get("com.linkedin.testing.BarUrn")
         .stream()
-        .map(s -> (SingleAspectEventSpec)s)
+        .map(s -> (SingleAspectEventSpec) s)
         .map(SingleAspectEventSpec::getShortValueType)
         .collect(Collectors.toList())).contains("AnnotatedAspectBar");
   }
@@ -62,12 +62,12 @@ public class TestEventSpec {
     assertThat(eventSpecMap.asMap()).containsOnlyKeys("com.linkedin.testing.FooUrn", "com.linkedin.testing.BarUrn");
     assertThat(eventSpecMap.get("com.linkedin.testing.FooUrn")
         .stream()
-        .map(s -> (SingleAspectEventSpec)s)
+        .map(s -> (SingleAspectEventSpec) s)
         .map(SingleAspectEventSpec::getShortValueType)
         .collect(Collectors.toList())).contains("CommonAspect");
     assertThat(eventSpecMap.get("com.linkedin.testing.BarUrn")
         .stream()
-        .map(s -> (SingleAspectEventSpec)s)
+        .map(s -> (SingleAspectEventSpec) s)
         .map(SingleAspectEventSpec::getShortValueType)
         .collect(Collectors.toList())).contains("CommonAspect");
   }
