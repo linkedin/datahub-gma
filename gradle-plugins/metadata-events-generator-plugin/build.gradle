@@ -19,6 +19,9 @@ dependencies {
   testImplementation externalDependency.junitJupiterApi
   testCompile externalDependency.junitVintageEngine
 
+  testCompile project(':core-models')
+  testCompile project(':dao-api')
+
   testProjectCompile  project(path: ':testing:test-models', configuration: 'dataTemplate')
 }
 

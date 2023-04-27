@@ -1,0 +1,9 @@
+namespace com.linkedin.testing
+
+@gma.aspect.entity = {
+  "urn": "com.linkedin.testing.BarUrn"
+}
+typeref BarAspect = union[
+  AnnotatedAspectBar,
+  AnotherAspectBar
+]

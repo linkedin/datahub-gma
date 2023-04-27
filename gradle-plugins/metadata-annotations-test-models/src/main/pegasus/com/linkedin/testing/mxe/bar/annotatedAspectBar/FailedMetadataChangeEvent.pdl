@@ -1,14 +1,11 @@
-@import com.linkedin.metadata.generator.SingleAspectEventSpec;
-@import com.linkedin.metadata.generator.SchemaGeneratorUtil;
-@args SingleAspectEventSpec eventSpec
-namespace @(eventSpec.getNamespace())
+namespace com.linkedin.testing.mxe.bar.annotatedAspectBar
 
 import com.linkedin.avro2pegasus.events.KafkaAuditHeader
 
 /**
- * FailedMetadataChangeEvent for the @(eventSpec.getShortUrn()) with @(eventSpec.getShortValueType()) aspect.
+ * FailedMetadataChangeEvent for the BarUrn with AnnotatedAspectBar aspect.
  */
-@@FailedMetadataChangeEvent
+@FailedMetadataChangeEvent
 record FailedMetadataChangeEvent {
 
   /**

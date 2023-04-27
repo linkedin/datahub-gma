@@ -1,0 +1,39 @@
+namespace com.linkedin.testing.mxe.bar
+
+import com.linkedin.avro2pegasus.events.KafkaAuditHeader
+import com.linkedin.metadata.events.ChangeType
+import com.linkedin.testing.BarUrn
+import com.linkedin.testing.AnnotatedAspectBar
+import com.linkedin.testing.AnotherAspectBar
+
+/**
+ * MetadataChangeEvent for aspects of BarUrn.
+ */
+@MetadataChangeEvent
+record MCEBarAspect {
+
+  /**
+   * Kafka audit header. See go/kafkaauditheader for more info.
+   */
+  auditHeader: optional KafkaAuditHeader
+
+  /**
+   * BarUrn as the key for the MetadataChangeEvent.
+   */
+  urn: BarUrn
+
+  /**
+   * The proposed aspect values for this entity.
+   */
+  proposedValues: array[union[
+    record ProposedAnnotatedAspectBar {
+      proposed: optional AnnotatedAspectBar
+      changeType: ChangeType = "UPSERT"
+    }
+    record ProposedAnotherAspectBar {
+      proposed: optional AnotherAspectBar
+      changeType: ChangeType = "UPSERT"
+    }
+  ]]
+
+}

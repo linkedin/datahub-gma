@@ -72,11 +72,10 @@ public class SchemaGeneratorUtil {
   /**
    * Create event schema output folder.
    *
-   * @param eventSchemaOutput the output path for the rendered schemas.
+   * @param directory the output path for the rendered schemas.
    * @return the directory of the output path.
    */
-  public static File createOutputFolder(@Nonnull String eventSchemaOutput) throws IOException {
-    final File directory = new File(eventSchemaOutput);
+  public static File createOutputFolder(@Nonnull File directory) throws IOException {
     if (!directory.mkdirs() && !directory.exists()) {
       throw new IOException(String.format("%s cannot be created.", directory));
     }

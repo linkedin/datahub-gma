@@ -1,29 +1,57 @@
 package com.linkedin.metadata.generator;
 
-import lombok.Builder;
-import lombok.Data;
-import lombok.RequiredArgsConstructor;
+import lombok.Getter;
 
+import javax.annotation.Nullable;
+import java.io.File;
+import java.io.IOException;
+import java.util.Collection;
 
 /**
- * Getter and setter class for schema event metadata.
+ * Contains event metadata for rendering events.
  */
-@Data
-@RequiredArgsConstructor
-@Builder(toBuilder = true)
-public final class EventSpec {
-  // fullValueType of the model, such as: com.linkedin.identity.CorpUserInfo.
-  private final String fullValueType;
+@Getter
+public abstract class EventSpec {
 
-  // namespace of the model, such as: com.linkedin.identity.
-  private final String namespace;
+  /** Entity that this aspect refers to, such as: com.linkedin.common.CorpuserUrn. */
+  private final String urnType;
 
-  // specType of the model, such as: MetadataChangeEvent.
-  private final SchemaGeneratorConstants.MetadataEventType eventType;
+  /**
+   * Short name without namespace for the {@link #urnType}.
+   */
+  private final String shortUrn;
 
-  // entity that this aspect refers to, such as: com.linkedin.common.CorpuserUrn.
-  private final String urn;
+  /**
+   * {@link #shortUrn} without Urn ending.
+   */
+  private final String entityName;
 
-  // valueType of the model, such as: CorpUserInfo.
-  private final String valueType;
+  /** Base namespace where rendered events will be created. */
+  private final String baseNamespace;
+
+  public EventSpec(String urnType, @Nullable String baseNamespace) {
+    this.urnType = urnType;
+    this.shortUrn = SchemaGeneratorUtil.stripNamespace(urnType);
+    this.entityName = SchemaGeneratorUtil.getEntityName(urnType);
+    this.baseNamespace = baseNamespace == null ? "com.linkedin.mxe" : baseNamespace;
+  }
+
+  /**
+   * Render all events related to this spec.
+   */
+  abstract Collection<File> renderEventSchemas(File baseDirectory) throws IOException;
+
+  /** namespace of the model, such as: com.linkedin.identity. */
+  public String getNamespace() {
+    return String.format("%s.%s", this.baseNamespace, SchemaGeneratorUtil.deCapitalize(this.getEntityName()));
+  }
+
+  /** Render a single event file with the given template. */
+  File renderFile(File file, String templateName) throws IOException {
+    SchemaGeneratorUtil.createOutputFolder(file.getParentFile());
+    SchemaGeneratorUtil.writeToFile(file,
+            EventSchemaComposer.renderToString(this, templateName));
+    return file;
+  }
+
 }

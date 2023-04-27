@@ -5,6 +5,7 @@ import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.template.DataTemplateUtil;
 import com.linkedin.testing.AnnotatedAspectBar;
 import com.linkedin.testing.AnnotatedAspectFoo;
+import com.linkedin.testing.BarAspect;
 import com.linkedin.testing.CommonAspect;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -21,6 +22,15 @@ public class GmaAnnotationParserTest {
     assertThat(gma).contains(new GmaAnnotation().setAspect(
         new AspectAnnotation().setEntity(new AspectEntityAnnotation().setUrn("com.linkedin.testing.BarUrn"))
             .setColumn(new ColumnNameAnnotation().setName("barurn"))));
+  }
+
+  @Test
+  public void parseBarAspect() {
+    // has both @gma.aspect.entity.urn and @gma.aspect.column.name annotations
+    final Optional<GmaAnnotation> gma =
+            new GmaAnnotationParser().parse(DataTemplateUtil.getTyperefInfo(BarAspect.class).getSchema());
+    assertThat(gma).contains(new GmaAnnotation().setAspect(
+            new AspectAnnotation().setEntity(new AspectEntityAnnotation().setUrn("com.linkedin.testing.BarUrn"))));
   }
 
   @Test

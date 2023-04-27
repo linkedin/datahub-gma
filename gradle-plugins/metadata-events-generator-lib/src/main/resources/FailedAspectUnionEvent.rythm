@@ -1,28 +1,29 @@
-@import com.linkedin.metadata.generator.SingleAspectEventSpec;
+@import com.linkedin.metadata.generator.AspectUnionEventSpec;
 @import com.linkedin.metadata.generator.SchemaGeneratorUtil;
-@args SingleAspectEventSpec eventSpec
+@args AspectUnionEventSpec eventSpec
 namespace @(eventSpec.getNamespace())
 
 import com.linkedin.avro2pegasus.events.KafkaAuditHeader
 
 /**
- * FailedMetadataChangeEvent for the @(eventSpec.getShortUrn()) with @(eventSpec.getShortValueType()) aspect.
+ * Failed MetadataChangeEvent for aspects of @(eventSpec.getShortUrn()).
  */
 @@FailedMetadataChangeEvent
-record FailedMetadataChangeEvent {
+record FailedMCE@(eventSpec.getShortTyperefName()) {
 
   /**
-   * Kafka event for capturing a failure to process a MetadataChangeEvent.
+   * Kafka audit header. See go/kafkaauditheader for more info.
    */
   auditHeader: optional KafkaAuditHeader
 
   /**
    * The event that failed to be processed.
    */
-  metadataChangeEvent: MetadataChangeEvent
+  metadataChangeEvent: MCE@(eventSpec.getShortTyperefName())
 
   /**
    * The error message or the stacktrace for the failure.
    */
   error: string
+
 }

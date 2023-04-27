@@ -33,7 +33,7 @@ public class SchemaGenerator {
   public void generate(@Nonnull Collection<String> resolverPaths, @Nonnull Collection<String> sourcePaths,
       @Nonnull String generatedFileOutput, @Nonnull GmaEntitiesAnnotationAllowList allowList) throws IOException {
     generate(sourcePaths, generatedFileOutput,
-        new SchemaAnnotationRetriever(resolverPaths.stream().collect(Collectors.joining(":")), allowList));
+        new SchemaAnnotationRetriever(resolverPaths.stream().collect(Collectors.joining(":")), allowList, null));
   }
 
   /**

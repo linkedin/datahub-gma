@@ -1,16 +1,15 @@
-@import com.linkedin.metadata.generator.EventSpec;
+@import com.linkedin.metadata.generator.SingleAspectEventSpec;
 @import com.linkedin.metadata.generator.SchemaGeneratorUtil;
-@args String entityUrn, String nameSpace EventSpec eventSpec
-@assign (entityName) {@SchemaGeneratorUtil.getEntityName(entityUrn)}
-namespace com.linkedin.mxe@(nameSpace)
+@args SingleAspectEventSpec eventSpec
+namespace @(eventSpec.getNamespace())
 
 import com.linkedin.avro2pegasus.events.KafkaAuditHeader
 import com.linkedin.metadata.events.ChangeType
-import @entityUrn
+import @eventSpec.getUrnType()
 import @eventSpec.getFullValueType()
 
 /**
- * MetadataChangeEvent for the @(entityName)Urn with @(eventSpec.getValueType()) aspect.
+ * MetadataChangeEvent for the @(eventSpec.getShortUrn()) with @(eventSpec.getShortValueType()) aspect.
  */
 @@MetadataChangeEvent
 record MetadataChangeEvent {
@@ -21,14 +20,14 @@ record MetadataChangeEvent {
   auditHeader: optional KafkaAuditHeader
 
   /**
-   * @(entityName)Urn as the key for the MetadataChangeEvent.
+   * @(eventSpec.getShortUrn()) as the key for the MetadataChangeEvent.
    */
-  urn: @(entityName)Urn
+  urn: @(eventSpec.getShortUrn())
 
   /**
-   * Value of the proposed @eventSpec.getValueType() change.
+   * Value of the proposed @eventSpec.getShortValueType() change.
    */
-  proposedValue: optional @eventSpec.getValueType()
+  proposedValue: optional @eventSpec.getShortValueType()
 
   /**
    * Change type.
