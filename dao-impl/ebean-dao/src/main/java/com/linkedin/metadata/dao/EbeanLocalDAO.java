@@ -314,11 +314,28 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     long largestVersion = 0;
     if ((isSoftDeleted || oldValue != null) && oldAuditStamp != null) {
       largestVersion = getNextVersion(urn, aspectClass);
+
+      // TODO(yanyang) added for job-gms duplicity debug, throwaway afterwards
+      if (log.isDebugEnabled()) {
+        if ("AzkabanFlowInfo".equals(aspectClass.getSimpleName())) {
+          log.debug("Insert: {} => oldValue = {}, latest version = {}", urn, oldValue, largestVersion);
+        }
+      }
+
+
       // Move latest version to historical version by insert a new record.
       insert(urn, oldValue, aspectClass, oldAuditStamp, largestVersion);
       // update latest version
       updateWithOptimisticLocking(urn, newValue, aspectClass, newAuditStamp, LATEST_VERSION, new Timestamp(oldAuditStamp.getTime()));
     } else {
+
+      // TODO(yanyang) added for job-gms duplicity debug, throwaway afterwards
+      if (log.isDebugEnabled()) {
+        if ("AzkabanFlowInfo".equals(aspectClass.getSimpleName())) {
+          log.debug("Insert: {} => newValue = {}", urn, newValue);
+        }
+      }
+
       insert(urn, newValue, aspectClass, newAuditStamp, LATEST_VERSION);
     }
 
