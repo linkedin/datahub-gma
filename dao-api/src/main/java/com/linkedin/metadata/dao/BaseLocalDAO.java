@@ -52,6 +52,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NonNull;
 import lombok.Value;
+import lombok.extern.slf4j.Slf4j;
 
 
 /**
@@ -62,6 +63,7 @@ import lombok.Value;
  * @param <ASPECT_UNION> must be a valid aspect union type defined in com.linkedin.metadata.aspect
  * @param <URN> must be the entity URN type in {@code ASPECT_UNION}
  */
+@Slf4j
 public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     extends BaseReadDAO<ASPECT_UNION, URN> {
 
@@ -359,6 +361,15 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     final ASPECT oldValue = latest.getAspect() == null ? null : latest.getAspect();
     final AuditStamp oldAuditStamp = latest.getExtraInfo() == null ? null : latest.getExtraInfo().getAudit();
 
+    // TODO(yanyang) added for job-gms duplicity debug, throwaway afterwards
+    if (log.isDebugEnabled()) {
+      if ("AzkabanFlowInfo".equals(aspectClass.getSimpleName())) {
+        log.debug("New Value: {} => {}", urn, newValue);
+        log.debug("Old Value: {} => {}", urn, oldValue);
+        log.debug("Quality: {} => {}", urn, equalityTester.equals(oldValue, newValue));
+      }
+    }
+
     // Skip saving if there's no actual change
     if ((oldValue == null && newValue == null) || oldValue != null && newValue != null
         && equalityTester.equals(oldValue, newValue)) {
@@ -430,6 +441,14 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   private <ASPECT extends RecordTemplate> AddResult<ASPECT> aspectUpdateHelper(URN urn, AspectUpdateLambda<ASPECT> updateTuple, AuditStamp auditStamp) {
     AspectEntry<ASPECT> latest = getLatest(urn, updateTuple.getAspectClass());
+
+    // TODO(yanyang) added for job-gms duplicity debug, throwaway afterwards
+    if (log.isDebugEnabled()) {
+      if ("AzkabanFlowInfo".equals(updateTuple.getAspectClass().getSimpleName())) {
+        log.debug("Latest: {} => {}", urn, latest);
+      }
+    }
+
     Optional<ASPECT> oldValue = Optional.ofNullable(latest.getAspect());
     ASPECT newValue = updateTuple.getUpdateLambda().apply(oldValue);
     if (newValue == null) {
