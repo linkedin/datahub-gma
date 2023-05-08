@@ -37,6 +37,8 @@ import io.ebean.EbeanServer;
 import io.ebean.ExpressionList;
 import io.ebean.PagedList;
 import io.ebean.Query;
+import io.ebean.SqlQuery;
+import io.ebean.SqlRow;
 import io.ebean.SqlUpdate;
 import io.ebean.Transaction;
 import io.ebean.config.ServerConfig;
@@ -85,6 +87,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   private IEbeanLocalAccess<URN> _localAccess;
   private UrnPathExtractor<URN> _urnPathExtractor;
   private SchemaConfig _schemaConfig = SchemaConfig.OLD_SCHEMA_ONLY;
+
+  // Flag for direct SQL execution for latest record retrieval
+  private boolean _directSqlRetrieval = false;
 
   public enum SchemaConfig {
     OLD_SCHEMA_ONLY, // Default: read from and write to the old schema table
@@ -155,6 +160,21 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   public EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
       @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass, @Nonnull SchemaConfig schemaConfig) {
     this(aspectUnionClass, producer, createServer(serverConfig), serverConfig, urnClass, schemaConfig);
+  }
+
+  /**
+   * Constructor for EbeanLocalDAO with a parameter to pass in the GMS name, used temporarily to isolate job-gms-specific changes for duplicity.
+   *
+   * @param aspectUnionClass containing union of all supported aspects. Must be a valid aspect union defined in com.linkedin.metadata.aspect
+   * @param producer {@link BaseMetadataEventProducer} for the metadata event producer
+   * @param serverConfig {@link ServerConfig} that defines the configuration of EbeanServer instances
+   * @param urnClass Class of the entity URN
+   * @param gmsName Name of the gms in dash (-) delimiter format (ex. job-gms) -- not case-sensitive
+   */
+  public EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
+      @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass, @Nonnull String gmsName) {
+    this(aspectUnionClass, producer, createServer(serverConfig), urnClass);
+    _directSqlRetrieval = gmsName.toLowerCase().equals("job-gms");
   }
 
   @VisibleForTesting
@@ -395,12 +415,46 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }, 1);
   }
 
+  private  <ASPECT extends RecordTemplate> EbeanMetadataAspect queryLatest(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass) {
+    final PrimaryKey key = new PrimaryKey(urn.toString(), ModelUtils.getAspectName(aspectClass), 0L);
+
+    if (_directSqlRetrieval) {
+      return _server.find(EbeanMetadataAspect.class, key);
+    } else {
+      final String selectQuery = "SELECT * FROM metadata_aspect "
+          + "WHERE urn = :urn and aspect = :aspect and version = 0 "
+          + "ORDER BY createdOn DESC";
+
+      final SqlQuery query = _server.createSqlQuery(selectQuery);
+      query.setParameter("urn", urn.toString());
+      query.setParameter("aspect", aspectClass.getCanonicalName());
+
+      List<SqlRow> results = query.findList();
+
+      if (!results.isEmpty()) {
+        if (results.size() > 1) {
+          log.warn("Two version=0 records found for {}, {}", urn, aspectClass.getSimpleName());
+        }
+        SqlRow latestResult = results.get(0);
+
+        final EbeanMetadataAspect aspect = new EbeanMetadataAspect();
+        aspect.setKey(key);
+        aspect.setMetadata(latestResult.getString("metadata"));
+        aspect.setCreatedOn(latestResult.getTimestamp("createdOn"));
+        aspect.setCreatedBy(latestResult.getString("createdBy"));
+        aspect.setCreatedFor(latestResult.getString("createdFor"));
+
+        return aspect;
+      }
+      return null;
+    }
+  }
+
   @Override
   @Nonnull
   protected <ASPECT extends RecordTemplate> AspectEntry<ASPECT> getLatest(@Nonnull URN urn,
       @Nonnull Class<ASPECT> aspectClass) {
-    final PrimaryKey key = new PrimaryKey(urn.toString(), ModelUtils.getAspectName(aspectClass), 0L);
-    EbeanMetadataAspect latest = _server.find(EbeanMetadataAspect.class, key);
+    EbeanMetadataAspect latest = queryLatest(urn, aspectClass);
     if (latest == null) {
       return new AspectEntry<>(null, null);
     }
