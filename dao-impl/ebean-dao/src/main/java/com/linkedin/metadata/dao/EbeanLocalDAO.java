@@ -418,7 +418,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   private  <ASPECT extends RecordTemplate> EbeanMetadataAspect queryLatest(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass) {
     final PrimaryKey key = new PrimaryKey(urn.toString(), ModelUtils.getAspectName(aspectClass), 0L);
 
-    if (_directSqlRetrieval) {
+    if (!_directSqlRetrieval) {
       return _server.find(EbeanMetadataAspect.class, key);
     } else {
       final String selectQuery = "SELECT * FROM metadata_aspect "
