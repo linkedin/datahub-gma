@@ -130,7 +130,7 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
 
       import com.linkedin.avro2pegasus.events.KafkaAuditHeader
       import com.linkedin.metadata.events.ChangeType
-      import com.linkedin.metadata.events.TrackingContext
+      import com.linkedin.metadata.events.IngestionTrackingContext
       import com.linkedin.testing.FooUrn
       import com.linkedin.metadata.test.aspects.TestAspect
 
@@ -166,9 +166,9 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
         changeType: optional union[null, ChangeType] = null
         
         /**
-         * Tracking context to identify the lifecycle of the trackable item.
+         * Tracking context to identify the lifecycle of the trackable ingestion item.
          */
-        trackingContext: optional union[null, TrackingContext] = null
+        ingestionTrackingContext: optional union[null, IngestionTrackingContext] = null
       }'''.stripIndent()
 
     projectFile('build/my-dummy-module/generateMetadataEventsSchema/com/linkedin/mxe/foo/testAspect/FailedMetadataChangeEvent.pdl').text == '''\
@@ -238,7 +238,7 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
 
       import com.linkedin.avro2pegasus.events.KafkaAuditHeader
       import com.linkedin.metadata.events.ChangeType
-      import com.linkedin.metadata.events.TrackingContext
+      import com.linkedin.metadata.events.IngestionTrackingContext
       import com.linkedin.testing.FooUrn
       import com.linkedin.metadata.test.aspects.TestTyperefAspect
 
@@ -274,9 +274,9 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
         changeType: optional union[null, ChangeType] = null
         
         /**
-         * Tracking context to identify the lifecycle of the trackable item.
+         * Tracking context to identify the lifecycle of the trackable ingestion item.
          */
-        trackingContext: optional union[null, TrackingContext] = null
+        ingestionTrackingContext: optional union[null, IngestionTrackingContext] = null
       }'''.stripIndent()
 
     projectFile('build/my-dummy-module/generateMetadataEventsSchema/com/linkedin/mxe/foo/testTyperefAspect/FailedMetadataChangeEvent.pdl').text == '''\
