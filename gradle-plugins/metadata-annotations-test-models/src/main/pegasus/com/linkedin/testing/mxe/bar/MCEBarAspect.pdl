@@ -30,13 +30,15 @@ record MCEBarAspect {
     record ProposedAnnotatedAspectBar {
       proposed: optional AnnotatedAspectBar
       changeType: ChangeType = "UPSERT"
-      ingestionTrackingContext: optional union[null, IngestionTrackingContext] = null
     }
     record ProposedAnotherAspectBar {
       proposed: optional AnotherAspectBar
       changeType: ChangeType = "UPSERT"
-      ingestionTrackingContext: optional union[null, IngestionTrackingContext] = null
     }
   ]]
 
+  /**
+   * Tracking context to identify the lifecycle of the trackable ingestion item.
+   */
+  ingestionTrackingContext: optional union[null, IngestionTrackingContext] = null
 }
