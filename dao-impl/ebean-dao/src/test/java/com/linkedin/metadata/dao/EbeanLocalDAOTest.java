@@ -58,7 +58,10 @@ import com.linkedin.testing.urn.FooUrn;
 import io.ebean.Ebean;
 import io.ebean.EbeanServer;
 import io.ebean.EbeanServerFactory;
+import io.ebean.ExpressionList;
+import io.ebean.OrderBy;
 import io.ebean.PagedList;
+import io.ebean.Query;
 import io.ebean.SqlRow;
 import io.ebean.Transaction;
 import java.io.IOException;
@@ -350,6 +353,7 @@ public class EbeanLocalDAOTest {
       when(server.beginTransaction()).thenReturn(mockTransaction);
       when(server.find(any(), any())).thenReturn(null);
       doThrow(RollbackException.class).doNothing().when(server).insert(any(EbeanMetadataAspect.class));
+
       EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(server, FooUrn.class);
       when(server.find(any(), any())).thenReturn(null);
       dao.add(makeFooUrn(1), new AspectFoo().setValue("foo"), _dummyAuditStamp);
@@ -364,6 +368,7 @@ public class EbeanLocalDAOTest {
     when(server.find(any(), any())).thenReturn(null);
     doThrow(RollbackException.class).when(server).insert(any(EbeanMetadataAspect.class));
     doThrow(RollbackException.class).when(server).createSqlUpdate(any());
+
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(server, FooUrn.class);
     dao.add(makeFooUrn(1), new AspectFoo().setValue("foo"), _dummyAuditStamp);
   }
@@ -3060,7 +3065,7 @@ public class EbeanLocalDAOTest {
 
   private void addMetadata(Urn urn, String aspectName, long version, @Nullable RecordTemplate metadata) {
     EbeanMetadataAspect aspect = getMetadata(urn, aspectName, version, metadata);
-    _server.save(aspect);
+    _server.insert(aspect);
   }
 
   private void addMetadataWithAuditStamp(Urn urn, String aspectName, long version, RecordTemplate metadata,
