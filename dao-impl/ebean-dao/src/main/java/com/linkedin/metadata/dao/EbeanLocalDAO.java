@@ -402,8 +402,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   /**
-   * Toggle using direct SQL query through Ebean when retrieving + checking existing records during insertion
-   * See GCN-38382
+   * Toggle using direct SQL query through Ebean when retrieving + checking existing records during insertion.
+   * See GCN-38382.
    */
   public void useDirectSqlQuery() {
     _directSqlRetrieval = true;
@@ -411,8 +411,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   /**
-   * Toggle using Ebean's find() query builder when retrieving + checking existing records during insertion
-   * See GCN-38382
+   * Toggle using Ebean's find() query builder when retrieving + checking existing records during insertion.
+   * See GCN-38382.
    */
   public void useEbeanFindBuild() {
     _ebeanFindBuilder = true;
