@@ -2,6 +2,7 @@ namespace com.linkedin.testing.mxe.bar
 
 import com.linkedin.avro2pegasus.events.KafkaAuditHeader
 import com.linkedin.metadata.events.ChangeType
+import com.linkedin.metadata.events.IngestionTrackingContext
 import com.linkedin.testing.BarUrn
 import com.linkedin.testing.AnnotatedAspectBar
 import com.linkedin.testing.AnotherAspectBar
@@ -29,10 +30,12 @@ record MCEBarAspect {
     record ProposedAnnotatedAspectBar {
       proposed: optional AnnotatedAspectBar
       changeType: ChangeType = "UPSERT"
+      ingestionTrackingContext: optional union[null, IngestionTrackingContext] = null
     }
     record ProposedAnotherAspectBar {
       proposed: optional AnotherAspectBar
       changeType: ChangeType = "UPSERT"
+      ingestionTrackingContext: optional union[null, IngestionTrackingContext] = null
     }
   ]]
 

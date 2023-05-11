@@ -95,6 +95,7 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
 
       import com.linkedin.avro2pegasus.events.KafkaAuditHeader
       import com.linkedin.metadata.events.ChangeType
+      import com.linkedin.metadata.events.IngestionTrackingContext
       import com.linkedin.testing.FooUrn
       import com.linkedin.metadata.test.aspects.TestAspect
 
@@ -123,6 +124,11 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
          * Change type.
          */
         changeType: optional union[null, ChangeType] = null
+
+        /**
+         * Tracking context to identify the lifecycle of the trackable ingestion item.
+         */
+        ingestionTrackingContext: optional union[null, IngestionTrackingContext] = null
       }'''.stripIndent()
 
     projectFile('build/my-dummy-module/generateMetadataEventsSchema/com/linkedin/mxe/foo/testAspect/MetadataAuditEvent.pdl').text == '''\
@@ -203,6 +209,7 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
 
       import com.linkedin.avro2pegasus.events.KafkaAuditHeader
       import com.linkedin.metadata.events.ChangeType
+      import com.linkedin.metadata.events.IngestionTrackingContext
       import com.linkedin.testing.FooUrn
       import com.linkedin.metadata.test.aspects.TestTyperefAspect
 
@@ -231,6 +238,11 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
          * Change type.
          */
         changeType: optional union[null, ChangeType] = null
+        
+        /**
+         * Tracking context to identify the lifecycle of the trackable ingestion item.
+         */
+        ingestionTrackingContext: optional union[null, IngestionTrackingContext] = null
       }'''.stripIndent()
 
     projectFile('build/my-dummy-module/generateMetadataEventsSchema/com/linkedin/mxe/foo/testTyperefAspect/MetadataAuditEvent.pdl').text == '''\
