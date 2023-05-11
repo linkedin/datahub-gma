@@ -11,6 +11,7 @@ import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.StringArray;
 import com.linkedin.metadata.backfill.BackfillMode;
 import com.linkedin.metadata.dao.EbeanLocalDAO.SchemaConfig;
+import com.linkedin.metadata.dao.EbeanMetadataAspect.PrimaryKey;
 import com.linkedin.metadata.dao.equality.AlwaysFalseEqualityTester;
 import com.linkedin.metadata.dao.equality.DefaultEqualityTester;
 import com.linkedin.metadata.dao.exception.InvalidMetadataType;
@@ -86,6 +87,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.persistence.OptimisticLockException;
 import javax.persistence.RollbackException;
+
+import org.mockito.ArgumentMatchers;
 import org.mockito.InOrder;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
@@ -354,20 +357,50 @@ public class EbeanLocalDAOTest {
       when(server.find(any(), any())).thenReturn(null);
       doThrow(RollbackException.class).doNothing().when(server).insert(any(EbeanMetadataAspect.class));
 
+      Query mockQuery = mock(Query.class);
+      when(mockQuery.findList()).thenReturn(Collections.emptyList());
+      // additions for direct SQL execution
+      when(server.findNative(any(), any())).thenReturn(mockQuery);
+      when(mockQuery.setParameter(any(), any())).thenReturn(mockQuery);
+
+      // additions for ebean find builder
+      ExpressionList mockEList = mock(ExpressionList.class);
+      OrderBy mockOrderBy = mock(OrderBy.class);
+      when(server.find(any())).thenReturn(mockQuery);
+      when(mockQuery.where()).thenReturn(mockEList);
+      when(mockEList.eq(any(), any())).thenReturn(mockEList);
+      when(mockEList.orderBy()).thenReturn(mockOrderBy);
+      when(mockOrderBy.desc(any())).thenReturn(mockQuery);
+
       EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(server, FooUrn.class);
       when(server.find(any(), any())).thenReturn(null);
       dao.add(makeFooUrn(1), new AspectFoo().setValue("foo"), _dummyAuditStamp);
     }
   }
-
+  
   @Test(expectedExceptions = RetryLimitReached.class)
   public void testAddFailedAfterRetry() {
     EbeanServer server = mock(EbeanServer.class);
     Transaction mockTransaction = mock(Transaction.class);
     when(server.beginTransaction()).thenReturn(mockTransaction);
-    when(server.find(any(), any())).thenReturn(null);
+    when(server.find(any(), ArgumentMatchers.any(PrimaryKey.class))).thenReturn(null);
     doThrow(RollbackException.class).when(server).insert(any(EbeanMetadataAspect.class));
     doThrow(RollbackException.class).when(server).createSqlUpdate(any());
+
+    Query mockQuery = mock(Query.class);
+    when(mockQuery.findList()).thenReturn(Collections.emptyList());
+    // additions for direct SQL execution
+    when(server.findNative(any(), any())).thenReturn(mockQuery);
+    when(mockQuery.setParameter(any(), any())).thenReturn(mockQuery);
+
+    // additions for ebean find builder
+    ExpressionList mockEList = mock(ExpressionList.class);
+    OrderBy mockOrderBy = mock(OrderBy.class);
+    when(server.find(any())).thenReturn(mockQuery);
+    when(mockQuery.where()).thenReturn(mockEList);
+    when(mockEList.eq(any(), any())).thenReturn(mockEList);
+    when(mockEList.orderBy()).thenReturn(mockOrderBy);
+    when(mockOrderBy.desc(any())).thenReturn(mockQuery);
 
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(server, FooUrn.class);
     dao.add(makeFooUrn(1), new AspectFoo().setValue("foo"), _dummyAuditStamp);
@@ -3065,7 +3098,7 @@ public class EbeanLocalDAOTest {
 
   private void addMetadata(Urn urn, String aspectName, long version, @Nullable RecordTemplate metadata) {
     EbeanMetadataAspect aspect = getMetadata(urn, aspectName, version, metadata);
-    _server.insert(aspect);
+    _server.save(aspect);
   }
 
   private void addMetadataWithAuditStamp(Urn urn, String aspectName, long version, RecordTemplate metadata,

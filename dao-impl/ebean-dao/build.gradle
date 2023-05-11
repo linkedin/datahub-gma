@@ -25,6 +25,7 @@ dependencies {
   testCompile externalDependency.mysql
   testCompile externalDependency.h2
   testCompile externalDependency.mockito
+  testCompile externalDependency.mockitoInline
   testCompile externalDependency.maria4j
   enhance externalDependency.ebeanAgent
 }
