@@ -56,6 +56,7 @@ import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.BazUrn;
 import com.linkedin.testing.urn.BurgerUrn;
 import com.linkedin.testing.urn.FooUrn;
+
 import io.ebean.Ebean;
 import io.ebean.EbeanServer;
 import io.ebean.EbeanServerFactory;
@@ -116,9 +117,20 @@ public class EbeanLocalDAOTest {
   private static final String GMA_CREATE_ALL_SQL = "gma-create-all.sql";
   private static final String GMA_DROP_ALL_SQL = "gma-drop-all.sql";
 
+  // run the tests 1 time for each FindMethology (3 total)
+  // See GCN-38382
+  private final FindMethodology _findMethodology;
+
+  private static enum FindMethodology {
+    ORIGINAL,
+    DIRECT_SQL,
+    QUERY_BUILDER
+  }
+
   @Factory(dataProvider = "inputList")
-  public EbeanLocalDAOTest(SchemaConfig schemaConfig) {
+  public EbeanLocalDAOTest(SchemaConfig schemaConfig, FindMethodology findMethodology) {
     _schemaConfig = schemaConfig;
+    _findMethodology = findMethodology;
   }
 
   @Nonnull
@@ -133,9 +145,15 @@ public class EbeanLocalDAOTest {
   @DataProvider
   public static Object[][] inputList() {
     return new Object[][]{
-        {SchemaConfig.OLD_SCHEMA_ONLY},
-        {SchemaConfig.NEW_SCHEMA_ONLY},
-        {SchemaConfig.DUAL_SCHEMA}
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.ORIGINAL},
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL},
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.QUERY_BUILDER},
+        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.ORIGINAL},
+        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.DIRECT_SQL},
+        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.QUERY_BUILDER},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.ORIGINAL},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.QUERY_BUILDER}
     };
   }
 
@@ -173,6 +191,19 @@ public class EbeanLocalDAOTest {
     }
     if (urnClass == BarUrn.class) {
       dao.setUrnPathExtractor((UrnPathExtractor<URN>) new BarUrnPathExtractor());
+    }
+
+    // Toggle find logic based on flags set
+    // See GCN-38382
+    switch (_findMethodology) {
+      case DIRECT_SQL:
+        dao.useDirectSqlQuery();
+        break;
+      case QUERY_BUILDER:
+        dao.useEbeanFindBuild();
+        break;
+      default:
+        break;
     }
     return dao;
   }
