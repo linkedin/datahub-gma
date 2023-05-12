@@ -1,0 +1,14 @@
+namespace com.linkedin.metadata.events
+
+import com.linkedin.avro2pegasus.events.UUID
+
+/**
+ *  Base model to capture tracking context and represent the lifecycle of the trackable item.
+ */
+record BaseTrackingContext {
+
+  /**
+   * A UUID of a trackable item. This UUID should be propagated in all events referencing the trackable item.
+   */
+  trackingId: optional UUID
+}

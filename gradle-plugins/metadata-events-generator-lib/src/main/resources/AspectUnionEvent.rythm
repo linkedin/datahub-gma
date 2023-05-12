@@ -5,6 +5,7 @@ namespace @(eventSpec.getNamespace())
 
 import com.linkedin.avro2pegasus.events.KafkaAuditHeader
 import com.linkedin.metadata.events.ChangeType
+import com.linkedin.metadata.events.IngestionTrackingContext
 import @eventSpec.getUrnType()
 @for (String valueType: eventSpec.getValueTypes()) {
 import @valueType
@@ -38,4 +39,8 @@ record MCE@(eventSpec.getShortTyperefName()) {
   }
   ]]
 
+  /**
+   * Tracking context to identify the lifecycle of the trackable ingestion item.
+   */
+  ingestionTrackingContext: optional union[null, IngestionTrackingContext] = null
 }

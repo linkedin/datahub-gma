@@ -1,0 +1,17 @@
+namespace com.linkedin.metadata.events
+
+/**
+ * Descriptor for the ingestion tracking context. To represent the lifecycle of the trackable ingestion item.
+ */
+record IngestionTrackingContext includes BaseTrackingContext {
+
+  /**
+   * The name of the service from which the ingestion event is being emitted.
+   */
+  emitter: optional string
+
+  /**
+   * The time at which the ingestion event was emitted into kafka.
+   */
+  emitTime: optional long
+}
