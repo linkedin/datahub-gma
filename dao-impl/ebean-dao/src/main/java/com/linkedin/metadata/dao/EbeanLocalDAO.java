@@ -402,7 +402,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   /**
-   * Toggle using direct SQL query through Ebean when retrieving + checking existing records during insertion.
+   * Toggle using direct SQL query through Ebean's .findNative() when retrieving + checking existing records during insertion.
    * See GCN-38382.
    */
   public void useDirectSqlQuery() {
@@ -426,7 +426,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       return _server.find(EbeanMetadataAspect.class, key);
     }
 
-    List<EbeanMetadataAspect> results = null;
+    List<EbeanMetadataAspect> results = Collections.emptyList();
   
     if (_directSqlRetrieval) {
       final String selectQuery = "SELECT * FROM metadata_aspect "
@@ -439,6 +439,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         .findList();
     }
     
+    // TODO (@jphui): if directSqlRetrieval pathway ^ works, remove this
     if (_ebeanFindBuilder) {
       results = _server.find(EbeanMetadataAspect.class)
         .where()

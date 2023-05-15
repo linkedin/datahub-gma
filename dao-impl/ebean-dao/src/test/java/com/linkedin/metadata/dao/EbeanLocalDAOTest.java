@@ -122,9 +122,9 @@ public class EbeanLocalDAOTest {
   private final FindMethodology _findMethodology;
 
   private static enum FindMethodology {
-    ORIGINAL,
-    DIRECT_SQL,
-    QUERY_BUILDER
+    UNIQUE_ID,      // https://javadoc.io/static/io.ebean/ebean/11.19.2/io/ebean/EbeanServer.html#find-java.lang.Class-java.lang.Object-
+    DIRECT_SQL,     // https://javadoc.io/static/io.ebean/ebean/11.19.2/io/ebean/EbeanServer.html#findNative-java.lang.Class-java.lang.String-
+    QUERY_BUILDER   // https://javadoc.io/static/io.ebean/ebean/11.19.2/io/ebean/Ebean.html#find-java.lang.Class-
   }
 
   @Factory(dataProvider = "inputList")
@@ -145,13 +145,13 @@ public class EbeanLocalDAOTest {
   @DataProvider
   public static Object[][] inputList() {
     return new Object[][]{
-        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.ORIGINAL},
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID},
         {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL},
         {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.QUERY_BUILDER},
-        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.ORIGINAL},
+        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID},
         {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.DIRECT_SQL},
         {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.QUERY_BUILDER},
-        {SchemaConfig.DUAL_SCHEMA, FindMethodology.ORIGINAL},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID},
         {SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL},
         {SchemaConfig.DUAL_SCHEMA, FindMethodology.QUERY_BUILDER}
     };
