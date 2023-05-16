@@ -92,6 +92,16 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     DUAL_SCHEMA // Write to both the old and new tables and perform a comparison between values when reading
   }
 
+  // Which approach to be used for record retrieval when inserting a new record
+  // See GCN-38382
+  private FindMethodology _findMethodology = FindMethodology.UNIQUE_ID;
+
+  public enum FindMethodology {
+    UNIQUE_ID,      // (legacy) https://javadoc.io/static/io.ebean/ebean/11.19.2/io/ebean/EbeanServer.html#find-java.lang.Class-java.lang.Object-
+    DIRECT_SQL,     // https://javadoc.io/static/io.ebean/ebean/11.19.2/io/ebean/EbeanServer.html#findNative-java.lang.Class-java.lang.String-
+    QUERY_BUILDER   // https://javadoc.io/static/io.ebean/ebean/11.19.2/io/ebean/Ebean.html#find-java.lang.Class-
+  }
+
   @Value
   static class GMAIndexPair {
     public String valueType;
@@ -130,6 +140,23 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
   }
 
+  @VisibleForTesting
+  EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
+      @Nonnull EbeanServer server, @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass, @Nonnull FindMethodology findMethodology) {
+    this(aspectUnionClass, producer, server, urnClass);
+    _findMethodology = findMethodology;
+  }
+
+  // Only called in testing (test all possible combos of SchemaConfig and FindMethodology)
+  @VisibleForTesting
+  EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
+      @Nonnull EbeanServer server, @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass,
+      @Nonnull SchemaConfig schemaConfig,
+      @Nonnull FindMethodology findMethodology) {
+    this(aspectUnionClass, producer, server, serverConfig, urnClass, schemaConfig);
+    _findMethodology = findMethodology;
+  }
+
   /**
    * Constructor for EbeanLocalDAO.
    *
@@ -155,6 +182,21 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   public EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
       @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass, @Nonnull SchemaConfig schemaConfig) {
     this(aspectUnionClass, producer, createServer(serverConfig), serverConfig, urnClass, schemaConfig);
+  }
+
+  /**
+   * Constructor for EbeanLocalDAO with the option to use an alternate Ebean find methodology for record insertion.
+   * See GCN-38382
+   *
+   * @param aspectUnionClass containing union of all supported aspects. Must be a valid aspect union defined in com.linkedin.metadata.aspect
+   * @param producer {@link BaseMetadataEventProducer} for the metadata event producer
+   * @param serverConfig {@link ServerConfig} that defines the configuration of EbeanServer instances
+   * @param urnClass Class of the entity URN
+   * @param findMethodology Enum indicating which find configuration to use
+   */
+  public EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
+      @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass, @Nonnull FindMethodology findMethodology) {
+    this(aspectUnionClass, producer, createServer(serverConfig), serverConfig, urnClass, findMethodology);
   }
 
   @VisibleForTesting
@@ -395,12 +437,56 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }, 1);
   }
 
+  private  <ASPECT extends RecordTemplate> EbeanMetadataAspect queryLatest(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass) {
+    if (_findMethodology == FindMethodology.UNIQUE_ID) {
+      final PrimaryKey key = new PrimaryKey(urn.toString(), ModelUtils.getAspectName(aspectClass), 0L);
+      return _server.find(EbeanMetadataAspect.class, key);
+    }
+
+    List<EbeanMetadataAspect> results = Collections.emptyList();
+  
+    // TODO (@jphui): remove following pathway(s) that are not used
+
+    if (_findMethodology == FindMethodology.DIRECT_SQL) {
+      final String selectQuery = "SELECT * FROM metadata_aspect "
+          + "WHERE urn = :urn and aspect = :aspect and version = 0 "
+          + "ORDER BY createdOn DESC";
+
+      results = _server.findNative(EbeanMetadataAspect.class, selectQuery)
+        .setParameter("urn", urn.toString())
+        .setParameter("aspect", ModelUtils.getAspectName(aspectClass))
+        .findList();
+    }
+    
+    if (_findMethodology == FindMethodology.QUERY_BUILDER) {
+      results = _server.find(EbeanMetadataAspect.class)
+        .where()
+        .eq(URN_COLUMN, urn.toString())
+        .eq(ASPECT_COLUMN, ModelUtils.getAspectName(aspectClass))
+        .eq(VERSION_COLUMN, 0L)
+        .orderBy()
+        .desc(CREATED_ON_COLUMN)
+        .findList();
+    }
+
+    if (results.isEmpty()) {
+      return null;
+    }
+
+    // don't crash if find duplicates, but log an error
+    if (results.size() > 1) {
+      log.error("Two version=0 records found for {}, {}", urn, aspectClass.getSimpleName());
+    }
+
+    // return value at the top of the list (latest createdOn)
+    return results.get(0);
+  }
+
   @Override
   @Nonnull
   protected <ASPECT extends RecordTemplate> AspectEntry<ASPECT> getLatest(@Nonnull URN urn,
       @Nonnull Class<ASPECT> aspectClass) {
-    final PrimaryKey key = new PrimaryKey(urn.toString(), ModelUtils.getAspectName(aspectClass), 0L);
-    EbeanMetadataAspect latest = _server.find(EbeanMetadataAspect.class, key);
+    EbeanMetadataAspect latest = queryLatest(urn, aspectClass);
     if (latest == null) {
       return new AspectEntry<>(null, null);
     }

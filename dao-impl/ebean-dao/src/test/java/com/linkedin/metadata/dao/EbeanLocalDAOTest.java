@@ -10,7 +10,9 @@ import com.linkedin.common.urn.Urns;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.StringArray;
 import com.linkedin.metadata.backfill.BackfillMode;
+import com.linkedin.metadata.dao.EbeanLocalDAO.FindMethodology;
 import com.linkedin.metadata.dao.EbeanLocalDAO.SchemaConfig;
+import com.linkedin.metadata.dao.EbeanMetadataAspect.PrimaryKey;
 import com.linkedin.metadata.dao.equality.AlwaysFalseEqualityTester;
 import com.linkedin.metadata.dao.equality.DefaultEqualityTester;
 import com.linkedin.metadata.dao.exception.InvalidMetadataType;
@@ -55,10 +57,14 @@ import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.BazUrn;
 import com.linkedin.testing.urn.BurgerUrn;
 import com.linkedin.testing.urn.FooUrn;
+
 import io.ebean.Ebean;
 import io.ebean.EbeanServer;
 import io.ebean.EbeanServerFactory;
+import io.ebean.ExpressionList;
+import io.ebean.OrderBy;
 import io.ebean.PagedList;
+import io.ebean.Query;
 import io.ebean.SqlRow;
 import io.ebean.Transaction;
 import java.io.IOException;
@@ -83,6 +89,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.persistence.OptimisticLockException;
 import javax.persistence.RollbackException;
+
+import org.mockito.ArgumentMatchers;
 import org.mockito.InOrder;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
@@ -106,13 +114,17 @@ public class EbeanLocalDAOTest {
   // run the tests 1 time for each of EbeanLocalDAO.SchemaConfig values (3 total)
   private final SchemaConfig _schemaConfig;
 
+  // run the tests 1 time for each of EbeanLocalDAO.FindMethodology values (3 total)
+  private final FindMethodology _findMethodology;
+
   private static final String NEW_SCHEMA_CREATE_ALL_SQL = "ebean-local-dao-create-all.sql";
   private static final String GMA_CREATE_ALL_SQL = "gma-create-all.sql";
   private static final String GMA_DROP_ALL_SQL = "gma-drop-all.sql";
 
   @Factory(dataProvider = "inputList")
-  public EbeanLocalDAOTest(SchemaConfig schemaConfig) {
+  public EbeanLocalDAOTest(SchemaConfig schemaConfig, FindMethodology findMethodology) {
     _schemaConfig = schemaConfig;
+    _findMethodology = findMethodology;
   }
 
   @Nonnull
@@ -127,9 +139,15 @@ public class EbeanLocalDAOTest {
   @DataProvider
   public static Object[][] inputList() {
     return new Object[][]{
-        {SchemaConfig.OLD_SCHEMA_ONLY},
-        {SchemaConfig.NEW_SCHEMA_ONLY},
-        {SchemaConfig.DUAL_SCHEMA}
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID},
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL},
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.QUERY_BUILDER},
+        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID},
+        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.DIRECT_SQL},
+        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.QUERY_BUILDER},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.QUERY_BUILDER}
     };
   }
 
@@ -159,7 +177,7 @@ public class EbeanLocalDAOTest {
   private <URN extends Urn> EbeanLocalDAO<EntityAspectUnion, URN> createDao(@Nonnull EbeanServer server,
       @Nonnull Class<URN> urnClass) {
     EbeanLocalDAO<EntityAspectUnion, URN> dao = new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, server,
-        EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()), urnClass, _schemaConfig);
+        EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()), urnClass, _schemaConfig, _findMethodology);
     // Since we added a_urn columns to both metadata_entity_foo and metadata_entity_bar tables in the SQL initialization scripts,
     // it is required that we set non-default UrnPathExtractors for the corresponding DAOs when initialized.
     if (urnClass == FooUrn.class) {
@@ -350,6 +368,22 @@ public class EbeanLocalDAOTest {
       when(server.beginTransaction()).thenReturn(mockTransaction);
       when(server.find(any(), any())).thenReturn(null);
       doThrow(RollbackException.class).doNothing().when(server).insert(any(EbeanMetadataAspect.class));
+
+      Query mockQuery = mock(Query.class);
+      when(mockQuery.findList()).thenReturn(Collections.emptyList());
+      // additions for direct SQL execution
+      when(server.findNative(any(), any())).thenReturn(mockQuery);
+      when(mockQuery.setParameter(any(), any())).thenReturn(mockQuery);
+
+      // additions for ebean find builder
+      ExpressionList mockEList = mock(ExpressionList.class);
+      OrderBy mockOrderBy = mock(OrderBy.class);
+      when(server.find(any())).thenReturn(mockQuery);
+      when(mockQuery.where()).thenReturn(mockEList);
+      when(mockEList.eq(any(), any())).thenReturn(mockEList);
+      when(mockEList.orderBy()).thenReturn(mockOrderBy);
+      when(mockOrderBy.desc(any())).thenReturn(mockQuery);
+
       EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(server, FooUrn.class);
       when(server.find(any(), any())).thenReturn(null);
       dao.add(makeFooUrn(1), new AspectFoo().setValue("foo"), _dummyAuditStamp);
@@ -361,9 +395,25 @@ public class EbeanLocalDAOTest {
     EbeanServer server = mock(EbeanServer.class);
     Transaction mockTransaction = mock(Transaction.class);
     when(server.beginTransaction()).thenReturn(mockTransaction);
-    when(server.find(any(), any())).thenReturn(null);
+    when(server.find(any(), ArgumentMatchers.any(PrimaryKey.class))).thenReturn(null);
     doThrow(RollbackException.class).when(server).insert(any(EbeanMetadataAspect.class));
     doThrow(RollbackException.class).when(server).createSqlUpdate(any());
+
+    Query mockQuery = mock(Query.class);
+    when(mockQuery.findList()).thenReturn(Collections.emptyList());
+    // additions for direct SQL execution
+    when(server.findNative(any(), any())).thenReturn(mockQuery);
+    when(mockQuery.setParameter(any(), any())).thenReturn(mockQuery);
+
+    // additions for ebean find builder
+    ExpressionList mockEList = mock(ExpressionList.class);
+    OrderBy mockOrderBy = mock(OrderBy.class);
+    when(server.find(any())).thenReturn(mockQuery);
+    when(mockQuery.where()).thenReturn(mockEList);
+    when(mockEList.eq(any(), any())).thenReturn(mockEList);
+    when(mockEList.orderBy()).thenReturn(mockOrderBy);
+    when(mockOrderBy.desc(any())).thenReturn(mockQuery);
+
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(server, FooUrn.class);
     dao.add(makeFooUrn(1), new AspectFoo().setValue("foo"), _dummyAuditStamp);
   }
