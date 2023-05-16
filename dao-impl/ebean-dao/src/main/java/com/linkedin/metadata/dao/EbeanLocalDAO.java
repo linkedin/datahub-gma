@@ -581,7 +581,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       // the metadata entity tables shouldn't been updated.
       _localAccess.add(urn, (ASPECT) value, aspectClass, auditStamp);
     }
-    
+
     _server.insert(aspect);
   }
 
