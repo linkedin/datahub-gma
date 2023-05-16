@@ -10,6 +10,7 @@ import com.linkedin.common.urn.Urns;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.StringArray;
 import com.linkedin.metadata.backfill.BackfillMode;
+import com.linkedin.metadata.dao.EbeanLocalDAO.FindMethodology;
 import com.linkedin.metadata.dao.EbeanLocalDAO.SchemaConfig;
 import com.linkedin.metadata.dao.EbeanMetadataAspect.PrimaryKey;
 import com.linkedin.metadata.dao.equality.AlwaysFalseEqualityTester;
@@ -113,19 +114,12 @@ public class EbeanLocalDAOTest {
   // run the tests 1 time for each of EbeanLocalDAO.SchemaConfig values (3 total)
   private final SchemaConfig _schemaConfig;
 
+  // run the tests 1 time for each of EbeanLocalDAO.FindMethodology values (3 total)
+  private final FindMethodology _findMethodology;
+
   private static final String NEW_SCHEMA_CREATE_ALL_SQL = "ebean-local-dao-create-all.sql";
   private static final String GMA_CREATE_ALL_SQL = "gma-create-all.sql";
   private static final String GMA_DROP_ALL_SQL = "gma-drop-all.sql";
-
-  // run the tests 1 time for each FindMethology (3 total)
-  // See GCN-38382
-  private final FindMethodology _findMethodology;
-
-  private static enum FindMethodology {
-    UNIQUE_ID,      // https://javadoc.io/static/io.ebean/ebean/11.19.2/io/ebean/EbeanServer.html#find-java.lang.Class-java.lang.Object-
-    DIRECT_SQL,     // https://javadoc.io/static/io.ebean/ebean/11.19.2/io/ebean/EbeanServer.html#findNative-java.lang.Class-java.lang.String-
-    QUERY_BUILDER   // https://javadoc.io/static/io.ebean/ebean/11.19.2/io/ebean/Ebean.html#find-java.lang.Class-
-  }
 
   @Factory(dataProvider = "inputList")
   public EbeanLocalDAOTest(SchemaConfig schemaConfig, FindMethodology findMethodology) {
@@ -183,7 +177,7 @@ public class EbeanLocalDAOTest {
   private <URN extends Urn> EbeanLocalDAO<EntityAspectUnion, URN> createDao(@Nonnull EbeanServer server,
       @Nonnull Class<URN> urnClass) {
     EbeanLocalDAO<EntityAspectUnion, URN> dao = new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, server,
-        EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()), urnClass, _schemaConfig);
+        EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()), urnClass, _schemaConfig, _findMethodology);
     // Since we added a_urn columns to both metadata_entity_foo and metadata_entity_bar tables in the SQL initialization scripts,
     // it is required that we set non-default UrnPathExtractors for the corresponding DAOs when initialized.
     if (urnClass == FooUrn.class) {
@@ -193,18 +187,6 @@ public class EbeanLocalDAOTest {
       dao.setUrnPathExtractor((UrnPathExtractor<URN>) new BarUrnPathExtractor());
     }
 
-    // Toggle find logic based on flags set
-    // See GCN-38382
-    switch (_findMethodology) {
-      case DIRECT_SQL:
-        dao.useDirectSqlQuery();
-        break;
-      case QUERY_BUILDER:
-        dao.useEbeanFindBuild();
-        break;
-      default:
-        break;
-    }
     return dao;
   }
 
