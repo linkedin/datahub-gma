@@ -186,7 +186,6 @@ public class EbeanLocalDAOTest {
     if (urnClass == BarUrn.class) {
       dao.setUrnPathExtractor((UrnPathExtractor<URN>) new BarUrnPathExtractor());
     }
-
     return dao;
   }
 
@@ -390,7 +389,7 @@ public class EbeanLocalDAOTest {
       dao.add(makeFooUrn(1), new AspectFoo().setValue("foo"), _dummyAuditStamp);
     }
   }
-  
+
   @Test(expectedExceptions = RetryLimitReached.class)
   public void testAddFailedAfterRetry() {
     EbeanServer server = mock(EbeanServer.class);
