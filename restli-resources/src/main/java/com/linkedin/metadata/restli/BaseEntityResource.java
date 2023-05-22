@@ -11,6 +11,7 @@ import com.linkedin.metadata.dao.AspectKey;
 import com.linkedin.metadata.dao.BaseLocalDAO;
 import com.linkedin.metadata.dao.ListResult;
 import com.linkedin.metadata.dao.UrnAspectEntry;
+import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
@@ -81,18 +82,26 @@ public abstract class BaseEntityResource<
   private final Set<Class<? extends RecordTemplate>> _supportedAspectClasses;
   private final Class<URN> _urnClass;
 
+  protected BaseTrackingManager _trackingManager = null;
+
   public BaseEntityResource(@Nonnull Class<SNAPSHOT> snapshotClass, @Nonnull Class<ASPECT_UNION> aspectUnionClass) {
     this(snapshotClass, aspectUnionClass, null);
   }
 
-  public BaseEntityResource(@Nonnull Class<SNAPSHOT> snapshotClass,
-      @Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nullable Class<URN> urnClass) {
+  public BaseEntityResource(@Nonnull Class<SNAPSHOT> snapshotClass, @Nonnull Class<ASPECT_UNION> aspectUnionClass,
+      @Nullable Class<URN> urnClass) {
     super();
     ModelUtils.validateSnapshotAspect(snapshotClass, aspectUnionClass);
     _snapshotClass = snapshotClass;
     _aspectUnionClass = aspectUnionClass;
     _supportedAspectClasses = ModelUtils.getValidAspectTypes(_aspectUnionClass);
     _urnClass = urnClass;
+  }
+
+  public BaseEntityResource(@Nonnull Class<SNAPSHOT> snapshotClass, @Nonnull Class<ASPECT_UNION> aspectUnionClass,
+      @Nullable Class<URN> urnClass, @Nullable BaseTrackingManager trackingManager) {
+    this(snapshotClass, aspectUnionClass, urnClass);
+    _trackingManager = trackingManager;
   }
 
   /**

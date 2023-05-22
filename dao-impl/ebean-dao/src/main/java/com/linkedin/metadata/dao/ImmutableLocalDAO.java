@@ -8,6 +8,7 @@ import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.producer.DummyMetadataEventProducer;
 import com.linkedin.metadata.dao.utils.RecordUtils;
+import com.linkedin.metadata.events.IngestionTrackingContext;
 import io.ebean.Ebean;
 import java.io.IOException;
 import java.io.InputStream;
@@ -21,6 +22,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
@@ -51,7 +53,7 @@ public class ImmutableLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends U
     _server.execute(Ebean.createSqlUpdate(readSQLfromFile(GMA_CREATE_ALL_SQL)));
     urnAspectMap.forEach((key, value) -> {
       if (value != null) {
-        super.insert(key, value, value.getClass(), DUMMY_AUDIT_STAMP, LATEST_VERSION);
+        super.insert(key, value, value.getClass(), DUMMY_AUDIT_STAMP, LATEST_VERSION, null);
       }
     });
   }
@@ -63,7 +65,7 @@ public class ImmutableLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends U
     super(aspectUnionClass, new DummyMetadataEventProducer<>(), createTestingH2ServerConfig(), urnClass);
     urnAspectMap.forEach((key, value) -> {
       if (value != null) {
-        super.insert(key, value, value.getClass(), DUMMY_AUDIT_STAMP, LATEST_VERSION);
+        super.insert(key, value, value.getClass(), DUMMY_AUDIT_STAMP, LATEST_VERSION, null);
       }
     });
   }
@@ -97,6 +99,14 @@ public class ImmutableLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends U
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp,
       int maxTransactionRetry) {
+    throw new UnsupportedOperationException("Not supported by immutable DAO");
+  }
+
+  @Override
+  @Nonnull
+  public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
+      @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp,
+      int maxTransactionRetry, @Nullable IngestionTrackingContext trackingcontext) {
     throw new UnsupportedOperationException("Not supported by immutable DAO");
   }
 

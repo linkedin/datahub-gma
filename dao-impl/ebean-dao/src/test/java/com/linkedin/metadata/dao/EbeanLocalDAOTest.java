@@ -435,7 +435,7 @@ public class EbeanLocalDAOTest {
     });
 
     assertThrows(RuntimeException.class, () ->
-        dao.addMany(fooUrn, Arrays.asList(goodUpdate, badUpdate), _dummyAuditStamp, 1));
+        dao.addMany(fooUrn, Arrays.asList(goodUpdate, badUpdate), _dummyAuditStamp, 1, null));
 
     // because our second update lambda throws an exception, we still should not have records in our DB
     assertFalse(dao.get(AspectFoo.class, fooUrn).isPresent());
@@ -456,7 +456,7 @@ public class EbeanLocalDAOTest {
     BaseLocalDAO.AspectUpdateLambda<AspectFoo> firstUpdate = new BaseLocalDAO.AspectUpdateLambda<>(new AspectFoo().setValue("foo"));
     BaseLocalDAO.AspectUpdateLambda<AspectBar> secondUpdate = new BaseLocalDAO.AspectUpdateLambda<>(new AspectBar().setValue("bar"));
 
-    dao.addMany(fooUrn, Arrays.asList(firstUpdate, secondUpdate), _dummyAuditStamp, 1);
+    dao.addMany(fooUrn, Arrays.asList(firstUpdate, secondUpdate), _dummyAuditStamp, 1, null);
 
     assertEquals(dao.get(AspectFoo.class, fooUrn).map(AspectFoo::getValue), Optional.of("foo"));
     assertEquals(dao.get(AspectBar.class, fooUrn).map(AspectBar::getValue), Optional.of("bar"));
@@ -2911,7 +2911,8 @@ public class EbeanLocalDAOTest {
 
     // call save method with timestamp (_now - 100) but timestamp is already changed to _now
     // expect OptimisticLockException if optimistic locking is enabled
-    dao.updateWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now + 100), 0, new Timestamp(_now - 100));
+    dao.updateWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now + 100),
+        0, new Timestamp(_now - 100), null);
   }
 
   @Test

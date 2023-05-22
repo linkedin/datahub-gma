@@ -21,6 +21,7 @@ import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.QueryUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLIndexFilterUtils;
+import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.ExtraInfoArray;
@@ -351,7 +352,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Override
   protected <ASPECT extends RecordTemplate> long saveLatest(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
       @Nullable ASPECT oldValue, @Nullable AuditStamp oldAuditStamp, @Nullable ASPECT newValue,
-      @Nonnull AuditStamp newAuditStamp, boolean isSoftDeleted) {
+      @Nonnull AuditStamp newAuditStamp, boolean isSoftDeleted, @Nullable IngestionTrackingContext trackingContext) {
     // Save oldValue as the largest version + 1
     long largestVersion = 0;
     if ((isSoftDeleted || oldValue != null) && oldAuditStamp != null) {
@@ -364,11 +365,11 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         }
       }
 
-
       // Move latest version to historical version by insert a new record.
-      insert(urn, oldValue, aspectClass, oldAuditStamp, largestVersion);
+      insert(urn, oldValue, aspectClass, oldAuditStamp, largestVersion, trackingContext);
       // update latest version
-      updateWithOptimisticLocking(urn, newValue, aspectClass, newAuditStamp, LATEST_VERSION, new Timestamp(oldAuditStamp.getTime()));
+      updateWithOptimisticLocking(urn, newValue, aspectClass, newAuditStamp, LATEST_VERSION,
+          new Timestamp(oldAuditStamp.getTime()), trackingContext);
     } else {
 
       // TODO(yanyang) added for job-gms duplicity debug, throwaway afterwards
@@ -378,7 +379,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         }
       }
 
-      insert(urn, newValue, aspectClass, newAuditStamp, LATEST_VERSION);
+      insert(urn, newValue, aspectClass, newAuditStamp, LATEST_VERSION, trackingContext);
     }
 
     return largestVersion;
@@ -444,7 +445,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
 
     List<EbeanMetadataAspect> results = Collections.emptyList();
-  
     // TODO (@jphui): remove following pathway(s) that are not used
 
     if (_findMethodology == FindMethodology.DIRECT_SQL) {
@@ -457,7 +457,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         .setParameter("aspect", ModelUtils.getAspectName(aspectClass))
         .findList();
     }
-    
+
     if (_findMethodology == FindMethodology.QUERY_BUILDER) {
       results = _server.find(EbeanMetadataAspect.class)
         .where()
@@ -527,7 +527,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Override
   protected <ASPECT extends RecordTemplate> void updateWithOptimisticLocking(@Nonnull URN urn,
       @Nullable RecordTemplate value, @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp newAuditStamp,
-      long version, @Nonnull Timestamp oldTimestamp) {
+      long version, @Nonnull Timestamp oldTimestamp, @Nullable IngestionTrackingContext trackingContext) {
 
     final EbeanMetadataAspect aspect = buildMetadataAspectBean(urn, value, aspectClass, newAuditStamp, version);
 
@@ -572,16 +572,14 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   @Override
   protected <ASPECT extends RecordTemplate> void insert(@Nonnull URN urn, @Nullable RecordTemplate value,
-      @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, long version) {
+      @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, long version, @Nullable IngestionTrackingContext trackingContext) {
 
     final EbeanMetadataAspect aspect = buildMetadataAspectBean(urn, value, aspectClass, auditStamp, version);
-
     if (_schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY && version == LATEST_VERSION) {
       // insert() could be called when updating log table (moving current versions into new history version)
       // the metadata entity tables shouldn't been updated.
       _localAccess.add(urn, (ASPECT) value, aspectClass, auditStamp);
     }
-
     _server.insert(aspect);
   }
 
