@@ -58,7 +58,8 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     public TestResource() {
       // super(EntitySnapshot.class, EntityAspectUnion.class, AspectFoo.class, EntityValue.class);
-      super(EntitySnapshot.class, EntityAspectUnion.class, new HashSet<>(Arrays.asList(AspectFoo.class, AspectAttributes.class)), EntityValue.class);
+      super(EntitySnapshot.class, EntityAspectUnion.class,
+          ImmutableMap.of(AspectFoo.class, "setFoo", AspectAttributes.class, "setAttributes"), EntityValue.class);
     }
 
     @Nonnull
