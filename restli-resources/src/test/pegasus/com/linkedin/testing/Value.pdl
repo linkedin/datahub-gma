@@ -14,4 +14,9 @@ record Value {
    * For unit tests
    */
   bar: optional AspectBar
+
+  /**
+   * For unit tests
+   */
+  attributes: optional AspectAttributes
 }

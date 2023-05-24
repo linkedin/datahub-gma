@@ -3,4 +3,4 @@ namespace com.linkedin.testing
 /**
  * For unit tests
  */
-typeref Aspect = union[AspectFoo, AspectBar]
+typeref Aspect = union[AspectFoo, AspectBar, AspectAttributes]
