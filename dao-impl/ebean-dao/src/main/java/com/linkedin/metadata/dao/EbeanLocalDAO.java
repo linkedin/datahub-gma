@@ -456,6 +456,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       .setParameter("urn", urn.toString())
       .setParameter("aspect", ModelUtils.getAspectName(aspectClass));
 
+      // TODO(yanyang) added for job-gms duplicity debug, throwaway afterwards
       if (log.isDebugEnabled()) {
         if ("AzkabanFlowInfo".equals(aspectClass.getSimpleName())) {
           log.debug("Using DIRECT_SQL retrieval.");
@@ -476,6 +477,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         .desc(CREATED_ON_COLUMN)
         .findList();
 
+        // TODO(yanyang) added for job-gms duplicity debug, throwaway afterwards
         if (log.isDebugEnabled()) {
           if ("AzkabanFlowInfo".equals(aspectClass.getSimpleName())) {
             log.debug("Using QUERY_BUILDER retrieval.");
@@ -566,6 +568,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     update.setParameter("createdBy", aspect.getCreatedBy());
     update.setParameter("oldTimestamp", oldTimestamp);
 
+    // TODO(yanyang) added for job-gms duplicity debug, throwaway afterwards
     if (log.isDebugEnabled()) {
       if ("AzkabanFlowInfo".equals(aspectClass.getSimpleName())) {
         log.debug("updateWithOptimisticLocking SQL: " + update.getGeneratedSql());
