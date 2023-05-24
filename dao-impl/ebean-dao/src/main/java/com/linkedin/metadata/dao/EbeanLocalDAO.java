@@ -37,6 +37,7 @@ import io.ebean.EbeanServer;
 import io.ebean.ExpressionList;
 import io.ebean.PagedList;
 import io.ebean.Query;
+import io.ebean.SqlQuery;
 import io.ebean.SqlUpdate;
 import io.ebean.Transaction;
 import io.ebean.config.ServerConfig;
@@ -61,6 +62,9 @@ import javax.annotation.Nullable;
 import javax.persistence.OptimisticLockException;
 import javax.persistence.RollbackException;
 import javax.persistence.Table;
+
+import org.flywaydb.core.internal.sqlscript.SqlScript;
+
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 
@@ -452,10 +456,18 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
           + "WHERE urn = :urn and aspect = :aspect and version = 0 "
           + "ORDER BY createdOn DESC";
 
-      results = _server.findNative(EbeanMetadataAspect.class, selectQuery)
-        .setParameter("urn", urn.toString())
-        .setParameter("aspect", ModelUtils.getAspectName(aspectClass))
-        .findList();
+      Query<EbeanMetadataAspect> query = _server.findNative(EbeanMetadataAspect.class, selectQuery)
+      .setParameter("urn", urn.toString())
+      .setParameter("aspect", ModelUtils.getAspectName(aspectClass));
+
+      if (log.isDebugEnabled()) {
+        if ("AzkabanFlowInfo".equals(aspectClass.getSimpleName())) {
+          log.debug("Using DIRECT_SQL retrieval.");
+          log.debug("queryLatest SQL: " + query.getGeneratedSql());
+        }
+      }
+
+      results = query.findList();
     }
     
     if (_findMethodology == FindMethodology.QUERY_BUILDER) {
@@ -467,6 +479,12 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         .orderBy()
         .desc(CREATED_ON_COLUMN)
         .findList();
+
+        if (log.isDebugEnabled()) {
+          if ("AzkabanFlowInfo".equals(aspectClass.getSimpleName())) {
+            log.debug("Using QUERY_BUILDER retrieval.");
+          }
+        }
     }
 
     if (results.isEmpty()) {
@@ -551,6 +569,12 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     update.setParameter("createdOn", aspect.getCreatedOn());
     update.setParameter("createdBy", aspect.getCreatedBy());
     update.setParameter("oldTimestamp", oldTimestamp);
+
+    if (log.isDebugEnabled()) {
+      if ("AzkabanFlowInfo".equals(aspectClass.getSimpleName())) {
+        log.debug("updateWithOptimisticLocking SQL: " + update.getGeneratedSql());
+      }
+    }
 
     int numOfUpdatedRows;
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY || _schemaConfig == SchemaConfig.DUAL_SCHEMA) {
