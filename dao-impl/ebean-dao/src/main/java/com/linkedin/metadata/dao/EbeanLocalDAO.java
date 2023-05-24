@@ -37,7 +37,6 @@ import io.ebean.EbeanServer;
 import io.ebean.ExpressionList;
 import io.ebean.PagedList;
 import io.ebean.Query;
-import io.ebean.SqlQuery;
 import io.ebean.SqlUpdate;
 import io.ebean.Transaction;
 import io.ebean.config.ServerConfig;
@@ -62,8 +61,6 @@ import javax.annotation.Nullable;
 import javax.persistence.OptimisticLockException;
 import javax.persistence.RollbackException;
 import javax.persistence.Table;
-
-import org.flywaydb.core.internal.sqlscript.SqlScript;
 
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
