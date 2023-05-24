@@ -61,7 +61,6 @@ import javax.annotation.Nullable;
 import javax.persistence.OptimisticLockException;
 import javax.persistence.RollbackException;
 import javax.persistence.Table;
-
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 
