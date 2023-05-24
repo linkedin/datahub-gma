@@ -468,21 +468,23 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
     
     if (_findMethodology == FindMethodology.QUERY_BUILDER) {
-      results = _server.find(EbeanMetadataAspect.class)
+      Query<EbeanMetadataAspect> query = _server.find(EbeanMetadataAspect.class)
         .where()
         .eq(URN_COLUMN, urn.toString())
         .eq(ASPECT_COLUMN, ModelUtils.getAspectName(aspectClass))
         .eq(VERSION_COLUMN, 0L)
         .orderBy()
-        .desc(CREATED_ON_COLUMN)
-        .findList();
+        .desc(CREATED_ON_COLUMN);
+      
+      results = query.findList();
 
-        // TODO(yanyang) added for job-gms duplicity debug, throwaway afterwards
-        if (log.isDebugEnabled()) {
-          if ("AzkabanFlowInfo".equals(aspectClass.getSimpleName())) {
-            log.debug("Using QUERY_BUILDER retrieval.");
-          }
+      // TODO(yanyang) added for job-gms duplicity debug, throwaway afterwards
+      if (log.isDebugEnabled()) {
+        if ("AzkabanFlowInfo".equals(aspectClass.getSimpleName())) {
+          log.debug("Using QUERY_BUILDER retrieval.");
+          log.debug("queryLatest SQL: " + query.getGeneratedSql());
         }
+      }
     }
 
     if (results.isEmpty()) {
