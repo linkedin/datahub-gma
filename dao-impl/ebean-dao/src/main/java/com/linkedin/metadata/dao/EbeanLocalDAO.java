@@ -452,21 +452,39 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
           + "WHERE urn = :urn and aspect = :aspect and version = 0 "
           + "ORDER BY createdOn DESC";
 
-      results = _server.findNative(EbeanMetadataAspect.class, selectQuery)
-        .setParameter("urn", urn.toString())
-        .setParameter("aspect", ModelUtils.getAspectName(aspectClass))
-        .findList();
+      Query<EbeanMetadataAspect> query = _server.findNative(EbeanMetadataAspect.class, selectQuery)
+      .setParameter("urn", urn.toString())
+      .setParameter("aspect", ModelUtils.getAspectName(aspectClass));
+
+      // TODO(yanyang) added for job-gms duplicity debug, throwaway afterwards
+      if (log.isDebugEnabled()) {
+        if ("AzkabanFlowInfo".equals(aspectClass.getSimpleName())) {
+          log.debug("Using DIRECT_SQL retrieval.");
+          log.debug("queryLatest SQL: " + query.getGeneratedSql());
+        }
+      }
+
+      results = query.findList();
     }
     
     if (_findMethodology == FindMethodology.QUERY_BUILDER) {
-      results = _server.find(EbeanMetadataAspect.class)
+      Query<EbeanMetadataAspect> query = _server.find(EbeanMetadataAspect.class)
         .where()
         .eq(URN_COLUMN, urn.toString())
         .eq(ASPECT_COLUMN, ModelUtils.getAspectName(aspectClass))
         .eq(VERSION_COLUMN, 0L)
         .orderBy()
-        .desc(CREATED_ON_COLUMN)
-        .findList();
+        .desc(CREATED_ON_COLUMN);
+      
+      results = query.findList();
+
+      // TODO(yanyang) added for job-gms duplicity debug, throwaway afterwards
+      if (log.isDebugEnabled()) {
+        if ("AzkabanFlowInfo".equals(aspectClass.getSimpleName())) {
+          log.debug("Using QUERY_BUILDER retrieval.");
+          log.debug("queryLatest SQL: " + query.getGeneratedSql());
+        }
+      }
     }
 
     if (results.isEmpty()) {
@@ -551,6 +569,13 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     update.setParameter("createdOn", aspect.getCreatedOn());
     update.setParameter("createdBy", aspect.getCreatedBy());
     update.setParameter("oldTimestamp", oldTimestamp);
+
+    // TODO(yanyang) added for job-gms duplicity debug, throwaway afterwards
+    if (log.isDebugEnabled()) {
+      if ("AzkabanFlowInfo".equals(aspectClass.getSimpleName())) {
+        log.debug("updateWithOptimisticLocking SQL: " + update.getGeneratedSql());
+      }
+    }
 
     int numOfUpdatedRows;
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY || _schemaConfig == SchemaConfig.DUAL_SCHEMA) {
