@@ -12,7 +12,7 @@ public class DummyTrackingManagerTest {
   @Test
   public void testCreateDummyTrackingManager() {
     DummyTrackingManager manager = new DummyTrackingManager();
-    ProcessType processType = ProcessType.PROCESS_START;
+    ProcessType processType = ProcessType.DAO_PROCESS_START;
     byte[] id = getRandomTrackingId();
 
     manager.register(processType);

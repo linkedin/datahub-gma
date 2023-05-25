@@ -3,8 +3,11 @@ package com.linkedin.metadata.dao;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
+import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
 import com.linkedin.metadata.dao.retention.VersionBasedRetention;
+import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
+import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
@@ -55,9 +58,17 @@ public class BaseLocalDAOTest {
       _transactionRunner = transactionRunner;
     }
 
+    public DummyLocalDAO(BiFunction<FooUrn, Class<? extends RecordTemplate>, AspectEntry> getLatestFunction,
+        BaseTrackingMetadataEventProducer eventProducer, BaseTrackingManager trackingManager, DummyTransactionRunner transactionRunner) {
+      super(EntityAspectUnion.class, eventProducer, trackingManager);
+      _getLatestFunction = getLatestFunction;
+      _transactionRunner = transactionRunner;
+    }
+
     @Override
     protected <ASPECT extends RecordTemplate> long saveLatest(FooUrn urn, Class<ASPECT> aspectClass, ASPECT oldEntry,
-        AuditStamp oldAuditStamp, ASPECT newEntry, AuditStamp newAuditStamp, boolean isSoftDeleted) {
+        AuditStamp oldAuditStamp, ASPECT newEntry, AuditStamp newAuditStamp, boolean isSoftDeleted,
+        @Nullable IngestionTrackingContext trackingContext) {
       return 0;
     }
 
@@ -95,14 +106,14 @@ public class BaseLocalDAOTest {
 
     @Override
     protected <ASPECT extends RecordTemplate> void insert(FooUrn urn, RecordTemplate value, Class<ASPECT> aspectClass,
-        AuditStamp auditStamp, long version) {
+        AuditStamp auditStamp, long version, @Nullable IngestionTrackingContext trackingContext) {
 
     }
 
     @Override
     protected <ASPECT extends RecordTemplate> void updateWithOptimisticLocking(@Nonnull FooUrn urn,
         @Nullable RecordTemplate value, @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp newAuditStamp,
-        long version, @Nonnull Timestamp oldTimestamp) {
+        long version, @Nonnull Timestamp oldTimestamp, @Nullable IngestionTrackingContext trackingContext) {
 
     }
 
@@ -192,6 +203,8 @@ public class BaseLocalDAOTest {
   private DummyLocalDAO _dummyLocalDAO;
   private AuditStamp _dummyAuditStamp;
   private BaseMetadataEventProducer _mockEventProducer;
+  private BaseTrackingMetadataEventProducer _mockTrackingEventProducer;
+  private BaseTrackingManager _mockTrackingManager;
   private BiFunction<FooUrn, Class<? extends RecordTemplate>, BaseLocalDAO.AspectEntry> _mockGetLatestFunction;
   private DummyTransactionRunner _mockTransactionRunner;
 
@@ -199,6 +212,8 @@ public class BaseLocalDAOTest {
   public void setup() {
     _mockGetLatestFunction = mock(BiFunction.class);
     _mockEventProducer = mock(BaseMetadataEventProducer.class);
+    _mockTrackingEventProducer = mock(BaseTrackingMetadataEventProducer.class);
+    _mockTrackingManager = mock(BaseTrackingManager.class);
     _mockTransactionRunner = spy(DummyTransactionRunner.class);
     _dummyLocalDAO = new DummyLocalDAO(_mockGetLatestFunction, _mockEventProducer, _mockTransactionRunner);
     _dummyAuditStamp = makeAuditStamp("foo", 1234);
@@ -287,6 +302,29 @@ public class BaseLocalDAOTest {
     // TODO: ensure MAE is produced with newValue set as null for soft deleted aspect
     // verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, foo, null);
     verifyNoMoreInteractions(_mockEventProducer);
+  }
+
+  @Test
+  public void testMAEv5WithTracking() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    IngestionTrackingContext mockTrackingContext = mock(IngestionTrackingContext.class);
+    DummyLocalDAO dummyLocalDAO = new DummyLocalDAO(_mockGetLatestFunction, _mockTrackingEventProducer, _mockTrackingManager,
+        _dummyLocalDAO._transactionRunner);
+    dummyLocalDAO.setAlwaysEmitAuditEvent(true);
+    dummyLocalDAO.setEmitAspectSpecificAuditEvent(true);
+    dummyLocalDAO.setAlwaysEmitAspectSpecificAuditEvent(true);
+    expectGetLatest(urn, AspectFoo.class,
+        Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(foo, _dummyAuditStamp)));
+
+    dummyLocalDAO.add(urn, foo, _dummyAuditStamp, mockTrackingContext);
+    dummyLocalDAO.add(urn, foo, _dummyAuditStamp, mockTrackingContext);
+
+    verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
+    verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, foo, foo);
+    verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo, mockTrackingContext);
+    verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, foo, foo, mockTrackingContext);
+    verifyNoMoreInteractions(_mockTrackingEventProducer);
   }
 
   @Test

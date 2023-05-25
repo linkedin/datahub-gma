@@ -1,5 +1,6 @@
 package com.linkedin.metadata.dao.tracking;
 
+import com.linkedin.avro2pegasus.events.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import javax.annotation.Nonnull;
 
@@ -12,7 +13,7 @@ public class TrackingUtils {
   }
 
   public enum ProcessType {
-    // Process States in ESSearchDAO.
+    // Process states in ESSearchDAO.
     // End point of autocomplete request.
     AUTOCOMPLETE_QUERY_END("autocompleteQuery.end"),
     // Fail state of autocomplete request.
@@ -32,27 +33,35 @@ public class TrackingUtils {
     // Start point of search request.
     SEARCH_QUERY_START("searchQuery.start"),
 
-    // Process States in ES-MAE-Consumer Job.
-    // Fail state of convert snapshot/document.
-    CONVERT_FAIL("convert.fail"),
-    // End point of feed backup index.
-    FEED_BACKUP_INDEX_END("feedBackupIndex.end"),
-    // Start point of feed backup index.
-    FEED_BACKUP_INDEX_START("feedBackupIndex.start"),
-    // End point of feed live index.
-    FEED_LIVE_INDEX_END("feedLiveIndex.end"),
-    // Start point of feed live index.
-    FEED_LIVE_INDEX_START("feedLiveIndex.start"),
-    // End point of process event.
-    PROCESS_END("process.end"),
-    // Fail state of process event.
-    PROCESS_FAIL("process.fail"),
-    // Start point of process event.
-    PROCESS_START("process.start"),
-    // End point of receive event.
-    RECEIVE_END("receive.end"),
-    // Start point of receive event.
-    RECEIVE_START("receive.start");
+    // Process states in Local DAO.
+    MYSQL_WRITE_SUCCESS("dao.mysqlWrite.success"),
+    MYSQL_WRITE_FAILURE("dao.mySqlWrite.failure"),
+    DAO_PROCESS_START("dao.process.start"),
+    DAO_PROCESS_FAILURE("dao.process.failure"),
+    DAO_PROCESS_SKIPPED("dao.process.skipped"),
+    MAEV5_EMISSION_SUCCESS("dao.maev5.success"),
+    MAEV5_EMISSION_FAILURE("dao.maev5.failure"),
+
+    // Process states in MCEv5 Consumer Job.
+    MCEV5_RECEIVED("mce-v5-consumer.mcev5.received"),
+    MCEV5_PROCESS_SUCCESS("mce-v5-consumer.process.success"),
+    MCEV5_PROCESS_FAILURE("mce-v5-consumer.process.failure"),
+    MCEV5_FAILURE_EVENT_SUCCESS("mce-v5-consumer.failureEvent.success"),
+    MCEV5_FAILURE_EVENT_FAILURE("mce-v5-consumer.failureEvent.failure"),
+
+    // Process states in MAEv5 Consumer Search Job
+    MAEV5_RECEIVED_SEARCH("maev5-elasticsearch-job.maev5.received"),
+    PREPROCESS_SEARCH_SUCCESS("maev5-elasticsearch-job.preprocess.success"),
+    PREPROCESS_SEARCH_FAILURE("maev5-elasticsearch-job.preprocess.failure"),
+    BULKPROCESSOR_SEARCH_SUCCESS("maev5-elasticsearch-job.bulkProcessor.success"),
+    BULKPROCESSOR_SEARCH_FAILURE("maev5-elasticsearch-job.bulkProcessor.failure"),
+
+    // Process states in MAEv5 Consumer Graph Job
+    MAEV5_RECEIVED_GRAPH("maev5-es-graph-job.maev5.received"),
+    PREPROCESS_GRAPH_SUCCESS("maev5-es-graph-job.preprocess.success"),
+    PREPROCESS_GRAPH_FAILURE("maev5-es-graph-job.preprocess.failure"),
+    BULKPROCESSOR_GRAPH_SUCCESS("maev5-es-graph-job.bulkProcessor.success"),
+    BULKPROCESSOR_GRAPH_FAILURE("maev5-es-graph-job.bulkProcessor.failure");
 
     private final String _name;
 
@@ -69,15 +78,26 @@ public class TrackingUtils {
    * Create a fixed 16 size random byte array for trackingID.
    * @return the fixed 16 size random trackingID.
    */
+  @Deprecated
   @Nonnull
   public static byte[] getRandomTrackingId() {
     return random(new byte[16]);
   }
 
   @Nonnull
+  public static UUID getRandomUUID() {
+    return new UUID(getRandomTrackingId());
+  }
+
+  @Nonnull
   private static byte[] random(@Nonnull byte[] output) {
     ThreadLocalRandom.current().nextBytes(output);
     return output;
+  }
+
+  @Nonnull
+  public static byte[] convertUUID(UUID uuid) {
+    return uuid.data().copyBytes();
   }
 }
 
