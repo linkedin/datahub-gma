@@ -13,7 +13,8 @@ import javax.annotation.Nonnull;
  */
 public class AspectRoutingGmsClientManager {
 
-  private Map<Class, RoutingAspectConfig> _routingGmsClientConfigMap = new ConcurrentHashMap<>();
+  private Map<Class<? extends RecordTemplate>, RoutingAspectConfig> _routingGmsClientConfigMap =
+      new ConcurrentHashMap<>();
 
   private static class RoutingAspectConfig {
     private final BaseAspectRoutingGmsClient gmsClient;
@@ -24,12 +25,14 @@ public class AspectRoutingGmsClientManager {
     }
   }
 
-  public void registerRoutingGmsClient(@Nonnull Class routingAspectClass,
+  public <ASPECT extends RecordTemplate> void registerRoutingGmsClient(@Nonnull Class<ASPECT> routingAspectClass,
       @Nonnull String routingAspectSetterName, @Nonnull BaseAspectRoutingGmsClient routingGmsClient) {
-    _routingGmsClientConfigMap.put(routingAspectClass, new RoutingAspectConfig(routingGmsClient, routingAspectSetterName));
+    _routingGmsClientConfigMap.put(routingAspectClass,
+        new RoutingAspectConfig(routingGmsClient, routingAspectSetterName));
   }
 
-  public BaseAspectRoutingGmsClient getRoutingGmsClient(@Nonnull Class routingAspectClass) {
+  public <ASPECT extends RecordTemplate> BaseAspectRoutingGmsClient getRoutingGmsClient(
+      @Nonnull Class<ASPECT> routingAspectClass) {
     return _routingGmsClientConfigMap.getOrDefault(routingAspectClass, new RoutingAspectConfig(null, null)).gmsClient;
   }
 
@@ -38,7 +41,7 @@ public class AspectRoutingGmsClientManager {
    * @param routingAspectClass routing aspect class.
    * @return the setter method name of the routing aspect on the entity value object.
    */
-  public String getRoutingAspectSetterName(@Nonnull Class routingAspectClass) {
+  public <ASPECT extends RecordTemplate> String getRoutingAspectSetterName(@Nonnull Class<ASPECT> routingAspectClass) {
     return _routingGmsClientConfigMap.getOrDefault(routingAspectClass, new RoutingAspectConfig(null, null)).setterName;
   }
 

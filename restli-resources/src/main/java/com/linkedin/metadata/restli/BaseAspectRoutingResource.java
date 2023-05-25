@@ -431,7 +431,8 @@ public abstract class BaseAspectRoutingResource<
 
     if (fromGms != null) {
       for (BackfillResult backfillResult : fromGms) {
-        if (backfillResult == null) {
+        if (backfillResult == null || !backfillResult.hasEntities()) {
+          log.error("Encountered a null or empty backfill result: " + backfillResult);
           continue;
         }
         backfillResult.getEntities().forEach(backfillResultEntity -> {
