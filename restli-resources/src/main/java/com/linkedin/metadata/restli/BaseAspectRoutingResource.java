@@ -61,7 +61,8 @@ public abstract class BaseAspectRoutingResource<
   @Deprecated
   private final Class<ROUTING_ASPECT> _routingAspectClass;
   // <Routing aspect class, entity setter method name> map
-  private final Map<Class, String> _routingAspectClassMap;
+  // private final Map<Class, String> _routingAspectClassMap;
+  private final AspectRoutingGmsClientManager _aspectRoutingGmsClientManager;
   private final Class<VALUE> _valueClass;
   private final Class<ASPECT_UNION> _aspectUnionClass;
   private final Class<SNAPSHOT> _snapshotClass;
@@ -76,7 +77,7 @@ public abstract class BaseAspectRoutingResource<
     _valueClass = valueClass;
     _aspectUnionClass = aspectUnionClass;
     _snapshotClass = snapshotClass;
-    _routingAspectClassMap = Collections.emptyMap();
+    _aspectRoutingGmsClientManager = null;
   }
 
   // strong-typed (ROUTING_ASPECT) constructor has been deprecated, using constructors with Set<Class> routingAspects instead
@@ -89,14 +90,14 @@ public abstract class BaseAspectRoutingResource<
     _valueClass = valueClass;
     _aspectUnionClass = aspectUnionClass;
     _snapshotClass = snapshotClass;
-    _routingAspectClassMap = Collections.emptyMap();
+    _aspectRoutingGmsClientManager = null;
   }
 
   public BaseAspectRoutingResource(@Nonnull Class<SNAPSHOT> snapshotClass,
-      @Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull Map<Class, String> routingAspectClassMap,
+      @Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull AspectRoutingGmsClientManager aspectRoutingGmsClientManager,
       @Nonnull Class<VALUE> valueClass) {
     super(snapshotClass, aspectUnionClass);
-    _routingAspectClassMap = routingAspectClassMap;
+    _aspectRoutingGmsClientManager = aspectRoutingGmsClientManager;
     _valueClass = valueClass;
     _aspectUnionClass = aspectUnionClass;
     _snapshotClass = snapshotClass;
@@ -104,10 +105,10 @@ public abstract class BaseAspectRoutingResource<
   }
 
   public BaseAspectRoutingResource(@Nonnull Class<SNAPSHOT> snapshotClass,
-      @Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull Class<URN> urnClass, @Nonnull Map<Class, String> routingAspectClassMap,
+      @Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull Class<URN> urnClass, AspectRoutingGmsClientManager aspectRoutingGmsClientManager,
       @Nonnull Class<VALUE> valueClass) {
     super(snapshotClass, aspectUnionClass, urnClass);
-    _routingAspectClassMap = routingAspectClassMap;
+    _aspectRoutingGmsClientManager = aspectRoutingGmsClientManager;
     _valueClass = valueClass;
     _aspectUnionClass = aspectUnionClass;
     _snapshotClass = snapshotClass;
@@ -125,13 +126,9 @@ public abstract class BaseAspectRoutingResource<
    * Get the client of GMS that routing aspect will be routed to.
    * @return A client of the GMS for routing aspect.
    */
-  public abstract BaseAspectRoutingGmsClient<ROUTING_ASPECT> getGmsClient();
+  @Deprecated
+  public abstract BaseAspectRoutingGmsClient getGmsClient();
 
-  /**
-   * Get the client of GMS that routing aspects will be routed to.
-   * @return A client of the GMS for routing aspects.
-   */
-  public abstract BaseGenericAspectRoutingGmsClient getGenericGmsClient();
 
   /**
    * Retrieves the value for an entity that is made up of latest versions of specified aspects.
@@ -241,7 +238,7 @@ public abstract class BaseAspectRoutingResource<
           if (isLegacyRoutingLogic()) {
             if (aspect.getClass().equals(_routingAspectClass)) {
               try {
-                getGmsClient().ingest(urn, (ROUTING_ASPECT) aspect);
+                getGmsClient().ingest(urn, aspect);
               } catch (Exception exception) {
                 log.error(
                     String.format("Couldn't ingest routing aspect %s for %s", _routingAspectClass.getSimpleName(), urn),
@@ -250,11 +247,12 @@ public abstract class BaseAspectRoutingResource<
             } else {
               getLocalDAO().add(urn, aspect, auditStamp);
             }
-          } else if (_routingAspectClassMap != null) {
+          } else if (_aspectRoutingGmsClientManager != null) {
             // If using generic aspect routing logic
-            if (_routingAspectClassMap.containsKey(aspect.getClass())) {
+            if (_aspectRoutingGmsClientManager.hasRegistered(aspect.getClass())) {
               try {
-                getGenericGmsClient().ingest(urn, aspect);
+                _aspectRoutingGmsClientManager.getRoutingGmsClient(aspect.getClass()).ingest(urn, aspect);
+
               } catch (Exception exception) {
                 log.error(
                     String.format("Couldn't ingest routing aspect %s for %s", aspect.getClass().getSimpleName(), urn),
@@ -287,7 +285,7 @@ public abstract class BaseAspectRoutingResource<
     if (isLegacyRoutingLogic()) {
       return aspectClasses.stream().anyMatch(aspectClass -> aspectClass.equals(_routingAspectClass));
     } else {
-      return aspectClasses.stream().anyMatch(aspectClass -> _routingAspectClassMap.containsKey(aspectClass));
+      return aspectClasses.stream().anyMatch(aspectClass -> _aspectRoutingGmsClientManager.hasRegistered(aspectClass));
     }
   }
 
@@ -304,7 +302,7 @@ public abstract class BaseAspectRoutingResource<
           .collect(Collectors.toSet());
     } else {
       return aspectClasses.stream()
-          .filter(aspectClass -> !_routingAspectClassMap.containsKey(aspectClass))
+          .filter(aspectClass -> !_aspectRoutingGmsClientManager.hasRegistered(aspectClass))
           .collect(Collectors.toSet());
     }
   }
@@ -321,7 +319,7 @@ public abstract class BaseAspectRoutingResource<
           .collect(Collectors.toSet());
     } else {
       return aspectClasses.stream()
-          .filter(aspectClass -> _routingAspectClassMap.containsKey(aspectClass))
+          .filter(aspectClass -> _aspectRoutingGmsClientManager.hasRegistered(aspectClass))
           .collect(Collectors.toSet());
     }
   }
@@ -402,7 +400,7 @@ public abstract class BaseAspectRoutingResource<
     }
     for (RecordTemplate routingAspect : routingAspects) {
       try {
-        String setterMethodName = _routingAspectClassMap.get(routingAspect.getClass());
+        String setterMethodName = _aspectRoutingGmsClientManager.getRoutingAspectSetterName(routingAspect.getClass());
         Method setter =  valueFromLocalDao.getClass().getMethod(setterMethodName, routingAspect.getClass(), SetMode.class);
         setter.invoke(valueFromLocalDao, routingAspect, SetMode.IGNORE_NULL);
       } catch (NoSuchMethodException e) {
@@ -423,29 +421,46 @@ public abstract class BaseAspectRoutingResource<
    */
   @Nonnull
   @ParametersAreNonnullByDefault
-  private BackfillResult merge(final BackfillResult fromDao, final BackfillResult fromGms) {
+  private BackfillResult merge(final BackfillResult fromDao, final BackfillResult... fromGms) {
     Map<Urn, BackfillResultEntity> urnToEntityMap = new LinkedHashMap<>();
-    fromDao.getEntities().forEach(backfillResultEntity -> {
-      urnToEntityMap.put(backfillResultEntity.getUrn(), backfillResultEntity);
-    });
+    if (fromDao != null) {
+      fromDao.getEntities().forEach(backfillResultEntity -> {
+        urnToEntityMap.put(backfillResultEntity.getUrn(), backfillResultEntity);
+      });
+    }
 
-    fromGms.getEntities().forEach(backfillResultEntity -> {
-      Urn urn = backfillResultEntity.getUrn();
+    if (fromGms != null) {
+      for (BackfillResult backfillResult : fromGms) {
+        if (backfillResult == null) {
+          continue;
+        }
+        backfillResult.getEntities().forEach(backfillResultEntity -> {
+          Urn urn = backfillResultEntity.getUrn();
 
-      if (urnToEntityMap.containsKey(urn)) {
-        urnToEntityMap.get(urn).getAspects().addAll(backfillResultEntity.getAspects());
-      } else {
-        urnToEntityMap.put(urn, new BackfillResultEntity().setUrn(urn).setAspects(backfillResultEntity.getAspects()));
+          if (urnToEntityMap.containsKey(urn)) {
+            urnToEntityMap.get(urn).getAspects().addAll(backfillResultEntity.getAspects());
+          } else {
+            urnToEntityMap.put(urn,
+                new BackfillResultEntity().setUrn(urn).setAspects(backfillResultEntity.getAspects()));
+          }
+        });
       }
-    });
-
+    }
     return new BackfillResult().setEntities(new BackfillResultEntityArray(urnToEntityMap.values()));
   }
 
   @Nonnull
   private BackfillResult backfillWithDefault(@Nonnull final Set<URN> urns) {
     try {
-      return getGmsClient().backfill(urns);
+      if (isLegacyRoutingLogic()) {
+        return getGmsClient().backfill(urns);
+      } else {
+        List<BackfillResult> backfillResults = _aspectRoutingGmsClientManager.getRegisteredRoutingGmsClients()
+            .stream()
+            .map(baseAspectRoutingGmsClient -> baseAspectRoutingGmsClient.backfill(urns))
+            .collect(Collectors.toList());
+        return merge(null, backfillResults.toArray(new BackfillResult[0]));
+      }
     } catch (Exception exception) {
       log.error(String.format("Couldn't backfill routing aspect %s for %s", _routingAspectClass.getSimpleName(),
           String.join(",", urns.stream().map(Urn::toString).collect(Collectors.toSet()))), exception);
@@ -465,22 +480,17 @@ public abstract class BaseAspectRoutingResource<
   private List<? extends RecordTemplate> getRoutingAspects(@Nonnull URN urn,
       Collection<Class<? extends RecordTemplate>> routeAspectClasses) {
     return routeAspectClasses.stream().map(routeAspectClass -> {
-      if (isLegacyRoutingLogic()) {
-        try {
+
+      try {
+        if (isLegacyRoutingLogic()) {
           return getGmsClient().get(urn);
-        } catch (Exception exception) {
-          log.error(String.format("Couldn't get routing aspect %s for %s", routeAspectClass.getSimpleName(), urn),
-              exception);
-          return null;
+        } else {
+          return _aspectRoutingGmsClientManager.getRoutingGmsClient(routeAspectClass).get(urn);
         }
-      } else {
-        try {
-          return getGenericGmsClient().get(urn, routeAspectClass);
-        } catch (Exception exception) {
-          log.error(String.format("Couldn't get routing aspect %s for %s", routeAspectClass.getSimpleName(), urn),
-              exception);
-          return null;
-        }
+      } catch (Exception exception) {
+        log.error(String.format("Couldn't get routing aspect %s for %s", routeAspectClass.getSimpleName(), urn),
+            exception);
+        return null;
       }
     }).filter(Objects::nonNull).collect(Collectors.toList());
   }

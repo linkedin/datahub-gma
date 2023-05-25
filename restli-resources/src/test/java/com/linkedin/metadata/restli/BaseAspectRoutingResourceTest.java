@@ -47,10 +47,12 @@ import static org.testng.Assert.*;
 public class BaseAspectRoutingResourceTest extends BaseEngineTest {
   private BaseBrowseDAO _mockBrowseDAO;
   private BaseLocalDAO _mockLocalDAO;
-  private BaseAspectRoutingGmsClient _mockGmsClient;
-  private BaseGenericAspectRoutingGmsClient _mockGenericGmsClient;
+  private BaseAspectRoutingGmsClient _mockAspectFooGmsClient;
+  private BaseAspectRoutingGmsClient _mockAspectAttributeGmsClient;
+
   private BaseAspectRoutingResourceTest.TestResource _resource = new BaseAspectRoutingResourceTest.TestResource();
 
+  private final static AspectRoutingGmsClientManager ASPECT_ROUTING_GMS_CLIENT_MANAGER = new AspectRoutingGmsClientManager();
 
   class TestResource extends BaseAspectRoutingResource<
       // format
@@ -58,8 +60,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     public TestResource() {
       // super(EntitySnapshot.class, EntityAspectUnion.class, AspectFoo.class, EntityValue.class);
-      super(EntitySnapshot.class, EntityAspectUnion.class,
-          ImmutableMap.of(AspectFoo.class, "setFoo", AspectAttributes.class, "setAttributes"), EntityValue.class);
+      super(EntitySnapshot.class, EntityAspectUnion.class, ASPECT_ROUTING_GMS_CLIENT_MANAGER, EntityValue.class);
     }
 
     @Nonnull
@@ -143,13 +144,9 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     @Nonnull
     @Override
     public BaseAspectRoutingGmsClient getGmsClient() {
-      return _mockGmsClient;
+      return _mockAspectFooGmsClient;
     }
 
-    @Override
-    public BaseGenericAspectRoutingGmsClient getGenericGmsClient() {
-      return _mockGenericGmsClient;
-    }
 
     @Override
     public ResourceContext getContext() {
@@ -159,9 +156,12 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
   @BeforeMethod
   public void setup() {
-    _mockGmsClient = mock(BaseAspectRoutingGmsClient.class);
-    _mockGenericGmsClient = mock(BaseGenericAspectRoutingGmsClient.class);
+    _mockAspectFooGmsClient = mock(BaseAspectRoutingGmsClient.class);
+    _mockAspectAttributeGmsClient = mock(BaseAspectRoutingGmsClient.class);
     _mockLocalDAO = mock(BaseLocalDAO.class);
+    ASPECT_ROUTING_GMS_CLIENT_MANAGER.registerRoutingGmsClient(AspectFoo.class, "setFoo", _mockAspectFooGmsClient);
+    ASPECT_ROUTING_GMS_CLIENT_MANAGER.registerRoutingGmsClient(AspectAttributes.class, "setAttributes",
+        _mockAspectAttributeGmsClient);
   }
 
   @Test
@@ -176,9 +176,8 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     when(_mockLocalDAO.exists(urn)).thenReturn(true);
     when(_mockLocalDAO.get(new HashSet<>(Arrays.asList(aspectBarKey)))).thenReturn(
         Collections.singletonMap(aspectBarKey, Optional.of(bar)));
-    when(_mockGmsClient.get(urn)).thenReturn(foo);
-    when(_mockGenericGmsClient.get(urn, AspectFoo.class)).thenReturn(foo);
-    when(_mockGenericGmsClient.get(urn, AspectAttributes.class)).thenReturn(attributes);
+    when(_mockAspectFooGmsClient.get(urn)).thenReturn(foo);
+    when(_mockAspectAttributeGmsClient.get(urn)).thenReturn(attributes);
 
     EntityValue value = runAndWait(_resource.get(makeResourceKey(urn),
         new String[]{AspectFoo.class.getCanonicalName(), AspectBar.class.getCanonicalName(), AspectAttributes.class.getCanonicalName()}));
@@ -207,7 +206,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     EntityValue value = runAndWait(_resource.get(makeResourceKey(urn), new String[]{AspectBar.class.getCanonicalName()}));
 
     assertFalse(value.hasFoo());
-    verifyZeroInteractions(_mockGmsClient);
+    verifyZeroInteractions(_mockAspectFooGmsClient);
 
     assertTrue(value.hasBar());
     assertEquals(value.getBar(), bar);
@@ -220,9 +219,8 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     AspectAttributes attributes = new AspectAttributes();
 
     when(_mockLocalDAO.exists(urn)).thenReturn(true);
-    when(_mockGmsClient.get(urn)).thenReturn(foo);
-    when(_mockGenericGmsClient.get(urn, AspectFoo.class)).thenReturn(foo);
-    when(_mockGenericGmsClient.get(urn, AspectAttributes.class)).thenReturn(attributes);
+    when(_mockAspectFooGmsClient.get(urn)).thenReturn(foo);
+    when(_mockAspectAttributeGmsClient.get(urn)).thenReturn(attributes);
 
     EntityValue value = runAndWait(_resource.get(makeResourceKey(urn), new String[]{AspectFoo.class.getCanonicalName()}));
 
@@ -251,8 +249,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     when(_mockLocalDAO.exists(urn)).thenReturn(true);
     when(_mockLocalDAO.get(new HashSet<>(Arrays.asList(aspectBarKey)))).thenReturn(
         Collections.singletonMap(aspectBarKey, Optional.empty()));
-    when(_mockGmsClient.get(urn)).thenReturn(foo);
-    when(_mockGenericGmsClient.get(urn, AspectFoo.class)).thenReturn(foo);
+    when(_mockAspectFooGmsClient.get(urn)).thenReturn(foo);
 
     EntityValue value = runAndWait(_resource.get(makeResourceKey(urn), new String[]{AspectFoo.class.getCanonicalName(), AspectBar.class.getCanonicalName()}));
 
@@ -271,7 +268,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     when(_mockLocalDAO.exists(urn)).thenReturn(true);
     when(_mockLocalDAO.get(new HashSet<>(Arrays.asList(aspectBarKey)))).thenReturn(
         Collections.singletonMap(aspectBarKey, Optional.of(bar)));
-    when(_mockGmsClient.get(urn)).thenReturn(null);
+    when(_mockAspectFooGmsClient.get(urn)).thenReturn(null);
 
     EntityValue value = runAndWait(_resource.get(makeResourceKey(urn), new String[]{AspectFoo.class.getCanonicalName(), AspectBar.class.getCanonicalName()}));
 
@@ -293,9 +290,8 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     runAndWait(_resource.ingest(snapshot));
 
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any());
-    // verify(_mockGmsClient, times(1)).ingest(eq(urn), eq(foo));
-    verify(_mockGenericGmsClient, times(1)).ingest(eq(urn), eq(foo));
-    verify(_mockGenericGmsClient, times(1)).ingest(eq(urn), eq(attributes));
+    verify(_mockAspectFooGmsClient, times(1)).ingest(eq(urn), eq(foo));
+    verify(_mockAspectAttributeGmsClient, times(1)).ingest(eq(urn), eq(attributes));
     verifyNoMoreInteractions(_mockLocalDAO);
   }
 
@@ -309,7 +305,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     runAndWait(_resource.ingest(snapshot));
 
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any());
-    verifyZeroInteractions(_mockGmsClient);
+    verifyZeroInteractions(_mockAspectFooGmsClient);
     verifyNoMoreInteractions(_mockLocalDAO);
   }
 
@@ -326,9 +322,9 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     verifyZeroInteractions(_mockLocalDAO);
     // verify(_mockGmsClient, times(1)).ingest(eq(urn), eq(foo));
-    verify(_mockGenericGmsClient, times(1)).ingest(eq(urn), eq(foo));
-    verify(_mockGenericGmsClient, times(1)).ingest(eq(urn), eq(attributes));
-    verifyNoMoreInteractions(_mockGmsClient);
+    verify(_mockAspectFooGmsClient, times(1)).ingest(eq(urn), eq(foo));
+    verify(_mockAspectAttributeGmsClient, times(1)).ingest(eq(urn), eq(attributes));
+    verifyNoMoreInteractions(_mockAspectFooGmsClient);
   }
 
   @Test
@@ -356,9 +352,9 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     AspectKey<FooUrn, ? extends RecordTemplate> barKey = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
     Set<AspectKey<FooUrn, ? extends RecordTemplate>> aspectKeys = ImmutableSet.of(barKey);
     when(_mockLocalDAO.get(aspectKeys)).thenReturn(ImmutableMap.of(barKey, Optional.of(bar)));
-    when(_mockGmsClient.get(urn)).thenReturn(foo);
-    when(_mockGenericGmsClient.get(urn, AspectFoo.class)).thenReturn(foo);
-    when(_mockGenericGmsClient.get(urn, AspectAttributes.class)).thenReturn(attributes);
+    when(_mockAspectFooGmsClient.get(urn)).thenReturn(foo);
+    when(_mockAspectAttributeGmsClient.get(urn)).thenReturn(attributes);
+
     EntitySnapshot snapshot = runAndWait(_resource.getSnapshot(urn.toString(),
         new String[]{AspectFoo.class.getCanonicalName(), AspectBar.class.getCanonicalName(), AspectAttributes.class.getCanonicalName()}));
 
@@ -373,9 +369,8 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     FooUrn urn = makeFooUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");
     AspectAttributes attributes = new AspectAttributes();
-    when(_mockGmsClient.get(urn)).thenReturn(foo);
-    when(_mockGenericGmsClient.get(urn, AspectFoo.class)).thenReturn(foo);
-    when(_mockGenericGmsClient.get(urn, AspectAttributes.class)).thenReturn(attributes);
+    when(_mockAspectFooGmsClient.get(urn)).thenReturn(foo);
+    when(_mockAspectAttributeGmsClient.get(urn)).thenReturn(attributes);
 
     EntitySnapshot snapshot = runAndWait(_resource.getSnapshot(urn.toString(),
         new String[]{AspectFoo.class.getCanonicalName(), AspectAttributes.class.getCanonicalName()}));
@@ -403,16 +398,25 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
             ImmutableMap.of(AspectBar.class, Optional.of(bar1), AspectAttributes.class, Optional.of(attrs1)), fooUrn2,
             ImmutableMap.of(AspectBar.class, Optional.of(bar2), AspectAttributes.class, Optional.of(attrs2)));
 
-    BackfillResult gmsResult = new BackfillResult();
+    BackfillResult gmsResult1 = new BackfillResult();
     BackfillResultEntity resultEntity1 = new BackfillResultEntity().setUrn(fooUrn1)
-        .setAspects(new StringArray(AspectFoo.class.getCanonicalName(), AspectAttributes.class.getCanonicalName()));
+        .setAspects(new StringArray(AspectFoo.class.getCanonicalName()));
     BackfillResultEntity resultEntity2 = new BackfillResultEntity().setUrn(fooUrn2)
-        .setAspects(new StringArray(AspectFoo.class.getCanonicalName(), AspectAttributes.class.getCanonicalName()));
-    gmsResult.setEntities(new BackfillResultEntityArray(resultEntity1, resultEntity2));
+        .setAspects(new StringArray(AspectFoo.class.getCanonicalName()));
+    gmsResult1.setEntities(new BackfillResultEntityArray(resultEntity1, resultEntity2));
+
+
+    BackfillResult gmsResult2 = new BackfillResult();
+    BackfillResultEntity resultEntity3 = new BackfillResultEntity().setUrn(fooUrn1)
+        .setAspects(new StringArray(AspectAttributes.class.getCanonicalName()));
+    BackfillResultEntity resultEntity4 = new BackfillResultEntity().setUrn(fooUrn2)
+        .setAspects(new StringArray(AspectAttributes.class.getCanonicalName()));
+    gmsResult2.setEntities(new BackfillResultEntityArray(resultEntity3, resultEntity4));
 
     when(_mockLocalDAO.backfill(new HashSet<>(Arrays.asList(new Class[]{AspectBar.class})),
         ImmutableSet.of(fooUrn1, fooUrn2))).thenReturn(daoResult);
-    when(_mockGmsClient.backfill(ImmutableSet.of(fooUrn1, fooUrn2))).thenReturn(gmsResult);
+    when(_mockAspectFooGmsClient.backfill(ImmutableSet.of(fooUrn1, fooUrn2))).thenReturn(gmsResult1);
+    when(_mockAspectAttributeGmsClient.backfill(ImmutableSet.of(fooUrn1, fooUrn2))).thenReturn(gmsResult2);
 
     BackfillResult backfillResult = runAndWait(_resource.backfill(new String[]{fooUrn1.toString(), fooUrn2.toString()},
         new String[]{AspectFoo.class.getCanonicalName(), AspectBar.class.getCanonicalName(),
@@ -443,7 +447,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
         new String[]{AspectBar.class.getCanonicalName()}));
 
     assertEquals(backfillResult.getEntities().size(), 2);
-    verifyZeroInteractions(_mockGmsClient);
+    verifyZeroInteractions(_mockAspectFooGmsClient);
   }
 
   @Test
@@ -455,13 +459,24 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     AspectAttributes attrs1 = new AspectAttributes();
     AspectAttributes attrs2 = new AspectAttributes();
 
-    BackfillResult gmsResult = new BackfillResult();
+    BackfillResult gmsResult1 = new BackfillResult();
+    BackfillResult gmsResult2 = new BackfillResult();
     BackfillResultEntity resultEntity1 =
-        new BackfillResultEntity().setUrn(fooUrn1).setAspects(new StringArray(foo1.getClass().getCanonicalName(), attrs1.getClass().getCanonicalName()));
+        new BackfillResultEntity().setUrn(fooUrn1).setAspects(new StringArray(foo1.getClass().getCanonicalName()));
     BackfillResultEntity resultEntity2 =
-        new BackfillResultEntity().setUrn(fooUrn2).setAspects(new StringArray(foo2.getClass().getCanonicalName(), attrs2.getClass().getCanonicalName()));
-    gmsResult.setEntities(new BackfillResultEntityArray(resultEntity1, resultEntity2));
-    when(_mockGmsClient.backfill(ImmutableSet.of(fooUrn1, fooUrn2))).thenReturn(gmsResult);
+        new BackfillResultEntity().setUrn(fooUrn2).setAspects(new StringArray(foo2.getClass().getCanonicalName()));
+    gmsResult1.setEntities(new BackfillResultEntityArray(resultEntity1, resultEntity2));
+
+
+    BackfillResultEntity resultEntity3 =
+        new BackfillResultEntity().setUrn(fooUrn1).setAspects(new StringArray(attrs1.getClass().getCanonicalName()));
+    BackfillResultEntity resultEntity4 =
+        new BackfillResultEntity().setUrn(fooUrn2).setAspects(new StringArray(attrs2.getClass().getCanonicalName()));
+    gmsResult2.setEntities(new BackfillResultEntityArray(resultEntity3, resultEntity4));
+
+
+    when(_mockAspectFooGmsClient.backfill(ImmutableSet.of(fooUrn1, fooUrn2))).thenReturn(gmsResult1);
+    when(_mockAspectAttributeGmsClient.backfill(ImmutableSet.of(fooUrn1, fooUrn2))).thenReturn(gmsResult2);
 
     BackfillResult backfillResult = runAndWait(_resource.backfill(new String[]{fooUrn1.toString(), fooUrn2.toString()},
         new String[]{AspectFoo.class.getCanonicalName(), AspectAttributes.class.getCanonicalName()}));
