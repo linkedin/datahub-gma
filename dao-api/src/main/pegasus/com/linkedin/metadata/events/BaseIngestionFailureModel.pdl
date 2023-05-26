@@ -26,9 +26,9 @@ record BaseIngestionFailureModel {
   service: string
 
   /**
-   * Detailed error message.
+   * Detailed error message. Make it optional considering kafka message payload size limit.
    */
-  errorMessage: string
+  errorMessage: optional string
 
   /**
    * Error type.
