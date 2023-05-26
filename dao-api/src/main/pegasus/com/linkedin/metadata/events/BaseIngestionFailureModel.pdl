@@ -1,0 +1,37 @@
+namespace com.linkedin.metadata.events
+
+/**
+ * The base model used to represent an ingestion failure in GMA.
+ */
+record BaseIngestionFailureModel {
+
+  /**
+   * The ingestion tracking context from the original ingestion event.
+   */
+  ingestionTrackingContext: optional IngestionTrackingContext
+
+  /**
+   * The ingestion record that represents the metadata change in the original ingestion event.
+   */
+  ingestionRecord: string
+
+  /**
+   * The urn in the ingestion event.
+   */
+  urn: optional string
+
+  /**
+   * service where the ingestion failure happens.
+   */
+  service: string
+
+  /**
+   * Detailed error message.
+   */
+  errorMessage: string
+
+  /**
+   * Error type.
+   */
+  errorType: string
+}
