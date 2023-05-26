@@ -62,7 +62,7 @@ public abstract class BaseAspectRoutingResource<
   private final Class<ROUTING_ASPECT> _routingAspectClass;
   // <Routing aspect class, entity setter method name> map
   // private final Map<Class, String> _routingAspectClassMap;
-  private final AspectRoutingGmsClientManager _aspectRoutingGmsClientManager;
+  private AspectRoutingGmsClientManager _aspectRoutingGmsClientManager = null;
   private final Class<VALUE> _valueClass;
   private final Class<ASPECT_UNION> _aspectUnionClass;
   private final Class<SNAPSHOT> _snapshotClass;
@@ -77,7 +77,6 @@ public abstract class BaseAspectRoutingResource<
     _valueClass = valueClass;
     _aspectUnionClass = aspectUnionClass;
     _snapshotClass = snapshotClass;
-    _aspectRoutingGmsClientManager = null;
   }
 
   // strong-typed (ROUTING_ASPECT) constructor has been deprecated, using constructors with Set<Class> routingAspects instead
@@ -90,31 +89,22 @@ public abstract class BaseAspectRoutingResource<
     _valueClass = valueClass;
     _aspectUnionClass = aspectUnionClass;
     _snapshotClass = snapshotClass;
-    _aspectRoutingGmsClientManager = null;
   }
 
   public BaseAspectRoutingResource(@Nonnull Class<SNAPSHOT> snapshotClass,
-      @Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull AspectRoutingGmsClientManager aspectRoutingGmsClientManager,
+      @Nonnull Class<ASPECT_UNION> aspectUnionClass,
       @Nonnull Class<VALUE> valueClass) {
     super(snapshotClass, aspectUnionClass);
-    _aspectRoutingGmsClientManager = aspectRoutingGmsClientManager;
     _valueClass = valueClass;
     _aspectUnionClass = aspectUnionClass;
     _snapshotClass = snapshotClass;
     _routingAspectClass = null;
   }
 
-  public BaseAspectRoutingResource(@Nonnull Class<SNAPSHOT> snapshotClass,
-      @Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull Class<URN> urnClass, AspectRoutingGmsClientManager aspectRoutingGmsClientManager,
-      @Nonnull Class<VALUE> valueClass) {
-    super(snapshotClass, aspectUnionClass, urnClass);
+  public void setAspectRoutingGmsClientManager(AspectRoutingGmsClientManager aspectRoutingGmsClientManager) {
+    log.info("set aspect routing gms client manager: {}", aspectRoutingGmsClientManager);
     _aspectRoutingGmsClientManager = aspectRoutingGmsClientManager;
-    _valueClass = valueClass;
-    _aspectUnionClass = aspectUnionClass;
-    _snapshotClass = snapshotClass;
-    _routingAspectClass = null;
   }
-
   /**
    * Get routing aspect field name in the entity.
    * @return Routing aspect field name.

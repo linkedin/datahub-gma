@@ -6,11 +6,13 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+import lombok.extern.slf4j.Slf4j;
 
 
 /**
  * Manager class which provide registration and retrieval service for {@link BaseAspectRoutingGmsClient}.
  */
+@Slf4j
 public class AspectRoutingGmsClientManager {
 
   private Map<Class<? extends RecordTemplate>, RoutingAspectConfig> _routingGmsClientConfigMap =
@@ -27,6 +29,8 @@ public class AspectRoutingGmsClientManager {
 
   public <ASPECT extends RecordTemplate> void registerRoutingGmsClient(@Nonnull Class<ASPECT> routingAspectClass,
       @Nonnull String routingAspectSetterName, @Nonnull BaseAspectRoutingGmsClient routingGmsClient) {
+    log.info("Registering routing gms clients: {}, {}, {}", routingAspectClass.getCanonicalName(),
+        routingAspectSetterName, routingGmsClient);
     _routingGmsClientConfigMap.put(routingAspectClass,
         new RoutingAspectConfig(routingGmsClient, routingAspectSetterName));
   }
@@ -62,5 +66,10 @@ public class AspectRoutingGmsClientManager {
   public List<BaseAspectRoutingGmsClient> getRegisteredRoutingGmsClients() {
     return _routingGmsClientConfigMap.values().stream().map(routingAspectConfig -> routingAspectConfig.gmsClient).collect(
         Collectors.toList());
+  }
+
+  @Override
+  public String toString() {
+    return "AspectRoutingGmsClientManager{" + "_routingGmsClientConfigMap=" + _routingGmsClientConfigMap + '}';
   }
 }

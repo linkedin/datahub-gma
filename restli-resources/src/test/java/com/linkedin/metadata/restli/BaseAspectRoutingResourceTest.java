@@ -52,15 +52,14 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
   private BaseAspectRoutingResourceTest.TestResource _resource = new BaseAspectRoutingResourceTest.TestResource();
 
-  private final static AspectRoutingGmsClientManager ASPECT_ROUTING_GMS_CLIENT_MANAGER = new AspectRoutingGmsClientManager();
+  private final AspectRoutingGmsClientManager _aspectRoutingGmsClientManager = new AspectRoutingGmsClientManager();
 
   class TestResource extends BaseAspectRoutingResource<
       // format
       ComplexResourceKey<EntityKey, EmptyRecord>, EntityValue, Urn, EntitySnapshot, EntityAspectUnion, EntityDocument, AspectFoo> {
 
     public TestResource() {
-      // super(EntitySnapshot.class, EntityAspectUnion.class, AspectFoo.class, EntityValue.class);
-      super(EntitySnapshot.class, EntityAspectUnion.class, ASPECT_ROUTING_GMS_CLIENT_MANAGER, EntityValue.class);
+      super(EntitySnapshot.class, EntityAspectUnion.class, EntityValue.class);
     }
 
     @Nonnull
@@ -159,9 +158,9 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     _mockAspectFooGmsClient = mock(BaseAspectRoutingGmsClient.class);
     _mockAspectAttributeGmsClient = mock(BaseAspectRoutingGmsClient.class);
     _mockLocalDAO = mock(BaseLocalDAO.class);
-    ASPECT_ROUTING_GMS_CLIENT_MANAGER.registerRoutingGmsClient(AspectFoo.class, "setFoo", _mockAspectFooGmsClient);
-    ASPECT_ROUTING_GMS_CLIENT_MANAGER.registerRoutingGmsClient(AspectAttributes.class, "setAttributes",
-        _mockAspectAttributeGmsClient);
+    _aspectRoutingGmsClientManager.registerRoutingGmsClient(AspectFoo.class, "setFoo", _mockAspectFooGmsClient);
+    _aspectRoutingGmsClientManager.registerRoutingGmsClient(AspectAttributes.class, "setAttributes", _mockAspectAttributeGmsClient);
+    _resource.setAspectRoutingGmsClientManager(_aspectRoutingGmsClientManager);
   }
 
   @Test
