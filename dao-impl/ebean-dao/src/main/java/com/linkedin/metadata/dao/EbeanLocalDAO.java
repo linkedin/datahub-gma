@@ -34,6 +34,7 @@ import com.linkedin.metadata.query.IndexValue;
 import com.linkedin.metadata.query.ListResultMetadata;
 import com.linkedin.metadata.query.SortOrder;
 import io.ebean.DuplicateKeyException;
+import io.ebean.Ebean;
 import io.ebean.EbeanServer;
 import io.ebean.ExpressionList;
 import io.ebean.PagedList;
@@ -44,6 +45,9 @@ import io.ebean.config.ServerConfig;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URISyntaxException;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -439,55 +443,69 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   private  <ASPECT extends RecordTemplate> EbeanMetadataAspect queryLatest(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass) {
+    final String aspectName = ModelUtils.getAspectName(aspectClass);
+
     if (_findMethodology == FindMethodology.UNIQUE_ID) {
-      final PrimaryKey key = new PrimaryKey(urn.toString(), ModelUtils.getAspectName(aspectClass), 0L);
+      final PrimaryKey key = new PrimaryKey(urn.toString(), aspectName, 0L);
       return _server.find(EbeanMetadataAspect.class, key);
     }
 
+    // TODO(@jphui) added for job-gms duplicity debug, throwaway afterwards
+
+    // JDBC sanity check: should MATCH Ebean's results
+    if (log.isDebugEnabled()) { 
+      final String sqlQuery = "SELECT * FROM metadata_aspect "
+          + "WHERE urn = ? and aspect = ? and version = 0";
+        
+      try (Transaction transaction = _server.beginTransaction()) {
+      
+        // use PreparedStatement 
+        try (PreparedStatement stmt = transaction.getConnection().prepareStatement(sqlQuery)) {
+          stmt.setString(1, urn.toString());
+          stmt.setString(2, aspectName);
+          
+          try (ResultSet rset = stmt.executeQuery()) {
+            rset.last();  // go to the last returned record
+            log.debug("JDBC found {} existing records", rset.getRow());
+          }
+        }
+      
+        transaction.commit();
+      } catch (SQLException e) {
+        log.debug("JDBC ran into a SQLException: {}", e.getMessage());
+      }
+    }
+
     List<EbeanMetadataAspect> results = Collections.emptyList();
-    // TODO (@jphui): remove following pathway(s) that are not used
+    Query<EbeanMetadataAspect> query = Ebean.find(EbeanMetadataAspect.class); // non-null placeholder to be overridden
 
     if (_findMethodology == FindMethodology.DIRECT_SQL) {
       final String selectQuery = "SELECT * FROM metadata_aspect "
           + "WHERE urn = :urn and aspect = :aspect and version = 0 "
           + "ORDER BY createdOn DESC";
 
-      Query<EbeanMetadataAspect> query = _server.findNative(EbeanMetadataAspect.class, selectQuery)
+      query = _server.findNative(EbeanMetadataAspect.class, selectQuery)
       .setParameter("urn", urn.toString())
-      .setParameter("aspect", ModelUtils.getAspectName(aspectClass));
-
-      results = query.findList();
-
-      // TODO(yanyang) added for job-gms duplicity debug, throwaway afterwards
-      if (log.isDebugEnabled()) {
-        if ("AzkabanFlowInfo".equals(aspectClass.getSimpleName())) {
-          log.debug("Using DIRECT_SQL retrieval.");
-          log.debug("queryLatest SQL: " + query.getGeneratedSql());
-          log.debug("queryLatest Result: " + results);
-        }
-      }
+      .setParameter("aspect", aspectName);
     }
 
     if (_findMethodology == FindMethodology.QUERY_BUILDER) {
-      Query<EbeanMetadataAspect> query = _server.find(EbeanMetadataAspect.class)
+      query = _server.find(EbeanMetadataAspect.class)
         .where()
         .eq(URN_COLUMN, urn.toString())
-        .eq(ASPECT_COLUMN, ModelUtils.getAspectName(aspectClass))
+        .eq(ASPECT_COLUMN, aspectName)
         .eq(VERSION_COLUMN, 0L)
         .orderBy()
         .desc(CREATED_ON_COLUMN);
-
-      results = query.findList();
-
-      // TODO(yanyang) added for job-gms duplicity debug, throwaway afterwards
-      if (log.isDebugEnabled()) {
-        if ("AzkabanFlowInfo".equals(aspectClass.getSimpleName())) {
-          log.debug("Using QUERY_BUILDER retrieval.");
-          log.debug("queryLatest SQL: " + query.getGeneratedSql());
-          log.debug("queryLatest Result: " + results);
-        }
+    }
+    
+    if (log.isDebugEnabled()) {
+      if ("AzkabanFlowInfo".equals(aspectName)) {
+        log.debug("Using {} retrieval; " + "Generated SQL: {}", _findMethodology.toString() , query.getGeneratedSql());
       }
     }
+
+    results = query.findList();
 
     if (results.isEmpty()) {
       return null;
@@ -495,7 +513,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
     // don't crash if find duplicates, but log an error
     if (results.size() > 1) {
-      log.error("Two version=0 records found for {}, {}", urn, aspectClass.getSimpleName());
+      log.error("Two version=0 records found for {}, {}", urn, aspectName);
     }
 
     // return value at the top of the list (latest createdOn)
