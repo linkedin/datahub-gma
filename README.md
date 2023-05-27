@@ -33,6 +33,7 @@ DataHub. We're still in the process of moving it all over.
 
 - [GMA Developer's Guide](docs/developers.md)
 - [GMA Architecture](docs/architecture/architecture.md)
+- [GMA Source Code Diagrams](https://sourcespy.com/github/linkedindatahubgma/)
 
 ## Releases
 
