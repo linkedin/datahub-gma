@@ -1,8 +1,8 @@
 namespace com.linkedin.testing.mxe.bar
 
 import com.linkedin.avro2pegasus.events.KafkaAuditHeader
-import com.linkedin.metadata.events.ChangeType
 import com.linkedin.metadata.events.IngestionTrackingContext
+import com.linkedin.metadata.events.ChangeType
 import com.linkedin.testing.BarUrn
 import com.linkedin.testing.AnnotatedAspectBar
 import com.linkedin.testing.AnotherAspectBar
@@ -24,21 +24,24 @@ record MCEBarAspect {
   urn: BarUrn
 
   /**
-   * The proposed aspect values for this entity.
-   */
-  proposedValues: array[union[
-    record ProposedAnnotatedAspectBar {
-      proposed: optional AnnotatedAspectBar
-      changeType: ChangeType = "UPSERT"
-    }
-    record ProposedAnotherAspectBar {
-      proposed: optional AnotherAspectBar
-      changeType: ChangeType = "UPSERT"
-    }
-  ]]
-
-  /**
    * Tracking context to identify the lifecycle of the trackable ingestion item.
    */
   ingestionTrackingContext: optional union[null, IngestionTrackingContext] = null
+
+  /**
+   * Proposed change values for aspect AnnotatedAspectBar.
+   */
+  proposedAnnotatedAspectBar: optional record ProposedAnnotatedAspectBar {
+    value: optional AnnotatedAspectBar
+    changeType: ChangeType = "UPSERT"
+  }
+
+  /**
+   * Proposed change values for aspect AnotherAspectBar.
+   */
+  proposedAnotherAspectBar: optional record ProposedAnotherAspectBar {
+    value: optional AnotherAspectBar
+    changeType: ChangeType = "UPSERT"
+  }
+
 }

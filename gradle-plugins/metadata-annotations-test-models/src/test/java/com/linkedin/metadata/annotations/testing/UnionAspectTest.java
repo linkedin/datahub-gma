@@ -19,15 +19,10 @@ public class UnionAspectTest {
     MCEBarAspect unionAspect = new MCEBarAspect().setUrn(new BarUrn(123));
 
     AnnotatedAspectBar bar = new AnnotatedAspectBar().setBoolField(true);
-    ProposedAnnotatedAspectBar proposedBar = new ProposedAnnotatedAspectBar().setProposed(bar);
-
     AnotherAspectBar anotherBar = new AnotherAspectBar().setStringField("foo");
-    ProposedAnotherAspectBar proposedAnotherBar =
-            new ProposedAnotherAspectBar().setProposed(anotherBar).setChangeType(ChangeType.DELETE);
 
-    unionAspect.setProposedValues(new MCEBarAspect.ProposedValuesArray(
-            MCEBarAspect.ProposedValues.create(proposedBar),
-            MCEBarAspect.ProposedValues.create(proposedAnotherBar)));
+    unionAspect.setProposedAnnotatedAspectBar(new ProposedAnnotatedAspectBar().setValue(bar));
+    unionAspect.setProposedAnotherAspectBar(new ProposedAnotherAspectBar().setValue(anotherBar).setChangeType(ChangeType.DELETE));
 
     FailedMCEBarAspect failedAspect = new FailedMCEBarAspect();
     failedAspect.setMetadataChangeEvent(unionAspect);
