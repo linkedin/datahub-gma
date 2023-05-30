@@ -101,6 +101,18 @@ public abstract class BaseAspectRoutingResource<
     _routingAspectClass = null;
   }
 
+  public BaseAspectRoutingResource(@Nonnull Class<SNAPSHOT> snapshotClass,
+      @Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull Class<URN> urnClass,
+      @Nonnull Class<VALUE> valueClass, @Nullable Object dummyObject) {
+    super(snapshotClass, aspectUnionClass, urnClass);
+    // "dummyObject" the dummyObject is used to avoid the conflict with the two deprecated constructors
+    // TODO(yanyang) clean up dummyObject when removing the deprecated constructors
+    _valueClass = valueClass;
+    _aspectUnionClass = aspectUnionClass;
+    _snapshotClass = snapshotClass;
+    _routingAspectClass = null;
+  }
+
   public void setAspectRoutingGmsClientManager(AspectRoutingGmsClientManager aspectRoutingGmsClientManager) {
     log.info("set aspect routing gms client manager: {}", aspectRoutingGmsClientManager);
     _aspectRoutingGmsClientManager = aspectRoutingGmsClientManager;

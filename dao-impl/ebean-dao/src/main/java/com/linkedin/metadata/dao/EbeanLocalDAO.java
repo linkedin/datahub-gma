@@ -456,15 +456,16 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       .setParameter("urn", urn.toString())
       .setParameter("aspect", ModelUtils.getAspectName(aspectClass));
 
+      results = query.findList();
+
       // TODO(yanyang) added for job-gms duplicity debug, throwaway afterwards
       if (log.isDebugEnabled()) {
         if ("AzkabanFlowInfo".equals(aspectClass.getSimpleName())) {
           log.debug("Using DIRECT_SQL retrieval.");
           log.debug("queryLatest SQL: " + query.getGeneratedSql());
+          log.debug("queryLatest Result: " + results);
         }
       }
-
-      results = query.findList();
     }
 
     if (_findMethodology == FindMethodology.QUERY_BUILDER) {
@@ -475,7 +476,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         .eq(VERSION_COLUMN, 0L)
         .orderBy()
         .desc(CREATED_ON_COLUMN);
-      
+
       results = query.findList();
 
       // TODO(yanyang) added for job-gms duplicity debug, throwaway afterwards
@@ -483,6 +484,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         if ("AzkabanFlowInfo".equals(aspectClass.getSimpleName())) {
           log.debug("Using QUERY_BUILDER retrieval.");
           log.debug("queryLatest SQL: " + query.getGeneratedSql());
+          log.debug("queryLatest Result: " + results);
         }
       }
     }
