@@ -898,7 +898,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       query.setParameter(i, params.get(i - 1));
     }
 
-    return query.findList();
+    return query.orderBy().desc(CREATED_ON_COLUMN).findList();
   }
 
   @Nonnull
