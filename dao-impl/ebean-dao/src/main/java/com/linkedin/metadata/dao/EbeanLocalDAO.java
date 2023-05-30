@@ -452,6 +452,31 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
     // TODO(@jphui) added for job-gms duplicity debug, throwaway afterwards
 
+
+    // JDBC sanity check: should MATCH Ebean's results
+    if (log.isDebugEnabled()) { 
+      final String sqlQuery = "SELECT * FROM metadata_aspect "
+          + "WHERE urn = ? and aspect = ? and version = 0";
+        
+      try (Transaction transaction = _server.beginTransaction()) {
+      
+        // use PreparedStatement 
+        try (PreparedStatement stmt = transaction.getConnection().prepareStatement(sqlQuery)) {
+          stmt.setString(1, urn.toString());
+          stmt.setString(2, aspectName);
+          
+          try (ResultSet rset = stmt.executeQuery()) {
+            rset.last();  // go to the last returned record
+            log.debug("JDBC found {} existing records", rset.getRow());
+          }
+        }
+      
+        transaction.commit();
+      } catch (SQLException e) {
+        log.debug("JDBC ran into a SQLException: {}", e.getMessage());
+      }
+    }
+
     List<EbeanMetadataAspect> results = Collections.emptyList();
     Query<EbeanMetadataAspect> query = Ebean.find(EbeanMetadataAspect.class); // non-null placeholder to be overridden
 
