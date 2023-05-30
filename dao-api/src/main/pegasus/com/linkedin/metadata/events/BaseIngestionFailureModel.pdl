@@ -8,10 +8,12 @@ record BaseIngestionFailureModel {
   /**
    * The ingestion tracking context from the original ingestion event.
    */
-  ingestionTrackingContext: optional IngestionTrackingContext
+  ingestionTrackingContext: IngestionTrackingContext
 
   /**
    * The ingestion record that represents the metadata change in the original ingestion event.
+   * For example, it can be the string representation of a GenericRecord, which is the input for ingestion in stream
+   * layer; it can also be the string representation of a RecordTemplate, which is the input for ingestion in gms layer.
    */
   ingestionRecord: string
 
@@ -21,9 +23,10 @@ record BaseIngestionFailureModel {
   urn: optional string
 
   /**
-   * service where the ingestion failure happens.
+   * the location where the ingestion failure happens. For example, it can be a stream service called "mce-v5-consumer-job".
+   * It can also be a generic name like "gms" to represent failures in gms layer.
    */
-  service: string
+  location: string
 
   /**
    * Detailed error message. Make it optional considering kafka message payload size limit.
@@ -31,7 +34,7 @@ record BaseIngestionFailureModel {
   errorMessage: optional string
 
   /**
-   * Error type.
+   * Error type. The number of possible error types is not limited, so we use string instead of enum.
    */
   errorType: string
 }
