@@ -452,9 +452,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
     // TODO(@jphui) added for job-gms duplicity debug, throwaway afterwards
 
-
     // JDBC sanity check: should MATCH Ebean's results
-    if (log.isDebugEnabled()) { 
+    if (log.isDebugEnabled() && "com.linkedin.dataJob.azkaban.AzkabanFlowInfo".equals(aspectName)) { 
       final String sqlQuery = "SELECT * FROM metadata_aspect "
           + "WHERE urn = ? and aspect = ? and version = 0";
         
@@ -486,8 +485,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
           + "ORDER BY createdOn DESC";
 
       query = _server.findNative(EbeanMetadataAspect.class, selectQuery)
-      .setParameter("urn", urn.toString())
-      .setParameter("aspect", aspectName);
+          .setParameter("urn", urn.toString())
+          .setParameter("aspect", aspectName);
     }
 
     if (_findMethodology == FindMethodology.QUERY_BUILDER) {
@@ -500,10 +499,14 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         .desc(CREATED_ON_COLUMN);
     }
     
-    if (log.isDebugEnabled()) {
-      if ("AzkabanFlowInfo".equals(aspectName)) {
-        log.debug("Using {} retrieval; " + "Generated SQL: {}", _findMethodology.toString(), query.getGeneratedSql());
-      }
+    if (log.isDebugEnabled() && "com.linkedin.dataJob.azkaban.AzkabanFlowInfo".equals(aspectName)) {
+      log.debug("Using {} retrieval; " + "Generated SQL: {}; urn: {}, aspect: {}, version: {}",
+          _findMethodology.toString(),
+          query.getGeneratedSql(),
+          urn.toString(),
+          aspectName,
+          0L
+        );
     }
 
     results = query.findList();
