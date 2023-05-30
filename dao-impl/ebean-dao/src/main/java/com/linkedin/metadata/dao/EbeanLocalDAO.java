@@ -502,7 +502,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     
     if (log.isDebugEnabled()) {
       if ("AzkabanFlowInfo".equals(aspectName)) {
-        log.debug("Using {} retrieval; " + "Generated SQL: {}", _findMethodology.toString() , query.getGeneratedSql());
+        log.debug("Using {} retrieval; " + "Generated SQL: {}", _findMethodology.toString(), query.getGeneratedSql());
       }
     }
 
