@@ -146,6 +146,10 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
       return _mockAspectFooGmsClient;
     }
 
+    @Override
+    public AspectRoutingGmsClientManager getAspectRoutingGmsClientManager() {
+      return _aspectRoutingGmsClientManager;
+    }
 
     @Override
     public ResourceContext getContext() {
@@ -160,7 +164,6 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     _mockLocalDAO = mock(BaseLocalDAO.class);
     _aspectRoutingGmsClientManager.registerRoutingGmsClient(AspectFoo.class, "setFoo", _mockAspectFooGmsClient);
     _aspectRoutingGmsClientManager.registerRoutingGmsClient(AspectAttributes.class, "setAttributes", _mockAspectAttributeGmsClient);
-    _resource.setAspectRoutingGmsClientManager(_aspectRoutingGmsClientManager);
   }
 
   @Test

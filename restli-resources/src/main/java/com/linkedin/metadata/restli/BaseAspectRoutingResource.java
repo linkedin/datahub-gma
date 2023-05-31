@@ -60,8 +60,6 @@ public abstract class BaseAspectRoutingResource<
   // strong-typed (ROUTING_ASPECT) _routingAspectClass has been deprecated, using generic _routingAspectClasses instead
   @Deprecated
   private final Class<ROUTING_ASPECT> _routingAspectClass;
-  // <Routing aspect class, entity setter method name> map
-  private AspectRoutingGmsClientManager _aspectRoutingGmsClientManager = new AspectRoutingGmsClientManager();
   private final Class<VALUE> _valueClass;
   private final Class<ASPECT_UNION> _aspectUnionClass;
   private final Class<SNAPSHOT> _snapshotClass;
@@ -77,6 +75,7 @@ public abstract class BaseAspectRoutingResource<
     _aspectUnionClass = aspectUnionClass;
     _snapshotClass = snapshotClass;
   }
+
 
   // strong-typed (ROUTING_ASPECT) constructor has been deprecated, using constructors with Set<Class> routingAspects instead
   @Deprecated
@@ -112,10 +111,6 @@ public abstract class BaseAspectRoutingResource<
     _routingAspectClass = null;
   }
 
-  public void setAspectRoutingGmsClientManager(AspectRoutingGmsClientManager aspectRoutingGmsClientManager) {
-    log.info("set aspect routing gms client manager: {}", aspectRoutingGmsClientManager);
-    _aspectRoutingGmsClientManager = aspectRoutingGmsClientManager;
-  }
   /**
    * Get routing aspect field name in the entity.
    * @return Routing aspect field name.
@@ -130,6 +125,11 @@ public abstract class BaseAspectRoutingResource<
   @Deprecated
   public abstract BaseAspectRoutingGmsClient getGmsClient();
 
+  /**
+   * Get the aspect routing client manager which provides multiple aspect routing support.
+   * @return {@link AspectRoutingGmsClientManager}
+   */
+  public abstract AspectRoutingGmsClientManager getAspectRoutingGmsClientManager();
 
   /**
    * Retrieves the value for an entity that is made up of latest versions of specified aspects.
@@ -250,9 +250,9 @@ public abstract class BaseAspectRoutingResource<
             }
           } else {
             // If using generic aspect routing logic
-            if (_aspectRoutingGmsClientManager.hasRegistered(aspect.getClass())) {
+            if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
               try {
-                _aspectRoutingGmsClientManager.getRoutingGmsClient(aspect.getClass()).ingest(urn, aspect);
+                getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingest(urn, aspect);
 
               } catch (Exception exception) {
                 log.error(
@@ -286,7 +286,7 @@ public abstract class BaseAspectRoutingResource<
     if (isLegacyRoutingLogic()) {
       return aspectClasses.stream().anyMatch(aspectClass -> aspectClass.equals(_routingAspectClass));
     } else {
-      return aspectClasses.stream().anyMatch(aspectClass -> _aspectRoutingGmsClientManager.hasRegistered(aspectClass));
+      return aspectClasses.stream().anyMatch(aspectClass -> getAspectRoutingGmsClientManager().hasRegistered(aspectClass));
     }
   }
 
@@ -303,7 +303,7 @@ public abstract class BaseAspectRoutingResource<
           .collect(Collectors.toSet());
     } else {
       return aspectClasses.stream()
-          .filter(aspectClass -> !_aspectRoutingGmsClientManager.hasRegistered(aspectClass))
+          .filter(aspectClass -> !getAspectRoutingGmsClientManager().hasRegistered(aspectClass))
           .collect(Collectors.toSet());
     }
   }
@@ -320,7 +320,7 @@ public abstract class BaseAspectRoutingResource<
           .collect(Collectors.toSet());
     } else {
       return aspectClasses.stream()
-          .filter(aspectClass -> _aspectRoutingGmsClientManager.hasRegistered(aspectClass))
+          .filter(aspectClass -> getAspectRoutingGmsClientManager().hasRegistered(aspectClass))
           .collect(Collectors.toSet());
     }
   }
@@ -401,7 +401,7 @@ public abstract class BaseAspectRoutingResource<
     }
     for (RecordTemplate routingAspect : routingAspects) {
       try {
-        String setterMethodName = _aspectRoutingGmsClientManager.getRoutingAspectSetterName(routingAspect.getClass());
+        String setterMethodName = getAspectRoutingGmsClientManager().getRoutingAspectSetterName(routingAspect.getClass());
         Method setter =  valueFromLocalDao.getClass().getMethod(setterMethodName, routingAspect.getClass(), SetMode.class);
         setter.invoke(valueFromLocalDao, routingAspect, SetMode.IGNORE_NULL);
       } catch (NoSuchMethodException e) {
@@ -457,7 +457,7 @@ public abstract class BaseAspectRoutingResource<
       if (isLegacyRoutingLogic()) {
         return getGmsClient().backfill(urns);
       } else {
-        List<BackfillResult> backfillResults = _aspectRoutingGmsClientManager.getRegisteredRoutingGmsClients()
+        List<BackfillResult> backfillResults = getAspectRoutingGmsClientManager().getRegisteredRoutingGmsClients()
             .stream()
             .map(baseAspectRoutingGmsClient -> baseAspectRoutingGmsClient.backfill(urns))
             .collect(Collectors.toList());
@@ -487,7 +487,7 @@ public abstract class BaseAspectRoutingResource<
         if (isLegacyRoutingLogic()) {
           return getGmsClient().get(urn);
         } else {
-          return _aspectRoutingGmsClientManager.getRoutingGmsClient(routeAspectClass).get(urn);
+          return getAspectRoutingGmsClientManager().getRoutingGmsClient(routeAspectClass).get(urn);
         }
       } catch (Exception exception) {
         log.error(String.format("Couldn't get routing aspect %s for %s", routeAspectClass.getSimpleName(), urn),
