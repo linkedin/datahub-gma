@@ -498,7 +498,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         .orderBy()
         .desc(CREATED_ON_COLUMN);
     }
-    
+
+    results = query.findList();
+
+    // Encouraged to run AFTER query execution based on getGeneratedSql() documentation
     if (log.isDebugEnabled() && "com.linkedin.dataJob.azkaban.AzkabanFlowInfo".equals(aspectName)) {
       log.debug("Using {} retrieval; " + "Generated SQL: {}; urn: {}, aspect: {}, version: {}",
           _findMethodology.toString(),
@@ -508,8 +511,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
           0L
         );
     }
-
-    results = query.findList();
 
     if (results.isEmpty()) {
       return null;
