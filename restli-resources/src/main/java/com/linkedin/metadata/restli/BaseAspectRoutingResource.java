@@ -464,7 +464,7 @@ public abstract class BaseAspectRoutingResource<
         return merge(null, backfillResults.toArray(new BackfillResult[0]));
       }
     } catch (Exception exception) {
-      log.error(String.format("Couldn't backfill routing aspect %s for %s", _routingAspectClass.getSimpleName(),
+      log.error(String.format("Couldn't backfill routing entities: %s",
           String.join(",", urns.stream().map(Urn::toString).collect(Collectors.toSet()))), exception);
 
       BackfillResultEntityArray backfillResultEntityArray = new BackfillResultEntityArray();
