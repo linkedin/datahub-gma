@@ -61,8 +61,7 @@ public abstract class BaseAspectRoutingResource<
   @Deprecated
   private final Class<ROUTING_ASPECT> _routingAspectClass;
   // <Routing aspect class, entity setter method name> map
-  // private final Map<Class, String> _routingAspectClassMap;
-  private AspectRoutingGmsClientManager _aspectRoutingGmsClientManager = null;
+  private AspectRoutingGmsClientManager _aspectRoutingGmsClientManager = new AspectRoutingGmsClientManager();
   private final Class<VALUE> _valueClass;
   private final Class<ASPECT_UNION> _aspectUnionClass;
   private final Class<SNAPSHOT> _snapshotClass;
@@ -249,7 +248,7 @@ public abstract class BaseAspectRoutingResource<
             } else {
               getLocalDAO().add(urn, aspect, auditStamp);
             }
-          } else if (_aspectRoutingGmsClientManager != null) {
+          } else {
             // If using generic aspect routing logic
             if (_aspectRoutingGmsClientManager.hasRegistered(aspect.getClass())) {
               try {

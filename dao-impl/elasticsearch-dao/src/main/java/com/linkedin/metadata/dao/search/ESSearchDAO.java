@@ -110,6 +110,9 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
   @Nonnull
   QueryBuilder buildQueryString(@Nonnull String input) {
     final String query = _config.getSearchQueryTemplate().replace("$INPUT", input);
+    if (log.isDebugEnabled()) {
+      log.debug("converted ES.5 query: {}, input: {}", query, input);
+    }
     return QueryBuilders.wrapperQuery(query);
   }
 
