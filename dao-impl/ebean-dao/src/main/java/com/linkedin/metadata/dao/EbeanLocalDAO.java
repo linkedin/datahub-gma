@@ -892,13 +892,15 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       }
     }
 
+    sb.append(" ORDER BY createdOn DESC");
+
     final Query<EbeanMetadataAspect> query = _server.findNative(EbeanMetadataAspect.class, sb.toString());
 
     for (int i = 1; i <= params.size(); i++) {
       query.setParameter(i, params.get(i - 1));
     }
 
-    return query.orderBy().desc(CREATED_ON_COLUMN).findList();
+    return query.findList();
   }
 
   @Nonnull
