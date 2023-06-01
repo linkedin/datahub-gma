@@ -1,6 +1,7 @@
 package com.linkedin.metadata.dao.tracking;
 
 import com.linkedin.avro2pegasus.events.UUID;
+import com.linkedin.data.ByteString;
 import java.util.concurrent.ThreadLocalRandom;
 import javax.annotation.Nonnull;
 
@@ -86,7 +87,7 @@ public class TrackingUtils {
 
   @Nonnull
   public static UUID getRandomUUID() {
-    return new UUID(getRandomTrackingId());
+    return new UUID(ByteString.copy(getRandomTrackingId()));
   }
 
   @Nonnull
