@@ -144,7 +144,7 @@ public abstract class BaseAspectRoutingResource<
 
       // Get entity from aspect GMS
       if (containsRoutingAspect(aspectClasses) && aspectClasses.size() == 1) {
-        return merge(null, getRoutingAspects(toUrn(id), aspectClasses));
+        return merge(null, getValueFromRoutingGms(toUrn(id), aspectClasses));
       }
 
       // The assumption is main GMS must have this entity.
@@ -160,7 +160,7 @@ public abstract class BaseAspectRoutingResource<
 
       // Need to read from both aspect GMS and local DAO.
       final VALUE valueFromLocalDao = getValueFromLocalDao(id, getNonRoutingAspects(aspectClasses));
-      return merge(valueFromLocalDao, getRoutingAspects(toUrn(id), aspectClasses));
+      return merge(valueFromLocalDao, getValueFromRoutingGms(toUrn(id), getRoutingAspects(aspectClasses)));
     });
   }
 
@@ -375,7 +375,7 @@ public abstract class BaseAspectRoutingResource<
   @ParametersAreNonnullByDefault
   private List<ASPECT_UNION> getAspectsFromGms(URN urn, Class aspectClass) {
     final List<? extends RecordTemplate> routingAspects =
-        getRoutingAspects(urn, Collections.singletonList(aspectClass));
+        getValueFromRoutingGms(urn, Collections.singletonList(aspectClass));
     if (routingAspects.isEmpty()) {
       return new ArrayList<>();
     }
@@ -479,7 +479,7 @@ public abstract class BaseAspectRoutingResource<
   }
 
   @Nullable
-  private List<? extends RecordTemplate> getRoutingAspects(@Nonnull URN urn,
+  private List<? extends RecordTemplate> getValueFromRoutingGms(@Nonnull URN urn,
       Collection<Class<? extends RecordTemplate>> routeAspectClasses) {
     return routeAspectClasses.stream().map(routeAspectClass -> {
 
