@@ -595,13 +595,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     update.setParameter("createdBy", aspect.getCreatedBy());
     update.setParameter("oldTimestamp", oldTimestamp);
 
-    // TODO(yanyang) added for job-gms duplicity debug, throwaway afterwards
-    if (log.isDebugEnabled()) {
-      if ("AzkabanFlowInfo".equals(aspectClass.getSimpleName())) {
-        log.debug("updateWithOptimisticLocking SQL: " + update.getGeneratedSql());
-      }
-    }
-
     int numOfUpdatedRows;
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY || _schemaConfig == SchemaConfig.DUAL_SCHEMA) {
       // ensure atomicity by running old schema update + new schema update in a transaction
