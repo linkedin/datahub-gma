@@ -12,5 +12,9 @@ public class TrackingUtilsTest {
     String str = "This is 16 chars";
     UUID uuid = new UUID(str);
     assertEquals(TrackingUtils.convertUUID(uuid), str.getBytes());
+
+    uuid = TrackingUtils.getRandomUUID();
+    byte[] expected = uuid.bytes().copyBytes();
+    assertEquals(TrackingUtils.convertUUID(uuid), expected);
   }
 }
