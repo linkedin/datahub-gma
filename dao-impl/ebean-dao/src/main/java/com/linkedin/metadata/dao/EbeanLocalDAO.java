@@ -453,7 +453,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     // TODO(@jphui) added for job-gms duplicity debug, throwaway afterwards
 
     // JDBC sanity check: should MATCH Ebean's results
-    if (log.isDebugEnabled() && "com.linkedin.dataJob.azkaban.AzkabanFlowInfo".equals(aspectName)) { 
+    if (log.isDebugEnabled() && "AzkabanFlowInfo".equals(aspectClass.getSimpleName())) { 
       final String sqlQuery = "SELECT * FROM metadata_aspect "
           + "WHERE urn = ? and aspect = ? and version = 0";
         
@@ -502,7 +502,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     results = query.findList();
 
     // Encouraged to run AFTER query execution based on getGeneratedSql() documentation
-    if (log.isDebugEnabled() && "com.linkedin.dataJob.azkaban.AzkabanFlowInfo".equals(aspectName)) {
+    if (log.isDebugEnabled() && "AzkabanFlowInfo".equals(aspectClass.getSimpleName())) {
       log.debug("Using {} retrieval; " + "Generated SQL: {}; urn: {}, aspect: {}, version: {}",
           _findMethodology.toString(),
           query.getGeneratedSql(),
