@@ -235,6 +235,12 @@ public abstract class BaseEntityResource<
     return ingestInternal(snapshot, Collections.emptySet(), null);
   }
 
+  /**
+   * Same as {@link #ingest(RecordTemplate)} but with tracking context attached.
+   * @param snapshot Snapshot of the metadata change to be ingested
+   * @param trackingContext {@link IngestionTrackingContext} to 1) track DAO-level metrics and 2) to pass on to MAE emission
+   * @return
+   */
   @Action(name = ACTION_INGEST_WITH_TRACKING)
   @Nonnull
   public Task<Void> ingestWithTracking(@ActionParam(PARAM_SNAPSHOT) @Nonnull SNAPSHOT snapshot,
