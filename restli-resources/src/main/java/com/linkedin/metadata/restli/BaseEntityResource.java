@@ -13,6 +13,7 @@ import com.linkedin.metadata.dao.ListResult;
 import com.linkedin.metadata.dao.UrnAspectEntry;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.utils.ModelUtils;
+import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
@@ -192,7 +193,7 @@ public abstract class BaseEntityResource<
   }
 
   /**
-   * Similar to {@link #get(Object, String[])} but for multiple entities. Compared to the deprecated {@link #batchGet}
+   * Similar to {@link #get(Object, String[])} but for multiple entities. Compared to the deprecated {@link #batchGet(Set, String[])}
    * method, this method properly returns a BatchResult which includes a map of errors in addition to the successful
    * batch results.
    */
@@ -231,18 +232,32 @@ public abstract class BaseEntityResource<
   @Action(name = ACTION_INGEST)
   @Nonnull
   public Task<Void> ingest(@ActionParam(PARAM_SNAPSHOT) @Nonnull SNAPSHOT snapshot) {
-    return ingestInternal(snapshot, Collections.emptySet());
+    return ingestInternal(snapshot, Collections.emptySet(), null);
+  }
+
+  /**
+   * Same as {@link #ingest(RecordTemplate)} but with tracking context attached.
+   * @param snapshot Snapshot of the metadata change to be ingested
+   * @param trackingContext {@link IngestionTrackingContext} to 1) track DAO-level metrics and 2) to pass on to MAE emission
+   * @return ingest task
+   */
+  @Action(name = ACTION_INGEST_WITH_TRACKING)
+  @Nonnull
+  public Task<Void> ingestWithTracking(@ActionParam(PARAM_SNAPSHOT) @Nonnull SNAPSHOT snapshot,
+      @ActionParam(PARAM_TRACKING_CONTEXT) @Nonnull IngestionTrackingContext trackingContext) {
+    return ingestInternal(snapshot, Collections.emptySet(), trackingContext);
   }
 
   @Nonnull
   protected Task<Void> ingestInternal(@Nonnull SNAPSHOT snapshot,
-      @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore) {
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore,
+      @Nullable IngestionTrackingContext trackingContext) {
     return RestliUtils.toTask(() -> {
       final URN urn = (URN) ModelUtils.getUrnFromSnapshot(snapshot);
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
       ModelUtils.getAspectsFromSnapshot(snapshot).stream().forEach(aspect -> {
         if (!aspectsToIgnore.contains(aspect.getClass())) {
-          getLocalDAO().add(urn, aspect, auditStamp);
+          getLocalDAO().add(urn, aspect, auditStamp, trackingContext);
         }
       });
       return null;
