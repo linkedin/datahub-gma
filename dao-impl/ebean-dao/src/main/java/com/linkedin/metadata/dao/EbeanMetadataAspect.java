@@ -88,38 +88,38 @@ public class EbeanMetadataAspect extends Model {
   @Column(name = CREATED_FOR_COLUMN, nullable = true)
   private String createdFor;
 
-  @SneakyThrows
-  @Override
-  public boolean equals(Object o) {
-    if (o == null) {
-      return false;
-    }
-    if (o.getClass() != this.getClass()) {
-      return false;
-    }
-    EbeanMetadataAspect other = (EbeanMetadataAspect) o;
+  // @SneakyThrows
+  // @Override
+  // public boolean equals(Object o) {
+  //   if (o == null) {
+  //     return false;
+  //   }
+  //   if (o.getClass() != this.getClass()) {
+  //     return false;
+  //   }
+  //   EbeanMetadataAspect other = (EbeanMetadataAspect) o;
 
-    boolean primitiveEqualityCheck = this.key.equals(other.key)
-        // either both metadata fields are null or both are equal (will check non-null equality after)
-        && ((this.metadata == null && other.metadata == null) || (this.metadata != null && other.metadata != null))
-        && Math.abs(this.createdOn.getTime() - other.getCreatedOn().getTime()) < 1000 // timestamps are considered equal if within 1s of each other
-        && this.createdBy.equals(other.getCreatedBy())
-        // either both createdFor fields are null or both are equal (need to check this.createdFor != null to avoid NPE)
-        && ((this.createdFor == null && other.getCreatedFor() == null) || (this.createdFor != null && this.createdFor.equals(other.getCreatedFor())));
-    if (!primitiveEqualityCheck) {
-      return false;
-    }
+  //   boolean primitiveEqualityCheck = this.key.equals(other.key)
+  //       // either both metadata fields are null or both are equal (will check non-null equality after)
+  //       && ((this.metadata == null && other.metadata == null) || (this.metadata != null && other.metadata != null))
+  //       && Math.abs(this.createdOn.getTime() - other.getCreatedOn().getTime()) < 1000 // timestamps are considered equal if within 1s of each other
+  //       && this.createdBy.equals(other.getCreatedBy())
+  //       // either both createdFor fields are null or both are equal (need to check this.createdFor != null to avoid NPE)
+  //       && ((this.createdFor == null && other.getCreatedFor() == null) || (this.createdFor != null && this.createdFor.equals(other.getCreatedFor())));
+  //   if (!primitiveEqualityCheck) {
+  //     return false;
+  //   }
 
-    JSONParser parser = new JSONParser();
-    JSONObject thisMetadata = (JSONObject) parser.parse(this.metadata);
-    JSONObject otherMetadata = (JSONObject) parser.parse(other.metadata);
-    return thisMetadata.equals(otherMetadata);
-  }
+  //   JSONParser parser = new JSONParser();
+  //   JSONObject thisMetadata = (JSONObject) parser.parse(this.metadata);
+  //   JSONObject otherMetadata = (JSONObject) parser.parse(other.metadata);
+  //   return thisMetadata.equals(otherMetadata);
+  // }
 
-  @Override
-  public int hashCode() {
-    return super.hashCode();
-  }
+  // @Override
+  // public int hashCode() {
+  //   return super.hashCode();
+  // }
 
   @Override
   public String toString() {
