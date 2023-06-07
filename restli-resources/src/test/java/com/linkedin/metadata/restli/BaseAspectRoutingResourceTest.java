@@ -115,6 +115,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
           value.setAttributes(AspectAttributes.class.cast(a));
         }
       });
+      value.setId(snapshot.getUrn().getIdAsLong());
       return value;
     }
 
@@ -192,6 +193,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     assertTrue(value.hasAttributes());
     assertEquals(value.getAttributes(), attributes);
+    assertEquals(value.getId(), urn.getIdAsLong());
   }
 
   @Test
@@ -212,6 +214,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     assertTrue(value.hasBar());
     assertEquals(value.getBar(), bar);
+    assertEquals(value.getId(), urn.getIdAsLong());
   }
 
   @Test
@@ -236,7 +239,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     assertTrue(value.hasAttributes());
     assertEquals(value.getAttributes(), attributes);
-
+    assertEquals(value.getId(), urn.getIdAsLong());
     assertFalse(value.hasBar());
     verify(_mockLocalDAO, times(0)).get(anySet());
   }
@@ -257,6 +260,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     assertTrue(value.hasFoo());
     assertEquals(value.getFoo(), foo);
+    assertEquals(value.getId(), urn.getIdAsLong());
     assertFalse(value.hasBar());
   }
 
@@ -276,6 +280,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     assertTrue(value.hasBar());
     assertEquals(value.getBar(), bar);
+    assertEquals(value.getId(), urn.getIdAsLong());
     assertFalse(value.hasFoo());
   }
 

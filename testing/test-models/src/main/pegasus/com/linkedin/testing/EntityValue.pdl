@@ -3,7 +3,7 @@ namespace com.linkedin.testing
 /**
  * For unit tests
  */
-record EntityValue {
+record EntityValue includes EntityKey {
 
   /**
    * For unit tests
