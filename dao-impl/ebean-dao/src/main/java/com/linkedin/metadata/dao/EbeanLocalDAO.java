@@ -11,11 +11,13 @@ import com.linkedin.metadata.dao.builder.LocalRelationshipBuilderRegistry;
 import com.linkedin.metadata.dao.exception.ModelConversionException;
 import com.linkedin.metadata.dao.exception.RetryLimitReached;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
+import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
 import com.linkedin.metadata.dao.retention.VersionBasedRetention;
 import com.linkedin.metadata.dao.scsi.EmptyPathExtractor;
 import com.linkedin.metadata.dao.scsi.UrnPathExtractor;
 import com.linkedin.metadata.dao.storage.LocalDAOStorageConfig;
+import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.utils.EBeanDAOUtils;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.QueryUtils;
@@ -126,42 +128,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         }
       });
 
-  @VisibleForTesting
-  EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
-      @Nonnull EbeanServer server, @Nonnull Class<URN> urnClass) {
-    super(aspectUnionClass, producer);
-    _server = server;
-    _urnClass = urnClass;
-    _urnPathExtractor = new EmptyPathExtractor<>();
-  }
-
-  @VisibleForTesting
-  EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
-      @Nonnull EbeanServer server, @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass, @Nonnull SchemaConfig schemaConfig) {
-    this(aspectUnionClass, producer, server, urnClass);
-    _schemaConfig = schemaConfig;
-    if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
-      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, _urnPathExtractor);
-    }
-  }
-
-  @VisibleForTesting
-  EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
-      @Nonnull EbeanServer server, @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass, @Nonnull FindMethodology findMethodology) {
-    this(aspectUnionClass, producer, server, urnClass);
-    _findMethodology = findMethodology;
-  }
-
-  // Only called in testing (test all possible combos of SchemaConfig and FindMethodology)
-  @VisibleForTesting
-  EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
-      @Nonnull EbeanServer server, @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass,
-      @Nonnull SchemaConfig schemaConfig,
-      @Nonnull FindMethodology findMethodology) {
-    this(aspectUnionClass, producer, server, serverConfig, urnClass, schemaConfig);
-    _findMethodology = findMethodology;
-  }
-
   /**
    * Constructor for EbeanLocalDAO.
    *
@@ -173,6 +139,20 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   public EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
       @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass) {
     this(aspectUnionClass, producer, createServer(serverConfig), urnClass);
+  }
+
+  /**
+   * Constructor for EbeanLocalDAO.
+   *
+   * @param aspectUnionClass containing union of all supported aspects. Must be a valid aspect union defined in com.linkedin.metadata.aspect
+   * @param producer {@link BaseTrackingMetadataEventProducer} for the metadata event producer
+   * @param serverConfig {@link ServerConfig} that defines the configuration of EbeanServer instances
+   * @param urnClass Class of the entity URN
+   * @param trackingManager {@link BaseTrackingManager} tracking manager for producing tracking requests
+   */
+  public EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseTrackingMetadataEventProducer producer,
+      @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass, @Nonnull BaseTrackingManager trackingManager) {
+    this(aspectUnionClass, producer, createServer(serverConfig), urnClass, trackingManager);
   }
 
   /**
@@ -190,6 +170,22 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   /**
+   * Constructor for EbeanLocalDAO with the option to use the new schema and enable dual-read.
+   *
+   * @param aspectUnionClass containing union of all supported aspects. Must be a valid aspect union defined in com.linkedin.metadata.aspect
+   * @param producer {@link BaseTrackingMetadataEventProducer} for the metadata event producer
+   * @param serverConfig {@link ServerConfig} that defines the configuration of EbeanServer instances
+   * @param urnClass Class of the entity URN
+   * @param schemaConfig Enum indicating which schema(s)/table(s) to read from and write to
+   * @param trackingManager {@link BaseTrackingManager} tracking manager for producing tracking requests
+   */
+  public EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseTrackingMetadataEventProducer producer,
+      @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass, @Nonnull SchemaConfig schemaConfig,
+      @Nonnull BaseTrackingManager trackingManager) {
+    this(aspectUnionClass, producer, createServer(serverConfig), serverConfig, urnClass, schemaConfig, trackingManager);
+  }
+
+  /**
    * Constructor for EbeanLocalDAO with the option to use an alternate Ebean find methodology for record insertion.
    * See GCN-38382
    *
@@ -202,39 +198,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   public EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
       @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass, @Nonnull FindMethodology findMethodology) {
     this(aspectUnionClass, producer, createServer(serverConfig), serverConfig, urnClass, findMethodology);
-  }
-
-  @VisibleForTesting
-  EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull EbeanServer server,
-      @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass,
-      @Nonnull UrnPathExtractor<URN> urnPathExtractor) {
-    super(producer, storageConfig);
-    _server = server;
-    _urnClass = urnClass;
-    _urnPathExtractor = urnPathExtractor;
-  }
-
-  @VisibleForTesting
-  EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull EbeanServer server,
-      @Nonnull ServerConfig serverConfig, @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass,
-      @Nonnull UrnPathExtractor<URN> urnPathExtractor, @Nonnull SchemaConfig schemaConfig) {
-    this(producer, server, storageConfig, urnClass, urnPathExtractor);
-    _schemaConfig = schemaConfig;
-    if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
-      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, urnPathExtractor);
-    }
-  }
-
-  @VisibleForTesting
-  EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull EbeanServer server,
-      @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass) {
-    this(producer, server, storageConfig, urnClass, new EmptyPathExtractor<>());
-  }
-
-  @VisibleForTesting
-  EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull EbeanServer server, @Nonnull ServerConfig serverConfig,
-      @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass, @Nonnull SchemaConfig schemaConfig) {
-    this(producer, server, serverConfig, storageConfig, urnClass, new EmptyPathExtractor<>(), schemaConfig);
   }
 
   /**
@@ -250,6 +213,22 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass,
       @Nonnull UrnPathExtractor<URN> urnPathExtractor) {
     this(producer, createServer(serverConfig), storageConfig, urnClass, urnPathExtractor);
+  }
+
+  /**
+   * Constructor for EbeanLocalDAO.
+   *
+   * @param producer {@link BaseTrackingMetadataEventProducer} for the metadata event producer
+   * @param serverConfig {@link ServerConfig} that defines the configuration of EbeanServer instances
+   * @param storageConfig {@link LocalDAOStorageConfig} containing storage config of full list of supported aspects
+   * @param urnClass class of the entity URN
+   * @param urnPathExtractor path extractor to index parts of URNs to the secondary index
+   * @param trackingManager {@link BaseTrackingManager} tracking manager for producing tracking requests
+   */
+  public EbeanLocalDAO(@Nonnull BaseTrackingMetadataEventProducer producer, @Nonnull ServerConfig serverConfig,
+      @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass,
+      @Nonnull UrnPathExtractor<URN> urnPathExtractor, @Nonnull BaseTrackingManager trackingManager) {
+    this(producer, createServer(serverConfig), storageConfig, urnClass, urnPathExtractor, trackingManager);
   }
 
   /**
@@ -269,6 +248,23 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   /**
+   * Constructor for EbeanLocalDAO with the option to use the new schema and enable dual-read.
+   *
+   * @param producer {@link BaseTrackingMetadataEventProducer} for the metadata event producer
+   * @param serverConfig {@link ServerConfig} that defines the configuration of EbeanServer instances
+   * @param storageConfig {@link LocalDAOStorageConfig} containing storage config of full list of supported aspects
+   * @param urnClass class of the entity URN
+   * @param urnPathExtractor path extractor to index parts of URNs to the secondary index
+   * @param schemaConfig Enum indicating which schema(s)/table(s) to read from and write to
+   * @param trackingManager {@link BaseTrackingManager} tracking manager for producing tracking requests
+   */
+  public EbeanLocalDAO(@Nonnull BaseTrackingMetadataEventProducer producer, @Nonnull ServerConfig serverConfig,
+      @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass,
+      @Nonnull UrnPathExtractor<URN> urnPathExtractor, @Nonnull SchemaConfig schemaConfig, @Nonnull BaseTrackingManager trackingManager) {
+    this(producer, createServer(serverConfig), serverConfig, storageConfig, urnClass, urnPathExtractor, schemaConfig, trackingManager);
+  }
+
+  /**
    * Constructor for EbeanLocalDAO.
    *
    * @param producer {@link BaseMetadataEventProducer} for the metadata event producer
@@ -279,6 +275,20 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   public EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull ServerConfig serverConfig,
       @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass) {
     this(producer, createServer(serverConfig), storageConfig, urnClass, new EmptyPathExtractor<>());
+  }
+
+  /**
+   * Constructor for EbeanLocalDAO.
+   *
+   * @param producer {@link BaseTrackingMetadataEventProducer} for the tracking metadata event producer
+   * @param serverConfig {@link ServerConfig} that defines the configuration of EbeanServer instances
+   * @param storageConfig {@link LocalDAOStorageConfig} containing storage config of full list of supported aspects
+   * @param urnClass class of the entity URN
+   * @param trackingManager {@link BaseTrackingManager} tracking manager for producing tracking requests
+   */
+  public EbeanLocalDAO(@Nonnull BaseTrackingMetadataEventProducer producer, @Nonnull ServerConfig serverConfig,
+      @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass, @Nonnull BaseTrackingManager trackingManager) {
+    this(producer, createServer(serverConfig), storageConfig, urnClass, new EmptyPathExtractor<>(), trackingManager);
   }
 
   /**
@@ -294,6 +304,125 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass, @Nonnull SchemaConfig schemaConfig) {
     this(producer, createServer(serverConfig), serverConfig, storageConfig, urnClass, new EmptyPathExtractor<>(), schemaConfig);
   }
+
+  /**
+   * Constructor for EbeanLocalDAO with the option to use the new schema and enable dual-read.
+   *
+   * @param producer {@link BaseTrackingMetadataEventProducer} for the metadata event producer
+   * @param serverConfig {@link ServerConfig} that defines the configuration of EbeanServer instances
+   * @param storageConfig {@link LocalDAOStorageConfig} containing storage config of full list of supported aspects
+   * @param urnClass class of the entity URN
+   * @param schemaConfig Enum indicating which schema(s)/table(s) to read from and write to
+   * @param trackingManager {@link BaseTrackingManager} tracking manager for producing tracking requests
+   */
+  public EbeanLocalDAO(@Nonnull BaseTrackingMetadataEventProducer producer, @Nonnull ServerConfig serverConfig,
+      @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass, @Nonnull SchemaConfig schemaConfig,
+      @Nonnull BaseTrackingManager trackingManager) {
+    this(producer, createServer(serverConfig), serverConfig, storageConfig, urnClass, new EmptyPathExtractor<>(), schemaConfig, trackingManager);
+  }
+
+  private EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
+      @Nonnull EbeanServer server, @Nonnull Class<URN> urnClass) {
+    super(aspectUnionClass, producer);
+    _server = server;
+    _urnClass = urnClass;
+    _urnPathExtractor = new EmptyPathExtractor<>();
+  }
+
+  private EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseTrackingMetadataEventProducer producer,
+      @Nonnull EbeanServer server, @Nonnull Class<URN> urnClass, @Nonnull BaseTrackingManager trackingManager) {
+    super(aspectUnionClass, producer, trackingManager);
+    _server = server;
+    _urnClass = urnClass;
+    _urnPathExtractor = new EmptyPathExtractor<>();
+  }
+  private EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
+      @Nonnull EbeanServer server, @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass, @Nonnull SchemaConfig schemaConfig) {
+    this(aspectUnionClass, producer, server, urnClass);
+    _schemaConfig = schemaConfig;
+    if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
+      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, _urnPathExtractor);
+    }
+  }
+
+  private EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseTrackingMetadataEventProducer producer,
+      @Nonnull EbeanServer server, @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass, @Nonnull SchemaConfig schemaConfig,
+      @Nonnull BaseTrackingManager trackingManager) {
+    this(aspectUnionClass, producer, server, urnClass, trackingManager);
+    _schemaConfig = schemaConfig;
+    if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
+      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, _urnPathExtractor);
+    }
+  }
+
+  private EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
+      @Nonnull EbeanServer server, @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass, @Nonnull FindMethodology findMethodology) {
+    this(aspectUnionClass, producer, server, urnClass);
+    _findMethodology = findMethodology;
+  }
+
+  // Only called in testing (test all possible combos of SchemaConfig and FindMethodology)
+  @VisibleForTesting
+  EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
+      @Nonnull EbeanServer server, @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass,
+      @Nonnull SchemaConfig schemaConfig,
+      @Nonnull FindMethodology findMethodology) {
+    this(aspectUnionClass, producer, server, serverConfig, urnClass, schemaConfig);
+    _findMethodology = findMethodology;
+  }
+
+  @VisibleForTesting
+  EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull EbeanServer server,
+      @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass,
+      @Nonnull UrnPathExtractor<URN> urnPathExtractor) {
+    super(producer, storageConfig);
+    _server = server;
+    _urnClass = urnClass;
+    _urnPathExtractor = urnPathExtractor;
+  }
+
+  private EbeanLocalDAO(@Nonnull BaseTrackingMetadataEventProducer producer, @Nonnull EbeanServer server,
+      @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass,
+      @Nonnull UrnPathExtractor<URN> urnPathExtractor, @Nonnull BaseTrackingManager trackingManager) {
+    super(producer, storageConfig, trackingManager);
+    _server = server;
+    _urnClass = urnClass;
+    _urnPathExtractor = urnPathExtractor;
+  }
+
+  private EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull EbeanServer server,
+      @Nonnull ServerConfig serverConfig, @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass,
+      @Nonnull UrnPathExtractor<URN> urnPathExtractor, @Nonnull SchemaConfig schemaConfig) {
+    this(producer, server, storageConfig, urnClass, urnPathExtractor);
+    _schemaConfig = schemaConfig;
+    if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
+      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, urnPathExtractor);
+    }
+  }
+
+  private EbeanLocalDAO(@Nonnull BaseTrackingMetadataEventProducer producer, @Nonnull EbeanServer server, @Nonnull ServerConfig serverConfig,
+      @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass, @Nonnull UrnPathExtractor<URN> urnPathExtractor,
+      @Nonnull SchemaConfig schemaConfig, @Nonnull BaseTrackingManager trackingManager) {
+    this(producer, server, storageConfig, urnClass, urnPathExtractor, trackingManager);
+    _schemaConfig = schemaConfig;
+    if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
+      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, urnPathExtractor);
+    }
+  }
+
+  @VisibleForTesting
+  EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull EbeanServer server,
+      @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass) {
+    this(producer, server, storageConfig, urnClass, new EmptyPathExtractor<>());
+  }
+
+  @VisibleForTesting
+  EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull EbeanServer server, @Nonnull ServerConfig serverConfig,
+      @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass, @Nonnull SchemaConfig schemaConfig) {
+    this(producer, server, serverConfig, storageConfig, urnClass, new EmptyPathExtractor<>(), schemaConfig);
+  }
+
+
 
   public void setUrnPathExtractor(@Nonnull UrnPathExtractor<URN> urnPathExtractor) {
     if (_schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
@@ -453,23 +582,23 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     // TODO(@jphui) added for job-gms duplicity debug, throwaway afterwards
 
     // JDBC sanity check: should MATCH Ebean's results
-    if (log.isDebugEnabled() && "AzkabanFlowInfo".equals(aspectClass.getSimpleName())) { 
+    if (log.isDebugEnabled() && "AzkabanFlowInfo".equals(aspectClass.getSimpleName())) {
       final String sqlQuery = "SELECT * FROM metadata_aspect "
           + "WHERE urn = ? and aspect = ? and version = 0";
-        
+
       try (Transaction transaction = _server.beginTransaction()) {
-      
-        // use PreparedStatement 
+
+        // use PreparedStatement
         try (PreparedStatement stmt = transaction.getConnection().prepareStatement(sqlQuery)) {
           stmt.setString(1, urn.toString());
           stmt.setString(2, aspectName);
-          
+
           try (ResultSet rset = stmt.executeQuery()) {
             rset.last();  // go to the last returned record
             log.debug("JDBC found {} existing records", rset.getRow());
           }
         }
-      
+
         transaction.commit();
       } catch (SQLException e) {
         log.debug("JDBC ran into a SQLException: {}", e.getMessage());
