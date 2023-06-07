@@ -45,6 +45,7 @@ import io.ebean.config.ServerConfig;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URISyntaxException;
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -450,33 +451,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       return _server.find(EbeanMetadataAspect.class, key);
     }
 
-    // TODO(@jphui) added for job-gms duplicity debug, throwaway afterwards
-
-    // JDBC sanity check: should MATCH Ebean's results
-    if (log.isDebugEnabled() && "AzkabanFlowInfo".equals(aspectClass.getSimpleName())) { 
-      final String sqlQuery = "SELECT * FROM metadata_aspect "
-          + "WHERE urn = ? and aspect = ? and version = 0";
-        
-      try (Transaction transaction = _server.beginTransaction()) {
-      
-        // use PreparedStatement 
-        try (PreparedStatement stmt = transaction.getConnection().prepareStatement(sqlQuery)) {
-          stmt.setString(1, urn.toString());
-          stmt.setString(2, aspectName);
-          
-          try (ResultSet rset = stmt.executeQuery()) {
-            rset.last();  // go to the last returned record
-            log.debug("JDBC found {} existing records", rset.getRow());
-          }
-        }
-      
-        transaction.commit();
-      } catch (SQLException e) {
-        log.debug("JDBC ran into a SQLException: {}", e.getMessage());
-      }
-    }
-
-    List<EbeanMetadataAspect> results = Collections.emptyList();
+    List<EbeanMetadataAspect> results;
     Query<EbeanMetadataAspect> query = Ebean.find(EbeanMetadataAspect.class); // non-null placeholder to be overridden
 
     if (_findMethodology == FindMethodology.DIRECT_SQL) {
@@ -510,6 +485,24 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
           aspectName,
           0L
         );
+      final String sqlQuery = "SELECT COUNT(*) AS total_count FROM metadata_aspect "
+          + "WHERE urn = ? and aspect = ? and version = 0";
+
+      // use PreparedStatement
+      try (Connection connection = _server.getPluginApi().getDataSource().getConnection();
+          PreparedStatement stmt = connection.prepareStatement(sqlQuery)) {
+        stmt.setString(1, urn.toString());
+        stmt.setString(2, aspectName);
+        try (ResultSet rset = stmt.executeQuery()) {
+          int totalCount = 0;
+          if (rset.next()) {
+            totalCount = rset.getInt("total_count");
+          }
+          log.debug("JDBC found {} existing records", totalCount);
+        }
+      } catch (SQLException e) {
+        log.debug("JDBC ran into a SQLException: {}", e.toString());
+      }
     }
 
     if (results.isEmpty()) {
