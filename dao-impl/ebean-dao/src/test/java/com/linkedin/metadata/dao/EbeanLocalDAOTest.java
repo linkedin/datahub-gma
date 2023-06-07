@@ -19,10 +19,12 @@ import com.linkedin.metadata.dao.exception.InvalidMetadataType;
 import com.linkedin.metadata.dao.exception.RetryLimitReached;
 import com.linkedin.metadata.dao.localrelationship.SampleLocalRelationshipRegistryImpl;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
+import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
 import com.linkedin.metadata.dao.retention.VersionBasedRetention;
 import com.linkedin.metadata.dao.scsi.UrnPathExtractor;
 import com.linkedin.metadata.dao.storage.LocalDAOStorageConfig;
+import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.utils.BarUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.BazUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.EbeanServerUtils;
@@ -67,6 +69,7 @@ import io.ebean.PagedList;
 import io.ebean.Query;
 import io.ebean.SqlRow;
 import io.ebean.Transaction;
+import io.ebean.config.ServerConfig;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
@@ -92,6 +95,8 @@ import javax.persistence.RollbackException;
 
 import org.mockito.ArgumentMatchers;
 import org.mockito.InOrder;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
@@ -109,6 +114,8 @@ public class EbeanLocalDAOTest {
   private long _now;
   private EbeanServer _server;
   private BaseMetadataEventProducer _mockProducer;
+  private BaseTrackingMetadataEventProducer _mockTrackingProducer;
+  private BaseTrackingManager _mockTrackingManager;
   private AuditStamp _dummyAuditStamp;
 
   // run the tests 1 time for each of EbeanLocalDAO.SchemaConfig values (3 total)
@@ -160,6 +167,8 @@ public class EbeanLocalDAOTest {
       _server.execute(Ebean.createSqlUpdate(readSQLfromFile(NEW_SCHEMA_CREATE_ALL_SQL)));
     }
     _mockProducer = mock(BaseMetadataEventProducer.class);
+    _mockTrackingProducer = mock(BaseTrackingMetadataEventProducer.class);
+    _mockTrackingManager = mock(BaseTrackingManager.class);
     _now = Instant.now().getEpochSecond() * 1000;
     _dummyAuditStamp = makeAuditStamp("foo", _now);
   }
@@ -192,6 +201,63 @@ public class EbeanLocalDAOTest {
   @Nonnull
   private <URN extends Urn> EbeanLocalDAO<EntityAspectUnion, URN> createDao(@Nonnull Class<URN> urnClass) {
     return createDao(_server, urnClass);
+  }
+
+  @Test
+  public void testPublicConstructorsWithTracking() {
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      ServerConfig serverConfig = mock(ServerConfig.class);
+      try (MockedStatic<EbeanServerUtils> utils = Mockito.mockStatic(EbeanServerUtils.class)) {
+        utils.when(() -> EbeanServerUtils.createServer(serverConfig)).thenReturn(_server);
+        testPublicConstructorsWithTrackingHelper(serverConfig);
+      }
+    } else {
+      ServerConfig serverConfig = EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName());
+      testPublicConstructorsWithTrackingHelper(serverConfig);
+    }
+  }
+
+  private void testPublicConstructorsWithTrackingHelper(ServerConfig serverConfig) {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao1 = new EbeanLocalDAO<>(EntityAspectUnion.class, _mockTrackingProducer,
+        serverConfig, FooUrn.class, _mockTrackingManager);
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao2 = new EbeanLocalDAO<>(EntityAspectUnion.class, _mockTrackingProducer,
+        serverConfig, FooUrn.class, _schemaConfig, _mockTrackingManager);
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao3 = new EbeanLocalDAO<>(_mockTrackingProducer,
+        serverConfig, makeLocalDAOStorageConfig(AspectFoo.class,
+        Collections.singletonList("/value")), FooUrn.class, new FooUrnPathExtractor(), _mockTrackingManager);
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao4 = new EbeanLocalDAO<>(_mockTrackingProducer,
+        serverConfig, makeLocalDAOStorageConfig(AspectFoo.class,
+        Collections.singletonList("/value")), FooUrn.class, new FooUrnPathExtractor(), _schemaConfig, _mockTrackingManager);
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao5 = new EbeanLocalDAO<>(_mockTrackingProducer,
+        serverConfig, makeLocalDAOStorageConfig(AspectFoo.class,
+        Collections.singletonList("/value")), FooUrn.class, _mockTrackingManager);
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao6 = new EbeanLocalDAO<>(_mockTrackingProducer,
+        serverConfig, makeLocalDAOStorageConfig(AspectFoo.class,
+        Collections.singletonList("/value")), FooUrn.class, _schemaConfig, _mockTrackingManager);
+
+    assertNotNull(dao1._trackingManager);
+    assertNull(dao1._producer);
+    assertNotNull(dao1._trackingProducer);
+
+    assertNotNull(dao2._trackingManager);
+    assertNull(dao2._producer);
+    assertNotNull(dao2._trackingProducer);
+
+    assertNotNull(dao3._trackingManager);
+    assertNull(dao3._producer);
+    assertNotNull(dao3._trackingProducer);
+
+    assertNotNull(dao4._trackingManager);
+    assertNull(dao4._producer);
+    assertNotNull(dao4._trackingProducer);
+
+    assertNotNull(dao5._trackingManager);
+    assertNull(dao5._producer);
+    assertNotNull(dao5._trackingProducer);
+
+    assertNotNull(dao6._trackingManager);
+    assertNull(dao6._producer);
+    assertNotNull(dao6._trackingProducer);
   }
 
   @Test(expectedExceptions = InvalidMetadataType.class)
