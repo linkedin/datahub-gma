@@ -34,6 +34,7 @@ public class TrackingUtils {
     // Start point of search request.
     SEARCH_QUERY_START("searchQuery.start"),
 
+    // Please refer to http://go/mg/healthmonitoring for definitions on each of these process states.
     // Process states in Local DAO.
     MYSQL_WRITE_SUCCESS("dao.mysqlWrite.success"),
     MYSQL_WRITE_FAILURE("dao.mySqlWrite.failure"),
@@ -56,13 +57,17 @@ public class TrackingUtils {
     PREPROCESS_SEARCH_FAILURE("maev5-elasticsearch-job.preprocess.failure"),
     BULKPROCESSOR_SEARCH_SUCCESS("maev5-elasticsearch-job.bulkProcessor.success"),
     BULKPROCESSOR_SEARCH_FAILURE("maev5-elasticsearch-job.bulkProcessor.failure"),
+    SEARCH_FAILURE_EVENT_SUCCESS("maev5-elasticsearch-job.failureEvent.success"),
+    SEARCH_FAILURE_EVENT_FAILURE("maev5-elasticsearch-job.failureEvent.failure"),
 
     // Process states in MAEv5 Consumer Graph Job
     MAEV5_RECEIVED_GRAPH("maev5-es-graph-job.maev5.received"),
     PREPROCESS_GRAPH_SUCCESS("maev5-es-graph-job.preprocess.success"),
     PREPROCESS_GRAPH_FAILURE("maev5-es-graph-job.preprocess.failure"),
     BULKPROCESSOR_GRAPH_SUCCESS("maev5-es-graph-job.bulkProcessor.success"),
-    BULKPROCESSOR_GRAPH_FAILURE("maev5-es-graph-job.bulkProcessor.failure");
+    BULKPROCESSOR_GRAPH_FAILURE("maev5-es-graph-job.bulkProcessor.failure"),
+    GRAPH_FAILURE_EVENT_SUCCESS("maev5-es-graph-job.failureEvent.success"),
+    GRAPH_FAILURE_EVENT_FAILURE("maev5-es-graph-job.failureEvent.failure");
 
     private final String _name;
 
