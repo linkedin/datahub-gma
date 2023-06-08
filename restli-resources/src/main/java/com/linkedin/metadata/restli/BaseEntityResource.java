@@ -718,7 +718,7 @@ public abstract class BaseEntityResource<
    * Creates a snapshot of the entity with no aspects set, just the URN.
    */
   @Nonnull
-  private SNAPSHOT newSnapshot(@Nonnull URN urn) {
+  protected SNAPSHOT newSnapshot(@Nonnull URN urn) {
     return ModelUtils.newSnapshot(_snapshotClass, urn, Collections.emptyList());
   }
 

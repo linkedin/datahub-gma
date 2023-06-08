@@ -143,24 +143,19 @@ public abstract class BaseAspectRoutingResource<
     return RestliUtils.toTask(() -> {
       final Set<Class<? extends RecordTemplate>> aspectClasses = parseAspectsParam(aspectNames);
 
-      // Get entity from aspect GMS
-      if (containsRoutingAspect(aspectClasses) && aspectClasses.size() == 1) {
-        return merge(null, getValueFromRoutingGms(toUrn(id), aspectClasses));
-      }
-
       // The assumption is main GMS must have this entity.
       // If entity only has routing aspect, resourceNotFoundException will be thrown.
-      if (!getLocalDAO().exists(toUrn(id))) {
-        throw RestliUtils.resourceNotFoundException();
+      final URN urn = toUrn(id);
+      if (!getLocalDAO().exists(urn)) {
+        throw RestliUtils.resourceNotFoundException(String.format("Cannot find entity {%s} from Master GMS.", urn));
       }
-
-      // Get entity from local DAO
-      if (!containsRoutingAspect(aspectClasses)) {
-        return getValueFromLocalDao(id, aspectClasses);
+      final Set<Class<? extends RecordTemplate>> nonRoutingAspects = getNonRoutingAspects(aspectClasses);
+      final VALUE valueFromLocalDao;
+      if (nonRoutingAspects.isEmpty()) {
+        valueFromLocalDao = toValue(newSnapshot(urn));
+      } else {
+        valueFromLocalDao = getValueFromLocalDao(id, nonRoutingAspects);
       }
-
-      // Need to read from both aspect GMS and local DAO.
-      final VALUE valueFromLocalDao = getValueFromLocalDao(id, getNonRoutingAspects(aspectClasses));
       return merge(valueFromLocalDao, getValueFromRoutingGms(toUrn(id), getRoutingAspects(aspectClasses)));
     });
   }
@@ -392,16 +387,7 @@ public abstract class BaseAspectRoutingResource<
    * @return Merged entity value which will contain routing aspect value
    */
   @Nonnull
-  private VALUE merge(@Nullable VALUE valueFromLocalDao, @Nullable List<? extends RecordTemplate> routingAspects) {
-    //final String setterMethodName = "set" + getRoutingAspectFieldName();
-    if (valueFromLocalDao == null) {
-      try {
-        valueFromLocalDao = _valueClass.getDeclaredConstructor().newInstance();
-      } catch (Exception e) {
-        throw new RestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
-            "Failed to create new instance of class " + _valueClass.getCanonicalName(), e);
-      }
-    }
+  private VALUE merge(@Nonnull VALUE valueFromLocalDao, @Nullable List<? extends RecordTemplate> routingAspects) {
     for (RecordTemplate routingAspect : routingAspects) {
       try {
         String setterMethodName = getAspectRoutingGmsClientManager().getRoutingAspectSetterName(routingAspect.getClass());
