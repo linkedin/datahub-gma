@@ -56,7 +56,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
   class TestResource extends BaseAspectRoutingResource<
       // format
-      ComplexResourceKey<EntityKey, EmptyRecord>, EntityValue, Urn, EntitySnapshot, EntityAspectUnion, EntityDocument, AspectFoo> {
+      ComplexResourceKey<EntityKey, EmptyRecord>, EntityValue, Urn, EntitySnapshot, EntityAspectUnion, EntityDocument> {
 
     public TestResource() {
       super(EntitySnapshot.class, EntityAspectUnion.class, EntityValue.class);
