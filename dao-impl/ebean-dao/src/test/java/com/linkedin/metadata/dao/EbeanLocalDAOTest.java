@@ -3112,7 +3112,6 @@ public class EbeanLocalDAOTest {
 
       // when retrieving a v0-duplicate record, the returned value should be the LATEST (timestamp=1234L)
       AspectFoo actual = dao.get(AspectFoo.class, urn).get();
-      System.out.println(actual);
       assertEquals(actual, v1);
     }
   }
