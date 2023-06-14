@@ -135,18 +135,6 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
       return snapshot;
     }
 
-    @Nonnull
-    @Override
-    public String getRoutingAspectFieldName() {
-      return "Foo";
-    }
-
-    @Nonnull
-    @Override
-    public BaseAspectRoutingGmsClient getGmsClient() {
-      return _mockAspectFooGmsClient;
-    }
-
     @Override
     public AspectRoutingGmsClientManager getAspectRoutingGmsClientManager() {
       return _aspectRoutingGmsClientManager;

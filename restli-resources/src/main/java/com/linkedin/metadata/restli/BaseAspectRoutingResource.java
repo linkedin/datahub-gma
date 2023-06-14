@@ -72,28 +72,12 @@ public abstract class BaseAspectRoutingResource<
 
   public BaseAspectRoutingResource(@Nonnull Class<SNAPSHOT> snapshotClass,
       @Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull Class<URN> urnClass,
-      @Nonnull Class<VALUE> valueClass, @Nullable Object dummyObject) {
+      @Nonnull Class<VALUE> valueClass) {
     super(snapshotClass, aspectUnionClass, urnClass);
-    // "dummyObject" the dummyObject is used to avoid the conflict with the two deprecated constructors
-    // TODO(yanyang) clean up dummyObject when removing the deprecated constructors
     _valueClass = valueClass;
     _aspectUnionClass = aspectUnionClass;
     _snapshotClass = snapshotClass;
   }
-
-  /**
-   * Get routing aspect field name in the entity.
-   * @return Routing aspect field name.
-   */
-  @Deprecated
-  public abstract String getRoutingAspectFieldName();
-
-  /**
-   * Get the client of GMS that routing aspect will be routed to.
-   * @return A client of the GMS for routing aspect.
-   */
-  @Deprecated
-  public abstract BaseAspectRoutingGmsClient getGmsClient();
 
   /**
    * Get the aspect routing client manager which provides multiple aspect routing support.
