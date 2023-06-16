@@ -189,15 +189,18 @@ public abstract class BaseAspectRoutingResource<
         if (!aspectsToIgnore.contains(aspect.getClass())) {
           if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
             try {
-              getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingest(urn, aspect);
-
+              if (trackingContext != null) {
+                getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingestWithTracking(urn, aspect, trackingContext);
+              } else {
+                getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingest(urn, aspect);
+              }
             } catch (Exception exception) {
               log.error(
                   String.format("Couldn't ingest routing aspect %s for %s", aspect.getClass().getSimpleName(), urn),
                   exception);
             }
           } else {
-            getLocalDAO().add(urn, aspect, auditStamp);
+            getLocalDAO().add(urn, aspect, auditStamp, trackingContext);
           }
         }
       });
