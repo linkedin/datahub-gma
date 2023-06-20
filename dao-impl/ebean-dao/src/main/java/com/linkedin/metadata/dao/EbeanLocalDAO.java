@@ -201,6 +201,24 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   /**
+   * Constructor for EbeanLocalDAO with the option to use an alternate Ebean find methodology for record insertion.
+   * See GCN-38382
+   *
+   * @param aspectUnionClass containing union of all supported aspects. Must be a valid aspect union defined in com.linkedin.metadata.aspect
+   * @param producer {@link BaseTrackingMetadataEventProducer} for the metadata event producer
+   * @param serverConfig {@link ServerConfig} that defines the configuration of EbeanServer instances
+   * @param urnClass Class of the entity URN
+   * @param findMethodology Enum indicating which find configuration to use
+   * @param trackingManager {@link BaseTrackingManager} tracking manager for producing tracking requests
+   */
+  public EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass,
+      @Nonnull BaseTrackingMetadataEventProducer producer, @Nonnull ServerConfig serverConfig,
+      @Nonnull Class<URN> urnClass, @Nonnull FindMethodology findMethodology,
+      @Nonnull BaseTrackingManager trackingManager) {
+    this(aspectUnionClass, producer, createServer(serverConfig), serverConfig, urnClass, findMethodology, trackingManager);
+  }
+
+  /**
    * Constructor for EbeanLocalDAO.
    *
    * @param producer {@link BaseMetadataEventProducer} for the metadata event producer
@@ -358,6 +376,14 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   private EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
       @Nonnull EbeanServer server, @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass, @Nonnull FindMethodology findMethodology) {
     this(aspectUnionClass, producer, server, urnClass);
+    _findMethodology = findMethodology;
+  }
+
+  private EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass,
+      @Nonnull BaseTrackingMetadataEventProducer producer, @Nonnull EbeanServer server,
+      @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass, @Nonnull FindMethodology findMethodology,
+      @Nonnull BaseTrackingManager trackingManager) {
+    this(aspectUnionClass, producer, server, urnClass, trackingManager);
     _findMethodology = findMethodology;
   }
 
