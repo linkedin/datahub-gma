@@ -11,6 +11,7 @@ import com.linkedin.metadata.dao.AspectKey;
 import com.linkedin.metadata.dao.BaseLocalDAO;
 import com.linkedin.metadata.dao.BaseSearchDAO;
 import com.linkedin.metadata.dao.ListResult;
+import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.ExtraInfoArray;
 import com.linkedin.metadata.query.ListResultMetadata;
@@ -131,6 +132,17 @@ public class BaseAspectV2ResourceTest extends BaseEngineTest {
     runAndWait(_resource.create(ENTITY_URN, foo));
 
     verify(_mockLocalDAO, times(1)).add(eq(ENTITY_URN), eq(foo), any(AuditStamp.class));
+    verifyNoMoreInteractions(_mockLocalDAO);
+  }
+
+  @Test
+  public void testCreateWithTracking() {
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    IngestionTrackingContext trackingContext = new IngestionTrackingContext();
+
+    runAndWait(_resource.createWithTracking(ENTITY_URN, foo, trackingContext));
+
+    verify(_mockLocalDAO, times(1)).add(eq(ENTITY_URN), eq(foo), any(AuditStamp.class), eq(trackingContext));
     verifyNoMoreInteractions(_mockLocalDAO);
   }
 

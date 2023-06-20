@@ -11,6 +11,7 @@ import com.linkedin.metadata.dao.BaseLocalDAO;
 import com.linkedin.metadata.dao.BaseSearchDAO;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
+import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.parseq.BaseEngineTest;
 import com.linkedin.restli.common.ComplexResourceKey;
 import com.linkedin.restli.common.EmptyRecord;
@@ -284,9 +285,28 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     runAndWait(_resource.ingest(snapshot));
 
-    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any());
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(null));
     verify(_mockAspectFooGmsClient, times(1)).ingest(eq(urn), eq(foo));
     verify(_mockAspectAttributeGmsClient, times(1)).ingest(eq(urn), eq(attributes));
+    verifyNoMoreInteractions(_mockLocalDAO);
+  }
+
+  @Test
+  public void testIngestWithTrackingWithRoutingAspect() {
+    FooUrn urn = makeFooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectBar bar = new AspectBar().setValue("bar");
+    AspectAttributes attributes = new AspectAttributes();
+    List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, foo),
+        ModelUtils.newAspectUnion(EntityAspectUnion.class, bar), ModelUtils.newAspectUnion(EntityAspectUnion.class, attributes));
+    EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
+    IngestionTrackingContext trackingContext = new IngestionTrackingContext();
+
+    runAndWait(_resource.ingestWithTracking(snapshot, trackingContext));
+
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(trackingContext));
+    verify(_mockAspectFooGmsClient, times(1)).ingestWithTracking(eq(urn), eq(foo), eq(trackingContext));
+    verify(_mockAspectAttributeGmsClient, times(1)).ingestWithTracking(eq(urn), eq(attributes), eq(trackingContext));
     verifyNoMoreInteractions(_mockLocalDAO);
   }
 
@@ -299,7 +319,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     runAndWait(_resource.ingest(snapshot));
 
-    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any());
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(null));
     verifyZeroInteractions(_mockAspectFooGmsClient);
     verifyNoMoreInteractions(_mockLocalDAO);
   }
