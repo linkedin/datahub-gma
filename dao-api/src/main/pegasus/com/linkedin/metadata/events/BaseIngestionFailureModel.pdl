@@ -39,7 +39,7 @@ record BaseIngestionFailureModel {
   errorType: string
 
   /**
-   * time when the the failure happens. UTC-0 timestamp in milliseconds.
+   * time when the failure happens. UTC-0 timestamp in milliseconds.
    */
   failureTime: optional long
 }
