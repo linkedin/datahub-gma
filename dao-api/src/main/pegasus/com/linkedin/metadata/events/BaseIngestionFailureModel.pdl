@@ -37,4 +37,9 @@ record BaseIngestionFailureModel {
    * Error type. The number of possible error types is not limited, so we use string instead of enum.
    */
   errorType: string
+
+  /**
+   * time when the the failure happens. UTC-0 timestamp in milliseconds.
+   */
+  failureTime: optional long
 }
