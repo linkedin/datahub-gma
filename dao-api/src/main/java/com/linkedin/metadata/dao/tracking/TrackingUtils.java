@@ -81,10 +81,21 @@ public class TrackingUtils {
   }
 
   /*
-   * LI: go/tracking/dimensions
+   * LI: http://go/metadata/tracking/dimensions
    */
-  public final static String DIMENSION_ASPECT_TYPE = "aspectType";
-  public final static String DIMENSION_ERROR_TYPE = "errorType";
+  public enum Dimension {
+    DIMENSION_ASPECT_TYPE("aspectType"),
+    DIMENSION_ERROR_TYPE("errorType");
+
+    private final String _name;
+    Dimension(String name) {
+      _name = name;
+    }
+
+    public String getName() {
+      return _name;
+    }
+  }
 
   /**
    * Create a fixed 16 size random byte array for trackingID.
