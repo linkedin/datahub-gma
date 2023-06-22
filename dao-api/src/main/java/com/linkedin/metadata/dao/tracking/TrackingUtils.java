@@ -84,8 +84,8 @@ public class TrackingUtils {
    * LI: http://go/metadata/tracking/dimensions
    */
   public enum Dimension {
-    DIMENSION_ASPECT_TYPE("aspectType"),
-    DIMENSION_ERROR_TYPE("errorType");
+    ASPECT_TYPE("aspectType"),
+    ERROR_TYPE("errorType");
 
     private final String _name;
 
