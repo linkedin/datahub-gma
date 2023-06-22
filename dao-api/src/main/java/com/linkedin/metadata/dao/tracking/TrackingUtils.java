@@ -34,7 +34,7 @@ public class TrackingUtils {
     // Start point of search request.
     SEARCH_QUERY_START("searchQuery.start"),
 
-    // Please refer to http://go/mg/healthmonitoring for definitions on each of these process states.
+    // LI: Please refer to http://go/mg/healthmonitoring for definitions on each of these process states.
     // Process states in Local DAO.
     MYSQL_WRITE_SUCCESS("dao.mysqlWrite.success"),
     MYSQL_WRITE_FAILURE("dao.mySqlWrite.failure"),
@@ -72,6 +72,24 @@ public class TrackingUtils {
     private final String _name;
 
     ProcessType(String name) {
+      _name = name;
+    }
+
+    public String getName() {
+      return _name;
+    }
+  }
+
+  /*
+   * LI: http://go/metadata/tracking/dimensions
+   */
+  public enum Dimension {
+    ASPECT_TYPE("aspectType"),
+    ERROR_TYPE("errorType");
+
+    private final String _name;
+
+    Dimension(String name) {
       _name = name;
     }
 
