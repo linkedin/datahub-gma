@@ -88,6 +88,7 @@ public class TrackingUtils {
     DIMENSION_ERROR_TYPE("errorType");
 
     private final String _name;
+
     Dimension(String name) {
       _name = name;
     }
