@@ -40,6 +40,7 @@ import io.ebean.Ebean;
 import io.ebean.EbeanServer;
 import io.ebean.ExpressionList;
 import io.ebean.PagedList;
+import io.ebean.PersistenceContextScope;
 import io.ebean.Query;
 import io.ebean.SqlUpdate;
 import io.ebean.Transaction;
@@ -666,6 +667,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
           0L
         );
     }
+
+    // disable L1 caching, then execute
+    results = query.setPersistenceContextScope(PersistenceContextScope.QUERY).findList();
 
     if (results.isEmpty()) {
       return null;
