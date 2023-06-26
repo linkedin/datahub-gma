@@ -85,7 +85,8 @@ public class TrackingUtils {
    */
   public enum Dimension {
     ASPECT_TYPE("aspectType"),
-    ERROR_TYPE("errorType");
+    ERROR_TYPE("errorType"),
+    ORIGINAL_EMIT_TIME("originalEmitTime");
 
     private final String _name;
 
