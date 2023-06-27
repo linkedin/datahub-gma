@@ -5,9 +5,13 @@ import com.linkedin.metadata.dao.EbeanMetadataAspect;
 import com.linkedin.metadata.dao.ListResult;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.aspect.SoftDeletedAspect;
+import io.ebean.EbeanServer;
 import io.ebean.SqlRow;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
@@ -191,5 +195,44 @@ public class EBeanDAOUtils {
       log.error(String.format("Failed to parse string %s as AuditedAspect. Exception: %s", auditedAspect, parseException));
       throw new RuntimeException(parseException);
     }
+  }
+
+  private static final String GET_LATEST_SQL =
+      "SELECT * FROM metadata_aspect WHERE urn = ? and aspect = ? and version = 0";
+
+  /**
+   * Test method to find {@link EbeanMetadataAspect} with JDBC implementation.
+   * @param urn urn of the queried entity
+   * @param aspectName aspect name in canonical form
+   * @param server Ebean server
+   * @param key primary key {@link com.linkedin.metadata.dao.EbeanMetadataAspect.PrimaryKey}
+   * @return {@link EbeanMetadataAspect}
+   */
+  public static EbeanMetadataAspect getWithJdbc(@Nonnull final String urn, @Nonnull final String aspectName,
+      @Nonnull final EbeanServer server, @Nonnull EbeanMetadataAspect.PrimaryKey key) {
+
+    EbeanMetadataAspect aspect = null;
+    if (server.getPluginApi() == null) {
+      log.warn("cannot get pluginApi from ebean server, {}", server);
+      return null;
+    }
+    try (Connection connection = server.getPluginApi().getDataSource().getConnection();
+        PreparedStatement preparedStatement = connection.prepareStatement(GET_LATEST_SQL);) {
+      preparedStatement.setString(1, urn);
+      preparedStatement.setString(2, aspectName);
+      try (ResultSet resultSet = preparedStatement.executeQuery()) {
+        if (resultSet.next()) {
+          aspect = new EbeanMetadataAspect();
+          aspect.setMetadata(resultSet.getString("metadata"));
+          aspect.setCreatedBy(resultSet.getString("createdBy"));
+          aspect.setCreatedOn(resultSet.getTimestamp("createdOn"));
+          aspect.setCreatedFor(resultSet.getString("createdFor"));
+          aspect.setKey(key);
+        }
+      }
+    } catch (Exception throwables) {
+      log.error("Failed with JDBC extraction: {}", throwables.toString());
+    }
+    return aspect;
   }
 }
