@@ -175,6 +175,19 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
          * Tracking context to identify the lifecycle of the trackable ingestion item.
          */
         ingestionTrackingContext: optional union[null, IngestionTrackingContext] = null
+        
+        /**
+         * Flag to indicate if the event is a backfill request. True if the event is a backfill request. False and null mean it's not.
+         *
+         * Historically, the term "backfill" in gma may refer to
+         * 1. hitting the rest.li backfill endpoint of a resource
+         * 2. bootstrap a new aspect/entity in the graph store from scratch. Currently, if the oldValue and the newValue are the same,
+         * we treat it as a bootstrap mae and only consume it if a specific config is enabled.
+         *
+         * The field here indicates it's a backfill request resulted from 1, and should overwrite secondary store in live
+         * regardless of the config mentioned in 2.
+         */
+        isBackfill: optional boolean
       }'''.stripIndent()
 
     projectFile('build/my-dummy-module/generateMetadataEventsSchema/com/linkedin/mxe/foo/testAspect/FailedMetadataChangeEvent.pdl').text == '''\
@@ -289,6 +302,19 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
          * Tracking context to identify the lifecycle of the trackable ingestion item.
          */
         ingestionTrackingContext: optional union[null, IngestionTrackingContext] = null
+        
+        /**
+         * Flag to indicate if the event is a backfill request. True if the event is a backfill request. False and null mean it's not.
+         *
+         * Historically, the term "backfill" in gma may refer to
+         * 1. hitting the rest.li backfill endpoint of a resource
+         * 2. bootstrap a new aspect/entity in the graph store from scratch. Currently, if the oldValue and the newValue are the same,
+         * we treat it as a bootstrap mae and only consume it if a specific config is enabled.
+         *
+         * The field here indicates it's a backfill request resulted from 1, and should overwrite secondary store in live
+         * regardless of the config mentioned in 2.
+         */
+        isBackfill: optional boolean
       }'''.stripIndent()
 
     projectFile('build/my-dummy-module/generateMetadataEventsSchema/com/linkedin/mxe/foo/testTyperefAspect/FailedMetadataChangeEvent.pdl').text == '''\
