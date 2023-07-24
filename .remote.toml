@@ -1,0 +1,17 @@
+[[hosts]]
+host = "jinxma-ld1.linkedin.biz"
+directory = ".remotes/datahub-gma_2c1f8a01"
+default = true
+supports_gssapi_auth = true
+
+[push]
+exclude = []
+include = []
+
+[pull]
+exclude = []
+include = []
+
+[both]
+exclude = [ ".remote.toml",]
+include = []

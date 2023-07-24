@@ -14,9 +14,4 @@ record IngestionTrackingContext includes BaseTrackingContext {
    * The time at which the ingestion event was emitted into kafka.
    */
   emitTime: optional long
-
-  /**
-   * Indicates whether the ingestion event is a backfill event. empty or false means it is not a backfill event.
-   */
-  isBackfill: optional boolean
 }
