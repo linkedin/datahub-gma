@@ -21,8 +21,13 @@ import io.ebean.EbeanServer;
 import io.ebean.SqlQuery;
 import io.ebean.SqlRow;
 import io.ebean.SqlUpdate;
+import io.ebean.Transaction;
 import io.ebean.annotation.Transactional;
 import io.ebean.config.ServerConfig;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.Collections;
 import java.util.HashMap;
@@ -417,5 +422,82 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
         serverConfig.getDataSourceConfig().getUsername());
 
     return new FlywaySchemaEvolutionManager(config);
+  }
+
+  /**
+   * SQL implementation of find the latest {@link EbeanMetadataAspect}.
+   * @param connection {@link Connection} get from the current transaction, it should not be closed manually
+   * @param urn entity urn
+   * @param aspectClass aspect class
+   * @param <ASPECT> aspect class type
+   * @return {@link EbeanMetadataAspect} of the first record or NULL if there's no such an record.
+   */
+  private static <ASPECT extends RecordTemplate, URN> EbeanMetadataAspect findLatestMetadataAspect(
+      @Nonnull Connection connection, @Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass) {
+    final String aspectName = ModelUtils.getAspectName(aspectClass);
+    PreparedStatement preparedStatement;
+    try {
+      preparedStatement = connection.prepareStatement(FIND_LATEST_SQL_TEMPLATE);
+      preparedStatement.setString(1, urn.toString());
+      preparedStatement.setString(2, aspectName);
+      preparedStatement.setInt(3, 0); // version = 0
+      ResultSet resultSet = preparedStatement.executeQuery();
+      if (resultSet.next()) {
+        EbeanMetadataAspect ebeanMetadataAspect = new EbeanMetadataAspect();
+        ebeanMetadataAspect.setKey(new EbeanMetadataAspect.PrimaryKey(urn.toString(), aspectName, 0L));
+        ebeanMetadataAspect.setMetadata(resultSet.getString("metadata"));
+        ebeanMetadataAspect.setCreatedFor(resultSet.getString("createdFor"));
+        ebeanMetadataAspect.setCreatedBy(resultSet.getString("createdBy"));
+        ebeanMetadataAspect.setCreatedOn(resultSet.getTimestamp("createdOn"));
+        return ebeanMetadataAspect;
+      } else {
+        // return null if there is no such a record in the Database
+        return null;
+      }
+    } catch (SQLException throwables) {
+      // throw exception when SQL execution failed.
+      log.error("SQL execution failure on urn: {}, error message: {}", urn.toString(), throwables.getMessage());
+      throw new RuntimeException(throwables);
+    }
+  }
+
+  /**
+   * SQL template to get the latest record from the metadata_aspect table, order by createdOn with descending order.
+   */
+  private static final String FIND_LATEST_SQL_TEMPLATE =
+      "select * from metadata_aspect t0"
+          + " where t0.urn = ? and t0.aspect = ?  and t0.version = ? order by t0.createdOn desc limit 1";
+
+  /**
+   * SQL implementation of find the latest {@link EbeanMetadataAspect}.
+   * @param urn entity urn
+   * @param aspectClass aspect class
+   * @param <ASPECT> aspect class type
+   * @return {@link EbeanMetadataAspect} of the first record or NULL if there's no such an record.
+   */
+  static <ASPECT extends RecordTemplate, URN> EbeanMetadataAspect findLatestMetadataAspect(
+      @Nonnull EbeanServer ebeanServer, @Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass) {
+    if (ebeanServer.currentTransaction() == null) {
+      log.warn("cannot get transaction from the query context: {}", urn.toString());
+      // no context transaction, create a new one and recycle after. Should be used in unit test only
+      try (Transaction newTransaction = ebeanServer.beginTransaction()) {
+        if (newTransaction.getConnection() == null) {
+          log.warn("cannot get connection from transaction: {}", urn.toString());
+          // if there is no connection on the transaction, rollback to the ebean implementation. Backward compatible
+          // for EbeanLocalDAOTest.testAddFailedAfterRetry)
+          return ebeanServer.find(EbeanMetadataAspect.class,
+              new EbeanMetadataAspect.PrimaryKey(urn.toString(), ModelUtils.getAspectName(aspectClass), 0));
+        } else {
+          EbeanMetadataAspect ebeanMetadataAspect =
+              findLatestMetadataAspect(newTransaction.getConnection(), urn, aspectClass);
+          newTransaction.commit();
+          return ebeanMetadataAspect;
+        }
+      } finally {
+      }
+    } else {
+      // has context transaction, get the connection object and execute the query.
+      return findLatestMetadataAspect(ebeanServer.currentTransaction().getConnection(), urn, aspectClass);
+    }
   }
 }
