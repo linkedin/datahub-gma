@@ -67,6 +67,7 @@ import javax.persistence.Table;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 
+import static com.linkedin.metadata.dao.EbeanLocalAccess.*;
 import static com.linkedin.metadata.dao.EbeanMetadataAspect.*;
 import static com.linkedin.metadata.dao.utils.EBeanDAOUtils.*;
 import static com.linkedin.metadata.dao.utils.EbeanServerUtils.*;
@@ -597,14 +598,18 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       @Nonnull Class<ASPECT> aspectClass) {
     final String aspectName = ModelUtils.getAspectName(aspectClass);
     final PrimaryKey key = new PrimaryKey(urn.toString(), aspectName, 0L);
-    EbeanMetadataAspect result = _server.find(EbeanMetadataAspect.class, key);
-    if (_findMethodology == FindMethodology.DIRECT_SQL && result == null) {
-      // once detect a null, will try several methods to confirm if this is really null
-      // Attempt 1: retry
-      result = _server.find(EbeanMetadataAspect.class, key);
-      if (log.isDebugEnabled()) {
-        log.debug("Attempt 1: Retried on {}, {}", urn, result);
+    EbeanMetadataAspect result;
+    if (_findMethodology == FindMethodology.DIRECT_SQL) {
+      result = findLatestMetadataAspect(_server, urn, aspectClass);
+      if (result == null) {
+        // Attempt 1: retry
+        result = _server.find(EbeanMetadataAspect.class, key);
+        if (log.isDebugEnabled()) {
+          log.debug("Attempt 1: Retried on {}, {}", urn, result);
+        }
       }
+    } else {
+      result = _server.find(EbeanMetadataAspect.class, key);
     }
     return result;
   }
