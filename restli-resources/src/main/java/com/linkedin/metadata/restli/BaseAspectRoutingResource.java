@@ -179,7 +179,7 @@ public abstract class BaseAspectRoutingResource<
   /**
    * An action method for emitting MAE backfill messages to overwrite data in elastic search live index. This action
    * should be deprecated once the secondary store is moving away from elastic search, or the standard backfill
-   * methods starts to safely backfill against live index.
+   * method starts to safely backfill against live index.
    *
    * As a hack solution, we only cover the aspects that belong to the request serving gms.
    */

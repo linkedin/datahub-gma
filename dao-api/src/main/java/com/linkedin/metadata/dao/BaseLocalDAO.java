@@ -1080,7 +1080,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   /**
    * This method provides a hack solution to enable low volume backfill against elastic search live index.
    * This method should be deprecated once the secondary store is moving away from elastic search, or the standard backfill
-   * methods starts to safely backfill against live index.
+   * method starts to safely backfill against live index.
    *
    * @param aspectClasses set of aspects to backfill
    * @param urns  set of urns to backfill
