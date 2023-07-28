@@ -1078,6 +1078,21 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
+   * This method provides a hack solution to enable low volume backfill against elastic search live index.
+   * This method should be deprecated once the secondary store is moving away from elastic search, or offline backfill
+   * is supported for elastic search.
+   *
+   * @param aspectClasses set of aspects to backfill
+   * @param urns  set of urns to backfill
+   * @return map of urn to their backfilled aspect values
+   */
+  @Nonnull
+  public Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfillESLiveIndex(
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nonnull Set<URN> urns) {
+    return backfill(BackfillMode.MAE_ONLY_WITH_OLD_VALUE_NULL, aspectClasses, urns);
+  }
+
+  /**
    * Similar to {@link #backfill(Set, Set)} but does a scoped backfill.
    *
    * @param mode backfill mode to scope the backfill process
@@ -1135,17 +1150,20 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       updateLocalIndex(urn, aspect, FIRST_VERSION);
     }
 
+    ASPECT newValue = aspect;
+    ASPECT oldValue = (mode == BackfillMode.MAE_ONLY_WITH_OLD_VALUE_NULL) ? null : aspect;
+
     if (mode == BackfillMode.MAE_ONLY || mode == BackfillMode.BACKFILL_ALL) {
       if (_trackingProducer != null) {
-        _trackingProducer.produceMetadataAuditEvent(urn, aspect, aspect);
+        _trackingProducer.produceMetadataAuditEvent(urn, oldValue, newValue);
         IngestionTrackingContext trackingContext = new IngestionTrackingContext();
         trackingContext.setTrackingId(TrackingUtils.getRandomUUID());
         trackingContext.setEmitter("dao_backfill_endpoint");
         trackingContext.setEmitTime(System.currentTimeMillis());
-        _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, trackingContext);
+        _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, trackingContext);
       } else {
-        _producer.produceMetadataAuditEvent(urn, aspect, aspect);
-        _producer.produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect);
+        _producer.produceMetadataAuditEvent(urn, oldValue, newValue);
+        _producer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue);
       }
     }
   }

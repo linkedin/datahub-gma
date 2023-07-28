@@ -176,6 +176,21 @@ public abstract class BaseAspectRoutingResource<
     });
   }
 
+  /**
+   * An action method for emitting MAE backfill messages to overwrite data in elastic search live index.
+   */
+  @Action(name = ACTION_BACKFILL_ES_LIVE_INDEX)
+  @Nonnull
+  public Task<BackfillResult> backfillESLiveIndex(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
+      @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
+
+    return RestliUtils.toTask(() -> {
+      final Set<URN> urnSet = Arrays.stream(urns).map(this::parseUrnParam).collect(Collectors.toSet());
+      final Set<Class<? extends RecordTemplate>> aspectClasses = parseAspectsParam(aspectNames);
+      return RestliUtils.buildBackfillResult(getLocalDAO().backfillESLiveIndex(getNonRoutingAspects(aspectClasses), urnSet));
+    });
+  }
+
   @Nonnull
   @Override
   protected Task<Void> ingestInternal(@Nonnull SNAPSHOT snapshot,
