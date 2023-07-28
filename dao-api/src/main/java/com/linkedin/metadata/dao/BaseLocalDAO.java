@@ -1079,8 +1079,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   /**
    * This method provides a hack solution to enable low volume backfill against elastic search live index.
-   * This method should be deprecated once the secondary store is moving away from elastic search, or offline backfill
-   * is supported for elastic search.
+   * This method should be deprecated once the secondary store is moving away from elastic search, or the standard backfill
+   * methods starts to safely backfill against live index.
    *
    * @param aspectClasses set of aspects to backfill
    * @param urns  set of urns to backfill
@@ -1150,20 +1150,19 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       updateLocalIndex(urn, aspect, FIRST_VERSION);
     }
 
-    ASPECT newValue = aspect;
     ASPECT oldValue = (mode == BackfillMode.MAE_ONLY_WITH_OLD_VALUE_NULL) ? null : aspect;
 
     if (mode == BackfillMode.MAE_ONLY || mode == BackfillMode.BACKFILL_ALL) {
       if (_trackingProducer != null) {
-        _trackingProducer.produceMetadataAuditEvent(urn, oldValue, newValue);
+        _trackingProducer.produceMetadataAuditEvent(urn, oldValue, aspect);
         IngestionTrackingContext trackingContext = new IngestionTrackingContext();
         trackingContext.setTrackingId(TrackingUtils.getRandomUUID());
         trackingContext.setEmitter("dao_backfill_endpoint");
         trackingContext.setEmitTime(System.currentTimeMillis());
-        _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, trackingContext);
+        _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, aspect, trackingContext);
       } else {
-        _producer.produceMetadataAuditEvent(urn, oldValue, newValue);
-        _producer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue);
+        _producer.produceMetadataAuditEvent(urn, oldValue, aspect);
+        _producer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, aspect);
       }
     }
   }
