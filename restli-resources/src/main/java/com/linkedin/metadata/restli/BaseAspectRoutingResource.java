@@ -181,7 +181,7 @@ public abstract class BaseAspectRoutingResource<
    * should be deprecated once the secondary store is moving away from elastic search, or the standard backfill
    * method starts to safely backfill against live index.
    *
-   * As a hack solution, we only cover the aspects that belong to the request serving gms.
+   * <p>As a hack solution, we only cover the aspects that belong to the request serving gms.
    */
   @Action(name = ACTION_BACKFILL_ES_LIVE_INDEX)
   @Nonnull
