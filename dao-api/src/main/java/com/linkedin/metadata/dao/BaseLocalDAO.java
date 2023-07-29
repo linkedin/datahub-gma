@@ -1152,7 +1152,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     ASPECT oldValue = (mode == BackfillMode.MAE_ONLY_WITH_OLD_VALUE_NULL) ? null : aspect;
 
-    if (mode == BackfillMode.MAE_ONLY || mode == BackfillMode.BACKFILL_ALL) {
+    if (mode == BackfillMode.MAE_ONLY
+        || mode == BackfillMode.BACKFILL_ALL
+        || mode == BackfillMode.MAE_ONLY_WITH_OLD_VALUE_NULL) {
       if (_trackingProducer != null) {
         _trackingProducer.produceMetadataAuditEvent(urn, oldValue, aspect);
         IngestionTrackingContext trackingContext = new IngestionTrackingContext();
