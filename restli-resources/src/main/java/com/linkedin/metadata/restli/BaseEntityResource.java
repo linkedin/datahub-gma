@@ -327,18 +327,18 @@ public abstract class BaseEntityResource<
   }
 
   /**
-   * An action method for emitting MAE backfill messages to overwrite data in elastic search live index. This action
+   * An action method for emitting MAE backfill messages with new value (old value will be set as null). This action
    * should be deprecated once the secondary store is moving away from elastic search, or the standard backfill
    * method starts to safely backfill against live index.
    */
-  @Action(name = ACTION_BACKFILL_ES_LIVE_INDEX)
+  @Action(name = ACTION_BACKFILL_WITH_NEW_VALUE)
   @Nonnull
-  public Task<BackfillResult> backfillESLiveIndex(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
+  public Task<BackfillResult> backfillWithNewValue(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
 
     return RestliUtils.toTask(() -> {
       final Set<URN> urnSet = Arrays.stream(urns).map(urnString -> parseUrnParam(urnString)).collect(Collectors.toSet());
-      return RestliUtils.buildBackfillResult(getLocalDAO().backfillESLiveIndex(parseAspectsParam(aspectNames), urnSet));
+      return RestliUtils.buildBackfillResult(getLocalDAO().backfillWithNewValue(parseAspectsParam(aspectNames), urnSet));
     });
   }
 

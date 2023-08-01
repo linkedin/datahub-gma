@@ -504,4 +504,23 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     assertTrue(backfillResult.getEntities().get(1).getAspects().contains(AspectFoo.class.getCanonicalName()));
     assertTrue(backfillResult.getEntities().get(1).getAspects().contains(AspectAttributes.class.getCanonicalName()));
   }
+
+  @Test
+  public void testBackfillWithNewValue() {
+    FooUrn fooUrn1 = makeFooUrn(1);
+    FooUrn fooUrn2 = makeFooUrn(2);
+    AspectBar bar1 = new AspectBar().setValue("bar1");
+    AspectBar bar2 = new AspectBar().setValue("bar2");
+
+    Map<FooUrn, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> daoResult =
+        ImmutableMap.of(fooUrn1, Collections.singletonMap(AspectBar.class, Optional.of(bar1)),
+            fooUrn2, Collections.singletonMap(AspectBar.class, Optional.of(bar2)));
+
+    when(_mockLocalDAO.backfillWithNewValue(Collections.singleton(AspectBar.class), ImmutableSet.of(fooUrn1, fooUrn2))).thenReturn(daoResult);
+    BackfillResult backfillResult = runAndWait(_resource.backfillWithNewValue(new String[]{fooUrn1.toString(), fooUrn2.toString()},
+        new String[]{AspectBar.class.getCanonicalName(), AspectFoo.class.getCanonicalName()}));
+
+    assertEquals(backfillResult.getEntities().size(), 2);
+    verifyZeroInteractions(_mockAspectFooGmsClient);
+  }
 }

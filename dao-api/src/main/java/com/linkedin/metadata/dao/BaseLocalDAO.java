@@ -1078,16 +1078,16 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * This method provides a hack solution to enable low volume backfill against elastic search live index.
-   * This method should be deprecated once the secondary store is moving away from elastic search, or the standard backfill
-   * method starts to safely backfill against live index.
+   * This method provides a hack solution to enable low volume backfill against secondary live index by setting oldValue
+   * in mae payload as null. This method should be deprecated once the secondary store is moving away from elastic search,
+   * or the standard backfill method starts to safely backfill against live index.
    *
    * @param aspectClasses set of aspects to backfill
    * @param urns  set of urns to backfill
    * @return map of urn to their backfilled aspect values
    */
   @Nonnull
-  public Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfillESLiveIndex(
+  public Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfillWithNewValue(
       @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nonnull Set<URN> urns) {
     return backfill(BackfillMode.MAE_ONLY_WITH_OLD_VALUE_NULL, aspectClasses, urns);
   }
