@@ -185,6 +185,7 @@ public abstract class BaseAspectRoutingResource<
    */
   @Action(name = ACTION_BACKFILL_ES_LIVE_INDEX)
   @Nonnull
+  @Override
   public Task<BackfillResult> backfillESLiveIndex(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
 
