@@ -900,6 +900,20 @@ public class EbeanLocalDAOTest {
     }
     verifyNoMoreInteractions(_mockProducer);
     assertEquals(dao.listUrns(indexFilter, null, 3).size(), 3);
+
+    // Backfill in MAE_ONLY_WITH_OLD_VALUE_NULL mode
+    clearInvocations(_mockProducer);
+    backfilledAspects =
+        dao.backfill(BackfillMode.MAE_ONLY_WITH_OLD_VALUE_NULL, ImmutableSet.of(AspectBar.class), FooUrn.class, null, 3);
+    for (int index = 0; index < 3; index++) {
+      Urn urn = urns.get(index);
+      RecordTemplate aspect = aspects.get(urn).get(AspectBar.class);
+      assertEquals(backfilledAspects.get(urn).get(AspectBar.class).get(), aspect);
+      verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, aspect);
+      verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, aspect);
+    }
+    verifyNoMoreInteractions(_mockProducer);
+    assertEquals(dao.listUrns(indexFilter, null, 3).size(), 3);
   }
 
   @Test
