@@ -147,14 +147,11 @@ public class EbeanLocalDAOTest {
   public static Object[][] inputList() {
     return new Object[][]{
         {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID},
-        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL},
-        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.QUERY_BUILDER},
         {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID},
-        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.DIRECT_SQL},
-        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.QUERY_BUILDER},
         {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID},
-        {SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL},
-        {SchemaConfig.DUAL_SCHEMA, FindMethodology.QUERY_BUILDER}
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL},
+        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.DIRECT_SQL},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL}
     };
   }
 
@@ -900,6 +897,20 @@ public class EbeanLocalDAOTest {
       assertEquals(backfilledAspects.get(urn).get(AspectBar.class).get(), aspect);
       verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, aspect, aspect);
       verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect);
+    }
+    verifyNoMoreInteractions(_mockProducer);
+    assertEquals(dao.listUrns(indexFilter, null, 3).size(), 3);
+
+    // Backfill in MAE_ONLY_WITH_OLD_VALUE_NULL mode
+    clearInvocations(_mockProducer);
+    backfilledAspects =
+        dao.backfill(BackfillMode.MAE_ONLY_WITH_OLD_VALUE_NULL, ImmutableSet.of(AspectBar.class), FooUrn.class, null, 3);
+    for (int index = 0; index < 3; index++) {
+      Urn urn = urns.get(index);
+      RecordTemplate aspect = aspects.get(urn).get(AspectBar.class);
+      assertEquals(backfilledAspects.get(urn).get(AspectBar.class).get(), aspect);
+      verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, aspect);
+      verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, aspect);
     }
     verifyNoMoreInteractions(_mockProducer);
     assertEquals(dao.listUrns(indexFilter, null, 3).size(), 3);

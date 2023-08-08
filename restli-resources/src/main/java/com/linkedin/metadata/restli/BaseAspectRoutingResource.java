@@ -176,6 +176,26 @@ public abstract class BaseAspectRoutingResource<
     });
   }
 
+  /**
+   * An action method for emitting MAE backfill messages with new value (old value will be set as null). This action
+   * should be deprecated once the secondary store is moving away from elastic search, or the standard backfill
+   * method starts to safely backfill against live index.
+   *
+   * <p>As a hack solution, we only cover the aspects that belong to the request serving gms.
+   */
+  @Action(name = ACTION_BACKFILL_WITH_NEW_VALUE)
+  @Nonnull
+  @Override
+  public Task<BackfillResult> backfillWithNewValue(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
+      @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
+
+    return RestliUtils.toTask(() -> {
+      final Set<URN> urnSet = Arrays.stream(urns).map(this::parseUrnParam).collect(Collectors.toSet());
+      final Set<Class<? extends RecordTemplate>> aspectClasses = parseAspectsParam(aspectNames);
+      return RestliUtils.buildBackfillResult(getLocalDAO().backfillWithNewValue(getNonRoutingAspects(aspectClasses), urnSet));
+    });
+  }
+
   @Nonnull
   @Override
   protected Task<Void> ingestInternal(@Nonnull SNAPSHOT snapshot,

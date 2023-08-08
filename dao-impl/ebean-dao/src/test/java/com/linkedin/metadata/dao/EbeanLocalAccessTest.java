@@ -34,6 +34,7 @@ import io.ebean.SqlRow;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.sql.Timestamp;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -399,4 +400,39 @@ public class EbeanLocalAccessTest {
 
     assertEquals(3, relationships.size());
   }
+
+  @Test
+  public void test() throws URISyntaxException {
+    FooUrn foo0 = new FooUrn(0);
+    // Expect: urn:li:foo:0 exists
+    assertTrue(_ebeanLocalAccessFoo.exists(foo0));
+  }
+
+  @Test
+  public void testFindLatestMetadataAspect() throws URISyntaxException {
+    // Given: metadata_aspect table has a record of foo0
+
+    FooUrn foo0 = new FooUrn(0);
+    AspectFoo f = new AspectFoo();
+    f.setValue("foo");
+    EbeanMetadataAspect ebeanMetadataAspect = new EbeanMetadataAspect();
+    ebeanMetadataAspect.setKey(new EbeanMetadataAspect.PrimaryKey(foo0.toString(), f.getClass().getCanonicalName(), 0));
+    ebeanMetadataAspect.setCreatedOn(new Timestamp(System.currentTimeMillis()));
+    ebeanMetadataAspect.setMetadata(f.toString());
+    ebeanMetadataAspect.setCreatedBy("yanyang");
+    _server.save(ebeanMetadataAspect);
+
+    // When: check whether urn:li:foo:0 exist
+    // Expect: urn:li:foo:0 exists
+    ebeanMetadataAspect = EbeanLocalAccess.findLatestMetadataAspect(_server, foo0, AspectFoo.class);
+    assertNotNull(ebeanMetadataAspect);
+    assertEquals(ebeanMetadataAspect.getKey().getUrn(), foo0.toString());
+
+    // When: check whether urn:li:foo:9999 exist
+    FooUrn foo9999 = new FooUrn(9999);
+
+    // Expect: urn:li:foo:9999 does not exists
+    assertNull(EbeanLocalAccess.findLatestMetadataAspect(_server, foo9999, AspectFoo.class));
+  }
+
 }

@@ -19,4 +19,9 @@ enum BackfillMode {
    * Backfill all secondary stores
    */
   BACKFILL_ALL
+
+  /**
+   * Backfill only using MAE. Setting the old value in MAE payload as null.
+   */
+  MAE_ONLY_WITH_OLD_VALUE_NULL
 }

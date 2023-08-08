@@ -1,5 +1,6 @@
 package com.linkedin.metadata.dao.utils;
 
+import com.google.common.io.Resources;
 import com.linkedin.metadata.aspect.AuditedAspect;
 import com.linkedin.metadata.dao.EbeanLocalAccess;
 import com.linkedin.metadata.dao.EbeanMetadataAspect;
@@ -8,13 +9,19 @@ import com.linkedin.metadata.query.ListResultMetadata;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.urn.BurgerUrn;
 import com.linkedin.testing.urn.FooUrn;
+import io.ebean.Ebean;
+import io.ebean.EbeanServer;
+import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import javax.annotation.Nonnull;
 import org.testng.annotations.Test;
 
 import static com.linkedin.testing.TestUtils.*;
@@ -24,6 +31,16 @@ import static org.testng.AssertJUnit.assertNotNull;
 
 
 public class EBeanDAOUtilsTest {
+
+
+  @Nonnull
+  private String readSQLfromFile(@Nonnull String resourcePath) {
+    try {
+      return Resources.toString(Resources.getResource(resourcePath), StandardCharsets.UTF_8);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
 
   @Test
   public void testCeilDiv() {
@@ -469,5 +486,31 @@ public class EBeanDAOUtilsTest {
     extractAspectJsonString.setAccessible(true);
     assertEquals("{\"lastmodifiedby\":\"0\",\"lastmodifiedon\":\"1\",\"aspect\":{\"value\":\"test\"}}", toJson);
     assertNotNull(RecordUtils.toRecordTemplate(AspectFoo.class, (String) extractAspectJsonString.invoke(EBeanDAOUtils.class, toJson)));
+  }
+
+  @Test
+  public void testGetFromJdbc() {
+
+    EbeanServer server = EmbeddedMariaInstance.getServer(EBeanDAOUtilsTest.class.getSimpleName());
+    server.execute(Ebean.createSqlUpdate(readSQLfromFile("ebean-dao-utils-create-all.sql")));
+
+    long now = Instant.now().getEpochSecond() * 1000;
+    FooUrn fooUrn = makeFooUrn(1);
+    AspectFoo fooAspect = new AspectFoo().setValue("foo");
+
+    // create bean
+    EbeanMetadataAspect aspect = new EbeanMetadataAspect();
+    EbeanMetadataAspect.PrimaryKey key =
+        new EbeanMetadataAspect.PrimaryKey(fooUrn.toString(), AspectFoo.class.getCanonicalName(), 0);
+    aspect.setKey(key);
+    aspect.setMetadata(RecordUtils.toJsonString(fooAspect));
+    aspect.setCreatedOn(new Timestamp(now - 100));
+    aspect.setCreatedBy("fooActor");
+
+    // add aspect to the db
+    server.insert(aspect);
+
+    // sanity test on JDBC functions
+    assertNotNull(EBeanDAOUtils.getWithJdbc(fooUrn.toString(), fooAspect.getClass().getCanonicalName(), server, key));
   }
 }
