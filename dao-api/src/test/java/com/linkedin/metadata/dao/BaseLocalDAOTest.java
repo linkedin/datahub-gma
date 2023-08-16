@@ -216,6 +216,7 @@ public class BaseLocalDAOTest {
     _mockTrackingManager = mock(BaseTrackingManager.class);
     _mockTransactionRunner = spy(DummyTransactionRunner.class);
     _dummyLocalDAO = new DummyLocalDAO(_mockGetLatestFunction, _mockEventProducer, _mockTransactionRunner);
+    _dummyLocalDAO.setEmitAuditEvent(true);
     _dummyAuditStamp = makeAuditStamp("foo", 1234);
   }
 
