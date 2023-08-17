@@ -192,6 +192,7 @@ public class EbeanLocalDAOTest {
     if (urnClass == BarUrn.class) {
       dao.setUrnPathExtractor((UrnPathExtractor<URN>) new BarUrnPathExtractor());
     }
+    dao.setEmitAuditEvent(true);
     return dao;
   }
 

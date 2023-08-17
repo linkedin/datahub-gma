@@ -216,6 +216,7 @@ public class BaseLocalDAOTest {
     _mockTrackingManager = mock(BaseTrackingManager.class);
     _mockTransactionRunner = spy(DummyTransactionRunner.class);
     _dummyLocalDAO = new DummyLocalDAO(_mockGetLatestFunction, _mockEventProducer, _mockTransactionRunner);
+    _dummyLocalDAO.setEmitAuditEvent(true);
     _dummyAuditStamp = makeAuditStamp("foo", 1234);
   }
 
@@ -311,6 +312,7 @@ public class BaseLocalDAOTest {
     IngestionTrackingContext mockTrackingContext = mock(IngestionTrackingContext.class);
     DummyLocalDAO dummyLocalDAO = new DummyLocalDAO(_mockGetLatestFunction, _mockTrackingEventProducer, _mockTrackingManager,
         _dummyLocalDAO._transactionRunner);
+    dummyLocalDAO.setEmitAuditEvent(true);
     dummyLocalDAO.setAlwaysEmitAuditEvent(true);
     dummyLocalDAO.setEmitAspectSpecificAuditEvent(true);
     dummyLocalDAO.setAlwaysEmitAspectSpecificAuditEvent(true);

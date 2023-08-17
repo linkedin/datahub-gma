@@ -170,7 +170,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   // Enable updating multiple aspects within a single transaction
   private boolean _enableAtomicMultipleUpdate = false;
 
-  private boolean _emitAuditEvent = true;
+  private boolean _emitAuditEvent = false;
 
   private Clock _clock = Clock.systemUTC();
 
