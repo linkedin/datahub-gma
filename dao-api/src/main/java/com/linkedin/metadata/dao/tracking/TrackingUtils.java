@@ -44,6 +44,13 @@ public class TrackingUtils {
     MAEV5_EMISSION_SUCCESS("dao.maev5.success"),
     MAEV5_EMISSION_FAILURE("dao.maev5.failure"),
 
+    // Process states in MCEv2 Consumer Job.
+    MCEV2_RECEIVED("mce-v2-consumer.mcev2.received"),
+    MCEV2_PROCESS_SUCCESS("mce-v2-consumer.process.success"),
+    MCEV2_PROCESS_FAILURE("mce-v2-consumer.process.failure"),
+    MCEV2_FAILURE_EVENT_SUCCESS("mce-v2-consumer.failureEvent.success"),
+    MCEV2_FAILURE_EVENT_FAILURE("mce-v2-consumer.failureEvent.failure"),
+
     // Process states in MCEv5 Consumer Job.
     MCEV5_RECEIVED("mce-v5-consumer.mcev5.received"),
     MCEV5_PROCESS_SUCCESS("mce-v5-consumer.process.success"),
@@ -86,7 +93,8 @@ public class TrackingUtils {
   public enum Dimension {
     ASPECT_TYPE("aspectType"),
     ERROR_TYPE("errorType"),
-    ORIGINAL_EMIT_TIME("originalEmitTime");
+    ORIGINAL_EMIT_TIME("originalEmitTime"),
+    PLATFORM_TYPE("platformType");
 
     private final String _name;
 
