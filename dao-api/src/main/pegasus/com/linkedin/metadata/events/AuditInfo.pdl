@@ -4,15 +4,15 @@ record AuditInfo {
   /**
    * "createdon" column of metadata_aspect table (non-nullable)
    */
-  createdon: long
+  createdOn: long
 
   /**
    * "createdby" column of metadata_aspect table (non-nullable)
    */
-  createdby: string
+  createdBy: string
 
   /**
    * "creatdfor" column of metadata_aspect table (nullable)
    */
-  createdfor: optional string
+  createdFor: optional string
 }
