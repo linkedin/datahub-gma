@@ -135,7 +135,7 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
       namespace com.linkedin.mxe.foo.testAspect
 
       import com.linkedin.avro2pegasus.events.KafkaAuditHeader
-      import com.linkedin.metadata.events.AuditInfo
+      import com.linkedin.common.AuditStamp
       import com.linkedin.metadata.events.ChangeType
       import com.linkedin.metadata.events.IngestionTrackingContext
       import com.linkedin.testing.FooUrn
@@ -180,7 +180,7 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
         /**
          * Audit info (i.e. createdon, createdby, createdfor) to track the version history of metadata changes.
          */
-        auditInfo: optional AuditInfo
+        auditStamp: optional AuditStamp
       }'''.stripIndent()
 
     projectFile('build/my-dummy-module/generateMetadataEventsSchema/com/linkedin/mxe/foo/testAspect/FailedMetadataChangeEvent.pdl').text == '''\
@@ -256,7 +256,7 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
 
       import com.linkedin.avro2pegasus.events.KafkaAuditHeader
       import com.linkedin.metadata.events.AuditInfo
-      import com.linkedin.metadata.events.ChangeType
+      import com.linkedin.common.AuditStamp
       import com.linkedin.metadata.events.IngestionTrackingContext
       import com.linkedin.testing.FooUrn
       import com.linkedin.metadata.test.aspects.TestTyperefAspect
@@ -300,7 +300,7 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
         /**
          * Audit info (i.e. createdon, createdby, createdfor) to track the version history of metadata changes.
          */
-        auditInfo: optional AuditInfo
+        auditStamp: optional AuditStamp
       }'''.stripIndent()
 
     projectFile('build/my-dummy-module/generateMetadataEventsSchema/com/linkedin/mxe/foo/testTyperefAspect/FailedMetadataChangeEvent.pdl').text == '''\

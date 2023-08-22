@@ -4,7 +4,7 @@
 namespace @(eventSpec.getNamespace())
 
 import com.linkedin.avro2pegasus.events.KafkaAuditHeader
-import com.linkedin.metadata.events.AuditInfo
+import com.linkedin.common.AuditStamp
 import com.linkedin.metadata.events.ChangeType
 import com.linkedin.metadata.events.IngestionTrackingContext
 import @eventSpec.getUrnType()
@@ -49,5 +49,5 @@ record MetadataAuditEvent {
   /**
    * Audit info (i.e. createdon, createdby, createdfor) to track the version history of metadata changes.
    */
-  auditInfo: optional AuditInfo
+  auditStamp: optional AuditStamp
 }
