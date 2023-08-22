@@ -255,8 +255,8 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
       namespace com.linkedin.mxe.foo.testTyperefAspect
 
       import com.linkedin.avro2pegasus.events.KafkaAuditHeader
-      import com.linkedin.metadata.events.AuditInfo
       import com.linkedin.common.AuditStamp
+      import com.linkedin.metadata.events.ChangeType
       import com.linkedin.metadata.events.IngestionTrackingContext
       import com.linkedin.testing.FooUrn
       import com.linkedin.metadata.test.aspects.TestTyperefAspect
