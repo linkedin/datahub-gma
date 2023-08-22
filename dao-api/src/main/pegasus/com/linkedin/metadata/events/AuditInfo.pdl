@@ -1,0 +1,18 @@
+namespace com.linkedin.metadata.events
+
+record AuditInfo {
+  /**
+   * "createdon" column of metadata_aspect table (non-nullable)
+   */
+  createdon: long
+
+  /**
+   * "createdby" column of metadata_aspect table (non-nullable)
+   */
+  createdby: string
+
+  /**
+   * "creatdfor" column of metadata_aspect table (nullable)
+   */
+  createdfor: optional string
+}

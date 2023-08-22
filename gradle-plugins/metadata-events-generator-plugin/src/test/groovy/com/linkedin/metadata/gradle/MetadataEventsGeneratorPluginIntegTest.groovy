@@ -135,6 +135,7 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
       namespace com.linkedin.mxe.foo.testAspect
 
       import com.linkedin.avro2pegasus.events.KafkaAuditHeader
+      import com.linkedin.metadata.events.AuditInfo
       import com.linkedin.metadata.events.ChangeType
       import com.linkedin.metadata.events.IngestionTrackingContext
       import com.linkedin.testing.FooUrn
@@ -175,6 +176,11 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
          * Tracking context to identify the lifecycle of the trackable ingestion item.
          */
         ingestionTrackingContext: optional union[null, IngestionTrackingContext] = null
+        
+        /**
+         * Audit info (i.e. createdon, createdby, createdfor) to track the version history of metadata changes.
+         */
+        auditInfo: optional AuditInfo
       }'''.stripIndent()
 
     projectFile('build/my-dummy-module/generateMetadataEventsSchema/com/linkedin/mxe/foo/testAspect/FailedMetadataChangeEvent.pdl').text == '''\
@@ -249,6 +255,7 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
       namespace com.linkedin.mxe.foo.testTyperefAspect
 
       import com.linkedin.avro2pegasus.events.KafkaAuditHeader
+      import com.linkedin.metadata.events.AuditInfo
       import com.linkedin.metadata.events.ChangeType
       import com.linkedin.metadata.events.IngestionTrackingContext
       import com.linkedin.testing.FooUrn
@@ -289,6 +296,11 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
          * Tracking context to identify the lifecycle of the trackable ingestion item.
          */
         ingestionTrackingContext: optional union[null, IngestionTrackingContext] = null
+        
+        /**
+         * Audit info (i.e. createdon, createdby, createdfor) to track the version history of metadata changes.
+         */
+        auditInfo: optional AuditInfo
       }'''.stripIndent()
 
     projectFile('build/my-dummy-module/generateMetadataEventsSchema/com/linkedin/mxe/foo/testTyperefAspect/FailedMetadataChangeEvent.pdl').text == '''\
