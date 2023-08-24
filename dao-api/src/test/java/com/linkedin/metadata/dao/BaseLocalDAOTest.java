@@ -217,6 +217,7 @@ public class BaseLocalDAOTest {
     _mockTransactionRunner = spy(DummyTransactionRunner.class);
     _dummyLocalDAO = new DummyLocalDAO(_mockGetLatestFunction, _mockEventProducer, _mockTransactionRunner);
     _dummyLocalDAO.setEmitAuditEvent(true);
+    _dummyLocalDAO.setEmitAspectSpecificAuditEvent(true);
     _dummyAuditStamp = makeAuditStamp("foo", 1234);
   }
 
@@ -249,6 +250,7 @@ public class BaseLocalDAOTest {
     _dummyLocalDAO.add(urn, foo, _dummyAuditStamp);
 
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
+    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo, _dummyAuditStamp);
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, foo, foo);
     verifyNoMoreInteractions(_mockEventProducer);
   }
@@ -263,10 +265,13 @@ public class BaseLocalDAOTest {
         Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(foo1, _dummyAuditStamp)));
 
     _dummyLocalDAO.add(urn, foo1, _dummyAuditStamp);
-    _dummyLocalDAO.add(urn, foo2, _dummyAuditStamp);
+    AuditStamp auditStamp2 = makeAuditStamp("tester", 5678L);
+    _dummyLocalDAO.add(urn, foo2, auditStamp2);
 
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo1);
+    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo1, _dummyAuditStamp);
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, foo1, foo2);
+    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, foo1, foo2, auditStamp2);
     verifyNoMoreInteractions(_mockEventProducer);
   }
 
@@ -285,6 +290,7 @@ public class BaseLocalDAOTest {
     _dummyLocalDAO.add(urn, foo3, _dummyAuditStamp);
 
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo1);
+    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo1, _dummyAuditStamp);
     verifyNoMoreInteractions(_mockEventProducer);
   }
 
@@ -300,6 +306,7 @@ public class BaseLocalDAOTest {
     _dummyLocalDAO.delete(urn, AspectFoo.class, _dummyAuditStamp);
 
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
+    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo, _dummyAuditStamp);
     // TODO: ensure MAE is produced with newValue set as null for soft deleted aspect
     // verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, foo, null);
     verifyNoMoreInteractions(_mockEventProducer);
@@ -324,8 +331,8 @@ public class BaseLocalDAOTest {
 
     verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
     verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, foo, foo);
-    verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo, mockTrackingContext);
-    verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, foo, foo, mockTrackingContext);
+    verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo, _dummyAuditStamp, mockTrackingContext);
+    verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, foo, foo, _dummyAuditStamp, mockTrackingContext);
     verifyNoMoreInteractions(_mockTrackingEventProducer);
   }
 

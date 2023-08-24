@@ -49,5 +49,5 @@ record MetadataAuditEvent {
   /**
    * Audit info (i.e. createdon, createdby, createdfor) to track the version history of metadata changes.
    */
-  auditStamp: optional AuditStamp
+  auditStamp: union[null, AuditStamp]
 }

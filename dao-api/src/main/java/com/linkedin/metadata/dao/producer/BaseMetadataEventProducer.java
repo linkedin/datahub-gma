@@ -1,5 +1,6 @@
 package com.linkedin.metadata.dao.producer;
 
+import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.UnionTemplate;
@@ -56,7 +57,8 @@ public abstract class BaseMetadataEventProducer<SNAPSHOT extends RecordTemplate,
    * @param urn {@link Urn} of the entity
    * @param oldValue the value prior to the update, or null if there's none.
    * @param newValue the value after the update
+   * @param auditStamp {@link AuditStamp} containing version auditing information for the metadata change
    */
   public abstract <ASPECT extends RecordTemplate> void produceAspectSpecificMetadataAuditEvent(@Nonnull URN urn,
-      @Nullable ASPECT oldValue, @Nonnull ASPECT newValue);
+      @Nullable ASPECT oldValue, @Nonnull ASPECT newValue, @Nullable AuditStamp auditStamp);
 }
