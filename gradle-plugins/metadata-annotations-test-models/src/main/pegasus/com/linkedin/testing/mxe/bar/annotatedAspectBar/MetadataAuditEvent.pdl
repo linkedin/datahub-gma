@@ -1,6 +1,7 @@
 namespace com.linkedin.testing.mxe.bar.annotatedAspectBar
 
 import com.linkedin.avro2pegasus.events.KafkaAuditHeader
+import com.linkedin.common.AuditStamp
 import com.linkedin.metadata.events.ChangeType
 import com.linkedin.metadata.events.IngestionTrackingContext
 import com.linkedin.testing.BarUrn
@@ -41,4 +42,9 @@ record MetadataAuditEvent {
    * Tracking context to identify the lifecycle of the trackable ingestion item.
    */
   ingestionTrackingContext: optional union[null, IngestionTrackingContext] = null
+
+  /**
+   * Audit info (i.e. createdon, createdby, createdfor) to track the version history of metadata changes.
+   */
+  auditStamp: union[null, AuditStamp]
 }

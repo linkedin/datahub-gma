@@ -500,14 +500,14 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     }
 
     // send the audit events etc
-    return results.stream().map(x -> unwrapAddResultToUnion(urn, x, trackingContext)).collect(Collectors.toList());
+    return results.stream().map(x -> unwrapAddResultToUnion(urn, x, auditStamp, trackingContext)).collect(Collectors.toList());
   }
 
-  public List<ASPECT_UNION> addMany(@Nonnull URN urn, @Nonnull List<? extends RecordTemplate> aspectValues, AuditStamp auditStamp) {
+  public List<ASPECT_UNION> addMany(@Nonnull URN urn, @Nonnull List<? extends RecordTemplate> aspectValues, @Nonnull AuditStamp auditStamp) {
     return addMany(urn, aspectValues, auditStamp, null);
   }
 
-  public List<ASPECT_UNION> addMany(@Nonnull URN urn, @Nonnull List<? extends RecordTemplate> aspectValues, AuditStamp auditStamp,
+  public List<ASPECT_UNION> addMany(@Nonnull URN urn, @Nonnull List<? extends RecordTemplate> aspectValues, @Nonnull AuditStamp auditStamp,
       @Nullable IngestionTrackingContext trackingContext) {
     List<AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas = aspectValues.stream()
         .map(AspectUpdateLambda::new)
@@ -516,8 +516,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     return addMany(urn, aspectUpdateLambdas, auditStamp, DEFAULT_MAX_TRANSACTION_RETRY, trackingContext);
   }
 
-  private <ASPECT extends RecordTemplate> AddResult<ASPECT> aspectUpdateHelper(URN urn, AspectUpdateLambda<ASPECT> updateTuple, AuditStamp auditStamp,
-      @Nullable IngestionTrackingContext trackingContext) {
+  private <ASPECT extends RecordTemplate> AddResult<ASPECT> aspectUpdateHelper(URN urn, AspectUpdateLambda<ASPECT> updateTuple,
+      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext) {
     AspectEntry<ASPECT> latest = getLatest(urn, updateTuple.getAspectClass());
 
     // TODO(yanyang) added for job-gms duplicity debug, throwaway afterwards
@@ -548,12 +548,12 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   private <ASPECT extends RecordTemplate> ASPECT_UNION unwrapAddResultToUnion(URN urn, AddResult<ASPECT> result,
-      @Nullable IngestionTrackingContext trackingContext) {
-    ASPECT rawResult = unwrapAddResult(urn, result, trackingContext);
+      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext) {
+    ASPECT rawResult = unwrapAddResult(urn, result, auditStamp, trackingContext);
     return ModelUtils.newEntityUnion(_aspectUnionClass, rawResult);
   }
 
-  private <ASPECT extends RecordTemplate> ASPECT unwrapAddResult(URN urn, AddResult<ASPECT> result,
+  private <ASPECT extends RecordTemplate> ASPECT unwrapAddResult(URN urn, AddResult<ASPECT> result, @Nonnull AuditStamp auditStamp,
       @Nullable IngestionTrackingContext trackingContext) {
     Class<ASPECT> aspectClass = result.getKlass();
     final ASPECT oldValue = result.getOldValue();
@@ -576,9 +576,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     if (_emitAspectSpecificAuditEvent) {
       if (_alwaysEmitAspectSpecificAuditEvent || oldValue != newValue) {
         if (_trackingProducer != null) {
-          _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, trackingContext);
+          _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, auditStamp, trackingContext);
         } else {
-          _producer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue);
+          _producer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, auditStamp);
         }
       }
     }
@@ -652,7 +652,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     final AddResult<ASPECT> result = runInTransactionWithRetry(() -> aspectUpdateHelper(urn, updateLambda, auditStamp, trackingContext),
         maxTransactionRetry);
 
-    return unwrapAddResult(urn, result, trackingContext);
+    return unwrapAddResult(urn, result, auditStamp, trackingContext);
   }
 
   /**
@@ -1161,10 +1161,10 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
         trackingContext.setTrackingId(TrackingUtils.getRandomUUID());
         trackingContext.setEmitter("dao_backfill_endpoint");
         trackingContext.setEmitTime(System.currentTimeMillis());
-        _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, aspect, trackingContext);
+        _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, aspect, null, trackingContext);
       } else {
         _producer.produceMetadataAuditEvent(urn, oldValue, aspect);
-        _producer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, aspect);
+        _producer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, aspect, null);
       }
     }
   }

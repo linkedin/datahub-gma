@@ -86,13 +86,14 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   public <ASPECT extends RecordTemplate> int add(@Nonnull URN urn, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull AuditStamp auditStamp) {
 
+    final long timestamp = auditStamp.hasTime() ? auditStamp.getTime() : System.currentTimeMillis();
     final String actor = auditStamp.hasActor() ? auditStamp.getActor().toString() : DEFAULT_ACTOR;
     final String impersonator = auditStamp.hasImpersonator() ? auditStamp.getImpersonator().toString() : null;
     final boolean urnExtraction = _urnPathExtractor != null && !(_urnPathExtractor instanceof EmptyPathExtractor);
 
     final SqlUpdate sqlUpdate = _server.createSqlUpdate(SQLStatementUtils.createAspectUpsertSql(urn, aspectClass, urnExtraction))
         .setParameter("urn", urn.toString())
-        .setParameter("lastmodifiedon", new Timestamp(System.currentTimeMillis()).toString())
+        .setParameter("lastmodifiedon", new Timestamp(timestamp).toString())
         .setParameter("lastmodifiedby", actor);
 
     // If a non-default UrnPathExtractor is provided, the user MUST specify in their schema generation scripts
@@ -121,8 +122,6 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
     // Add local relationships if builder is provided.
     addRelationships(urn, newValue, aspectClass);
-
-    final long timestamp = auditStamp.hasTime() ? auditStamp.getTime() : System.currentTimeMillis();
 
     AuditedAspect auditedAspect = new AuditedAspect()
         .setAspect(RecordUtils.toJsonString(newValue))

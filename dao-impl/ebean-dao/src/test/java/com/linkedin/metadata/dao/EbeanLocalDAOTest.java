@@ -688,7 +688,7 @@ public class EbeanLocalDAOTest {
     assertEquals(foo.get(), expected);
 
     verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, expected, expected);
-    verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, expected, expected);
+    verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, expected, expected, null);
     verifyNoMoreInteractions(_mockProducer);
   }
 
@@ -829,7 +829,7 @@ public class EbeanLocalDAOTest {
         RecordTemplate aspect = aspects.get(urn).get(clazz);
         assertEquals(backfilledAspects.get(urn).get(clazz).get(), aspect);
         verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, aspect, aspect);
-        verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect);
+        verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, null);
       }
     }
     verifyNoMoreInteractions(_mockProducer);
@@ -881,7 +881,7 @@ public class EbeanLocalDAOTest {
       RecordTemplate aspect = aspects.get(urn).get(AspectBar.class);
       assertEquals(backfilledAspects.get(urn).get(AspectBar.class).get(), aspect);
       verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, aspect, aspect);
-      verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect);
+      verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, null);
     }
     clearInvocations(_mockProducer);
 
@@ -897,7 +897,7 @@ public class EbeanLocalDAOTest {
       RecordTemplate aspect = aspects.get(urn).get(AspectBar.class);
       assertEquals(backfilledAspects.get(urn).get(AspectBar.class).get(), aspect);
       verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, aspect, aspect);
-      verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect);
+      verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, null);
     }
     verifyNoMoreInteractions(_mockProducer);
     assertEquals(dao.listUrns(indexFilter, null, 3).size(), 3);
@@ -911,7 +911,7 @@ public class EbeanLocalDAOTest {
       RecordTemplate aspect = aspects.get(urn).get(AspectBar.class);
       assertEquals(backfilledAspects.get(urn).get(AspectBar.class).get(), aspect);
       verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, aspect);
-      verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, aspect);
+      verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, aspect, null);
     }
     verifyNoMoreInteractions(_mockProducer);
     assertEquals(dao.listUrns(indexFilter, null, 3).size(), 3);
