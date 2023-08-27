@@ -70,7 +70,7 @@ public abstract class BaseSearchableAspectResource<
   }
 
   @Nonnull
-  private CollectionResult<ASPECT, SearchResultMetadata> getSearchQueryCollectionResult(@Nonnull SearchResult<DOCUMENT> searchResult) {
+  public CollectionResult<ASPECT, SearchResultMetadata> getSearchQueryCollectionResult(@Nonnull SearchResult<DOCUMENT> searchResult) {
 
     final Set<URN> matchedUrns = searchResult.getDocumentList()
         .stream()
