@@ -124,7 +124,7 @@ public abstract class BaseSearchableEntityResource<
   }
 
   @Nonnull
-  private CollectionResult<VALUE, SearchResultMetadata> getSearchQueryCollectionResult(@Nonnull SearchResult<DOCUMENT> searchResult,
+  public CollectionResult<VALUE, SearchResultMetadata> getSearchQueryCollectionResult(@Nonnull SearchResult<DOCUMENT> searchResult,
       @Nullable String[] aspectNames) {
 
     final List<URN> matchedUrns = searchResult.getDocumentList()
