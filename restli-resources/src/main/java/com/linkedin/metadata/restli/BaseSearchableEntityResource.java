@@ -123,8 +123,13 @@ public abstract class BaseSearchableEntityResource<
     return RestliUtils.toTask(() -> getSearchDAO().autoComplete(query, field, filter, limit));
   }
 
+  /**
+   * Fetch aspect values from MySQL DB based on search result.
+   * @param searchResult Search result returned from search infra, such as Elasticsearch.
+   * @return CollectionResult which contains: 1. aspect values fetched from MySQL DB, 2. Total count 3. Search result metadata.
+   */
   @Nonnull
-  private CollectionResult<VALUE, SearchResultMetadata> getSearchQueryCollectionResult(@Nonnull SearchResult<DOCUMENT> searchResult,
+  public CollectionResult<VALUE, SearchResultMetadata> getSearchQueryCollectionResult(@Nonnull SearchResult<DOCUMENT> searchResult,
       @Nullable String[] aspectNames) {
 
     final List<URN> matchedUrns = searchResult.getDocumentList()
