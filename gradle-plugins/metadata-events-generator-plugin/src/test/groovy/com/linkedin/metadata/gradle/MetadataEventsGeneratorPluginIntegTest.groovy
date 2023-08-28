@@ -180,7 +180,7 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
         /**
          * Audit info (i.e. createdon, createdby, createdfor) to track the version history of metadata changes.
          */
-        auditStamp: union[null, AuditStamp]
+        auditStamp: union[null, AuditStamp] = null
       }'''.stripIndent()
 
     projectFile('build/my-dummy-module/generateMetadataEventsSchema/com/linkedin/mxe/foo/testAspect/FailedMetadataChangeEvent.pdl').text == '''\
@@ -300,7 +300,7 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
         /**
          * Audit info (i.e. createdon, createdby, createdfor) to track the version history of metadata changes.
          */
-        auditStamp: union[null, AuditStamp]
+        auditStamp: union[null, AuditStamp] = null
       }'''.stripIndent()
 
     projectFile('build/my-dummy-module/generateMetadataEventsSchema/com/linkedin/mxe/foo/testTyperefAspect/FailedMetadataChangeEvent.pdl').text == '''\
