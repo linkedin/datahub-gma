@@ -53,6 +53,14 @@ public interface IEbeanLocalAccess<URN extends Urn> {
       int keysCount, int position);
 
   /**
+   * Get a single record (aspect) from entity table without the soft deletion filter.
+   * @param key {@link AspectKey} to retrieve the aspect metadata
+   * @return a single {@link EbeanMetadataAspect} result if present, or null
+   */
+  @Nullable
+  EbeanMetadataAspect getSingleRecordNoSoftDeleteCheck(@Nonnull AspectKey<URN, ? extends RecordTemplate> key);
+
+  /**
    * Returns list of urns that satisfy the given filter conditions.
    *
    * <p>Results are ordered by the order criterion but defaults to sorting lexicographically by the string

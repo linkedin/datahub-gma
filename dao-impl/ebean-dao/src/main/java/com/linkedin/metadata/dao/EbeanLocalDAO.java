@@ -618,7 +618,12 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Nonnull
   protected <ASPECT extends RecordTemplate> AspectEntry<ASPECT> getLatest(@Nonnull URN urn,
       @Nonnull Class<ASPECT> aspectClass) {
-    EbeanMetadataAspect latest = queryLatest(urn, aspectClass);
+    EbeanMetadataAspect latest;
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+      latest = getSingleRecordNoSoftDeleteCheck(new AspectKey<>(aspectClass, urn, LATEST_VERSION));
+    } else {
+      latest = queryLatest(urn, aspectClass);
+    }
     if (latest == null) {
       return new AspectEntry<>(null, null);
     }
@@ -629,6 +634,24 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
 
     return new AspectEntry<>(RecordUtils.toRecordTemplate(aspectClass, latest.getMetadata()), extraInfo);
+  }
+
+  /**
+   * Only meant to be used by {@link #getLatest(Urn, Class)} when in NEW_SCHEMA_ONLY mode. Normally,
+   * {@link #batchGet(Set, int)} will check for soft deletion in NEW_SCHEMA_ONLY mode, so getLatest will return nothing.
+   * However, if we want to undelete this record, we will encounter duplicate PK error in metadata_aspect as it's assumed
+   * this is a "new" record since getLatest returned nothing. In reality, metadata_aspect already has records regarding
+   * this metadata (i.e. version 0 in metadata_aspect is soft deleted). So we need a method to return rows from entity tables
+   * that have been soft-deleted without filtering them out.
+   * @param key key to retrieve
+   * @return the raw aspect record if present (i.e. not checked for soft deletion), null otherwise
+   */
+  @Nullable
+  private EbeanMetadataAspect getSingleRecordNoSoftDeleteCheck(AspectKey<URN, ? extends RecordTemplate> key) {
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+      return _localAccess.getSingleRecordNoSoftDeleteCheck(key);
+    }
+    return null;
   }
 
   @Nonnull

@@ -49,6 +49,9 @@ public class SQLStatementUtils {
   private static final String SQL_READ_ASPECT_TEMPLATE =
       String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby FROM %%s WHERE urn = '%%s' AND %s", SOFT_DELETED_CHECK);
 
+  private static final String SQL_READ_ASPECT_NO_SOFT_DELETE_CHECK_TEMPLATE =
+      "SELECT urn, %s, lastmodifiedon, lastmodifiedby FROM %s WHERE urn = '%s'";
+
   private static final String INDEX_GROUP_BY_CRITERION = "SELECT count(*) as COUNT, %s FROM %s";
   private static final String SQL_GROUP_BY_COLUMN_EXISTS_TEMPLATE =
       "SELECT * FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = database() AND TABLE_NAME = '%s' AND COLUMN_NAME = '%s'";
@@ -122,6 +125,20 @@ public class SQLStatementUtils {
         }).collect(Collectors.toList());
     stringBuilder.append(String.join(" UNION ALL ", selectStatements));
     return stringBuilder.toString();
+  }
+
+  /**
+   * Create read aspect SQL statement for a single entity / aspect record without checking for soft deletion. This is
+   * only meant to be used in EbeanLocalDAO::getLatest.
+   * @param aspectClass aspect class to query for
+   * @param urn urn to query for
+   * @return SQL statement string
+   */
+  public static <ASPECT extends RecordTemplate> String createAspectReadSqlNoSoftDeleteCheck(@Nonnull Class<ASPECT> aspectClass,
+      @Nonnull Urn urn) {
+    final String columnName = getAspectColumnName(aspectClass);
+    final String tableName = getTableName(urn);
+    return String.format(SQL_READ_ASPECT_NO_SOFT_DELETE_CHECK_TEMPLATE, columnName, tableName, escapeReservedCharInUrn(urn.toString()));
   }
 
   /**

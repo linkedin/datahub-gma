@@ -177,6 +177,27 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   }
 
   @Override
+  public EbeanMetadataAspect getSingleRecordNoSoftDeleteCheck(AspectKey<URN, ? extends RecordTemplate> key) {
+    String query = SQLStatementUtils.createAspectReadSqlNoSoftDeleteCheck(key.getAspectClass(), key.getUrn());
+    SqlRow result = _server.createSqlQuery(query).findOne();
+    if (result != null) {
+      if (isSoftDeletedAspect(result, key.getAspectClass())) {
+        EbeanMetadataAspect softDeletedAspect = new EbeanMetadataAspect();
+        softDeletedAspect.setMetadata(DELETED_VALUE);
+        softDeletedAspect.setKey(new EbeanMetadataAspect.PrimaryKey(key.getUrn().toString(), key.getAspectClass().getCanonicalName(), key.getVersion()));
+        softDeletedAspect.setCreatedOn(result.getTimestamp("lastmodifiedon"));
+        softDeletedAspect.setCreatedBy(result.getString("lastmodifiedby"));
+        softDeletedAspect.setCreatedFor(result.getString("createdfor"));
+        return softDeletedAspect;
+      } else {
+        List<EbeanMetadataAspect> list = EBeanDAOUtils.readSqlRows(Collections.singletonList(result));
+        return list.size() == 1 ? list.get(0) : null;
+      }
+    }
+    return null;
+  }
+
+  @Override
   public List<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       @Nullable URN lastUrn, int pageSize) {
     SqlQuery sqlQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, lastUrn, 0, pageSize);

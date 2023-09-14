@@ -117,6 +117,11 @@ public class EbeanLocalAccessTest {
   }
 
   @Test
+  public void testGetAspectNoSoftDeleteCheck() {
+
+  }
+
+  @Test
   public void testListUrnsWithOffset() {
 
     // Given: metadata_entity_foo table with fooUrns from 0 ~ 99

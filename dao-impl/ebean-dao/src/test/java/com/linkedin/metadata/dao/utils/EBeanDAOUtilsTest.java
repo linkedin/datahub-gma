@@ -6,11 +6,14 @@ import com.linkedin.metadata.dao.EbeanLocalAccess;
 import com.linkedin.metadata.dao.EbeanMetadataAspect;
 import com.linkedin.metadata.dao.ListResult;
 import com.linkedin.metadata.query.ListResultMetadata;
+import com.linkedin.testing.AspectBar;
+import com.linkedin.testing.AspectBaz;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.urn.BurgerUrn;
 import com.linkedin.testing.urn.FooUrn;
 import io.ebean.Ebean;
 import io.ebean.EbeanServer;
+import io.ebean.SqlRow;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -25,6 +28,7 @@ import javax.annotation.Nonnull;
 import org.testng.annotations.Test;
 
 import static com.linkedin.testing.TestUtils.*;
+import static org.mockito.Mockito.*;
 import static org.testng.Assert.*;
 import static org.testng.AssertJUnit.assertEquals;
 import static org.testng.AssertJUnit.assertNotNull;
@@ -143,6 +147,19 @@ public class EBeanDAOUtilsTest {
 
     // null
     assertFalse(EBeanDAOUtils.compareResults(Collections.singletonList(ema1), Collections.singletonList(null), "testMethod"));
+  }
+
+  @Test
+  public void testIsSoftDeletedAspect() {
+    SqlRow sqlRow = mock(SqlRow.class);
+    when(sqlRow.getString("a_aspectfoo")).thenReturn("{\"gma_deleted\": true}");
+    assertTrue(EBeanDAOUtils.isSoftDeletedAspect(sqlRow, AspectFoo.class));
+
+    when(sqlRow.getString("a_aspectbar")).thenReturn("{\"aspect\": {\"value\": \"bar\"}, \"lastmodifiedby\": \"urn:li:tester\"}");
+    assertFalse(EBeanDAOUtils.isSoftDeletedAspect(sqlRow, AspectBar.class));
+
+    when(sqlRow.getString("a_aspectbaz")).thenReturn("{\"random_value\": \"baz\"}");
+    assertFalse(EBeanDAOUtils.isSoftDeletedAspect(sqlRow, AspectBaz.class));
   }
 
   @Test
