@@ -63,6 +63,15 @@ public class EmbeddedMariaInstance {
           String baseDbDir = getBaseDbDir();
           configurationBuilder.setDataDir(baseDbDir + File.separator + "data");
           configurationBuilder.setBaseDir(baseDbDir + File.separator + "base");
+
+          /*
+           * Add below 3 lines of code if building datahub-gma on a M1 / M2 chip Apple computer.
+           *
+           * configurationBuilder.setBaseDir("/opt/homebrew");
+           * configurationBuilder.setUnpackingFromClasspath(false);
+           * configurationBuilder.setLibDir(System.getProperty("java.io.tmpdir") + "/MariaDB4j/no-libs");
+           */
+
           try {
             // ensure the DB directory is deleted before we start to have a clean start
             if (new File(baseDbDir).exists()) {
