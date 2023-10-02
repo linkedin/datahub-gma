@@ -138,6 +138,7 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
       import com.linkedin.common.AuditStamp
       import com.linkedin.metadata.events.ChangeType
       import com.linkedin.metadata.events.IngestionTrackingContext
+      import com.linkedin.metadata.events.MetadataEventType
       import com.linkedin.testing.FooUrn
       import com.linkedin.metadata.test.aspects.TestAspect
 
@@ -181,6 +182,11 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
          * Audit info (i.e. createdon, createdby, createdfor) to track the version history of metadata changes.
          */
         auditStamp: union[null, AuditStamp] = null
+        
+        /**
+         * Type of the audit event. Allow null for backward compatibility. Downstream should treat null as DEFAULT event type.
+         */
+        type: optional union[null, MetadataEventType] = null
       }'''.stripIndent()
 
     projectFile('build/my-dummy-module/generateMetadataEventsSchema/com/linkedin/mxe/foo/testAspect/FailedMetadataChangeEvent.pdl').text == '''\
@@ -258,6 +264,7 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
       import com.linkedin.common.AuditStamp
       import com.linkedin.metadata.events.ChangeType
       import com.linkedin.metadata.events.IngestionTrackingContext
+      import com.linkedin.metadata.events.MetadataEventType
       import com.linkedin.testing.FooUrn
       import com.linkedin.metadata.test.aspects.TestTyperefAspect
 
@@ -301,6 +308,11 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
          * Audit info (i.e. createdon, createdby, createdfor) to track the version history of metadata changes.
          */
         auditStamp: union[null, AuditStamp] = null
+        
+        /**
+         * Type of the audit event. Allow null for backward compatibility. Downstream should treat null as DEFAULT event type.
+         */
+        type: optional union[null, MetadataEventType] = null
       }'''.stripIndent()
 
     projectFile('build/my-dummy-module/generateMetadataEventsSchema/com/linkedin/mxe/foo/testTyperefAspect/FailedMetadataChangeEvent.pdl').text == '''\
