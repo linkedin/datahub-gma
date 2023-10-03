@@ -1,9 +1,9 @@
 namespace com.linkedin.metadata.events
 
 /**
- * Enum that represents the type of ingestion. Metadata consumers decide processing strategy based on this type.
+ * Enum that represents the type of ingestion. Metadata consumers decide processing strategy based on this mode.
  */
-enum IngestionType {
+enum IngestionMode {
 
   /**
    * Live ingestion. Standard processing strategy applies.

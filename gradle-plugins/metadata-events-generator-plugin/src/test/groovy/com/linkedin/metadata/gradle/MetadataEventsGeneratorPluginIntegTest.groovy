@@ -138,7 +138,7 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
       import com.linkedin.common.AuditStamp
       import com.linkedin.metadata.events.ChangeType
       import com.linkedin.metadata.events.IngestionTrackingContext
-      import com.linkedin.metadata.events.IngestionType
+      import com.linkedin.metadata.events.IngestionMode
       import com.linkedin.testing.FooUrn
       import com.linkedin.metadata.test.aspects.TestAspect
 
@@ -186,7 +186,7 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
         /**
          * Type of the ingestion. Allow null for backward compatibility. Downstream should treat null as live ingestion.
          */
-        ingestionType: optional union[null, IngestionType] = null
+        ingestionMode: optional union[null, IngestionMode] = null
       }'''.stripIndent()
 
     projectFile('build/my-dummy-module/generateMetadataEventsSchema/com/linkedin/mxe/foo/testAspect/FailedMetadataChangeEvent.pdl').text == '''\
@@ -264,7 +264,7 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
       import com.linkedin.common.AuditStamp
       import com.linkedin.metadata.events.ChangeType
       import com.linkedin.metadata.events.IngestionTrackingContext
-      import com.linkedin.metadata.events.IngestionType
+      import com.linkedin.metadata.events.IngestionMode
       import com.linkedin.testing.FooUrn
       import com.linkedin.metadata.test.aspects.TestTyperefAspect
 
@@ -312,7 +312,7 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
         /**
          * Type of the ingestion. Allow null for backward compatibility. Downstream should treat null as live ingestion.
          */
-        ingestionType: optional union[null, IngestionType] = null
+        ingestionMode: optional union[null, IngestionMode] = null
       }'''.stripIndent()
 
     projectFile('build/my-dummy-module/generateMetadataEventsSchema/com/linkedin/mxe/foo/testTyperefAspect/FailedMetadataChangeEvent.pdl').text == '''\
