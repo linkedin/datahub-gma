@@ -186,7 +186,7 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
         /**
          * Type of the ingestion. Allow null for backward compatibility. Downstream should treat null as live ingestion.
          */
-        type: optional union[null, IngestionType] = null
+        ingestionType: optional union[null, IngestionType] = null
       }'''.stripIndent()
 
     projectFile('build/my-dummy-module/generateMetadataEventsSchema/com/linkedin/mxe/foo/testAspect/FailedMetadataChangeEvent.pdl').text == '''\
@@ -312,7 +312,7 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
         /**
          * Type of the ingestion. Allow null for backward compatibility. Downstream should treat null as live ingestion.
          */
-        type: optional union[null, IngestionType] = null
+        ingestionType: optional union[null, IngestionType] = null
       }'''.stripIndent()
 
     projectFile('build/my-dummy-module/generateMetadataEventsSchema/com/linkedin/mxe/foo/testTyperefAspect/FailedMetadataChangeEvent.pdl').text == '''\

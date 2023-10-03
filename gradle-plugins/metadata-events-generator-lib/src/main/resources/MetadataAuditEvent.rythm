@@ -55,5 +55,5 @@ record MetadataAuditEvent {
   /**
    * Type of the ingestion. Allow null for backward compatibility. Downstream should treat null as live ingestion.
    */
-  type: optional union[null, IngestionType] = null
+  ingestionType: optional union[null, IngestionType] = null
 }
