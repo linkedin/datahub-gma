@@ -7,6 +7,7 @@ import com.linkedin.avro2pegasus.events.KafkaAuditHeader
 import com.linkedin.common.AuditStamp
 import com.linkedin.metadata.events.ChangeType
 import com.linkedin.metadata.events.IngestionTrackingContext
+import com.linkedin.metadata.events.IngestionMode
 import @eventSpec.getUrnType()
 import @eventSpec.getFullValueType()
 
@@ -50,4 +51,9 @@ record MetadataAuditEvent {
    * Audit info (i.e. createdon, createdby, createdfor) to track the version history of metadata changes.
    */
   auditStamp: union[null, AuditStamp] = null
+
+  /**
+   * Type of the ingestion. Allow null for backward compatibility. Downstream should treat null as live ingestion.
+   */
+  ingestionMode: optional union[null, IngestionMode] = null
 }
