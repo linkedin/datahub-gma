@@ -1,0 +1,22 @@
+namespace com.linkedin.metadata.events
+
+/**
+ * Enum that represents the type of ingestion. Metadata consumers decide processing strategy based on this type.
+ */
+enum IngestionType {
+
+  /**
+   * Live ingestion. Standard processing strategy applies.
+   */
+  LIVE
+
+  /**
+   * Backfill metadata that is skipped or fails in previous processing.
+   */
+  BACKFILL
+
+  /**
+   * Bootstrap metadata from scratch.
+   */
+  BOOTSTRAP
+}
