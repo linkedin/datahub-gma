@@ -29,6 +29,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -134,13 +135,18 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   }
 
   @Override
-  public <ASPECT extends RecordTemplate> void addRelationships(@Nonnull URN urn, @Nonnull ASPECT aspect, @Nonnull Class<ASPECT> aspectClass) {
+  public <ASPECT extends RecordTemplate> List<BaseLocalRelationshipBuilder<ASPECT>.LocalRelationshipUpdates>
+  addRelationships(@Nonnull URN urn, @Nonnull ASPECT aspect, @Nonnull Class<ASPECT> aspectClass) {
     if (_localRelationshipBuilderRegistry != null && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
       List<BaseLocalRelationshipBuilder<ASPECT>.LocalRelationshipUpdates> localRelationshipUpdates =
           _localRelationshipBuilderRegistry.getLocalRelationshipBuilder(aspect).buildRelationships(urn, aspect);
 
       _localRelationshipWriterDAO.processLocalRelationshipUpdates(localRelationshipUpdates);
+
+      return localRelationshipUpdates;
     }
+
+    return new ArrayList<>();
   }
 
   /**

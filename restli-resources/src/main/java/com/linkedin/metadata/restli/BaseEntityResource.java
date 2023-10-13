@@ -36,6 +36,7 @@ import com.linkedin.restli.server.annotations.PagingContextParam;
 import com.linkedin.restli.server.annotations.QueryParam;
 import com.linkedin.restli.server.annotations.RestMethod;
 import com.linkedin.restli.server.resources.CollectionResourceTaskTemplate;
+import java.lang.reflect.InvocationTargetException;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -354,6 +355,42 @@ public abstract class BaseEntityResource<
       final Set<URN> urnSet = Arrays.stream(urns).map(urnString -> parseUrnParam(urnString)).collect(Collectors.toSet());
       return RestliUtils.buildBackfillResult(getLocalDAO().backfillEntityTables(parseAspectsParam(aspectNames), urnSet));
     });
+  }
+
+  /**
+   * Backfill the relationship tables from entity table.
+   */
+  @Action(name = ACTION_BACKFILL_RELATIONSHIP_TABLES)
+  @Nonnull
+  public Task<BackfillResult> backfillRelationshipTables(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
+      @ActionParam(PARAM_ASPECTS) @Nonnull String[] aspectNames) {
+    final BackfillResult backfillResult = new BackfillResult()
+        .setEntities(new BackfillResultEntityArray())
+        .setRelationships(new BackfillResultRelationshipArray());
+
+    for (String urn : urns) {
+      for (Class<? extends RecordTemplate> aspect : parseAspectsParam(aspectNames)) {
+        getLocalDAO().backfillLocalRelationshipsFromEntityTables(parseUrnParam(urn), aspect).forEach(relationshipUpdates -> {
+          relationshipUpdates.getRelationships().forEach(relationship -> {
+            try {
+              Urn source = (Urn) relationship.getClass().getDeclaredMethod("getSource").invoke(null);
+              Urn dest = (Urn) relationship.getClass().getDeclaredMethod("getDestination").invoke(null);
+              BackfillResultRelationship backfillResultRelationship = new BackfillResultRelationship()
+                  .setSource(source)
+                  .setDestination(dest)
+                  .setRemovalOption(relationshipUpdates.getRemovalOption().name())
+                  .setRelationship(relationship.getClass().getCanonicalName());
+
+              backfillResult.getRelationships().add(backfillResultRelationship);
+            } catch (NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
+              throw new RuntimeException(e);
+            }
+          });
+        });
+      }
+    }
+
+    return RestliUtils.toTask(() -> backfillResult);
   }
 
   /**

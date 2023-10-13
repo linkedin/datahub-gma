@@ -95,7 +95,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
     RELATIONSHIP firstRelationship = relationshipGroup.get(0);
     RelationshipValidator.validateRelationshipSchema(firstRelationship.getClass());
 
-    // Process remove option to delete some local relationships if nedded before adding new relationships.
+    // Process remove option to delete some local relationships if needed before adding new relationships.
     processRemovalOption(SQLSchemaUtils.getRelationshipTableName(firstRelationship), firstRelationship, removalOption);
 
     long now = Instant.now().toEpochMilli();

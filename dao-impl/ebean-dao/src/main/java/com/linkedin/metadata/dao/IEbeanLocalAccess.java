@@ -3,6 +3,7 @@ package com.linkedin.metadata.dao;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
+import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder;
 import com.linkedin.metadata.dao.builder.LocalRelationshipBuilderRegistry;
 import com.linkedin.metadata.dao.scsi.UrnPathExtractor;
 import com.linkedin.metadata.query.IndexFilter;
@@ -37,8 +38,11 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * @param urn urn associated with the relationships
    * @param relationship aspect from which the relationships are derived from
    * @param aspectClass class of the aspect
+   * @return relationship updates applied on relationship table
    */
-  <ASPECT extends RecordTemplate> void addRelationships(@Nonnull URN urn, @Nonnull ASPECT relationship, @Nonnull Class<ASPECT> aspectClass);
+  @Nonnull
+  <ASPECT extends RecordTemplate> List<BaseLocalRelationshipBuilder<ASPECT>.LocalRelationshipUpdates>
+  addRelationships(@Nonnull URN urn, @Nonnull ASPECT relationship, @Nonnull Class<ASPECT> aspectClass);
 
   /**
    * Get read aspects from entity table. This a new schema implementation for batchGetUnion() in {@link EbeanLocalDAO}
