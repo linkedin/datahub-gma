@@ -5,7 +5,7 @@ import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.SetMode;
 import com.linkedin.metadata.aspect.AuditedAspect;
-import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder;
+import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.builder.LocalRelationshipBuilderRegistry;
 import com.linkedin.metadata.dao.scsi.EmptyPathExtractor;
 import com.linkedin.metadata.dao.scsi.UrnPathExtractor;
@@ -135,10 +135,10 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   }
 
   @Override
-  public <ASPECT extends RecordTemplate> List<BaseLocalRelationshipBuilder<ASPECT>.LocalRelationshipUpdates>
+  public <ASPECT extends RecordTemplate> List<LocalRelationshipUpdates>
   addRelationships(@Nonnull URN urn, @Nonnull ASPECT aspect, @Nonnull Class<ASPECT> aspectClass) {
     if (_localRelationshipBuilderRegistry != null && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
-      List<BaseLocalRelationshipBuilder<ASPECT>.LocalRelationshipUpdates> localRelationshipUpdates =
+      List<LocalRelationshipUpdates> localRelationshipUpdates =
           _localRelationshipBuilderRegistry.getLocalRelationshipBuilder(aspect).buildRelationships(urn, aspect);
 
       _localRelationshipWriterDAO.processLocalRelationshipUpdates(localRelationshipUpdates);

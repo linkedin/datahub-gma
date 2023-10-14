@@ -11,7 +11,7 @@ import com.linkedin.data.schema.validation.ValidationResult;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.backfill.BackfillMode;
-import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder;
+import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.equality.DefaultEqualityTester;
 import com.linkedin.metadata.dao.equality.EqualityTester;
 import com.linkedin.metadata.dao.exception.ModelValidationException;
@@ -808,8 +808,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param urn the URN for the entity the aspect (which the local relationship is derived from) is attached to
    * @param aspectClass class of the aspect to backfill
    */
-  public abstract <ASPECT extends RecordTemplate> List<BaseLocalRelationshipBuilder<ASPECT>.LocalRelationshipUpdates>
-  backfillLocalRelationshipsFromEntityTables(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass);
+  public abstract <ASPECT extends RecordTemplate> List<LocalRelationshipUpdates> backfillLocalRelationshipsFromEntityTables(
+      @Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass);
 
   /**
    * Returns list of urns from local secondary index that satisfy the given filter conditions.

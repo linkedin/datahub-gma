@@ -13,6 +13,7 @@ import com.linkedin.metadata.backfill.BackfillMode;
 import com.linkedin.metadata.dao.EbeanLocalDAO.FindMethodology;
 import com.linkedin.metadata.dao.EbeanLocalDAO.SchemaConfig;
 import com.linkedin.metadata.dao.EbeanMetadataAspect.PrimaryKey;
+import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder;
 import com.linkedin.metadata.dao.equality.AlwaysFalseEqualityTester;
 import com.linkedin.metadata.dao.equality.DefaultEqualityTester;
 import com.linkedin.metadata.dao.exception.InvalidMetadataType;
@@ -104,11 +105,13 @@ import org.testng.annotations.Factory;
 import org.testng.annotations.Test;
 
 import static com.linkedin.common.AuditStamps.*;
+import static com.linkedin.metadata.dao.internal.BaseGraphWriterDAO.RemovalOption.*;
 import static com.linkedin.metadata.dao.utils.EBeanDAOUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLSchemaUtils.*;
 import static com.linkedin.testing.TestUtils.*;
 import static org.mockito.Mockito.*;
 import static org.testng.Assert.*;
+
 
 public class EbeanLocalDAOTest {
   private long _now;
@@ -3061,16 +3064,36 @@ public class EbeanLocalDAOTest {
       BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
       BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:2");
       BarUrn barUrn3 = BarUrn.createFromString("urn:li:bar:3");
-      AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(barUrn1, barUrn2, barUrn3));
+      BarUrnArray barUrns = new BarUrnArray(barUrn1, barUrn2, barUrn3);
+      AspectFooBar aspectFooBar = new AspectFooBar().setBars(barUrns);
       dao.add(fooUrn, aspectFooBar, _dummyAuditStamp);
 
       // clear local relationship table
       _server.createSqlUpdate("delete from metadata_relationship_belongsto").execute();
 
+      List<BaseLocalRelationshipBuilder.LocalRelationshipUpdates> relationshipUpdates =
       dao.backfillLocalRelationshipsFromEntityTables(fooUrn, AspectFooBar.class);
 
       List<SqlRow> results = _server.createSqlQuery("select * from metadata_relationship_belongsto").findList();
-      assertEquals(3, results.size());
+      assertEquals(results.size(), 3);
+      assertEquals(relationshipUpdates.size(), 1);
+      assertEquals(relationshipUpdates.get(0).getRemovalOption(), REMOVE_ALL_EDGES_TO_DESTINATION);
+
+      BarUrnArray sources = new BarUrnArray();
+      for (int i = 0; i < results.size(); i++) {
+        try {
+          RecordTemplate relationship = relationshipUpdates.get(0).getRelationships().get(i);
+          Urn source = (Urn) relationship.getClass().getMethod("getSource").invoke(relationship);
+          Urn dest = (Urn) relationship.getClass().getMethod("getDestination").invoke(relationship);
+          assertEquals(dest.toString(), "urn:li:foo:1");
+          sources.add(BarUrn.createFromString(source.toString()));
+          assertEquals(relationshipUpdates.get(0).getRelationships().get(i).getClass().getSimpleName(), "BelongsTo");
+        } catch (Exception e) {
+          throw new RuntimeException(e);
+        }
+      }
+
+      assertEquals(sources, barUrns);
     }
   }
 

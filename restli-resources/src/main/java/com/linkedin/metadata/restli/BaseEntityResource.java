@@ -373,13 +373,13 @@ public abstract class BaseEntityResource<
         getLocalDAO().backfillLocalRelationshipsFromEntityTables(parseUrnParam(urn), aspect).forEach(relationshipUpdates -> {
           relationshipUpdates.getRelationships().forEach(relationship -> {
             try {
-              Urn source = (Urn) relationship.getClass().getDeclaredMethod("getSource").invoke(null);
-              Urn dest = (Urn) relationship.getClass().getDeclaredMethod("getDestination").invoke(null);
+              Urn source = (Urn) relationship.getClass().getMethod("getSource").invoke(relationship);
+              Urn dest = (Urn) relationship.getClass().getMethod("getDestination").invoke(relationship);
               BackfillResultRelationship backfillResultRelationship = new BackfillResultRelationship()
                   .setSource(source)
                   .setDestination(dest)
                   .setRemovalOption(relationshipUpdates.getRemovalOption().name())
-                  .setRelationship(relationship.getClass().getCanonicalName());
+                  .setRelationship(relationship.getClass().getSimpleName());
 
               backfillResult.getRelationships().add(backfillResultRelationship);
             } catch (NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {

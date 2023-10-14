@@ -2,7 +2,7 @@ package com.linkedin.metadata.dao;
 
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
-import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder;
+import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
 import com.linkedin.metadata.dao.utils.GraphUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
@@ -48,9 +48,9 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
    */
   @Transactional
   public <ASPECT extends RecordTemplate> void processLocalRelationshipUpdates(
-      @Nonnull List<BaseLocalRelationshipBuilder<ASPECT>.LocalRelationshipUpdates> relationshipUpdates) {
+      @Nonnull List<LocalRelationshipUpdates> relationshipUpdates) {
 
-    for (BaseLocalRelationshipBuilder<ASPECT>.LocalRelationshipUpdates relationshipUpdate : relationshipUpdates) {
+    for (LocalRelationshipUpdates relationshipUpdate : relationshipUpdates) {
       addRelationships(relationshipUpdate.getRelationships(), relationshipUpdate.getRemovalOption());
     }
   }

@@ -19,7 +19,7 @@ record BackfillResult {
      * List of the aspects backfilled for the entity
      */
     aspects: array[string]
-  }],
+  }]
 
   /**
    * List of relationships backfilled
