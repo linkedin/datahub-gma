@@ -382,7 +382,7 @@ public abstract class BaseEntityResource<
                   .setRelationship(relationship.getClass().getSimpleName());
 
               backfillResult.getRelationships().add(backfillResultRelationship);
-            } catch (NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
+            } catch (ReflectiveOperationException e) {
               throw new RuntimeException(e);
             }
           });

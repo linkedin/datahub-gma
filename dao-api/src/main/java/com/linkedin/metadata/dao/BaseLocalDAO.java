@@ -807,6 +807,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    *
    * @param urn the URN for the entity the aspect (which the local relationship is derived from) is attached to
    * @param aspectClass class of the aspect to backfill
+   * @return A list of local relationship updates executed.
    */
   public abstract <ASPECT extends RecordTemplate> List<LocalRelationshipUpdates> backfillLocalRelationshipsFromEntityTables(
       @Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass);

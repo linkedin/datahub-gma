@@ -579,8 +579,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }, 1);
   }
 
-  public <ASPECT extends RecordTemplate> List<LocalRelationshipUpdates>
-  backfillLocalRelationshipsFromEntityTables(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass) {
+  public <ASPECT extends RecordTemplate> List<LocalRelationshipUpdates> backfillLocalRelationshipsFromEntityTables(
+      @Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass) {
     if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
       throw new UnsupportedOperationException("Local relationship tables cannot be used in OLD_SCHEMA_ONLY mode, so they cannot be backfilled.");
     }
