@@ -36,7 +36,6 @@ import com.linkedin.restli.server.annotations.PagingContextParam;
 import com.linkedin.restli.server.annotations.QueryParam;
 import com.linkedin.restli.server.annotations.RestMethod;
 import com.linkedin.restli.server.resources.CollectionResourceTaskTemplate;
-import java.lang.reflect.InvocationTargetException;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
