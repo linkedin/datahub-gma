@@ -2,7 +2,7 @@ package com.linkedin.metadata.dao;
 
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
-import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder;
+import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
 import com.linkedin.metadata.dao.utils.GraphUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
@@ -48,9 +48,9 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
    */
   @Transactional
   public <ASPECT extends RecordTemplate> void processLocalRelationshipUpdates(
-      @Nonnull List<BaseLocalRelationshipBuilder<ASPECT>.LocalRelationshipUpdates> relationshipUpdates) {
+      @Nonnull List<LocalRelationshipUpdates> relationshipUpdates) {
 
-    for (BaseLocalRelationshipBuilder<ASPECT>.LocalRelationshipUpdates relationshipUpdate : relationshipUpdates) {
+    for (LocalRelationshipUpdates relationshipUpdate : relationshipUpdates) {
       addRelationships(relationshipUpdate.getRelationships(), relationshipUpdate.getRemovalOption());
     }
   }
@@ -95,7 +95,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
     RELATIONSHIP firstRelationship = relationshipGroup.get(0);
     RelationshipValidator.validateRelationshipSchema(firstRelationship.getClass());
 
-    // Process remove option to delete some local relationships if nedded before adding new relationships.
+    // Process remove option to delete some local relationships if needed before adding new relationships.
     processRemovalOption(SQLSchemaUtils.getRelationshipTableName(firstRelationship), firstRelationship, removalOption);
 
     long now = Instant.now().toEpochMilli();

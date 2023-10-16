@@ -7,7 +7,7 @@ import com.linkedin.metadata.dao.localrelationship.builder.PairsWithLocalRelatio
 import com.linkedin.metadata.dao.localrelationship.builder.ReportsToLocalRelationshipBuilder;
 import com.linkedin.metadata.dao.localrelationship.builder.VersionOfLocalRelationshipBuilder;
 import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
-import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder;
+import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.testing.BarUrnArray;
 import com.linkedin.testing.localrelationship.AspectFooBar;
 import com.linkedin.testing.urn.BarUrn;
@@ -47,7 +47,7 @@ public class EbeanLocalRelationshipWriterDAOTest {
         BarUrn.createFromString("urn:li:bar:456"),
         BarUrn.createFromString("urn:li:bar:789")));
 
-    List<BaseLocalRelationshipBuilder<AspectFooBar>.LocalRelationshipUpdates> updates = new BelongsToLocalRelationshipBuilder(AspectFooBar.class)
+    List<LocalRelationshipUpdates> updates = new BelongsToLocalRelationshipBuilder(AspectFooBar.class)
         .buildRelationships(FooUrn.createFromString("urn:li:foo:123"), aspectFooBar);
 
     // Before processing
@@ -82,7 +82,7 @@ public class EbeanLocalRelationshipWriterDAOTest {
         BarUrn.createFromString("urn:li:bar:456"),
         BarUrn.createFromString("urn:li:bar:789")));
 
-    List<BaseLocalRelationshipBuilder<AspectFooBar>.LocalRelationshipUpdates> updates = new ReportsToLocalRelationshipBuilder(AspectFooBar.class)
+    List<LocalRelationshipUpdates> updates = new ReportsToLocalRelationshipBuilder(AspectFooBar.class)
         .buildRelationships(FooUrn.createFromString("urn:li:foo:123"), aspectFooBar);
 
     // Before processing
@@ -114,7 +114,7 @@ public class EbeanLocalRelationshipWriterDAOTest {
 
     AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(BarUrn.createFromString("urn:li:bar:123")));
 
-    List<BaseLocalRelationshipBuilder<AspectFooBar>.LocalRelationshipUpdates> updates = new PairsWithLocalRelationshipBuilder(AspectFooBar.class)
+    List<LocalRelationshipUpdates> updates = new PairsWithLocalRelationshipBuilder(AspectFooBar.class)
         .buildRelationships(FooUrn.createFromString("urn:li:foo:123"), aspectFooBar);
 
     // Before processing
@@ -151,7 +151,7 @@ public class EbeanLocalRelationshipWriterDAOTest {
 
     AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(BarUrn.createFromString("urn:li:bar:123")));
 
-    List<BaseLocalRelationshipBuilder<AspectFooBar>.LocalRelationshipUpdates> updates = new VersionOfLocalRelationshipBuilder(AspectFooBar.class)
+    List<LocalRelationshipUpdates> updates = new VersionOfLocalRelationshipBuilder(AspectFooBar.class)
         .buildRelationships(FooUrn.createFromString("urn:li:foo:123"), aspectFooBar);
 
     // Before processing

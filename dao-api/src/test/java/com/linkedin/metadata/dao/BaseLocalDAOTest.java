@@ -2,6 +2,7 @@ package com.linkedin.metadata.dao;
 
 import com.linkedin.common.AuditStamp;
 import com.linkedin.data.template.RecordTemplate;
+import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
@@ -84,8 +85,9 @@ public class BaseLocalDAOTest {
     }
 
     @Override
-    public <ASPECT extends RecordTemplate> void backfillLocalRelationshipsFromEntityTables(@Nonnull FooUrn urn, @Nonnull Class<ASPECT> aspectClass) {
-
+    public <ASPECT extends RecordTemplate> List<LocalRelationshipUpdates> backfillLocalRelationshipsFromEntityTables(
+        @Nonnull FooUrn urn, @Nonnull Class<ASPECT> aspectClass) {
+      return null;
     }
 
     @Nonnull

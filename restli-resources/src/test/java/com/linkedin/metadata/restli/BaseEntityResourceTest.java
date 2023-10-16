@@ -10,6 +10,8 @@ import com.linkedin.metadata.dao.AspectKey;
 import com.linkedin.metadata.dao.BaseLocalDAO;
 import com.linkedin.metadata.dao.ListResult;
 import com.linkedin.metadata.dao.UrnAspectEntry;
+import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
+import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.events.IngestionTrackingContext;
@@ -39,6 +41,7 @@ import com.linkedin.testing.EntityKey;
 import com.linkedin.testing.EntitySnapshot;
 import com.linkedin.testing.EntityValue;
 import com.linkedin.testing.localrelationship.AspectFooBar;
+import com.linkedin.testing.localrelationship.BelongsTo;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.FooUrn;
 import java.net.URISyntaxException;
@@ -679,6 +682,30 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     assertEquals(backfillResultEntity.getUrn(), urn2);
     assertEquals(backfillResultEntity.getAspects().size(), 1);
     assertTrue(backfillResultEntity.getAspects().contains("com.linkedin.testing.AspectBar"));
+  }
+
+  @Test
+  public void testBackfillRelationshipTables() {
+    FooUrn fooUrn = makeFooUrn(1);
+    BarUrn barUrn = makeBarUrn(1);
+
+    String[] aspects = new String[]{"com.linkedin.testing.AspectFoo"};
+    BelongsTo belongsTo = new BelongsTo().setSource(fooUrn).setDestination(barUrn);
+    List<BelongsTo> belongsTos = Collections.singletonList(belongsTo);
+
+    LocalRelationshipUpdates updates = new LocalRelationshipUpdates(belongsTos,
+        BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE);
+    List<LocalRelationshipUpdates> relationships = Collections.singletonList(updates);
+
+    when(_mockLocalDAO.backfillLocalRelationshipsFromEntityTables(fooUrn, AspectFoo.class)).thenReturn(relationships);
+    BackfillResult backfillResult = runAndWait(_resource.backfillRelationshipTables(new String[]{fooUrn.toString()}, aspects));
+
+    assertTrue(backfillResult.hasRelationships());
+    assertEquals(backfillResult.getRelationships().size(), 1);
+    assertEquals(backfillResult.getRelationships().get(0).getDestination().toString(), "urn:li:bar:1");
+    assertEquals(backfillResult.getRelationships().get(0).getSource().toString(), "urn:li:foo:1");
+    assertEquals(backfillResult.getRelationships().get(0).getRelationship(), "BelongsTo");
+    assertEquals(backfillResult.getRelationships().get(0).getRemovalOption(), "REMOVE_ALL_EDGES_FROM_SOURCE");
   }
 
   @Test

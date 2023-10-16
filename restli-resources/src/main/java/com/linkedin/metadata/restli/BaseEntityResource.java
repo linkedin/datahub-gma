@@ -357,6 +357,42 @@ public abstract class BaseEntityResource<
   }
 
   /**
+   * Backfill the relationship tables from entity table.
+   */
+  @Action(name = ACTION_BACKFILL_RELATIONSHIP_TABLES)
+  @Nonnull
+  public Task<BackfillResult> backfillRelationshipTables(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
+      @ActionParam(PARAM_ASPECTS) @Nonnull String[] aspectNames) {
+    final BackfillResult backfillResult = new BackfillResult()
+        .setEntities(new BackfillResultEntityArray())
+        .setRelationships(new BackfillResultRelationshipArray());
+
+    for (String urn : urns) {
+      for (Class<? extends RecordTemplate> aspect : parseAspectsParam(aspectNames)) {
+        getLocalDAO().backfillLocalRelationshipsFromEntityTables(parseUrnParam(urn), aspect).forEach(relationshipUpdates -> {
+          relationshipUpdates.getRelationships().forEach(relationship -> {
+            try {
+              Urn source = (Urn) relationship.getClass().getMethod("getSource").invoke(relationship);
+              Urn dest = (Urn) relationship.getClass().getMethod("getDestination").invoke(relationship);
+              BackfillResultRelationship backfillResultRelationship = new BackfillResultRelationship()
+                  .setSource(source)
+                  .setDestination(dest)
+                  .setRemovalOption(relationshipUpdates.getRemovalOption().name())
+                  .setRelationship(relationship.getClass().getSimpleName());
+
+              backfillResult.getRelationships().add(backfillResultRelationship);
+            } catch (ReflectiveOperationException e) {
+              throw new RuntimeException(e);
+            }
+          });
+        });
+      }
+    }
+
+    return RestliUtils.toTask(() -> backfillResult);
+  }
+
+  /**
    * An action method for emitting MAE backfill messages for a set of entities using SCSI.
    */
   @Action(name = ACTION_BACKFILL)
