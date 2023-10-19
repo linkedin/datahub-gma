@@ -13,6 +13,7 @@ import com.linkedin.metadata.dao.ListResult;
 import com.linkedin.metadata.dao.UrnAspectEntry;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.utils.ModelUtils;
+import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
@@ -52,6 +53,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import static com.linkedin.metadata.dao.BaseReadDAO.*;
+import static com.linkedin.metadata.dao.utils.IngestionUtils.*;
 import static com.linkedin.metadata.restli.RestliConstants.*;
 
 
@@ -327,10 +329,31 @@ public abstract class BaseEntityResource<
   }
 
   /**
+   * An action method for emitting no change MAE messages (oldValue == newValue). This action will add ingestionMode
+   * in the MAE payload to allow downstream consumers to decide processing strategy. Only BOOTSTRAP and BACKFILL are
+   * supported ingestion mode, other mode will result in no-op.
+   */
+  @Action(name = ACTION_EMIT_NO_CHANGE_METADATA_AUDIT_EVENT)
+  @Nonnull
+  public Task<BackfillResult> emitNoChangeMetadataAuditEvent(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
+      @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
+      @ActionParam(PARAM_INGESTION_MODE) @Nonnull IngestionMode ingestionMode) {
+    BackfillMode backfillMode = ALLOWED_INGESTION_BACKFILL_BIMAP.get(ingestionMode);
+    if (backfillMode == null) {
+      return RestliUtils.toTask(BackfillResult::new);
+    }
+    return RestliUtils.toTask(() -> {
+      final Set<URN> urnSet = Arrays.stream(urns).map(urnString -> parseUrnParam(urnString)).collect(Collectors.toSet());
+      return RestliUtils.buildBackfillResult(getLocalDAO().backfill(backfillMode, parseAspectsParam(aspectNames), urnSet));
+    });
+  }
+
+  /**
    * An action method for emitting MAE backfill messages with new value (old value will be set as null). This action
    * should be deprecated once the secondary store is moving away from elastic search, or the standard backfill
    * method starts to safely backfill against live index.
    */
+  @Deprecated
   @Action(name = ACTION_BACKFILL_WITH_NEW_VALUE)
   @Nonnull
   public Task<BackfillResult> backfillWithNewValue(@ActionParam(PARAM_URNS) @Nonnull String[] urns,

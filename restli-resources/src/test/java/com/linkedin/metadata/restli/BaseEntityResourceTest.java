@@ -14,6 +14,7 @@ import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelat
 import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
+import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
@@ -682,6 +683,88 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     assertEquals(backfillResultEntity.getUrn(), urn2);
     assertEquals(backfillResultEntity.getAspects().size(), 1);
     assertTrue(backfillResultEntity.getAspects().contains("com.linkedin.testing.AspectBar"));
+  }
+
+  @Test
+  public void testEmitNoChangeMetadataAuditEvent() {
+    FooUrn urn1 = makeFooUrn(1);
+    FooUrn urn2 = makeFooUrn(2);
+    AspectFoo foo1 = new AspectFoo().setValue("foo1");
+    AspectBar bar1 = new AspectBar().setValue("bar1");
+    AspectBar bar2 = new AspectBar().setValue("bar2");
+    String[] aspects = new String[]{"com.linkedin.testing.AspectFoo", "com.linkedin.testing.AspectBar"};
+    when(_mockLocalDAO.backfill(BackfillMode.BACKFILL_INCLUDING_LIVE_INDEX, _resource.parseAspectsParam(aspects), ImmutableSet.of(urn1, urn2)))
+        .thenReturn(
+            ImmutableMap.of(urn1, ImmutableMap.of(AspectFoo.class, Optional.of(foo1), AspectBar.class, Optional.of(bar1)),
+                urn2, ImmutableMap.of(AspectBar.class, Optional.of(bar2)))
+        );
+
+    BackfillResult backfillResult =
+        runAndWait(_resource.emitNoChangeMetadataAuditEvent(new String[]{urn1.toString(), urn2.toString()}, aspects,
+            IngestionMode.BACKFILL));
+    assertEquals(backfillResult.getEntities().size(), 2);
+
+    // Test first entity
+    BackfillResultEntity backfillResultEntity = backfillResult.getEntities().get(0);
+    assertEquals(backfillResultEntity.getUrn(), urn1);
+    assertEquals(backfillResultEntity.getAspects().size(), 2);
+    assertTrue(backfillResultEntity.getAspects().contains("com.linkedin.testing.AspectFoo"));
+    assertTrue(backfillResultEntity.getAspects().contains("com.linkedin.testing.AspectBar"));
+
+    // Test second entity
+    backfillResultEntity = backfillResult.getEntities().get(1);
+    assertEquals(backfillResultEntity.getUrn(), urn2);
+    assertEquals(backfillResultEntity.getAspects().size(), 1);
+    assertTrue(backfillResultEntity.getAspects().contains("com.linkedin.testing.AspectBar"));
+  }
+
+  @Test
+  public void testEmitNoChangeMetadataAuditEventBootstrap() {
+    FooUrn urn1 = makeFooUrn(1);
+    FooUrn urn2 = makeFooUrn(2);
+    AspectFoo foo1 = new AspectFoo().setValue("foo1");
+    AspectBar bar1 = new AspectBar().setValue("bar1");
+    AspectBar bar2 = new AspectBar().setValue("bar2");
+    String[] aspects = new String[]{"com.linkedin.testing.AspectFoo", "com.linkedin.testing.AspectBar"};
+    when(_mockLocalDAO.backfill(BackfillMode.BACKFILL_ALL, _resource.parseAspectsParam(aspects), ImmutableSet.of(urn1, urn2)))
+        .thenReturn(
+            ImmutableMap.of(urn1, ImmutableMap.of(AspectFoo.class, Optional.of(foo1), AspectBar.class, Optional.of(bar1)),
+                urn2, ImmutableMap.of(AspectBar.class, Optional.of(bar2)))
+        );
+
+    BackfillResult backfillResult =
+        runAndWait(_resource.emitNoChangeMetadataAuditEvent(new String[]{urn1.toString(), urn2.toString()}, aspects,
+            IngestionMode.BOOTSTRAP));
+    assertEquals(backfillResult.getEntities().size(), 2);
+
+    // Test first entity
+    BackfillResultEntity backfillResultEntity = backfillResult.getEntities().get(0);
+    assertEquals(backfillResultEntity.getUrn(), urn1);
+    assertEquals(backfillResultEntity.getAspects().size(), 2);
+    assertTrue(backfillResultEntity.getAspects().contains("com.linkedin.testing.AspectFoo"));
+    assertTrue(backfillResultEntity.getAspects().contains("com.linkedin.testing.AspectBar"));
+
+    // Test second entity
+    backfillResultEntity = backfillResult.getEntities().get(1);
+    assertEquals(backfillResultEntity.getUrn(), urn2);
+    assertEquals(backfillResultEntity.getAspects().size(), 1);
+    assertTrue(backfillResultEntity.getAspects().contains("com.linkedin.testing.AspectBar"));
+  }
+
+  @Test
+  public void testEmitNoChangeMetadataAuditEventNoResult() {
+    FooUrn urn1 = makeFooUrn(1);
+    FooUrn urn2 = makeFooUrn(2);
+    AspectFoo foo1 = new AspectFoo().setValue("foo1");
+    AspectBar bar1 = new AspectBar().setValue("bar1");
+    AspectBar bar2 = new AspectBar().setValue("bar2");
+    String[] aspects = new String[]{"com.linkedin.testing.AspectFoo", "com.linkedin.testing.AspectBar"};
+
+    BackfillResult backfillResult =
+        runAndWait(_resource.emitNoChangeMetadataAuditEvent(new String[]{urn1.toString(), urn2.toString()}, aspects,
+            IngestionMode.LIVE));
+    verify(_mockLocalDAO, times(0)).backfill(any(BackfillMode.class), any(Set.class), any(Set.class));
+    assertFalse(backfillResult.hasEntities());
   }
 
   @Test

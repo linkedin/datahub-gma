@@ -16,6 +16,7 @@ public final class RestliConstants {
   public static final String ACTION_BACKFILL_LEGACY = "backfillLegacy";
   public static final String ACTION_BROWSE = "browse";
   public static final String ACTION_COUNT_AGGREGATE = "countAggregate";
+  public static final String ACTION_EMIT_NO_CHANGE_METADATA_AUDIT_EVENT = "emitNoChangeMetadataAuditEvent";
   public static final String ACTION_GET_BROWSE_PATHS = "getBrowsePaths";
   public static final String ACTION_GET_SNAPSHOT = "getSnapshot";
   public static final String ACTION_INGEST = "ingest";
@@ -37,5 +38,6 @@ public final class RestliConstants {
   public static final String PARAM_URN = "urn";
   public static final String PARAM_URNS = "urns";
   public static final String PARAM_MODE = "mode";
+  public static final String PARAM_INGESTION_MODE = "ingestionMode";
   public static final String PARAM_TRACKING_CONTEXT = "trackingContext";
 }

@@ -24,4 +24,10 @@ enum BackfillMode {
    * Backfill only using MAE. Setting the old value in MAE payload as null.
    */
   MAE_ONLY_WITH_OLD_VALUE_NULL
+
+  /**
+   * This type is a replacement type with the deprecation of MAE_ONLY_WITH_OLD_VALUE_NULL. It informs the downstream
+   * consumers that this backfill request should be ingested into the live index as well.
+   */
+   BACKFILL_INCLUDING_LIVE_INDEX
 }
