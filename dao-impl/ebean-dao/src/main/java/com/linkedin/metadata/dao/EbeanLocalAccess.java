@@ -169,7 +169,12 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     for (int index = position; index < end; index++) {
       final Urn entityUrn = aspectKeys.get(index).getUrn();
       final Class<ASPECT> aspectClass = (Class<ASPECT>) aspectKeys.get(index).getAspectClass();
-      keysToQueryMap.computeIfAbsent(aspectClass, unused -> new HashSet<>()).add(entityUrn);
+      final String checkColumnExistSql = SQLStatementUtils.checkColumnExistsSql(getTableName(entityUrn), getAspectColumnName(aspectClass));
+
+      // An aspect's column might not be defined in entity table yet, check the column exist or not before add it to query map.
+      if (_server.createSqlQuery(checkColumnExistSql).findOne() != null) {
+        keysToQueryMap.computeIfAbsent(aspectClass, unused -> new HashSet<>()).add(entityUrn);
+      }
     }
 
     // each statement is for a single aspect class
