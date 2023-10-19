@@ -21,7 +21,7 @@ enum BackfillMode {
   BACKFILL_ALL
 
   /**
-   * Backfill only using MAE. Setting the old value in MAE payload as null.
+   * DO NOT USE, it's deprecated. Backfill only using MAE. Setting the old value in MAE payload as null.
    */
   MAE_ONLY_WITH_OLD_VALUE_NULL
 
