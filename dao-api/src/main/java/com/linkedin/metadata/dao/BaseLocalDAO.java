@@ -25,6 +25,7 @@ import com.linkedin.metadata.dao.storage.LocalDAOStorageConfig;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.tracking.TrackingUtils;
 import com.linkedin.metadata.dao.utils.ModelUtils;
+import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.IndexCriterion;
@@ -58,6 +59,8 @@ import lombok.Data;
 import lombok.NonNull;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
+
+import static com.linkedin.metadata.dao.utils.IngestionUtils.*;
 
 
 /**
@@ -577,7 +580,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     if (_emitAspectSpecificAuditEvent) {
       if (_alwaysEmitAspectSpecificAuditEvent || oldValue != newValue) {
         if (_trackingProducer != null) {
-          _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, auditStamp, trackingContext);
+          _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, auditStamp, trackingContext,
+              IngestionMode.LIVE);
         } else {
           _producer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, auditStamp);
         }
@@ -1089,6 +1093,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param urns  set of urns to backfill
    * @return map of urn to their backfilled aspect values
    */
+  @Deprecated
   @Nonnull
   public Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfillWithNewValue(
       @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nonnull Set<URN> urns) {
@@ -1153,21 +1158,20 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       updateLocalIndex(urn, aspect, FIRST_VERSION);
     }
 
-    ASPECT oldValue = (mode == BackfillMode.MAE_ONLY_WITH_OLD_VALUE_NULL) ? null : aspect;
-
     if (mode == BackfillMode.MAE_ONLY
         || mode == BackfillMode.BACKFILL_ALL
-        || mode == BackfillMode.MAE_ONLY_WITH_OLD_VALUE_NULL) {
+        || mode == BackfillMode.BACKFILL_INCLUDING_LIVE_INDEX) {
+      IngestionMode ingestionMode = ALLOWED_INGESTION_BACKFILL_BIMAP.inverse().get(mode);
       if (_trackingProducer != null) {
-        _trackingProducer.produceMetadataAuditEvent(urn, oldValue, aspect);
+        _trackingProducer.produceMetadataAuditEvent(urn, aspect, aspect);
         IngestionTrackingContext trackingContext = new IngestionTrackingContext();
         trackingContext.setTrackingId(TrackingUtils.getRandomUUID());
         trackingContext.setEmitter("dao_backfill_endpoint");
         trackingContext.setEmitTime(System.currentTimeMillis());
-        _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, aspect, null, trackingContext);
+        _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, null, trackingContext, ingestionMode);
       } else {
-        _producer.produceMetadataAuditEvent(urn, oldValue, aspect);
-        _producer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, aspect, null);
+        _producer.produceMetadataAuditEvent(urn, aspect, aspect);
+        _producer.produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, null);
       }
     }
   }

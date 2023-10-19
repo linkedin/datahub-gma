@@ -8,6 +8,7 @@ import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
 import com.linkedin.metadata.dao.retention.VersionBasedRetention;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
+import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.IndexFilter;
@@ -333,8 +334,10 @@ public class BaseLocalDAOTest {
 
     verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
     verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, foo, foo);
-    verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo, _dummyAuditStamp, mockTrackingContext);
-    verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, foo, foo, _dummyAuditStamp, mockTrackingContext);
+    verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null,
+        foo, _dummyAuditStamp, mockTrackingContext, IngestionMode.LIVE);
+    verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, foo,
+        foo, _dummyAuditStamp, mockTrackingContext, IngestionMode.LIVE);
     verifyNoMoreInteractions(_mockTrackingEventProducer);
   }
 

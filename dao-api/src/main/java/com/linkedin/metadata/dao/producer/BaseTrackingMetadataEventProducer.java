@@ -4,6 +4,7 @@ import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.UnionTemplate;
+import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -26,7 +27,9 @@ public abstract class BaseTrackingMetadataEventProducer<SNAPSHOT extends RecordT
    * @param newValue the value after the update
    * @param trackingContext nullable tracking context passed in to be appended to produced MAEv5s
    * @param auditStamp {@link AuditStamp} containing version auditing information for the metadata change
+   * @param ingestionMode {@link IngestionMode} of the change
    */
   public abstract <ASPECT extends RecordTemplate> void produceAspectSpecificMetadataAuditEvent(@Nonnull URN urn,
-      @Nullable ASPECT oldValue, @Nonnull ASPECT newValue, @Nullable AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext);
+      @Nullable ASPECT oldValue, @Nonnull ASPECT newValue, @Nullable AuditStamp auditStamp,
+      @Nullable IngestionTrackingContext trackingContext, @Nullable IngestionMode ingestionMode);
 }
