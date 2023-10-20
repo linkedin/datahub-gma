@@ -8,7 +8,9 @@ import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.common.urn.Urns;
 import com.linkedin.data.template.RecordTemplate;
+import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.StringArray;
+import com.linkedin.metadata.aspect.AuditedAspect;
 import com.linkedin.metadata.backfill.BackfillMode;
 import com.linkedin.metadata.dao.EbeanLocalDAO.FindMethodology;
 import com.linkedin.metadata.dao.EbeanLocalDAO.SchemaConfig;
@@ -68,6 +70,7 @@ import io.ebean.ExpressionList;
 import io.ebean.OrderBy;
 import io.ebean.PagedList;
 import io.ebean.Query;
+import io.ebean.SqlQuery;
 import io.ebean.SqlRow;
 import io.ebean.Transaction;
 import io.ebean.config.ServerConfig;
@@ -127,14 +130,22 @@ public class EbeanLocalDAOTest {
   // run the tests 1 time for each of EbeanLocalDAO.FindMethodology values (3 total)
   private final FindMethodology _findMethodology;
 
+  private final boolean _enableChangeLog;
+
   private static final String NEW_SCHEMA_CREATE_ALL_SQL = "ebean-local-dao-create-all.sql";
   private static final String GMA_CREATE_ALL_SQL = "gma-create-all.sql";
   private static final String GMA_DROP_ALL_SQL = "gma-drop-all.sql";
 
   @Factory(dataProvider = "inputList")
-  public EbeanLocalDAOTest(SchemaConfig schemaConfig, FindMethodology findMethodology) {
+  public EbeanLocalDAOTest(SchemaConfig schemaConfig, FindMethodology findMethodology, boolean enableChangeLog) {
+
+    System.out.println(
+        String.format("schema config: %s, find method %s, enable change log: %s", schemaConfig, findMethodology,
+            enableChangeLog));
+
     _schemaConfig = schemaConfig;
     _findMethodology = findMethodology;
+    _enableChangeLog = enableChangeLog;
   }
 
   @Nonnull
@@ -149,12 +160,12 @@ public class EbeanLocalDAOTest {
   @DataProvider
   public static Object[][] inputList() {
     return new Object[][]{
-        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID},
-        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID},
-        {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID},
-        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL},
-        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.DIRECT_SQL},
-        {SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL}
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, true},
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, false},
+        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, true},
+        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, false},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID, true},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID, false},
     };
   }
 
@@ -196,6 +207,7 @@ public class EbeanLocalDAOTest {
       dao.setUrnPathExtractor((UrnPathExtractor<URN>) new BarUrnPathExtractor());
     }
     dao.setEmitAuditEvent(true);
+    dao.setChangeLogEnabled(_enableChangeLog);
     return dao;
   }
 
@@ -290,7 +302,10 @@ public class EbeanLocalDAOTest {
     assertEquals(aspect.getKey().getVersion(), 0);
     assertEquals(aspect.getCreatedOn(), new Timestamp(_now));
     assertEquals(aspect.getCreatedBy(), "urn:li:test:actor");
-    assertEquals(aspect.getCreatedFor(), "urn:li:test:impersonator");
+    if (_schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      // didn't even implement this in the new schema since the createdfor column is not being read by anyone. so skipping this check.
+      assertEquals(aspect.getCreatedFor(), "urn:li:test:impersonator");
+    }
 
     AspectFoo actual = RecordUtils.toRecordTemplate(AspectFoo.class, aspect.getMetadata());
     assertEquals(actual, expected);
@@ -314,9 +329,11 @@ public class EbeanLocalDAOTest {
     AspectFoo actual = RecordUtils.toRecordTemplate(AspectFoo.class, aspect.getMetadata());
     assertEquals(actual, v0);
 
-    aspect = getMetadata(urn, aspectName, 1);
-    actual = RecordUtils.toRecordTemplate(AspectFoo.class, aspect.getMetadata());
-    assertEquals(actual, v1);
+    if (dao.isChangeLogEnabled()) {
+      aspect = getMetadata(urn, aspectName, 1);
+      actual = RecordUtils.toRecordTemplate(AspectFoo.class, aspect.getMetadata());
+      assertEquals(actual, v1);
+    }
 
     InOrder inOrder = inOrder(_mockProducer);
     inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, v1);
@@ -342,13 +359,16 @@ public class EbeanLocalDAOTest {
     AspectFoo actual = RecordUtils.toRecordTemplate(AspectFoo.class, aspect.getMetadata());
     assertEquals(actual, bar);
 
-    // v1: foo
-    aspect = getMetadata(urn, aspectName, 1);
-    actual = RecordUtils.toRecordTemplate(AspectFoo.class, aspect.getMetadata());
-    assertEquals(actual, foo);
+    if (dao.isChangeLogEnabled()) {
+      // v1: foo
+      aspect = getMetadata(urn, aspectName, 1);
+      actual = RecordUtils.toRecordTemplate(AspectFoo.class, aspect.getMetadata());
+      assertEquals(actual, foo);
 
-    // no v2
-    assertNull(getMetadata(urn, aspectName, 2));
+      // no v2
+      assertNull(getMetadata(urn, aspectName, 2));
+    }
+
 
     verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
     verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, foo, bar);
@@ -371,9 +391,11 @@ public class EbeanLocalDAOTest {
     AspectFoo actual = RecordUtils.toRecordTemplate(AspectFoo.class, aspect.getMetadata());
     assertEquals(actual, foo1);
 
-    aspect = getMetadata(urn, aspectName, 1);
-    actual = RecordUtils.toRecordTemplate(AspectFoo.class, aspect.getMetadata());
-    assertEquals(actual, foo2);
+    if (dao.isChangeLogEnabled()) {
+      aspect = getMetadata(urn, aspectName, 1);
+      actual = RecordUtils.toRecordTemplate(AspectFoo.class, aspect.getMetadata());
+      assertEquals(actual, foo2);
+    }
 
     verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, foo1);
     verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, foo1, foo2);
@@ -394,8 +416,10 @@ public class EbeanLocalDAOTest {
     dao.add(urn, v2, _dummyAuditStamp);
     dao.add(urn, v0, _dummyAuditStamp);
 
-    assertNull(getMetadata(urn, aspectName, 1));
-    assertNotNull(getMetadata(urn, aspectName, 2));
+    if (dao.isChangeLogEnabled()) {
+      assertNull(getMetadata(urn, aspectName, 1));
+      assertNotNull(getMetadata(urn, aspectName, 2));
+    }
     assertNotNull(getMetadata(urn, aspectName, 0));
   }
 
@@ -422,8 +446,10 @@ public class EbeanLocalDAOTest {
     dao.add(urn, v2, makeAuditStamp("foo", baseTime + 3000L));
     dao.add(urn, v0, makeAuditStamp("foo", baseTime + 5000L));
 
-    assertNull(getMetadata(urn, aspectName, 1));
-    assertNotNull(getMetadata(urn, aspectName, 2));
+    if (dao.isChangeLogEnabled()) {
+      assertNull(getMetadata(urn, aspectName, 1));
+      assertNotNull(getMetadata(urn, aspectName, 2));
+    }
     assertNotNull(getMetadata(urn, aspectName, 0));
   }
 
@@ -461,10 +487,13 @@ public class EbeanLocalDAOTest {
   public void testAddFailedAfterRetry() {
     EbeanServer server = mock(EbeanServer.class);
     Transaction mockTransaction = mock(Transaction.class);
+    SqlQuery mockSqlQuery = mock(SqlQuery.class);
     when(server.beginTransaction()).thenReturn(mockTransaction);
     when(server.find(any(), ArgumentMatchers.any(PrimaryKey.class))).thenReturn(null);
     doThrow(RollbackException.class).when(server).insert(any(EbeanMetadataAspect.class));
     doThrow(RollbackException.class).when(server).createSqlUpdate(any());
+    when(server.createSqlQuery(any())).thenReturn(mockSqlQuery);
+    when(mockSqlQuery.findList()).thenReturn(Collections.emptyList());
 
     Query mockQuery = mock(Query.class);
     when(mockQuery.findList()).thenReturn(Collections.emptyList());
@@ -571,9 +600,9 @@ public class EbeanLocalDAOTest {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     FooUrn urn = makeFooUrn(1);
     AspectFoo v0 = new AspectFoo().setValue("foo");
-    addMetadata(urn, AspectFoo.class.getCanonicalName(), 0, v0);
+    addMetadata(urn, AspectFoo.class, 0, v0);
     AspectFoo v1 = new AspectFoo().setValue("bar");
-    addMetadata(urn, AspectFoo.class.getCanonicalName(), 1, v1);
+    addMetadata(urn, AspectFoo.class, 1, v1);
 
     Optional<AspectFoo> foo = dao.get(AspectFoo.class, urn);
 
@@ -591,9 +620,9 @@ public class EbeanLocalDAOTest {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     FooUrn urn = makeFooUrn(1);
     AspectFoo v0 = new AspectFoo().setValue("foo");
-    addMetadata(urn, AspectFoo.class.getCanonicalName(), 0, v0);
+    addMetadata(urn, AspectFoo.class, 0, v0);
     AspectFoo v1 = new AspectFoo().setValue("bar");
-    addMetadata(urn, AspectFoo.class.getCanonicalName(), 1, v1);
+    addMetadata(urn, AspectFoo.class, 1, v1);
 
     Optional<AspectFoo> foo = dao.get(AspectFoo.class, urn, 1);
 
@@ -703,7 +732,7 @@ public class EbeanLocalDAOTest {
 
     FooUrn urn = makeFooUrn(1);
     AspectFoo expected = new AspectFoo().setValue("foo");
-    addMetadata(urn, AspectFoo.class.getCanonicalName(), 0, expected);
+    addMetadata(urn, AspectFoo.class, 0, expected);
     dao.backfill(AspectFoo.class, urn);
 
     // then when
@@ -856,8 +885,8 @@ public class EbeanLocalDAOTest {
 
       // update metadata_aspects table
       aspects.put(urn, ImmutableMap.of(AspectFoo.class, aspectFoo, AspectBar.class, aspectBar));
-      addMetadata(urn, AspectFoo.class.getCanonicalName(), 0, aspectFoo);
-      addMetadata(urn, AspectBar.class.getCanonicalName(), 0, aspectBar);
+      addMetadata(urn, AspectFoo.class, 0, aspectFoo);
+      addMetadata(urn, AspectBar.class, 0, aspectBar);
 
       // only index urn
       addIndex(urn, FooUrn.class.getCanonicalName(), "/fooId", urn.getFooIdEntity());
@@ -940,11 +969,19 @@ public class EbeanLocalDAOTest {
     List<Long> versions = new ArrayList<>();
     for (long i = 0; i < 6; i++) {
       AspectFoo foo = new AspectFoo().setValue("foo" + i);
-      addMetadata(urn, AspectFoo.class.getCanonicalName(), i, foo);
+      addMetadata(urn, AspectFoo.class, i, foo);
       versions.add(i);
     }
 
     ListResult<Long> results = dao.listVersions(AspectFoo.class, urn, 0, 5);
+    if (!dao.isChangeLogEnabled()) {
+      // when: change log is disabled,
+      // expect: listVersion should only return 1 result which is the LATEST_VERSION
+      assertFalse(results.isHavingMore());
+      assertEquals(results.getTotalCount(), 1);
+      assertEquals(results.getValues(), versions.subList(0, 1));
+      return;
+    }
 
     assertTrue(results.isHavingMore());
     assertEquals(results.getNextStart(), 5);
@@ -1478,22 +1515,22 @@ public class EbeanLocalDAOTest {
 
     FooUrn urn1 = makeFooUrn(1);
     AspectFoo e1foo1 = new AspectFoo().setValue("val1");
-    addMetadata(urn1, AspectFoo.class.getCanonicalName(), 0, e1foo1);
+    addMetadata(urn1, AspectFoo.class, 0, e1foo1);
     AspectFoo e1foo2 = new AspectFoo().setValue("val2");
-    addMetadata(urn1, AspectFoo.class.getCanonicalName(), 1, e1foo2);
+    addMetadata(urn1, AspectFoo.class, 1, e1foo2);
     AspectBar e1bar1 = new AspectBar().setValue("val1");
-    addMetadata(urn1, AspectBar.class.getCanonicalName(), 0, e1bar1);
+    addMetadata(urn1, AspectBar.class, 0, e1bar1);
     AspectBar e1bar2 = new AspectBar().setValue("val2");
-    addMetadata(urn1, AspectBar.class.getCanonicalName(), 1, e1bar2);
+    addMetadata(urn1, AspectBar.class, 1, e1bar2);
     FooUrn urn2 = makeFooUrn(2);
     AspectFoo e2foo1 = new AspectFoo().setValue("val1");
-    addMetadata(urn2, AspectFoo.class.getCanonicalName(), 0, e2foo1);
+    addMetadata(urn2, AspectFoo.class, 0, e2foo1);
     AspectFoo e2foo2 = new AspectFoo().setValue("val2");
-    addMetadata(urn2, AspectFoo.class.getCanonicalName(), 1, e2foo2);
+    addMetadata(urn2, AspectFoo.class, 1, e2foo2);
     AspectBar e2bar1 = new AspectBar().setValue("val1");
-    addMetadata(urn2, AspectBar.class.getCanonicalName(), 0, e2bar1);
+    addMetadata(urn2, AspectBar.class, 0, e2bar1);
     AspectBar e2bar2 = new AspectBar().setValue("val2");
-    addMetadata(urn2, AspectBar.class.getCanonicalName(), 1, e2bar2);
+    addMetadata(urn2, AspectBar.class, 1, e2bar2);
 
     dao.updateLocalIndex(urn1, e1foo1, 0);
     dao.updateLocalIndex(urn1, e1bar1, 0);
@@ -1535,7 +1572,7 @@ public class EbeanLocalDAOTest {
 
       for (int j = 0; j < 10; j++) {
         AspectFoo foo = new AspectFoo().setValue("foo" + j);
-        addMetadata(urn, AspectFoo.class.getCanonicalName(), j, foo);
+        addMetadata(urn, AspectFoo.class, j, foo);
         if (i == 0) {
           foos.add(foo);
         }
@@ -1546,29 +1583,48 @@ public class EbeanLocalDAOTest {
 
     ListResult<AspectFoo> results = dao.list(AspectFoo.class, urn0, 0, 5);
 
-    assertTrue(results.isHavingMore());
-    assertEquals(results.getNextStart(), 5);
-    assertEquals(results.getTotalCount(), 10);
-    assertEquals(results.getPageSize(), 5);
-    assertEquals(results.getTotalPageCount(), 2);
-    assertEquals(results.getValues(), foos.subList(0, 5));
+    if (dao.isChangeLogEnabled()) {
+      assertTrue(results.isHavingMore());
+      assertEquals(results.getNextStart(), 5);
+      assertEquals(results.getTotalCount(), 10);
+      assertEquals(results.getPageSize(), 5);
+      assertEquals(results.getTotalPageCount(), 2);
+      assertEquals(results.getValues(), foos.subList(0, 5));
 
-    assertNotNull(results.getMetadata());
-    List<Long> expectedVersions = Arrays.asList(0L, 1L, 2L, 3L, 4L);
-    List<Urn> expectedUrns = Collections.singletonList(urn0);
-    assertVersionMetadata(results.getMetadata(), expectedVersions, expectedUrns, _now,
-        Urns.createFromTypeSpecificString("test", "foo"), Urns.createFromTypeSpecificString("test", "bar"));
+      assertNotNull(results.getMetadata());
+      List<Long> expectedVersions = Arrays.asList(0L, 1L, 2L, 3L, 4L);
+      List<Urn> expectedUrns = Collections.singletonList(urn0);
+      assertVersionMetadata(results.getMetadata(), expectedVersions, expectedUrns, _now,
+          Urns.createFromTypeSpecificString("test", "foo"),
+          Urns.createFromTypeSpecificString("test", "bar"));
 
-    // List next page
-    results = dao.list(AspectFoo.class, urn0, 5, 9);
+      // List next page
+      results = dao.list(AspectFoo.class, urn0, 5, 9);
 
-    assertFalse(results.isHavingMore());
-    assertEquals(results.getNextStart(), ListResult.INVALID_NEXT_START);
-    assertEquals(results.getTotalCount(), 10);
-    assertEquals(results.getPageSize(), 9);
-    assertEquals(results.getTotalPageCount(), 2);
-    assertEquals(results.getValues(), foos.subList(5, 10));
-    assertNotNull(results.getMetadata());
+      assertFalse(results.isHavingMore());
+      assertEquals(results.getNextStart(), ListResult.INVALID_NEXT_START);
+      assertEquals(results.getTotalCount(), 10);
+      assertEquals(results.getPageSize(), 9);
+      assertEquals(results.getTotalPageCount(), 2);
+      assertEquals(results.getValues(), foos.subList(5, 10));
+      assertNotNull(results.getMetadata());
+    } else {
+      // when: change log is not enabled
+      // expect:
+      assertFalse(results.isHavingMore());
+      assertEquals(results.getNextStart(), ListResult.INVALID_NEXT_START);
+      assertEquals(results.getTotalCount(), 1);
+      assertEquals(results.getPageSize(), 5);
+      assertEquals(results.getTotalPageCount(), 1);
+      // expect: only the latest version is loaded
+      assertEquals(results.getValues(), foos.subList(0, 1));
+      assertNotNull(results.getMetadata());
+      List<Long> expectedVersions = Arrays.asList(0L);
+      List<Urn> expectedUrns = Collections.singletonList(urn0);
+      assertVersionMetadata(results.getMetadata(), expectedVersions, expectedUrns, _now,
+          Urns.createFromTypeSpecificString("test", "foo"),
+          Urns.createFromTypeSpecificString("test", "bar"));
+    }
   }
 
   private static LocalDAOStorageConfig makeLocalDAOStorageConfig(Class<? extends RecordTemplate> aspectClass,
@@ -1620,12 +1676,12 @@ public class EbeanLocalDAOTest {
   @Test
   public void testListAspectsForAllUrns() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+
     for (int i = 0; i < 3; i++) {
       FooUrn urn = makeFooUrn(i);
-
       for (int j = 0; j < 10; j++) {
         AspectFoo foo = new AspectFoo().setValue("foo" + i + j);
-        addMetadata(urn, AspectFoo.class.getCanonicalName(), j, foo);
+        addMetadata(urn, AspectFoo.class, j, foo);
       }
     }
 
@@ -1655,19 +1711,27 @@ public class EbeanLocalDAOTest {
     assertEquals(results.getTotalPageCount(), 2);
     assertNotNull(results.getMetadata());
 
-    // Test list for a non-zero version
-    results = dao.list(AspectFoo.class, 1, 0, 5);
+    if (dao.isChangeLogEnabled()) {
+      // Test list for a non-zero version
+      results = dao.list(AspectFoo.class, 1, 0, 5);
 
-    assertFalse(results.isHavingMore());
-    assertEquals(results.getNextStart(), ListResult.INVALID_NEXT_START);
-    assertEquals(results.getTotalCount(), 3);
-    assertEquals(results.getPageSize(), 5);
-    assertEquals(results.getTotalPageCount(), 1);
+      assertFalse(results.isHavingMore());
+      assertEquals(results.getNextStart(), ListResult.INVALID_NEXT_START);
+      assertEquals(results.getTotalCount(), 3);
+      assertEquals(results.getPageSize(), 5);
+      assertEquals(results.getTotalPageCount(), 1);
 
-    assertNotNull(results.getMetadata());
-    assertVersionMetadata(results.getMetadata(), Collections.singletonList(1L),
-        Arrays.asList(makeFooUrn(0), makeFooUrn(1), makeFooUrn(2)), _now,
-        Urns.createFromTypeSpecificString("test", "foo"), Urns.createFromTypeSpecificString("test", "bar"));
+      assertNotNull(results.getMetadata());
+      assertVersionMetadata(results.getMetadata(), Collections.singletonList(1L),
+          Arrays.asList(makeFooUrn(0), makeFooUrn(1), makeFooUrn(2)), _now,
+          Urns.createFromTypeSpecificString("test", "foo"), Urns.createFromTypeSpecificString("test", "bar"));
+    } else {
+      try {
+        dao.list(AspectFoo.class, 1, 0, 5);
+        fail("list aspect by non-0 version is not supported when change log is disabled");
+      } catch (UnsupportedOperationException uoe) {
+      }
+    }
   }
 
   @Test
@@ -2339,10 +2403,10 @@ public class EbeanLocalDAOTest {
     Urn impersonator1 = Urns.createFromTypeSpecificString("test", "testImpersonator1");
     Urn creator2 = Urns.createFromTypeSpecificString("test", "testCreator2");
     Urn impersonator2 = Urns.createFromTypeSpecificString("test", "testImpersonator2");
-    addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 0, v0, _now, creator1.toString(),
+    addMetadataWithAuditStamp(urn, AspectFoo.class, 0, v0, _now, creator1.toString(),
         impersonator1.toString());
     AspectFoo v1 = new AspectFoo().setValue("bar");
-    addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 1, v1, _now, creator2.toString(),
+    addMetadataWithAuditStamp(urn, AspectFoo.class, 1, v1, _now, creator2.toString(),
         impersonator2.toString());
 
     Optional<AspectWithExtraInfo<AspectFoo>> foo = dao.getWithExtraInfo(AspectFoo.class, urn);
@@ -2366,10 +2430,10 @@ public class EbeanLocalDAOTest {
     Urn impersonator1 = Urns.createFromTypeSpecificString("test", "testImpersonator1");
     Urn creator2 = Urns.createFromTypeSpecificString("test", "testCreator2");
     Urn impersonator2 = Urns.createFromTypeSpecificString("test", "testImpersonator2");
-    addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 0, v0, _now, creator1.toString(),
+    addMetadataWithAuditStamp(urn, AspectFoo.class, 0, v0, _now, creator1.toString(),
         impersonator1.toString());
     AspectFoo v1 = new AspectFoo().setValue("bar");
-    addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 1, v1, _now, creator2.toString(),
+    addMetadataWithAuditStamp(urn, AspectFoo.class, 1, v1, _now, creator2.toString(),
         impersonator2.toString());
 
     Optional<AspectWithExtraInfo<AspectFoo>> foo = dao.getWithExtraInfo(AspectFoo.class, urn, 1);
@@ -2388,9 +2452,9 @@ public class EbeanLocalDAOTest {
     Urn impersonator1 = Urns.createFromTypeSpecificString("test", "testImpersonator1");
     Urn creator2 = Urns.createFromTypeSpecificString("test", "testCreator2");
     Urn impersonator2 = Urns.createFromTypeSpecificString("test", "testImpersonator2");
-    addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 0, null, _now, creator1.toString(),
+    addMetadataWithAuditStamp(urn, AspectFoo.class, 0, null, _now, creator1.toString(),
         impersonator1.toString());
-    addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 1, v1, _now, creator2.toString(),
+    addMetadataWithAuditStamp(urn, AspectFoo.class, 1, v1, _now, creator2.toString(),
         impersonator2.toString());
 
     Optional<AspectFoo> foo = dao.get(AspectFoo.class, urn);
@@ -2407,9 +2471,9 @@ public class EbeanLocalDAOTest {
     Urn impersonator1 = Urns.createFromTypeSpecificString("test", "testImpersonator1");
     Urn creator2 = Urns.createFromTypeSpecificString("test", "testCreator2");
     Urn impersonator2 = Urns.createFromTypeSpecificString("test", "testImpersonator2");
-    addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 0, v0, _now, creator1.toString(),
+    addMetadataWithAuditStamp(urn, AspectFoo.class, 0, v0, _now, creator1.toString(),
         impersonator1.toString());
-    addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 1, null, _now, creator2.toString(),
+    addMetadataWithAuditStamp(urn, AspectFoo.class, 1, null, _now, creator2.toString(),
         impersonator2.toString());
 
     Optional<AspectWithExtraInfo<AspectFoo>> foo = dao.getWithExtraInfo(AspectFoo.class, urn, 1);
@@ -2426,7 +2490,7 @@ public class EbeanLocalDAOTest {
 
       for (int j = 0; j < 10; j++) {
         AspectFoo foo = new AspectFoo().setValue("foo" + j);
-        addMetadata(urn, AspectFoo.class.getCanonicalName(), j, foo);
+        addMetadata(urn, AspectFoo.class, j, foo);
         if (i == 0) {
           foos.add(foo);
         }
@@ -2438,6 +2502,12 @@ public class EbeanLocalDAOTest {
     FooUrn urn0 = makeFooUrn(0);
 
     ListResult<AspectFoo> results = dao.list(AspectFoo.class, urn0, 0, 5);
+
+    if (!dao.isChangeLogEnabled()) {
+      // if change log is not enabled, and the entity has been soft deleted, expect no more change history
+      assertFalse(results.isHavingMore());
+      return;
+    }
 
     assertTrue(results.isHavingMore());
     assertEquals(results.getNextStart(), 5);
@@ -2484,14 +2554,24 @@ public class EbeanLocalDAOTest {
     }
 
     // version=10 corresponds to soft deleted aspect
-    ListResult<AspectFoo> results = dao.list(AspectFoo.class, 10, 0, 2);
-
-    assertFalse(results.isHavingMore());
-    assertEquals(results.getNextStart(), -1);
-    assertEquals(results.getTotalCount(), 0);
-    assertEquals(results.getPageSize(), 2);
-    assertEquals(results.getTotalPageCount(), 0);
-    assertEquals(results.getValues().size(), 0);
+    if (!dao.isChangeLogEnabled()) {
+      // version based query is not applicable if
+      try {
+        dao.list(AspectFoo.class, 10, 0, 2);
+        fail("UnsupportedOperationException should be thrown");
+      } catch (UnsupportedOperationException uoe) {
+        // expected, do nothing
+      }
+      return;
+    } else {
+      ListResult<AspectFoo> results = dao.list(AspectFoo.class, 10, 0, 2);
+      assertFalse(results.isHavingMore());
+      assertEquals(results.getNextStart(), -1);
+      assertEquals(results.getTotalCount(), 0);
+      assertEquals(results.getPageSize(), 2);
+      assertEquals(results.getTotalPageCount(), 0);
+      assertEquals(results.getValues().size(), 0);
+    }
   }
 
   @Test
@@ -2512,15 +2592,18 @@ public class EbeanLocalDAOTest {
     Optional<AspectFoo> fooOptional = dao.get(AspectFoo.class, urn);
     assertFalse(fooOptional.isPresent());
 
-    // version=1 should be non-null
-    fooOptional = dao.get(AspectFoo.class, urn, 1);
-    assertTrue(fooOptional.isPresent());
-    assertEquals(fooOptional.get(), v1);
+    if (dao.isChangeLogEnabled()) {
+      // version=1 should be non-null
+      fooOptional = dao.get(AspectFoo.class, urn, 1);
+      assertTrue(fooOptional.isPresent());
+      assertEquals(fooOptional.get(), v1);
 
-    // version=2 should be non-null
-    fooOptional = dao.get(AspectFoo.class, urn, 2);
-    assertTrue(fooOptional.isPresent());
-    assertEquals(fooOptional.get(), v0);
+      // version=2 should be non-null
+      fooOptional = dao.get(AspectFoo.class, urn, 2);
+      assertTrue(fooOptional.isPresent());
+      assertEquals(fooOptional.get(), v0);
+    }
+
 
     InOrder inOrder = inOrder(_mockProducer);
     inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, v1);
@@ -2554,12 +2637,20 @@ public class EbeanLocalDAOTest {
     FooUrn urn = makeFooUrn(1);
     for (long i = 0; i < 6; i++) {
       AspectFoo foo = new AspectFoo().setValue("foo" + i);
-      addMetadata(urn, AspectFoo.class.getCanonicalName(), i, foo);
+      addMetadata(urn, AspectFoo.class, i, foo);
     }
     // soft delete the latest version
     dao.delete(urn, AspectFoo.class, _dummyAuditStamp);
 
     ListResult<Long> results = dao.listVersions(AspectFoo.class, urn, 0, 5);
+
+    if (!dao.isChangeLogEnabled()) {
+      // When: change log is disabled,
+      // Expect list version will return empty if the entity has been soft-deleted.
+      assertFalse(results.isHavingMore());
+      assertTrue(results.getValues().isEmpty());
+      return;
+    }
 
     assertTrue(results.isHavingMore());
     assertEquals(results.getNextStart(), 5);
@@ -2605,6 +2696,7 @@ public class EbeanLocalDAOTest {
   @Test
   public void testListUrnsAfterUndeleteSoftDeletedAspect() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+
     List<FooUrn> urns = new ArrayList<>();
     for (int i = 0; i < 3; i++) {
       FooUrn urn = makeFooUrn(i);
@@ -2633,7 +2725,6 @@ public class EbeanLocalDAOTest {
   public void testGetWithKeysSoftDeletedAspect() {
     // given
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
-
     FooUrn fooUrn = makeFooUrn(1);
 
     // both aspect keys exist
@@ -2641,9 +2732,9 @@ public class EbeanLocalDAOTest {
     AspectKey<FooUrn, AspectBar> aspectKey2 = new AspectKey<>(AspectBar.class, fooUrn, 0L);
 
     // add metadata
-    addMetadata(fooUrn, AspectFoo.class.getCanonicalName(), 1, null);
+    addMetadata(fooUrn, AspectFoo.class, 1, null);
     AspectBar barV0 = new AspectBar().setValue("bar");
-    addMetadata(fooUrn, AspectBar.class.getCanonicalName(), 0, barV0);
+    addMetadata(fooUrn, AspectBar.class, 0, barV0);
 
     // when
     Map<AspectKey<FooUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> records =
@@ -2671,27 +2762,33 @@ public class EbeanLocalDAOTest {
     // next undelete the soft deleted aspect
     AspectFoo foo = new AspectFoo().setValue("baz");
     dao.add(urn, foo, _dummyAuditStamp);
-
-    // latest version of metadata should be non-null and correspond to the metadata added after soft deleting the aspect
     Optional<AspectFoo> fooOptional = dao.get(AspectFoo.class, urn);
-    assertTrue(fooOptional.isPresent());
-    assertEquals(fooOptional.get(), foo);
+    // latest version of metadata should be non-null and correspond to the metadata added after soft deleting the aspect
 
-    // version=3 should correspond to soft deleted metadata
-    EbeanMetadataAspect aspect = getMetadata(urn, aspectName, 3);
-    assertTrue(isSoftDeletedAspect(aspect, AspectFoo.class));
-    fooOptional = dao.get(AspectFoo.class, urn, 3);
-    assertFalse(fooOptional.isPresent());
+    if (!dao.isChangeLogEnabled() && _schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      // skip if change log is disabled and schemaConfig is not NEW_SCHEMA_ONLY
+    } else {
+      assertTrue(fooOptional.isPresent());
+      assertEquals(fooOptional.get(), foo);
+    }
 
-    // version=2 should be non-null
-    fooOptional = dao.get(AspectFoo.class, urn, 2);
-    assertTrue(fooOptional.isPresent());
-    assertEquals(fooOptional.get(), v0);
+    if (dao.isChangeLogEnabled()) {
+      // version=3 should correspond to soft deleted metadata
+      EbeanMetadataAspect aspect = getMetadata(urn, aspectName, 3);
+      assertTrue(isSoftDeletedAspect(aspect, AspectFoo.class));
+      fooOptional = dao.get(AspectFoo.class, urn, 3);
+      assertFalse(fooOptional.isPresent());
 
-    // version=1 should be non-null again
-    fooOptional = dao.get(AspectFoo.class, urn, 1);
-    assertTrue(fooOptional.isPresent());
-    assertEquals(fooOptional.get(), v1);
+      // version=2 should be non-null
+      fooOptional = dao.get(AspectFoo.class, urn, 2);
+      assertTrue(fooOptional.isPresent());
+      assertEquals(fooOptional.get(), v0);
+
+      // version=1 should be non-null again
+      fooOptional = dao.get(AspectFoo.class, urn, 1);
+      assertTrue(fooOptional.isPresent());
+      assertEquals(fooOptional.get(), v1);
+    }
 
     InOrder inOrder = inOrder(_mockProducer);
     inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, v1);
@@ -2712,13 +2809,13 @@ public class EbeanLocalDAOTest {
     Urn creator3 = Urns.createFromTypeSpecificString("test", "testCreator3");
     Urn impersonator3 = Urns.createFromTypeSpecificString("test", "testImpersonator3");
     AspectFoo fooV0 = new AspectFoo().setValue("foo");
-    addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 0, fooV0, _now, creator1.toString(),
+    addMetadataWithAuditStamp(urn, AspectFoo.class, 0, fooV0, _now, creator1.toString(),
         impersonator1.toString());
     AspectFoo fooV1 = new AspectFoo().setValue("bar");
-    addMetadataWithAuditStamp(urn, AspectFoo.class.getCanonicalName(), 1, fooV1, _now, creator2.toString(),
+    addMetadataWithAuditStamp(urn, AspectFoo.class, 1, fooV1, _now, creator2.toString(),
         impersonator2.toString());
     AspectBar barV0 = new AspectBar().setValue("bar");
-    addMetadataWithAuditStamp(urn, AspectBar.class.getCanonicalName(), 0, barV0, _now, creator3.toString(),
+    addMetadataWithAuditStamp(urn, AspectBar.class, 0, barV0, _now, creator3.toString(),
         impersonator3.toString());
 
     // both aspect keys exist
@@ -2757,9 +2854,9 @@ public class EbeanLocalDAOTest {
 
     // add metadata
     AspectFoo fooV1 = new AspectFoo().setValue("foo");
-    addMetadata(fooUrn, AspectFoo.class.getCanonicalName(), 1, fooV1);
+    addMetadata(fooUrn, AspectFoo.class, 1, fooV1);
     AspectBar barV0 = new AspectBar().setValue("bar");
-    addMetadata(fooUrn, AspectBar.class.getCanonicalName(), 0, barV0);
+    addMetadata(fooUrn, AspectBar.class, 0, barV0);
 
     // batch get without query keys count set
     // when
@@ -2921,9 +3018,9 @@ public class EbeanLocalDAOTest {
 
     // add metadata
     AspectFoo fooV1 = new AspectFoo().setValue("foo");
-    addMetadata(fooUrn, AspectFoo.class.getCanonicalName(), 1, fooV1);
+    addMetadata(fooUrn, AspectFoo.class, 1, fooV1);
     AspectBar barV0 = new AspectBar().setValue("bar");
-    addMetadata(fooUrn, AspectBar.class.getCanonicalName(), 0, barV0);
+    addMetadata(fooUrn, AspectBar.class, 0, barV0);
 
     FooUrn fooUrn2 = makeFooUrn(2);
     AspectKey<FooUrn, AspectFoo> aspectKey3 = new AspectKey<>(AspectFoo.class, fooUrn2, 0L);
@@ -2932,11 +3029,11 @@ public class EbeanLocalDAOTest {
 
     // add metadata
     AspectFoo fooV3 = new AspectFoo().setValue("foo3");
-    addMetadata(fooUrn2, AspectFoo.class.getCanonicalName(), 0, fooV3);
+    addMetadata(fooUrn2, AspectFoo.class, 0, fooV3);
     AspectFoo fooV4 = new AspectFoo().setValue("foo4");
-    addMetadata(fooUrn2, AspectFoo.class.getCanonicalName(), 1, fooV4);
+    addMetadata(fooUrn2, AspectFoo.class, 1, fooV4);
     AspectBar barV5 = new AspectBar().setValue("bar5");
-    addMetadata(fooUrn2, AspectBar.class.getCanonicalName(), 0, barV5);
+    addMetadata(fooUrn2, AspectBar.class, 0, barV5);
 
     dao.setQueryKeysCount(querySize);
 
@@ -3037,7 +3134,10 @@ public class EbeanLocalDAOTest {
     // fill in old schema
     FooUrn urn1 = new FooUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");
-    addMetadata(urn1, AspectFoo.class.getCanonicalName(), 0, foo); // this function only adds to old schema
+    // this function only adds to old schema
+    String aspectName = AspectFoo.class.getCanonicalName();
+    EbeanMetadataAspect ema = getMetadata(urn1, aspectName, 0, foo);
+    _server.save(ema);
 
     // check that there is nothing in the entity table right now
     if (_schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
@@ -3208,6 +3308,7 @@ public class EbeanLocalDAOTest {
     }
   }
 
+
   @Nonnull
   private EbeanMetadataAspect getMetadata(Urn urn, String aspectName, long version, @Nullable RecordTemplate metadata) {
     EbeanMetadataAspect aspect = new EbeanMetadataAspect();
@@ -3223,18 +3324,52 @@ public class EbeanLocalDAOTest {
     return aspect;
   }
 
-  private void addMetadata(Urn urn, String aspectName, long version, @Nullable RecordTemplate metadata) {
-    EbeanMetadataAspect aspect = getMetadata(urn, aspectName, version, metadata);
-    _server.save(aspect);
+  private <ASPECT extends RecordTemplate> void addMetadata(Urn urn, Class<ASPECT> aspectClass, long version, @Nullable RecordTemplate metadata) {
+    String aspectName = aspectClass.getCanonicalName();
+    EbeanMetadataAspect ema = getMetadata(urn, aspectName, version, metadata);
+    _server.save(ema);
+
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY || _schemaConfig == SchemaConfig.DUAL_SCHEMA) {
+      addMetadataEntityTable(urn, aspectClass, metadata, version, _now, ema.getCreatedBy(),
+          ema.getCreatedFor());
+    }
   }
 
-  private void addMetadataWithAuditStamp(Urn urn, String aspectName, long version, RecordTemplate metadata,
+  private <ASPECT extends RecordTemplate> void addMetadataEntityTable(Urn urn, Class<ASPECT> aspectClass, @Nullable RecordTemplate metadata, long version,
+      long createdOn, String createdBy, String createdFor) {
+    if (version != 0) {
+      return;
+    }
+    String aspectName = aspectClass.getCanonicalName();
+    String columnName = SQLSchemaUtils.getAspectColumnName(aspectName);
+    String template = "insert into metadata_entity_%s (urn, %s, lastmodifiedon, lastmodifiedby, createdfor) value"
+        + "('%s', '%s', '%s', '%s', '%s') ON DUPLICATE KEY UPDATE %s = '%s';";
+    String query = String.format(template, urn.getEntityType(), columnName, urn, createAuditedAspect(metadata, aspectClass, createdOn, createdBy, createdFor),
+        new Timestamp(createdOn), createdBy, createdFor, columnName, createAuditedAspect(metadata, aspectClass, createdOn, createdBy, createdFor));
+    _server.createSqlUpdate(query).execute();
+  }
+
+  private <ASPECT extends RecordTemplate> String createAuditedAspect(RecordTemplate metadata, Class<ASPECT> aspectClass,
+      long createdOn, String createdBy, String createdFor) {
+    return metadata == null ? DELETED_VALUE : EbeanLocalAccess.toJsonString(new AuditedAspect()
+        .setAspect(RecordUtils.toJsonString(metadata))
+        .setCanonicalName(aspectClass.getCanonicalName())
+        .setLastmodifiedby(createdBy)
+        .setLastmodifiedon(new Timestamp(createdOn).toString())
+        .setCreatedfor(createdFor, SetMode.IGNORE_NULL));
+  }
+
+  private <ASPECT extends RecordTemplate> void addMetadataWithAuditStamp(Urn urn, Class<ASPECT> aspectClass, long version, RecordTemplate metadata,
       long timeStamp, String creator, String impersonator) {
-    EbeanMetadataAspect aspect = getMetadata(urn, aspectName, version, metadata);
+    EbeanMetadataAspect aspect = getMetadata(urn, aspectClass.getCanonicalName(), version, metadata);
     aspect.setCreatedOn(new Timestamp(timeStamp));
     aspect.setCreatedBy(creator);
     aspect.setCreatedFor(impersonator);
     _server.save(aspect);
+
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY || _schemaConfig == SchemaConfig.DUAL_SCHEMA) {
+      addMetadataEntityTable(urn, aspectClass, metadata, version, timeStamp, creator, impersonator);
+    }
   }
 
   private EbeanMetadataIndex getRecordFromLocalIndex(long id) {
@@ -3327,6 +3462,26 @@ public class EbeanLocalDAOTest {
   }
 
   private EbeanMetadataAspect getMetadata(Urn urn, String aspectName, long version) {
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY && version == 0) {
+      String aspectColumn = getAspectColumnName(aspectName);
+      String template = "select urn, lastmodifiedon, lastmodifiedby, createdfor, %s from metadata_entity_%s";
+      String query = String.format(template, aspectColumn, urn.getEntityType());
+      SqlRow result = _server.createSqlQuery(query).findOne();
+      if (result != null) {
+        EbeanMetadataAspect ema = new EbeanMetadataAspect();
+        String metadata = extractAspectJsonString(result.getString(aspectColumn));
+        if (metadata == null) {
+          metadata = DELETED_VALUE;
+        }
+        ema.setMetadata(metadata);
+        ema.setKey(new PrimaryKey(urn.toString(), aspectName, version));
+        ema.setCreatedOn(result.getTimestamp("lastmodifiedon"));
+        ema.setCreatedBy(result.getString("lastmodifiedby"));
+        ema.setCreatedFor(result.getString("creatdfor"));
+        return ema;
+      }
+      return null;
+    }
     return _server.find(EbeanMetadataAspect.class,
         new EbeanMetadataAspect.PrimaryKey(urn.toString(), aspectName, version));
   }

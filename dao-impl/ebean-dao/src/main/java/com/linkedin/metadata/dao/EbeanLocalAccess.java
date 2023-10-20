@@ -14,9 +14,12 @@ import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
 import com.linkedin.metadata.dao.utils.SQLStatementUtils;
+import com.linkedin.metadata.query.ExtraInfo;
+import com.linkedin.metadata.query.ExtraInfoArray;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
+import com.linkedin.metadata.query.ListResultMetadata;
 import io.ebean.EbeanServer;
 import io.ebean.SqlQuery;
 import io.ebean.SqlRow;
@@ -33,6 +36,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -42,6 +46,7 @@ import javax.annotation.Nullable;
 import lombok.extern.slf4j.Slf4j;
 import org.json.simple.JSONObject;
 
+import static com.linkedin.metadata.dao.EbeanLocalDAO.*;
 import static com.linkedin.metadata.dao.utils.EBeanDAOUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLIndexFilterUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLSchemaUtils.*;
@@ -159,10 +164,12 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    * @param aspectKeys a List of keys (urn, aspect pairings) to query for
    * @param keysCount number of keys to query
    * @param position position of the key to start from
+   * @param includeSoftDeleted whether to include soft deleted aspect in the query
    */
   @Override
   public <ASPECT extends RecordTemplate> List<EbeanMetadataAspect> batchGetUnion(
-      @Nonnull List<AspectKey<URN, ? extends RecordTemplate>> aspectKeys, int keysCount, int position) {
+      @Nonnull List<AspectKey<URN, ? extends RecordTemplate>> aspectKeys, int keysCount, int position,
+      boolean includeSoftDeleted) {
 
     final int end = Math.min(aspectKeys.size(), position + keysCount);
     final Map<Class<ASPECT>, Set<Urn>> keysToQueryMap = new HashMap<>();
@@ -173,12 +180,19 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     }
 
     // each statement is for a single aspect class
-    List<String> selectStatements = keysToQueryMap.entrySet().stream()
-        .map(entry -> SQLStatementUtils.createAspectReadSql(entry.getKey(), entry.getValue()))
-        .collect(Collectors.toList());
+    Map<String, Class<ASPECT>> selectStatements = keysToQueryMap.entrySet()
+        .stream()
+        .collect(Collectors.toMap(
+            entry -> SQLStatementUtils.createAspectReadSql(entry.getKey(), entry.getValue(), includeSoftDeleted),
+            entry -> entry.getKey()));
 
     // consolidate/join the results
-    List<SqlRow> sqlRows = selectStatements.stream().flatMap(sql -> _server.createSqlQuery(sql).findList().stream()).collect(Collectors.toList());
+    final Map<SqlRow, Class<ASPECT>> sqlRows = new LinkedHashMap<>();
+    for (Map.Entry<String, Class<ASPECT>> entry : selectStatements.entrySet()) {
+      for (SqlRow sqlRow : _server.createSqlQuery(entry.getKey()).findList()) {
+        sqlRows.put(sqlRow, entry.getValue());
+      }
+    }
     return EBeanDAOUtils.readSqlRows(sqlRows);
   }
 
@@ -201,7 +215,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       return toListResult(actualTotalCount, start, pageSize);
     }
     final List<URN> values = sqlRows.stream().map(sqlRow -> getUrn(sqlRow.getString("urn"), _urnClass)).collect(Collectors.toList());
-    return toListResult(values, sqlRows, start, pageSize);
+    return toListResult(values, sqlRows, null, start, pageSize);
   }
 
   @Override
@@ -228,8 +242,64 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     final List<URN> values = sqlRows.stream()
         .map(sqlRow -> getUrn(sqlRow.getString("urn"), _urnClass))
         .collect(Collectors.toList());
-    return toListResult(values, sqlRows, start, pageSize);
+    return toListResult(values, sqlRows, null, start, pageSize);
   }
+
+  @Nonnull
+  @Override
+  public <ASPECT extends RecordTemplate> ListResult<ASPECT> list(@Nonnull Class<ASPECT> aspectClass, @Nonnull URN urn,
+      int start, int pageSize) {
+    // start / pageSize will be ignored since there will be at most one record returned from entity table.
+    final String listAspectByUrnSql = SQLStatementUtils.createListAspectByUrnSql(aspectClass, urn, false);
+    final SqlQuery sqlQuery = _server.createSqlQuery(listAspectByUrnSql);
+    final List<SqlRow> sqlRows = sqlQuery.findList();
+    if (sqlRows.isEmpty()) {
+      return toListResult(0, start, pageSize);
+    } else if (sqlRows.size() == 1) {
+      final SqlRow sqlRow = sqlRows.get(0);
+      sqlRow.set("_total_count", 1);
+      final ASPECT aspect = RecordUtils.toRecordTemplate(aspectClass,
+          extractAspectJsonString(sqlRow.getString(getAspectColumnName(aspectClass))));
+      final ListResultMetadata listResultMetadata = new ListResultMetadata().setExtraInfos(new ExtraInfoArray());
+      final ExtraInfo extraInfo = new ExtraInfo().setUrn(urn)
+          .setVersion(LATEST_VERSION)
+          .setAudit(makeAuditStamp(sqlRow.getTimestamp("lastmodifiedon"), sqlRow.getString("lastmodifiedby"),
+              sqlRow.getString("createdfor")));
+      listResultMetadata.getExtraInfos().add(extraInfo);
+      return toListResult(Collections.singletonList(aspect), sqlRows, listResultMetadata, start, pageSize);
+    } else {
+      throw new RuntimeException(
+          String.format("unexpected SqlRow count (%s). entity table should return at most one "
+              + "aspect value per entity. Sql: %s", sqlRows.size(), listAspectByUrnSql));
+    }
+  }
+
+
+  @Nonnull
+  @Override
+  public <ASPECT extends RecordTemplate> ListResult<ASPECT> list(@Nonnull Class<ASPECT> aspectClass, long version,
+      int start, int pageSize) {
+    final String tableName = SQLSchemaUtils.getTableName(_entityType);
+    final String listAspectSql = SQLStatementUtils.createListAspectWithPaginationSql(aspectClass, tableName, false, start, pageSize);
+    final SqlQuery sqlQuery = _server.createSqlQuery(listAspectSql);
+    final List<SqlRow> sqlRows = sqlQuery.findList();
+    if (sqlRows.isEmpty()) {
+      return toListResult(0, start, pageSize);
+    } else {
+      final ListResultMetadata listResultMetadata = new ListResultMetadata().setExtraInfos(new ExtraInfoArray());
+      final List<ASPECT> aspectList = sqlRows.stream().map(sqlRow -> {
+        final ExtraInfo extraInfo = new ExtraInfo().setUrn(getUrn(sqlRow.getString("urn"), _urnClass))
+            .setVersion(LATEST_VERSION).setAudit(
+                makeAuditStamp(sqlRow.getTimestamp("lastmodifiedon"), sqlRow.getString("lastmodifiedby"),
+                    sqlRow.getString("createdfor")));
+        listResultMetadata.getExtraInfos().add(extraInfo);
+        return RecordUtils.toRecordTemplate(aspectClass,
+            extractAspectJsonString(sqlRow.getString(getAspectColumnName(aspectClass))));
+      }).collect(Collectors.toList());
+      return toListResult(aspectList, sqlRows, listResultMetadata, start, pageSize);
+    }
+  }
+
 
   @Nonnull
   @Override
@@ -349,13 +419,14 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    * Convert sqlRows into {@link ListResult}.
    * @param values a list of query response result
    * @param sqlRows list of {@link SqlRow} from ebean query execution
+   * @param listResultMetadata {@link ListResultMetadata} with {@link com.linkedin.metadata.query.ExtraInfo}
    * @param start starting position
    * @param pageSize number of rows in a page
    * @param <T> type of query response
    * @return {@link ListResult} which contains paging metadata information
    */
   @Nonnull
-  protected <T> ListResult<T> toListResult(@Nonnull List<T> values, @Nonnull List<SqlRow> sqlRows,
+  protected <T> ListResult<T> toListResult(@Nonnull List<T> values, @Nonnull List<SqlRow> sqlRows, @Nullable ListResultMetadata listResultMetadata,
       int start, int pageSize) {
     if (pageSize == 0) {
       pageSize = DEFAULT_PAGE_SIZE;
@@ -377,7 +448,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     }
     return ListResult.<T>builder()
         .values(values)
-        .metadata(null)
+        .metadata(listResultMetadata)
         .nextStart(nextStart)
         .havingMore(hasNext)
         .totalCount(totalCount)

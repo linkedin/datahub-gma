@@ -49,12 +49,13 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * @param keys {@link AspectKey} to retrieve aspect metadata
    * @param keysCount pagination key count limit
    * @param position starting position of pagination
+   * @param includeSoftDeleted include soft deleted aspects, default false
    * @param <ASPECT> metadata aspect value
    * @return a list of {@link EbeanMetadataAspect} as get response
    */
   @Nonnull
   <ASPECT extends RecordTemplate> List<EbeanMetadataAspect> batchGetUnion(@Nonnull List<AspectKey<URN, ? extends RecordTemplate>> keys,
-      int keysCount, int position);
+      int keysCount, int position, boolean includeSoftDeleted);
 
   /**
    * Returns list of urns that satisfy the given filter conditions.
@@ -111,6 +112,38 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    */
   @Nonnull
   <ASPECT extends RecordTemplate> ListResult<URN> listUrns(@Nonnull Class<ASPECT> aspectClass, int start, int pageSize);
+
+
+  /**
+   * Paginates over all versions of an aspect for a specific Urn. It does not return metadata corresponding to versions
+   * indicating soft deleted aspect(s).
+   *
+   * @param aspectClass the type of the aspect to query
+   * @param urn {@link Urn} for the entity
+   * @param start the starting offset of the page
+   * @param pageSize the size of the page
+   * @param <ASPECT> must be a supported aspect type in {@code ASPECT_UNION}.
+   * @return a {@link ListResult} containing a list of aspects and other pagination information
+   */
+  @Nonnull
+  <ASPECT extends RecordTemplate> ListResult<ASPECT> list(@Nonnull Class<ASPECT> aspectClass,
+      @Nonnull URN urn, int start, int pageSize);
+
+  /**
+   * Paginates over a specific version of a specific aspect for all Urns. The result does not include soft deleted
+   * aspect if the specific version of a specific aspect was soft deleted.
+   *
+   * @param aspectClass the type of the aspect to query
+   * @param version the version of the aspect
+   * @param start the starting offset of the page
+   * @param pageSize the size of the page
+   * @param <ASPECT> must be a supported aspect type in {@code ASPECT_UNION}.
+   * @return a {@link ListResult} containing a list of aspects and other pagination information
+   */
+  @Nonnull
+  <ASPECT extends RecordTemplate> ListResult<ASPECT> list(@Nonnull Class<ASPECT> aspectClass,
+      long version, int start, int pageSize);
+
 
   /**
    * Provide a local relationship builder registry. Local relationships will be built based on the builders during data ingestion.
