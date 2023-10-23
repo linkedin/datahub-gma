@@ -50,7 +50,8 @@ public class SQLStatementUtils {
       String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby FROM %%s WHERE urn = '%%s' AND %s", SOFT_DELETED_CHECK);
 
   private static final String INDEX_GROUP_BY_CRITERION = "SELECT count(*) as COUNT, %s FROM %s";
-  private static final String SQL_GROUP_BY_COLUMN_EXISTS_TEMPLATE =
+
+  private static final String SQL_COLUMN_EXISTS_TEMPLATE =
       "SELECT * FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = database() AND TABLE_NAME = '%s' AND COLUMN_NAME = '%s'";
 
   private static final String SQL_URN_EXIST_TEMPLATE = "SELECT urn FROM %s WHERE urn = '%s'";
@@ -176,8 +177,12 @@ public class SQLStatementUtils {
   }
 
   public static String createGroupByColumnExistsSql(String tableName, @Nonnull IndexGroupByCriterion indexGroupByCriterion) {
-    return String.format(SQL_GROUP_BY_COLUMN_EXISTS_TEMPLATE, tableName, getGeneratedColumnName(indexGroupByCriterion.getAspect(),
+    return String.format(SQL_COLUMN_EXISTS_TEMPLATE, tableName, getGeneratedColumnName(indexGroupByCriterion.getAspect(),
         indexGroupByCriterion.getPath()));
+  }
+
+  public static String checkColumnExistsSql(@Nonnull String tableName, @Nonnull String columnName) {
+    return String.format(SQL_COLUMN_EXISTS_TEMPLATE, tableName, columnName);
   }
 
   /**
