@@ -3208,6 +3208,28 @@ public class EbeanLocalDAOTest {
     }
   }
 
+  @Test
+  public void testDuplicityOrdering() {
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      _server.execute(Ebean.createSqlUpdate(readSQLfromFile(GMA_DROP_ALL_SQL)));
+      _server.execute(Ebean.createSqlUpdate(readSQLfromFile("gma-create-all-duplicity.sql")));
+
+      EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+      FooUrn urn = makeFooUrn(1);
+      String aspectName = ModelUtils.getAspectName(AspectFoo.class);
+      AspectFoo v1 = new AspectFoo().setValue("foo");
+      AspectFoo v0 = new AspectFoo().setValue("bar");
+
+      // introduce two v0's
+      addMetadataWithAuditStamp(urn, aspectName, 0, v1, 1234L, "fakeCreator", "fakeImpersonator");
+      addMetadataWithAuditStamp(urn, aspectName, 0, v0, 0L, "fakeCreator", "fakeImpersonator");
+
+      // when retrieving a v0-duplicate record, the returned value should be the LATEST (timestamp=1234L)
+      AspectFoo actual = dao.get(AspectFoo.class, urn).get();
+      assertEquals(actual, v1);
+    }
+  }
+
   @Nonnull
   private EbeanMetadataAspect getMetadata(Urn urn, String aspectName, long version, @Nullable RecordTemplate metadata) {
     EbeanMetadataAspect aspect = new EbeanMetadataAspect();
