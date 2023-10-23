@@ -149,9 +149,25 @@ public class EBeanDAOUtils {
     return metadataRecord.equals(DELETED_METADATA);
   }
 
+  /**
+   * Checks whether the entity table record has been soft deleted.
+   * @param sqlRow {@link SqlRow} result from MySQL server
+   * @param aspectClass class of the aspect being queried
+   * @return boolean representing whether the aspect record has been soft deleted
+   */
+  public static <ASPECT extends RecordTemplate> boolean isSoftDeletedAspect(@Nonnull SqlRow sqlRow, @Nonnull Class<ASPECT> aspectClass) {
+    String columnName = SQLSchemaUtils.getAspectColumnName(aspectClass);
+    try {
+      SoftDeletedAspect aspect = RecordUtils.toRecordTemplate(SoftDeletedAspect.class, sqlRow.getString(columnName));
+      return aspect.hasGma_deleted() && aspect.isGma_deleted();
+    } catch (Exception e) {
+      return false;
+    }
+  }
+
 
   /**
-   * Read {@link SqlRow} list into a {@link EbeanMetadataAspect} list.
+   * Read {@link SqlRow} list into a {@link EbeanMetadataAspect} list. Assumes rows are not soft-deleted.
    * @param sqlRows list of {@link SqlRow}
    * @return list of {@link EbeanMetadataAspect}
    */

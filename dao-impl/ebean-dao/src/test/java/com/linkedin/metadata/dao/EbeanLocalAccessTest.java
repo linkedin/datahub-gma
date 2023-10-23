@@ -117,6 +117,20 @@ public class EbeanLocalAccessTest {
   }
 
   @Test
+  public void testGetAspectNoSoftDeleteCheck() {
+    FooUrn fooUrn = makeFooUrn(0);
+    _ebeanLocalAccessFoo.add(fooUrn, null, AspectFoo.class, makeAuditStamp("foo", System.currentTimeMillis()));
+    AspectKey<FooUrn, AspectFoo> aspectKey = new AspectKey(AspectFoo.class, fooUrn, 0L);
+    List<EbeanMetadataAspect> ebeanMetadataAspectList =
+        _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0);
+    assertEquals(0, ebeanMetadataAspectList.size());
+
+    EbeanMetadataAspect result = _ebeanLocalAccessFoo.getSingleRecordNoSoftDeleteCheck(aspectKey);
+    assertNotNull(result);
+    assertEquals(fooUrn.toString(), result.getKey().getUrn());
+  }
+
+  @Test
   public void testListUrnsWithOffset() {
 
     // Given: metadata_entity_foo table with fooUrns from 0 ~ 99
