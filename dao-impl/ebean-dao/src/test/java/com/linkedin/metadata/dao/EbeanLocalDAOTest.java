@@ -138,11 +138,6 @@ public class EbeanLocalDAOTest {
 
   @Factory(dataProvider = "inputList")
   public EbeanLocalDAOTest(SchemaConfig schemaConfig, FindMethodology findMethodology, boolean enableChangeLog) {
-
-    System.out.println(
-        String.format("schema config: %s, find method %s, enable change log: %s", schemaConfig, findMethodology,
-            enableChangeLog));
-
     _schemaConfig = schemaConfig;
     _findMethodology = findMethodology;
     _enableChangeLog = enableChangeLog;
@@ -166,6 +161,12 @@ public class EbeanLocalDAOTest {
         {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, false},
         {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID, true},
         {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID, false},
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, true},
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, false},
+        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, true},
+        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, false},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL, true},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL, false},
     };
   }
 

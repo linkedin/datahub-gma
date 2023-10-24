@@ -641,7 +641,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         result = _server.find(EbeanMetadataAspect.class, key);
       }
     } else {
-      // for new schema or old schema, get latest data from new schema. (Resolving the read de-coupling issue)
+      // for new schema or dual-schema, get latest data from new schema. (Resolving the read de-coupling issue)
       final List<EbeanMetadataAspect> results = _localAccess.batchGetUnion(
           Collections.singletonList(new AspectKey<>(aspectClass, urn, LATEST_VERSION)), 1, 0, true);
       result = results.isEmpty() ? null : results.get(0);
@@ -1201,7 +1201,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         throw new UnsupportedOperationException(
             "non-current version based list is not supported when ChangeLog is disabled");
       }
-      return _localAccess.list(aspectClass, LATEST_VERSION, start, pageSize);
+
+      return _localAccess.list(aspectClass, start, pageSize);
     }
   }
 
@@ -1246,7 +1247,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   /**
    * Transform list result from type T to type R.
    * @param listResult input list result
-   * @param function transform funcdtion
+   * @param function transform function
    * @param <T> input data type
    * @param <R> output data type
    * @return ListResult of type R

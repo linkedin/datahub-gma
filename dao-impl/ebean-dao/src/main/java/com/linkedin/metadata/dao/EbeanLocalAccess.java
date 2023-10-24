@@ -43,6 +43,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.persistence.PersistenceException;
 import lombok.extern.slf4j.Slf4j;
 import org.json.simple.JSONObject;
 
@@ -252,52 +253,56 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     // start / pageSize will be ignored since there will be at most one record returned from entity table.
     final String listAspectByUrnSql = SQLStatementUtils.createListAspectByUrnSql(aspectClass, urn, false);
     final SqlQuery sqlQuery = _server.createSqlQuery(listAspectByUrnSql);
-    final List<SqlRow> sqlRows = sqlQuery.findList();
-    if (sqlRows.isEmpty()) {
-      return toListResult(0, start, pageSize);
-    } else if (sqlRows.size() == 1) {
-      final SqlRow sqlRow = sqlRows.get(0);
-      sqlRow.set("_total_count", 1);
-      final ASPECT aspect = RecordUtils.toRecordTemplate(aspectClass,
-          extractAspectJsonString(sqlRow.getString(getAspectColumnName(aspectClass))));
-      final ListResultMetadata listResultMetadata = new ListResultMetadata().setExtraInfos(new ExtraInfoArray());
-      final ExtraInfo extraInfo = new ExtraInfo().setUrn(urn)
-          .setVersion(LATEST_VERSION)
-          .setAudit(makeAuditStamp(sqlRow.getTimestamp("lastmodifiedon"), sqlRow.getString("lastmodifiedby"),
-              sqlRow.getString("createdfor")));
-      listResultMetadata.getExtraInfos().add(extraInfo);
-      return toListResult(Collections.singletonList(aspect), sqlRows, listResultMetadata, start, pageSize);
-    } else {
+
+    try {
+      final SqlRow sqlRow = sqlQuery.findOne();
+      if (sqlRow == null) {
+        return toListResult(0, start, pageSize);
+      } else {
+        sqlRow.set("_total_count", 1);
+        final ASPECT aspect = RecordUtils.toRecordTemplate(aspectClass,
+            extractAspectJsonString(sqlRow.getString(getAspectColumnName(aspectClass))));
+        final ListResultMetadata listResultMetadata = new ListResultMetadata().setExtraInfos(new ExtraInfoArray());
+        final ExtraInfo extraInfo = new ExtraInfo().setUrn(urn)
+            .setVersion(LATEST_VERSION)
+            .setAudit(makeAuditStamp(sqlRow.getTimestamp("lastmodifiedon"), sqlRow.getString("lastmodifiedby"),
+                sqlRow.getString("createdfor")));
+        listResultMetadata.getExtraInfos().add(extraInfo);
+        return toListResult(Collections.singletonList(aspect), Collections.singletonList(sqlRow), listResultMetadata,
+            start, pageSize);
+      }
+    } catch (PersistenceException pe) {
       throw new RuntimeException(
-          String.format("unexpected SqlRow count (%s). entity table should return at most one "
-              + "aspect value per entity. Sql: %s", sqlRows.size(), listAspectByUrnSql));
+          String.format("Expect at most 1 aspect value per entity. Sql: %s", listAspectByUrnSql));
     }
   }
 
 
+
+
   @Nonnull
   @Override
-  public <ASPECT extends RecordTemplate> ListResult<ASPECT> list(@Nonnull Class<ASPECT> aspectClass, long version,
-      int start, int pageSize) {
+  public <ASPECT extends RecordTemplate> ListResult<ASPECT> list(@Nonnull Class<ASPECT> aspectClass, int start,
+      int pageSize) {
+
     final String tableName = SQLSchemaUtils.getTableName(_entityType);
     final String listAspectSql = SQLStatementUtils.createListAspectWithPaginationSql(aspectClass, tableName, false, start, pageSize);
     final SqlQuery sqlQuery = _server.createSqlQuery(listAspectSql);
     final List<SqlRow> sqlRows = sqlQuery.findList();
     if (sqlRows.isEmpty()) {
       return toListResult(0, start, pageSize);
-    } else {
-      final ListResultMetadata listResultMetadata = new ListResultMetadata().setExtraInfos(new ExtraInfoArray());
-      final List<ASPECT> aspectList = sqlRows.stream().map(sqlRow -> {
-        final ExtraInfo extraInfo = new ExtraInfo().setUrn(getUrn(sqlRow.getString("urn"), _urnClass))
-            .setVersion(LATEST_VERSION).setAudit(
-                makeAuditStamp(sqlRow.getTimestamp("lastmodifiedon"), sqlRow.getString("lastmodifiedby"),
-                    sqlRow.getString("createdfor")));
-        listResultMetadata.getExtraInfos().add(extraInfo);
-        return RecordUtils.toRecordTemplate(aspectClass,
-            extractAspectJsonString(sqlRow.getString(getAspectColumnName(aspectClass))));
-      }).collect(Collectors.toList());
-      return toListResult(aspectList, sqlRows, listResultMetadata, start, pageSize);
     }
+    final ListResultMetadata listResultMetadata = new ListResultMetadata().setExtraInfos(new ExtraInfoArray());
+    final List<ASPECT> aspectList = sqlRows.stream().map(sqlRow -> {
+      final ExtraInfo extraInfo = new ExtraInfo().setUrn(getUrn(sqlRow.getString("urn"), _urnClass))
+          .setVersion(LATEST_VERSION).setAudit(
+              makeAuditStamp(sqlRow.getTimestamp("lastmodifiedon"), sqlRow.getString("lastmodifiedby"),
+                  sqlRow.getString("createdfor")));
+      listResultMetadata.getExtraInfos().add(extraInfo);
+      return RecordUtils.toRecordTemplate(aspectClass,
+          extractAspectJsonString(sqlRow.getString(getAspectColumnName(aspectClass))));
+    }).collect(Collectors.toList());
+    return toListResult(aspectList, sqlRows, listResultMetadata, start, pageSize);
   }
 
 

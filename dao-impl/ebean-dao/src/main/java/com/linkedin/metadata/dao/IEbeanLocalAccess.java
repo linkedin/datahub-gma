@@ -134,7 +134,6 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * aspect if the specific version of a specific aspect was soft deleted.
    *
    * @param aspectClass the type of the aspect to query
-   * @param version the version of the aspect
    * @param start the starting offset of the page
    * @param pageSize the size of the page
    * @param <ASPECT> must be a supported aspect type in {@code ASPECT_UNION}.
@@ -142,7 +141,7 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    */
   @Nonnull
   <ASPECT extends RecordTemplate> ListResult<ASPECT> list(@Nonnull Class<ASPECT> aspectClass,
-      long version, int start, int pageSize);
+     int start, int pageSize);
 
 
   /**
