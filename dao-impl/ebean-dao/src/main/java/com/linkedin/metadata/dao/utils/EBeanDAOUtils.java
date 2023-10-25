@@ -15,6 +15,7 @@ import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -154,6 +155,7 @@ public class EBeanDAOUtils {
    * Read {@link SqlRow} list into a {@link EbeanMetadataAspect} list.
    * @param sqlRows list of {@link SqlRow}
    * @return list of {@link EbeanMetadataAspect}
+   * @deprecated This method has been deprecated, use {@link #readSqlRow(SqlRow, Class)} instead.
    */
   // TODO: make this method private once all users' custom SQL queries have been replaced by DAO-supported methods
   public static List<EbeanMetadataAspect> readSqlRows(List<SqlRow> sqlRows) {
@@ -174,6 +176,73 @@ public class EBeanDAOUtils {
         return ebeanMetadataAspect;
       });
     }).collect(Collectors.toList());
+  }
+
+  /**
+   * Read {@link SqlRow} list into a {@link EbeanMetadataAspect} list.
+   * @param sqlRows a list of {@link SqlRow} to aspect {@link Class} map.
+   * @param <ASPECT> aspect class type
+   * @return list of {@link EbeanMetadataAspect}
+   */
+  public static <ASPECT extends RecordTemplate> List<EbeanMetadataAspect> readSqlRows(
+      @Nonnull Map<SqlRow, Class<ASPECT>> sqlRows) {
+    return sqlRows.entrySet().stream().flatMap(entry -> {
+      List<String> columns = new ArrayList<>();
+      SqlRow sqlRow = entry.getKey();
+      sqlRow.keySet()
+          .stream()
+          .filter(key -> key.startsWith(SQLSchemaUtils.ASPECT_PREFIX) && sqlRow.get(key) != null)
+          .forEach(columns::add);
+
+      return columns.stream().map(columnName -> readSqlRow(sqlRow, entry.getValue()));
+    }).collect(Collectors.toList());
+  }
+
+  /**
+   * Read EbeanMetadataAspect from {@link SqlRow}.
+   * @param sqlRow {@link SqlRow}
+   * @param aspectClass aspect class
+   * @param <ASPECT> aspect type
+   * @return {@link EbeanMetadataAspect}
+   */
+  private static <ASPECT extends RecordTemplate> EbeanMetadataAspect readSqlRow(SqlRow sqlRow,
+      Class<ASPECT> aspectClass) {
+    final String columnName = SQLSchemaUtils.getAspectColumnName(aspectClass);
+    final EbeanMetadataAspect ebeanMetadataAspect = new EbeanMetadataAspect();
+    final String urn = sqlRow.getString("urn");
+    EbeanMetadataAspect.PrimaryKey primaryKey;
+
+    if (isSoftDeletedAspect(sqlRow, columnName)) {
+      primaryKey = new EbeanMetadataAspect.PrimaryKey(urn, aspectClass.getCanonicalName(), LATEST_VERSION);
+      ebeanMetadataAspect.setCreatedBy(sqlRow.getString("lastmodifiedby"));
+      ebeanMetadataAspect.setCreatedOn(sqlRow.getTimestamp("lastmodifiedon"));
+      ebeanMetadataAspect.setCreatedFor(sqlRow.getString("createdfor"));
+      ebeanMetadataAspect.setMetadata(DELETED_VALUE);
+    } else {
+      AuditedAspect auditedAspect = RecordUtils.toRecordTemplate(AuditedAspect.class, sqlRow.getString(columnName));
+      primaryKey = new EbeanMetadataAspect.PrimaryKey(urn, auditedAspect.getCanonicalName(), LATEST_VERSION);
+      ebeanMetadataAspect.setCreatedBy(auditedAspect.getLastmodifiedby());
+      ebeanMetadataAspect.setCreatedOn(Timestamp.valueOf(auditedAspect.getLastmodifiedon()));
+      ebeanMetadataAspect.setCreatedFor(auditedAspect.getCreatedfor());
+      ebeanMetadataAspect.setMetadata(extractAspectJsonString(sqlRow.getString(columnName)));
+    }
+    ebeanMetadataAspect.setKey(primaryKey);
+    return ebeanMetadataAspect;
+  }
+
+  /**
+   * Checks whether the entity table record has been soft deleted.
+   * @param sqlRow {@link SqlRow} result from MySQL server
+   * @param columnName column name of entity table
+   * @return boolean representing whether the aspect record has been soft deleted
+   */
+  public static boolean isSoftDeletedAspect(@Nonnull SqlRow sqlRow, @Nonnull String columnName) {
+    try {
+      SoftDeletedAspect aspect = RecordUtils.toRecordTemplate(SoftDeletedAspect.class, sqlRow.getString(columnName));
+      return aspect.hasGma_deleted() && aspect.isGma_deleted();
+    } catch (Exception e) {
+      return false;
+    }
   }
 
   /**

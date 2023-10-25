@@ -11,6 +11,7 @@ import com.linkedin.testing.urn.BurgerUrn;
 import com.linkedin.testing.urn.FooUrn;
 import io.ebean.Ebean;
 import io.ebean.EbeanServer;
+import io.ebean.SqlRow;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -25,7 +26,9 @@ import javax.annotation.Nonnull;
 import org.testng.annotations.Test;
 
 import static com.linkedin.testing.TestUtils.*;
-import static org.testng.Assert.*;
+import static org.mockito.Mockito.*;
+import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertTrue;
 import static org.testng.AssertJUnit.assertEquals;
 import static org.testng.AssertJUnit.assertNotNull;
 
@@ -512,5 +515,19 @@ public class EBeanDAOUtilsTest {
 
     // sanity test on JDBC functions
     assertNotNull(EBeanDAOUtils.getWithJdbc(fooUrn.toString(), fooAspect.getClass().getCanonicalName(), server, key));
+  }
+
+  @Test
+  public void testIsSoftDeletedAspect() {
+    SqlRow sqlRow = mock(SqlRow.class);
+    when(sqlRow.getString("a_aspectfoo")).thenReturn("{\"gma_deleted\": true}");
+    assertTrue(EBeanDAOUtils.isSoftDeletedAspect(sqlRow, "a_aspectfoo"));
+
+    when(sqlRow.getString("a_aspectbar")).thenReturn(
+        "{\"aspect\": {\"value\": \"bar\"}, \"lastmodifiedby\": \"urn:li:tester\"}");
+    assertFalse(EBeanDAOUtils.isSoftDeletedAspect(sqlRow, "a_aspectbar"));
+
+    when(sqlRow.getString("a_aspectbaz")).thenReturn("{\"random_value\": \"baz\"}");
+    assertFalse(EBeanDAOUtils.isSoftDeletedAspect(sqlRow, "a_aspectbaz"));
   }
 }

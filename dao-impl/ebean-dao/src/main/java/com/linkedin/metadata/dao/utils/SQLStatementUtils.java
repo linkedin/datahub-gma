@@ -38,6 +38,8 @@ public class SQLStatementUtils {
 
   public static final String SOFT_DELETED_CHECK = "JSON_EXTRACT(%s, '$.gma_deleted') IS NULL"; // true when not soft deleted
 
+  public static final String NONNULL_CHECK = "%s IS NOT NULL"; // true when the value of aspect_column is not NULL
+
   private static final String SQL_UPSERT_ASPECT_TEMPLATE =
       "INSERT INTO %s (urn, %s, lastmodifiedon, lastmodifiedby) VALUE (:urn, :metadata, :lastmodifiedon, :lastmodifiedby) "
           + "ON DUPLICATE KEY UPDATE %s = :metadata, lastmodifiedon = :lastmodifiedon;";
@@ -48,6 +50,23 @@ public class SQLStatementUtils {
 
   private static final String SQL_READ_ASPECT_TEMPLATE =
       String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby FROM %%s WHERE urn = '%%s' AND %s", SOFT_DELETED_CHECK);
+
+  private static final String SQL_LIST_ASPECT_BY_URN_TEMPLATE =
+      String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby, createdfor FROM %%s WHERE urn = '%%s' AND %s AND %s", NONNULL_CHECK, SOFT_DELETED_CHECK);
+
+  private static final String SQL_LIST_ASPECT_BY_URN_WITH_SOFT_DELETED_TEMPLATE =
+      String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby, createdfor FROM %%s WHERE urn = '%%s' AND %s", NONNULL_CHECK);
+
+  private static final String SQL_LIST_ASPECT_WITH_PAGINATION_TEMPLATE =
+      String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby, createdfor, (SELECT COUNT(urn) FROM %%s WHERE %s AND %s) "
+          + "as _total_count FROM %%s WHERE %s AND %s LIMIT %%s OFFSET %%s", NONNULL_CHECK, SOFT_DELETED_CHECK, NONNULL_CHECK, SOFT_DELETED_CHECK);
+
+  private static final String SQL_LIST_ASPECT_WITH_PAGINATION_WITH_SOFT_DELETED_TEMPLATE =
+      String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby, createdfor, (SELECT COUNT(urn) FROM %%s WHERE %s) "
+          + "as _total_count FROM %%s WHERE %s LIMIT %%s OFFSET %%s", NONNULL_CHECK,  NONNULL_CHECK);
+
+  private static final String SQL_READ_ASPECT_WITH_SOFT_DELETED_TEMPLATE =
+      "SELECT urn, %s, lastmodifiedon, lastmodifiedby FROM %s WHERE urn = '%s'";
 
   private static final String INDEX_GROUP_BY_CRITERION = "SELECT count(*) as COUNT, %s FROM %s";
 
@@ -107,23 +126,71 @@ public class SQLStatementUtils {
    * </p>
    * @param aspectClass aspect class to query for
    * @param urns a Set of Urns to query for
+   * @param includeSoftDeleted a flag to include soft deleted records
    * @param <ASPECT> aspect type
    * @return aspect read sql statement for a single aspect (across multiple tables and urns)
    */
   public static <ASPECT extends RecordTemplate> String createAspectReadSql(@Nonnull Class<ASPECT> aspectClass,
-      @Nonnull Set<Urn> urns) {
+      @Nonnull Set<Urn> urns, boolean includeSoftDeleted) {
     if (urns.size() == 0) {
       throw new IllegalArgumentException("Need at least 1 urn to query.");
     }
     final String columnName = getAspectColumnName(aspectClass);
     StringBuilder stringBuilder = new StringBuilder();
     List<String> selectStatements = urns.stream().map(urn -> {
-          final String tableName = getTableName(urn);
-          return String.format(SQL_READ_ASPECT_TEMPLATE, columnName, tableName, escapeReservedCharInUrn(urn.toString()), columnName);
-        }).collect(Collectors.toList());
+      final String tableName = getTableName(urn);
+      final String sqlTemplate =
+          includeSoftDeleted ? SQL_READ_ASPECT_WITH_SOFT_DELETED_TEMPLATE : SQL_READ_ASPECT_TEMPLATE;
+      return String.format(sqlTemplate, columnName, tableName, escapeReservedCharInUrn(urn.toString()), columnName);
+    }).collect(Collectors.toList());
     stringBuilder.append(String.join(" UNION ALL ", selectStatements));
     return stringBuilder.toString();
   }
+
+  /**
+   * List all the aspect record (0 or 1) for a given entity urn and aspect type.
+   * @param aspectClass aspect type
+   * @param urn entity urn
+   * @param includeSoftDeleted whether to include soft deleted aspects
+   * @param <ASPECT> aspect type
+   * @return a SQL to run listing aspect query
+   */
+  public static <ASPECT extends RecordTemplate> String createListAspectByUrnSql(@Nonnull Class<ASPECT> aspectClass,
+      @Nonnull Urn urn, boolean includeSoftDeleted) {
+    final String columnName = getAspectColumnName(aspectClass);
+    final String tableName = getTableName(urn);
+    if (includeSoftDeleted) {
+      return String.format(SQL_LIST_ASPECT_BY_URN_WITH_SOFT_DELETED_TEMPLATE, columnName, tableName,
+          escapeReservedCharInUrn(urn.toString()), columnName);
+    } else {
+      return String.format(SQL_LIST_ASPECT_BY_URN_TEMPLATE, columnName, tableName,
+          escapeReservedCharInUrn(urn.toString()), columnName, columnName);
+    }
+  }
+
+  /**
+   * List all the aspects for a given entity type and aspect type.
+   * @param aspectClass aspect type
+   * @param tableName table name
+   * @param includeSoftDeleted whether to include soft deleted aspects
+   * @param start pagination offset
+   * @param pageSize page size
+   * @param <ASPECT> aspect type
+   * @return a SQL to run listing aspect query with pagination.
+   */
+  public static <ASPECT extends RecordTemplate> String createListAspectWithPaginationSql(@Nonnull Class<ASPECT> aspectClass,
+      String tableName, boolean includeSoftDeleted, int start, int pageSize) {
+    final String columnName = getAspectColumnName(aspectClass);
+    if (includeSoftDeleted) {
+      return String.format(SQL_LIST_ASPECT_WITH_PAGINATION_WITH_SOFT_DELETED_TEMPLATE, columnName, tableName,
+          columnName, tableName, columnName, pageSize, start);
+    } else {
+      return String.format(SQL_LIST_ASPECT_WITH_PAGINATION_TEMPLATE, columnName, tableName, columnName, columnName,
+          tableName, columnName, columnName, pageSize, start);
+    }
+  }
+
+
 
   /**
    * Create Upsert SQL statement.

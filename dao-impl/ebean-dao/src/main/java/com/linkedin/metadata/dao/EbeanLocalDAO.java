@@ -38,7 +38,6 @@ import com.linkedin.metadata.query.ListResultMetadata;
 import com.linkedin.metadata.query.SortOrder;
 import io.ebean.DuplicateKeyException;
 import io.ebean.EbeanServer;
-import io.ebean.ExpressionList;
 import io.ebean.PagedList;
 import io.ebean.Query;
 import io.ebean.SqlUpdate;
@@ -100,6 +99,22 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   // Which approach to be used for record retrieval when inserting a new record
   // See GCN-38382
   private FindMethodology _findMethodology = FindMethodology.UNIQUE_ID;
+
+  // true if metadata change will be persisted into the change log table (metadata_aspect)
+  private boolean _changeLogEnabled = true;
+
+  public void setChangeLogEnabled(boolean changeLogEnabled) {
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+      _changeLogEnabled = changeLogEnabled;
+    } else {
+      // For non-new schema, _changeLog will be enforced to be true
+      _changeLogEnabled = true;
+    }
+  }
+
+  public boolean isChangeLogEnabled() {
+    return _changeLogEnabled;
+  }
 
   public enum FindMethodology {
     UNIQUE_ID,      // (legacy) https://javadoc.io/static/io.ebean/ebean/11.19.2/io/ebean/EbeanServer.html#find-java.lang.Class-java.lang.Object-
@@ -471,6 +486,14 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   /**
+   * Overwride schema config, unit-test only.
+   * @param schemaConfig schema config
+   */
+  void setSchemaConfig(SchemaConfig schemaConfig) {
+    _schemaConfig = schemaConfig;
+  }
+
+  /**
    * Ensure table schemas is up-to-date with db evolution scripts.
    */
   public void ensureSchemaUpToDate() {
@@ -512,22 +535,29 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       @Nonnull AuditStamp newAuditStamp, boolean isSoftDeleted, @Nullable IngestionTrackingContext trackingContext) {
     // Save oldValue as the largest version + 1
     long largestVersion = 0;
-    if ((isSoftDeleted || oldValue != null) && oldAuditStamp != null) {
-      largestVersion = getNextVersion(urn, aspectClass);
+    if ((isSoftDeleted || oldValue != null) && oldAuditStamp != null && _changeLogEnabled) {
+      // When saving on entity which has history version (including being soft deleted), and changeLog is enabled,
+      // the saveLatest will process the following steps:
 
+      // 1. get the next version from the metadata_aspect table
+      // 2. write value of latest version (version = 0) as a new version
+      // 3. update the latest version (version = 0) with the new value. If the value of latest version has been
+      //    changed during this process, then rollback by throwing OptimisticLockException
+
+      largestVersion = getNextVersion(urn, aspectClass);
       // TODO(yanyang) added for job-gms duplicity debug, throwaway afterwards
       if (log.isDebugEnabled()) {
         if ("AzkabanFlowInfo".equals(aspectClass.getSimpleName())) {
           log.debug("Insert: {} => oldValue = {}, latest version = {}", urn, oldValue, largestVersion);
         }
       }
-
       // Move latest version to historical version by insert a new record.
       insert(urn, oldValue, aspectClass, oldAuditStamp, largestVersion, trackingContext);
       // update latest version
       updateWithOptimisticLocking(urn, newValue, aspectClass, newAuditStamp, LATEST_VERSION,
           new Timestamp(oldAuditStamp.getTime()), trackingContext);
     } else {
+      // When for fresh ingestion or with changeLog disabled
 
       // TODO(yanyang) added for job-gms duplicity debug, throwaway afterwards
       if (log.isDebugEnabled()) {
@@ -586,7 +616,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
     AspectKey<URN, ASPECT> key = new AspectKey<>(aspectClass, urn, LATEST_VERSION);
     return runInTransactionWithRetry(() -> {
-      List<EbeanMetadataAspect> results = _localAccess.batchGetUnion(Collections.singletonList(key), 1, 0);
+          List<EbeanMetadataAspect> results = _localAccess.batchGetUnion(Collections.singletonList(key), 1, 0, false);
       if (results.size() == 0) {
         return new ArrayList<>();
       }
@@ -595,22 +625,37 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }, 1);
   }
 
-  private <ASPECT extends RecordTemplate> EbeanMetadataAspect queryLatest(@Nonnull URN urn,
+  /**
+   * Get latest metadata aspect record by urn and aspect.
+   * @param urn entity urn
+   * @param aspectClass aspect class
+   * @param <ASPECT> aspect type
+   * @return metadata aspect ebean model {@link EbeanMetadataAspect}
+   */
+  private @Nullable <ASPECT extends RecordTemplate> EbeanMetadataAspect queryLatest(@Nonnull URN urn,
       @Nonnull Class<ASPECT> aspectClass) {
-    final String aspectName = ModelUtils.getAspectName(aspectClass);
-    final PrimaryKey key = new PrimaryKey(urn.toString(), aspectName, 0L);
+
     EbeanMetadataAspect result;
-    if (_findMethodology == FindMethodology.DIRECT_SQL) {
-      result = findLatestMetadataAspect(_server, urn, aspectClass);
-      if (result == null) {
-        // Attempt 1: retry
-        result = _server.find(EbeanMetadataAspect.class, key);
-        if (log.isDebugEnabled()) {
-          log.debug("Attempt 1: Retried on {}, {}", urn, result);
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      final String aspectName = ModelUtils.getAspectName(aspectClass);
+      final PrimaryKey key = new PrimaryKey(urn.toString(), aspectName, LATEST_VERSION);
+      if (_findMethodology == FindMethodology.DIRECT_SQL) {
+        result = findLatestMetadataAspect(_server, urn, aspectClass);
+        if (result == null) {
+          // Attempt 1: retry
+          result = _server.find(EbeanMetadataAspect.class, key);
+          if (log.isDebugEnabled()) {
+            log.debug("Attempt 1: Retried on {}, {}", urn, result);
+          }
         }
+      } else {
+        result = _server.find(EbeanMetadataAspect.class, key);
       }
     } else {
-      result = _server.find(EbeanMetadataAspect.class, key);
+      // for new schema or dual-schema, get latest data from new schema. (Resolving the read de-coupling issue)
+      final List<EbeanMetadataAspect> results = _localAccess.batchGetUnion(
+          Collections.singletonList(new AspectKey<>(aspectClass, urn, LATEST_VERSION)), 1, 0, true);
+      result = results.isEmpty() ? null : results.get(0);
     }
     return result;
   }
@@ -713,7 +758,11 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       // the metadata entity tables shouldn't been updated.
       _localAccess.add(urn, (ASPECT) value, aspectClass, auditStamp);
     }
-    _server.insert(aspect);
+
+    if (_changeLogEnabled) {
+      // skip appending change log table (metadata_aspect) if not enabled
+      _server.insert(aspect);
+    }
   }
 
   protected void saveRecordsToLocalIndex(@Nonnull URN urn, @Nonnull String aspect, @Nonnull String path,
@@ -784,42 +833,49 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   @Override
   protected <ASPECT extends RecordTemplate> long getNextVersion(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass) {
+    if (!_changeLogEnabled) {
+      throw new UnsupportedOperationException("getNextVersion shouldn't be called when changeLog is disabled");
+    } else {
+      final List<PrimaryKey> result = _server.find(EbeanMetadataAspect.class)
+          .where()
+          .eq(URN_COLUMN, urn.toString())
+          .eq(ASPECT_COLUMN, ModelUtils.getAspectName(aspectClass))
+          .orderBy()
+          .desc(VERSION_COLUMN)
+          .setMaxRows(1)
+          .findIds();
 
-    final List<PrimaryKey> result = _server.find(EbeanMetadataAspect.class)
-        .where()
-        .eq(URN_COLUMN, urn.toString())
-        .eq(ASPECT_COLUMN, ModelUtils.getAspectName(aspectClass))
-        .orderBy()
-        .desc(VERSION_COLUMN)
-        .setMaxRows(1)
-        .findIds();
-
-    return result.isEmpty() ? 0 : result.get(0).getVersion() + 1L;
+      return result.isEmpty() ? 0 : result.get(0).getVersion() + 1L;
+    }
   }
 
   @Override
   protected <ASPECT extends RecordTemplate> void applyVersionBasedRetention(@Nonnull Class<ASPECT> aspectClass,
       @Nonnull URN urn, @Nonnull VersionBasedRetention retention, long largestVersion) {
-
-    _server.find(EbeanMetadataAspect.class)
-        .where()
-        .eq(URN_COLUMN, urn.toString())
-        .eq(ASPECT_COLUMN, ModelUtils.getAspectName(aspectClass))
-        .ne(VERSION_COLUMN, LATEST_VERSION)
-        .le(VERSION_COLUMN, largestVersion - retention.getMaxVersionsToRetain() + 1)
-        .delete();
+    if (_changeLogEnabled) {
+      // only apply version based retention when changeLog is enabled
+      _server.find(EbeanMetadataAspect.class)
+          .where()
+          .eq(URN_COLUMN, urn.toString())
+          .eq(ASPECT_COLUMN, ModelUtils.getAspectName(aspectClass))
+          .ne(VERSION_COLUMN, LATEST_VERSION)
+          .le(VERSION_COLUMN, largestVersion - retention.getMaxVersionsToRetain() + 1)
+          .delete();
+    }
   }
 
   @Override
   protected <ASPECT extends RecordTemplate> void applyTimeBasedRetention(@Nonnull Class<ASPECT> aspectClass,
       @Nonnull URN urn, @Nonnull TimeBasedRetention retention, long currentTime) {
-
-    _server.find(EbeanMetadataAspect.class)
-        .where()
-        .eq(URN_COLUMN, urn.toString())
-        .eq(ASPECT_COLUMN, ModelUtils.getAspectName(aspectClass))
-        .lt(CREATED_ON_COLUMN, new Timestamp(currentTime - retention.getMaxAgeToRetain()))
-        .delete();
+    if (_changeLogEnabled) {
+      // only apply time based retention when changeLog is enabled
+      _server.find(EbeanMetadataAspect.class)
+          .where()
+          .eq(URN_COLUMN, urn.toString())
+          .eq(ASPECT_COLUMN, ModelUtils.getAspectName(aspectClass))
+          .lt(CREATED_ON_COLUMN, new Timestamp(currentTime - retention.getMaxAgeToRetain()))
+          .delete();
+    }
   }
 
   @Override
@@ -992,27 +1048,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Nonnull
-  private List<EbeanMetadataAspect> batchGetOr(@Nonnull List<AspectKey<URN, ? extends RecordTemplate>> keys,
-      int keysCount, int position) {
-    ExpressionList<EbeanMetadataAspect> query = _server.find(EbeanMetadataAspect.class).select(ALL_COLUMNS).where();
-
-    // add or if it is not the last element
-    if (position != keys.size() - 1) {
-      query = query.or();
-    }
-
-    for (int index = position; index < keys.size() && index < position + keysCount; index++) {
-      query = query.and()
-          .eq(URN_COLUMN, keys.get(index).getUrn().toString())
-          .eq(ASPECT_COLUMN, ModelUtils.getAspectName(keys.get(index).getAspectClass()))
-          .eq(VERSION_COLUMN, keys.get(index).getVersion())
-          .endAnd();
-    }
-
-    return query.findList();
-  }
-
-  @Nonnull
   @SuppressWarnings({"checkstyle:FallThrough", "checkstyle:DefaultComesLast"})
   List<EbeanMetadataAspect> batchGetHelper(@Nonnull List<AspectKey<URN, ? extends RecordTemplate>> keys,
       int keysCount, int position) {
@@ -1024,13 +1059,13 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
 
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
-      return _localAccess.batchGetUnion(keys, keysCount, position);
+      return _localAccess.batchGetUnion(keys, keysCount, position, false);
     }
 
     if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
       // Compare results from both new and old schemas
       final List<EbeanMetadataAspect> resultsOldSchema = batchGetUnion(keys, keysCount, position);
-      final List<EbeanMetadataAspect> resultsNewSchema = _localAccess.batchGetUnion(keys, keysCount, position);
+      final List<EbeanMetadataAspect> resultsNewSchema = _localAccess.batchGetUnion(keys, keysCount, position, false);
       EBeanDAOUtils.compareResults(resultsOldSchema, resultsNewSchema, "batchGet");
       return resultsOldSchema;
     }
@@ -1053,31 +1088,34 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Nonnull
   public <ASPECT extends RecordTemplate> ListResult<Long> listVersions(@Nonnull Class<ASPECT> aspectClass,
       @Nonnull URN urn, int start, int pageSize) {
-
     checkValidAspect(aspectClass);
-
-    final PagedList<EbeanMetadataAspect> pagedList = _server.find(EbeanMetadataAspect.class)
-        .select(KEY_ID)
-        .where()
-        .eq(URN_COLUMN, urn.toString())
-        .eq(ASPECT_COLUMN, ModelUtils.getAspectName(aspectClass))
-        .ne(METADATA_COLUMN, DELETED_VALUE)
-        .setFirstRow(start)
-        .setMaxRows(pageSize)
-        .orderBy()
-        .asc(VERSION_COLUMN)
-        .findPagedList();
-
-    final List<Long> versions =
-        pagedList.getList().stream().map(a -> a.getKey().getVersion()).collect(Collectors.toList());
-    return toListResult(versions, null, pagedList, start);
+    if (_changeLogEnabled) {
+      PagedList<EbeanMetadataAspect> pagedList = _server.find(EbeanMetadataAspect.class)
+          .select(KEY_ID)
+          .where()
+          .eq(URN_COLUMN, urn.toString())
+          .eq(ASPECT_COLUMN, ModelUtils.getAspectName(aspectClass))
+          .ne(METADATA_COLUMN, DELETED_VALUE)
+          .setFirstRow(start)
+          .setMaxRows(pageSize)
+          .orderBy()
+          .asc(VERSION_COLUMN)
+          .findPagedList();
+      final List<Long> versions =
+          pagedList.getList().stream().map(a -> a.getKey().getVersion()).collect(Collectors.toList());
+      return toListResult(versions, null, pagedList, start);
+    } else {
+      ListResult<ASPECT> aspectListResult = _localAccess.list(aspectClass, urn, start, pageSize);
+      return transformListResult(aspectListResult, aspect -> LATEST_VERSION);
+    }
   }
 
   @Override
   @Nonnull
   public <ASPECT extends RecordTemplate> ListResult<URN> listUrns(@Nonnull Class<ASPECT> aspectClass, int start,
       int pageSize) {
-    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+    if (_schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
+      // decouple from old schema
       return _localAccess.listUrns(aspectClass, start, pageSize);
     }
     checkValidAspect(aspectClass);
@@ -1125,22 +1163,26 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Nonnull
   public <ASPECT extends RecordTemplate> ListResult<ASPECT> list(@Nonnull Class<ASPECT> aspectClass, @Nonnull URN urn,
       int start, int pageSize) {
-
     checkValidAspect(aspectClass);
-
-    final PagedList<EbeanMetadataAspect> pagedList = _server.find(EbeanMetadataAspect.class)
-        .select(ALL_COLUMNS)
-        .where()
-        .eq(URN_COLUMN, urn.toString())
-        .eq(ASPECT_COLUMN, ModelUtils.getAspectName(aspectClass))
-        .ne(METADATA_COLUMN, DELETED_VALUE)
-        .setFirstRow(start)
-        .setMaxRows(pageSize)
-        .orderBy()
-        .asc(VERSION_COLUMN)
-        .findPagedList();
-
-    return getListResult(aspectClass, pagedList, start);
+    PagedList<EbeanMetadataAspect> pagedList;
+    if (_changeLogEnabled) {
+      pagedList = _server.find(EbeanMetadataAspect.class)
+          .select(ALL_COLUMNS)
+          .where()
+          .eq(URN_COLUMN, urn.toString())
+          .eq(ASPECT_COLUMN, ModelUtils.getAspectName(aspectClass))
+          .ne(METADATA_COLUMN, DELETED_VALUE)
+          .setFirstRow(start)
+          .setMaxRows(pageSize)
+          .orderBy()
+          .asc(VERSION_COLUMN)
+          .findPagedList();
+      return getListResult(aspectClass, pagedList, start);
+    } else {
+      // if changeLog is disabled, then list all the non-null,
+      // non-solft deleted, version-0) aspects from new schema table
+      return _localAccess.list(aspectClass, urn, start, pageSize);
+    }
   }
 
   @Override
@@ -1150,19 +1192,29 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
     checkValidAspect(aspectClass);
 
-    final PagedList<EbeanMetadataAspect> pagedList = _server.find(EbeanMetadataAspect.class)
-        .select(ALL_COLUMNS)
-        .where()
-        .eq(ASPECT_COLUMN, ModelUtils.getAspectName(aspectClass))
-        .eq(VERSION_COLUMN, version)
-        .ne(METADATA_COLUMN, DELETED_VALUE)
-        .setFirstRow(start)
-        .setMaxRows(pageSize)
-        .orderBy()
-        .asc(URN_COLUMN)
-        .findPagedList();
+    if (_changeLogEnabled) {
 
-    return getListResult(aspectClass, pagedList, start);
+      PagedList<EbeanMetadataAspect> pagedList = _server.find(EbeanMetadataAspect.class)
+          .select(ALL_COLUMNS)
+          .where()
+          .eq(ASPECT_COLUMN, ModelUtils.getAspectName(aspectClass))
+          .eq(VERSION_COLUMN, version)
+          .ne(METADATA_COLUMN, DELETED_VALUE)
+          .setFirstRow(start)
+          .setMaxRows(pageSize)
+          .orderBy()
+          .asc(URN_COLUMN)
+          .findPagedList();
+
+      return getListResult(aspectClass, pagedList, start);
+    } else {
+      if (version != LATEST_VERSION) {
+        throw new UnsupportedOperationException(
+            "non-current version based list is not supported when ChangeLog is disabled");
+      }
+
+      return _localAccess.list(aspectClass, start, pageSize);
+    }
   }
 
   @Override
@@ -1202,6 +1254,29 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         extraInfo));
   }
 
+
+  /**
+   * Transform list result from type T to type R.
+   * @param listResult input list result
+   * @param function transform function
+   * @param <T> input data type
+   * @param <R> output data type
+   * @return ListResult of type R
+   */
+  @Nonnull
+  public static  <T, R> ListResult<R> transformListResult(@Nonnull ListResult<T> listResult,
+      @Nonnull Function<T, R> function) {
+    List<R> values = listResult.getValues().stream().map(function).collect(Collectors.toList());
+    return ListResult.<R>builder().values(values)
+        .metadata(listResult.getMetadata())
+        .nextStart(listResult.getNextStart())
+        .havingMore(listResult.isHavingMore())
+        .totalCount(listResult.getTotalCount())
+        .totalPageCount(listResult.getTotalPageCount())
+        .pageSize(listResult.getPageSize())
+        .build();
+  }
+
   @Nonnull
   private <T> ListResult<T> toListResult(@Nonnull List<T> values, @Nullable ListResultMetadata listResultMetadata,
       @Nonnull PagedList<?> pagedList, @Nullable Integer start) {
@@ -1234,19 +1309,23 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Nonnull
-  static AuditStamp makeAuditStamp(@Nonnull EbeanMetadataAspect aspect) {
+  static AuditStamp makeAuditStamp(@Nonnull Timestamp timestamp, @Nonnull String actor, @Nullable String impersonator) {
     final AuditStamp auditStamp = new AuditStamp();
-    auditStamp.setTime(aspect.getCreatedOn().getTime());
-
+    auditStamp.setTime(timestamp.getTime());
     try {
-      auditStamp.setActor(new Urn(aspect.getCreatedBy()));
-      if (aspect.getCreatedFor() != null) {
-        auditStamp.setImpersonator(new Urn(aspect.getCreatedFor()));
+      auditStamp.setActor(new Urn(actor));
+      if (impersonator != null) {
+        auditStamp.setImpersonator(new Urn(impersonator));
       }
     } catch (URISyntaxException e) {
       throw new RuntimeException(e);
     }
     return auditStamp;
+  }
+
+  @Nonnull
+  static AuditStamp makeAuditStamp(@Nonnull EbeanMetadataAspect aspect) {
+    return makeAuditStamp(aspect.getCreatedOn(), aspect.getCreatedBy(), aspect.getCreatedFor());
   }
 
   @Nonnull
