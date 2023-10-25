@@ -106,6 +106,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   public void setChangeLogEnabled(boolean changeLogEnabled) {
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
       _changeLogEnabled = changeLogEnabled;
+    } else {
+      // For non-new schema, _changeLog will be enforced to be true
+      _changeLogEnabled = true;
     }
   }
 
@@ -480,6 +483,14 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    */
   public SchemaConfig getSchemaConfig() {
     return _schemaConfig;
+  }
+
+  /**
+   * Overwride schema config, unit-test only.
+   * @param schemaConfig schema config
+   */
+  void setSchemaConfig(SchemaConfig schemaConfig) {
+    _schemaConfig = schemaConfig;
   }
 
   /**

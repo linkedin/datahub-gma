@@ -3309,6 +3309,28 @@ public class EbeanLocalDAOTest {
     }
   }
 
+  @Test
+  public void testDataNotWrittenIntoOldSchemaWhenChangeLogIsDisabled() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    if (dao.isChangeLogEnabled()) {
+      // this test is only applicable when changeLog is disabled
+      return;
+    }
+
+    // Given: an empty old schema and empty new schema and changelog is disabled
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> legacyDao = createDao(FooUrn.class);
+    legacyDao.setSchemaConfig(SchemaConfig.OLD_SCHEMA_ONLY);
+    legacyDao.setChangeLogEnabled(false);
+
+    // When: AspectFoo is written into the dao.
+    FooUrn fooUrn = makeFooUrn(1);
+    AspectFoo v1 = new AspectFoo().setValue("foo");
+    dao.add(fooUrn, v1, _dummyAuditStamp);
+
+    // Expect: the aspect foo is only written into the new schema.
+    assertTrue(dao.get(AspectFoo.class, fooUrn).isPresent());
+    assertFalse(legacyDao.get(AspectFoo.class, fooUrn).isPresent());
+  }
 
   @Nonnull
   private EbeanMetadataAspect getMetadata(Urn urn, String aspectName, long version, @Nullable RecordTemplate metadata) {

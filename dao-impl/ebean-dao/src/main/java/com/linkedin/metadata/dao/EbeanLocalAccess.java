@@ -273,7 +273,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       }
     } catch (PersistenceException pe) {
       throw new RuntimeException(
-          String.format("Expect at most 1 aspect value per entity. Sql: %s", listAspectByUrnSql));
+          String.format("Expect at most 1 aspect value per entity per aspect type . Sql: %s", listAspectByUrnSql));
     }
   }
 

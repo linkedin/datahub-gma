@@ -147,7 +147,7 @@ public class SQLStatementUtils {
   }
 
   /**
-   * List all the aspect (versions) for a given entity urn and aspect type.
+   * List all the aspect record (0 or 1) for a given entity urn and aspect type.
    * @param aspectClass aspect type
    * @param urn entity urn
    * @param includeSoftDeleted whether to include soft deleted aspects
