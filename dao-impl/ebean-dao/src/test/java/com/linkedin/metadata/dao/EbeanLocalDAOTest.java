@@ -3332,6 +3332,42 @@ public class EbeanLocalDAOTest {
     assertFalse(legacyDao.get(AspectFoo.class, fooUrn).isPresent());
   }
 
+  @Test
+  public void testOverwriteLatestVersion() {
+    if (!_enableChangeLog || _schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      // skip this test if the change log is not even enabled and/or if we are not operating in new schema mode.
+      return;
+    }
+
+    // new schema DAO, used for inserts and reads
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> newSchemaDao = createDao(FooUrn.class);
+    newSchemaDao.setOverwriteLatestVersionEnabled(true);
+
+    // old schema DAO, used for reads only
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> oldSchemaDao = createDao(FooUrn.class);
+    oldSchemaDao.setSchemaConfig(SchemaConfig.OLD_SCHEMA_ONLY);
+
+    // Given: first version of metadata is inserted
+    FooUrn fooUrn = makeFooUrn(1);
+    AspectFoo v1 = new AspectFoo().setValue("foo");
+    newSchemaDao.add(fooUrn, v1, _dummyAuditStamp);
+
+    // When: second version of metadata is inserted
+    AspectFoo v2 = new AspectFoo().setValue("bar");
+    newSchemaDao.add(fooUrn, v2, _dummyAuditStamp);
+
+    // Expect: second version of metadata inserted overwrote the first version in the metadata_aspect table
+    Optional<AspectFoo> newSchemaResult = newSchemaDao.get(AspectFoo.class, fooUrn);
+    Optional<AspectFoo> oldSchemaResultLatest = oldSchemaDao.get(AspectFoo.class, fooUrn, 0);
+    Optional<AspectFoo> oldSchemaResultNonLatest = oldSchemaDao.get(AspectFoo.class, fooUrn, 1);
+
+    assertTrue(newSchemaResult.isPresent());
+    assertEquals(newSchemaResult.get().getValue(), "bar");
+    assertTrue(oldSchemaResultLatest.isPresent());
+    assertEquals(oldSchemaResultLatest.get().getValue(), "bar");
+    assertFalse(oldSchemaResultNonLatest.isPresent());
+  }
+
   @Nonnull
   private EbeanMetadataAspect getMetadata(Urn urn, String aspectName, long version, @Nullable RecordTemplate metadata) {
     EbeanMetadataAspect aspect = new EbeanMetadataAspect();
