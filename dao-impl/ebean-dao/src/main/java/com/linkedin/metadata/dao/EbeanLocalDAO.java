@@ -103,17 +103,41 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   // true if metadata change will be persisted into the change log table (metadata_aspect)
   private boolean _changeLogEnabled = true;
 
+  // TODO: remove this logic once metadata_aspect has been completed removed from TMS
+  // regarding metadata_aspect table:
+  // false = read/bump 2nd latest version + insert latest version
+  // true = overwrite 2nd latest version with latest version (equivalent to keeping only version = 0 rows in metadata_aspect)
+  private boolean _overwriteLatestVersionEnabled = false;
+
   public void setChangeLogEnabled(boolean changeLogEnabled) {
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
       _changeLogEnabled = changeLogEnabled;
     } else {
       // For non-new schema, _changeLog will be enforced to be true
+      log.warn("You can only enable or disable the change log in new schema mode."
+          + "In old and dual schema modes, this setting is always enabled.");
       _changeLogEnabled = true;
     }
   }
 
   public boolean isChangeLogEnabled() {
     return _changeLogEnabled;
+  }
+
+  public void setOverwriteLatestVersionEnabled(boolean overwriteLatestVersionEnabled) {
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+      if (isChangeLogEnabled()) {
+        _overwriteLatestVersionEnabled = overwriteLatestVersionEnabled;
+      } else {
+        log.warn("You can only enable or disable overwriting the latest version when the change log is enabled as well.");
+        _overwriteLatestVersionEnabled = false;
+      }
+    } else {
+      // For non-new schema, _ovewriteLatestVersionEnabled will be enforced to be false
+      log.warn("You can only enable or disable overwriting the latest version in new schema mode."
+          + "In old and dual schema modes, this setting is always disabled.");
+      _overwriteLatestVersionEnabled = false;
+    }
   }
 
   public enum FindMethodology {
@@ -551,8 +575,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
           log.debug("Insert: {} => oldValue = {}, latest version = {}", urn, oldValue, largestVersion);
         }
       }
-      // Move latest version to historical version by insert a new record.
-      insert(urn, oldValue, aspectClass, oldAuditStamp, largestVersion, trackingContext);
+      // Move latest version to historical version by insert a new record only if we are not overwriting the latest version.
+      if (!_overwriteLatestVersionEnabled) {
+        insert(urn, oldValue, aspectClass, oldAuditStamp, largestVersion, trackingContext);
+      }
       // update latest version
       updateWithOptimisticLocking(urn, newValue, aspectClass, newAuditStamp, LATEST_VERSION,
           new Timestamp(oldAuditStamp.getTime()), trackingContext);
