@@ -1,10 +1,7 @@
 package com.linkedin.testing;
 
-import com.linkedin.avro2pegasus.events.UUID;
 import com.linkedin.common.urn.Urn;
-import com.linkedin.data.ByteString;
 import com.linkedin.data.template.RecordTemplate;
-import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.BazUrn;
 import com.linkedin.testing.urn.FooUrn;
