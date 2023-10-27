@@ -1,7 +1,10 @@
 package com.linkedin.testing;
 
+import com.linkedin.avro2pegasus.events.UUID;
 import com.linkedin.common.urn.Urn;
+import com.linkedin.data.ByteString;
 import com.linkedin.data.template.RecordTemplate;
+import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.BazUrn;
 import com.linkedin.testing.urn.FooUrn;
@@ -104,6 +107,13 @@ public class TestUtils {
     return new EntityDocument().setUrn(urn);
   }
 
+  @Nonnull
+  public static IngestionTrackingContext makeIngestionTrackingContext(byte[] uuid) {
+    IngestionTrackingContext ingestionTrackingContext = new IngestionTrackingContext();
+    ingestionTrackingContext.setTrackingId(new UUID(ByteString.copy(uuid)));
+    return ingestionTrackingContext;
+  }
+
   /**
    * Returns all test entity classes.
    */
@@ -114,19 +124,6 @@ public class TestUtils {
         add(EntityBar.class);
         add(EntityBaz.class);
         add(EntityFoo.class);
-      }
-    });
-  }
-
-  /**
-   * Returns all test relationship classes.
-   */
-  @Nonnull
-  public static Set<Class<? extends RecordTemplate>> getAllTestRelationships() {
-    return Collections.unmodifiableSet(new HashSet<Class<? extends RecordTemplate>>() {
-      {
-        add(RelationshipBar.class);
-        add(RelationshipFoo.class);
       }
     });
   }

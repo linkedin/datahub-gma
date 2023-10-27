@@ -6,6 +6,7 @@ import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.builder.LocalRelationshipBuilderRegistry;
 import com.linkedin.metadata.dao.scsi.UrnPathExtractor;
+import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
@@ -31,7 +32,7 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * @return number of rows inserted or updated
    */
   <ASPECT extends RecordTemplate> int add(@Nonnull URN urn, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
-      @Nonnull AuditStamp auditStamp);
+      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext);
 
   /**
    * Upsert relationships to the local relationship table(s).
