@@ -107,13 +107,6 @@ public class TestUtils {
     return new EntityDocument().setUrn(urn);
   }
 
-  @Nonnull
-  public static IngestionTrackingContext makeIngestionTrackingContext(byte[] uuid) {
-    IngestionTrackingContext ingestionTrackingContext = new IngestionTrackingContext();
-    ingestionTrackingContext.setTrackingId(new UUID(ByteString.copy(uuid)));
-    return ingestionTrackingContext;
-  }
-
   /**
    * Returns all test entity classes.
    */

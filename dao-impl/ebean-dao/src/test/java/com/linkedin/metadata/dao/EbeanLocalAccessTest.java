@@ -3,6 +3,7 @@ package com.linkedin.metadata.dao;
 import com.google.common.io.Resources;
 import com.linkedin.avro2pegasus.events.UUID;
 import com.linkedin.common.AuditStamp;
+import com.linkedin.data.ByteString;
 import com.linkedin.metadata.dao.localrelationship.SampleLocalRelationshipRegistryImpl;
 import com.linkedin.metadata.dao.scsi.EmptyPathExtractor;
 import com.linkedin.metadata.dao.utils.BarUrnPathExtractor;
@@ -83,7 +84,7 @@ public class EbeanLocalAccessTest {
       AspectFoo aspectFoo = new AspectFoo();
       aspectFoo.setValue(String.valueOf(i));
       AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
-      _ebeanLocalAccessFoo.add(fooUrn, aspectFoo, AspectFoo.class, auditStamp, makeIngestionTrackingContext(UUID));
+      _ebeanLocalAccessFoo.add(fooUrn, aspectFoo, AspectFoo.class, auditStamp, new UUID(ByteString.copy(UUID)));
     }
   }
 
@@ -268,7 +269,7 @@ public class EbeanLocalAccessTest {
     AspectFoo aspectFoo = new AspectFoo();
     aspectFoo.setValue(String.valueOf(25));
     AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
-    _ebeanLocalAccessFoo.add(fooUrn, aspectFoo, AspectFoo.class, auditStamp, makeIngestionTrackingContext(UUID));
+    _ebeanLocalAccessFoo.add(fooUrn, aspectFoo, AspectFoo.class, auditStamp, new UUID(ByteString.copy(UUID)));
     countMap = _ebeanLocalAccessFoo.countAggregate(indexFilter, indexGroupByCriterion);
 
     // Expect: there are 2 counts for value 25
@@ -282,7 +283,7 @@ public class EbeanLocalAccessTest {
 
     // Single quote is a special char in SQL.
     BurgerUrn johnsBurgerUrn1 = makeBurgerUrn("urn:li:burger:John's burger");
-    _ebeanLocalAccessBurger.add(johnsBurgerUrn1, aspectFoo, AspectFoo.class, auditStamp, makeIngestionTrackingContext(UUID));
+    _ebeanLocalAccessBurger.add(johnsBurgerUrn1, aspectFoo, AspectFoo.class, auditStamp, new UUID(ByteString.copy(UUID)));
 
     AspectKey aspectKey1 = new AspectKey(AspectFoo.class, johnsBurgerUrn1, 0L);
     List<EbeanMetadataAspect> ebeanMetadataAspectList = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey1), 1, 0, false);
@@ -291,7 +292,7 @@ public class EbeanLocalAccessTest {
 
     // Double quote is a special char in SQL.
     BurgerUrn johnsBurgerUrn2 = makeBurgerUrn("urn:li:burger:John\"s burger");
-    _ebeanLocalAccessBurger.add(johnsBurgerUrn2, aspectFoo, AspectFoo.class, auditStamp, makeIngestionTrackingContext(UUID));
+    _ebeanLocalAccessBurger.add(johnsBurgerUrn2, aspectFoo, AspectFoo.class, auditStamp, new UUID(ByteString.copy(UUID)));
 
     AspectKey aspectKey2 = new AspectKey(AspectFoo.class, johnsBurgerUrn2, 0L);
     ebeanMetadataAspectList = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey2), 1, 0, false);
@@ -300,7 +301,7 @@ public class EbeanLocalAccessTest {
 
     // Backslash is a special char in SQL.
     BurgerUrn johnsBurgerUrn3 = makeBurgerUrn("urn:li:burger:John\\s burger");
-    _ebeanLocalAccessBurger.add(johnsBurgerUrn3, aspectFoo, AspectFoo.class, auditStamp, makeIngestionTrackingContext(UUID));
+    _ebeanLocalAccessBurger.add(johnsBurgerUrn3, aspectFoo, AspectFoo.class, auditStamp, new UUID(ByteString.copy(UUID)));
 
     AspectKey aspectKey3 = new AspectKey(AspectFoo.class, johnsBurgerUrn3, 0L);
     ebeanMetadataAspectList = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey3), 1, 0, false);
@@ -317,10 +318,10 @@ public class EbeanLocalAccessTest {
     AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(barUrn1, barUrn2, barUrn3));
     AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
 
-    _ebeanLocalAccessFoo.add(fooUrn, aspectFooBar, AspectFooBar.class, auditStamp, makeIngestionTrackingContext(UUID));
-    _ebeanLocalAccessBar.add(barUrn1, new AspectFoo().setValue("1"), AspectFoo.class, auditStamp, makeIngestionTrackingContext(UUID));
-    _ebeanLocalAccessBar.add(barUrn2, new AspectFoo().setValue("2"), AspectFoo.class, auditStamp, makeIngestionTrackingContext(UUID));
-    _ebeanLocalAccessBar.add(barUrn3, new AspectFoo().setValue("3"), AspectFoo.class, auditStamp, makeIngestionTrackingContext(UUID));
+    _ebeanLocalAccessFoo.add(fooUrn, aspectFooBar, AspectFooBar.class, auditStamp, new UUID(ByteString.copy(UUID)));
+    _ebeanLocalAccessBar.add(barUrn1, new AspectFoo().setValue("1"), AspectFoo.class, auditStamp, new UUID(ByteString.copy(UUID)));
+    _ebeanLocalAccessBar.add(barUrn2, new AspectFoo().setValue("2"), AspectFoo.class, auditStamp, new UUID(ByteString.copy(UUID)));
+    _ebeanLocalAccessBar.add(barUrn3, new AspectFoo().setValue("3"), AspectFoo.class, auditStamp, new UUID(ByteString.copy(UUID)));
 
     // Verify local relationships and entity are added.
     EbeanLocalRelationshipQueryDAO ebeanLocalRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server);
@@ -347,7 +348,7 @@ public class EbeanLocalAccessTest {
     AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
 
     try {
-      _ebeanLocalAccessFoo.add(makeFooUrn(1), aspectFooBar, AspectFooBar.class, auditStamp, makeIngestionTrackingContext(UUID));
+      _ebeanLocalAccessFoo.add(makeFooUrn(1), aspectFooBar, AspectFooBar.class, auditStamp, new UUID(ByteString.copy(UUID)));
     } catch (Exception exception) {
       // Verify no relationship is added.
       List<SqlRow> relationships = _server.createSqlQuery("SELECT * FROM metadata_relationship_belongsto").findList();
@@ -359,7 +360,7 @@ public class EbeanLocalAccessTest {
   public void testUrnExtraction() {
     FooUrn urn1 = makeFooUrn(1);
     AspectFoo foo1 = new AspectFoo().setValue("foo");
-    _ebeanLocalAccessFoo.add(urn1, foo1, AspectFoo.class, makeAuditStamp("actor", _now), makeIngestionTrackingContext(UUID));
+    _ebeanLocalAccessFoo.add(urn1, foo1, AspectFoo.class, makeAuditStamp("actor", _now), new UUID(ByteString.copy(UUID)));
 
     // get content of virtual column
     List<SqlRow> results = _server.createSqlQuery("SELECT i_urn$fooId as id FROM metadata_entity_foo").findList();
@@ -381,10 +382,10 @@ public class EbeanLocalAccessTest {
 
     // Turn off local relationship ingestion first, to fill only the entity tables.
     _ebeanLocalAccessFoo.setLocalRelationshipBuilderRegistry(null);
-    _ebeanLocalAccessFoo.add(fooUrn, aspectFooBar, AspectFooBar.class, auditStamp, makeIngestionTrackingContext(UUID));
-    _ebeanLocalAccessBar.add(barUrn1, new AspectFoo().setValue("1"), AspectFoo.class, auditStamp, makeIngestionTrackingContext(UUID));
-    _ebeanLocalAccessBar.add(barUrn2, new AspectFoo().setValue("2"), AspectFoo.class, auditStamp, makeIngestionTrackingContext(UUID));
-    _ebeanLocalAccessBar.add(barUrn3, new AspectFoo().setValue("3"), AspectFoo.class, auditStamp, makeIngestionTrackingContext(UUID));
+    _ebeanLocalAccessFoo.add(fooUrn, aspectFooBar, AspectFooBar.class, auditStamp, new UUID(ByteString.copy(UUID)));
+    _ebeanLocalAccessBar.add(barUrn1, new AspectFoo().setValue("1"), AspectFoo.class, auditStamp, new UUID(ByteString.copy(UUID)));
+    _ebeanLocalAccessBar.add(barUrn2, new AspectFoo().setValue("2"), AspectFoo.class, auditStamp, new UUID(ByteString.copy(UUID)));
+    _ebeanLocalAccessBar.add(barUrn3, new AspectFoo().setValue("3"), AspectFoo.class, auditStamp, new UUID(ByteString.copy(UUID)));
 
     // Verify that NO local relationships were added
     EbeanLocalRelationshipQueryDAO ebeanLocalRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server);
@@ -442,7 +443,7 @@ public class EbeanLocalAccessTest {
   @Test
   public void testGetAspectNoSoftDeleteCheck() {
     FooUrn fooUrn = makeFooUrn(0);
-    _ebeanLocalAccessFoo.add(fooUrn, null, AspectFoo.class, makeAuditStamp("foo", System.currentTimeMillis()), makeIngestionTrackingContext(UUID));
+    _ebeanLocalAccessFoo.add(fooUrn, null, AspectFoo.class, makeAuditStamp("foo", System.currentTimeMillis()), new UUID(ByteString.copy(UUID)));
     AspectKey<FooUrn, AspectFoo> aspectKey = new AspectKey(AspectFoo.class, fooUrn, 0L);
     List<EbeanMetadataAspect> ebeanMetadataAspectList =
         _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0, false);

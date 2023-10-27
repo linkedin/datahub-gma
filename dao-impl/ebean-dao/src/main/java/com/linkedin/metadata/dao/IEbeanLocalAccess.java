@@ -1,5 +1,6 @@
 package com.linkedin.metadata.dao;
 
+import com.linkedin.avro2pegasus.events.UUID;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
@@ -32,7 +33,7 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * @return number of rows inserted or updated
    */
   <ASPECT extends RecordTemplate> int add(@Nonnull URN urn, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
-      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext);
+      @Nonnull AuditStamp auditStamp, @Nullable UUID messageId);
 
   /**
    * Upsert relationships to the local relationship table(s).
