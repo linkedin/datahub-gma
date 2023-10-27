@@ -923,7 +923,6 @@ public class EbeanLocalDAOTest {
       Urn urn = urns.get(index);
       RecordTemplate aspect = aspects.get(urn).get(AspectBar.class);
       assertEquals(backfilledAspects.get(urn).get(AspectBar.class).get(), aspect);
-      verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, aspect, aspect);
       verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, null);
     }
     verifyNoMoreInteractions(_mockProducer);
@@ -937,7 +936,6 @@ public class EbeanLocalDAOTest {
       Urn urn = urns.get(index);
       RecordTemplate aspect = aspects.get(urn).get(AspectBar.class);
       assertEquals(backfilledAspects.get(urn).get(AspectBar.class).get(), aspect);
-      verify(_mockProducer, times(0)).produceMetadataAuditEvent(urn, aspect, aspect);
       verify(_mockProducer, times(0)).produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, null);
     }
     verifyNoMoreInteractions(_mockProducer);
@@ -951,7 +949,6 @@ public class EbeanLocalDAOTest {
       Urn urn = urns.get(index);
       RecordTemplate aspect = aspects.get(urn).get(AspectBar.class);
       assertEquals(backfilledAspects.get(urn).get(AspectBar.class).get(), aspect);
-      verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, aspect, aspect);
       verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, null);
     }
     verifyNoMoreInteractions(_mockProducer);
