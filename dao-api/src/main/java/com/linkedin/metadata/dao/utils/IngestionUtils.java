@@ -2,8 +2,11 @@ package com.linkedin.metadata.dao.utils;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
+import com.linkedin.avro2pegasus.events.UUID;
 import com.linkedin.metadata.backfill.BackfillMode;
 import com.linkedin.metadata.events.IngestionMode;
+import com.linkedin.metadata.events.IngestionTrackingContext;
+import javax.annotation.Nonnull;
 
 
 public class IngestionUtils {
@@ -22,5 +25,16 @@ public class IngestionUtils {
     biMap.put(IngestionMode.BACKFILL, BackfillMode.BACKFILL_INCLUDING_LIVE_INDEX);
     biMap.put(IngestionMode.BOOTSTRAP, BackfillMode.BACKFILL_ALL);
     return biMap;
+  }
+
+  /**
+   * Build IngestionTrackingContext.
+   */
+  @Nonnull
+  public static IngestionTrackingContext buildIngestionTrackingContext(@Nonnull UUID uuid, @Nonnull String emitter, long timestamp) {
+    return new IngestionTrackingContext()
+        .setTrackingId(uuid)
+        .setEmitter(emitter)
+        .setEmitTime(timestamp);
   }
 }
