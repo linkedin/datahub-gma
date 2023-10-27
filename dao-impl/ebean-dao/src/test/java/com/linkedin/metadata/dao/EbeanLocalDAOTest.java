@@ -719,8 +719,6 @@ public class EbeanLocalDAOTest {
     Optional<AspectFoo> foo = dao.backfill(AspectFoo.class, urn);
 
     assertEquals(foo.get(), expected);
-
-    verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, expected, expected);
     verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, expected, expected, null);
     verifyNoMoreInteractions(_mockProducer);
   }
@@ -801,7 +799,6 @@ public class EbeanLocalDAOTest {
     for (Urn urn : urns) {
       RecordTemplate aspect = aspects.get(urn).get(AspectFoo.class);
       assertEquals(backfilledAspects.get(urn).get(AspectFoo.class).get(), aspect);
-      verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, aspect, aspect);
     }
   }
 
@@ -829,7 +826,6 @@ public class EbeanLocalDAOTest {
     for (Class<? extends RecordTemplate> clazz : aspects.get(urns.get(0)).keySet()) {
       RecordTemplate aspect = aspects.get(urns.get(0)).get(clazz);
       assertEquals(backfilledAspects.get(urns.get(0)).get(clazz).get(), aspect);
-      verify(_mockProducer, times(1)).produceMetadataAuditEvent(urns.get(0), aspect, aspect);
     }
   }
 
@@ -861,7 +857,6 @@ public class EbeanLocalDAOTest {
       for (Class<? extends RecordTemplate> clazz : aspects.get(urn).keySet()) {
         RecordTemplate aspect = aspects.get(urn).get(clazz);
         assertEquals(backfilledAspects.get(urn).get(clazz).get(), aspect);
-        verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, aspect, aspect);
         verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, null);
       }
     }
@@ -913,7 +908,6 @@ public class EbeanLocalDAOTest {
       Urn urn = urns.get(index);
       RecordTemplate aspect = aspects.get(urn).get(AspectBar.class);
       assertEquals(backfilledAspects.get(urn).get(AspectBar.class).get(), aspect);
-      verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, aspect, aspect);
       verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, null);
     }
     clearInvocations(_mockProducer);
