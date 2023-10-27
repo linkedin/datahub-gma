@@ -134,6 +134,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   private static final String DEFAULT_ID_NAMESPACE = "global";
 
+  private static final String BACKFILL_EMITTER = "dao_backfill_endpoint";
+
   private static final IndefiniteRetention INDEFINITE_RETENTION = new IndefiniteRetention();
 
   private static final int DEFAULT_MAX_TRANSACTION_RETRY = 3;
@@ -1163,14 +1165,11 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
         || mode == BackfillMode.BACKFILL_INCLUDING_LIVE_INDEX) {
       IngestionMode ingestionMode = ALLOWED_INGESTION_BACKFILL_BIMAP.inverse().get(mode);
       if (_trackingProducer != null) {
-        _trackingProducer.produceMetadataAuditEvent(urn, aspect, aspect);
-        IngestionTrackingContext trackingContext = new IngestionTrackingContext();
-        trackingContext.setTrackingId(TrackingUtils.getRandomUUID());
-        trackingContext.setEmitter("dao_backfill_endpoint");
-        trackingContext.setEmitTime(System.currentTimeMillis());
+        IngestionTrackingContext trackingContext = buildIngestionTrackingContext(
+            TrackingUtils.getRandomUUID(), BACKFILL_EMITTER, System.currentTimeMillis());
+
         _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, null, trackingContext, ingestionMode);
       } else {
-        _producer.produceMetadataAuditEvent(urn, aspect, aspect);
         _producer.produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, null);
       }
     }
