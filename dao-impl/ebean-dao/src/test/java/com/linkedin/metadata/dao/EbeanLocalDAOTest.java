@@ -155,8 +155,18 @@ public class EbeanLocalDAOTest {
   @DataProvider
   public static Object[][] inputList() {
     return new Object[][]{
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, true},
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, false},
         {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, true},
         {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, false},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID, true},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID, false},
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, true},
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, false},
+        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, true},
+        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, false},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL, true},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL, false},
     };
   }
 
