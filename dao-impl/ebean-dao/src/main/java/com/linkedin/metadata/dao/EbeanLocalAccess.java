@@ -1,5 +1,6 @@
 package com.linkedin.metadata.dao;
 
+import com.linkedin.avro2pegasus.events.UUID;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
@@ -91,7 +92,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   @Override
   @Transactional
   public <ASPECT extends RecordTemplate> int add(@Nonnull URN urn, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
-      @Nonnull AuditStamp auditStamp) {
+      @Nonnull AuditStamp auditStamp, @Nullable UUID messageId) {
 
     final long timestamp = auditStamp.hasTime() ? auditStamp.getTime() : System.currentTimeMillis();
     final String actor = auditStamp.hasActor() ? auditStamp.getActor().toString() : DEFAULT_ACTOR;
@@ -281,9 +282,6 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
           String.format("Expect at most 1 aspect value per entity per aspect type . Sql: %s", listAspectByUrnSql));
     }
   }
-
-
-
 
   @Nonnull
   @Override

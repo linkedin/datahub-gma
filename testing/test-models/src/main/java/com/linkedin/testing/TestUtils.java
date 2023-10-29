@@ -117,17 +117,4 @@ public class TestUtils {
       }
     });
   }
-
-  /**
-   * Returns all test relationship classes.
-   */
-  @Nonnull
-  public static Set<Class<? extends RecordTemplate>> getAllTestRelationships() {
-    return Collections.unmodifiableSet(new HashSet<Class<? extends RecordTemplate>>() {
-      {
-        add(RelationshipBar.class);
-        add(RelationshipFoo.class);
-      }
-    });
-  }
 }

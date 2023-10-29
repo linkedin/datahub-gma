@@ -1,6 +1,7 @@
 package com.linkedin.metadata.dao;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.linkedin.avro2pegasus.events.UUID;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.schema.DataSchema;
@@ -630,7 +631,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         return null; // unused
       }
       AuditStamp auditStamp = makeAuditStamp(result);
-      _localAccess.add(urn, toRecordTemplate(aspectClass, result).orElse(null), aspectClass, auditStamp);
+      _localAccess.add(urn, toRecordTemplate(aspectClass, result).orElse(null), aspectClass, auditStamp, null);
       return null; // unused
     }, 1);
   }
@@ -760,7 +761,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY || _schemaConfig == SchemaConfig.DUAL_SCHEMA) {
       // ensure atomicity by running old schema update + new schema update in a transaction
       numOfUpdatedRows = runInTransactionWithRetry(() -> {
-        _localAccess.add(urn, (ASPECT) value, aspectClass, newAuditStamp);
+        UUID messageId = trackingContext != null ? trackingContext.getTrackingId() : null;
+        _localAccess.add(urn, (ASPECT) value, aspectClass, newAuditStamp, messageId);
         return _server.execute(update);
       }, 1);
     } else {
@@ -782,7 +784,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     if (_schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY && version == LATEST_VERSION) {
       // insert() could be called when updating log table (moving current versions into new history version)
       // the metadata entity tables shouldn't been updated.
-      _localAccess.add(urn, (ASPECT) value, aspectClass, auditStamp);
+      UUID messageId = trackingContext != null ? trackingContext.getTrackingId() : null;
+      _localAccess.add(urn, (ASPECT) value, aspectClass, auditStamp, messageId);
     }
 
     if (_changeLogEnabled) {
