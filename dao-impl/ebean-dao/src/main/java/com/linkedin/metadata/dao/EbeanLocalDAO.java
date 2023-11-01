@@ -736,10 +736,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   //      by disregarding any user change.
   // Ideally, another column for the sake of optimistic locking would be preferred but that means a change to
   // metadata_aspect schema and we don't take this route here to keep this change backward compatible.
-  static final String OPTIMISTIC_LOCKING_UPDATE_SQL = "UPDATE metadata_aspect "
+  private static final String OPTIMISTIC_LOCKING_UPDATE_SQL = "UPDATE metadata_aspect "
       + "SET urn = :urn, aspect = :aspect, version = :version, metadata = :metadata, createdOn = :createdOn, createdBy = :createdBy "
       + "WHERE urn = :urn and aspect = :aspect and version = :version";
-  
+
   /**
    * Assembly SQL UPDATE script for old Schema.
    * @param aspect {@link EbeanMetadataAspect}
@@ -747,7 +747,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    *                     with oldTimestamp during the update.
    * @return {@link SqlUpdate} for SQL update execution
    */
-  private SqlUpdate assemblyOldSchemaSqlUpdate(@Nonnull EbeanMetadataAspect aspect, @Nullable Timestamp oldTimestamp) {
+  private SqlUpdate assembleOldSchemaSqlUpdate(@Nonnull EbeanMetadataAspect aspect, @Nullable Timestamp oldTimestamp) {
 
     final SqlUpdate oldSchemaSqlUpdate;
     if (oldTimestamp == null) {
@@ -786,7 +786,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       // In NEW_SCHEMA or DUAL_SCHEMA, since entity table is the SOT and the getLatest (oldTimestamp) is from the entity
       // table, therefore, we will apply compare-and-set with oldTimestamp on entity table (addWithOptimisticLocking)
       // aspect table will apply regular update over (urn, aspect, version) primary key combination.
-      oldSchemaSqlUpdate = assemblyOldSchemaSqlUpdate(aspect, null);
+      oldSchemaSqlUpdate = assembleOldSchemaSqlUpdate(aspect, null);
       numOfUpdatedRows = runInTransactionWithRetry(() -> {
         UUID messageId = trackingContext != null ? trackingContext.getTrackingId() : null;
         // DUAL WRITE: 1) update aspect table, 2) update entity table.
@@ -797,7 +797,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     } else {
       // In OLD_SCHEMA mode since aspect table is the SOT and the getLatest (oldTimestamp) is from the aspect table
       // therefore, we will apply compare-and-set with oldTimestamp on aspect table (assemblyOldSchemaSqlUpdate)
-      oldSchemaSqlUpdate = assemblyOldSchemaSqlUpdate(aspect, oldTimestamp);
+      oldSchemaSqlUpdate = assembleOldSchemaSqlUpdate(aspect, oldTimestamp);
       numOfUpdatedRows = _server.execute(oldSchemaSqlUpdate);
     }
     // If there is no single updated row, emit OptimisticLockException

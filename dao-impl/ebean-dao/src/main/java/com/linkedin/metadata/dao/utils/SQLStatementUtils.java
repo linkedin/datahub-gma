@@ -48,6 +48,9 @@ public class SQLStatementUtils {
       "INSERT INTO %s (urn, a_urn, %s, lastmodifiedon, lastmodifiedby) VALUE (:urn, :a_urn, :metadata, :lastmodifiedon, :lastmodifiedby) "
           + "ON DUPLICATE KEY UPDATE %s = :metadata, lastmodifiedon = :lastmodifiedon;";
 
+  // "JSON_EXTRACT(%s, '$.gma_deleted') IS NOT NULL" is used to exclude soft-deleted entity which has no lastmodifiedon.
+  // for details, see the known limitations on https://github.com/linkedin/datahub-gma/pull/311. Same reason for
+  // SQL_UPDATE_ASPECT_WITH_URN_TEMPLATE
   private static final String SQL_UPDATE_ASPECT_TEMPLATE =
       "UPDATE %s SET %s = :metadata, lastmodifiedon = :lastmodifiedon, lastmodifiedby = :lastmodifiedby "
           + "WHERE urn = :urn and (JSON_EXTRACT(%s, '$.lastmodifiedon') = :oldTimestamp OR JSON_EXTRACT(%s, '$.gma_deleted') IS NOT NULL);";
@@ -227,7 +230,7 @@ public class SQLStatementUtils {
     final String tableName = getTableName(urn);
     final String columnName = getAspectColumnName(aspectClass);
     return String.format(urnExtraction ? SQL_UPDATE_ASPECT_WITH_URN_TEMPLATE : SQL_UPDATE_ASPECT_TEMPLATE, tableName,
-        columnName, columnName, columnName, columnName);
+        columnName, columnName, columnName);
   }
 
   /**
