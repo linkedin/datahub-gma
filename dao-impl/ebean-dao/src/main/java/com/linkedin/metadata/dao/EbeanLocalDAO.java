@@ -663,7 +663,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       @Nonnull Class<ASPECT> aspectClass) {
 
     EbeanMetadataAspect result;
-    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+    if (_changeLogEnabled) {
       final String aspectName = ModelUtils.getAspectName(aspectClass);
       final PrimaryKey key = new PrimaryKey(urn.toString(), aspectName, LATEST_VERSION);
       if (_findMethodology == FindMethodology.DIRECT_SQL) {
