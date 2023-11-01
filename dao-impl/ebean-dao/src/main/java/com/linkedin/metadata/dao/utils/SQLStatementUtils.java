@@ -48,6 +48,14 @@ public class SQLStatementUtils {
       "INSERT INTO %s (urn, a_urn, %s, lastmodifiedon, lastmodifiedby) VALUE (:urn, :a_urn, :metadata, :lastmodifiedon, :lastmodifiedby) "
           + "ON DUPLICATE KEY UPDATE %s = :metadata, lastmodifiedon = :lastmodifiedon;";
 
+  private static final String SQL_UPDATE_ASPECT_TEMPLATE =
+      "UPDATE %s SET %s = :metadata, lastmodifiedon = :lastmodifiedon, lastmodifiedby = :lastmodifiedby "
+          + "WHERE urn = :urn and (JSON_EXTRACT(%s, '$.lastmodifiedon') = :oldTimestamp OR JSON_EXTRACT(%s, '$.gma_deleted') IS NOT NULL);";
+
+  private static final String SQL_UPDATE_ASPECT_WITH_URN_TEMPLATE =
+      "UPDATE %s SET %s = :metadata, a_urn = :a_urn, lastmodifiedon = :lastmodifiedon, lastmodifiedby = :lastmodifiedby "
+          + "WHERE urn = :urn and (JSON_EXTRACT(%s, '$.lastmodifiedon') = :oldTimestamp OR JSON_EXTRACT(%s, '$.gma_deleted') IS NOT NULL);";
+
   private static final String SQL_READ_ASPECT_TEMPLATE =
       String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby FROM %%s WHERE urn = '%%s' AND %s", SOFT_DELETED_CHECK);
 
@@ -204,6 +212,22 @@ public class SQLStatementUtils {
     final String tableName = getTableName(urn);
     final String columnName = getAspectColumnName(aspectClass);
     return String.format(urnExtraction ? SQL_UPSERT_ASPECT_WITH_URN_TEMPLATE : SQL_UPSERT_ASPECT_TEMPLATE, tableName, columnName, columnName);
+  }
+
+  /**
+   * Create Update with optimistic locking SQL statement. The SQL UPDATE use old_timestamp as a compareAndSet to check if the current update
+   * is made on an unchange record. For example: UPDATE table WHERE modifiedon = :oldTimestamp.
+   * @param urn  entity urn
+   * @param <ASPECT> aspect type
+   * @param aspectClass aspect class
+   * @return aspect upsert sql
+   */
+  public static <ASPECT extends RecordTemplate> String createAspectUpdateWithOptimisticLockSql(@Nonnull Urn urn,
+      @Nonnull Class<ASPECT> aspectClass, boolean urnExtraction) {
+    final String tableName = getTableName(urn);
+    final String columnName = getAspectColumnName(aspectClass);
+    return String.format(urnExtraction ? SQL_UPDATE_ASPECT_WITH_URN_TEMPLATE : SQL_UPDATE_ASPECT_TEMPLATE, tableName,
+        columnName, columnName, columnName, columnName);
   }
 
   /**
