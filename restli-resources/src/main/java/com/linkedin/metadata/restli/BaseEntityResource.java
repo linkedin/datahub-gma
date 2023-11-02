@@ -236,7 +236,6 @@ public abstract class BaseEntityResource<
   public Task<Void> ingest(@ActionParam(PARAM_SNAPSHOT) @Nonnull SNAPSHOT snapshot) {
     return ingestInternal(snapshot, Collections.emptySet(), null);
   }
-
   /**
    * Same as {@link #ingest(RecordTemplate)} but with tracking context attached.
    * @param snapshot Snapshot of the metadata change to be ingested
@@ -257,6 +256,9 @@ public abstract class BaseEntityResource<
     return RestliUtils.toTask(() -> {
       final URN urn = (URN) ModelUtils.getUrnFromSnapshot(snapshot);
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
+
+      overwriteAuditStampTimeWithEmitTime(auditStamp, trackingContext);
+
       ModelUtils.getAspectsFromSnapshot(snapshot).stream().forEach(aspect -> {
         if (!aspectsToIgnore.contains(aspect.getClass())) {
           getLocalDAO().add(urn, aspect, auditStamp, trackingContext);
@@ -264,6 +266,23 @@ public abstract class BaseEntityResource<
       });
       return null;
     });
+  }
+
+  /**
+   * Overwrites the time in the audit stamp with the emit time set by the emitter.
+   * This is because we use the time in the AuditStamp to save as last modified time of the aspect in the DB.
+   * Overwriting it right here would be the most straightforward / bug-free way instead of doing
+   * more complicated logic down the call chain.
+   * The intention is to use the emitter's emit time as last modified time. This is helpful for backfilling purposes
+   * where events from the past are emitted. If the emit time is less than the last modified time, the ingest
+   * event will be a no-op.
+   */
+  private void overwriteAuditStampTimeWithEmitTime(
+      @Nonnull AuditStamp auditStamp,
+      @Nullable IngestionTrackingContext ingestionTrackingContext) {
+    if (ingestionTrackingContext != null && ingestionTrackingContext.hasEmitTime()) {
+      auditStamp.setTime(ingestionTrackingContext.getEmitTime());
+    }
   }
 
   /**

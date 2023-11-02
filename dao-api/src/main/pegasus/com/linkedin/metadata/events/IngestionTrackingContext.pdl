@@ -11,7 +11,8 @@ record IngestionTrackingContext includes BaseTrackingContext {
   emitter: optional string
 
   /**
-   * The time at which the ingestion event was emitted into kafka.
+   * The time in milliseconds at which the ingestion event was emitted into kafka.
+   * If not null, this will be used to set as the lastModifiedTime of the aspect column
    */
   emitTime: optional long
 }

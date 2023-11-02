@@ -2,6 +2,7 @@ package com.linkedin.metadata.restli;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.linkedin.common.AuditStamp;
 import com.linkedin.data.template.LongMap;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.StringArray;
@@ -56,6 +57,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+import org.mockito.ArgumentCaptor;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
@@ -467,12 +469,18 @@ public class BaseEntityResourceTest extends BaseEngineTest {
         ModelUtils.newAspectUnion(EntityAspectUnion.class, bar));
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
     IngestionTrackingContext trackingContext = new IngestionTrackingContext();
+    trackingContext.setEmitTime(1234567);
 
     runAndWait(_resource.ingestWithTracking(snapshot, trackingContext));
 
-    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(foo), any(), eq(trackingContext));
-    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(trackingContext));
+    ArgumentCaptor<AuditStamp> auditStampArgumentCaptor = ArgumentCaptor.forClass(AuditStamp.class);
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(foo), auditStampArgumentCaptor.capture(), eq(trackingContext));
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), auditStampArgumentCaptor.capture(), eq(trackingContext));
     verifyNoMoreInteractions(_mockLocalDAO);
+
+    List<AuditStamp> actualAuditStamps = auditStampArgumentCaptor.getAllValues();
+    assertEquals(actualAuditStamps.stream().map(AuditStamp::getTime).collect(Collectors.toSet()), Collections.singleton(1234567L),
+        "since ingestion tracking context was provided, the audit stamp's time should be overwritten with emitTime");
   }
 
   @Test
