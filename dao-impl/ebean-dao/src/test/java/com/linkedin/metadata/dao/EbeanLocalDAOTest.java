@@ -155,17 +155,21 @@ public class EbeanLocalDAOTest {
   @DataProvider
   public static Object[][] inputList() {
     return new Object[][]{
+
+        // tests with change history enabled (legacy mode)
         {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, true},
-        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, false},
         {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, true},
-        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, false},
         {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID, true},
-        {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID, false},
         {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, true},
-        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, false},
         {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, true},
-        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, false},
         {SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL, true},
+
+        // tests with change history disabled (cold-archive mode)
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, false},
+        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, false},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID, false},
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, false},
+        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, false},
         {SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL, false},
     };
   }
@@ -3085,17 +3089,62 @@ public class EbeanLocalDAOTest {
     aspect.setCreatedOn(new Timestamp(_now - 100));
     aspect.setCreatedBy("fooActor");
 
-    // add aspect to the db
-    _server.insert(aspect);
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
 
-    // change timestamp and update the inserted row. this simulates a change in the version 0 row by a concurrent transaction
-    aspect.setCreatedOn(new Timestamp(_now));
-    _server.update(aspect);
+      // add aspect to the db
+      _server.insert(aspect);
 
-    // call save method with timestamp (_now - 100) but timestamp is already changed to _now
-    // expect OptimisticLockException if optimistic locking is enabled
-    dao.updateWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now + 100),
-        0, new Timestamp(_now - 100), null);
+      // change timestamp and update the inserted row. this simulates a change in the version 0 row by a concurrent transaction
+      aspect.setCreatedOn(new Timestamp(_now));
+      _server.update(aspect);
+
+      // call save method with timestamp (_now - 100) but timestamp is already changed to _now
+      // expect OptimisticLockException if optimistic locking is enabled
+      dao.updateWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now + 100),
+          0, new Timestamp(_now - 100), null);
+
+    } else if (_enableChangeLog) {
+      // either NEW or DUAL schema, whereas entity table is the SOT and aspect table is the log table
+
+      // Given:
+      //  1. in NEW, DUAL schema mode
+      //  2. (foo:1, lastmodified(_now + 1), version=0) in aspect table (discrepancy)
+      //  3. (foo:1, lastmodified(_now)) in entity table
+
+      dao.insert(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now), 0, null);
+      // make inconsistent timestamp on aspect table
+      aspect.setCreatedOn(new Timestamp(_now + 1));
+      _server.update(aspect);
+
+      // When: update with old timestamp matches the lastmodified time in entity table
+      try {
+        fooAspect.setValue("bar");
+        dao.updateWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now + 200), 0,
+            new Timestamp(_now), null);
+      } catch (OptimisticLockException e) {
+        fail("Expect the update pass since the old timestamp matches the lastmodified in entity table");
+      }
+      // Expect: update succeed and the values are updated
+      assertEquals(dao.getLatest(fooUrn, AspectFoo.class).getAspect().getValue(), "bar");
+      assertEquals(dao.getLatest(fooUrn, AspectFoo.class).getExtraInfo().getAudit().getTime(), Long.valueOf(_now + 200L));
+
+      // When: update with old timestamp does not match the lastmodified in the entity table
+      // Expect: OptimisticLockException.
+      dao.updateWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now + 400), 0,
+          new Timestamp(_now + 100), null);
+    } else {
+      // Given: changeLog is disabled
+      assertFalse(_enableChangeLog);
+      // When: updateWithOptimisticLocking is called
+      try {
+        dao.updateWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now + 400), 0,
+            new Timestamp(_now + 100), null);
+        fail("UnsupportedOperationException should be thrown");
+      } catch (UnsupportedOperationException uoe) {
+        // Expect: UnsupportedOperationException is thrown
+        throw new OptimisticLockException("skip: when _changeLog is enabled: " + uoe);
+      }
+    }
   }
 
   @Test

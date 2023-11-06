@@ -10,6 +10,7 @@ import com.linkedin.metadata.dao.scsi.UrnPathExtractor;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
+import java.sql.Timestamp;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.Nonnull;
@@ -33,6 +34,19 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    */
   <ASPECT extends RecordTemplate> int add(@Nonnull URN urn, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull AuditStamp auditStamp, @Nullable UUID messageId);
+
+  /**
+   * Update aspect on entity table with optimistic locking. (compare-and-update on oldTimestamp).
+   * @param urn entity urn
+   * @param newValue aspect value in {@link RecordTemplate}
+   * @param aspectClass class of the aspect
+   * @param auditStamp audit timestamp
+   * @param oldTimestamp old time stamp for optimistic lock checking
+   * @param <ASPECT> metadata aspect value
+   * @return number of rows inserted or updated
+   */
+  <ASPECT extends RecordTemplate> int addWithOptimisticLocking(@Nonnull URN urn, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
+      @Nonnull AuditStamp auditStamp, @Nullable Timestamp oldTimestamp, @Nullable UUID messageId);
 
   /**
    * Upsert relationships to the local relationship table(s).

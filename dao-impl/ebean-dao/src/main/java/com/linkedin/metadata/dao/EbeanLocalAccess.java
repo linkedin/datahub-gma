@@ -93,14 +93,28 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   @Transactional
   public <ASPECT extends RecordTemplate> int add(@Nonnull URN urn, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull AuditStamp auditStamp, @Nullable UUID messageId) {
+    return addWithOptimisticLocking(urn, newValue, aspectClass, auditStamp, null, messageId);
+  }
+
+  @Override
+  public <ASPECT extends RecordTemplate> int addWithOptimisticLocking(@Nonnull URN urn, @Nullable ASPECT newValue,
+      @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, @Nonnull Timestamp oldTimestamp,
+      @Nullable UUID messageId) {
 
     final long timestamp = auditStamp.hasTime() ? auditStamp.getTime() : System.currentTimeMillis();
     final String actor = auditStamp.hasActor() ? auditStamp.getActor().toString() : DEFAULT_ACTOR;
     final String impersonator = auditStamp.hasImpersonator() ? auditStamp.getImpersonator().toString() : null;
     final boolean urnExtraction = _urnPathExtractor != null && !(_urnPathExtractor instanceof EmptyPathExtractor);
 
-    final SqlUpdate sqlUpdate = _server.createSqlUpdate(SQLStatementUtils.createAspectUpsertSql(urn, aspectClass, urnExtraction))
-        .setParameter("urn", urn.toString())
+    final SqlUpdate sqlUpdate;
+    if (oldTimestamp != null) {
+      sqlUpdate = _server.createSqlUpdate(
+          SQLStatementUtils.createAspectUpdateWithOptimisticLockSql(urn, aspectClass, urnExtraction));
+      sqlUpdate.setParameter("oldTimestamp", oldTimestamp.toString());
+    } else {
+      sqlUpdate = _server.createSqlUpdate(SQLStatementUtils.createAspectUpsertSql(urn, aspectClass, urnExtraction));
+    }
+    sqlUpdate.setParameter("urn", urn.toString())
         .setParameter("lastmodifiedon", new Timestamp(timestamp).toString())
         .setParameter("lastmodifiedby", actor);
 
@@ -138,7 +152,8 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
         .setLastmodifiedon(new Timestamp(timestamp).toString())
         .setCreatedfor(impersonator, SetMode.IGNORE_NULL);
 
-    return sqlUpdate.setParameter("metadata", toJsonString(auditedAspect)).execute();
+      final String metadata = toJsonString(auditedAspect);
+      return sqlUpdate.setParameter("metadata", metadata).execute();
   }
 
   @Override

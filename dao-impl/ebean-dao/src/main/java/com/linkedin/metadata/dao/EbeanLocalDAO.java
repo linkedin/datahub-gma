@@ -663,7 +663,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       @Nonnull Class<ASPECT> aspectClass) {
 
     EbeanMetadataAspect result;
-    if (_changeLogEnabled) {
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
       final String aspectName = ModelUtils.getAspectName(aspectClass);
       final PrimaryKey key = new PrimaryKey(urn.toString(), aspectName, LATEST_VERSION);
       if (_findMethodology == FindMethodology.DIRECT_SQL) {
@@ -728,6 +728,43 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     return aspect;
   }
 
+  // Build manual SQL update query to enable optimistic locking on a given column
+  // Optimistic locking is supported on ebean using @version, see https://ebean.io/docs/mapping/jpa/version
+  // But we can't use @version annotation for optimistic locking for two reasons:
+  //   1. That prevents flag guarding optimistic locking feature
+  //   2. When using @version annotation, Ebean starts to override all updates to that column
+  //      by disregarding any user change.
+  // Ideally, another column for the sake of optimistic locking would be preferred but that means a change to
+  // metadata_aspect schema and we don't take this route here to keep this change backward compatible.
+  private static final String OPTIMISTIC_LOCKING_UPDATE_SQL = "UPDATE metadata_aspect "
+      + "SET urn = :urn, aspect = :aspect, version = :version, metadata = :metadata, createdOn = :createdOn, createdBy = :createdBy "
+      + "WHERE urn = :urn and aspect = :aspect and version = :version";
+
+  /**
+   * Assembly SQL UPDATE script for old Schema.
+   * @param aspect {@link EbeanMetadataAspect}
+   * @param oldTimestamp old timestamp. If provided, the generated SQL will use optimistic locking and do compare-and-set
+   *                     with oldTimestamp during the update.
+   * @return {@link SqlUpdate} for SQL update execution
+   */
+  private SqlUpdate assembleOldSchemaSqlUpdate(@Nonnull EbeanMetadataAspect aspect, @Nullable Timestamp oldTimestamp) {
+
+    final SqlUpdate oldSchemaSqlUpdate;
+    if (oldTimestamp == null) {
+      oldSchemaSqlUpdate = _server.createSqlUpdate(OPTIMISTIC_LOCKING_UPDATE_SQL);
+    } else {
+      oldSchemaSqlUpdate = _server.createSqlUpdate(OPTIMISTIC_LOCKING_UPDATE_SQL + " and createdOn = :oldTimestamp");
+      oldSchemaSqlUpdate.setParameter("oldTimestamp", oldTimestamp);
+    }
+    oldSchemaSqlUpdate.setParameter("urn", aspect.getKey().getUrn());
+    oldSchemaSqlUpdate.setParameter("aspect", aspect.getKey().getAspect());
+    oldSchemaSqlUpdate.setParameter("version", aspect.getKey().getVersion());
+    oldSchemaSqlUpdate.setParameter("metadata", aspect.getMetadata());
+    oldSchemaSqlUpdate.setParameter("createdOn", aspect.getCreatedOn());
+    oldSchemaSqlUpdate.setParameter("createdBy", aspect.getCreatedBy());
+    return oldSchemaSqlUpdate;
+  }
+
   @VisibleForTesting
   @Override
   protected <ASPECT extends RecordTemplate> void updateWithOptimisticLocking(@Nonnull URN urn,
@@ -736,43 +773,37 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
     final EbeanMetadataAspect aspect = buildMetadataAspectBean(urn, value, aspectClass, newAuditStamp, version);
 
-    // Build manual SQL update query to enable optimistic locking on a given column
-    // Optimistic locking is supported on ebean using @version, see https://ebean.io/docs/mapping/jpa/version
-    // But we can't use @version annotation for optimistic locking for two reasons:
-    //   1. That prevents flag guarding optimistic locking feature
-    //   2. When using @version annotation, Ebean starts to override all updates to that column
-    //      by disregarding any user change.
-    // Ideally, another column for the sake of optimistic locking would be preferred but that means a change to
-    // metadata_aspect schema and we don't take this route here to keep this change backward compatible.
-    final String updateQuery = "UPDATE metadata_aspect "
-        + "SET urn = :urn, aspect = :aspect, version = :version, metadata = :metadata, createdOn = :createdOn, createdBy = :createdBy "
-        + "WHERE urn = :urn and aspect = :aspect and version = :version and createdOn = :oldTimestamp";
-
-    final SqlUpdate update = _server.createSqlUpdate(updateQuery);
-    update.setParameter("urn", aspect.getKey().getUrn());
-    update.setParameter("aspect", aspect.getKey().getAspect());
-    update.setParameter("version", aspect.getKey().getVersion());
-    update.setParameter("metadata", aspect.getMetadata());
-    update.setParameter("createdOn", aspect.getCreatedOn());
-    update.setParameter("createdBy", aspect.getCreatedBy());
-    update.setParameter("oldTimestamp", oldTimestamp);
-
-    int numOfUpdatedRows;
-    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY || _schemaConfig == SchemaConfig.DUAL_SCHEMA) {
-      // ensure atomicity by running old schema update + new schema update in a transaction
-      numOfUpdatedRows = runInTransactionWithRetry(() -> {
-        UUID messageId = trackingContext != null ? trackingContext.getTrackingId() : null;
-        _localAccess.add(urn, (ASPECT) value, aspectClass, newAuditStamp, messageId);
-        return _server.execute(update);
-      }, 1);
-    } else {
-      numOfUpdatedRows = _server.execute(update);
+    if (!_changeLogEnabled) {
+      throw new UnsupportedOperationException(
+          String.format("updateWithOptimisticLocking should not be called when changeLog is disabled: %s", aspect));
     }
 
+    int numOfUpdatedRows;
+    // ensure atomicity by running old schema update + new schema update in a transaction
+
+    final SqlUpdate oldSchemaSqlUpdate;
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY || _schemaConfig == SchemaConfig.DUAL_SCHEMA) {
+      // In NEW_SCHEMA or DUAL_SCHEMA, since entity table is the SOT and the getLatest (oldTimestamp) is from the entity
+      // table, therefore, we will apply compare-and-set with oldTimestamp on entity table (addWithOptimisticLocking)
+      // aspect table will apply regular update over (urn, aspect, version) primary key combination.
+      oldSchemaSqlUpdate = assembleOldSchemaSqlUpdate(aspect, null);
+      numOfUpdatedRows = runInTransactionWithRetry(() -> {
+        UUID messageId = trackingContext != null ? trackingContext.getTrackingId() : null;
+        // DUAL WRITE: 1) update aspect table, 2) update entity table.
+        // Note: when cold-archive is enabled, this method: updateWithOptimisticLocking will not be called.
+        _server.execute(oldSchemaSqlUpdate);
+        return _localAccess.addWithOptimisticLocking(urn, (ASPECT) value, aspectClass, newAuditStamp, oldTimestamp, messageId);
+      }, 1);
+    } else {
+      // In OLD_SCHEMA mode since aspect table is the SOT and the getLatest (oldTimestamp) is from the aspect table
+      // therefore, we will apply compare-and-set with oldTimestamp on aspect table (assemblyOldSchemaSqlUpdate)
+      oldSchemaSqlUpdate = assembleOldSchemaSqlUpdate(aspect, oldTimestamp);
+      numOfUpdatedRows = _server.execute(oldSchemaSqlUpdate);
+    }
     // If there is no single updated row, emit OptimisticLockException
     if (numOfUpdatedRows != 1) {
       throw new OptimisticLockException(
-          numOfUpdatedRows + " rows updated during save query: " + update.getGeneratedSql());
+          String.format("%s rows updated during update on update: %s.", numOfUpdatedRows, aspect));
     }
   }
 
