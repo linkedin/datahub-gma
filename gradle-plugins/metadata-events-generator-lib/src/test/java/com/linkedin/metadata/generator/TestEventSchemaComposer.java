@@ -8,7 +8,6 @@ import com.linkedin.metadata.annotations.testing.TestModels;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -78,11 +77,12 @@ public class TestEventSchemaComposer {
             "com.linkedin.testing.mxe.bar.annotatedAspectBar.FailedMetadataChangeEvent",
             "com.linkedin.testing.mxe.bar.annotatedAspectBar.MetadataAuditEvent",
             "com.linkedin.testing.mxe.bar.MCEBarAspect",
-            "com.linkedin.testing.mxe.bar.FailedMCEBarAspect"
+            "com.linkedin.testing.mxe.bar.FailedMCEBarAspect",
+            "com.linkedin.testing.mxe.bar.MAEBarAspect"
     );
   }
 
-  private void assertSame(File baseOutputDir, File relativeFilePath) throws URISyntaxException, IOException {
+  private void assertSame(File baseOutputDir, File relativeFilePath) throws IOException {
     File outputPath = baseOutputDir.toPath().resolve(relativeFilePath.toPath()).toFile();
     assertThat(outputPath).exists();
 
@@ -114,5 +114,6 @@ public class TestEventSchemaComposer {
   public void testUnionSchemaRender() throws Exception {
     assertSame(outputDir, new File("com/linkedin/testing/mxe/bar/MCEBarAspect.pdl"));
     assertSame(outputDir, new File("com/linkedin/testing/mxe/bar/FailedMCEBarAspect.pdl"));
+    assertSame(outputDir, new File("com/linkedin/testing/mxe/bar/MAEBarAspect.pdl"));
   }
 }

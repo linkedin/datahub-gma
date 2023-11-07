@@ -32,7 +32,9 @@ public class AspectUnionEventSpec extends EventSpec {
             renderFile(new File(subdirectory, "MCE" + getShortTyperefName() + SchemaGeneratorConstants.PDL_SUFFIX),
                     "AspectUnionEvent.rythm"),
             renderFile(new File(subdirectory, "FailedMCE" + getShortTyperefName() + SchemaGeneratorConstants.PDL_SUFFIX),
-                    "FailedAspectUnionEvent.rythm")
+                    "FailedAspectUnionEvent.rythm"),
+            renderFile(new File(subdirectory, "MAE" + getShortTyperefName() + SchemaGeneratorConstants.PDL_SUFFIX),
+                "AuditUnionEvent.rythm")
     );
   }
 }
