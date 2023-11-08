@@ -1,0 +1,60 @@
+namespace com.linkedin.testing.mxe.bar
+
+import com.linkedin.avro2pegasus.events.KafkaAuditHeader
+import com.linkedin.common.AuditStamp
+import com.linkedin.metadata.events.IngestionTrackingContext
+import com.linkedin.metadata.events.IngestionMode
+import com.linkedin.metadata.events.ChangeType
+import com.linkedin.testing.BarUrn
+import com.linkedin.testing.AnnotatedAspectBar
+import com.linkedin.testing.AnotherAspectBar
+
+/**
+ * MetadataAuditEvent for aspects of BarUrn.
+ */
+@MetadataAuditEvent
+record MAEBarAspect {
+  /**
+   * Kafka audit header for the MetadataAuditEvent.
+   */
+  auditHeader: optional KafkaAuditHeader
+
+  /**
+   * BarUrn as the key for the MetadataAuditEvent.
+   */
+  urn: BarUrn
+
+  /**
+   * Tracking context to identify the lifecycle of the trackable ingestion item.
+   */
+  ingestionTrackingContext: optional union[null, IngestionTrackingContext] = null
+
+  /**
+   * Audit info (i.e. createdon, createdby, createdfor) to track the version history of metadata changes.
+   */
+  auditStamp: union[null, AuditStamp] = null
+
+  /**
+   * Type of the ingestion. Allow null for backward compatibility. Downstream should treat null as live ingestion.
+   */
+  ingestionMode: optional union[null, IngestionMode] = null
+
+  /**
+   * Audit record for aspect AnnotatedAspectBar.
+   */
+  diffAnnotatedAspectBar: optional record AnnotatedAspectBarAudit {
+    oldValue: optional AnnotatedAspectBar
+    newValue: AnnotatedAspectBar
+    changeType: optional union[null, ChangeType] = null
+  }
+
+  /**
+   * Audit record for aspect AnotherAspectBar.
+   */
+  diffAnotherAspectBar: optional record AnotherAspectBarAudit {
+    oldValue: optional AnotherAspectBar
+    newValue: AnotherAspectBar
+    changeType: optional union[null, ChangeType] = null
+  }
+
+}
