@@ -436,4 +436,35 @@ public class BaseLocalDAOTest {
 
     verify(_mockTransactionRunner, times(2)).run(any());
   }
+
+  @Test(description = "When event is backfill event, but emit time is smaller than old audit time, it should be a no-op.")
+  public void testAddBackfillEmitTimeLargerThanOldAuditTime() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    IngestionTrackingContext trackingContext = new IngestionTrackingContext();
+    trackingContext.setEmitTime(5L);
+    trackingContext.setBackfill(true);
+
+    AuditStamp oldAuditStamp = makeAuditStamp("susActor", 6L);
+    ExtraInfo extraInfo = new ExtraInfo();
+    extraInfo.setAudit(oldAuditStamp);
+    when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(null, extraInfo));
+
+    DummyLocalDAO dummyLocalDAO = new DummyLocalDAO(_mockGetLatestFunction, _mockTrackingEventProducer, _mockTrackingManager,
+        _dummyLocalDAO._transactionRunner);
+    dummyLocalDAO.setEmitAuditEvent(true);
+    dummyLocalDAO.setAlwaysEmitAuditEvent(true);
+    dummyLocalDAO.setEmitAspectSpecificAuditEvent(true);
+    dummyLocalDAO.setAlwaysEmitAspectSpecificAuditEvent(true);
+    expectGetLatest(urn, AspectFoo.class,
+        Arrays.asList(makeAspectEntry(null, oldAuditStamp), makeAspectEntry(foo, _dummyAuditStamp)));
+
+    dummyLocalDAO.add(urn, foo, _dummyAuditStamp, trackingContext);
+
+    verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, null, null);
+    verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null,
+        null, _dummyAuditStamp, trackingContext, IngestionMode.LIVE);
+    verifyNoMoreInteractions(_mockTrackingEventProducer);
+  }
 }
