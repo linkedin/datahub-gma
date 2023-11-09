@@ -425,8 +425,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       } else if (oldAuditStamp == null || !oldAuditStamp.hasTime()) {
         log.info("Event is a backfill event, but current record has no timestamp. Proceeding as normal.");
       } else if (trackingContext.getEmitTime() < oldAuditStamp.getTime()) {
-        log.info("Event's emit time: {}, which is smaller than last modified time {}. Skipping event.",
-            trackingContext.getEmitTime(), oldAuditStamp.getTime());
+        log.info("Event's emit time: {}, which is smaller than last modified time {}. Skipping event for urn {}.",
+            trackingContext.getEmitTime(), oldAuditStamp.getTime(), urn);
         return new AddResult<>(oldValue, oldValue, aspectClass);
       } else {
         log.info("Event's emit time: {}, which is larger than last modified time {}. Proceeding as normal",
