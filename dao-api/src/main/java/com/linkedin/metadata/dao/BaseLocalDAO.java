@@ -417,7 +417,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     boolean isBackfillEvent = trackingContext != null
         && trackingContext.hasBackfill() && trackingContext.isBackfill();
     if (isBackfillEvent) {
-      log.info("Encounter backfill event. Tracking context: {}", trackingContext);
+      log.info("Encounter backfill event. Tracking context: {}. Urn: {}. Aspect class: {}",
+          trackingContext, urn, aspectClass);
 
       if (!trackingContext.hasEmitTime()) {
         log.info("Event is a backfill event, but no emitTime was given. Proceeding as normal.");
