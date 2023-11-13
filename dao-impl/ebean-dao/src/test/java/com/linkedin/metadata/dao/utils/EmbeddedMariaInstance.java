@@ -71,9 +71,6 @@ public class EmbeddedMariaInstance {
            * configurationBuilder.setUnpackingFromClasspath(false);
            * configurationBuilder.setLibDir(System.getProperty("java.io.tmpdir") + "/MariaDB4j/no-libs");
            */
-          configurationBuilder.setBaseDir("/opt/homebrew");
-          configurationBuilder.setUnpackingFromClasspath(false);
-          configurationBuilder.setLibDir(System.getProperty("java.io.tmpdir") + "/MariaDB4j/no-libs");
 
           try {
             // ensure the DB directory is deleted before we start to have a clean start
