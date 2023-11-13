@@ -414,6 +414,28 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     final ASPECT oldValue = latest.getAspect() == null ? null : latest.getAspect();
     final AuditStamp oldAuditStamp = latest.getExtraInfo() == null ? null : latest.getExtraInfo().getAudit();
 
+    boolean isBackfillEvent = trackingContext != null
+        && trackingContext.hasBackfill() && trackingContext.isBackfill();
+    if (isBackfillEvent) {
+      boolean shouldBackfill =
+          // the time in old audit stamp represents last modified time of the aspect
+          // if the record doesn't exist, it will be null, which means we should process the record as normal
+          oldAuditStamp != null && oldAuditStamp.hasTime()
+              // ingestionTrackingContext if not null should always have emitTime. If emitTime doesn't exist within
+              // a non-null IngestionTrackingContext, it should be investigated. We'll also skip backfilling in this case
+              && trackingContext.hasEmitTime()
+              // we should only process this backfilling event if the emit time is greater than last modified time
+              && trackingContext.getEmitTime() > oldAuditStamp.getTime();
+
+      log.info("Encounter backfill event. Tracking context: {}. Urn: {}. Aspect class: {}. Old audit stamp: {}. "
+              + "Based on this information, shouldBackfill = {}.",
+          trackingContext, urn, aspectClass, oldAuditStamp, shouldBackfill);
+
+      if (!shouldBackfill) {
+        return new AddResult<>(oldValue, oldValue, aspectClass);
+      }
+    }
+
     // TODO(yanyang) added for job-gms duplicity debug, throwaway afterwards
     if (log.isDebugEnabled()) {
       if ("AzkabanFlowInfo".equals(aspectClass.getSimpleName())) {
