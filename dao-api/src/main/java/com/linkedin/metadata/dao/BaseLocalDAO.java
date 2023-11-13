@@ -417,20 +417,22 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     boolean isBackfillEvent = trackingContext != null
         && trackingContext.hasBackfill() && trackingContext.isBackfill();
     if (isBackfillEvent) {
-      log.info("Encounter backfill event. Tracking context: {}. Urn: {}. Aspect class: {}",
-          trackingContext, urn, aspectClass);
+      boolean shouldBackfill =
+          // the time in old audit stamp represents last modified time of the aspect
+          // if the record doesn't exist, it will be null, which means we should process the record as normal
+          oldAuditStamp != null && oldAuditStamp.hasTime()
+              // ingestionTrackingContext if not null should always have emitTime. If emitTime doesn't exist within
+              // a non-null IngestionTrackingContext, it should be investigated. We'll also skip backfilling in this case
+              && trackingContext.hasEmitTime()
+              // we should only process this backfilling event if the emit time is greater than last modified time
+              && trackingContext.getEmitTime() > oldAuditStamp.getTime();
 
-      if (!trackingContext.hasEmitTime()) {
-        log.info("Event is a backfill event, but no emitTime was given. Proceeding as normal.");
-      } else if (oldAuditStamp == null || !oldAuditStamp.hasTime()) {
-        log.info("Event is a backfill event, but current record has no timestamp. Proceeding as normal.");
-      } else if (trackingContext.getEmitTime() < oldAuditStamp.getTime()) {
-        log.info("Event's emit time: {}, which is smaller than last modified time {}. Skipping event for urn {}.",
-            trackingContext.getEmitTime(), oldAuditStamp.getTime(), urn);
+      log.info("Encounter backfill event. Tracking context: {}. Urn: {}. Aspect class: {}. Old audit stamp: {}. "
+              + "Based on this information, shouldBackfill = {}.",
+          trackingContext, urn, aspectClass, oldAuditStamp, shouldBackfill);
+
+      if (!shouldBackfill) {
         return new AddResult<>(oldValue, oldValue, aspectClass);
-      } else {
-        log.info("Event's emit time: {}, which is larger than last modified time {}. Proceeding as normal",
-            trackingContext.getEmitTime(), oldAuditStamp.getTime());
       }
     }
 
