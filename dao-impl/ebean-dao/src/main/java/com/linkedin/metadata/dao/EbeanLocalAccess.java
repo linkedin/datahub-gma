@@ -41,6 +41,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -71,6 +72,10 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   private static final int DEFAULT_PAGE_SIZE = 1000;
   private static final String ASPECT_JSON_PLACEHOLDER = "__PLACEHOLDER__";
   private static final String DEFAULT_ACTOR = "urn:li:principal:UNKNOWN";
+
+  // key: table_name,
+  // value: Set(column1, column2, column3 ...)
+  private final Map<String, Set<String>> tableColumns = new ConcurrentHashMap<>();
 
   public EbeanLocalAccess(EbeanServer server, ServerConfig serverConfig, @Nonnull Class<URN> urnClass, UrnPathExtractor<URN> urnPathExtractor) {
     _server = server;
@@ -200,7 +205,9 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     for (int index = position; index < end; index++) {
       final Urn entityUrn = aspectKeys.get(index).getUrn();
       final Class<ASPECT> aspectClass = (Class<ASPECT>) aspectKeys.get(index).getAspectClass();
-      keysToQueryMap.computeIfAbsent(aspectClass, unused -> new HashSet<>()).add(entityUrn);
+      if (checkColumnExists(getTableName(entityUrn), getAspectColumnName(aspectClass))) {
+        keysToQueryMap.computeIfAbsent(aspectClass, unused -> new HashSet<>()).add(entityUrn);
+      }
     }
 
     // each statement is for a single aspect class
@@ -331,11 +338,10 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   public Map<String, Long> countAggregate(@Nullable IndexFilter indexFilter,
       @Nonnull IndexGroupByCriterion indexGroupByCriterion) {
     final String tableName = SQLSchemaUtils.getTableName(_entityType);
+    final String groupByColumn = getGeneratedColumnName(indexGroupByCriterion.getAspect(), indexGroupByCriterion.getPath());
 
     // first, check for existence of the column we want to GROUP BY
-    final String groupByColumnExistsSql = SQLStatementUtils.createGroupByColumnExistsSql(tableName, indexGroupByCriterion);
-    final SqlRow groupByColumnExistsResults = _server.createSqlQuery(groupByColumnExistsSql).findOne();
-    if (groupByColumnExistsResults == null) {
+    if (!checkColumnExists(tableName, groupByColumn)) {
       // if we are trying to GROUP BY the results on a column that does not exist, just return an empty map
       return Collections.emptyMap();
     }
@@ -532,6 +538,23 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
         serverConfig.getDataSourceConfig().getUsername());
 
     return new FlywaySchemaEvolutionManager(config);
+  }
+
+  /**
+   * Check column exists in table.
+   */
+  public boolean checkColumnExists(@Nonnull String tableName, @Nonnull String columnName) {
+    // Fetch table columns on very first read and cache it in tableColumns
+    if (!tableColumns.containsKey(tableName)) {
+      final List<SqlRow> rows = _server.createSqlQuery(SQLStatementUtils.getAllColumnForTable(tableName)).findList();
+      Set<String> columns = new HashSet<>();
+      for (SqlRow row : rows) {
+        columns.add(row.getString("COLUMN_NAME"));
+      }
+      tableColumns.put(tableName, columns);
+    }
+
+    return tableColumns.get(tableName).contains(columnName);
   }
 
   /**

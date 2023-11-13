@@ -52,7 +52,7 @@ import static org.testng.AssertJUnit.assertTrue;
 
 public class EbeanLocalAccessTest {
   private static EbeanServer _server;
-  private static IEbeanLocalAccess<FooUrn> _ebeanLocalAccessFoo;
+  private static EbeanLocalAccess<FooUrn> _ebeanLocalAccessFoo;
   private static IEbeanLocalAccess<BarUrn> _ebeanLocalAccessBar;
   private static IEbeanLocalAccess<BurgerUrn> _ebeanLocalAccessBurger;
   private static long _now;
@@ -468,5 +468,13 @@ public class EbeanLocalAccessTest {
         _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0, true);
     assertFalse(ebeanMetadataAspectList.isEmpty());
     assertEquals(fooUrn.toString(), ebeanMetadataAspectList.get(0).getKey().getUrn());
+  }
+
+  @Test
+  public void testCheckColumnExists() {
+    assertTrue(_ebeanLocalAccessFoo.checkColumnExists("metadata_entity_foo", "a_aspectfoo"));
+    assertTrue(_ebeanLocalAccessFoo.checkColumnExists("metadata_entity_foo", "i_aspectfoo$value"));
+    assertFalse(_ebeanLocalAccessFoo.checkColumnExists("metadata_entity_foo", "a_aspect_not_exist"));
+    assertFalse(_ebeanLocalAccessFoo.checkColumnExists("metadata_entity_notexist", "a_aspectfoo"));
   }
 }

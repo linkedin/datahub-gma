@@ -80,9 +80,8 @@ public class SQLStatementUtils {
 
   private static final String INDEX_GROUP_BY_CRITERION = "SELECT count(*) as COUNT, %s FROM %s";
 
-  private static final String SQL_GROUP_BY_COLUMN_EXISTS_TEMPLATE =
-      "SELECT * FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = database() AND TABLE_NAME = '%s' AND COLUMN_NAME = '%s'";
-
+  private static final String SQL_GET_ALL_COLUMN =
+      "SELECT * FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = database() AND TABLE_NAME = '%s'";
   private static final String SQL_URN_EXIST_TEMPLATE = "SELECT urn FROM %s WHERE urn = '%s'";
 
   private static final String INSERT_LOCAL_RELATIONSHIP = "INSERT INTO %s (metadata, source, destination, source_type, "
@@ -200,8 +199,6 @@ public class SQLStatementUtils {
     }
   }
 
-
-
   /**
    * Create Upsert SQL statement.
    * @param urn  entity urn
@@ -274,9 +271,8 @@ public class SQLStatementUtils {
     return sb.toString();
   }
 
-  public static String createGroupByColumnExistsSql(String tableName, @Nonnull IndexGroupByCriterion indexGroupByCriterion) {
-    return String.format(SQL_GROUP_BY_COLUMN_EXISTS_TEMPLATE, tableName, getGeneratedColumnName(indexGroupByCriterion.getAspect(),
-        indexGroupByCriterion.getPath()));
+  public static String getAllColumnForTable(String tableName) {
+    return String.format(SQL_GET_ALL_COLUMN, tableName);
   }
 
   /**
