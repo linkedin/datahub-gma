@@ -78,7 +78,6 @@ public abstract class BaseReadDAO<ASPECT_UNION extends UnionTemplate, URN extend
   public Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> get(
       @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nonnull Set<URN> urns) {
 
-
     final Set<AspectKey<URN, ? extends RecordTemplate>> keys = new HashSet<>();
     for (URN urn : urns) {
       for (Class<? extends RecordTemplate> aspect : aspectClasses) {

@@ -170,9 +170,6 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   private boolean _alwaysEmitAspectSpecificAuditEvent = false;
 
-  // Flag for enabling reads and writes to local secondary index
-  private boolean _enableLocalSecondaryIndex = false;
-
   // Enable updating multiple aspects within a single transaction
   private boolean _enableAtomicMultipleUpdate = false;
 
@@ -372,28 +369,6 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     _emitAuditEvent = emitAuditEvent;
   }
 
-  /**
-   * Sets if writes to local secondary index enabled.
-   *
-   * @deprecated Use {@link #enableLocalSecondaryIndex(boolean)} instead
-   */
-  public void setWriteToLocalSecondaryIndex(boolean writeToLocalSecondaryIndex) {
-    _enableLocalSecondaryIndex = writeToLocalSecondaryIndex;
-  }
-
-  /**
-   * Enables reads from and writes to local secondary index.
-   */
-  public void enableLocalSecondaryIndex(boolean enableLocalSecondaryIndex) {
-    _enableLocalSecondaryIndex = enableLocalSecondaryIndex;
-  }
-
-  /**
-   * Gets if reads and writes to local secondary index are enabled.
-   */
-  public boolean isLocalSecondaryIndexEnabled() {
-    return _enableLocalSecondaryIndex;
-  }
 
   /**
    * Logic common to both {@link #add(Urn, Class, Function, AuditStamp)} and {@link #delete(Urn, Class, AuditStamp, int)} methods.
@@ -456,12 +431,6 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     // Apply retention policy
     applyRetention(urn, aspectClass, getRetention(aspectClass), largestVersion);
-
-    // Save to local secondary index
-    // TODO: add support for soft deleted aspects in local secondary index
-    if (_enableLocalSecondaryIndex && newValue != null) {
-      updateLocalIndex(urn, newValue, largestVersion);
-    }
 
     return new AddResult<>(oldValue, newValue, aspectClass);
   }
@@ -807,16 +776,6 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nonnull Class<ASPECT> aspectClass, @Nullable ASPECT oldEntry, @Nullable AuditStamp oldAuditStamp,
       @Nullable ASPECT newEntry, @Nonnull AuditStamp newAuditStamp, boolean isSoftDeleted,
       @Nullable IngestionTrackingContext trackingContext);
-
-  /**
-   * Saves the new value of an aspect to local secondary index.
-   *
-   * @param urn the URN for the entity the aspect is attached to
-   * @param newValue {@link RecordTemplate} of the new value of aspect
-   * @param version version of the aspect
-   */
-  public abstract <ASPECT extends RecordTemplate> void updateLocalIndex(@Nonnull URN urn, @Nullable ASPECT newValue,
-      long version);
 
   /**
    * Saves the new value of an aspect to entity tables. This is used when backfilling metadata from the old schema to
@@ -1178,9 +1137,6 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    */
   private <ASPECT extends RecordTemplate> void backfill(@Nonnull BackfillMode mode, @Nonnull ASPECT aspect,
       @Nonnull URN urn) {
-    if (_enableLocalSecondaryIndex && (mode == BackfillMode.SCSI_ONLY || mode == BackfillMode.BACKFILL_ALL)) {
-      updateLocalIndex(urn, aspect, FIRST_VERSION);
-    }
 
     if (mode == BackfillMode.MAE_ONLY
         || mode == BackfillMode.BACKFILL_ALL
