@@ -1082,6 +1082,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       // decouple from old schema
       return _localAccess.listUrns(aspectClass, start, pageSize);
     }
+
     checkValidAspect(aspectClass);
 
     final PagedList<EbeanMetadataAspect> pagedList = _server.find(EbeanMetadataAspect.class)
@@ -1096,14 +1097,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         .asc(URN_COLUMN)
         .findPagedList();
 
-    final List<URN> urns =
-        pagedList.getList().stream().map(entry -> getUrn(entry.getKey().getUrn())).collect(Collectors.toList());
-    final ListResult<URN> urnsOld = toListResult(urns, null, pagedList, start);
-    if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
-      final ListResult<URN> urnsNew = _localAccess.listUrns(aspectClass, start, pageSize);
-      EBeanDAOUtils.compareResults(urnsOld, urnsNew, "listUrns");
-    }
-    return urnsOld;
+    final List<URN> urns = pagedList.getList().stream().map(entry -> getUrn(entry.getKey().getUrn())).collect(Collectors.toList());
+    return toListResult(urns, null, pagedList, start);
   }
 
   @Nonnull
