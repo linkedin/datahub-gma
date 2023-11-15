@@ -1462,10 +1462,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     final IndexCriterionArray indexCriterionArray = indexFilter.getCriteria();
     checkValidIndexCriterionArray(indexCriterionArray);
 
-    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY || _schemaConfig == SchemaConfig.DUAL_SCHEMA) {
-      return _localAccess.countAggregate(indexFilter, indexGroupByCriterion);
-    } else {
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
       throw new UnsupportedOperationException("countAggregate is only supported in new schema.");
     }
+
+    return _localAccess.countAggregate(indexFilter, indexGroupByCriterion);
   }
 }
