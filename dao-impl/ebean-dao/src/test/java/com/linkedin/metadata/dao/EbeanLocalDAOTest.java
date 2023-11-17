@@ -2860,20 +2860,11 @@ public class EbeanLocalDAOTest {
     }
 
     /*
-    this next section of code aims to "convert" SCSI-related indices to fit in the new schema tables.
-    we don't have SCSI in our new tables, but we have something that behaves in an equivalent manner.
-    for example, instead of
-    metadata_index:
-    id | urn   | aspect    | path        | longval | stringval | doubleval
-    1  | urn:1 | aspectFoo | "/longval"  | 3       | null      | null
-    2  | urn:1 | aspectFoo | "/stringval"| null    | "hello"   | null
-    3  | urn:2 | aspectFoo | "/longval"  | 5       | null      | null
-
     we will have
     metadata_entity_foo:
-    urn  | lastmodifiedon   | lastmodifiedby |         a_aspectfoo                | i_aspectfoo$longval | i_aspectfoo$stringval
-    urn:1| <some_timestamp> | "actor"        | "{..."longval":3, "stringval":"hello"...}  |              3              |             "hello"
-    urn:2| <some_timestamp> | "actor"        | "{..."longval":5...}                       |              5              |             <empty>
+    urn  | lastmodifiedon   | lastmodifiedby |  a_aspectfoo                              | i_aspectfoo$longval | i_aspectfoo$stringval
+    urn:1| <some_timestamp> | "actor"        | "{..."longval":3, "stringval":"hello"...} |          3          |       "hello"
+    urn:2| <some_timestamp> | "actor"        | "{..."longval":5...}                      |          5          |       <empty>
     */
 
     String aspectColumnName = isUrn(aspectName) ? null : SQLSchemaUtils.getAspectColumnName(aspectName); // e.g. a_aspectfoo;
