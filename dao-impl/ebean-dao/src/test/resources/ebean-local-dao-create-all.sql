@@ -62,17 +62,6 @@ CREATE TABLE metadata_aspect (
     CONSTRAINT pk_metadata_aspect PRIMARY KEY (urn,aspect,version)
 );
 
-CREATE TABLE metadata_index (
-   id BIGINT AUTO_INCREMENT NOT NULL,
-   urn VARCHAR(500) NOT NULL,
-   aspect VARCHAR(200) NOT NULL,
-   path VARCHAR(200) NOT NULL,
-   longval BIGINT,
-   stringval VARCHAR(500),
-   doubleval DOUBLE,
-   CONSTRAINT pk_metadata_index PRIMARY KEY (id)
-);
-
 ALTER TABLE metadata_entity_foo ADD a_urn JSON;
 ALTER TABLE metadata_entity_bar ADD a_urn JSON;
 

@@ -76,12 +76,6 @@ public class BaseLocalDAOTest {
     }
 
     @Override
-    public <ASPECT extends RecordTemplate> void updateLocalIndex(@Nonnull FooUrn urn, @Nullable ASPECT newValue,
-        long version) {
-
-    }
-
-    @Override
     public <ASPECT extends RecordTemplate> void updateEntityTables(@Nonnull FooUrn urn, @Nonnull Class<ASPECT> aspectClass) {
 
     }

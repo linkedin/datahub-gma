@@ -24,7 +24,6 @@ import com.linkedin.metadata.dao.utils.EBeanDAOUtils;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.QueryUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
-import com.linkedin.metadata.dao.utils.SQLIndexFilterUtils;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.ExtraInfo;
@@ -36,7 +35,6 @@ import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.query.IndexValue;
 import com.linkedin.metadata.query.ListResultMetadata;
-import com.linkedin.metadata.query.SortOrder;
 import io.ebean.DuplicateKeyException;
 import io.ebean.EbeanServer;
 import io.ebean.PagedList;
@@ -49,7 +47,6 @@ import java.lang.reflect.Method;
 import java.net.URISyntaxException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -59,7 +56,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.persistence.OptimisticLockException;
@@ -81,11 +77,8 @@ import static com.linkedin.metadata.dao.utils.EbeanServerUtils.*;
 public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     extends BaseLocalDAO<ASPECT_UNION, URN> {
 
-  private static final int INDEX_QUERY_TIMEOUT_IN_SEC = 10;
-
   protected final EbeanServer _server;
   protected final Class<URN> _urnClass;
-
   private int _queryKeysCount = 0; // 0 means no pagination on keys
   private IEbeanLocalAccess<URN> _localAccess;
   private UrnPathExtractor<URN> _urnPathExtractor;
@@ -263,7 +256,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * @param serverConfig {@link ServerConfig} that defines the configuration of EbeanServer instances
    * @param storageConfig {@link LocalDAOStorageConfig} containing storage config of full list of supported aspects
    * @param urnClass class of the entity URN
-   * @param urnPathExtractor path extractor to index parts of URNs to the secondary index
+   * @param urnPathExtractor path extractor to index parts of URNs
    */
   public EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull ServerConfig serverConfig,
       @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass,
@@ -278,7 +271,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * @param serverConfig {@link ServerConfig} that defines the configuration of EbeanServer instances
    * @param storageConfig {@link LocalDAOStorageConfig} containing storage config of full list of supported aspects
    * @param urnClass class of the entity URN
-   * @param urnPathExtractor path extractor to index parts of URNs to the secondary index
+   * @param urnPathExtractor path extractor to index parts of URNs to
    * @param trackingManager {@link BaseTrackingManager} tracking manager for producing tracking requests
    */
   public EbeanLocalDAO(@Nonnull BaseTrackingMetadataEventProducer producer, @Nonnull ServerConfig serverConfig,
@@ -294,7 +287,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * @param serverConfig {@link ServerConfig} that defines the configuration of EbeanServer instances
    * @param storageConfig {@link LocalDAOStorageConfig} containing storage config of full list of supported aspects
    * @param urnClass class of the entity URN
-   * @param urnPathExtractor path extractor to index parts of URNs to the secondary index
+   * @param urnPathExtractor path extractor to index parts of URNs
    * @param schemaConfig Enum indicating which schema(s)/table(s) to read from and write to
    */
   public EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull ServerConfig serverConfig,
@@ -310,7 +303,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * @param serverConfig {@link ServerConfig} that defines the configuration of EbeanServer instances
    * @param storageConfig {@link LocalDAOStorageConfig} containing storage config of full list of supported aspects
    * @param urnClass class of the entity URN
-   * @param urnPathExtractor path extractor to index parts of URNs to the secondary index
+   * @param urnPathExtractor path extractor to index parts of URNs
    * @param schemaConfig Enum indicating which schema(s)/table(s) to read from and write to
    * @param trackingManager {@link BaseTrackingManager} tracking manager for producing tracking requests
    */
@@ -486,8 +479,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     this(producer, server, serverConfig, storageConfig, urnClass, new EmptyPathExtractor<>(), schemaConfig);
   }
 
-
-
   public void setUrnPathExtractor(@Nonnull UrnPathExtractor<URN> urnPathExtractor) {
     if (_schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
       _localAccess.setUrnPathExtractor(urnPathExtractor);
@@ -597,25 +588,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
 
     return largestVersion;
-  }
-
-  @Override
-  public <ASPECT extends RecordTemplate> void updateLocalIndex(@Nonnull URN urn, @Nonnull ASPECT newValue,
-      long version) {
-    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
-      throw new UnsupportedOperationException("Local secondary index isn't supported by new schema");
-    }
-
-    if (!isLocalSecondaryIndexEnabled()) {
-      throw new UnsupportedOperationException("Local secondary index isn't supported");
-    }
-
-    // Process and save URN
-    // Only do this with the first version of each aspect
-    if (version == FIRST_VERSION) {
-      updateUrnInLocalIndex(urn);
-    }
-    updateAspectInLocalIndex(urn, newValue);
   }
 
   @Override
@@ -825,70 +797,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
   }
 
-  protected void saveRecordsToLocalIndex(@Nonnull URN urn, @Nonnull String aspect, @Nonnull String path,
-      @Nonnull Object value) {
-    if (value instanceof List) {
-      for (Object obj : (List<?>) value) {
-        saveSingleRecordToLocalIndex(urn, aspect, path, obj);
-      }
-    } else {
-      saveSingleRecordToLocalIndex(urn, aspect, path, value);
-    }
-  }
-
-  protected long saveSingleRecordToLocalIndex(@Nonnull URN urn, @Nonnull String aspect, @Nonnull String path,
-      @Nonnull Object value) {
-
-    final EbeanMetadataIndex record = new EbeanMetadataIndex().setUrn(urn.toString()).setAspect(aspect).setPath(path);
-    if (value instanceof Integer || value instanceof Long) {
-      record.setLongVal(Long.valueOf(value.toString()));
-    } else if (value instanceof Float || value instanceof Double) {
-      record.setDoubleVal(Double.valueOf(value.toString()));
-    } else {
-      record.setStringVal(value.toString());
-    }
-
-    _server.insert(record);
-    return record.getId();
-  }
-
   @Nonnull
   Map<Class<? extends RecordTemplate>, LocalDAOStorageConfig.AspectStorageConfig> getStrongConsistentIndexPaths() {
     return Collections.unmodifiableMap(new HashMap<>(_storageConfig.getAspectStorageConfigMap()));
-  }
-
-  private void updateUrnInLocalIndex(@Nonnull URN urn) {
-    if (existsInLocalIndex(urn)) {
-      return;
-    }
-
-    final Map<String, Object> pathValueMap = _urnPathExtractor.extractPaths(urn);
-    pathValueMap.forEach((path, value) -> saveSingleRecordToLocalIndex(urn, _urnClass.getCanonicalName(), path, value));
-  }
-
-  private <ASPECT extends RecordTemplate> void updateAspectInLocalIndex(@Nonnull URN urn, @Nonnull ASPECT newValue) {
-
-    if (!_storageConfig.getAspectStorageConfigMap().containsKey(newValue.getClass())
-        || _storageConfig.getAspectStorageConfigMap().get(newValue.getClass()) == null) {
-      return;
-    }
-    // step1: remove all rows from the index table corresponding to <urn, aspect> pair
-    _server.find(EbeanMetadataIndex.class)
-        .where()
-        .eq(URN_COLUMN, urn.toString())
-        .eq(ASPECT_COLUMN, ModelUtils.getAspectName(newValue.getClass()))
-        .delete();
-
-    // step2: add fields of the aspect that need to be indexed
-    final Map<String, LocalDAOStorageConfig.PathStorageConfig> pathStorageConfigMap =
-        _storageConfig.getAspectStorageConfigMap().get(newValue.getClass()).getPathStorageConfigMap();
-
-    pathStorageConfigMap.keySet()
-        .stream()
-        .filter(path -> pathStorageConfigMap.get(path).isStrongConsistentSecondaryIndex())
-        .collect(Collectors.toMap(Function.identity(), path -> RecordUtils.getFieldValue(newValue, path)))
-        .forEach((k, v) -> v.ifPresent(
-            value -> saveRecordsToLocalIndex(urn, newValue.getClass().getCanonicalName(), k, value)));
   }
 
   @Override
@@ -1009,13 +920,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       case OLD_SCHEMA_ONLY:
         return _server.find(EbeanMetadataAspect.class).where().eq(URN_COLUMN, urn.toString()).exists();
     }
-  }
-
-  public boolean existsInLocalIndex(@Nonnull URN urn) {
-    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
-      throw new UnsupportedOperationException("Local secondary index isn't supported when using only the new schema");
-    }
-    return _server.find(EbeanMetadataIndex.class).where().eq(URN_COLUMN, urn.toString()).exists();
   }
 
   /**
@@ -1178,6 +1082,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       // decouple from old schema
       return _localAccess.listUrns(aspectClass, start, pageSize);
     }
+
     checkValidAspect(aspectClass);
 
     final PagedList<EbeanMetadataAspect> pagedList = _server.find(EbeanMetadataAspect.class)
@@ -1192,14 +1097,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         .asc(URN_COLUMN)
         .findPagedList();
 
-    final List<URN> urns =
-        pagedList.getList().stream().map(entry -> getUrn(entry.getKey().getUrn())).collect(Collectors.toList());
-    final ListResult<URN> urnsOld = toListResult(urns, null, pagedList, start);
-    if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
-      final ListResult<URN> urnsNew = _localAccess.listUrns(aspectClass, start, pageSize);
-      EBeanDAOUtils.compareResults(urnsOld, urnsNew, "listUrns");
-    }
-    return urnsOld;
+    final List<URN> urns = pagedList.getList().stream().map(entry -> getUrn(entry.getKey().getUrn())).collect(Collectors.toList());
+    return toListResult(urns, null, pagedList, start);
   }
 
   @Nonnull
@@ -1313,7 +1212,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     return Optional.of(new AspectWithExtraInfo<>(RecordUtils.toRecordTemplate(aspectClass, aspect.getMetadata()),
         extraInfo));
   }
-
 
   /**
    * Transform list result from type T to type R.
@@ -1452,51 +1350,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     return indexValue.getString();
   }
 
-  /**
-   * Sets the values of parameters in metadata index query based on its position, values obtained from
-   * {@link IndexCriterionArray} and last urn. Also sets the LIMIT of SQL query using the page size input.
-   * For offset pagination, the limit will be set when the query gets executed.
-   *
-   * @param indexCriterionArray {@link IndexCriterionArray} whose values will be used to set parameters in metadata
-   *                                                       index query based on its position
-   * @param indexSortCriterion {@link IndexSortCriterion} whose values will be used to set parameters in query
-   * @param indexQuery {@link Query} whose ordered parameters need to be set, based on it's position
-   * @param lastUrn string representation of the urn whose value is used to set the last urn parameter in index query
-   * @param pageSize maximum number of distinct urns to return which is essentially the LIMIT clause of SQL query
-   * @param offsetPagination used to determine whether to used cursor or offset pagination
-   */
-  private static void setParameters(@Nonnull IndexCriterionArray indexCriterionArray,
-      @Nullable IndexSortCriterion indexSortCriterion, @Nonnull Query<EbeanMetadataIndex> indexQuery,
-      @Nonnull String lastUrn, int pageSize, boolean offsetPagination) {
-    int pos = 1;
-    if (!offsetPagination) {
-      indexQuery.setParameter(pos++, lastUrn);
-    }
-    for (IndexCriterion criterion : indexCriterionArray) {
-      indexQuery.setParameter(pos++, criterion.getAspect());
-      if (criterion.getPathParams() != null) {
-        indexQuery.setParameter(pos++, criterion.getPathParams().getPath());
-        indexQuery.setParameter(pos++, getGMAIndexPair(criterion).value);
-      }
-    }
-    if (indexSortCriterion != null) {
-      indexQuery.setParameter(pos++, indexSortCriterion.getAspect());
-      indexQuery.setParameter(pos++, indexSortCriterion.getPath());
-    }
-    if (!offsetPagination) {
-      indexQuery.setParameter(pos, pageSize);
-    }
-  }
-
-  @Nonnull
-  private static String getStringForOperator(@Nonnull Condition condition) {
-    if (!CONDITION_STRING_MAP.containsKey(condition)) {
-      throw new UnsupportedOperationException(
-          condition.toString() + " condition is not supported in local secondary index");
-    }
-    return CONDITION_STRING_MAP.get(condition);
-  }
-
   @Nonnull
   static <ASPECT extends RecordTemplate> String getFieldColumn(@Nonnull String path, @Nonnull String aspectName) {
     final String[] pathSpecArray = RecordUtils.getPathSpecAsArray(path);
@@ -1541,97 +1394,14 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
   }
 
-  private static String getPlaceholderStringForValue(@Nonnull IndexValue indexValue) {
-    if (indexValue.isArray() && indexValue.getArray().size() > 0) {
-      List<Object> values = Arrays.asList(indexValue.getArray().toArray());
-      String placeholderString = "(";
-      placeholderString += String.join(",", values.stream().map(value -> "?").collect(Collectors.toList()));
-      placeholderString += ")";
-      return placeholderString;
-    }
-    return "?";
-  }
-
-  /**
-   * Constructs SQL query that contains positioned parameters (with `?`), based on whether {@link IndexCriterion} of
-   * a given condition has field `pathParams`.
-   * For offset pagination, the limit clause is empty because the limit will be set when the query
-   * gets executed.
-   *
-   * @param indexCriterionArray {@link IndexCriterionArray} used to construct the SQL query
-   * @param indexSortCriterion {@link IndexSortCriterion} used to construct the SQL query
-   * @param offsetPagination used to determine whether to used cursor or offset pagination
-   * @return String representation of SQL query
-   */
-  @Nonnull
-  private static String constructSQLQuery(@Nonnull IndexCriterionArray indexCriterionArray,
-      @Nullable IndexSortCriterion indexSortCriterion, boolean offsetPagination) {
-    String sortColumn =
-        indexSortCriterion != null ? getFieldColumn(indexSortCriterion.getPath(), indexSortCriterion.getAspect()) : "";
-    String selectClause = "SELECT DISTINCT(t0.urn)";
-    if (!sortColumn.isEmpty()) {
-      selectClause += ", tsort.";
-      selectClause += sortColumn;
-    }
-    selectClause += " FROM metadata_index t0";
-    selectClause += IntStream.range(1, indexCriterionArray.size())
-        .mapToObj(i -> " INNER JOIN metadata_index " + "t" + i + " ON t0.urn = " + "t" + i + ".urn")
-        .collect(Collectors.joining(""));
-    final StringBuilder whereClause = new StringBuilder("WHERE ");
-    if (!offsetPagination) {
-      whereClause.append("t0.urn > ?");
-    }
-    IntStream.range(0, indexCriterionArray.size()).forEach(i -> {
-      final IndexCriterion criterion = indexCriterionArray.get(i);
-      if (!offsetPagination || i > 0) {
-        whereClause.append(" AND");
-      }
-      whereClause.append(" t").append(i).append(".aspect = ?");
-      if (criterion.getPathParams() != null) {
-        SQLIndexFilterUtils.validateConditionAndValue(criterion);
-        whereClause.append(" AND t")
-            .append(i)
-            .append(".path = ? AND t")
-            .append(i)
-            .append(".")
-            .append(getGMAIndexPair(criterion).valueType)
-            .append(" ")
-            .append(getStringForOperator(criterion.getPathParams().getCondition()))
-            .append(getPlaceholderStringForValue(criterion.getPathParams().getValue()));
-      }
-    });
-    final String orderByClause;
-    if (indexSortCriterion != null && !sortColumn.isEmpty()) {
-      String sortOrder = indexSortCriterion.getOrder() == SortOrder.ASCENDING ? "ASC" : "DESC";
-
-      selectClause += " INNER JOIN metadata_index tsort ON t0.urn = tsort.urn";
-      whereClause.append(" AND tsort.aspect = ? AND tsort.path = ? ");
-      orderByClause = "ORDER BY tsort." + sortColumn + " " + sortOrder;
-    } else {
-      orderByClause = "ORDER BY urn ASC";
-    }
-    final String limitClause = offsetPagination ? "" : "LIMIT ?";
-    return String.join(" ", selectClause, whereClause, orderByClause, limitClause);
-  }
-
   void checkValidIndexCriterionArray(@Nonnull IndexCriterionArray indexCriterionArray) {
     if (indexCriterionArray.isEmpty()) {
       throw new UnsupportedOperationException("Empty Index Filter is not supported by EbeanLocalDAO");
     }
-    if (indexCriterionArray.size() > 10) {
-      throw new UnsupportedOperationException(
-          "Currently more than 10 filter conditions is not supported by EbeanLocalDAO");
-    }
-  }
-
-  void addEntityTypeFilter(@Nonnull IndexFilter indexFilter) {
-    if (indexFilter.getCriteria().stream().noneMatch(x -> x.getAspect().equals(_urnClass.getCanonicalName()))) {
-      indexFilter.getCriteria().add(new IndexCriterion().setAspect(_urnClass.getCanonicalName()));
-    }
   }
 
   /**
-   * Returns list of urns from strongly consistent secondary index that satisfy the given filter conditions.
+   * Returns list of urns that satisfy the given filter conditions.
    *
    * <p>Results are ordered by the sort criterion but defaults to sorting lexicographically by the string representation of the URN.
    *
@@ -1642,43 +1412,20 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * @param lastUrn last urn of the previous fetched page. This eliminates the need to use offset which
    *                 is known to slow down performance of MySQL queries. For the first page, this should be set as NULL
    * @param pageSize maximum number of distinct urns to return
-   * @return list of urns from strongly consistent secondary index that satisfy the given filter conditions
+   * @return list of urns that satisfy the given filter conditions
    */
   @Override
   @Nonnull
   public List<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       @Nullable URN lastUrn, int pageSize) {
-    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
-      return _localAccess.listUrns(indexFilter, indexSortCriterion, lastUrn, pageSize);
-    }
-
-    if (!isLocalSecondaryIndexEnabled()) {
-      throw new UnsupportedOperationException("Local secondary index isn't supported");
-    }
-
     final IndexCriterionArray indexCriterionArray = indexFilter.getCriteria();
     checkValidIndexCriterionArray(indexCriterionArray);
 
-    List<URN> urnsNew = null;
-    if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
-      urnsNew = _localAccess.listUrns(indexFilter, indexSortCriterion, lastUrn, pageSize);
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      throw new UnsupportedOperationException("listUrns with index filter is only supported in new schema.");
     }
 
-    addEntityTypeFilter(indexFilter);
-
-    final Query<EbeanMetadataIndex> query = _server.findNative(EbeanMetadataIndex.class, constructSQLQuery(indexCriterionArray,
-        indexSortCriterion, false));
-
-    query.setTimeout(INDEX_QUERY_TIMEOUT_IN_SEC);
-    setParameters(indexCriterionArray, indexSortCriterion, query, lastUrn == null ? "" : lastUrn.toString(), pageSize, false);
-
-    final List<URN> urnsOld = query.findList().stream().map(entry -> getUrn(entry.getUrn())).collect(Collectors.toList());
-
-    if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
-      EBeanDAOUtils.compareResults(urnsOld, urnsNew, "listUrns");
-    }
-
-    return urnsOld;
+    return _localAccess.listUrns(indexFilter, indexSortCriterion, lastUrn, pageSize);
   }
 
   /**
@@ -1693,157 +1440,27 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   public ListResult<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       int start, int pageSize) {
 
-    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
-      return _localAccess.listUrns(indexFilter, indexSortCriterion, start, pageSize);
-    }
-
-    if (!isLocalSecondaryIndexEnabled()) {
-      throw new UnsupportedOperationException("Local secondary index isn't supported");
-    }
-
     final IndexCriterionArray indexCriterionArray = indexFilter.getCriteria();
     checkValidIndexCriterionArray(indexCriterionArray);
 
-    ListResult<URN> urnsNew = null;
-    if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
-      urnsNew = _localAccess.listUrns(indexFilter, indexSortCriterion, start, pageSize);
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      throw new UnsupportedOperationException("listUrns with index filter is only supported in new schema.");
     }
 
-    addEntityTypeFilter(indexFilter);
-
-    final Query<EbeanMetadataIndex> query = _server.findNative(EbeanMetadataIndex.class, constructSQLQuery(indexCriterionArray,
-        indexSortCriterion, true));
-    query.setTimeout(INDEX_QUERY_TIMEOUT_IN_SEC);
-    setParameters(indexCriterionArray, indexSortCriterion, query, "", pageSize, true);
-
-    final PagedList<EbeanMetadataIndex> pagedList = query.setFirstRow(start).setMaxRows(pageSize).findPagedList();
-
-    pagedList.loadCount();
-
-    final List<URN> urns = pagedList.getList().stream().map(entry -> getUrn(entry.getUrn())).collect(Collectors.toList());
-    final ListResult<URN> urnsOld = toListResult(urns, null, pagedList, start);
-
-    if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
-      EBeanDAOUtils.compareResults(urnsOld, urnsNew, "listUrns");
-    }
-
-    return urnsOld;
-  }
-
-  /**
-   * Constructs SQL query to count agggregate urns that contains positioned parameters (with `?`),
-   * based on whether {@link IndexCriterion} of a given condition has field `pathParams`.
-   *
-   * @param indexCriterionArray {@link IndexCriterionArray} used to construct the SQL query
-   * @param indexGroupByCriterion {@link IndexGroupByCriterion} used to construct the SQL query
-   * @return String representation of SQL query
-   */
-  @Nonnull
-  private static String constructCountAggregateSQLQuery(@Nonnull IndexCriterionArray indexCriterionArray,
-      @Nonnull IndexGroupByCriterion indexGroupByCriterion) {
-    String groupByColumn = getFieldColumn(indexGroupByCriterion.getPath(), indexGroupByCriterion.getAspect());
-    String selectClause = "SELECT COUNT(*), tgroup.";
-    selectClause += groupByColumn;
-    selectClause += " FROM metadata_index t0 INNER JOIN metadata_index tgroup on t0.urn = tgroup.urn";
-    selectClause += IntStream.range(1, indexCriterionArray.size())
-        .mapToObj(i -> " INNER JOIN metadata_index " + "t" + i + " ON t0.urn = " + "t" + i + ".urn")
-        .collect(Collectors.joining(""));
-    final StringBuilder whereClause = new StringBuilder("WHERE");
-    IntStream.range(0, indexCriterionArray.size()).forEach(i -> {
-      final IndexCriterion criterion = indexCriterionArray.get(i);
-
-      if (i > 0) {
-        whereClause.append(" AND");
-      }
-      whereClause.append(" t").append(i).append(".aspect = ?");
-      if (criterion.getPathParams() != null) {
-        SQLIndexFilterUtils.validateConditionAndValue(criterion);
-        whereClause.append(" AND t")
-            .append(i)
-            .append(".path = ? AND t")
-            .append(i)
-            .append(".")
-            .append(getGMAIndexPair(criterion).valueType)
-            .append(" ")
-            .append(getStringForOperator(criterion.getPathParams().getCondition()))
-            .append(getPlaceholderStringForValue(criterion.getPathParams().getValue()));
-      }
-    });
-    whereClause.append(" AND tgroup.aspect = ? AND tgroup.path = ? ");
-    final String groupByClause = "GROUP BY tgroup." + groupByColumn;
-    return String.join(" ", selectClause, whereClause, groupByClause);
-  }
-
-  /**
-   * Sets the values of parameters in metadata index query based on its position, values obtained from
-   * {@link IndexCriterionArray} and last urn. Also sets the LIMIT of SQL query using the page size input.
-   *
-   * @param indexCriterionArray {@link IndexCriterionArray} whose values will be used to set parameters in metadata
-   *                                                       index query based on its position
-   * @param indexGroupByCriterion {@link IndexGroupByCriterion} whose values will be used to set parameters in query
-   * @param indexQuery {@link Query} whose ordered parameters need to be set, based on it's position
-   */
-  @Nonnull
-  private static void setCountAggregateParameters(@Nonnull IndexCriterionArray indexCriterionArray,
-      @Nonnull IndexGroupByCriterion indexGroupByCriterion, @Nonnull Query<EbeanMetadataIndex> indexQuery) {
-    int pos = 1;
-    for (IndexCriterion criterion : indexCriterionArray) {
-      indexQuery.setParameter(pos++, criterion.getAspect());
-      if (criterion.getPathParams() != null) {
-        indexQuery.setParameter(pos++, criterion.getPathParams().getPath());
-        indexQuery.setParameter(pos++, getGMAIndexPair(criterion).value);
-      }
-    }
-    indexQuery.setParameter(pos++, indexGroupByCriterion.getAspect());
-    indexQuery.setParameter(pos++, indexGroupByCriterion.getPath());
+    return _localAccess.listUrns(indexFilter, indexSortCriterion, start, pageSize);
   }
 
   @Override
   @Nonnull
   public Map<String, Long> countAggregate(@Nonnull IndexFilter indexFilter,
       @Nonnull IndexGroupByCriterion indexGroupByCriterion) {
-    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
-      return _localAccess.countAggregate(indexFilter, indexGroupByCriterion);
-    }
-
-    if (!isLocalSecondaryIndexEnabled()) {
-      throw new UnsupportedOperationException("Local secondary index isn't supported");
-    }
-
     final IndexCriterionArray indexCriterionArray = indexFilter.getCriteria();
     checkValidIndexCriterionArray(indexCriterionArray);
 
-    Map<String, Long> resultNew = null;
-    if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
-      resultNew = _localAccess.countAggregate(indexFilter, indexGroupByCriterion);
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      throw new UnsupportedOperationException("countAggregate is only supported in new schema.");
     }
 
-    addEntityTypeFilter(indexFilter);
-
-    final Query<EbeanMetadataIndex> query = _server.findNative(EbeanMetadataIndex.class,
-        constructCountAggregateSQLQuery(indexCriterionArray, indexGroupByCriterion));
-
-    query.setTimeout(INDEX_QUERY_TIMEOUT_IN_SEC);
-
-    setCountAggregateParameters(indexCriterionArray, indexGroupByCriterion, query);
-
-    Map<String, Long> resultOld = new HashMap<>();
-    query.setDistinct(true).findList().forEach(entry -> {
-      if (entry.getStringVal() != null) {
-        resultOld.put(entry.getStringVal(), entry.getTotalCount());
-      } else if (entry.getDoubleVal() != null) {
-        resultOld.put(entry.getDoubleVal().toString(), entry.getTotalCount());
-      } else if (entry.getLongVal() != null) {
-        resultOld.put(entry.getLongVal().toString(), entry.getTotalCount());
-      }
-    });
-
-    if (_schemaConfig == SchemaConfig.DUAL_SCHEMA && !resultOld.equals(resultNew)) {
-      // TODO: print info log with performance (response time) and values
-      String message = String.format("Old result: %s. New result: %s", resultOld, resultNew);
-      log.warn(String.format(EBeanDAOUtils.DIFFERENT_RESULTS_TEMPLATE, "countAggregate", message));
-    }
-
-    return resultOld;
+    return _localAccess.countAggregate(indexFilter, indexGroupByCriterion);
   }
 }

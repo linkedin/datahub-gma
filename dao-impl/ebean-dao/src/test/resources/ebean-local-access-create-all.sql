@@ -50,17 +50,6 @@ CREATE TABLE metadata_aspect (
     CONSTRAINT pk_metadata_aspect PRIMARY KEY (urn,aspect,version)
 );
 
-CREATE TABLE metadata_index (
-   id BIGINT AUTO_INCREMENT NOT NULL,
-   urn VARCHAR(1000) NOT NULL,
-   aspect VARCHAR(200) NOT NULL,
-   path VARCHAR(200) NOT NULL,
-   longval BIGINT,
-   stringval VARCHAR(500),
-   doubleval DOUBLE,
-   CONSTRAINT pk_metadata_index PRIMARY KEY (id)
-);
-
 CREATE TABLE IF NOT EXISTS metadata_relationship_belongsto (
     id BIGINT NOT NULL AUTO_INCREMENT,
     metadata JSON NOT NULL,
