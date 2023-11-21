@@ -237,11 +237,9 @@ public class SQLStatementUtils {
    * Create filter SQL statement.
    * @param tableName table name
    * @param indexFilter index filter
-   * @param indexSortCriterion sorting criterion
    * @return translated SQL where statement
    */
-  public static String createFilterSql(String tableName, @Nonnull IndexFilter indexFilter,
-      @Nullable IndexSortCriterion indexSortCriterion) {
+  public static String createFilterSql(String tableName, @Nonnull IndexFilter indexFilter) {
     String whereClause = parseIndexFilter(indexFilter);
     String totalCountSql = String.format("SELECT COUNT(urn) FROM %s %s", tableName, whereClause);
     StringBuilder sb = new StringBuilder();

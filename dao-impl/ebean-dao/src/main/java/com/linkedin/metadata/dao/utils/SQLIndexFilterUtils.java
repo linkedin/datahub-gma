@@ -70,7 +70,8 @@ public class SQLIndexFilterUtils {
    */
   public static String parseSortCriteria(@Nullable IndexSortCriterion indexSortCriterion) {
     if (indexSortCriterion == null) {
-      return "";
+      // Default to order by urn if user does not provide sort criterion.
+      return "ORDER BY URN";
     }
     final String indexColumn = SQLSchemaUtils.getGeneratedColumnName(indexSortCriterion.getAspect(), indexSortCriterion.getPath());
 
