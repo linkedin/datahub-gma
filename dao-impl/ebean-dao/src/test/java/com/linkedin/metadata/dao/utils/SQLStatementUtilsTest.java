@@ -13,7 +13,6 @@ import com.linkedin.metadata.query.LocalRelationshipCriterionArray;
 import com.linkedin.metadata.query.LocalRelationshipFilter;
 import com.linkedin.metadata.query.LocalRelationshipValue;
 import com.linkedin.metadata.query.RelationshipField;
-import com.linkedin.metadata.query.SortOrder;
 import com.linkedin.metadata.query.UrnField;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.urn.FooUrn;
