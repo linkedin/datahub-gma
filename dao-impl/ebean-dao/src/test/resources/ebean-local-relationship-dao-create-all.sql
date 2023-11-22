@@ -95,3 +95,6 @@ ALTER TABLE metadata_entity_bar ADD a_aspectfoo JSON;
 -- add new index virtual column 'value'
 ALTER TABLE metadata_entity_bar ADD COLUMN i_aspectfoo$value VARCHAR(255)
     GENERATED ALWAYS AS (JSON_UNQUOTE(JSON_EXTRACT(a_aspectfoo, '$.aspect.value')));
+
+-- add new virtual column 'value' to relationship table
+ALTER TABLE metadata_relationship_
