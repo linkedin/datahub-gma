@@ -367,7 +367,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
     final String tableName = SQLSchemaUtils.getTableName(_entityType);
     StringBuilder filterSql = new StringBuilder();
-    filterSql.append(SQLStatementUtils.createFilterSql(tableName, indexFilter, indexSortCriterion));
+    filterSql.append(SQLStatementUtils.createFilterSql(tableName, indexFilter));
 
     // append last urn where condition
     if (lastUrn != null) {
@@ -380,11 +380,8 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       filterSql.append("'");
     }
 
-    if (indexSortCriterion != null) {
-      filterSql.append("\n");
-      filterSql.append(parseSortCriteria(indexSortCriterion));
-    }
-
+    filterSql.append("\n");
+    filterSql.append(parseSortCriteria(indexSortCriterion));
     filterSql.append(String.format(" LIMIT %d", Math.max(pageSize, 0)));
     filterSql.append(String.format(" OFFSET %d", Math.max(offset, 0)));
     return _server.createSqlQuery(filterSql.toString());
