@@ -8,7 +8,6 @@ import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
-import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.query.LocalRelationshipCriterion;
 import com.linkedin.metadata.query.LocalRelationshipFilter;
 import com.linkedin.metadata.query.LocalRelationshipValue;
