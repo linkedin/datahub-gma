@@ -20,6 +20,8 @@ import com.linkedin.metadata.query.LocalRelationshipCriterionArray;
 import com.linkedin.metadata.query.LocalRelationshipFilter;
 import com.linkedin.metadata.query.LocalRelationshipValue;
 import com.linkedin.metadata.query.RelationshipDirection;
+import com.linkedin.metadata.query.RelationshipField;
+import com.linkedin.metadata.query.UrnField;
 import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.BarSnapshot;
@@ -27,6 +29,8 @@ import com.linkedin.testing.EntityAspectUnion;
 import com.linkedin.testing.EntityAspectUnionArray;
 import com.linkedin.testing.FooSnapshot;
 import com.linkedin.testing.localrelationship.BelongsTo;
+import com.linkedin.testing.localrelationship.ConsumeFrom;
+import com.linkedin.testing.localrelationship.EnvorinmentType;
 import com.linkedin.testing.localrelationship.PairsWith;
 import com.linkedin.testing.localrelationship.ReportsTo;
 import com.linkedin.testing.urn.BarUrn;
@@ -166,6 +170,83 @@ public class EbeanLocalRelationshipQueryDAOTest {
     Set<FooUrn> actual = reportsToAlice.stream().map(reportsTo -> makeFooUrn(reportsTo.getSource().toString())).collect(Collectors.toSet());
     Set<FooUrn> expected = ImmutableSet.of(jack, bob);
     assertEquals(actual, expected);
+  }
+
+  @Test
+  public void testFindOneRelationshipWithFilter() throws Exception {
+    FooUrn kafka = new FooUrn(1);
+    FooUrn hdfs = new FooUrn(2);
+    FooUrn restli = new FooUrn(3);
+
+    BarUrn spark = new BarUrn(1);
+    BarUrn samza = new BarUrn(2);
+
+    // Add Kafka_Topic, HDFS_Dataset and Restli_Service into entity tables.
+    _fooUrnEBeanLocalAccess.add(kafka, new AspectFoo().setValue("Kafka_Topic"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
+    _fooUrnEBeanLocalAccess.add(hdfs, new AspectFoo().setValue("HDFS_Dataset"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
+    _fooUrnEBeanLocalAccess.add(restli, new AspectFoo().setValue("Restli_Service"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
+
+    // Add Spark and Samza into entity tables.
+    _barUrnEBeanLocalAccess.add(spark, new AspectFoo().setValue("Spark"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
+    _barUrnEBeanLocalAccess.add(samza, new AspectFoo().setValue("Samza"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
+
+    // Add Spark consume-from hdfs relationship
+    ConsumeFrom sparkConsumeFromHdfs = new ConsumeFrom().setSource(spark).setDestination(hdfs).setEnvironment(EnvorinmentType.OFFLINE);
+    _localRelationshipWriterDAO.addRelationship(sparkConsumeFromHdfs);
+
+    // Add Samza consume-from kafka relationship
+    ConsumeFrom samzaConsumeFromKafka = new ConsumeFrom().setSource(samza).setDestination(kafka).setEnvironment(EnvorinmentType.NEARLINE);
+    _localRelationshipWriterDAO.addRelationship(samzaConsumeFromKafka);
+
+    // Add Samza consume-from restli relationship
+    ConsumeFrom samzaConsumeFromRestli = new ConsumeFrom().setSource(samza).setDestination(restli).setEnvironment(EnvorinmentType.ONLINE);
+    _localRelationshipWriterDAO.addRelationship(samzaConsumeFromRestli);
+
+    // Find all consume-from relationship for Samza.
+    LocalRelationshipCriterion.Field urnField = new LocalRelationshipCriterion.Field();
+    urnField.setUrnField(new UrnField());
+
+    LocalRelationshipCriterion filterUrnCriterion = new LocalRelationshipCriterion()
+        .setField(urnField)
+        .setValue(LocalRelationshipValue.create("urn:li:bar:2")) // 2 is Samza as defined at very beginning.
+        .setCondition(Condition.EQUAL);
+
+    LocalRelationshipFilter filterUrn = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterUrnCriterion));
+    List<ConsumeFrom> consumeFromSamza = _localRelationshipQueryDAO.findRelationships(
+        BarSnapshot.class,
+        filterUrn,
+        FooSnapshot.class,
+        new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()),
+        ConsumeFrom.class,
+        new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()),
+        0, 10);
+
+    // Assert
+    assertEquals(consumeFromSamza.size(), 2); // Because Samza consume from 1. kafka and 2. restli
+
+    // Find all consume-from relationship for Samza which happens in NEARLINE.
+    LocalRelationshipCriterion.Field relationshipField = new LocalRelationshipCriterion.Field();
+    relationshipField.setRelationshipField(new RelationshipField().setPath("/environment"));
+
+    LocalRelationshipCriterion filterRelationshipCriterion = new LocalRelationshipCriterion()
+        .setField(relationshipField)
+        .setValue(LocalRelationshipValue.create("NEARLINE"))
+        .setCondition(Condition.EQUAL);
+
+    LocalRelationshipFilter filterRelationship = new LocalRelationshipFilter().setCriteria(
+        new LocalRelationshipCriterionArray(filterRelationshipCriterion));
+
+    List<ConsumeFrom> consumeFromSamzaInNearline = _localRelationshipQueryDAO.findRelationships(
+        BarSnapshot.class,
+        filterUrn,
+        FooSnapshot.class,
+        new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()),
+        ConsumeFrom.class,
+        filterRelationship,
+        0, 10);
+
+    // Assert
+    assertEquals(consumeFromSamzaInNearline.size(), 1); // Because Samza only consumes kafka in NEARLINE.
   }
 
   @Test

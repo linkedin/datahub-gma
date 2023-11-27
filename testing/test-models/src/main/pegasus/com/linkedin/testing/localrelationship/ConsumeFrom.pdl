@@ -1,0 +1,19 @@
+namespace com.linkedin.testing.localrelationship
+
+@pairings = [ {
+  "destination": "com.linkedin.testing.urn.FooUrn",
+  "source": "com.linkedin.testing.urn.BarUrn"
+} ]
+record ConsumeFrom includes BaseRelationship {
+
+  /**
+   * In which environment, the data is consumed from.
+   */
+  environment: enum EnvorinmentType {
+    OFFLINE
+
+    ONLINE
+
+    NEARLINE
+  }
+}
