@@ -67,4 +67,13 @@ public class GmaAnnotationParserTest {
         GmaEntitiesAnnotationAllowList.AnnotationNotAllowedException.class)
         .hasMessage("@gma.aspect.entities not allowed on com.linkedin.testing.CommonAspect");
   }
+
+  @Test
+  public void parseCommonAspectAllowedWithNullAllowList() {
+    final Optional<GmaAnnotation> gma = new GmaAnnotationParser(null).parse(
+        (RecordDataSchema) DataTemplateUtil.getSchema(CommonAspect.class));
+    assertThat(gma).contains(new GmaAnnotation().setAspect(new AspectAnnotation().setEntities(
+        new AspectEntityAnnotationArray(new AspectEntityAnnotation().setUrn("com.linkedin.testing.FooUrn"),
+            new AspectEntityAnnotation().setUrn("com.linkedin.testing.BarUrn")))));
+  }
 }
