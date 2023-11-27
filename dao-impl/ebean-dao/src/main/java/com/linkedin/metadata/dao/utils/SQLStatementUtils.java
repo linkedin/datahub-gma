@@ -249,6 +249,19 @@ public class SQLStatementUtils {
   }
 
   /**
+   * Create SQL statement to list urns in batch.
+   * @param tableName The table name
+   * @param start Start from which position
+   * @param size Size of batch.
+   * @param desc Whether sort in desc order.
+   * @return SQL statement to fetch urns in batch.
+   */
+  public static String createListUrnSql(@Nonnull String tableName, int start, int size, boolean desc) {
+    String sortOrder = desc ? "DESC" : "ASC";
+    return String.format("SELECT URN FROM %s ORDER BY URN %s LIMIT %s OFFSET %s", tableName, sortOrder, size, start);
+  }
+
+  /**
    * Create index group by SQL statement.
    * @param tableName table name
    * @param indexFilter index filter

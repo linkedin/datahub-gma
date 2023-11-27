@@ -88,6 +88,15 @@ public interface IEbeanLocalAccess<URN extends Urn> {
       @Nullable URN lastUrn, int pageSize);
 
   /**
+   * Returns list of urns from start with size equal to or smaller than pageSize, ordered by urn.
+   * @param start Starting position.
+   * @param pageSize Number of urns to fetch.
+   * @param desc Whether to sort urn by desc order.
+   * @return List of urns.
+   */
+  List<URN> listUrns(int start, int pageSize, boolean desc);
+
+  /**
    * Similar to {@link #listUrns(IndexFilter, IndexSortCriterion, Urn, int)} but returns a list result with pagination
    * information.
    *
@@ -96,7 +105,6 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    */
   ListResult<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       int start, int pageSize);
-
 
   /**
    * Returns a boolean representing if an Urn has any Aspects associated with it (i.e. if it exists in the DB).

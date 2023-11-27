@@ -222,6 +222,13 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   }
 
   @Override
+  public List<URN> listUrns(int start, int pageSize, boolean desc) {
+    String sqlQuery = SQLStatementUtils.createListUrnSql(getTableName(_entityType), start, pageSize, desc);
+    final List<SqlRow> sqlRows = _server.createSqlQuery(sqlQuery).findList();
+    return sqlRows.stream().map(sqlRow -> getUrn(sqlRow.getString("URN"), _urnClass)).collect(Collectors.toList());
+  }
+
+  @Override
   public ListResult<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       int start, int pageSize) {
     final SqlQuery sqlQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, null, start, pageSize);

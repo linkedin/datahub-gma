@@ -1428,6 +1428,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     return _localAccess.listUrns(indexFilter, indexSortCriterion, lastUrn, pageSize);
   }
 
+
+
   /**
    *  Similar to {@link #listUrns(IndexFilter, IndexSortCriterion, Urn, int)} but returns a list result with pagination
    *  information.
