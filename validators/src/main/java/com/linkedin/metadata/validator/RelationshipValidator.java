@@ -3,6 +3,7 @@ package com.linkedin.metadata.validator;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.DataList;
 import com.linkedin.data.DataMap;
+import com.linkedin.data.schema.DataSchema;
 import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.schema.UnionDataSchema;
 import com.linkedin.data.template.RecordTemplate;
@@ -11,6 +12,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+
 import javax.annotation.Nonnull;
 import lombok.Value;
 
@@ -54,7 +56,10 @@ public class RelationshipValidator {
           className);
     }
 
-    ValidationUtils.fieldsUsingInvalidType(schema, ValidationUtils.PRIMITIVE_TYPES).forEach(field -> {
+    final Set<DataSchema.Type> allowedRelationshipSchemaTypes = new HashSet<>(ValidationUtils.PRIMITIVE_TYPES);
+    allowedRelationshipSchemaTypes.add(DataSchema.Type.RECORD);
+
+    ValidationUtils.fieldsUsingInvalidType(schema, allowedRelationshipSchemaTypes).forEach(field -> {
       ValidationUtils.invalidSchema("Relationship '%s' contains a field '%s' that makes use of a disallowed type '%s'.",
           className, field.getName(), field.getType().getType());
     });
