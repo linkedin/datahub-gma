@@ -61,6 +61,7 @@ Below is an example of how a relationship is modeled in PDL. Note that:
 2. Each model is expected to have a `@pairings` annotation that is an array of all allowed source-destination URN pairs.
 3. Unlike entity attributes, there’s no requirement on making all relationship attributes optional since relationships
    do not support partial updates.
+4. Only primitive and RECORD field types are allowed.
 
 ```
 namespace com.linkedin.metadata.relationship

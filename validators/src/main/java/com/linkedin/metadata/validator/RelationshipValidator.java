@@ -56,6 +56,7 @@ public class RelationshipValidator {
           className);
     }
 
+    // META-19786 Add RECORD to allowlist to enable addition of AuditStamp to BaseRelationship
     final Set<DataSchema.Type> allowedRelationshipSchemaTypes = new HashSet<>(ValidationUtils.PRIMITIVE_TYPES);
     allowedRelationshipSchemaTypes.add(DataSchema.Type.RECORD);
 
