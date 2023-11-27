@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import org.rythmengine.Rythm;
 
 
@@ -31,7 +32,7 @@ public class SchemaGenerator {
    * @throws IOException exception on input error
    */
   public void generate(@Nonnull Collection<String> resolverPaths, @Nonnull Collection<String> sourcePaths,
-      @Nonnull String generatedFileOutput, @Nonnull GmaEntitiesAnnotationAllowList allowList) throws IOException {
+      @Nonnull String generatedFileOutput, @Nullable GmaEntitiesAnnotationAllowList allowList) throws IOException {
     generate(sourcePaths, generatedFileOutput,
         new SchemaAnnotationRetriever(resolverPaths.stream().collect(Collectors.joining(":")), allowList, null));
   }

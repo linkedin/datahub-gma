@@ -11,6 +11,7 @@ import com.linkedin.data.template.DataTemplateUtil;
 import java.util.Map;
 import java.util.Optional;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 
 public class GmaAnnotationParser {
@@ -18,7 +19,7 @@ public class GmaAnnotationParser {
 
   private final GmaEntitiesAnnotationAllowList _gmaEntitiesAnnotationAllowList;
 
-  public GmaAnnotationParser(@Nonnull GmaEntitiesAnnotationAllowList gmaEntitiesAnnotationAllowList) {
+  public GmaAnnotationParser(@Nullable GmaEntitiesAnnotationAllowList gmaEntitiesAnnotationAllowList) {
     _gmaEntitiesAnnotationAllowList = gmaEntitiesAnnotationAllowList;
   }
 
@@ -59,7 +60,7 @@ public class GmaAnnotationParser {
           Joiner.on('\n').join(result.getMessages())));
     }
 
-    if (gmaAnnotation.hasAspect() && gmaAnnotation.getAspect().hasEntities()) {
+    if (_gmaEntitiesAnnotationAllowList != null && gmaAnnotation.hasAspect() && gmaAnnotation.getAspect().hasEntities()) {
       _gmaEntitiesAnnotationAllowList.check(schema, gmaAnnotation.getAspect());
     }
 
