@@ -9,7 +9,7 @@ record ConsumeFrom includes BaseRelationship {
   /**
    * In which environment, the data is consumed from.
    */
-  environment: enum EnvorinmentTyep {
+  environment: enum EnvorinmentType {
     OFFLINE
 
     ONLINE

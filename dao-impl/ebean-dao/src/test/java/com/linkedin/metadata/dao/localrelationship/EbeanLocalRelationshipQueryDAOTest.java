@@ -30,7 +30,7 @@ import com.linkedin.testing.EntityAspectUnionArray;
 import com.linkedin.testing.FooSnapshot;
 import com.linkedin.testing.localrelationship.BelongsTo;
 import com.linkedin.testing.localrelationship.ConsumeFrom;
-import com.linkedin.testing.localrelationship.EnvorinmentTyep;
+import com.linkedin.testing.localrelationship.EnvorinmentType;
 import com.linkedin.testing.localrelationship.PairsWith;
 import com.linkedin.testing.localrelationship.ReportsTo;
 import com.linkedin.testing.urn.BarUrn;
@@ -191,15 +191,15 @@ public class EbeanLocalRelationshipQueryDAOTest {
     _barUrnEBeanLocalAccess.add(samza, new AspectFoo().setValue("Samza"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
 
     // Add Spark consume-from hdfs relationship
-    ConsumeFrom sparkConsumeFromHdfs = new ConsumeFrom().setSource(spark).setDestination(hdfs).setEnvironment(EnvorinmentTyep.OFFLINE);
+    ConsumeFrom sparkConsumeFromHdfs = new ConsumeFrom().setSource(spark).setDestination(hdfs).setEnvironment(EnvorinmentType.OFFLINE);
     _localRelationshipWriterDAO.addRelationship(sparkConsumeFromHdfs);
 
     // Add Samza consume-from kafka relationship
-    ConsumeFrom samzaConsumeFromKafka = new ConsumeFrom().setSource(samza).setDestination(kafka).setEnvironment(EnvorinmentTyep.NEARLINE);
+    ConsumeFrom samzaConsumeFromKafka = new ConsumeFrom().setSource(samza).setDestination(kafka).setEnvironment(EnvorinmentType.NEARLINE);
     _localRelationshipWriterDAO.addRelationship(samzaConsumeFromKafka);
 
     // Add Samza consume-from restli relationship
-    ConsumeFrom samzaConsumeFromRestli = new ConsumeFrom().setSource(samza).setDestination(restli).setEnvironment(EnvorinmentTyep.ONLINE);
+    ConsumeFrom samzaConsumeFromRestli = new ConsumeFrom().setSource(samza).setDestination(restli).setEnvironment(EnvorinmentType.ONLINE);
     _localRelationshipWriterDAO.addRelationship(samzaConsumeFromRestli);
 
     // Find all consume-from relationship for Samza.
