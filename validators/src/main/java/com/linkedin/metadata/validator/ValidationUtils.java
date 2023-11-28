@@ -1,5 +1,6 @@
 package com.linkedin.metadata.validator;
 
+import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.DataMap;
 import com.linkedin.data.schema.ArrayDataSchema;
@@ -161,6 +162,16 @@ public final class ValidationUtils {
         .collect(Collectors.toList());
   }
 
+  /**
+   * Return true if the field is an AuditStamp of type RECORD.
+   *   META-19786 Add AuditStamp to allowlist to enable addition to BaseRelationship
+   */
+  @Nonnull
+  public static boolean isValidAuditStamp(@Nonnull RecordDataSchema.Field field) {
+    return field.getType().getUnionMemberKey().equals(AuditStamp.class.getCanonicalName())
+        && getFieldOrArrayItemType(field) == DataSchema.Type.RECORD;
+  }
+
   public static boolean isUnionWithOnlyComplexMembers(UnionDataSchema unionDataSchema) {
     return unionDataSchema.getMembers().stream().allMatch(member -> member.getType().isComplex());
   }
@@ -197,4 +208,6 @@ public final class ValidationUtils {
     }
     return type.getType();
   }
+
+
 }

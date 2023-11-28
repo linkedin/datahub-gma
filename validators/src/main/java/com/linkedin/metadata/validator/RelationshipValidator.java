@@ -3,11 +3,11 @@ package com.linkedin.metadata.validator;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.DataList;
 import com.linkedin.data.DataMap;
-import com.linkedin.data.schema.DataSchema;
 import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.schema.UnionDataSchema;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.UnionTemplate;
+
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -56,11 +56,11 @@ public class RelationshipValidator {
           className);
     }
 
-    // META-19786 Add RECORD to allowlist to enable addition of AuditStamp to BaseRelationship
-    final Set<DataSchema.Type> allowedRelationshipSchemaTypes = new HashSet<>(ValidationUtils.PRIMITIVE_TYPES);
-    allowedRelationshipSchemaTypes.add(DataSchema.Type.RECORD);
-
-    ValidationUtils.fieldsUsingInvalidType(schema, allowedRelationshipSchemaTypes).forEach(field -> {
+    ValidationUtils.fieldsUsingInvalidType(schema, ValidationUtils.PRIMITIVE_TYPES).forEach(field -> {
+      // META-19786 Add RECORD to allowlist to enable addition of AuditStamp to BaseRelationship
+      if (ValidationUtils.isValidAuditStamp(field)) {
+        return;
+      }
       ValidationUtils.invalidSchema("Relationship '%s' contains a field '%s' that makes use of a disallowed type '%s'.",
           className, field.getName(), field.getType().getType());
     });
