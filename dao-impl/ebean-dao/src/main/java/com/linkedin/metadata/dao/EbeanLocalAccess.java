@@ -214,20 +214,20 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   }
 
   @Override
-  public List<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
+  public List<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       @Nullable URN lastUrn, int pageSize) {
-    SqlQuery sqlQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, lastUrn, 0, pageSize);
+    SqlQuery sqlQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, lastUrn, pageSize);
     final List<SqlRow> sqlRows = sqlQuery.setFirstRow(0).findList();
     return sqlRows.stream().map(sqlRow -> getUrn(sqlRow.getString("urn"), _urnClass)).collect(Collectors.toList());
   }
 
   @Override
-  public ListResult<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
+  public ListResult<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       int start, int pageSize) {
-    final SqlQuery sqlQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, null, start, pageSize);
+    final SqlQuery sqlQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, start, pageSize);
     final List<SqlRow> sqlRows = sqlQuery.findList();
     if (sqlRows.size() == 0) {
-      final List<SqlRow> totalCountResults = createFilterSqlQuery(indexFilter, indexSortCriterion, null, 0, DEFAULT_PAGE_SIZE).findList();
+      final List<SqlRow> totalCountResults = createFilterSqlQuery(indexFilter, indexSortCriterion, 0, DEFAULT_PAGE_SIZE).findList();
       final int actualTotalCount = totalCountResults.isEmpty() ? 0 : totalCountResults.get(0).getInteger("_total_count");
       return toListResult(actualTotalCount, start, pageSize);
     }
@@ -353,33 +353,17 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   }
 
   /**
-   * Produce {@link SqlQuery} for list urn by offset (start) and by lastUrn.
+   * Produce {@link SqlQuery} for list urn by offset (start) and limit (pageSize).
    * @param indexFilter index filter conditions
    * @param indexSortCriterion sorting criterion, default ACS
-   * @param lastUrn last urn of the previous fetched page. For the first page, this should be set as NULL
    * @return SqlQuery a SQL query which can be executed by ebean server.
    */
-  private SqlQuery createFilterSqlQuery(@Nonnull IndexFilter indexFilter,
-      @Nullable IndexSortCriterion indexSortCriterion, @Nullable URN lastUrn, int offset, int pageSize) {
-    if (indexFilter.hasCriteria() && indexFilter.getCriteria().isEmpty()) {
-      throw new UnsupportedOperationException("Empty Index Filter is not supported by EbeanLocalDAO");
-    }
+  private SqlQuery createFilterSqlQuery(@Nullable IndexFilter indexFilter,
+      @Nullable IndexSortCriterion indexSortCriterion, int offset, int pageSize) {
 
     final String tableName = SQLSchemaUtils.getTableName(_entityType);
     StringBuilder filterSql = new StringBuilder();
-    filterSql.append(SQLStatementUtils.createFilterSql(tableName, indexFilter));
-
-    // append last urn where condition
-    if (lastUrn != null) {
-      // because createFilterSql will only include a WHERE clause if there are non-urn filters, we need to make sure
-      // that we add a WHERE if it wasn't added already.
-      final boolean filterOnlyOnUrns = indexFilter.getCriteria().stream().allMatch(criteria -> isUrn(criteria.getAspect()));
-      filterSql.append(filterOnlyOnUrns ? " WHERE " : " AND ");
-      filterSql.append("urn > '");
-      filterSql.append(lastUrn);
-      filterSql.append("'");
-    }
-
+    filterSql.append(SQLStatementUtils.createFilterSql(tableName, indexFilter, true));
     filterSql.append("\n");
     filterSql.append(parseSortCriteria(indexSortCriterion));
     filterSql.append(String.format(" LIMIT %d", Math.max(pageSize, 0)));
@@ -387,6 +371,34 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     return _server.createSqlQuery(filterSql.toString());
   }
 
+  /**
+   * Produce {@link SqlQuery} for list urns by last urn.
+   */
+  private SqlQuery createFilterSqlQuery(@Nullable IndexFilter indexFilter,
+      @Nullable IndexSortCriterion indexSortCriterion, @Nullable URN lastUrn, int pageSize) {
+    StringBuilder filterSql = new StringBuilder();
+    final String tableName = SQLSchemaUtils.getTableName(_entityType);
+    filterSql.append(SQLStatementUtils.createFilterSql(tableName, indexFilter, false));
+
+    if (lastUrn != null) {
+      // because createFilterSql will only include a WHERE clause if there are non-urn filters, we need to make sure
+      // that we add a WHERE if it wasn't added already.
+      String operator = "AND";
+
+      if (indexFilter == null
+          || !indexFilter.hasCriteria()
+          || indexFilter.getCriteria().stream().allMatch(criteria -> isUrn(criteria.getAspect()))) {
+        operator = "WHERE";
+      }
+
+      filterSql.append(String.format(" %s URN > '%s'", operator, lastUrn));
+    }
+
+    filterSql.append("\n");
+    filterSql.append(parseSortCriteria(indexSortCriterion));
+    filterSql.append(String.format(" LIMIT %d", Math.max(pageSize, 0)));
+    return _server.createSqlQuery(filterSql.toString());
+  }
 
   /**
    * Convert sqlRows into {@link ListResult}. This version of toListResult is used when the original SQL query

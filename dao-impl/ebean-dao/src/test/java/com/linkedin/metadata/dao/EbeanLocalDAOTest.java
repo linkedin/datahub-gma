@@ -1652,17 +1652,13 @@ public class EbeanLocalDAOTest {
     IndexCriterion indexCriterion = new IndexCriterion().setAspect(aspect);
     final IndexFilter indexFilter1 = new IndexFilter().setCriteria(new IndexCriterionArray(indexCriterion));
 
-    // 1. index criterion array is empty, should throw exception
-    final IndexFilter indexFilter2 = new IndexFilter().setCriteria(new IndexCriterionArray());
-    assertThrows(UnsupportedOperationException.class, () -> dao.listUrns(indexFilter2, null, 2));
-
-    // 2. only aspect and not path or value is provided in Index Filter
+    // 1. only aspect and not path or value is provided in Index Filter
     indexCriterion = new IndexCriterion().setAspect(aspect);
     final IndexFilter indexFilter4 = new IndexFilter().setCriteria(new IndexCriterionArray(indexCriterion));
     List<FooUrn> urns = dao.listUrns(indexFilter4, null, 2);
     assertEquals(urns, Arrays.asList(urn1, urn2));
 
-    // 3. aspect with path and value is provided in index filter
+    // 2. aspect with path and value is provided in index filter
     IndexValue indexValue = new IndexValue();
     indexValue.setString("val1");
     IndexPathParams indexPathParams = new IndexPathParams().setPath("/path1").setValue(indexValue);
@@ -1671,7 +1667,7 @@ public class EbeanLocalDAOTest {
     urns = dao.listUrns(indexFilter5, urn1, 2);
     assertEquals(urns, Arrays.asList(urn2, urn3));
 
-    // 4. aspect with correct path but incorrect value
+    // 3. aspect with correct path but incorrect value
     indexValue.setString("valX");
     indexPathParams = new IndexPathParams().setPath("/path1").setValue(indexValue);
     indexCriterion = new IndexCriterion().setAspect(aspect).setPathParams(indexPathParams);

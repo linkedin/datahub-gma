@@ -433,19 +433,6 @@ public abstract class BaseEntityResource<
   }
 
   /**
-   * For strongly consistent local secondary index, this provides {@link IndexFilter} which uses FQCN of the entity urn to filter
-   * on the aspect field of the index table. This serves the purpose of returning urns that are of given entity type from index table.
-   */
-  @Nonnull
-  private IndexFilter getDefaultIndexFilter() {
-    if (_urnClass == null) {
-      throw new UnsupportedOperationException("Urn class has not been defined in BaseEntityResource");
-    }
-    final IndexCriterion indexCriterion = new IndexCriterion().setAspect(_urnClass.getCanonicalName());
-    return new IndexFilter().setCriteria(new IndexCriterionArray(indexCriterion));
-  }
-
-  /**
    * An action method for getting filtered urns from local secondary index.
    * If no filter conditions are provided, then it returns urns of given entity type.
    *
@@ -461,11 +448,9 @@ public abstract class BaseEntityResource<
   public Task<String[]> listUrnsFromIndex(@ActionParam(PARAM_FILTER) @Optional @Nullable IndexFilter indexFilter,
       @ActionParam(PARAM_URN) @Optional @Nullable String lastUrn, @ActionParam(PARAM_LIMIT) int limit) {
 
-    final IndexFilter filter = indexFilter == null ? getDefaultIndexFilter() : indexFilter;
-
     return RestliUtils.toTask(() ->
         getLocalDAO()
-            .listUrns(filter, parseUrnParam(lastUrn), limit)
+            .listUrns(indexFilter, parseUrnParam(lastUrn), limit)
             .stream()
             .map(Urn::toString)
             .collect(Collectors.toList())

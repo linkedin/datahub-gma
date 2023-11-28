@@ -236,13 +236,20 @@ public class SQLStatementUtils {
    * Create filter SQL statement.
    * @param tableName table name
    * @param indexFilter index filter
+   * @param hasTotalCount whether to calculate total count in SQL.
    * @return translated SQL where statement
    */
-  public static String createFilterSql(String tableName, @Nonnull IndexFilter indexFilter) {
+  public static String createFilterSql(String tableName, @Nullable IndexFilter indexFilter, boolean hasTotalCount) {
     String whereClause = parseIndexFilter(indexFilter);
     String totalCountSql = String.format("SELECT COUNT(urn) FROM %s %s", tableName, whereClause);
     StringBuilder sb = new StringBuilder();
-    sb.append(String.format(SQL_FILTER_TEMPLATE, totalCountSql, tableName));
+
+    if (hasTotalCount) {
+      sb.append(String.format(SQL_FILTER_TEMPLATE, totalCountSql, tableName));
+    } else {
+      sb.append("SELECT * FROM ").append(tableName);
+    }
+
     sb.append("\n");
     sb.append(whereClause);
     return sb.toString();
