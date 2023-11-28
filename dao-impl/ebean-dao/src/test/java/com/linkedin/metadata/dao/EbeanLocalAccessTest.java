@@ -155,6 +155,27 @@ public class EbeanLocalAccessTest {
   }
 
   @Test
+  public void testListUrnsWithStartAndLimit() {
+    List<FooUrn> result1 = _ebeanLocalAccessFoo.listUrns(0, 10, false);
+    assertEquals(result1.size(), 10);
+    assertEquals(result1.get(0).getId(), "0");
+    // 0, 1, 10, 11, 12, 13, 14, 15, 16, 17
+    assertEquals(result1.get(9).getId(), "17");
+
+    List<FooUrn> result2 = _ebeanLocalAccessFoo.listUrns(10, 10, false);
+    assertEquals(result2.size(), 10);
+    assertEquals(result2.get(0).getId(), "18");
+    // 18, 19, 2, 20, 21, 22, 23, 24, 25, 26
+    assertEquals(result2.get(9).getId(), "26");
+
+    List<FooUrn> result3 = _ebeanLocalAccessFoo.listUrns(100000, 10, false);
+    assertEquals(result3.size(), 0);
+
+    List<FooUrn> result4 = _ebeanLocalAccessFoo.listUrns(95, 10, false);
+    assertEquals(result4.size(), 5);
+  }
+
+  @Test
   public void testListUrnsWithLastUrn() throws URISyntaxException {
 
     // Given: metadata_entity_foo table with fooUrns from 0 ~ 99

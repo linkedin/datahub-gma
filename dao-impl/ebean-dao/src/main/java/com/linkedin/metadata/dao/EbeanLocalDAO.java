@@ -1429,6 +1429,22 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
 
+  /**
+   * Returns list of urns from start with size equal to or smaller than pageSize, ordered by urn.
+   * @param start Starting position.
+   * @param pageSize Number of urns to fetch.
+   * @param desc Whether to sort urn by desc order.
+   * @return List of urns.
+   */
+  @Nonnull
+  public List<URN> listUrns(int start, int pageSize, boolean desc) {
+
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      throw new UnsupportedOperationException("listUrns(start, pageSize, desc) is only supported in new schema.");
+    }
+
+    return _localAccess.listUrns(start, pageSize, desc);
+  }
 
   /**
    *  Similar to {@link #listUrns(IndexFilter, IndexSortCriterion, Urn, int)} but returns a list result with pagination

@@ -472,6 +472,17 @@ public abstract class BaseEntityResource<
             .toArray(new String[0]));
   }
 
+  @Action(name = ACTION_LIST_URNS)
+  @Nonnull
+  public Task<String[]> listUrns(@ActionParam(PARAM_START) int start, @ActionParam(PARAM_LIMIT) int limit,
+      @ActionParam(PARAM_DESC) boolean isDesc) {
+    return RestliUtils.toTask(() ->
+        getLocalDAO().listUrns(start, limit, isDesc).stream()
+            .map(Urn::toString)
+            .collect(Collectors.toList())
+            .toArray(new String[0]));
+  }
+
   /**
    * Returns a list of values of multiple entities from urn aspect entries.
    *

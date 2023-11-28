@@ -23,6 +23,8 @@ public final class RestliConstants {
   public static final String ACTION_INGEST_WITH_TRACKING = "ingestWithTracking";
   public static final String ACTION_LIST_URNS_FROM_INDEX = "listUrnsFromIndex";
 
+  public static final String ACTION_LIST_URNS = "listUrns";
+
   public static final String PARAM_INPUT = "input";
   public static final String PARAM_ASPECTS = "aspects";
   public static final String PARAM_FILTER = "filter";
@@ -38,6 +40,7 @@ public final class RestliConstants {
   public static final String PARAM_URN = "urn";
   public static final String PARAM_URNS = "urns";
   public static final String PARAM_MODE = "mode";
+  public static final String PARAM_DESC = "isDesc";
   public static final String PARAM_INGESTION_MODE = "ingestionMode";
   public static final String PARAM_TRACKING_CONTEXT = "trackingContext";
 }

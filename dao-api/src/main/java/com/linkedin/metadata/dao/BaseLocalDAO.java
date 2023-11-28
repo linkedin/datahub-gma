@@ -816,6 +816,16 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nullable URN lastUrn, int pageSize);
 
   /**
+   * Returns list of urns from start with size equal to or smaller than pageSize, ordered by urn.
+   * @param start Starting position.
+   * @param pageSize Number of urns to fetch.
+   * @param desc Whether to sort urn by desc order.
+   * @return List of urns.
+   */
+  @Nonnull
+  public abstract List<URN> listUrns(int start, int pageSize, boolean desc);
+
+  /**
    * Similar to {@link #listUrns(IndexFilter, IndexSortCriterion, Urn, int)} but sorts lexicographically by the URN.
    */
   @Nonnull
