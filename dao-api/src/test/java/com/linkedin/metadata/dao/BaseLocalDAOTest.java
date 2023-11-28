@@ -56,14 +56,14 @@ public class BaseLocalDAOTest {
 
     public DummyLocalDAO(BiFunction<FooUrn, Class<? extends RecordTemplate>, AspectEntry> getLatestFunction,
         BaseMetadataEventProducer eventProducer, DummyTransactionRunner transactionRunner) {
-      super(EntityAspectUnion.class, eventProducer);
+      super(EntityAspectUnion.class, eventProducer, FooUrn.class);
       _getLatestFunction = getLatestFunction;
       _transactionRunner = transactionRunner;
     }
 
     public DummyLocalDAO(BiFunction<FooUrn, Class<? extends RecordTemplate>, AspectEntry> getLatestFunction,
         BaseTrackingMetadataEventProducer eventProducer, BaseTrackingManager trackingManager, DummyTransactionRunner transactionRunner) {
-      super(EntityAspectUnion.class, eventProducer, trackingManager);
+      super(EntityAspectUnion.class, eventProducer, trackingManager, FooUrn.class);
       _getLatestFunction = getLatestFunction;
       _transactionRunner = transactionRunner;
     }
