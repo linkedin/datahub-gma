@@ -262,7 +262,7 @@ public class SQLStatementUtils {
    * @param indexGroupByCriterion group by
    * @return translated group by SQL
    */
-  public static String createGroupBySql(String tableName, @Nonnull IndexFilter indexFilter,
+  public static String createGroupBySql(String tableName, @Nullable IndexFilter indexFilter,
       @Nonnull IndexGroupByCriterion indexGroupByCriterion) {
     final String columnName = getGeneratedColumnName(indexGroupByCriterion.getAspect(), indexGroupByCriterion.getPath());
     StringBuilder sb = new StringBuilder();

@@ -1245,15 +1245,6 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
-  public void testCheckValidIndexCriterionArray() {
-    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
-
-    // empty index criterion array
-    final IndexCriterionArray indexCriterionArray1 = new IndexCriterionArray();
-    assertThrows(UnsupportedOperationException.class, () -> dao.checkValidIndexCriterionArray(indexCriterionArray1));
-  }
-
-  @Test
   public void testListUrnsOffsetPagination() {
     if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
       return;

@@ -812,14 +812,14 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @return List of urns from local secondary index that satisfy the given filter conditions
    */
   @Nonnull
-  public abstract List<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
+  public abstract List<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       @Nullable URN lastUrn, int pageSize);
 
   /**
    * Similar to {@link #listUrns(IndexFilter, IndexSortCriterion, Urn, int)} but sorts lexicographically by the URN.
    */
   @Nonnull
-  public List<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable URN lastUrn, int pageSize) {
+  public List<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable URN lastUrn, int pageSize) {
     return listUrns(indexFilter, null, lastUrn, pageSize);
   }
 
@@ -831,7 +831,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @return a {@link ListResult} containing a list of urns and other pagination information
    */
   @Nonnull
-  public abstract <ASPECT extends RecordTemplate> ListResult<URN> listUrns(@Nonnull IndexFilter indexFilter,
+  public abstract <ASPECT extends RecordTemplate> ListResult<URN> listUrns(@Nullable IndexFilter indexFilter,
       @Nullable IndexSortCriterion indexSortCriterion, int start, int pageSize);
 
   /**
@@ -892,7 +892,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    */
   @Nonnull
   public List<UrnAspectEntry<URN>> getAspects(@Nonnull Set<Class<? extends RecordTemplate>> aspectClasses,
-      @Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion, @Nullable URN lastUrn,
+      @Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion, @Nullable URN lastUrn,
       int pageSize) {
 
     final List<URN> urns = listUrns(indexFilter, indexSortCriterion, lastUrn, pageSize);
@@ -920,7 +920,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    */
   @Nonnull
   public ListResult<UrnAspectEntry<URN>> getAspects(@Nonnull Set<Class<? extends RecordTemplate>> aspectClasses,
-      @Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion, int start, int pageSize) {
+      @Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion, int start, int pageSize) {
 
     final ListResult<URN> listResult = listUrns(indexFilter, indexSortCriterion, start, pageSize);
     final List<URN> urns = listResult.getValues();
@@ -1232,7 +1232,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @return map of the field to the count
    */
   @Nonnull
-  public abstract Map<String, Long> countAggregate(@Nonnull IndexFilter indexFilter,
+  public abstract Map<String, Long> countAggregate(@Nullable IndexFilter indexFilter,
       @Nonnull IndexGroupByCriterion indexGroupByCriterion);
 
   /**

@@ -111,7 +111,7 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * @return map of the field to the count
    */
   @Nonnull
-  Map<String, Long> countAggregate(@Nonnull IndexFilter indexFilter,
+  Map<String, Long> countAggregate(@Nullable IndexFilter indexFilter,
       @Nonnull IndexGroupByCriterion indexGroupByCriterion);
 
   /**
