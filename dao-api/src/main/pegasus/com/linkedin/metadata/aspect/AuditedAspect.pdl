@@ -28,4 +28,11 @@ record AuditedAspect {
    * Audit information to track who this aspect was created for.
    */
   createdfor: optional string
+
+  /**
+   * The emit time of the MCE that last modified this aspect.
+   * This is the same emitTime set in IngestionTrackingContext
+   * If an aspect is added / modified without providing an IngestionTrackingContext, this will be null.
+   */
+   emitTime: optional long
 }

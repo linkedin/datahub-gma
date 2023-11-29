@@ -31,5 +31,12 @@ record ListResultMetadata {
        * The audit trail associated with the version
        */
       audit: AuditStamp
+
+      /**
+       * The emit time of the MCE that last modified this aspect.
+       * This is the same emitTime set in IngestionTrackingContext
+       * If an aspect is added / modified without providing an IngestionTrackingContext, this will be null.
+       */
+       emitTime: optional long
     }]
 }
