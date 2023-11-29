@@ -1125,8 +1125,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * Type agnostic method to backfill MAEs given aspects and urns. Only registered and present aspects in database table
-   * will be backfilled. Invalid aspects input will cause exception.
+   * Entity agnostic method to backfill MAEs given aspects and urns. Only registered and present aspects in database table
+   * will be backfilled. Invalid aspects and urns will cause exception.
    *
    * @param mode backfill mode to scope the backfill process
    * @param aspects set of aspects to backfill

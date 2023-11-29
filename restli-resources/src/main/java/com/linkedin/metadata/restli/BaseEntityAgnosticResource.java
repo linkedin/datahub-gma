@@ -19,7 +19,7 @@ import static com.linkedin.metadata.restli.RestliConstants.*;
 
 
 /**
- * An base restli resource class with operations that are not tied to a specific entity.
+ * A base restli resource class with operations that are not tied to a specific entity.
  */
 public abstract class BaseEntityAgnosticResource {
 
@@ -61,6 +61,9 @@ public abstract class BaseEntityAgnosticResource {
     return dao.backfillMAE(backfillMode, aspects, urns);
   }
 
+  /**
+   * Helper method to get the {@link BaseLocalDAO} from class {@link LocalDaoRegistry} for the given entity type.
+   */
   protected BaseLocalDAO<? extends UnionTemplate, ? extends Urn> getLocalDaoByEntity(String entity)
       throws RestLiResponseException {
     LocalDaoRegistry localDaoRegistry = getLocalDaoRegistry();

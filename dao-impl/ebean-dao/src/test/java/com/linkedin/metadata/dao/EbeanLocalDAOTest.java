@@ -1313,7 +1313,7 @@ public class EbeanLocalDAOTest {
     FooUrn urn1 = makeFooUrn(1);
     FooUrn urn2 = makeFooUrn(2);
     FooUrn urn3 = makeFooUrn(3);
-    String aspect = getAspectName(AspectFoo.class);
+    String aspect = ModelUtils.getAspectName(AspectFoo.class);
 
     addIndex(urn1, aspect, "/path1", "foo");
     addIndex(urn1, FooUrn.class.getCanonicalName(), "/fooId", 1);
@@ -1757,7 +1757,7 @@ public class EbeanLocalDAOTest {
     FooUrn urn1 = makeFooUrn(1);
     FooUrn urn2 = makeFooUrn(2);
     FooUrn urn3 = makeFooUrn(3);
-    String aspect = getAspectName(AspectFoo.class);
+    String aspect = ModelUtils.getAspectName(AspectFoo.class);
 
     addIndex(urn1, aspect, "/path1", "val1");
     addIndex(urn1, aspect, "/path2", "val2");
@@ -1808,7 +1808,7 @@ public class EbeanLocalDAOTest {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     FooUrn urn1 = makeFooUrn(1);
     FooUrn urn2 = makeFooUrn(2);
-    String aspect = getAspectName(AspectFoo.class);
+    String aspect = ModelUtils.getAspectName(AspectFoo.class);
 
     addIndex(urn1, aspect, "/path1", "val1");
     addIndex(urn1, aspect, "/path2", "val2");
@@ -2062,7 +2062,7 @@ public class EbeanLocalDAOTest {
   public void testGetSoftDeletedAspect() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     FooUrn urn = makeFooUrn(1);
-    String aspectName = getAspectName(AspectFoo.class);
+    String aspectName = ModelUtils.getAspectName(AspectFoo.class);
     AspectFoo v1 = new AspectFoo().setValue("foo");
     AspectFoo v0 = new AspectFoo().setValue("bar");
 
@@ -2100,7 +2100,7 @@ public class EbeanLocalDAOTest {
   public void testSoftDeletedAspectWithNoExistingMetadata() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     FooUrn urn = makeFooUrn(1);
-    String aspectName = getAspectName(AspectFoo.class);
+    String aspectName = ModelUtils.getAspectName(AspectFoo.class);
 
     // no metadata already exists
     dao.delete(urn, AspectFoo.class, _dummyAuditStamp);
@@ -2234,7 +2234,7 @@ public class EbeanLocalDAOTest {
   public void testUndeleteSoftDeletedAspect() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     FooUrn urn = makeFooUrn(1);
-    String aspectName = getAspectName(AspectFoo.class);
+    String aspectName = ModelUtils.getAspectName(AspectFoo.class);
     AspectFoo v1 = new AspectFoo().setValue("foo");
     AspectFoo v0 = new AspectFoo().setValue("bar");
 

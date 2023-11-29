@@ -10,12 +10,13 @@ import javax.annotation.Nullable;
 
 
 /**
- * A immutable class to store and access the mapping from the entity type string to the entity's LocalDao.
+ * An immutable class to store and access the mapping from the entity type string to the entity's LocalDao.
  */
 public class LocalDaoRegistry {
 
   /**
-   * Map where key is the string of an entity type, and value is the {@link BaseLocalDAO} registered on that entity.
+   * Map where key is the string of an entity type defined in Urn class, and value is the {@link BaseLocalDAO}
+   * registered on that entity.
    */
   private final Map<String, BaseLocalDAO<? extends UnionTemplate, ? extends Urn>> entityToLocalDaoMap;
 
@@ -32,11 +33,11 @@ public class LocalDaoRegistry {
    */
   public LocalDaoRegistry(@Nonnull Map<String, BaseLocalDAO<? extends UnionTemplate, ? extends Urn>> entityToLocalDaoMap) {
     entityToLocalDaoMap.forEach((key, value) -> {
-      Class<?> urnClass = value.getUrnClass();
+      Class<? extends Urn> urnClass = value.getUrnClass();
       if (urnClass == null) {
         throw new IllegalStateException("urnClass is null for localDao: " + value.getClass().getName());
       }
-      String expectedEntityType = ModelUtils.getEntityTypeFromUrnClass(value.getUrnClass());
+      String expectedEntityType = ModelUtils.getEntityTypeFromUrnClass(urnClass);
       if (!key.equals(expectedEntityType)) {
         throw new IllegalArgumentException(
             String.format("provided entity type: %s is not the same as defined in localDao: %s", key, expectedEntityType));
