@@ -33,6 +33,10 @@ record AuditedAspect {
    * The emit time of the MCE that last modified this aspect.
    * This is the same emitTime set in IngestionTrackingContext
    * If an aspect is added / modified without providing an IngestionTrackingContext, this will be null.
+   *
+   * This value is different from lastmodifiedon / the timestamp in AuditStamp since auditStamp
+   * is created when the restli resource receives the ingestion request.
+   * This is set by the MCE producers (or MCE consumers if not set by producers)
    */
    emitTime: optional long
 }
