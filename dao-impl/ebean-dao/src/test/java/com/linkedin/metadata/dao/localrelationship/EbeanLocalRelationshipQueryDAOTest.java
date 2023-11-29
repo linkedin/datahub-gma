@@ -12,6 +12,7 @@ import com.linkedin.metadata.dao.EbeanLocalRelationshipQueryDAO;
 import com.linkedin.metadata.dao.EbeanLocalRelationshipWriterDAO;
 import com.linkedin.metadata.dao.IEbeanLocalAccess;
 import com.linkedin.metadata.dao.scsi.EmptyPathExtractor;
+import com.linkedin.metadata.dao.utils.EBeanDAOUtils;
 import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
 import com.linkedin.metadata.query.AspectField;
 import com.linkedin.metadata.query.Condition;
@@ -82,9 +83,8 @@ public class EbeanLocalRelationshipQueryDAOTest {
     _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
 
     // Prepare filter
-    LocalRelationshipCriterion filterCriterion = buildRelationshipFieldCriterion(LocalRelationshipValue.create("foo"),
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("foo"),
         Condition.EQUAL,
-        FieldType.ASPECT,
         new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
 
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
@@ -102,9 +102,8 @@ public class EbeanLocalRelationshipQueryDAOTest {
     _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectBar().setValue("bar"), AspectBar.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
 
     // Prepare filter
-    LocalRelationshipCriterion filterCriterion = buildRelationshipFieldCriterion(LocalRelationshipValue.create("foo"),
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("foo"),
         Condition.EQUAL,
-        FieldType.ASPECT,
         new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
 
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
@@ -143,9 +142,8 @@ public class EbeanLocalRelationshipQueryDAOTest {
     _localRelationshipWriterDAO.addRelationship(jackReportsToAlice);
 
     // Find all reports-to relationship for Alice.
-    LocalRelationshipCriterion filterCriterion = buildRelationshipFieldCriterion(LocalRelationshipValue.create("Alice"),
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Alice"),
         Condition.EQUAL,
-        FieldType.ASPECT,
         new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
 
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
@@ -191,10 +189,9 @@ public class EbeanLocalRelationshipQueryDAOTest {
     _localRelationshipWriterDAO.addRelationship(samzaConsumeFromRestli);
 
     // Find all consume-from relationship for Samza.
-    LocalRelationshipCriterion filterUrnCriterion = buildRelationshipFieldCriterion(
+    LocalRelationshipCriterion filterUrnCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(
         LocalRelationshipValue.create("urn:li:bar:2"), // 2 is Samza as defined at very beginning.
         Condition.EQUAL,
-        FieldType.URN,
         new UrnField());
 
     LocalRelationshipFilter filterUrn = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterUrnCriterion));
@@ -211,9 +208,8 @@ public class EbeanLocalRelationshipQueryDAOTest {
     assertEquals(consumeFromSamza.size(), 2); // Because Samza consume from 1. kafka and 2. restli
 
     // Find all consume-from relationship for Samza which happens in NEARLINE.
-    LocalRelationshipCriterion filterRelationshipCriterion = buildRelationshipFieldCriterion(LocalRelationshipValue.create("NEARLINE"),
+    LocalRelationshipCriterion filterRelationshipCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("NEARLINE"),
         Condition.EQUAL,
-        FieldType.RELATIONSHIP,
         new RelationshipField().setPath("/environment"));
 
     LocalRelationshipFilter filterRelationship = new LocalRelationshipFilter().setCriteria(
@@ -252,9 +248,8 @@ public class EbeanLocalRelationshipQueryDAOTest {
     _localRelationshipWriterDAO.addRelationship(jackReportsToAlice);
 
     // Find all Alice's direct reports.
-    LocalRelationshipCriterion filterCriterion = buildRelationshipFieldCriterion(LocalRelationshipValue.create("Alice"),
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Alice"),
         Condition.EQUAL,
-        FieldType.ASPECT,
         new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
 
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
@@ -306,9 +301,8 @@ public class EbeanLocalRelationshipQueryDAOTest {
     _localRelationshipWriterDAO.addRelationship(bobBelongsToStandford);
 
     // Alice filter
-    LocalRelationshipCriterion filterCriterion = buildRelationshipFieldCriterion(LocalRelationshipValue.create("Alice"),
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Alice"),
         Condition.EQUAL,
-        FieldType.ASPECT,
         new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
 
     LocalRelationshipFilter aliceFilter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
@@ -374,17 +368,15 @@ public class EbeanLocalRelationshipQueryDAOTest {
     _localRelationshipWriterDAO.addRelationship(alicePairsWithJohn);
 
     // Alice filter
-    LocalRelationshipCriterion filterCriterion = buildRelationshipFieldCriterion(LocalRelationshipValue.create("Alice"),
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Alice"),
         Condition.EQUAL,
-        FieldType.ASPECT,
         new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
 
     LocalRelationshipFilter aliceFilter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
 
     // Age filter
-    LocalRelationshipCriterion filterCriterion2 = buildRelationshipFieldCriterion(LocalRelationshipValue.create("30"),
+    LocalRelationshipCriterion filterCriterion2 = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("30"),
         Condition.GREATER_THAN,
-        FieldType.ASPECT,
         new AspectField().setAspect(AspectBar.class.getCanonicalName()).setPath("/value"));
 
     LocalRelationshipFilter ageFilter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion2));
@@ -419,9 +411,8 @@ public class EbeanLocalRelationshipQueryDAOTest {
     _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
 
     // Prepare filter
-    LocalRelationshipCriterion filterCriterion = buildRelationshipFieldCriterion(LocalRelationshipValue.create(new StringArray("foo")),
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create(new StringArray("foo")),
         Condition.IN,
-        FieldType.ASPECT,
         new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
 
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
@@ -438,9 +429,8 @@ public class EbeanLocalRelationshipQueryDAOTest {
     _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
 
     // Prepare filter
-    LocalRelationshipCriterion filterCriterion = buildRelationshipFieldCriterion(LocalRelationshipValue.create(new StringArray("bar")),
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create(new StringArray("bar")),
         Condition.IN,
-        FieldType.ASPECT,
         new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
 
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
@@ -463,34 +453,5 @@ public class EbeanLocalRelationshipQueryDAOTest {
       assertTrue(ex instanceof IllegalArgumentException);
       assertEquals(ex.getMessage(), "Relationship direction cannot be null or UNKNOWN.");
     }
-  }
-
-  private enum FieldType {
-    ASPECT,
-    URN,
-    RELATIONSHIP
-  }
-
-  private LocalRelationshipCriterion buildRelationshipFieldCriterion(LocalRelationshipValue localRelationshipValue,
-      Condition condition, FieldType fieldType, RecordTemplate typedField) {
-    LocalRelationshipCriterion.Field field = new LocalRelationshipCriterion.Field();
-
-    switch (fieldType) {
-      case ASPECT:
-        field.setAspectField((AspectField) typedField);
-        break;
-      case URN:
-        field.setUrnField((UrnField) typedField);
-        break;
-      case RELATIONSHIP:
-        field.setRelationshipField((RelationshipField) typedField);
-        break;
-      default:
-    }
-
-    return new LocalRelationshipCriterion()
-        .setField(field)
-        .setValue(localRelationshipValue)
-        .setCondition(condition);
   }
 }

@@ -5,6 +5,12 @@ import com.linkedin.metadata.dao.EbeanMetadataAspect;
 import com.linkedin.metadata.dao.ListResult;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.aspect.SoftDeletedAspect;
+import com.linkedin.metadata.query.AspectField;
+import com.linkedin.metadata.query.Condition;
+import com.linkedin.metadata.query.LocalRelationshipCriterion;
+import com.linkedin.metadata.query.LocalRelationshipValue;
+import com.linkedin.metadata.query.RelationshipField;
+import com.linkedin.metadata.query.UrnField;
 import io.ebean.EbeanServer;
 import io.ebean.SqlRow;
 import java.lang.reflect.InvocationTargetException;
@@ -303,5 +309,30 @@ public class EBeanDAOUtils {
       log.error("Failed with JDBC extraction: {}", throwables.toString());
     }
     return aspect;
+  }
+
+  /**
+   * Helper function to create LocalRelationshipCriterion with different types of field.
+   * @param localRelationshipValue directly set to the LocalRelationshipCriterion
+   * @param condition directly set to the LocalRelationshipCriterion
+   * @param typedField set to LocalRelationshipCriterion.Field depending on the type, e.g. AspectField, UrnField
+   * @return a LocalRelationshipCriterion init with the params passed in
+   */
+  public static LocalRelationshipCriterion buildRelationshipFieldCriterion(LocalRelationshipValue localRelationshipValue,
+      Condition condition, RecordTemplate typedField) {
+    LocalRelationshipCriterion.Field field = new LocalRelationshipCriterion.Field();
+
+    if (typedField instanceof AspectField) {
+      field.setAspectField((AspectField) typedField);
+    } else if (typedField instanceof UrnField) {
+      field.setUrnField((UrnField) typedField);
+    } else if (typedField instanceof RelationshipField) {
+      field.setRelationshipField((RelationshipField) typedField);
+    }
+
+    return new LocalRelationshipCriterion()
+        .setField(field)
+        .setValue(localRelationshipValue)
+        .setCondition(condition);
   }
 }
