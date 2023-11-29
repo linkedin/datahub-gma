@@ -107,7 +107,7 @@ public class ModelUtils {
     try {
       return CLASS_LOADER.loadClass(className).asSubclass(parentClass);
     } catch (ClassNotFoundException e) {
-      throw new RuntimeException(e);
+      throw new IllegalArgumentException(className + " cannot be found", e);
     }
   }
 

@@ -1148,8 +1148,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       aspectSet = aspects.stream().map(ModelUtils::getAspectClass).collect(Collectors.toSet());
     }
 
-    // call type specific backfill method and transform results to string
-    return transformBackfillResultsToString(backfill(mode, aspectSet, urnSet));
+    // call type specific backfill method and transform results to string map
+    return transformBackfillResultsToStringMap(backfill(mode, aspectSet, urnSet));
   }
 
   @Nonnull
@@ -1368,21 +1368,23 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * Maps backfill results of type map{urn, map{aspect, optional metadata}} to map{urn, aspect}.
+   * Maps backfill results of type map{urn, map{aspect, optional metadata}} to map{urn, aspect fqcn}.
    */
-  protected Map<String, Set<String>> transformBackfillResultsToString(
+  protected Map<String, Set<String>> transformBackfillResultsToStringMap(
       @Nonnull Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfillResults) {
     Map<String, Set<String>> mapToReturn = new HashMap<>();
     for (URN urn: backfillResults.keySet()) {
-      Set<String> urnBackfilledAspects = new HashSet<>();
+      Set<String> aspectFqcnSetToReturn = new HashSet<>();
       Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> aspectClassToMetadataMap = backfillResults.get(urn);
+
       for (Class<? extends RecordTemplate> aspectClass: aspectClassToMetadataMap.keySet()) {
         if (aspectClassToMetadataMap.get(aspectClass).isPresent()) {
-          urnBackfilledAspects.add(getAspectName(aspectClass));
+          aspectFqcnSetToReturn.add(getAspectName(aspectClass));
         }
       }
-      if (!urnBackfilledAspects.isEmpty()) {
-        mapToReturn.put(String.valueOf(urn), urnBackfilledAspects);
+
+      if (!aspectFqcnSetToReturn.isEmpty()) {
+        mapToReturn.put(String.valueOf(urn), aspectFqcnSetToReturn);
       }
     }
     return mapToReturn;

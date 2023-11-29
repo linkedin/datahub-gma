@@ -4,6 +4,7 @@ import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.backfill.BackfillMode;
 import com.linkedin.metadata.dao.BaseLocalDAO;
+import com.linkedin.metadata.dao.exception.InvalidMetadataType;
 import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.restli.client.RestLiResponseException;
 import com.linkedin.restli.common.ErrorResponse;
@@ -58,7 +59,14 @@ public abstract class BaseEntityAgnosticResource {
     if (backfillMode == null) {
       return Collections.emptyMap();
     }
-    return dao.backfillMAE(backfillMode, aspects, urns);
+    try {
+      return dao.backfillMAE(backfillMode, aspects, urns);
+    } catch (IllegalArgumentException | InvalidMetadataType e) {
+      throw new RestLiResponseException(new ErrorResponse().setStatus(400)
+          .setMessage("Bad input parameters. " + e.getMessage()));
+    } catch (IllegalStateException e) {
+      throw new RestLiResponseException(new ErrorResponse().setStatus(500).setMessage(e.getMessage()));
+    }
   }
 
   /**
@@ -69,11 +77,8 @@ public abstract class BaseEntityAgnosticResource {
     LocalDaoRegistry localDaoRegistry = getLocalDaoRegistry();
     BaseLocalDAO<? extends UnionTemplate, ? extends Urn> dao = localDaoRegistry.getLocalDaoByEntity(entity);
     if (dao == null) {
-      throw new RestLiResponseException(
-          new ErrorResponse()
-              .setStatus(404)
-              .setMessage(String.format("Dao not found for the requested entity: %s", entity))
-      );
+      throw new RestLiResponseException(new ErrorResponse().setStatus(404)
+          .setMessage(String.format("Dao not found for the requested entity: %s", entity)));
     }
     return dao;
   }
