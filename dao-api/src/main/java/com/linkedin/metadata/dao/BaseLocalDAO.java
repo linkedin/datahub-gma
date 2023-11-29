@@ -1105,6 +1105,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * Similar to {@link #backfill(Set, Set)} but does a scoped backfill.
    *
    * @param mode backfill mode to scope the backfill process
+   * @param aspectClasses set of aspects to backfill, if null, all valid aspects inside the entity snapshot will be backfilled
+   * @param urns  set of urns to backfill
    */
   @Nonnull
   public Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfill(
@@ -1122,6 +1124,15 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     return urnToAspects;
   }
 
+  /**
+   * Type agnostic method to backfill MAEs given aspects and urns. Only registered and present aspects in database table
+   * will be backfilled. Invalid aspects input will cause exception.
+   *
+   * @param mode backfill mode to scope the backfill process
+   * @param aspects set of aspects to backfill
+   * @param urns set of urns to backfill
+   * @return map of urn to their backfilled aspect values
+   */
   @Nonnull
   public Map<String, Set<String>> backfillMAE(@Nonnull BackfillMode mode, @Nullable Set<String> aspects,
       @Nonnull Set<String> urns) {
@@ -1137,21 +1148,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       aspectSet = aspects.stream().map(ModelUtils::getAspectClass).collect(Collectors.toSet());
     }
 
-    final Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> results = backfill(mode, aspectSet, urnSet);
-    final Map<String, Set<String>> mapToReturn = new HashMap<>();
-    for (URN urn: results.keySet()) {
-      Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> value = results.get(urn);
-      Set<String> backfilledAspects = new HashSet<>();
-      for (Class<? extends RecordTemplate> clazz: value.keySet()) {
-        if (value.get(clazz).isPresent()) {
-          backfilledAspects.add(clazz.getCanonicalName());
-        }
-      }
-      if (!backfilledAspects.isEmpty()) {
-        mapToReturn.put(String.valueOf(urn), backfilledAspects);
-      }
-    }
-    return mapToReturn;
+    // call type specific backfill method and transform results to string
+    return transformBackfillResultsToString(backfill(mode, aspectSet, urnSet));
   }
 
   @Nonnull
@@ -1367,5 +1365,26 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     if (!result.isValid()) {
       throw new ModelValidationException(result.getMessages().toString());
     }
+  }
+
+  /**
+   * Maps backfill results of type map{urn, map{aspect, optional metadata}} to map{urn, aspect}.
+   */
+  protected Map<String, Set<String>> transformBackfillResultsToString(
+      @Nonnull Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfillResults) {
+    Map<String, Set<String>> mapToReturn = new HashMap<>();
+    for (URN urn: backfillResults.keySet()) {
+      Set<String> urnBackfilledAspects = new HashSet<>();
+      Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> aspectClassToMetadataMap = backfillResults.get(urn);
+      for (Class<? extends RecordTemplate> aspectClass: aspectClassToMetadataMap.keySet()) {
+        if (aspectClassToMetadataMap.get(aspectClass).isPresent()) {
+          urnBackfilledAspects.add(getAspectName(aspectClass));
+        }
+      }
+      if (!urnBackfilledAspects.isEmpty()) {
+        mapToReturn.put(String.valueOf(urn), urnBackfilledAspects);
+      }
+    }
+    return mapToReturn;
   }
 }

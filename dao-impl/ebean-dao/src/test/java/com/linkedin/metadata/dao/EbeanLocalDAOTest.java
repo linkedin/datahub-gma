@@ -11,6 +11,7 @@ import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.StringArray;
 import com.linkedin.metadata.aspect.AuditedAspect;
+import com.linkedin.metadata.backfill.BackfillMode;
 import com.linkedin.metadata.dao.EbeanLocalDAO.FindMethodology;
 import com.linkedin.metadata.dao.EbeanLocalDAO.SchemaConfig;
 import com.linkedin.metadata.dao.EbeanMetadataAspect.PrimaryKey;
@@ -30,8 +31,8 @@ import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.utils.BarUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.EbeanServerUtils;
 import com.linkedin.metadata.dao.utils.FooUrnPathExtractor;
-import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
+import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
 import com.linkedin.metadata.query.Condition;
@@ -105,6 +106,7 @@ import org.testng.annotations.Test;
 import static com.linkedin.common.AuditStamps.*;
 import static com.linkedin.metadata.dao.internal.BaseGraphWriterDAO.RemovalOption.*;
 import static com.linkedin.metadata.dao.utils.EBeanDAOUtils.*;
+import static com.linkedin.metadata.dao.utils.ModelUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLSchemaUtils.*;
 import static com.linkedin.testing.TestUtils.*;
 import static org.mockito.Mockito.*;
@@ -811,6 +813,123 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
+  public void testBackfillMAEOnlyPresentInDBSuccess() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    List<FooUrn> urns = ImmutableList.of(makeFooUrn(1), makeFooUrn(2), makeFooUrn(3));
+
+    Map<FooUrn, Map<Class<? extends RecordTemplate>, RecordTemplate>> aspects = new HashMap<>();
+
+    urns.forEach(urn -> {
+      AspectFoo aspectFoo = new AspectFoo().setValue("foo");
+      AspectBar aspectBar = new AspectBar().setValue("bar");
+      aspects.put(urn, ImmutableMap.of(AspectFoo.class, aspectFoo, AspectBar.class, aspectBar));
+      dao.add(urn, aspectFoo, _dummyAuditStamp);
+      dao.add(urn, aspectBar, _dummyAuditStamp);
+      // MAEs produced on successful add()
+      verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, aspectFoo);
+      verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, aspectBar);
+    });
+
+    // when
+    Set<String> urnSet = urns.stream().map(Urn::toString).collect(Collectors.toSet());
+    Set<String> aspectSet = ImmutableSet.of(
+        // add not in db but valid aspect
+        getAspectName(AspectFoo.class), getAspectName(AspectBar.class), getAspectName(AspectFooBar.class));
+    Map<String, Set<String>> backfilledAspects = dao.backfillMAE(BackfillMode.BACKFILL_ALL, aspectSet, urnSet);
+
+    // then
+    for (FooUrn urn : urns) {
+      for (Class<? extends RecordTemplate> clazz : aspects.get(urn).keySet()) {
+        assertTrue(backfilledAspects.get(urn.toString()).contains(getAspectName(clazz)));
+        RecordTemplate metadata = aspects.get(urn).get(clazz);
+        verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, metadata, metadata, null);
+      }
+      assertFalse(backfilledAspects.get(urn.toString()).contains(getAspectName(AspectFooBar.class)));
+    }
+    verifyNoMoreInteractions(_mockProducer);
+  }
+
+  @Test
+  public void testBackfillMAEOnlySelectedAspectsSuccess() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    List<FooUrn> urns = ImmutableList.of(makeFooUrn(1), makeFooUrn(2), makeFooUrn(3));
+
+    Map<FooUrn, Map<Class<? extends RecordTemplate>, RecordTemplate>> aspects = new HashMap<>();
+
+    urns.forEach(urn -> {
+      AspectFoo aspectFoo = new AspectFoo().setValue("foo");
+      AspectBar aspectBar = new AspectBar().setValue("bar");
+      aspects.put(urn, ImmutableMap.of(AspectFoo.class, aspectFoo));
+      dao.add(urn, aspectFoo, _dummyAuditStamp);
+      dao.add(urn, aspectBar, _dummyAuditStamp);
+      // MAEs produced on successful add()
+      verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, aspectFoo);
+      verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, aspectBar);
+    });
+
+    // when
+    Set<String> urnSet = urns.stream().map(Urn::toString).collect(Collectors.toSet());
+    Set<String> aspectSet = ImmutableSet.of(
+        // only backfill one aspect
+        getAspectName(AspectFoo.class));
+    Map<String, Set<String>> backfilledAspects = dao.backfillMAE(BackfillMode.BACKFILL_ALL, aspectSet, urnSet);
+
+    // then
+    for (FooUrn urn : urns) {
+      for (Class<? extends RecordTemplate> clazz : aspects.get(urn).keySet()) {
+        assertTrue(backfilledAspects.get(urn.toString()).contains(getAspectName(clazz)));
+        RecordTemplate metadata = aspects.get(urn).get(clazz);
+        verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, metadata, metadata, null);
+      }
+      assertFalse(backfilledAspects.get(urn.toString()).contains(getAspectName(AspectBar.class)));
+    }
+    verifyNoMoreInteractions(_mockProducer);
+  }
+
+  @Test
+  public void testBackfillMAENullAspectsSuccess() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    List<FooUrn> urns = ImmutableList.of(makeFooUrn(1), makeFooUrn(2), makeFooUrn(3));
+
+    Map<FooUrn, Map<Class<? extends RecordTemplate>, RecordTemplate>> aspects = new HashMap<>();
+
+    urns.forEach(urn -> {
+      AspectFoo aspectFoo = new AspectFoo().setValue("foo");
+      AspectBar aspectBar = new AspectBar().setValue("bar");
+      aspects.put(urn, ImmutableMap.of(AspectFoo.class, aspectFoo, AspectBar.class, aspectBar));
+      dao.add(urn, aspectFoo, _dummyAuditStamp);
+      dao.add(urn, aspectBar, _dummyAuditStamp);
+      // MAEs produced on successful add()
+      verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, aspectFoo);
+      verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, aspectBar);
+    });
+
+    // when
+    Set<String> urnSet = urns.stream().map(Urn::toString).collect(Collectors.toSet());
+    Map<String, Set<String>> backfilledAspects = dao.backfillMAE(BackfillMode.BACKFILL_ALL, null, urnSet);
+
+    // then
+    for (FooUrn urn : urns) {
+      for (Class<? extends RecordTemplate> clazz : aspects.get(urn).keySet()) {
+        assertTrue(backfilledAspects.get(urn.toString()).contains(getAspectName(clazz)));
+        RecordTemplate metadata = aspects.get(urn).get(clazz);
+        verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, metadata, metadata, null);
+      }
+    }
+    verifyNoMoreInteractions(_mockProducer);
+  }
+
+  @Test
+  public void testBackfillMAEInvalidAspectException() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    assertThrows(RuntimeException.class, () -> dao.backfillMAE(BackfillMode.BACKFILL_ALL, ImmutableSet.of("com.linkedin.dummy.badAspect"),
+        ImmutableSet.of(makeFooUrn(1).toString())));
+
+    assertThrows(InvalidMetadataType.class, () -> dao.backfillMAE(BackfillMode.BACKFILL_ALL, ImmutableSet.of(getAspectName(AspectBaz.class)),
+        ImmutableSet.of(makeFooUrn(1).toString())));
+  }
+
+  @Test
   public void testListVersions() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     FooUrn urn = makeFooUrn(1);
@@ -1194,7 +1313,7 @@ public class EbeanLocalDAOTest {
     FooUrn urn1 = makeFooUrn(1);
     FooUrn urn2 = makeFooUrn(2);
     FooUrn urn3 = makeFooUrn(3);
-    String aspect = ModelUtils.getAspectName(AspectFoo.class);
+    String aspect = getAspectName(AspectFoo.class);
 
     addIndex(urn1, aspect, "/path1", "foo");
     addIndex(urn1, FooUrn.class.getCanonicalName(), "/fooId", 1);
@@ -1638,7 +1757,7 @@ public class EbeanLocalDAOTest {
     FooUrn urn1 = makeFooUrn(1);
     FooUrn urn2 = makeFooUrn(2);
     FooUrn urn3 = makeFooUrn(3);
-    String aspect = ModelUtils.getAspectName(AspectFoo.class);
+    String aspect = getAspectName(AspectFoo.class);
 
     addIndex(urn1, aspect, "/path1", "val1");
     addIndex(urn1, aspect, "/path2", "val2");
@@ -1689,7 +1808,7 @@ public class EbeanLocalDAOTest {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     FooUrn urn1 = makeFooUrn(1);
     FooUrn urn2 = makeFooUrn(2);
-    String aspect = ModelUtils.getAspectName(AspectFoo.class);
+    String aspect = getAspectName(AspectFoo.class);
 
     addIndex(urn1, aspect, "/path1", "val1");
     addIndex(urn1, aspect, "/path2", "val2");
@@ -1943,7 +2062,7 @@ public class EbeanLocalDAOTest {
   public void testGetSoftDeletedAspect() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     FooUrn urn = makeFooUrn(1);
-    String aspectName = ModelUtils.getAspectName(AspectFoo.class);
+    String aspectName = getAspectName(AspectFoo.class);
     AspectFoo v1 = new AspectFoo().setValue("foo");
     AspectFoo v0 = new AspectFoo().setValue("bar");
 
@@ -1981,7 +2100,7 @@ public class EbeanLocalDAOTest {
   public void testSoftDeletedAspectWithNoExistingMetadata() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     FooUrn urn = makeFooUrn(1);
-    String aspectName = ModelUtils.getAspectName(AspectFoo.class);
+    String aspectName = getAspectName(AspectFoo.class);
 
     // no metadata already exists
     dao.delete(urn, AspectFoo.class, _dummyAuditStamp);
@@ -2115,7 +2234,7 @@ public class EbeanLocalDAOTest {
   public void testUndeleteSoftDeletedAspect() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     FooUrn urn = makeFooUrn(1);
-    String aspectName = ModelUtils.getAspectName(AspectFoo.class);
+    String aspectName = getAspectName(AspectFoo.class);
     AspectFoo v1 = new AspectFoo().setValue("foo");
     AspectFoo v0 = new AspectFoo().setValue("bar");
 
