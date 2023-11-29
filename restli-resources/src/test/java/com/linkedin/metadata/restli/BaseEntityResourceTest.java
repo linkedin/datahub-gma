@@ -809,13 +809,13 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     IndexCriterion indexCriterion2 = new IndexCriterion().setAspect(FooUrn.class.getCanonicalName());
     IndexFilter indexFilter2 = new IndexFilter().setCriteria(new IndexCriterionArray(indexCriterion2));
     when(_mockLocalDAO.listUrns(indexFilter2, urn1, 2)).thenReturn(urns1);
-    actual = runAndWait(_resource.listUrnsFromIndex(null, urn1.toString(), 2));
+    actual = runAndWait(_resource.listUrnsFromIndex(indexFilter2, urn1.toString(), 2));
     assertEquals(actual, new String[]{urn2.toString(), urn3.toString()});
 
     // case 3: lastUrn is null
     List<FooUrn> urns3 = Arrays.asList(urn1, urn2);
     when(_mockLocalDAO.listUrns(indexFilter2, null, 2)).thenReturn(urns3);
-    actual = runAndWait(_resource.listUrnsFromIndex(null, null, 2));
+    actual = runAndWait(_resource.listUrnsFromIndex(indexFilter2, null, 2));
     assertEquals(actual, new String[]{urn1.toString(), urn2.toString()});
   }
 
@@ -842,7 +842,7 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     List<FooUrn> urns2 = Arrays.asList(urn1, urn2);
     IndexCriterion indexCriterion2 = new IndexCriterion().setAspect(FooUrn.class.getCanonicalName());
     IndexFilter indexFilter2 = new IndexFilter().setCriteria(new IndexCriterionArray(indexCriterion2));
-    when(_mockLocalDAO.listUrns(indexFilter2, null, null, 2)).thenReturn(urns2);
+    when(_mockLocalDAO.listUrns(null, null, null, 2)).thenReturn(urns2);
     actual = runAndWait(_resource.filter(null, new String[0], null, new PagingContext(0, 2)));
     assertEquals(actual.size(), 2);
     assertEquals(actual.get(0), new EntityValue());
@@ -852,7 +852,7 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     List<FooUrn> urns3 = Arrays.asList(urn3, urn2);
     IndexSortCriterion indexSortCriterion = new IndexSortCriterion().setAspect("aspect1").setPath("/id")
         .setOrder(SortOrder.DESCENDING);
-    when(_mockLocalDAO.listUrns(indexFilter2, indexSortCriterion, null, 2)).thenReturn(urns3);
+    when(_mockLocalDAO.listUrns(null, indexSortCriterion, null, 2)).thenReturn(urns3);
     actual = runAndWait(_resource.filter(null, indexSortCriterion, new String[0], null, 2));
     assertEquals(actual.size(), 2);
     assertEquals(actual.get(0), new EntityValue());
@@ -868,7 +868,7 @@ public class BaseEntityResourceTest extends BaseEngineTest {
         .totalPageCount(1)
         .pageSize(2)
         .build();
-    when(_mockLocalDAO.listUrns(indexFilter2, indexSortCriterion, 0, 2)).thenReturn(urnsListResult);
+    when(_mockLocalDAO.listUrns(null, indexSortCriterion, 0, 2)).thenReturn(urnsListResult);
     ListResult<EntityValue>
         listResultActual = runAndWait(_resource.filter(null, indexSortCriterion, new String[0], new PagingContext(0, 2)));
     List<EntityValue> actualValues = listResultActual.getValues();

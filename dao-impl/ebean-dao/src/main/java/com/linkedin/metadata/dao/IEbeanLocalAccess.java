@@ -84,7 +84,7 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * @param pageSize maximum number of distinct urns to return
    * @return List of urns from local secondary index that satisfy the given filter conditions
    */
-  List<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
+  List<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       @Nullable URN lastUrn, int pageSize);
 
   /**
@@ -94,9 +94,8 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * @param start the starting offset of the page
    * @return a {@link ListResult} containing a list of urns and other pagination information
    */
-  ListResult<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
+  ListResult<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       int start, int pageSize);
-
 
   /**
    * Returns a boolean representing if an Urn has any Aspects associated with it (i.e. if it exists in the DB).
@@ -112,7 +111,7 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * @return map of the field to the count
    */
   @Nonnull
-  Map<String, Long> countAggregate(@Nonnull IndexFilter indexFilter,
+  Map<String, Long> countAggregate(@Nullable IndexFilter indexFilter,
       @Nonnull IndexGroupByCriterion indexGroupByCriterion);
 
   /**
