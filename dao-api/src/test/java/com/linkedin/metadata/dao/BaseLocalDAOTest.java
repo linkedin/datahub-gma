@@ -457,12 +457,11 @@ public class BaseLocalDAOTest {
       IngestionTrackingContext ingestionTrackingContext, AuditStamp oldAuditStamp
   ) throws URISyntaxException {
     FooUrn urn = new FooUrn(1);
-    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectFoo oldFoo = new AspectFoo().setValue("oldFoo");
+    AspectFoo newFoo = new AspectFoo().setValue("newFoo");
 
     ExtraInfo extraInfo = new ExtraInfo();
     extraInfo.setAudit(oldAuditStamp);
-    when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
-        .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(null, extraInfo));
 
     DummyLocalDAO dummyLocalDAO = new DummyLocalDAO(_mockGetLatestFunction, _mockTrackingEventProducer, _mockTrackingManager,
         _dummyLocalDAO._transactionRunner);
@@ -470,27 +469,25 @@ public class BaseLocalDAOTest {
     dummyLocalDAO.setAlwaysEmitAuditEvent(true);
     dummyLocalDAO.setEmitAspectSpecificAuditEvent(true);
     dummyLocalDAO.setAlwaysEmitAspectSpecificAuditEvent(true);
-    expectGetLatest(urn, AspectFoo.class,
-        Arrays.asList(makeAspectEntry(null, oldAuditStamp), makeAspectEntry(foo, _dummyAuditStamp)));
+    expectGetLatest(urn, AspectFoo.class, Collections.singletonList(makeAspectEntry(oldFoo, oldAuditStamp)));
 
-    dummyLocalDAO.add(urn, foo, _dummyAuditStamp, ingestionTrackingContext);
+    dummyLocalDAO.add(urn, newFoo, _dummyAuditStamp, ingestionTrackingContext);
 
-    verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, null, null);
-    verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null,
-        null, _dummyAuditStamp, ingestionTrackingContext, IngestionMode.LIVE);
+    verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, oldFoo, oldFoo);
+    verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(
+        urn, oldFoo, oldFoo, _dummyAuditStamp, ingestionTrackingContext, IngestionMode.LIVE);
     verifyNoMoreInteractions(_mockTrackingEventProducer);
   }
 
   @Test(description = "Event should be processed for backfill event")
   public void testAddForBackfill() throws URISyntaxException {
     FooUrn urn = new FooUrn(1);
-    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectFoo oldFoo = new AspectFoo().setValue("oldFoo");
+    AspectFoo newFoo = new AspectFoo().setValue("newFoo");
 
     ExtraInfo extraInfo = new ExtraInfo();
     AuditStamp oldAuditStamp = makeAuditStamp("nonSusActor", 5L);
     extraInfo.setAudit(oldAuditStamp);
-    when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
-        .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(null, extraInfo));
 
     DummyLocalDAO dummyLocalDAO = new DummyLocalDAO(_mockGetLatestFunction, _mockTrackingEventProducer, _mockTrackingManager,
         _dummyLocalDAO._transactionRunner);
@@ -498,18 +495,49 @@ public class BaseLocalDAOTest {
     dummyLocalDAO.setAlwaysEmitAuditEvent(true);
     dummyLocalDAO.setEmitAspectSpecificAuditEvent(true);
     dummyLocalDAO.setAlwaysEmitAspectSpecificAuditEvent(true);
-    expectGetLatest(urn, AspectFoo.class,
-        Arrays.asList(makeAspectEntry(null, oldAuditStamp), makeAspectEntry(foo, _dummyAuditStamp)));
+    expectGetLatest(urn, AspectFoo.class, Collections.singletonList(makeAspectEntry(oldFoo, oldAuditStamp)));
 
     IngestionTrackingContext ingestionTrackingContext = new IngestionTrackingContext();
     ingestionTrackingContext.setBackfill(true);
     ingestionTrackingContext.setEmitTime(6L);
 
-    dummyLocalDAO.add(urn, foo, _dummyAuditStamp, ingestionTrackingContext);
+    dummyLocalDAO.add(urn, newFoo, _dummyAuditStamp, ingestionTrackingContext);
 
-    verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
-    verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null,
-        foo, _dummyAuditStamp, ingestionTrackingContext, IngestionMode.LIVE);
+    verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, oldFoo, newFoo);
+    verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(
+        urn, oldFoo, newFoo, _dummyAuditStamp, ingestionTrackingContext, IngestionMode.LIVE);
+    verifyNoMoreInteractions(_mockTrackingEventProducer);
+  }
+
+  @Test(description = "Event should be processed for backfill event since latest aspect is null")
+  public void testAddForBackfillWhenLatestIsNull() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo newFoo = new AspectFoo().setValue("newFoo");
+
+    ExtraInfo extraInfo = new ExtraInfo();
+    AuditStamp oldAuditStamp = makeAuditStamp("nonSusActor", 5L);
+    extraInfo.setAudit(oldAuditStamp);
+
+    DummyLocalDAO dummyLocalDAO = new DummyLocalDAO(_mockGetLatestFunction, _mockTrackingEventProducer, _mockTrackingManager,
+        _dummyLocalDAO._transactionRunner);
+    dummyLocalDAO.setEmitAuditEvent(true);
+    dummyLocalDAO.setAlwaysEmitAuditEvent(true);
+    dummyLocalDAO.setEmitAspectSpecificAuditEvent(true);
+    dummyLocalDAO.setAlwaysEmitAspectSpecificAuditEvent(true);
+    expectGetLatest(urn, AspectFoo.class, Collections.singletonList(makeAspectEntry(null, oldAuditStamp)));
+
+    IngestionTrackingContext ingestionTrackingContext = new IngestionTrackingContext();
+    ingestionTrackingContext.setBackfill(true);
+    // intentionally set it to be smaller than old audit stamp to make sure that if latest aspect is null,
+    // we always proceed with backfill
+    // Although this should not happen in real life
+    ingestionTrackingContext.setEmitTime(4L);
+
+    dummyLocalDAO.add(urn, newFoo, _dummyAuditStamp, ingestionTrackingContext);
+
+    verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, null, newFoo);
+    verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(
+        urn, null, newFoo, _dummyAuditStamp, ingestionTrackingContext, IngestionMode.LIVE);
     verifyNoMoreInteractions(_mockTrackingEventProducer);
   }
 }

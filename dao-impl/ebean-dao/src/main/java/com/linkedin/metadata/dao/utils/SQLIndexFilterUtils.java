@@ -87,8 +87,12 @@ public class SQLIndexFilterUtils {
    * @param indexFilter index filter
    * @return translated SQL condition expression, e.g. WHERE ...
    */
-  public static String parseIndexFilter(@Nonnull IndexFilter indexFilter) {
+  public static String parseIndexFilter(@Nullable IndexFilter indexFilter) {
     List<String> sqlFilters = new ArrayList<>();
+
+    if (indexFilter == null || !indexFilter.hasCriteria()) {
+      return "";
+    }
 
     for (IndexCriterion indexCriterion : indexFilter.getCriteria()) {
       final String aspect = indexCriterion.getAspect();

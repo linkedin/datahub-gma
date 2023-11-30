@@ -15,8 +15,6 @@ import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.events.IngestionTrackingContext;
-import com.linkedin.metadata.query.IndexCriterion;
-import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
@@ -433,19 +431,6 @@ public abstract class BaseEntityResource<
   }
 
   /**
-   * For strongly consistent local secondary index, this provides {@link IndexFilter} which uses FQCN of the entity urn to filter
-   * on the aspect field of the index table. This serves the purpose of returning urns that are of given entity type from index table.
-   */
-  @Nonnull
-  private IndexFilter getDefaultIndexFilter() {
-    if (_urnClass == null) {
-      throw new UnsupportedOperationException("Urn class has not been defined in BaseEntityResource");
-    }
-    final IndexCriterion indexCriterion = new IndexCriterion().setAspect(_urnClass.getCanonicalName());
-    return new IndexFilter().setCriteria(new IndexCriterionArray(indexCriterion));
-  }
-
-  /**
    * An action method for getting filtered urns from local secondary index.
    * If no filter conditions are provided, then it returns urns of given entity type.
    *
@@ -461,11 +446,9 @@ public abstract class BaseEntityResource<
   public Task<String[]> listUrnsFromIndex(@ActionParam(PARAM_FILTER) @Optional @Nullable IndexFilter indexFilter,
       @ActionParam(PARAM_URN) @Optional @Nullable String lastUrn, @ActionParam(PARAM_LIMIT) int limit) {
 
-    final IndexFilter filter = indexFilter == null ? getDefaultIndexFilter() : indexFilter;
-
     return RestliUtils.toTask(() ->
         getLocalDAO()
-            .listUrns(filter, parseUrnParam(lastUrn), limit)
+            .listUrns(indexFilter, parseUrnParam(lastUrn), limit)
             .stream()
             .map(Urn::toString)
             .collect(Collectors.toList())
@@ -515,7 +498,7 @@ public abstract class BaseEntityResource<
    */
   @Nonnull
   private List<VALUE> filterAspects(
-      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nonnull IndexFilter filter,
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nullable IndexFilter filter,
       @Nullable IndexSortCriterion indexSortCriterion, @Nullable String lastUrn, int count) {
 
     final List<UrnAspectEntry<URN>> urnAspectEntries =
@@ -534,7 +517,7 @@ public abstract class BaseEntityResource<
    */
   @Nonnull
   private ListResult<VALUE> filterAspects(
-      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nonnull IndexFilter filter,
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nullable IndexFilter filter,
       @Nullable IndexSortCriterion indexSortCriterion, int start, int count) {
 
     final ListResult<UrnAspectEntry<URN>> listResult =
@@ -567,7 +550,7 @@ public abstract class BaseEntityResource<
    * @return ordered list of values of multiple entities
    */
   @Nonnull
-  private List<VALUE> filterUrns(@Nonnull IndexFilter filter, @Nullable IndexSortCriterion indexSortCriterion,
+  private List<VALUE> filterUrns(@Nullable IndexFilter filter, @Nullable IndexSortCriterion indexSortCriterion,
       @Nullable String lastUrn, int count) {
 
     final List<URN> urns = getLocalDAO().listUrns(filter, indexSortCriterion, parseUrnParam(lastUrn), count);
@@ -583,7 +566,7 @@ public abstract class BaseEntityResource<
    * @return a {@link ListResult} containing an ordered list of values of multiple entities and other pagination information
    */
   @Nonnull
-  private ListResult<VALUE> filterUrns(@Nonnull IndexFilter filter, @Nullable IndexSortCriterion indexSortCriterion,
+  private ListResult<VALUE> filterUrns(@Nullable IndexFilter filter, @Nullable IndexSortCriterion indexSortCriterion,
       int start, int count) {
 
     final ListResult<URN> listResult = getLocalDAO().listUrns(filter, indexSortCriterion, start, count);
@@ -626,14 +609,12 @@ public abstract class BaseEntityResource<
       @QueryParam(PARAM_URN) @Optional @Nullable String lastUrn,
       @QueryParam(PARAM_COUNT) @Optional("10") int count) {
 
-    final IndexFilter filter = indexFilter == null ? getDefaultIndexFilter() : indexFilter;
-
     return RestliUtils.toTask(() -> {
       final Set<Class<? extends RecordTemplate>> aspectClasses = parseAspectsParam(aspectNames);
       if (aspectClasses.isEmpty()) {
-        return filterUrns(filter, indexSortCriterion, lastUrn, count);
+        return filterUrns(indexFilter, indexSortCriterion, lastUrn, count);
       } else {
-        return filterAspects(aspectClasses, filter, indexSortCriterion, lastUrn, count);
+        return filterAspects(aspectClasses, indexFilter, indexSortCriterion, lastUrn, count);
       }
     });
   }
@@ -674,14 +655,12 @@ public abstract class BaseEntityResource<
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
       @PagingContextParam @Nonnull PagingContext pagingContext) {
 
-    final IndexFilter filter = indexFilter == null ? getDefaultIndexFilter() : indexFilter;
-
     return RestliUtils.toTask(() -> {
       final Set<Class<? extends RecordTemplate>> aspectClasses = parseAspectsParam(aspectNames);
       if (aspectClasses.isEmpty()) {
-        return filterUrns(filter, indexSortCriterion, pagingContext.getStart(), pagingContext.getCount());
+        return filterUrns(indexFilter, indexSortCriterion, pagingContext.getStart(), pagingContext.getCount());
       } else {
-        return filterAspects(aspectClasses, filter, indexSortCriterion, pagingContext.getStart(), pagingContext.getCount());
+        return filterAspects(aspectClasses, indexFilter, indexSortCriterion, pagingContext.getStart(), pagingContext.getCount());
       }
     });
   }
@@ -700,10 +679,9 @@ public abstract class BaseEntityResource<
       @QueryParam(PARAM_FILTER) @Optional @Nullable IndexFilter indexFilter,
       @QueryParam(PARAM_GROUP) IndexGroupByCriterion indexGroupByCriterion
   ) {
-    final IndexFilter filter = indexFilter == null ? getDefaultIndexFilter() : indexFilter;
 
     return RestliUtils.toTask(() -> {
-      Map<String, Long> countAggregateMap = getLocalDAO().countAggregate(filter, indexGroupByCriterion);
+      Map<String, Long> countAggregateMap = getLocalDAO().countAggregate(indexFilter, indexGroupByCriterion);
       MapMetadata mapMetadata = new MapMetadata().setLongMap(new LongMap(countAggregateMap));
       return new CollectionResult<EmptyRecord, MapMetadata>(new ArrayList<>(), mapMetadata);
     });
@@ -723,9 +701,7 @@ public abstract class BaseEntityResource<
       @ActionParam(PARAM_FILTER) @Optional @Nullable IndexFilter indexFilter,
       @ActionParam(PARAM_GROUP) IndexGroupByCriterion indexGroupByCriterion
   ) {
-    final IndexFilter filter = indexFilter == null ? getDefaultIndexFilter() : indexFilter;
-
-    return RestliUtils.toTask(() -> getLocalDAO().countAggregate(filter, indexGroupByCriterion));
+    return RestliUtils.toTask(() -> getLocalDAO().countAggregate(indexFilter, indexGroupByCriterion));
   }
 
   @Nonnull

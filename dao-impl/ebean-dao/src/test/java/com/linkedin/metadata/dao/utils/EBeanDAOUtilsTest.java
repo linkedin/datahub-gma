@@ -516,6 +516,7 @@ public class EBeanDAOUtilsTest {
     aspect.setMetadata(RecordUtils.toJsonString(fooAspect));
     aspect.setCreatedOn(new Timestamp(now - 100));
     aspect.setCreatedBy("fooActor");
+    aspect.setEmitTime(12345L);
 
     // add aspect to the db
     server.insert(aspect);

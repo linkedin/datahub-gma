@@ -196,6 +196,22 @@ public class EbeanLocalAccessTest {
     // Expect: 5 rows are returns (35~39) and the first element is 'urn:li:foo:35'
     assertEquals(5, result2.size());
     assertEquals("35", result2.get(0).getId());
+
+    // When: list urns with no filter, no sorting criterion, no last urn.
+    List<FooUrn> result3 = _ebeanLocalAccessFoo.listUrns(null, null, null, 10);
+
+    // 0, 1, 10, 11, 12, 13, 14, 15, 16, 17
+    assertEquals(result3.size(), 10);
+    assertEquals(result3.get(0).getId(), "0");
+    assertEquals(result3.get(9).getId(), "17");
+
+    // When: list urns with no filter, no sorting criterion
+    List<FooUrn> result4 = _ebeanLocalAccessFoo.listUrns(null, null, new FooUrn(17), 10);
+
+    // 18, 19, 2, 20, 21, 22, 23, 24, 25, 26
+    assertEquals(result4.size(), 10);
+    assertEquals(result4.get(0).getId(), "18");
+    assertEquals(result4.get(9).getId(), "26");
   }
 
   @Test

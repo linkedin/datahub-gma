@@ -7,6 +7,7 @@ import com.linkedin.common.urn.Urn;
 import com.linkedin.data.schema.DataSchema;
 import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.template.RecordTemplate;
+import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.builder.LocalRelationshipBuilderRegistry;
@@ -29,7 +30,6 @@ import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.ExtraInfoArray;
 import com.linkedin.metadata.query.IndexCriterion;
-import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
@@ -1257,6 +1257,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     final ExtraInfo extraInfo = new ExtraInfo();
     extraInfo.setVersion(aspect.getKey().getVersion());
     extraInfo.setAudit(makeAuditStamp(aspect));
+    extraInfo.setEmitTime(aspect.getEmitTime(), SetMode.IGNORE_NULL);
     try {
       extraInfo.setUrn(Urn.createFromString(aspect.getKey().getUrn()));
     } catch (URISyntaxException e) {
@@ -1394,12 +1395,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
   }
 
-  void checkValidIndexCriterionArray(@Nonnull IndexCriterionArray indexCriterionArray) {
-    if (indexCriterionArray.isEmpty()) {
-      throw new UnsupportedOperationException("Empty Index Filter is not supported by EbeanLocalDAO");
-    }
-  }
-
   /**
    * Returns list of urns that satisfy the given filter conditions.
    *
@@ -1416,10 +1411,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    */
   @Override
   @Nonnull
-  public List<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
+  public List<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       @Nullable URN lastUrn, int pageSize) {
-    final IndexCriterionArray indexCriterionArray = indexFilter.getCriteria();
-    checkValidIndexCriterionArray(indexCriterionArray);
 
     if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
       throw new UnsupportedOperationException("listUrns with index filter is only supported in new schema.");
@@ -1437,11 +1430,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    */
   @Override
   @Nonnull
-  public ListResult<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
+  public ListResult<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       int start, int pageSize) {
-
-    final IndexCriterionArray indexCriterionArray = indexFilter.getCriteria();
-    checkValidIndexCriterionArray(indexCriterionArray);
 
     if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
       throw new UnsupportedOperationException("listUrns with index filter is only supported in new schema.");
@@ -1452,10 +1442,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   @Override
   @Nonnull
-  public Map<String, Long> countAggregate(@Nonnull IndexFilter indexFilter,
+  public Map<String, Long> countAggregate(@Nullable IndexFilter indexFilter,
       @Nonnull IndexGroupByCriterion indexGroupByCriterion) {
-    final IndexCriterionArray indexCriterionArray = indexFilter.getCriteria();
-    checkValidIndexCriterionArray(indexCriterionArray);
 
     if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
       throw new UnsupportedOperationException("countAggregate is only supported in new schema.");

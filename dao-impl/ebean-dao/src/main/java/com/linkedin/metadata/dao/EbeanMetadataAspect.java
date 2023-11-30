@@ -3,12 +3,14 @@ package com.linkedin.metadata.dao;
 import io.ebean.Model;
 import io.ebean.annotation.Index;
 import java.sql.Timestamp;
+import javax.annotation.Nullable;
 import javax.persistence.Column;
 import javax.persistence.Embeddable;
 import javax.persistence.EmbeddedId;
 import javax.persistence.Entity;
 import javax.persistence.Lob;
 import javax.persistence.Table;
+import javax.persistence.Transient;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -87,6 +89,12 @@ public class EbeanMetadataAspect extends Model {
 
   @Column(name = CREATED_FOR_COLUMN, nullable = true)
   private String createdFor;
+
+  // this column doesn't exist in the old schema
+  // in the new schema, it's part of the aspect json
+  @Nullable
+  @Transient
+  private Long emitTime;
 
   // TODO (@jphui) META-18962 De-deduplicity investigation
   // @SneakyThrows
