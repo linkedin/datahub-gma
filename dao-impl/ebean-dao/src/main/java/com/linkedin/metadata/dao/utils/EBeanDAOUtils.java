@@ -1,10 +1,10 @@
 package com.linkedin.metadata.dao.utils;
 
+import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.aspect.AuditedAspect;
+import com.linkedin.metadata.aspect.SoftDeletedAspect;
 import com.linkedin.metadata.dao.EbeanMetadataAspect;
 import com.linkedin.metadata.dao.ListResult;
-import com.linkedin.data.template.RecordTemplate;
-import com.linkedin.metadata.aspect.SoftDeletedAspect;
 import io.ebean.EbeanServer;
 import io.ebean.SqlRow;
 import java.lang.reflect.InvocationTargetException;
@@ -224,6 +224,7 @@ public class EBeanDAOUtils {
       ebeanMetadataAspect.setCreatedBy(auditedAspect.getLastmodifiedby());
       ebeanMetadataAspect.setCreatedOn(Timestamp.valueOf(auditedAspect.getLastmodifiedon()));
       ebeanMetadataAspect.setCreatedFor(auditedAspect.getCreatedfor());
+      ebeanMetadataAspect.setEmitTime(auditedAspect.getEmitTime());
       ebeanMetadataAspect.setMetadata(extractAspectJsonString(sqlRow.getString(columnName)));
     }
     ebeanMetadataAspect.setKey(primaryKey);
