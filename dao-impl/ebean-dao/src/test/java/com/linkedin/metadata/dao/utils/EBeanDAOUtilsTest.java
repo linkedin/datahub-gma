@@ -1,11 +1,18 @@
 package com.linkedin.metadata.dao.utils;
 
 import com.google.common.io.Resources;
+import com.linkedin.data.template.StringArray;
 import com.linkedin.metadata.aspect.AuditedAspect;
 import com.linkedin.metadata.dao.EbeanLocalAccess;
 import com.linkedin.metadata.dao.EbeanMetadataAspect;
 import com.linkedin.metadata.dao.ListResult;
+import com.linkedin.metadata.query.AspectField;
+import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.ListResultMetadata;
+import com.linkedin.metadata.query.LocalRelationshipCriterion;
+import com.linkedin.metadata.query.LocalRelationshipValue;
+import com.linkedin.metadata.query.RelationshipField;
+import com.linkedin.metadata.query.UrnField;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.urn.BurgerUrn;
 import com.linkedin.testing.urn.FooUrn;
@@ -530,5 +537,33 @@ public class EBeanDAOUtilsTest {
 
     when(sqlRow.getString("a_aspectbaz")).thenReturn("{\"random_value\": \"baz\"}");
     assertFalse(EBeanDAOUtils.isSoftDeletedAspect(sqlRow, "a_aspectbaz"));
+  }
+
+  @Test
+  public void testBuildRelationshipFieldCriterionWithAspectField() {
+    LocalRelationshipValue localRelationshipValue = LocalRelationshipValue.create(new StringArray("bar"));
+    Condition condition = Condition.IN;
+    AspectField aspectField = new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value");
+
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(localRelationshipValue,
+        condition,
+        aspectField);
+
+    assertEquals(aspectField, filterCriterion.getField().getAspectField());
+    assertEquals(condition, filterCriterion.getCondition());
+    assertEquals(localRelationshipValue, filterCriterion.getValue());
+
+    // to test with other type of fields, don't think there's a need to have a separate test case
+    UrnField urnField = new UrnField();
+    filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(localRelationshipValue,
+        condition,
+        urnField);
+    assertEquals(urnField, filterCriterion.getField().getUrnField());
+
+    RelationshipField relationshipField = new RelationshipField().setPath("/environment");
+    filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(localRelationshipValue,
+        condition,
+        relationshipField);
+    assertEquals(relationshipField, filterCriterion.getField().getRelationshipField());
   }
 }
