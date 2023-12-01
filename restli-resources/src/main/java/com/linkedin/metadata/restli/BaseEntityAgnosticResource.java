@@ -45,7 +45,7 @@ public abstract class BaseEntityAgnosticResource {
    * Backfill MAE for the given {@link BackfillItem} and the ingestion mode. Only registered and present aspects
    * in database table will be backfilled.
    *
-   * @param backfillRequests a list of {@link BackfillItem} to be backfilled
+   * @param backfillRequests a list of {@link BackfillItem} to be backfilled. Empty aspect list means backfill all aspects.
    * @param ingestionMode {@link IngestionMode} to indicate the processing strategy. Live mode together with no-change
    *                                           should represent no-op, empty map will be returned. Backfill is to redo
    *                                           any metadata update that is missed or skipped in the past.
@@ -102,9 +102,9 @@ public abstract class BaseEntityAgnosticResource {
       }
       return Optional.of(new BackfillItem().setUrn(urn).setAspects(new StringArray(backfilledAspects)));
     } catch (IllegalArgumentException | InvalidMetadataType e) {
-      log.error("Illegal argument or invalid metadata type: ", e);
+      log.warn(String.format("Illegal argument or invalid metadata type, urn: %s, aspectSet: %s", urn, aspectSet), e);
     } catch (IllegalStateException e) {
-      log.error("Backfill failed for IllegalStateException: ", e);
+      log.warn(String.format("Backfill failed for illegal state, urn: %s, aspectSet: %s", urn, aspectSet), e);
     }
     return Optional.empty();
   }
@@ -114,7 +114,6 @@ public abstract class BaseEntityAgnosticResource {
    */
   protected Optional<BaseLocalDAO<? extends UnionTemplate, ? extends Urn>> getLocalDaoByEntity(String entity) {
     LocalDaoRegistry localDaoRegistry = getLocalDaoRegistry();
-    BaseLocalDAO<? extends UnionTemplate, ? extends Urn> dao = localDaoRegistry.getLocalDaoByEntity(entity);
-    return Optional.ofNullable(dao);
+    return Optional.ofNullable(localDaoRegistry.getLocalDaoByEntity(entity));
   }
 }

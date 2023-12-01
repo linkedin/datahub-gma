@@ -33,8 +33,6 @@ import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.util.Collections;
@@ -198,20 +196,6 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     _trackingManager = null;
     _trackingProducer = null;
     _urnClass = urnClass;
-    Type superClass = getClass().getGenericSuperclass();
-    Class<? extends Urn> urnclass;
-    if (superClass instanceof ParameterizedType) {
-      ParameterizedType parameterizedType = (ParameterizedType) superClass;
-      Type[] typeArguments = parameterizedType.getActualTypeArguments();
-
-      // Assuming URN is the second parameter
-      Type urnType = typeArguments[1];
-
-      // If the URN type is a class, return it
-      if (urnType instanceof Class<?>) {
-        urnclass =  (Class<? extends Urn>) urnType;
-      }
-    }
   }
 
   /**
