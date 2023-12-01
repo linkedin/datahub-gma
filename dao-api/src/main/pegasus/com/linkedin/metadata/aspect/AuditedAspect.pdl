@@ -37,6 +37,11 @@ record AuditedAspect {
    * This value is different from lastmodifiedon / the timestamp in AuditStamp since auditStamp
    * is created when the restli resource receives the ingestion request.
    * This is set by the MCE producers (or MCE consumers if not set by producers)
+   *
+   * This will be null in the following scenarios:
+   * - The record is still on the old schema
+   * - The record inserted before we started persisting emitTime to the new schema
+   * - The record was inserted via ingest instead of ingestWithTracking
    */
    emitTime: optional long
 }

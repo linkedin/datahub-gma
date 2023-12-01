@@ -7,6 +7,7 @@ import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.builder.LocalRelationshipBuilderRegistry;
 import com.linkedin.metadata.dao.scsi.UrnPathExtractor;
+import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
@@ -37,16 +38,18 @@ public interface IEbeanLocalAccess<URN extends Urn> {
 
   /**
    * Update aspect on entity table with optimistic locking. (compare-and-update on oldTimestamp).
-   * @param urn entity urn
-   * @param newValue aspect value in {@link RecordTemplate}
-   * @param aspectClass class of the aspect
-   * @param auditStamp audit timestamp
-   * @param oldTimestamp old time stamp for optimistic lock checking
-   * @param <ASPECT> metadata aspect value
+   *
+   * @param <ASPECT>                 metadata aspect value
+   * @param urn                      entity urn
+   * @param newValue                 aspect value in {@link RecordTemplate}
+   * @param aspectClass              class of the aspect
+   * @param auditStamp               audit timestamp
+   * @param oldTimestamp             old time stamp for optimistic lock checking
+   * @param ingestionTrackingContext the ingestionTrackingContext of the MCE responsible for calling this update
    * @return number of rows inserted or updated
    */
   <ASPECT extends RecordTemplate> int addWithOptimisticLocking(@Nonnull URN urn, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
-      @Nonnull AuditStamp auditStamp, @Nullable Timestamp oldTimestamp, @Nullable UUID messageId);
+      @Nonnull AuditStamp auditStamp, @Nullable Timestamp oldTimestamp, @Nullable IngestionTrackingContext ingestionTrackingContext);
 
   /**
    * Upsert relationships to the local relationship table(s).
