@@ -18,6 +18,12 @@ import javax.annotation.Nonnull;
  */
 public interface TopicConventionV5 {
   /**
+   * Returns the name of the topic based on event type, entity name and aspect name.
+   */
+  @Nonnull
+  String buildTopicName(@Nonnull String eventType, @Nonnull String entityName, @Nonnull String aspectName);
+
+  /**
    * Returns the name of the metadata change event topic.
    *
    * @param urn the urn of the entity being updated

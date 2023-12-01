@@ -145,7 +145,8 @@ public final class TopicConventionV5Impl implements TopicConventionV5 {
   }
 
   @Nonnull
-  private String buildTopicName(@Nonnull String eventType, @Nonnull String entityName, @Nonnull String aspectName) {
+  @Override
+  public String buildTopicName(@Nonnull String eventType, @Nonnull String entityName, @Nonnull String aspectName) {
     final String name = _eventPattern.replace(EVENT_TYPE_PLACEHOLDER, eventType)
         .replace(ENTITY_PLACEHOLDER, entityName)
         .replace(ASPECT_PLACEHOLDER, aspectName);
