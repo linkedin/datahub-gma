@@ -1,4 +1,4 @@
-package com.linkedin.metadata.restli;
+package com.linkedin.metadata.restli.dao;
 
 import com.google.common.collect.ImmutableMap;
 import com.linkedin.common.urn.Urn;
@@ -15,7 +15,7 @@ import static org.mockito.Mockito.*;
 import static org.testng.Assert.*;
 
 
-public class LocalDaoRegistryTest {
+public class DefaultLocalDaoRegistryImplTest {
 
   private BaseLocalDAO<EntityAspectUnion, FooUrn> _baseLocalDAO;
 
@@ -31,7 +31,7 @@ public class LocalDaoRegistryTest {
       Map<String, BaseLocalDAO<? extends UnionTemplate, ? extends Urn>> map = ImmutableMap.of(
           getEntityTypeFromUrnClass(FooUrn.class), _baseLocalDAO
       );
-      new LocalDaoRegistry(map);
+      new DefaultLocalDaoRegistryImpl(map);
     } catch (Exception e) {
       fail();
     }
@@ -42,10 +42,10 @@ public class LocalDaoRegistryTest {
     final Map<String, BaseLocalDAO<? extends UnionTemplate, ? extends Urn>> fooMap = ImmutableMap.of(
         getEntityTypeFromUrnClass(FooUrn.class), _baseLocalDAO
     );
-    assertThrows(IllegalStateException.class, () -> new LocalDaoRegistry(fooMap));
+    assertThrows(IllegalStateException.class, () -> new DefaultLocalDaoRegistryImpl(fooMap));
 
     when(_baseLocalDAO.getUrnClass()).thenReturn(FooUrn.class);
     final Map<String, BaseLocalDAO<? extends UnionTemplate, ? extends Urn>> barMap = ImmutableMap.of("bar", _baseLocalDAO);
-    assertThrows(IllegalArgumentException.class, () -> new LocalDaoRegistry(barMap));
+    assertThrows(IllegalArgumentException.class, () -> new DefaultLocalDaoRegistryImpl(barMap));
   }
 }

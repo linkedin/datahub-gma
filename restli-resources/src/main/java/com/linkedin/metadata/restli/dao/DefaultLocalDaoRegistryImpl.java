@@ -1,4 +1,4 @@
-package com.linkedin.metadata.restli;
+package com.linkedin.metadata.restli.dao;
 
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.UnionTemplate;
@@ -12,7 +12,7 @@ import javax.annotation.Nullable;
 /**
  * An immutable class to store and access the mapping from the entity type string to the entity's LocalDao.
  */
-public class LocalDaoRegistry {
+public class DefaultLocalDaoRegistryImpl implements LocalDaoRegistry {
 
   /**
    * Map where key is the string of an entity type defined in Urn class, and value is the {@link BaseLocalDAO}
@@ -31,7 +31,7 @@ public class LocalDaoRegistry {
    * @throws IllegalArgumentException if there is a mismatch between an entity type key and its
    *                                  expected entity type from the DAO's URN class.
    */
-  public LocalDaoRegistry(@Nonnull Map<String, BaseLocalDAO<? extends UnionTemplate, ? extends Urn>> entityToLocalDaoMap) {
+  public DefaultLocalDaoRegistryImpl(@Nonnull Map<String, BaseLocalDAO<? extends UnionTemplate, ? extends Urn>> entityToLocalDaoMap) {
     entityToLocalDaoMap.forEach((key, value) -> {
       Class<? extends Urn> urnClass = value.getUrnClass();
       if (urnClass == null) {

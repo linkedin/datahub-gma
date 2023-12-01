@@ -922,7 +922,7 @@ public class EbeanLocalDAOTest {
   @Test
   public void testBackfillMAEInvalidAspectException() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
-    assertThrows(RuntimeException.class, () -> dao.backfillMAE(BackfillMode.BACKFILL_ALL, ImmutableSet.of("com.linkedin.dummy.badAspect"),
+    assertThrows(IllegalArgumentException.class, () -> dao.backfillMAE(BackfillMode.BACKFILL_ALL, ImmutableSet.of("com.linkedin.dummy.badAspect"),
         ImmutableSet.of(makeFooUrn(1).toString())));
 
     assertThrows(InvalidMetadataType.class, () -> dao.backfillMAE(BackfillMode.BACKFILL_ALL, ImmutableSet.of(getAspectName(AspectBaz.class)),
