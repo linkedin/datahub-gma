@@ -422,4 +422,15 @@ public class ModelUtilsTest {
     Class<UnionTemplate> unionTemplate = ModelUtils.getUnionClassFromSnapshot(EntitySnapshot.class);
     assertEquals(unionTemplate.getCanonicalName(), "com.linkedin.testing.EntityAspectUnion");
   }
+
+  @Test
+  public void testGetUrnFromString() {
+    FooUrn urn = ModelUtils.getUrnFromString("urn:li:foo:1", FooUrn.class);
+    assertEquals(urn, makeFooUrn(1));
+  }
+
+  @Test
+  public void testGetUrnFromStringException() {
+    assertThrows(IllegalArgumentException.class, () -> ModelUtils.getUrnFromString("urn:li:foo", FooUrn.class));
+  }
 }

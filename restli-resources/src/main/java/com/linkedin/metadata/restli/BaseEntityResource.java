@@ -331,6 +331,7 @@ public abstract class BaseEntityResource<
    * in the MAE payload to allow downstream consumers to decide processing strategy. Only BOOTSTRAP and BACKFILL are
    * supported ingestion mode, other mode will result in no-op.
    */
+  @Deprecated
   @Action(name = ACTION_EMIT_NO_CHANGE_METADATA_AUDIT_EVENT)
   @Nonnull
   public Task<BackfillResult> emitNoChangeMetadataAuditEvent(@ActionParam(PARAM_URNS) @Nonnull String[] urns,

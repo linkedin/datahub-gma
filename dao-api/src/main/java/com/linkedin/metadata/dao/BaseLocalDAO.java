@@ -61,6 +61,7 @@ import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 
 import static com.linkedin.metadata.dao.utils.IngestionUtils.*;
+import static com.linkedin.metadata.dao.utils.ModelUtils.*;
 
 
 /**
@@ -76,6 +77,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     extends BaseReadDAO<ASPECT_UNION, URN> {
 
   private final Class<ASPECT_UNION> _aspectUnionClass;
+
+  private final Class<URN> _urnClass;
 
   /**
    * Immutable class that corresponds to the metadata aspect along with {@link ExtraInfo} for the same metadata. It also
@@ -184,13 +187,15 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    *     com.linkedin.metadata.aspect
    * @param producer {@link BaseMetadataEventProducer} for the metadata event producer
    */
-  public BaseLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer) {
+  public BaseLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
+      @Nonnull Class<URN> urnClass) {
     super(aspectUnionClass);
     _producer = producer;
     _storageConfig = LocalDAOStorageConfig.builder().build();
     _aspectUnionClass = aspectUnionClass;
     _trackingManager = null;
     _trackingProducer = null;
+    _urnClass = urnClass;
   }
 
   /**
@@ -202,13 +207,14 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param trackingManager {@link BaseTrackingManager} for managing tracking requests
    */
   public BaseLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseTrackingMetadataEventProducer trackingProducer,
-      @Nonnull BaseTrackingManager trackingManager) {
+      @Nonnull BaseTrackingManager trackingManager, @Nonnull Class<URN> urnClass) {
     super(aspectUnionClass);
     _producer = null;
     _storageConfig = LocalDAOStorageConfig.builder().build();
     _aspectUnionClass = aspectUnionClass;
     _trackingManager = trackingManager;
     _trackingProducer = trackingProducer;
+    _urnClass = urnClass;
   }
 
   /**
@@ -224,6 +230,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     _aspectUnionClass = producer.getAspectUnionClass();
     _trackingManager = null;
     _trackingProducer = null;
+    _urnClass = null;
   }
 
   /**
@@ -242,6 +249,17 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     _aspectUnionClass = trackingProducer.getAspectUnionClass();
     _trackingManager = trackingManager;
     _trackingProducer = trackingProducer;
+    _urnClass = null;
+  }
+
+  /**
+   * Get the urn class.
+   *
+   * @return the urn class
+   */
+  @Nullable
+  public Class<URN> getUrnClass() {
+    return this._urnClass;
   }
 
   /**
@@ -1090,17 +1108,49 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * Similar to {@link #backfill(Set, Set)} but does a scoped backfill.
    *
    * @param mode backfill mode to scope the backfill process
+   * @param aspectClasses set of aspects to backfill, if null, all valid aspects inside the entity snapshot will be backfilled
+   * @param urns  set of urns to backfill
    */
   @Nonnull
   public Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfill(
-      @Nonnull BackfillMode mode, @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nonnull Set<URN> urns) {
-    checkValidAspects(aspectClasses);
+      @Nonnull BackfillMode mode, @Nullable Set<Class<? extends RecordTemplate>> aspectClasses, @Nonnull Set<URN> urns) {
+    Set<Class<? extends RecordTemplate>> aspectToBackfill =
+        aspectClasses == null ? getValidAspectTypes(_aspectUnionClass) : aspectClasses;
+    checkValidAspects(aspectToBackfill);
     final Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> urnToAspects =
-        get(aspectClasses, urns);
+        get(aspectToBackfill, urns);
     urnToAspects.forEach((urn, aspects) -> {
       aspects.forEach((aspectClass, aspect) -> aspect.ifPresent(value -> backfill(mode, value, urn)));
     });
     return urnToAspects;
+  }
+
+  /**
+   * Entity agnostic method to backfill MAEs given aspects and urns. Only registered and present aspects in database table
+   * will be backfilled. Invalid aspects and urns will cause exception.
+   *
+   * @param mode backfill mode to scope the backfill process
+   * @param aspects set of aspects to backfill
+   * @param urns set of urns to backfill
+   * @return map of urn to their backfilled aspect values
+   */
+  @Nonnull
+  public Map<String, Set<String>> backfillMAE(@Nonnull BackfillMode mode, @Nullable Set<String> aspects,
+      @Nonnull Set<String> urns) {
+    // convert string to entity urn
+    if (_urnClass == null) { // _urnClass can be null in testing scenarios
+      throw new IllegalStateException("urn class is null, unable to convert string to urn");
+    }
+    final Set<URN> urnSet = urns.stream().map(x -> getUrnFromString(x, _urnClass)).collect(Collectors.toSet());
+
+    // convert string to aspect class
+    Set<Class<? extends RecordTemplate>> aspectSet = null;
+    if (aspects != null) {
+      aspectSet = aspects.stream().map(ModelUtils::getAspectClass).collect(Collectors.toSet());
+    }
+
+    // call type specific backfill method and transform results to string map
+    return transformBackfillResultsToStringMap(backfill(mode, aspectSet, urnSet));
   }
 
   @Nonnull
@@ -1316,5 +1366,29 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     if (!result.isValid()) {
       throw new ModelValidationException(result.getMessages().toString());
     }
+  }
+
+  /**
+   * Maps backfill results of type map{urn, map{aspect, optional metadata}} to map{urn, aspect fqcn}.
+   */
+  @Nonnull
+  protected Map<String, Set<String>> transformBackfillResultsToStringMap(
+      @Nonnull Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfillResults) {
+    Map<String, Set<String>> mapToReturn = new HashMap<>();
+    for (URN urn: backfillResults.keySet()) {
+      Set<String> aspectFqcnSetToReturn = new HashSet<>();
+      Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> aspectClassToMetadataMap = backfillResults.get(urn);
+
+      for (Class<? extends RecordTemplate> aspectClass: aspectClassToMetadataMap.keySet()) {
+        if (aspectClassToMetadataMap.get(aspectClass).isPresent()) {
+          aspectFqcnSetToReturn.add(getAspectName(aspectClass));
+        }
+      }
+
+      if (!aspectFqcnSetToReturn.isEmpty()) {
+        mapToReturn.put(String.valueOf(urn), aspectFqcnSetToReturn);
+      }
+    }
+    return mapToReturn;
   }
 }
