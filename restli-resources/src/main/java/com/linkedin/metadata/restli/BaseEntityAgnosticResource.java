@@ -29,7 +29,7 @@ import static com.linkedin.metadata.restli.RestliConstants.*;
 
 
 /**
- * A base restli resource class with operations that are not tied to a specific entity.
+ * A base restli resource class with operations that are not tied to a specific entity type.
  */
 @Slf4j
 public abstract class BaseEntityAgnosticResource {
@@ -62,24 +62,24 @@ public abstract class BaseEntityAgnosticResource {
     }
 
     // Group requests by entity type
-    final Map<String, List<BackfillItem>> entitytoRequestsMap = new HashMap<>();
+    final Map<String, List<BackfillItem>> entityTypeToRequestsMap = new HashMap<>();
     backfillRequests.forEach(request -> {
       try {
-        final String entity = Urn.createFromString(request.getUrn()).getEntityType();
-        entitytoRequestsMap.computeIfAbsent(entity, k -> new ArrayList<>()).add(request);
+        final String entityType = Urn.createFromString(request.getUrn()).getEntityType();
+        entityTypeToRequestsMap.computeIfAbsent(entityType, k -> new ArrayList<>()).add(request);
       } catch (URISyntaxException e) {
         log.warn("Failed casting string to Urn, request: " + request, e);
       }
     });
 
-    // for each entity, backfill MAE for each urn in parallel
-    for (String entity : entitytoRequestsMap.keySet()) {
-      final Optional<BaseLocalDAO<? extends UnionTemplate, ? extends Urn>> dao = getLocalDaoByEntity(entity);
+    // for each entity type, backfill MAE for each urn in parallel
+    for (String entityType : entityTypeToRequestsMap.keySet()) {
+      final Optional<BaseLocalDAO<? extends UnionTemplate, ? extends Urn>> dao = getLocalDaoByEntity(entityType);
       if (!dao.isPresent()) {
-        log.warn("LocalDAO not found for entity: " + entity);
+        log.warn("LocalDAO not found for entity type: " + entityType);
         continue;
       }
-      final List<BackfillItem> items = entitytoRequestsMap.get(entity);
+      final List<BackfillItem> items = entityTypeToRequestsMap.get(entityType);
       backfillResults.addAll(
           items.parallelStream()
               // immutable dao, should be thread-safe
@@ -112,8 +112,8 @@ public abstract class BaseEntityAgnosticResource {
   /**
    * Helper method to get the {@link BaseLocalDAO} from class {@link LocalDaoRegistry} for the given entity type.
    */
-  protected Optional<BaseLocalDAO<? extends UnionTemplate, ? extends Urn>> getLocalDaoByEntity(String entity) {
+  protected Optional<BaseLocalDAO<? extends UnionTemplate, ? extends Urn>> getLocalDaoByEntity(String entityType) {
     LocalDaoRegistry localDaoRegistry = getLocalDaoRegistry();
-    return Optional.ofNullable(localDaoRegistry.getLocalDaoByEntity(entity));
+    return Optional.ofNullable(localDaoRegistry.getLocalDaoByEntityType(entityType));
   }
 }

@@ -18,7 +18,16 @@ public class DefaultLocalDaoRegistryImpl implements LocalDaoRegistry {
    * Map where key is the string of an entity type defined in Urn class, and value is the {@link BaseLocalDAO}
    * registered on that entity.
    */
-  private final Map<String, BaseLocalDAO<? extends UnionTemplate, ? extends Urn>> entityToLocalDaoMap;
+  private final Map<String, BaseLocalDAO<? extends UnionTemplate, ? extends Urn>> entityTypeToLocalDaoMap;
+
+  /**
+   * private constructor for supporting factory init method.
+   *
+   * @param entityTypeToLocalDaoMap A non-null map associating entity type strings with their corresponding BaseLocalDAO instances.
+   */
+  private DefaultLocalDaoRegistryImpl(@Nonnull Map<String, BaseLocalDAO<? extends UnionTemplate, ? extends Urn>> entityTypeToLocalDaoMap) {
+    this.entityTypeToLocalDaoMap = entityTypeToLocalDaoMap;
+  }
 
   /**
    * Constructs a LocalDaoRegistry with a mapping of entity types to their respective BaseLocalDAOs. This constructor
@@ -26,13 +35,14 @@ public class DefaultLocalDaoRegistryImpl implements LocalDaoRegistry {
    * by the URN class of each BaseLocalDAO. If any inconsistency is detected (i.e., the key does not match the expected
    * entity type from the DAO's URN class), an IllegalArgumentException is thrown.
    *
-   * @param entityToLocalDaoMap A non-null map associating entity type strings with their
+   * @param entityTypeToLocalDaoMap A non-null map associating entity type strings with their
    *                            corresponding BaseLocalDAO instances.
    * @throws IllegalArgumentException if there is a mismatch between an entity type key and its
    *                                  expected entity type from the DAO's URN class.
    */
-  public DefaultLocalDaoRegistryImpl(@Nonnull Map<String, BaseLocalDAO<? extends UnionTemplate, ? extends Urn>> entityToLocalDaoMap) {
-    entityToLocalDaoMap.forEach((key, value) -> {
+  public static DefaultLocalDaoRegistryImpl init(
+      @Nonnull Map<String, BaseLocalDAO<? extends UnionTemplate, ? extends Urn>> entityTypeToLocalDaoMap) {
+    entityTypeToLocalDaoMap.forEach((key, value) -> {
       Class<? extends Urn> urnClass = value.getUrnClass();
       if (urnClass == null) {
         throw new IllegalStateException("urnClass is null for localDao: " + value.getClass().getName());
@@ -43,17 +53,17 @@ public class DefaultLocalDaoRegistryImpl implements LocalDaoRegistry {
             String.format("provided entity type: %s is not the same as defined in localDao: %s", key, expectedEntityType));
       }
     });
-    this.entityToLocalDaoMap = entityToLocalDaoMap;
+    return new DefaultLocalDaoRegistryImpl(entityTypeToLocalDaoMap);
   }
 
   /**
    * Returns the {@link BaseLocalDAO} registered on the given entity type.
    *
-   * @param entity the entity type string
+   * @param entityType the entity type string
    * @return the {@link BaseLocalDAO} registered on the given entity type, or null if no such registration.
    */
   @Nullable
-  public BaseLocalDAO<? extends UnionTemplate, ? extends Urn> getLocalDaoByEntity(@Nonnull String entity) {
-    return entityToLocalDaoMap.get(entity);
+  public BaseLocalDAO<? extends UnionTemplate, ? extends Urn> getLocalDaoByEntityType(@Nonnull String entityType) {
+    return entityTypeToLocalDaoMap.get(entityType);
   }
 }

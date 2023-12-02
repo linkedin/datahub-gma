@@ -58,7 +58,7 @@ public class BaseEntityAgnosticResourceTest extends BaseEngineTest {
     _barLocalDAO = mock(BaseLocalDAO.class);
     when(_barLocalDAO.getUrnClass()).thenReturn(BarUrn.class);
     when(_fooLocalDAO.getUrnClass()).thenReturn(FooUrn.class);
-    _registry = new DefaultLocalDaoRegistryImpl(ImmutableMap.of("foo", _fooLocalDAO, "bar", _barLocalDAO));
+    _registry = DefaultLocalDaoRegistryImpl.init(ImmutableMap.of("foo", _fooLocalDAO, "bar", _barLocalDAO));
     fooUrnSet = ImmutableSet.of(makeFooUrn(1).toString(), makeFooUrn(2).toString(), makeFooUrn(3).toString());
     singleAspectSet = Collections.singleton(getAspectName(AspectFoo.class));
     multiAspectsSet = ImmutableSet.of(getAspectName(AspectBar.class), getAspectName(AspectFoo.class));

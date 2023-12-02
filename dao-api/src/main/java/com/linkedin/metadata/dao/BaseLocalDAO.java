@@ -1135,7 +1135,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   public Map<String, Set<String>> backfillMAE(@Nonnull BackfillMode mode, @Nullable Set<String> aspects,
       @Nonnull Set<String> urns) {
     // convert string to entity urn
-    if (_urnClass == null) {
+    if (_urnClass == null) { // _urnClass can be null in testing scenarios
       throw new IllegalStateException("urn class is null, unable to convert string to urn");
     }
     final Set<URN> urnSet = urns.stream().map(x -> getUrnFromString(x, _urnClass)).collect(Collectors.toSet());
@@ -1368,6 +1368,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   /**
    * Maps backfill results of type map{urn, map{aspect, optional metadata}} to map{urn, aspect fqcn}.
    */
+  @Nonnull
   protected Map<String, Set<String>> transformBackfillResultsToStringMap(
       @Nonnull Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfillResults) {
     Map<String, Set<String>> mapToReturn = new HashMap<>();

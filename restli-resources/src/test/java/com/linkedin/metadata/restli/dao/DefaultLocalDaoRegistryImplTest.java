@@ -25,27 +25,27 @@ public class DefaultLocalDaoRegistryImplTest {
   }
 
   @Test
-  public void constructorTestSuccess() {
+  public void initTestSuccess() {
     try {
       when(_baseLocalDAO.getUrnClass()).thenReturn(FooUrn.class);
       Map<String, BaseLocalDAO<? extends UnionTemplate, ? extends Urn>> map = ImmutableMap.of(
           getEntityTypeFromUrnClass(FooUrn.class), _baseLocalDAO
       );
-      new DefaultLocalDaoRegistryImpl(map);
+      DefaultLocalDaoRegistryImpl.init(map);
     } catch (Exception e) {
       fail();
     }
   }
 
   @Test
-  public void constructorTestException() {
+  public void initTestException() {
     final Map<String, BaseLocalDAO<? extends UnionTemplate, ? extends Urn>> fooMap = ImmutableMap.of(
         getEntityTypeFromUrnClass(FooUrn.class), _baseLocalDAO
     );
-    assertThrows(IllegalStateException.class, () -> new DefaultLocalDaoRegistryImpl(fooMap));
+    assertThrows(IllegalStateException.class, () -> DefaultLocalDaoRegistryImpl.init(fooMap));
 
     when(_baseLocalDAO.getUrnClass()).thenReturn(FooUrn.class);
     final Map<String, BaseLocalDAO<? extends UnionTemplate, ? extends Urn>> barMap = ImmutableMap.of("bar", _baseLocalDAO);
-    assertThrows(IllegalArgumentException.class, () -> new DefaultLocalDaoRegistryImpl(barMap));
+    assertThrows(IllegalArgumentException.class, () -> DefaultLocalDaoRegistryImpl.init(barMap));
   }
 }

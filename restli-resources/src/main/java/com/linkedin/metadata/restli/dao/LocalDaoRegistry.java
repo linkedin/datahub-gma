@@ -14,9 +14,9 @@ public interface LocalDaoRegistry {
   /**
    * Returns the {@link BaseLocalDAO} registered on the given entity type.
    *
-   * @param entity the entity type string
+   * @param entityType the entity type string
    * @return the {@link BaseLocalDAO} registered on the given entity type, or null if no such registration.
    */
-  BaseLocalDAO<? extends UnionTemplate, ? extends Urn> getLocalDaoByEntity(@Nonnull String entity);
+  BaseLocalDAO<? extends UnionTemplate, ? extends Urn> getLocalDaoByEntityType(@Nonnull String entityType);
 }
 
