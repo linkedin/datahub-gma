@@ -14,11 +14,11 @@ import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.EntityAspectUnion;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.FooUrn;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -72,12 +72,12 @@ public class BaseEntityAgnosticResourceTest extends BaseEngineTest {
           .thenReturn(ImmutableMap.of(urn, singleAspectSet));
     }
 
-    List<BackfillItem> result = testResource.backfillMAE(provideBackfillItems(fooUrnSet, multiAspectsSet), IngestionMode.BACKFILL);
+    BackfillItem[] result = runAndWait(testResource.backfillMAE(provideBackfillItems(fooUrnSet, multiAspectsSet), IngestionMode.BACKFILL));
     for (String urn : fooUrnSet) {
       verify(_fooLocalDAO, times(1)).backfillMAE(BackfillMode.BACKFILL_INCLUDING_LIVE_INDEX,
           multiAspectsSet, Collections.singleton(urn));
     }
-    assertEquals(ImmutableSet.of(result), ImmutableSet.of(provideBackfillItems(fooUrnSet, singleAspectSet)));
+    assertEqualBackfillItemArrays(result, provideBackfillItems(fooUrnSet, singleAspectSet));
   }
 
   @Test
@@ -88,12 +88,12 @@ public class BaseEntityAgnosticResourceTest extends BaseEngineTest {
           .thenReturn(ImmutableMap.of(urn, multiAspectsSet));
     }
 
-    List<BackfillItem> result = testResource.backfillMAE(provideBackfillItems(fooUrnSet, null), IngestionMode.BACKFILL);
+    BackfillItem[] result = runAndWait(testResource.backfillMAE(provideBackfillItems(fooUrnSet, null), IngestionMode.BACKFILL));
     for (String urn : fooUrnSet) {
       verify(_fooLocalDAO, times(1)).backfillMAE(BackfillMode.BACKFILL_INCLUDING_LIVE_INDEX,
           null, Collections.singleton(urn));
     }
-    assertEquals(ImmutableSet.of(result), ImmutableSet.of(provideBackfillItems(fooUrnSet, multiAspectsSet)));
+    assertEqualBackfillItemArrays(result, provideBackfillItems(fooUrnSet, multiAspectsSet));
   }
 
   @Test
@@ -114,7 +114,7 @@ public class BaseEntityAgnosticResourceTest extends BaseEngineTest {
     allUrnSet.addAll(fooUrnSet);
 
     TestResource testResource = new TestResource();
-    List<BackfillItem> result = testResource.backfillMAE(provideBackfillItems(allUrnSet, null), IngestionMode.BACKFILL);
+    BackfillItem[] result = runAndWait(testResource.backfillMAE(provideBackfillItems(allUrnSet, null), IngestionMode.BACKFILL));
 
     // verify all aspects are backfilled for each urn
     for (String urn : fooUrnSet) {
@@ -125,9 +125,8 @@ public class BaseEntityAgnosticResourceTest extends BaseEngineTest {
       verify(_barLocalDAO, times(1)).backfillMAE(BackfillMode.BACKFILL_INCLUDING_LIVE_INDEX,
           null, Collections.singleton(urn));
     }
-    List<BackfillItem> expectedItems = provideBackfillItems(allUrnSet, multiAspectsSet);
-    assertEquals(result.size(), expectedItems.size());
-    assertTrue(result.containsAll(expectedItems));
+    BackfillItem[] expectedItems = provideBackfillItems(allUrnSet, multiAspectsSet);
+    assertEqualBackfillItemArrays(result, expectedItems);
     verify(_fooLocalDAO, times(1)).getUrnClass();
     verify(_barLocalDAO, times(1)).getUrnClass();
     verifyNoMoreInteractions(_fooLocalDAO);
@@ -139,8 +138,8 @@ public class BaseEntityAgnosticResourceTest extends BaseEngineTest {
     TestResource testResource = new TestResource();
     // no mockito stubbing, so dao.backfillMAE will return null
     assertEquals(
-        testResource.backfillMAE(provideBackfillItems(fooUrnSet, null), IngestionMode.BACKFILL),
-        Collections.emptyList()
+        runAndWait(testResource.backfillMAE(provideBackfillItems(fooUrnSet, null), IngestionMode.BACKFILL)),
+        new BackfillItem[0]
     );
     verify(_fooLocalDAO, times(3)).backfillMAE(any(), any(), any());
   }
@@ -150,8 +149,8 @@ public class BaseEntityAgnosticResourceTest extends BaseEngineTest {
     TestResource testResource = new TestResource();
     Set<String> badUrnSet = ImmutableSet.of(makeBazUrn(1).toString(), makeBazUrn(2).toString(), makeBazUrn(3).toString());
     assertEquals(
-        testResource.backfillMAE(provideBackfillItems(badUrnSet, null), IngestionMode.BACKFILL),
-        Collections.emptyList()
+        runAndWait(testResource.backfillMAE(provideBackfillItems(badUrnSet, null), IngestionMode.BACKFILL)),
+        new BackfillItem[0]
     );
     verify(_fooLocalDAO, times(0)).backfillMAE(any(), any(), any());
     verify(_barLocalDAO, times(0)).backfillMAE(any(), any(), any());
@@ -161,8 +160,8 @@ public class BaseEntityAgnosticResourceTest extends BaseEngineTest {
   public void testBackfillMAENoopMode() {
     TestResource testResource = new TestResource();
     assertEquals(
-        testResource.backfillMAE(provideBackfillItems(fooUrnSet, null), IngestionMode.LIVE),
-        Collections.emptyList()
+        runAndWait(testResource.backfillMAE(provideBackfillItems(fooUrnSet, null), IngestionMode.LIVE)),
+        new BackfillItem[0]
     );
     verify(_fooLocalDAO, times(0)).backfillMAE(any(), any(), any());
   }
@@ -177,18 +176,17 @@ public class BaseEntityAgnosticResourceTest extends BaseEngineTest {
     doThrow(IllegalArgumentException.class).when(_fooLocalDAO).backfillMAE(BackfillMode.BACKFILL_INCLUDING_LIVE_INDEX, multiAspectsSet,
         Collections.singleton(makeFooUrn(1).toString()));
 
-    List<BackfillItem> result = testResource.backfillMAE(provideBackfillItems(fooUrnSet, multiAspectsSet), IngestionMode.BACKFILL);
+    BackfillItem[] result = runAndWait(testResource.backfillMAE(provideBackfillItems(fooUrnSet, multiAspectsSet), IngestionMode.BACKFILL));
     for (String urn : fooUrnSet) {
       verify(_fooLocalDAO, times(1)).backfillMAE(BackfillMode.BACKFILL_INCLUDING_LIVE_INDEX,
           multiAspectsSet, Collections.singleton(urn));
     }
-    List<BackfillItem> expectedItems =
+    BackfillItem[] expectedItems =
         provideBackfillItems(ImmutableSet.of(makeFooUrn(2).toString(), makeFooUrn(3).toString()), multiAspectsSet);
-    assertEquals(result.size(), expectedItems.size());
-    assertTrue(result.containsAll(expectedItems));
+    assertEqualBackfillItemArrays(result, expectedItems);
   }
 
-  private List<BackfillItem> provideBackfillItems(Set<String> urnSet, Set<String> aspects) {
+  private BackfillItem[] provideBackfillItems(Set<String> urnSet, Set<String> aspects) {
     return urnSet.stream().map(urn -> {
       BackfillItem item = new BackfillItem();
       item.setUrn(urn);
@@ -196,6 +194,13 @@ public class BaseEntityAgnosticResourceTest extends BaseEngineTest {
         item.setAspects(new StringArray(aspects));
       }
       return item;
-    }).collect(Collectors.toList());
+    }).toArray(BackfillItem[]::new);
+  }
+
+  private void assertEqualBackfillItemArrays(BackfillItem[] actual, BackfillItem[] expected) {
+    List<BackfillItem> expectedList = Arrays.asList(expected);
+    List<BackfillItem> actualList = Arrays.asList(actual);
+    assertEquals(actualList.size(), expectedList.size());
+    assertTrue(actualList.containsAll(expectedList));
   }
 }

@@ -9,9 +9,11 @@ import com.linkedin.metadata.dao.BaseLocalDAO;
 import com.linkedin.metadata.dao.exception.InvalidMetadataType;
 import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.restli.dao.LocalDaoRegistry;
+import com.linkedin.parseq.Task;
 import com.linkedin.restli.server.annotations.Action;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -54,41 +56,42 @@ public abstract class BaseEntityAgnosticResource {
    */
   @Action(name = ACTION_BACKFILL_MAE)
   @Nonnull
-  public List<BackfillItem> backfillMAE(@Nonnull List<BackfillItem> backfillRequests, @Nonnull IngestionMode ingestionMode) {
-    final List<BackfillItem> backfillResults = new ArrayList<>();
-    final BackfillMode backfillMode = ALLOWED_INGESTION_BACKFILL_BIMAP.get(ingestionMode);
-    if (backfillMode == null) {
-      return backfillResults;
-    }
-
-    // Group requests by entity type
-    final Map<String, List<BackfillItem>> entityTypeToRequestsMap = new HashMap<>();
-    backfillRequests.forEach(request -> {
-      try {
-        final String entityType = Urn.createFromString(request.getUrn()).getEntityType();
-        entityTypeToRequestsMap.computeIfAbsent(entityType, k -> new ArrayList<>()).add(request);
-      } catch (URISyntaxException e) {
-        log.warn("Failed casting string to Urn, request: " + request, e);
+  public Task<BackfillItem[]> backfillMAE(@Nonnull BackfillItem[] backfillRequests, @Nonnull IngestionMode ingestionMode) {
+    return RestliUtils.toTask(() -> {
+      final List<BackfillItem> backfillRequestList = Arrays.asList(backfillRequests);
+      final BackfillMode backfillMode = ALLOWED_INGESTION_BACKFILL_BIMAP.get(ingestionMode);
+      if (backfillMode == null) {
+        return new BackfillItem[0];
       }
+
+      // Group requests by entity type
+      final List<BackfillItem> backfillResults = new ArrayList<>();
+      final Map<String, List<BackfillItem>> entityTypeToRequestsMap = new HashMap<>();
+      backfillRequestList.forEach(request -> {
+        try {
+          final String entityType = Urn.createFromString(request.getUrn()).getEntityType();
+          entityTypeToRequestsMap.computeIfAbsent(entityType, k -> new ArrayList<>()).add(request);
+        } catch (URISyntaxException e) {
+          log.warn("Failed casting string to Urn, request: " + request, e);
+        }
+      });
+
+      // for each entity type, backfill MAE for each urn in parallel
+      for (String entityType : entityTypeToRequestsMap.keySet()) {
+        final Optional<BaseLocalDAO<? extends UnionTemplate, ? extends Urn>> dao = getLocalDaoByEntity(entityType);
+        if (!dao.isPresent()) {
+          log.warn("LocalDAO not found for entity type: " + entityType);
+          continue;
+        }
+        final List<BackfillItem> items = entityTypeToRequestsMap.get(entityType);
+        backfillResults.addAll(items.parallelStream()
+            // immutable dao, should be thread-safe
+            .map(item -> backfillMAEForUrn(item.getUrn(), item.getAspects(), backfillMode, dao.get()).orElse(null))
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList()));
+      }
+      return backfillResults.toArray(new BackfillItem[0]); // insert order is not guaranteed the same as input
     });
-
-    // for each entity type, backfill MAE for each urn in parallel
-    for (String entityType : entityTypeToRequestsMap.keySet()) {
-      final Optional<BaseLocalDAO<? extends UnionTemplate, ? extends Urn>> dao = getLocalDaoByEntity(entityType);
-      if (!dao.isPresent()) {
-        log.warn("LocalDAO not found for entity type: " + entityType);
-        continue;
-      }
-      final List<BackfillItem> items = entityTypeToRequestsMap.get(entityType);
-      backfillResults.addAll(
-          items.parallelStream()
-              // immutable dao, should be thread-safe
-              .map(item -> backfillMAEForUrn(item.getUrn(), item.getAspects(), backfillMode, dao.get()).orElse(null))
-              .filter(Objects::nonNull)
-              .collect(Collectors.toList())
-      );
-    }
-    return backfillResults; // insert order is not guaranteed the same as input
   }
 
   protected Optional<BackfillItem> backfillMAEForUrn(@Nonnull String urn, @Nonnull List<String> aspectSet,
