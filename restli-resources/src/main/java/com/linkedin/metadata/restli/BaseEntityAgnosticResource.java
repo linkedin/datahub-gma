@@ -47,12 +47,12 @@ public abstract class BaseEntityAgnosticResource {
    * Backfill MAE for the given {@link BackfillItem} and the ingestion mode. Only registered and present aspects
    * in database table will be backfilled.
    *
-   * @param backfillRequests a list of {@link BackfillItem} to be backfilled. Empty aspect list means backfill all aspects.
+   * @param backfillRequests an array of {@link BackfillItem} to be backfilled. Empty aspect list means backfill all aspects.
    * @param ingestionMode {@link IngestionMode} to indicate the processing strategy. Live mode together with no-change
    *                                           should represent no-op, empty map will be returned. Backfill is to redo
    *                                           any metadata update that is missed or skipped in the past.
    *                                           Bootstrap indicates building the metadata from scratch.
-   * @return a list of {@link BackfillItem} that is backfilled, failed urns and aspects will be filtered out
+   * @return an array of {@link BackfillItem} that is backfilled, failed urns and aspects will be filtered out
    */
   @Action(name = ACTION_BACKFILL_MAE)
   @Nonnull
