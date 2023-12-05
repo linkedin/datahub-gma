@@ -223,14 +223,15 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param producer {@link BaseMetadataEventProducer} for the metadata event producer
    * @param storageConfig {@link LocalDAOStorageConfig} containing storage config of full list of supported aspects
    */
-  public BaseLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull LocalDAOStorageConfig storageConfig) {
+  public BaseLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull LocalDAOStorageConfig storageConfig,
+      @Nonnull Class<URN> urnClass) {
     super(storageConfig.getAspectStorageConfigMap().keySet());
     _producer = producer;
     _storageConfig = storageConfig;
     _aspectUnionClass = producer.getAspectUnionClass();
     _trackingManager = null;
     _trackingProducer = null;
-    _urnClass = null;
+    _urnClass = urnClass;
   }
 
   /**
@@ -242,14 +243,14 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    *
    */
   public BaseLocalDAO(@Nonnull BaseTrackingMetadataEventProducer trackingProducer, @Nonnull LocalDAOStorageConfig storageConfig,
-      @Nonnull BaseTrackingManager trackingManager) {
+      @Nonnull BaseTrackingManager trackingManager, @Nonnull Class<URN> urnClass) {
     super(storageConfig.getAspectStorageConfigMap().keySet());
     _producer = null;
     _storageConfig = storageConfig;
     _aspectUnionClass = trackingProducer.getAspectUnionClass();
     _trackingManager = trackingManager;
     _trackingProducer = trackingProducer;
-    _urnClass = null;
+    _urnClass = urnClass;
   }
 
   /**

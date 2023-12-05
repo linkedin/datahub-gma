@@ -49,7 +49,7 @@ public abstract class BaseEntityAgnosticResource {
    *
    * @param backfillRequests an array of {@link BackfillItem} to be backfilled. Empty aspect list means backfill all aspects.
    * @param ingestionMode {@link IngestionMode} to indicate the processing strategy. Live mode together with no-change
-   *                                           should represent no-op, empty map will be returned. Backfill is to redo
+   *                                           should represent no-op, empty array will be returned. Backfill is to redo
    *                                           any metadata update that is missed or skipped in the past.
    *                                           Bootstrap indicates building the metadata from scratch.
    * @return an array of {@link BackfillItem} that is backfilled, failed urns and aspects will be filtered out

@@ -432,7 +432,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull EbeanServer server,
       @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass,
       @Nonnull UrnPathExtractor<URN> urnPathExtractor) {
-    super(producer, storageConfig);
+    super(producer, storageConfig, urnClass);
     _server = server;
     _urnClass = urnClass;
     _urnPathExtractor = urnPathExtractor;
@@ -441,7 +441,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   private EbeanLocalDAO(@Nonnull BaseTrackingMetadataEventProducer producer, @Nonnull EbeanServer server,
       @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass,
       @Nonnull UrnPathExtractor<URN> urnPathExtractor, @Nonnull BaseTrackingManager trackingManager) {
-    super(producer, storageConfig, trackingManager);
+    super(producer, storageConfig, trackingManager, urnClass);
     _server = server;
     _urnClass = urnClass;
     _urnPathExtractor = urnPathExtractor;
