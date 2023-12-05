@@ -559,6 +559,10 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   private <ASPECT extends RecordTemplate> ASPECT unwrapAddResult(URN urn, AddResult<ASPECT> result, @Nonnull AuditStamp auditStamp,
       @Nullable IngestionTrackingContext trackingContext) {
+    if (trackingContext != null) {
+      trackingContext.setBackfill(false); // reset backfill since MAE won't be a backfill event
+    }
+
     Class<ASPECT> aspectClass = result.getKlass();
     final ASPECT oldValue = result.getOldValue();
     final ASPECT newValue = result.getNewValue();
