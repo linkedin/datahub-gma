@@ -43,7 +43,7 @@ record ListResultMetadata {
        *
        * This will be null in the following scenarios:
        * - The record is still on the old schema
-       * - The record inserted before we started persisting emitTime to the new schema
+       * - The record was inserted before we started persisting emitTime to the new schema
        * - The record was inserted via ingest instead of ingestWithTracking
        */
        emitTime: optional long
