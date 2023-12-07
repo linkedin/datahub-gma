@@ -88,7 +88,12 @@ public class TrackingUtils {
     BULKPROCESSOR_GRAPH_SUCCESS("maev5-es-graph-job.bulkProcessor.success"),
     BULKPROCESSOR_GRAPH_FAILURE("maev5-es-graph-job.bulkProcessor.failure"),
     GRAPH_FAILURE_EVENT_SUCCESS("maev5-es-graph-job.failureEvent.success"),
-    GRAPH_FAILURE_EVENT_FAILURE("maev5-es-graph-job.failureEvent.failure");
+    GRAPH_FAILURE_EVENT_FAILURE("maev5-es-graph-job.failureEvent.failure"),
+
+    // Process states in MLE Consumer Job
+    MLE_RECEIVED("mle-consumer-job.mle.received"),
+    MLE_PROCESS_SUCCESS("mle-consumer-job.process.success"),
+    MLE_PROCESS_FAILURE("mle-consumer-job.process.failure");
 
     private final String _name;
 
