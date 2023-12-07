@@ -1,7 +1,6 @@
 package com.linkedin.metadata.dao;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.linkedin.avro2pegasus.events.UUID;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.schema.DataSchema;
@@ -787,8 +786,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     if (_schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY && version == LATEST_VERSION) {
       // insert() could be called when updating log table (moving current versions into new history version)
       // the metadata entity tables shouldn't been updated.
-      UUID messageId = trackingContext != null ? trackingContext.getTrackingId() : null;
-      _localAccess.add(urn, (ASPECT) value, aspectClass, auditStamp, messageId);
+      _localAccess.add(urn, (ASPECT) value, aspectClass, auditStamp, trackingContext);
     }
 
     if (_changeLogEnabled) {

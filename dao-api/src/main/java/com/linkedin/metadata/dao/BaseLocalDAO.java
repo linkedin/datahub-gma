@@ -397,8 +397,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
           // new value is being inserted. We should backfill
           oldValue == null
               || (
-              // ingestionTrackingContext if not null should always have emitTime. If emitTime doesn't exist within
-              // a non-null IngestionTrackingContext, it should be investigated. We'll also skip backfilling in this case
+              // tracking context should ideally always have emitTime. If it's not present, we will skip backfilling
               trackingContext.hasEmitTime()
                   && (
                   // old emit time is available so we'll use it for comparison
@@ -408,7 +407,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
                       // old audit time represents the last modified time of the aspect
                       || (oldEmitTime == null && oldAuditStamp != null && oldAuditStamp.hasTime() && trackingContext.getEmitTime() > oldAuditStamp.getTime())));
 
-      log.info("Encounter backfill event. Old value = null: {}.  Tracking context: {}. Urn: {}. Aspect class: {}. Old audit stamp: {}. "
+      log.info("Encounter backfill event. Old value = null: {}. Tracking context: {}. Urn: {}. Aspect class: {}. Old audit stamp: {}. "
               + "Old emit time: {}. "
               + "Based on this information, shouldBackfill = {}.",
           oldValue == null, trackingContext, urn, aspectClass, oldAuditStamp, oldEmitTime, shouldBackfill);

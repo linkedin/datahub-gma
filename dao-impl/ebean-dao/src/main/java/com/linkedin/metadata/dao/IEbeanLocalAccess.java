@@ -1,6 +1,5 @@
 package com.linkedin.metadata.dao;
 
-import com.linkedin.avro2pegasus.events.UUID;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
@@ -26,15 +25,17 @@ public interface IEbeanLocalAccess<URN extends Urn> {
 
   /**
    * Upsert aspect into entity table.
-   * @param urn entity urn
-   * @param newValue aspect value in {@link RecordTemplate}
-   * @param aspectClass class of the aspect
-   * @param auditStamp audit timestamp
-   * @param <ASPECT> metadata aspect value
+   *
+   * @param <ASPECT>                 metadata aspect value
+   * @param urn                      entity urn
+   * @param newValue                 aspect value in {@link RecordTemplate}
+   * @param aspectClass              class of the aspect
+   * @param auditStamp               audit timestamp
+   * @param ingestionTrackingContext the ingestionTrackingContext of the MCE responsible for this update
    * @return number of rows inserted or updated
    */
   <ASPECT extends RecordTemplate> int add(@Nonnull URN urn, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
-      @Nonnull AuditStamp auditStamp, @Nullable UUID messageId);
+      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext ingestionTrackingContext);
 
   /**
    * Update aspect on entity table with optimistic locking. (compare-and-update on oldTimestamp).
