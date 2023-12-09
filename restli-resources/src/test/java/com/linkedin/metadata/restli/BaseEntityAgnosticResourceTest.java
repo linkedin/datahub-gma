@@ -145,6 +145,16 @@ public class BaseEntityAgnosticResourceTest extends BaseEngineTest {
   }
 
   @Test
+  public void testBackfillMAEFilterEmptyAspectUrn() {
+    TestResource testResource = new TestResource();
+    Set<String> urnSet = ImmutableSet.of(makeFooUrn(1).toString(), makeFooUrn(2).toString());
+    when(_fooLocalDAO.backfillMAE(BackfillMode.BACKFILL_INCLUDING_LIVE_INDEX, null, Collections.singleton(makeFooUrn(1).toString())))
+        .thenReturn(ImmutableMap.of(makeFooUrn(1).toString(), multiAspectsSet));
+    BackfillItem[] result = runAndWait(testResource.backfillMAE(provideBackfillItems(urnSet, null), IngestionMode.BACKFILL));
+    assertEqualBackfillItemArrays(result, provideBackfillItems(ImmutableSet.of(makeFooUrn(1).toString()), multiAspectsSet));
+  }
+
+  @Test
   public void testBackfillMAENoSuchEntity() {
     TestResource testResource = new TestResource();
     Set<String> badUrnSet = ImmutableSet.of(makeBazUrn(1).toString(), makeBazUrn(2).toString(), makeBazUrn(3).toString());
