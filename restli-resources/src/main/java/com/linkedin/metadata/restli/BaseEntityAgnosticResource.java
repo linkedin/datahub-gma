@@ -83,12 +83,13 @@ public abstract class BaseEntityAgnosticResource {
           log.warn("LocalDAO not found for entity type: " + entityType);
           continue;
         }
-        final List<BackfillItem> items = entityTypeToRequestsMap.get(entityType);
-        backfillResults.addAll(items.parallelStream()
-            // immutable dao, should be thread-safe
+        final List<BackfillItem> itemsToBackfill = entityTypeToRequestsMap.get(entityType);
+        final List<BackfillItem> backfilledItems = itemsToBackfill.stream()
             .map(item -> backfillMAEForUrn(item.getUrn(), item.getAspects(), backfillMode, dao.get()).orElse(null))
             .filter(Objects::nonNull)
-            .collect(Collectors.toList()));
+            .collect(Collectors.toList());
+        log.info(String.format("Given requests: %s, backfill results: %s", itemsToBackfill, backfilledItems));
+        backfillResults.addAll(backfilledItems);
       }
       return backfillResults.toArray(new BackfillItem[0]); // insert order is not guaranteed the same as input
     });
@@ -97,9 +98,11 @@ public abstract class BaseEntityAgnosticResource {
   protected Optional<BackfillItem> backfillMAEForUrn(@Nonnull String urn, @Nonnull List<String> aspectSet,
       @Nonnull BackfillMode backfillMode, @Nonnull BaseLocalDAO<? extends UnionTemplate, ? extends Urn> dao) {
     try {
+      log.info(String.format("Attempt to backfill MAE for urn: %s, aspectSet: %s, backfillMode: %s", urn, aspectSet, backfillMode));
       // set aspectSetToUse to null if empty to backfill all aspects
       Set<String> aspectSetToUse = aspectSet.isEmpty() ? null : new HashSet<>(aspectSet);
       Set<String> backfilledAspects = dao.backfillMAE(backfillMode, aspectSetToUse, Collections.singleton(urn)).get(urn);
+      log.info(String.format("Backfilled aspects: %s, for urn: %s, aspectSet: %s, backfillMode: %s", backfilledAspects, urn, aspectSet, backfillMode));
       if (backfilledAspects == null || backfilledAspects.isEmpty()) {
         return Optional.empty();
       }

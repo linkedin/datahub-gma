@@ -1,5 +1,6 @@
 package com.linkedin.metadata.restli;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.linkedin.data.template.StringArray;
@@ -15,6 +16,7 @@ import com.linkedin.testing.EntityAspectUnion;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.FooUrn;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -145,6 +147,26 @@ public class BaseEntityAgnosticResourceTest extends BaseEngineTest {
   }
 
   @Test
+  public void testBackfillMAEFilterEmptyAspectUrn() {
+    TestResource testResource = new TestResource();
+    Set<String> urnSet = ImmutableSet.of(makeFooUrn(1).toString(), makeFooUrn(2).toString());
+    when(_fooLocalDAO.backfillMAE(BackfillMode.BACKFILL_INCLUDING_LIVE_INDEX, null, Collections.singleton(makeFooUrn(1).toString())))
+        .thenReturn(ImmutableMap.of(makeFooUrn(1).toString(), multiAspectsSet));
+    BackfillItem[] result = runAndWait(testResource.backfillMAE(provideBackfillItems(urnSet, null), IngestionMode.BACKFILL));
+    assertEqualBackfillItemArrays(result, provideBackfillItems(ImmutableSet.of(makeFooUrn(1).toString()), multiAspectsSet));
+  }
+
+  @Test
+  public void testBackfillMAEDuplicateUrn() {
+    TestResource testResource = new TestResource();
+    List<String> urnList = ImmutableList.of(makeFooUrn(1).toString(), makeFooUrn(1).toString());
+    when(_fooLocalDAO.backfillMAE(BackfillMode.BACKFILL_INCLUDING_LIVE_INDEX, null, Collections.singleton(makeFooUrn(1).toString())))
+        .thenReturn(ImmutableMap.of(makeFooUrn(1).toString(), multiAspectsSet));
+    BackfillItem[] result = runAndWait(testResource.backfillMAE(provideBackfillItems(urnList, null), IngestionMode.BACKFILL));
+    assertEqualBackfillItemArrays(result, provideBackfillItems(ImmutableList.of(makeFooUrn(1).toString(), makeFooUrn(1).toString()), multiAspectsSet));
+  }
+
+  @Test
   public void testBackfillMAENoSuchEntity() {
     TestResource testResource = new TestResource();
     Set<String> badUrnSet = ImmutableSet.of(makeBazUrn(1).toString(), makeBazUrn(2).toString(), makeBazUrn(3).toString());
@@ -186,7 +208,7 @@ public class BaseEntityAgnosticResourceTest extends BaseEngineTest {
     assertEqualBackfillItemArrays(result, expectedItems);
   }
 
-  private BackfillItem[] provideBackfillItems(Set<String> urnSet, Set<String> aspects) {
+  private BackfillItem[] provideBackfillItems(Collection<String> urnSet, Set<String> aspects) {
     return urnSet.stream().map(urn -> {
       BackfillItem item = new BackfillItem();
       item.setUrn(urn);
