@@ -83,11 +83,13 @@ public abstract class BaseEntityAgnosticResource {
           log.warn("LocalDAO not found for entity type: " + entityType);
           continue;
         }
-        final List<BackfillItem> items = entityTypeToRequestsMap.get(entityType);
-        backfillResults.addAll(items.stream()
+        final List<BackfillItem> itemsToBackfill = entityTypeToRequestsMap.get(entityType);
+        final List<BackfillItem> backfilledItems = itemsToBackfill.stream()
             .map(item -> backfillMAEForUrn(item.getUrn(), item.getAspects(), backfillMode, dao.get()).orElse(null))
             .filter(Objects::nonNull)
-            .collect(Collectors.toList()));
+            .collect(Collectors.toList());
+        log.info(String.format("Given requests: %s, backfill results: %s", itemsToBackfill, backfilledItems));
+        backfillResults.addAll(backfilledItems);
       }
       return backfillResults.toArray(new BackfillItem[0]); // insert order is not guaranteed the same as input
     });
@@ -100,7 +102,7 @@ public abstract class BaseEntityAgnosticResource {
       // set aspectSetToUse to null if empty to backfill all aspects
       Set<String> aspectSetToUse = aspectSet.isEmpty() ? null : new HashSet<>(aspectSet);
       Set<String> backfilledAspects = dao.backfillMAE(backfillMode, aspectSetToUse, Collections.singleton(urn)).get(urn);
-      log.info(String.format("Backfilled aspect: %s, for urn: %s, aspectSet: %s, backfillMode: %s", backfilledAspects, urn, aspectSet, backfillMode));
+      log.info(String.format("Backfilled aspects: %s, for urn: %s, aspectSet: %s, backfillMode: %s", backfilledAspects, urn, aspectSet, backfillMode));
       if (backfilledAspects == null || backfilledAspects.isEmpty()) {
         return Optional.empty();
       }
