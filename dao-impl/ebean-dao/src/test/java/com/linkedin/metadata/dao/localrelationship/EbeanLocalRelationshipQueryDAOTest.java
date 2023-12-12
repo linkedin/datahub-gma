@@ -11,9 +11,12 @@ import com.linkedin.metadata.dao.EbeanLocalAccess;
 import com.linkedin.metadata.dao.EbeanLocalRelationshipQueryDAO;
 import com.linkedin.metadata.dao.EbeanLocalRelationshipWriterDAO;
 import com.linkedin.metadata.dao.IEbeanLocalAccess;
+import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
 import com.linkedin.metadata.dao.scsi.EmptyPathExtractor;
 import com.linkedin.metadata.dao.utils.EBeanDAOUtils;
 import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
+import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
+import com.linkedin.metadata.dao.utils.SQLStatementUtils;
 import com.linkedin.metadata.query.AspectField;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.LocalRelationshipCriterion;
@@ -38,6 +41,7 @@ import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.FooUrn;
 import io.ebean.Ebean;
 import io.ebean.EbeanServer;
+import io.ebean.SqlUpdate;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
@@ -155,6 +159,25 @@ public class EbeanLocalRelationshipQueryDAOTest {
     assertEquals(reportsToAlice.size(), 2);
     Set<FooUrn> actual = reportsToAlice.stream().map(reportsTo -> makeFooUrn(reportsTo.getSource().toString())).collect(Collectors.toSet());
     Set<FooUrn> expected = ImmutableSet.of(jack, bob);
+    assertEquals(actual, expected);
+
+    // Soft (set delete_ts = now()) Delete Jack reports-to ALice relationship
+    SqlUpdate deletionSQL = _server.createSqlUpdate(
+        SQLStatementUtils.deleteLocaRelationshipSQL(SQLSchemaUtils.getRelationshipTableName(jackReportsToAlice),
+            BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE));
+    deletionSQL.setParameter("source", jack.toString());
+    deletionSQL.execute();
+
+    reportsToAlice = _localRelationshipQueryDAO.findRelationships(FooSnapshot.class,
+        new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()), FooSnapshot.class, filter,
+        ReportsTo.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()), 0, 10);
+
+    // Expect: only bob reports to Alice
+    assertEquals(reportsToAlice.size(), 1);
+    actual = reportsToAlice.stream()
+        .map(reportsTo -> makeFooUrn(reportsTo.getSource().toString()))
+        .collect(Collectors.toSet());
+    expected = ImmutableSet.of(bob);
     assertEquals(actual, expected);
   }
 
