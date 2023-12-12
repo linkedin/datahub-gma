@@ -2,9 +2,7 @@ package com.linkedin.metadata.dao.localrelationship;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.io.Resources;
-import com.linkedin.avro2pegasus.events.UUID;
 import com.linkedin.common.AuditStamp;
-import com.linkedin.data.ByteString;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.StringArray;
 import com.linkedin.metadata.dao.EbeanLocalAccess;
@@ -62,7 +60,6 @@ public class EbeanLocalRelationshipQueryDAOTest {
   private EbeanLocalRelationshipQueryDAO _localRelationshipQueryDAO;
   private IEbeanLocalAccess<FooUrn> _fooUrnEBeanLocalAccess;
   private IEbeanLocalAccess<BarUrn> _barUrnEBeanLocalAccess;
-  private static final byte[] UUID = {0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1};
 
   @BeforeClass
   public void init() {
@@ -84,7 +81,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
   @Test
   public void testFindOneEntity() throws URISyntaxException {
     // Ingest data
-    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
+    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null);
 
     // Prepare filter
     LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("foo"),
@@ -102,8 +99,8 @@ public class EbeanLocalRelationshipQueryDAOTest {
   @Test
   public void testFindOneEntityTwoAspects() throws URISyntaxException {
     // Ingest data
-    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
-    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectBar().setValue("bar"), AspectBar.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
+    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null);
+    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectBar().setValue("bar"), AspectBar.class, new AuditStamp(), null);
 
     // Prepare filter
     LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("foo"),
@@ -133,9 +130,9 @@ public class EbeanLocalRelationshipQueryDAOTest {
     FooUrn jack = new FooUrn(3);
 
     // Add Alice, Bob and Jack into entity tables.
-    _fooUrnEBeanLocalAccess.add(alice, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
-    _fooUrnEBeanLocalAccess.add(bob, new AspectFoo().setValue("Bob"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
-    _fooUrnEBeanLocalAccess.add(jack, new AspectFoo().setValue("Jack"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
+    _fooUrnEBeanLocalAccess.add(alice, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp(), null);
+    _fooUrnEBeanLocalAccess.add(bob, new AspectFoo().setValue("Bob"), AspectFoo.class, new AuditStamp(), null);
+    _fooUrnEBeanLocalAccess.add(jack, new AspectFoo().setValue("Jack"), AspectFoo.class, new AuditStamp(), null);
 
     // Add Bob reports-to ALice relationship
     ReportsTo bobReportsToAlice = new ReportsTo().setSource(bob).setDestination(alice);
@@ -191,13 +188,14 @@ public class EbeanLocalRelationshipQueryDAOTest {
     BarUrn samza = new BarUrn(2);
 
     // Add Kafka_Topic, HDFS_Dataset and Restli_Service into entity tables.
-    _fooUrnEBeanLocalAccess.add(kafka, new AspectFoo().setValue("Kafka_Topic"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
-    _fooUrnEBeanLocalAccess.add(hdfs, new AspectFoo().setValue("HDFS_Dataset"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
-    _fooUrnEBeanLocalAccess.add(restli, new AspectFoo().setValue("Restli_Service"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
+    _fooUrnEBeanLocalAccess.add(kafka, new AspectFoo().setValue("Kafka_Topic"), AspectFoo.class, new AuditStamp(), null);
+    _fooUrnEBeanLocalAccess.add(hdfs, new AspectFoo().setValue("HDFS_Dataset"), AspectFoo.class, new AuditStamp(), null);
+    _fooUrnEBeanLocalAccess.add(restli, new AspectFoo().setValue("Restli_Service"), AspectFoo.class, new AuditStamp(),
+        null);
 
     // Add Spark and Samza into entity tables.
-    _barUrnEBeanLocalAccess.add(spark, new AspectFoo().setValue("Spark"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
-    _barUrnEBeanLocalAccess.add(samza, new AspectFoo().setValue("Samza"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
+    _barUrnEBeanLocalAccess.add(spark, new AspectFoo().setValue("Spark"), AspectFoo.class, new AuditStamp(), null);
+    _barUrnEBeanLocalAccess.add(samza, new AspectFoo().setValue("Samza"), AspectFoo.class, new AuditStamp(), null);
 
     // Add Spark consume-from hdfs relationship
     ConsumeFrom sparkConsumeFromHdfs = new ConsumeFrom().setSource(spark).setDestination(hdfs).setEnvironment(EnvorinmentType.OFFLINE);
@@ -258,9 +256,9 @@ public class EbeanLocalRelationshipQueryDAOTest {
     FooUrn jack = new FooUrn(3);
 
     // Add Alice, Bob and Jack into entity tables.
-    _fooUrnEBeanLocalAccess.add(alice, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
-    _fooUrnEBeanLocalAccess.add(bob, new AspectFoo().setValue("Bob"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
-    _fooUrnEBeanLocalAccess.add(jack, new AspectFoo().setValue("Jack"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
+    _fooUrnEBeanLocalAccess.add(alice, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp(), null);
+    _fooUrnEBeanLocalAccess.add(bob, new AspectFoo().setValue("Bob"), AspectFoo.class, new AuditStamp(), null);
+    _fooUrnEBeanLocalAccess.add(jack, new AspectFoo().setValue("Jack"), AspectFoo.class, new AuditStamp(), null);
 
     // Add Bob reports-to ALice relationship
     ReportsTo bobReportsToAlice = new ReportsTo().setSource(bob).setDestination(alice);
@@ -306,12 +304,12 @@ public class EbeanLocalRelationshipQueryDAOTest {
     BarUrn mit = new BarUrn(2);
 
     // Add Alice and Bob into entity tables.
-    _fooUrnEBeanLocalAccess.add(alice, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
-    _fooUrnEBeanLocalAccess.add(bob, new AspectFoo().setValue("Bob"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
+    _fooUrnEBeanLocalAccess.add(alice, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp(), null);
+    _fooUrnEBeanLocalAccess.add(bob, new AspectFoo().setValue("Bob"), AspectFoo.class, new AuditStamp(), null);
 
     // Add Stanford and MIT into entity tables.
-    _barUrnEBeanLocalAccess.add(stanford, new AspectFoo().setValue("Stanford"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
-    _barUrnEBeanLocalAccess.add(mit, new AspectFoo().setValue("MIT"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
+    _barUrnEBeanLocalAccess.add(stanford, new AspectFoo().setValue("Stanford"), AspectFoo.class, new AuditStamp(), null);
+    _barUrnEBeanLocalAccess.add(mit, new AspectFoo().setValue("MIT"), AspectFoo.class, new AuditStamp(), null);
 
     // Add Alice belongs to MIT and Stanford.
     BelongsTo aliceBelongsToMit = new BelongsTo().setSource(alice).setDestination(mit);
@@ -361,22 +359,18 @@ public class EbeanLocalRelationshipQueryDAOTest {
     FooUrn john = new FooUrn(4);
 
     // Add Alice, Bob, Jack and John into entity tables.
-    _fooUrnEBeanLocalAccess.add(alice, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
-    _fooUrnEBeanLocalAccess.add(bob, new AspectFoo().setValue("Bob"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
-    _fooUrnEBeanLocalAccess.add(jack, new AspectFoo().setValue("Jack"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
-    _fooUrnEBeanLocalAccess.add(john, new AspectFoo().setValue("John"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
+    _fooUrnEBeanLocalAccess.add(alice, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp(), null);
+    _fooUrnEBeanLocalAccess.add(bob, new AspectFoo().setValue("Bob"), AspectFoo.class, new AuditStamp(), null);
+    _fooUrnEBeanLocalAccess.add(jack, new AspectFoo().setValue("Jack"), AspectFoo.class, new AuditStamp(), null);
+    _fooUrnEBeanLocalAccess.add(john, new AspectFoo().setValue("John"), AspectFoo.class, new AuditStamp(), null);
 
-    _fooUrnEBeanLocalAccess.add(alice, new AspectBar().setValue("32"), AspectBar.class, new AuditStamp(),
-        new UUID(ByteString.copy(UUID))); // Alice 32 years old
+    _fooUrnEBeanLocalAccess.add(alice, new AspectBar().setValue("32"), AspectBar.class, new AuditStamp(), null); // Alice 32 years old
 
-    _fooUrnEBeanLocalAccess.add(bob, new AspectBar().setValue("52"), AspectBar.class, new AuditStamp(),
-        new UUID(ByteString.copy(UUID))); // Bob 52 years old
+    _fooUrnEBeanLocalAccess.add(bob, new AspectBar().setValue("52"), AspectBar.class, new AuditStamp(), null); // Bob 52 years old
 
-    _fooUrnEBeanLocalAccess.add(jack, new AspectBar().setValue("16"), AspectBar.class, new AuditStamp(),
-        new UUID(ByteString.copy(UUID))); // Jack 16 years old
+    _fooUrnEBeanLocalAccess.add(jack, new AspectBar().setValue("16"), AspectBar.class, new AuditStamp(), null); // Jack 16 years old
 
-    _fooUrnEBeanLocalAccess.add(john, new AspectBar().setValue("42"), AspectBar.class, new AuditStamp(),
-        new UUID(ByteString.copy(UUID))); // John 42 years old
+    _fooUrnEBeanLocalAccess.add(john, new AspectBar().setValue("42"), AspectBar.class, new AuditStamp(), null); // John 42 years old
 
     // Add Alice pair-with Jack relationships. Alice --> Jack.
     PairsWith alicePairsWithJack = new PairsWith().setSource(alice).setDestination(jack);
@@ -431,7 +425,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
   @Test
   public void testFindOneEntityWithInCondition() throws URISyntaxException {
     // Ingest data
-    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
+    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null);
 
     // Prepare filter
     LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create(new StringArray("foo")),
@@ -449,7 +443,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
   @Test
   public void testFindNoEntityWithInCondition() throws URISyntaxException {
     // Ingest data
-    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
+    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null);
 
     // Prepare filter
     LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create(new StringArray("bar")),
@@ -465,7 +459,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
   @Test
   public void testFindEntitiesWithEmptyRelationshipFilter() throws URISyntaxException {
     // Ingest data
-    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), new UUID(ByteString.copy(UUID)));
+    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null);
 
     // Create empty filter
     LocalRelationshipFilter emptyFilter = new LocalRelationshipFilter();

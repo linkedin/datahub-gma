@@ -2,6 +2,7 @@ package com.linkedin.metadata.dao;
 
 import com.linkedin.common.AuditStamp;
 import com.linkedin.data.template.RecordTemplate;
+import com.linkedin.data.template.SetMode;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
@@ -437,24 +438,38 @@ public class BaseLocalDAOTest {
     AuditStamp oldAuditStamp = makeAuditStamp("susActor", 6L);
 
     // case 1 - emitTime doesn't exist
-    IngestionTrackingContext contextWithNoEmitTime = new IngestionTrackingContext();
-    contextWithNoEmitTime.setBackfill(true);
+    IngestionTrackingContext context1 = new IngestionTrackingContext();
+    context1.setBackfill(true);
 
-    // case 2 - emitTime < old stamp
-    IngestionTrackingContext contextWithSmallEmitTime = new IngestionTrackingContext();
-    contextWithSmallEmitTime.setBackfill(true);
-    contextWithSmallEmitTime.setEmitTime(5L);
+    // case 2 - new emit time < old emit time
+    IngestionTrackingContext context2 = new IngestionTrackingContext();
+    context2.setBackfill(true);
+    context2.setEmitTime(4L);
+    long oldEmitTime2 = 5L;
+
+    // case 3 - new emit time < old emit time (same as case 2, but old stamp < new emit time)
+    IngestionTrackingContext context3 = new IngestionTrackingContext();
+    context3.setBackfill(true);
+    context3.setEmitTime(10L);
+    long oldEmitTime3 = 11L;
+
+    // case 4 - old emit time = null, new emit time < old audit stamp
+    IngestionTrackingContext context4 = new IngestionTrackingContext();
+    context4.setBackfill(true);
+    context4.setEmitTime(3L);
 
     return new Object[][] {
-        { contextWithNoEmitTime, oldAuditStamp },
-        { contextWithSmallEmitTime, oldAuditStamp }
+        { context1, oldAuditStamp, null },
+        { context2, oldAuditStamp, oldEmitTime2 },
+        { context3, oldAuditStamp, oldEmitTime3 },
+        { context4, oldAuditStamp, null }
     };
   }
 
   @Test(description = "Each test case represents a scenario where a backfill event should NOT be backfilled",
       dataProvider = "addBackfillForNoopCases")
-  public void testAddBackfillEmitTimeLargerThanOldAuditTime(
-      IngestionTrackingContext ingestionTrackingContext, AuditStamp oldAuditStamp
+  public void testAddForBackfillEventsWhenWeShouldNotDoBackfill(
+      IngestionTrackingContext ingestionTrackingContext, AuditStamp oldAuditStamp, Long oldEmitTime
   ) throws URISyntaxException {
     FooUrn urn = new FooUrn(1);
     AspectFoo oldFoo = new AspectFoo().setValue("oldFoo");
@@ -462,6 +477,7 @@ public class BaseLocalDAOTest {
 
     ExtraInfo extraInfo = new ExtraInfo();
     extraInfo.setAudit(oldAuditStamp);
+    extraInfo.setEmitTime(oldEmitTime, SetMode.IGNORE_NULL);
 
     DummyLocalDAO dummyLocalDAO = new DummyLocalDAO(_mockGetLatestFunction, _mockTrackingEventProducer, _mockTrackingManager,
         _dummyLocalDAO._transactionRunner);
@@ -469,7 +485,8 @@ public class BaseLocalDAOTest {
     dummyLocalDAO.setAlwaysEmitAuditEvent(true);
     dummyLocalDAO.setEmitAspectSpecificAuditEvent(true);
     dummyLocalDAO.setAlwaysEmitAspectSpecificAuditEvent(true);
-    expectGetLatest(urn, AspectFoo.class, Collections.singletonList(makeAspectEntry(oldFoo, oldAuditStamp)));
+    BaseLocalDAO.AspectEntry<AspectFoo> aspectEntry = new BaseLocalDAO.AspectEntry<>(oldFoo, extraInfo);
+    expectGetLatest(urn, AspectFoo.class, Collections.singletonList(aspectEntry));
 
     dummyLocalDAO.add(urn, newFoo, _dummyAuditStamp, ingestionTrackingContext);
 
@@ -479,15 +496,45 @@ public class BaseLocalDAOTest {
     verifyNoMoreInteractions(_mockTrackingEventProducer);
   }
 
-  @Test(description = "Event should be processed for backfill event")
-  public void testAddForBackfill() throws URISyntaxException {
+  @DataProvider(name = "addBackfillForCasesThatShouldBackfill")
+  public Object[][] addBackfillForCasesThatShouldBackfill() {
+    AuditStamp oldAuditStamp = makeAuditStamp("susActor", 6L);
+
+    // case 1 - emitTime exists and is larger than old emit time
+    IngestionTrackingContext context1 = new IngestionTrackingContext();
+    context1.setBackfill(true);
+    context1.setEmitTime(5L);
+    long oldEmitTime1 = 4L;
+
+    // case 2 - emitTime exists and is larger than old emit time
+    IngestionTrackingContext context2 = new IngestionTrackingContext();
+    context2.setBackfill(true);
+    context2.setEmitTime(10L);
+    long oldEmitTime2 = 4L;
+
+    // case 3 - emitTime exists, old emitTime doesn't exist, emitTime > old audit stamp
+    IngestionTrackingContext context3 = new IngestionTrackingContext();
+    context3.setBackfill(true);
+    context3.setEmitTime(7L);
+
+    return new Object[][] {
+        { context1, oldAuditStamp, oldEmitTime1 },
+        { context2, oldAuditStamp, oldEmitTime2 },
+        { context3, oldAuditStamp, null }
+    };
+  }
+
+  @Test(description = "Event should be processed for backfill event", dataProvider = "addBackfillForCasesThatShouldBackfill")
+  public void testAddForBackfill(
+      IngestionTrackingContext ingestionTrackingContext, AuditStamp oldAuditStamp, Long oldEmitTime
+  ) throws URISyntaxException {
     FooUrn urn = new FooUrn(1);
     AspectFoo oldFoo = new AspectFoo().setValue("oldFoo");
     AspectFoo newFoo = new AspectFoo().setValue("newFoo");
 
     ExtraInfo extraInfo = new ExtraInfo();
-    AuditStamp oldAuditStamp = makeAuditStamp("nonSusActor", 5L);
     extraInfo.setAudit(oldAuditStamp);
+    extraInfo.setEmitTime(oldEmitTime, SetMode.IGNORE_NULL);
 
     DummyLocalDAO dummyLocalDAO = new DummyLocalDAO(_mockGetLatestFunction, _mockTrackingEventProducer, _mockTrackingManager,
         _dummyLocalDAO._transactionRunner);
@@ -495,11 +542,8 @@ public class BaseLocalDAOTest {
     dummyLocalDAO.setAlwaysEmitAuditEvent(true);
     dummyLocalDAO.setEmitAspectSpecificAuditEvent(true);
     dummyLocalDAO.setAlwaysEmitAspectSpecificAuditEvent(true);
-    expectGetLatest(urn, AspectFoo.class, Collections.singletonList(makeAspectEntry(oldFoo, oldAuditStamp)));
-
-    IngestionTrackingContext ingestionTrackingContext = new IngestionTrackingContext();
-    ingestionTrackingContext.setBackfill(true);
-    ingestionTrackingContext.setEmitTime(6L);
+    BaseLocalDAO.AspectEntry<AspectFoo> aspectEntry = new BaseLocalDAO.AspectEntry<>(oldFoo, extraInfo);
+    expectGetLatest(urn, AspectFoo.class, Collections.singletonList(aspectEntry));
 
     dummyLocalDAO.add(urn, newFoo, _dummyAuditStamp, ingestionTrackingContext);
 

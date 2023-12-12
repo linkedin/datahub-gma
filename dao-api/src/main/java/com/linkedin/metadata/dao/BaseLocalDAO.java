@@ -411,6 +411,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     final ASPECT oldValue = latest.getAspect() == null ? null : latest.getAspect();
     final AuditStamp oldAuditStamp = latest.getExtraInfo() == null ? null : latest.getExtraInfo().getAudit();
+    final Long oldEmitTime = latest.getExtraInfo() == null ? null : latest.getExtraInfo().getEmitTime();
 
     boolean isBackfillEvent = trackingContext != null
         && trackingContext.hasBackfill() && trackingContext.isBackfill();
@@ -418,19 +419,21 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       boolean shouldBackfill =
           // new value is being inserted. We should backfill
           oldValue == null
-              // the time in old audit stamp represents last modified time of the aspect
-              // if the record doesn't exist, it will be null, which means we should process the record as normal
               || (
-              oldAuditStamp != null && oldAuditStamp.hasTime()
-                  // ingestionTrackingContext if not null should always have emitTime. If emitTime doesn't exist within
-                  // a non-null IngestionTrackingContext, it should be investigated. We'll also skip backfilling in this case
-                  && trackingContext.hasEmitTime()
-                  // we should only process this backfilling event if the emit time is greater than last modified time
-                  && trackingContext.getEmitTime() > oldAuditStamp.getTime());
+              // tracking context should ideally always have emitTime. If it's not present, we will skip backfilling
+              trackingContext.hasEmitTime()
+                  && (
+                  // old emit time is available so we'll use it for comparison
+                  // if new event emit time > old event emit time, we'll backfill
+                  (oldEmitTime != null && trackingContext.getEmitTime() > oldEmitTime)
+                      // old emit time is not available, so we'll fall back to comparing new emit time against old audit time
+                      // old audit time represents the last modified time of the aspect
+                      || (oldEmitTime == null && oldAuditStamp != null && oldAuditStamp.hasTime() && trackingContext.getEmitTime() > oldAuditStamp.getTime())));
 
-      log.info("Encounter backfill event. Tracking context: {}. Urn: {}. Aspect class: {}. Old audit stamp: {}. "
+      log.info("Encounter backfill event. Old value = null: {}. Tracking context: {}. Urn: {}. Aspect class: {}. Old audit stamp: {}. "
+              + "Old emit time: {}. "
               + "Based on this information, shouldBackfill = {}.",
-          trackingContext, urn, aspectClass, oldAuditStamp, shouldBackfill);
+          oldValue == null, trackingContext, urn, aspectClass, oldAuditStamp, oldEmitTime, shouldBackfill);
 
       if (!shouldBackfill) {
         return new AddResult<>(oldValue, oldValue, aspectClass);
@@ -578,6 +581,10 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   private <ASPECT extends RecordTemplate> ASPECT unwrapAddResult(URN urn, AddResult<ASPECT> result, @Nonnull AuditStamp auditStamp,
       @Nullable IngestionTrackingContext trackingContext) {
+    if (trackingContext != null) {
+      trackingContext.setBackfill(false); // reset backfill since MAE won't be a backfill event
+    }
+
     Class<ASPECT> aspectClass = result.getKlass();
     final ASPECT oldValue = result.getOldValue();
     final ASPECT newValue = result.getNewValue();

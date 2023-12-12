@@ -1,6 +1,5 @@
 package com.linkedin.metadata.dao;
 
-import com.linkedin.avro2pegasus.events.UUID;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
@@ -15,6 +14,7 @@ import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
 import com.linkedin.metadata.dao.utils.SQLStatementUtils;
+import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.ExtraInfoArray;
 import com.linkedin.metadata.query.IndexFilter;
@@ -92,14 +92,18 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   @Override
   @Transactional
   public <ASPECT extends RecordTemplate> int add(@Nonnull URN urn, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
-      @Nonnull AuditStamp auditStamp, @Nullable UUID messageId) {
-    return addWithOptimisticLocking(urn, newValue, aspectClass, auditStamp, null, messageId);
+      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext ingestionTrackingContext) {
+    return addWithOptimisticLocking(urn, newValue, aspectClass, auditStamp, null, ingestionTrackingContext);
   }
 
   @Override
-  public <ASPECT extends RecordTemplate> int addWithOptimisticLocking(@Nonnull URN urn, @Nullable ASPECT newValue,
-      @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, @Nonnull Timestamp oldTimestamp,
-      @Nullable UUID messageId) {
+  public <ASPECT extends RecordTemplate> int addWithOptimisticLocking(
+      @Nonnull URN urn,
+      @Nullable ASPECT newValue,
+      @Nonnull Class<ASPECT> aspectClass,
+      @Nonnull AuditStamp auditStamp,
+      @Nullable Timestamp oldTimestamp,
+      @Nullable IngestionTrackingContext ingestionTrackingContext) {
 
     final long timestamp = auditStamp.hasTime() ? auditStamp.getTime() : System.currentTimeMillis();
     final String actor = auditStamp.hasActor() ? auditStamp.getActor().toString() : DEFAULT_ACTOR;
@@ -151,6 +155,9 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
         .setLastmodifiedby(actor)
         .setLastmodifiedon(new Timestamp(timestamp).toString())
         .setCreatedfor(impersonator, SetMode.IGNORE_NULL);
+    if (ingestionTrackingContext != null) {
+      auditedAspect.setEmitTime(ingestionTrackingContext.getEmitTime(), SetMode.IGNORE_NULL);
+    }
 
       final String metadata = toJsonString(auditedAspect);
       return sqlUpdate.setParameter("metadata", metadata).execute();
