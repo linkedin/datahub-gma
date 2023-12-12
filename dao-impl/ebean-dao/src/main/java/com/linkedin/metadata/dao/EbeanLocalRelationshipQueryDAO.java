@@ -245,15 +245,15 @@ public class EbeanLocalRelationshipQueryDAO {
       sqlBuilder.append("INNER JOIN ").append(sourceTableName).append(" st ON st.urn=rt.source ");
     }
 
+    sqlBuilder.append("WHERE deleted_ts is NULL");
     String whereClause = SQLStatementUtils.whereClause(SUPPORTED_CONDITIONS,
         new Pair<>(sourceEntityFilter, "st"),
         new Pair<>(destinationEntityFilter, "dt"),
         new Pair<>(relationshipFilter, "rt"));
 
     if (whereClause != null) {
-      sqlBuilder.append("WHERE ").append(whereClause);
+      sqlBuilder.append(" AND ").append(whereClause);
     }
-
     return sqlBuilder.toString();
   }
 }
