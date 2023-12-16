@@ -247,7 +247,7 @@ public class SQLStatementUtils {
     if (hasTotalCount) {
       sb.append(String.format(SQL_FILTER_TEMPLATE, totalCountSql, tableName));
     } else {
-      sb.append("SELECT * FROM ").append(tableName);
+      sb.append("SELECT urn FROM ").append(tableName);
     }
 
     sb.append("\n");
