@@ -7,10 +7,17 @@ import com.linkedin.metadata.backfill.BackfillMode;
 import com.linkedin.metadata.backfill.BackfillItem;
 import com.linkedin.metadata.dao.BaseLocalDAO;
 import com.linkedin.metadata.dao.exception.InvalidMetadataType;
+import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.events.IngestionMode;
+import com.linkedin.metadata.query.IndexFilter;
+import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.restli.dao.LocalDaoRegistry;
 import com.linkedin.parseq.Task;
+import com.linkedin.restli.common.HttpStatus;
+import com.linkedin.restli.server.PagingContext;
+import com.linkedin.restli.server.RestLiServiceException;
 import com.linkedin.restli.server.annotations.Action;
+import com.linkedin.restli.server.annotations.ActionParam;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -24,6 +31,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import lombok.extern.slf4j.Slf4j;
 
 import static com.linkedin.metadata.dao.utils.IngestionUtils.*;
@@ -93,6 +101,48 @@ public abstract class BaseEntityAgnosticResource {
       }
       return backfillResults.toArray(new BackfillItem[0]); // insert order is not guaranteed the same as input
     });
+  }
+
+  /**
+   * An action method for getting filtered urns.
+   *
+   * @param indexFilter {@link IndexFilter} that defines the filter conditions
+   * @param lastUrnStr last urn of the previous fetched page. For the first page, this should be set as NULL
+   * @param entityType entity type for the urn
+   * @param limit maximum number of distinct urns to return
+   * @return Array of urns represented as string
+   */
+  @Action(name = ACTION_LIST_URNS)
+  @Nonnull
+  public Task<String[]> listUrns(
+      @ActionParam(PARAM_FILTER) @Nullable IndexFilter indexFilter,
+      @ActionParam(PARAM_SORT) @Nullable IndexSortCriterion indexSortCriterion,
+      @ActionParam(PARAM_URN) @Nullable String lastUrnStr,
+      @ActionParam(PARAM_ENTITY_TYPE) @Nonnull String entityType,
+      @ActionParam(PARAM_LIMIT) int limit) {
+
+    if (lastUrnStr != null) {
+      try {
+        Urn lastUrn = Urn.createFromString(lastUrnStr);
+        final String lastUrnEntityType = lastUrn.getEntityType();
+        if (!entityType.equals(lastUrnEntityType)) {
+          throw new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
+              String.format("Entity type in request is %s but lastUrnStr entity type is %s", entityType, lastUrnEntityType));
+        }
+      } catch (URISyntaxException e) {
+        throw new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Failed to convert lastUrnStr to Urn", e);
+      }
+    }
+
+    String[] urns = getLocalDaoByEntity(entityType)
+        .map(baseLocalDAO -> baseLocalDAO
+            .listUrns(indexFilter, indexSortCriterion, lastUrnStr, limit).stream()
+            .map(Urn::toString)
+            .toArray(String[]::new))
+        .orElseThrow(() -> new RestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
+            String.format("LocalDAO not found for entity type: %s", entityType)));
+
+    return RestliUtils.toTask(() -> urns);
   }
 
   protected Optional<BackfillItem> backfillMAEForUrn(@Nonnull String urn, @Nonnull List<String> aspectSet,

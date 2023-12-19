@@ -848,6 +848,11 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   public abstract List<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       @Nullable URN lastUrn, int pageSize);
 
+  public List<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
+      @Nullable String lastUrn, int pageSize) {
+    return listUrns(indexFilter, indexSortCriterion, getUrnFromString(lastUrn, _urnClass), pageSize);
+  }
+
   /**
    * Similar to {@link #listUrns(IndexFilter, IndexSortCriterion, Urn, int)} but sorts lexicographically by the URN.
    */
