@@ -102,7 +102,6 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   }
 
   @Override
-<<<<<<< HEAD
   public <ASPECT extends RecordTemplate> int addWithOptimisticLocking(
       @Nonnull URN urn,
       @Nullable ASPECT newValue,
@@ -110,11 +109,6 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       @Nonnull AuditStamp auditStamp,
       @Nullable Timestamp oldTimestamp,
       @Nullable IngestionTrackingContext ingestionTrackingContext) {
-=======
-  public <ASPECT extends RecordTemplate> int addWithOptimisticLocking(@Nonnull URN urn, @Nullable ASPECT newValue,
-      @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, @Nullable Timestamp oldTimestamp,
-      @Nullable UUID messageId) {
->>>>>>> cab619cf (Address comment)
 
     final long timestamp = auditStamp.hasTime() ? auditStamp.getTime() : System.currentTimeMillis();
     final String actor = auditStamp.hasActor() ? auditStamp.getActor().toString() : DEFAULT_ACTOR;
