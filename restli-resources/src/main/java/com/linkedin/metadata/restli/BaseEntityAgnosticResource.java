@@ -121,28 +121,21 @@ public abstract class BaseEntityAgnosticResource {
       @ActionParam(PARAM_ENTITY_TYPE) @Nonnull String entityType,
       @ActionParam(PARAM_LIMIT) int limit) {
 
-    if (lastUrnStr != null) {
-      try {
-        Urn lastUrn = Urn.createFromString(lastUrnStr);
-        final String lastUrnEntityType = lastUrn.getEntityType();
-        if (!entityType.equals(lastUrnEntityType)) {
-          throw new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
-              String.format("Entity type in request is %s but lastUrnStr entity type is %s", entityType, lastUrnEntityType));
-        }
-      } catch (URISyntaxException e) {
-        throw new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Failed to convert lastUrnStr to Urn", e);
-      }
+    final Optional<BaseLocalDAO<? extends UnionTemplate, ? extends Urn>> dao = getLocalDaoByEntity(entityType);
+    if (!dao.isPresent()) {
+      throw new RestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
+          String.format("LocalDAO not found for entity type: %s", entityType));
     }
 
-    String[] urns = getLocalDaoByEntity(entityType)
-        .map(baseLocalDAO -> baseLocalDAO
-            .listUrns(indexFilter, indexSortCriterion, lastUrnStr, limit).stream()
-            .map(Urn::toString)
-            .toArray(String[]::new))
-        .orElseThrow(() -> new RestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
-            String.format("LocalDAO not found for entity type: %s", entityType)));
+    try {
+      String[] urns = dao.get().listUrns(lastUrnStr, limit, indexFilter, indexSortCriterion)
+          .stream().map(Urn::toString).toArray(String[]::new);
 
-    return RestliUtils.toTask(() -> urns);
+      return RestliUtils.toTask(() -> urns);
+    } catch (Exception e) {
+      throw new RestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
+          String.format("Failed to list urns for entity type: %s; last urn: %s;", entityType, lastUrnStr), e);
+    }
   }
 
   protected Optional<BackfillItem> backfillMAEForUrn(@Nonnull String urn, @Nonnull List<String> aspectSet,
