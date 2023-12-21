@@ -10,6 +10,7 @@ import com.linkedin.metadata.dao.BaseLocalDAO;
 import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.restli.dao.DefaultLocalDaoRegistryImpl;
 import com.linkedin.parseq.BaseEngineTest;
+import com.linkedin.restli.server.RestLiServiceException;
 import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.EntityAspectUnion;
@@ -206,6 +207,27 @@ public class BaseEntityAgnosticResourceTest extends BaseEngineTest {
     BackfillItem[] expectedItems =
         provideBackfillItems(ImmutableSet.of(makeFooUrn(2).toString(), makeFooUrn(3).toString()), multiAspectsSet);
     assertEqualBackfillItemArrays(result, expectedItems);
+  }
+
+  @Test
+  public void testListUrns() {
+    TestResource testResource = new TestResource();
+    List<FooUrn> urns = ImmutableList.of(makeFooUrn(2), makeFooUrn(3));
+
+    when(_fooLocalDAO.listUrns("urn:li:foo:1", 2, null, null))
+        .thenReturn(urns);
+    String[] result = runAndWait(testResource.listUrns(null, null, makeFooUrn(1).toString(), "foo", 2));
+
+    assertEquals(result.length, 2);
+    assertEquals(result[0], "urn:li:foo:2");
+    assertEquals(result[1], "urn:li:foo:3");
+  }
+
+  @Test(expectedExceptions = {RestLiServiceException.class})
+  public void testListUrnsWithException() {
+    TestResource testResource = new TestResource();
+    doThrow(IllegalArgumentException.class).when(_fooLocalDAO).listUrns("urn:li:foo:1", 2, null, null);
+    runAndWait(testResource.listUrns(null, null, makeFooUrn(1).toString(), "foo", 2));
   }
 
   private BackfillItem[] provideBackfillItems(Collection<String> urnSet, Set<String> aspects) {
