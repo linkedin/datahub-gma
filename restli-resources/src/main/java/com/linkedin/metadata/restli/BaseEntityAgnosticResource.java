@@ -105,7 +105,7 @@ public abstract class BaseEntityAgnosticResource {
    * An action method for getting filtered urns.
    *
    * @param indexFilter {@link IndexFilter} that defines the filter conditions
-   * @param lastUrnStr last urn of the previous fetched page. For the first page, this should be set as NULL
+   * @param lastUrn last urn of the previous fetched page. For the first page, this should be set as NULL
    * @param entityType entity type for the urn
    * @param limit maximum number of distinct urns to return
    * @return Array of urns represented as string
@@ -115,7 +115,7 @@ public abstract class BaseEntityAgnosticResource {
   public Task<String[]> listUrns(
       @ActionParam(PARAM_FILTER) @Nullable IndexFilter indexFilter,
       @ActionParam(PARAM_SORT) @Nullable IndexSortCriterion indexSortCriterion,
-      @ActionParam(PARAM_URN) @Nullable String lastUrnStr,
+      @ActionParam(PARAM_URN) @Nullable String lastUrn,
       @ActionParam(PARAM_ENTITY_TYPE) @Nonnull String entityType,
       @ActionParam(PARAM_LIMIT) int limit) {
 
@@ -126,13 +126,13 @@ public abstract class BaseEntityAgnosticResource {
     }
 
     try {
-      String[] urns = dao.get().listUrns(lastUrnStr, limit, indexFilter, indexSortCriterion)
+      String[] urns = dao.get().listUrns(lastUrn, limit, indexFilter, indexSortCriterion)
           .stream().map(Urn::toString).toArray(String[]::new);
 
       return RestliUtils.toTask(() -> urns);
     } catch (Exception e) {
       throw new RestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
-          String.format("Failed to list urns for entity type: %s; last urn: %s;", entityType, lastUrnStr), e);
+          String.format("Failed to list urns for entity type: %s; last urn: %s;", entityType, lastUrn), e);
     }
   }
 
