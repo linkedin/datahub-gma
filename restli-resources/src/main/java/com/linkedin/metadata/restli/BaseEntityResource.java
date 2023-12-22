@@ -432,7 +432,7 @@ public abstract class BaseEntityResource<
   }
 
   /**
-   * An action method for getting filtered urns from local secondary index.
+   * An action method for getting filtered urns.
    * If no filter conditions are provided, then it returns urns of given entity type.
    *
    * @param indexFilter {@link IndexFilter} that defines the filter conditions

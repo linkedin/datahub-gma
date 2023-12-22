@@ -30,6 +30,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import org.reflections.Reflections;
 
 
@@ -145,7 +146,11 @@ public class ModelUtils {
    * @param urnClass urn class
    * @return converted urn
    */
-  public static <URN extends Urn> URN getUrnFromString(@Nonnull String urn, @Nonnull Class<URN> urnClass) {
+  public static <URN extends Urn> URN getUrnFromString(@Nullable String urn, @Nonnull Class<URN> urnClass) {
+    if (urn == null) {
+      return null;
+    }
+
     try {
       final Method getUrn = urnClass.getMethod("createFromString", String.class);
       return urnClass.cast(getUrn.invoke(null, urn));
