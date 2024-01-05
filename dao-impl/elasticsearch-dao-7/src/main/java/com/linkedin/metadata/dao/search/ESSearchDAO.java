@@ -1,5 +1,6 @@
 package com.linkedin.metadata.dao.search;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.linkedin.common.UrnArray;
 import com.linkedin.common.urn.Urn;
@@ -503,24 +504,41 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
   }
 
   /**
-   * Extracts term aggregations give a parsed term.
+   * Extracts term aggregations given a parsed term.
    *
    * @param terms an abstract parse term, input can be either ParsedStringTerms ParsedLongTerms
    * @return a map with aggregation key and corresponding doc counts
    */
   @Nonnull
-  private Map<String, Long> extractTermAggregations(@Nonnull ParsedTerms terms) {
+  @VisibleForTesting
+  protected Map<String, Long> extractTermAggregations(@Nonnull ParsedTerms terms) {
 
     final Map<String, Long> aggResult = new HashMap<>();
     List<? extends Terms.Bucket> bucketList = terms.getBuckets();
 
     for (Terms.Bucket bucket : bucketList) {
       String key = bucket.getKeyAsString();
-      ParsedFilter parsedFilter = extractBucketAggregations(bucket);
-      // Gets filtered sub aggregation doc count if exist
-      Long docCount = parsedFilter != null ? parsedFilter.getDocCount() : bucket.getDocCount();
-      if (docCount > 0) {
-        aggResult.put(key, docCount);
+      List<ParsedFilter> parsedFilters = extractBucketAggregations(bucket);
+
+      assert parsedFilters != null;
+      if (parsedFilters.isEmpty()) {
+        Long docCount = bucket.getDocCount();
+        if (docCount > 0) {
+          aggResult.put(key, docCount);
+        }
+      } else {
+        Long minDocCount = Long.MAX_VALUE;
+
+        // logic of these filters should be AND, so if any sub filter has doc document equals to 0, this bucket should return 0 results
+        for (ParsedFilter parsedFilter: parsedFilters) {
+          if (parsedFilter != null) {
+            minDocCount = Math.min(minDocCount, parsedFilter.getDocCount());
+          }
+        }
+
+        if (minDocCount > 0 && minDocCount != Long.MAX_VALUE) {
+          aggResult.put(key, minDocCount);
+        }
       }
     }
 
@@ -531,19 +549,21 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
    * Extracts sub aggregations from one term bucket.
    *
    * @param bucket a term bucket
-   * @return a parsed filter if exist
+   * @return a list of parsed filter if exist
    */
   @Nullable
-  private ParsedFilter extractBucketAggregations(@Nonnull Terms.Bucket bucket) {
+  @VisibleForTesting
+  protected List<ParsedFilter> extractBucketAggregations(@Nonnull Terms.Bucket bucket) {
+    List<ParsedFilter> parsedFilterList = new ArrayList<>();
 
-    ParsedFilter parsedFilter = null;
     Map<String, Aggregation> bucketAggregations = bucket.getAggregations().getAsMap();
     for (Map.Entry<String, Aggregation> entry : bucketAggregations.entrySet()) {
-      parsedFilter = (ParsedFilter) entry.getValue();
-      // TODO: implement and test multi parsed filters
+      ParsedFilter parsedFilter = (ParsedFilter) entry.getValue();
+      parsedFilterList.add(parsedFilter);
+      // TODO: could there be multi-level sub-aggregations here?
     }
 
-    return parsedFilter;
+    return parsedFilterList;
   }
 
   /**

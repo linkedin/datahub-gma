@@ -36,6 +36,10 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.bucket.filter.ParsedFilter;
+import org.elasticsearch.search.aggregations.bucket.terms.ParsedTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -179,6 +183,90 @@ public class ESSearchDAOTest {
     // Note order of values are not deterministic
     assertEquals(matchesHit8.get(0).getName(), "field1");
     assertEquals(matchesHit8.get(1).getName(), "field1");
+  }
+
+  @Test
+  public void testExtractTermAggregationsWhenAllSubAggHasDoc() {
+    // mock aggregations
+
+    // agg0 with doc count 1
+    ParsedFilter agg0 = mock(ParsedFilter.class);
+    when(agg0.getName()).thenReturn("agg0");
+    when(agg0.getDocCount()).thenReturn((long) 1);
+
+    // agg1 with doc count 10
+    ParsedFilter agg1 = mock(ParsedFilter.class);
+    when(agg1.getName()).thenReturn("agg1");
+    when(agg1.getDocCount()).thenReturn((long) 10);
+
+    Aggregations aggregations = new Aggregations(new ArrayList<>(Arrays.asList(agg0, agg1)));
+
+    // bucket with agg0, agg1 as Aggregations
+    Terms.Bucket bucket0 = mock(Terms.Bucket.class);
+    when(bucket0.getAggregations()).thenReturn(aggregations);
+    when(bucket0.getKeyAsString()).thenReturn("bucketKeys0");
+
+    List bucketList = new ArrayList<>(Arrays.asList(bucket0));
+
+    ParsedTerms parsedTerms = mock(ParsedTerms.class);
+    when(parsedTerms.getBuckets()).thenReturn(bucketList);
+
+    Map<String, Long> result = _searchDAO.extractTermAggregations(parsedTerms);
+
+    assertEquals(result.size(), 1);
+    assertTrue(result.containsKey("bucketKeys0"));
+    assertEquals(result.get("bucketKeys0").longValue(), (long) 1);
+  }
+
+  @Test
+  public void testExtractTermAggregationsWhenOneSubAggIsEmpty() {
+    // mock aggregations
+
+    // agg0 with doc count 1
+    ParsedFilter agg0 = mock(ParsedFilter.class);
+    when(agg0.getName()).thenReturn("agg0");
+    when(agg0.getDocCount()).thenReturn((long) 0);
+
+    // agg1 with doc count 10
+    ParsedFilter agg1 = mock(ParsedFilter.class);
+    when(agg1.getName()).thenReturn("agg1");
+    when(agg1.getDocCount()).thenReturn((long) 10);
+
+    Aggregations aggregations = new Aggregations(new ArrayList<>(Arrays.asList(agg0, agg1)));
+
+    // bucket with agg0, agg1 as Aggregations
+    Terms.Bucket bucket0 = mock(Terms.Bucket.class);
+    when(bucket0.getAggregations()).thenReturn(aggregations);
+
+    List bucketList = new ArrayList<>(Arrays.asList(bucket0));
+
+    ParsedTerms parsedTerms = mock(ParsedTerms.class);
+    when(parsedTerms.getBuckets()).thenReturn(bucketList);
+
+    Map<String, Long> result = _searchDAO.extractTermAggregations(parsedTerms);
+
+    assertEquals(result.size(), 0);
+  }
+
+  @Test
+  public void testExtractBucketAggregations() {
+    // mock aggregations
+    ParsedFilter agg0 = mock(ParsedFilter.class);
+    when(agg0.getName()).thenReturn("agg0");
+    ParsedFilter agg1 = mock(ParsedFilter.class);
+    when(agg1.getName()).thenReturn("agg1");
+
+    Aggregations aggregations = new Aggregations(new ArrayList<>(Arrays.asList(agg0, agg1)));
+
+    // bucket with agg0, agg1 as Aggregations
+    Terms.Bucket bucket0 = mock(Terms.Bucket.class);
+    when(bucket0.getAggregations()).thenReturn(aggregations);
+
+    List<ParsedFilter> parsedFilterList = _searchDAO.extractBucketAggregations(bucket0);
+
+    assertEquals(parsedFilterList.size(), 2);
+    assertEquals(parsedFilterList.get(0), agg1);
+    assertEquals(parsedFilterList.get(1), agg0);
   }
 
   @Test
