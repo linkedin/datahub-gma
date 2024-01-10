@@ -179,6 +179,25 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
   }
 
   /**
+   * NOTE: this function supports multiple filter in doc querying, but only supports one filter in metadata result aggregations.
+   * See {@link #searchV2(String, Filter, SortCriterion, String, int, int)} for multi-filter supports in metadata result.
+   */
+  @Nonnull
+  public SearchResult<DOCUMENT> search(@Nonnull String input, @Nullable Filter postFilters,
+      @Nullable SortCriterion sortCriterion, @Nullable String preference, int from, int size) {
+    return search(input, postFilters, sortCriterion, preference, from, size, false);
+  }
+
+  /**
+   * Unlike {@link #search(String, Filter, SortCriterion, String, int, int)}, this method supports multiple filters with AND relationship during aggregation.
+   */
+  @Nonnull
+  public SearchResult<DOCUMENT> searchV2(@Nonnull String input, @Nullable Filter postFilters,
+      @Nullable SortCriterion sortCriterion, @Nullable String preference, int from, int size) {
+    return search(input, postFilters, sortCriterion, preference, from, size, true);
+  }
+
+  /**
    * Gets a list of documents that match given search request. The results are aggregated and filters are applied to the
    * search hits and not the aggregation results.
    *
@@ -196,16 +215,17 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
    * @param preference controls a preference of the shard copy on which to execute the search
    * @param from index to start the search from
    * @param size the number of search hits to return
+   * @param multiFilters whether multiple filters are used in conjunction in aggregating metadata results
    * @return a {@link SearchResult} that contains a list of matched documents and related search result metadata
    */
   @Nonnull
   public SearchResult<DOCUMENT> search(@Nonnull String input, @Nullable Filter postFilters,
-      @Nullable SortCriterion sortCriterion, @Nullable String preference, int from, int size) {
+      @Nullable SortCriterion sortCriterion, @Nullable String preference, int from, int size, boolean multiFilters) {
     // Step 0: TODO: Add type casting if needed and  add request params validation against the model
     final byte[] id = getRandomTrackingId();
     _baseTrackingManager.trackRequest(id, SEARCH_QUERY_START);
     // Step 1: construct the query
-    final SearchRequest req = constructSearchQuery(input, postFilters, sortCriterion, preference, from, size);
+    final SearchRequest req = constructSearchQuery(input, postFilters, sortCriterion, preference, from, size, multiFilters);
     // Step 2: execute the query and extract results, validated against document model as well
     final SearchResult<DOCUMENT> searchResult = executeAndExtract(req, from, size, id, SEARCH_QUERY_FAIL);
     _baseTrackingManager.trackRequest(id, SEARCH_QUERY_END);
@@ -267,7 +287,7 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
    * @param from index to start the search from
    * @param size the number of search hits to return
    * @return a valid search request
-   * @deprecated please use {@link #constructSearchQuery(String, Filter, SortCriterion, String, int, int)} instead
+   * @deprecated please use {@link #constructSearchQuery(String, Filter, SortCriterion, String, int, int, boolean)} instead
    */
   @Nonnull
   public SearchRequest constructSearchQuery(@Nonnull String input, @Nullable Filter filter,
@@ -276,21 +296,27 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
     return constructSearchQuery(input, filter, sortCriterion, null, from, size);
   }
 
+  SearchRequest constructSearchQuery(@Nonnull String input, @Nullable Filter filter,
+      @Nullable SortCriterion sortCriterion, @Nullable String preference, int from, int size) {
+    return constructSearchQuery(input, filter, sortCriterion, preference, from, size, false);
+  }
+
   /**
    * Constructs the search query based on the query request.
    *
    * <p>TODO: This part will be replaced by searchTemplateAPI when the elastic is upgraded to 6.4 or later
    *
    * @param input the search input text
-   * @param filter the search filter
+   * @param postFilter the search post filter
    * @param preference controls a preference of the shard copy on which to execute the search
    * @param from index to start the search from
    * @param size the number of search hits to return
+   * @param multiFilters whether multiple filters are used in conjunction in aggregating metadata results
    * @return a valid search request
    */
   @Nonnull
-  SearchRequest constructSearchQuery(@Nonnull String input, @Nullable Filter filter,
-      @Nullable SortCriterion sortCriterion, @Nullable String preference, int from, int size) {
+  SearchRequest constructSearchQuery(@Nonnull String input, @Nullable Filter postFilter,
+      @Nullable SortCriterion sortCriterion, @Nullable String preference, int from, int size, boolean multiFilters) {
 
     SearchRequest searchRequest = new SearchRequest(_config.getIndexName());
     if (preference != null) {
@@ -304,8 +330,17 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
     searchSourceBuilder.trackTotalHitsUpTo(_lowerBoundHits);
 
     searchSourceBuilder.query(buildQueryString(input));
-    searchSourceBuilder.postFilter(ESUtils.buildFilterQuery(filter));
-    buildAggregations(searchSourceBuilder, filter);
+    searchSourceBuilder.postFilter(ESUtils.buildFilterQuery(postFilter));
+
+    // NOTE: to use multiple filters on the metadata result, the aggregations section need to have one top parent bool
+    // otherwise, the returned metadata will have doc counts for EACH filter individually, instead of a doc count for documents that satisfy all the filters
+    // TODO: when extractBucketAggregations is fixed, we can consider including both individual and AND combined aggregations
+    if (multiFilters) {
+      buildAggregationsWithAndFilters(searchSourceBuilder, postFilter);
+    } else {
+      buildAggregations(searchSourceBuilder, postFilter);
+    }
+
     buildHighlights(searchSourceBuilder, _config.getFieldsToHighlightMatch());
     ESUtils.buildSortOrder(searchSourceBuilder, sortCriterion);
 
@@ -335,6 +370,23 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
           aggBuilder.subAggregation(AggregationBuilders.filter(criterion.getField(), filterQueryBuilder));
         }
       });
+      searchSourceBuilder.aggregation(aggBuilder);
+    }
+  }
+
+  /**
+   * Constructs the aggregations by combining a list of boolean aggregations into one AND boolean for filtering metadata result.
+   * @param searchSourceBuilder the builder to build search source for search request
+   * @param andAggs boolean filters combined with AND logic, used in the aggregations to filter metadata result
+   */
+  private void buildAggregationsWithAndFilters(@Nonnull SearchSourceBuilder searchSourceBuilder, @Nullable Filter andAggs) {
+    Set<String> facetFields = _config.getFacetFields();
+    for (String facet : facetFields) {
+      AggregationBuilder aggBuilder = AggregationBuilders.terms(facet).field(facet).size(_maxTermBucketSize);
+
+      // combining all filters into one AND boolean aggregation
+      BoolQueryBuilder booleanAndFiltersAgg = ESUtils.buildFilterQuery(andAggs);
+      aggBuilder.subAggregation(AggregationBuilders.filter(facet, booleanAndFiltersAgg));
       searchSourceBuilder.aggregation(aggBuilder);
     }
   }
@@ -541,6 +593,9 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
     for (Map.Entry<String, Aggregation> entry : bucketAggregations.entrySet()) {
       parsedFilter = (ParsedFilter) entry.getValue();
       // TODO: implement and test multi parsed filters
+      // this is easily fixed by returning a List<ParsedFilter>, which contains the doc counts for each sub-aggregation,
+      // the real issue is how would people use this info. Current users might expect a 1:1 bucket -> doc count, which
+      // will be broken if this is implemented. Will leave as it is for now until future request from user.
     }
 
     return parsedFilter;
