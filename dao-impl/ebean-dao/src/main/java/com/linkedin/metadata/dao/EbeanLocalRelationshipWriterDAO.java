@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
 
 import static com.linkedin.metadata.dao.utils.ModelUtils.*;
@@ -52,6 +53,28 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
 
     for (LocalRelationshipUpdates relationshipUpdate : relationshipUpdates) {
       addRelationships(relationshipUpdate.getRelationships(), relationshipUpdate.getRemovalOption());
+    }
+  }
+
+  /**
+   * This method is to serve for the purpose to clear all the relationships from a source entity urn.
+   * @param sourceUrn source entity urn
+   * @param supportedRelationshipClasses relationship classes needs to be cleared
+   * @param <RELATIONSHIP> relationship model
+   */
+  @Transactional
+  public <RELATIONSHIP extends RecordTemplate> void clearRelationshipsBySource(@Nonnull Urn sourceUrn,
+      @Nullable Class<? extends RecordTemplate>[] supportedRelationshipClasses) {
+    if (supportedRelationshipClasses == null || supportedRelationshipClasses.length == 0) {
+      return;
+    }
+    for (Class<? extends RecordTemplate> relationshipClass : supportedRelationshipClasses) {
+      RelationshipValidator.validateRelationshipSchema(relationshipClass);
+      SqlUpdate deletionSQL = _server.createSqlUpdate(
+          SQLStatementUtils.deleteLocaRelationshipSQL(SQLSchemaUtils.getRelationshipTableName(relationshipClass),
+              RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE));
+      deletionSQL.setParameter(CommonColumnName.SOURCE, sourceUrn.toString());
+      deletionSQL.execute();
     }
   }
 

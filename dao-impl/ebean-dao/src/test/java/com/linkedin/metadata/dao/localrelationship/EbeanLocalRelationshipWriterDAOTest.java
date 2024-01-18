@@ -10,6 +10,7 @@ import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.testing.BarUrnArray;
 import com.linkedin.testing.localrelationship.AspectFooBar;
+import com.linkedin.testing.localrelationship.PairsWith;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.FooUrn;
 import io.ebean.Ebean;
@@ -177,6 +178,31 @@ public class EbeanLocalRelationshipWriterDAOTest {
 
     // Clean up
     _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_versionof"));
+  }
+
+
+  @Test
+  public void testClearRelationshipsBySourceUrn() throws URISyntaxException {
+    _server.execute(Ebean.createSqlUpdate(insertRelationships("metadata_relationship_pairswith", "urn:li:bar:123",
+        "bar", "urn:li:foo:123", "foo")));
+
+    _server.execute(Ebean.createSqlUpdate(insertRelationships("metadata_relationship_pairswith", "urn:li:bar:123",
+        "bar", "urn:li:foo:456", "foo")));
+
+    BarUrn barUrn = BarUrn.createFromString("urn:li:bar:123");
+
+    // Before processing
+    List<SqlRow> before = _server.createSqlQuery("select * from metadata_relationship_pairswith where deleted_ts is null").findList();
+    assertEquals(before.size(), 2);
+
+    _localRelationshipWriterDAO.clearRelationshipsBySource(barUrn, new Class[]{PairsWith.class});
+
+    // After processing verification
+    List<SqlRow> all = _server.createSqlQuery("select * from metadata_relationship_pairswith where deleted_ts is null").findList();
+    assertEquals(all.size(), 0); // Total number of edges is 4
+
+    // Clean up
+    _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_pairswith"));
   }
 
   private String insertRelationships(String table, String sourceUrn, String sourceType, String destinationUrn, String destinationType) {
