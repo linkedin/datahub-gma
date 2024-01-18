@@ -18,7 +18,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
 
 import static com.linkedin.metadata.dao.utils.ModelUtils.*;
@@ -48,32 +47,45 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
    * @param relationshipUpdates Updates to local relationship tables.
    */
   @Transactional
-  public <ASPECT extends RecordTemplate> void processLocalRelationshipUpdates(
+  public <ASPECT extends RecordTemplate> void processLocalRelationshipUpdates(@Nonnull Urn urn,
       @Nonnull List<LocalRelationshipUpdates> relationshipUpdates) {
-
     for (LocalRelationshipUpdates relationshipUpdate : relationshipUpdates) {
-      addRelationships(relationshipUpdate.getRelationships(), relationshipUpdate.getRemovalOption());
+      if (relationshipUpdate.getRelationships().isEmpty()) {
+        clearRelationshipsByEntity(urn, relationshipUpdate.getRelationshipClasses(),
+            relationshipUpdate.getRemovalOption());
+      } else {
+        addRelationships(relationshipUpdate.getRelationships(), relationshipUpdate.getRemovalOption());
+      }
     }
   }
 
   /**
    * This method is to serve for the purpose to clear all the relationships from a source entity urn.
-   * @param sourceUrn source entity urn
-   * @param supportedRelationshipClasses relationship classes needs to be cleared
-   * @param <RELATIONSHIP> relationship model
+   * @param urn entity urn could be either source or destination, depends on the RemovalOption
+   * @param relationshipClasses relationship that needs to be cleared
    */
-  @Transactional
-  public <RELATIONSHIP extends RecordTemplate> void clearRelationshipsBySource(@Nonnull Urn sourceUrn,
-      @Nullable Class<? extends RecordTemplate>[] supportedRelationshipClasses) {
-    if (supportedRelationshipClasses == null || supportedRelationshipClasses.length == 0) {
+  public void clearRelationshipsByEntity(@Nonnull Urn urn,
+      @Nonnull Class<? extends RecordTemplate>[] relationshipClasses, @Nonnull RemovalOption removalOption) {
+    if (removalOption == RemovalOption.REMOVE_NONE
+        || removalOption == RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE_TO_DESTINATION) {
+      // this method is to handle the case of adding empty relationship list to clear relationships of an entity urn
+      // REMOVE_NONE and REMOVE_ALL_EDGES_FROM_SOURCE_TO_DESTINATION won't apply for this case.
       return;
     }
-    for (Class<? extends RecordTemplate> relationshipClass : supportedRelationshipClasses) {
+    if (relationshipClasses.length == 0) {
+      // if no relationship supported relationship classes are declared, then there's no relationship tables to delete.
+      return;
+    }
+    for (Class<? extends RecordTemplate> relationshipClass : relationshipClasses) {
       RelationshipValidator.validateRelationshipSchema(relationshipClass);
       SqlUpdate deletionSQL = _server.createSqlUpdate(
           SQLStatementUtils.deleteLocaRelationshipSQL(SQLSchemaUtils.getRelationshipTableName(relationshipClass),
-              RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE));
-      deletionSQL.setParameter(CommonColumnName.SOURCE, sourceUrn.toString());
+              removalOption));
+      if (removalOption == RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE) {
+        deletionSQL.setParameter(CommonColumnName.SOURCE, urn.toString());
+      } else if (removalOption == RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION) {
+        deletionSQL.setParameter(CommonColumnName.DESTINATION, urn.toString());
+      }
       deletionSQL.execute();
     }
   }

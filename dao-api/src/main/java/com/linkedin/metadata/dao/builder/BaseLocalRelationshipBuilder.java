@@ -5,7 +5,6 @@ import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
 import java.util.List;
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import lombok.Value;
 
 
@@ -15,22 +14,16 @@ import lombok.Value;
 public abstract class BaseLocalRelationshipBuilder<ASPECT extends RecordTemplate> {
 
   private final Class<ASPECT> _aspectClass;
-  private final Class<? extends RecordTemplate>[] _relationshipClasses;
 
   @Value
   public static class LocalRelationshipUpdates {
     List<? extends RecordTemplate> relationships;
+    Class<? extends RecordTemplate>[] relationshipClasses;
     BaseGraphWriterDAO.RemovalOption removalOption;
   }
 
   public BaseLocalRelationshipBuilder(@Nonnull Class<ASPECT> aspectClass) {
-    this(aspectClass, null);
-  }
-
-  public BaseLocalRelationshipBuilder(@Nonnull Class<ASPECT> aspectClass,
-      @Nonnull Class<? extends RecordTemplate>[] relationshipClasses) {
     _aspectClass = aspectClass;
-    _relationshipClasses = relationshipClasses;
   }
 
   /**
@@ -46,12 +39,4 @@ public abstract class BaseLocalRelationshipBuilder<ASPECT extends RecordTemplate
    */
   @Nonnull
   public abstract <URN extends Urn> List<LocalRelationshipUpdates> buildRelationships(@Nonnull URN urn, @Nonnull ASPECT aspect);
-
-  /**
-   * Returns a list of relationship classes used in this builder.
-   */
-  @Nullable
-  public Class<? extends RecordTemplate>[] getSupportedRelationshipClasses() {
-    return _relationshipClasses;
-  }
 }

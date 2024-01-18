@@ -776,7 +776,7 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     BelongsTo belongsTo = new BelongsTo().setSource(fooUrn).setDestination(barUrn);
     List<BelongsTo> belongsTos = Collections.singletonList(belongsTo);
 
-    LocalRelationshipUpdates updates = new LocalRelationshipUpdates(belongsTos,
+    LocalRelationshipUpdates updates = new LocalRelationshipUpdates(belongsTos, new Class[]{BelongsTo.class},
         BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE);
     List<LocalRelationshipUpdates> relationships = Collections.singletonList(updates);
 
