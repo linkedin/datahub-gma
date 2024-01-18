@@ -169,17 +169,14 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   }
 
   @Override
-  public <ASPECT extends RecordTemplate> List<LocalRelationshipUpdates>
-  addRelationships(@Nonnull URN urn, @Nonnull ASPECT aspect, @Nonnull Class<ASPECT> aspectClass) {
+  public <ASPECT extends RecordTemplate> List<LocalRelationshipUpdates> addRelationships(@Nonnull URN urn,
+      @Nonnull ASPECT aspect, @Nonnull Class<ASPECT> aspectClass) {
     if (_localRelationshipBuilderRegistry != null && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
       List<LocalRelationshipUpdates> localRelationshipUpdates =
           _localRelationshipBuilderRegistry.getLocalRelationshipBuilder(aspect).buildRelationships(urn, aspect);
-
-      _localRelationshipWriterDAO.processLocalRelationshipUpdates(localRelationshipUpdates);
-
+      _localRelationshipWriterDAO.processLocalRelationshipUpdates(urn, localRelationshipUpdates);
       return localRelationshipUpdates;
     }
-
     return new ArrayList<>();
   }
 
