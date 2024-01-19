@@ -26,7 +26,7 @@ public class ReportsToLocalRelationshipBuilder extends BaseLocalRelationshipBuil
     }
 
     LocalRelationshipUpdates localRelationshipUpdates =
-        new LocalRelationshipUpdates(reportsToRelationships, new Class[]{ReportsTo.class},
+        new LocalRelationshipUpdates(reportsToRelationships, ReportsTo.class,
             BaseGraphWriterDAO.RemovalOption.REMOVE_NONE);
 
     return Collections.singletonList(localRelationshipUpdates);

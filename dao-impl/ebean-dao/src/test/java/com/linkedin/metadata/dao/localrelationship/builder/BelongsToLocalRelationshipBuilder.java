@@ -25,7 +25,7 @@ public class BelongsToLocalRelationshipBuilder extends BaseLocalRelationshipBuil
     }
 
     LocalRelationshipUpdates localRelationshipUpdates =
-        new LocalRelationshipUpdates(belongsToRelationships, new Class[]{BelongsTo.class},
+        new LocalRelationshipUpdates(belongsToRelationships, BelongsTo.class,
             BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION);
 
     return Collections.singletonList(localRelationshipUpdates);

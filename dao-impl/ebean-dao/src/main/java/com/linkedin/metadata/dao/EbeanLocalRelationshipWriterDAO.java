@@ -51,7 +51,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
       @Nonnull List<LocalRelationshipUpdates> relationshipUpdates) {
     for (LocalRelationshipUpdates relationshipUpdate : relationshipUpdates) {
       if (relationshipUpdate.getRelationships().isEmpty()) {
-        clearRelationshipsByEntity(urn, relationshipUpdate.getRelationshipClasses(),
+        clearRelationshipsByEntity(urn, relationshipUpdate.getRelationshipClass(),
             relationshipUpdate.getRemovalOption());
       } else {
         addRelationships(relationshipUpdate.getRelationships(), relationshipUpdate.getRemovalOption());
@@ -62,32 +62,26 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
   /**
    * This method is to serve for the purpose to clear all the relationships from a source entity urn.
    * @param urn entity urn could be either source or destination, depends on the RemovalOption
-   * @param relationshipClasses relationship that needs to be cleared
+   * @param relationshipClass relationship that needs to be cleared
    */
   public void clearRelationshipsByEntity(@Nonnull Urn urn,
-      @Nonnull Class<? extends RecordTemplate>[] relationshipClasses, @Nonnull RemovalOption removalOption) {
+      @Nonnull Class<? extends RecordTemplate> relationshipClass, @Nonnull RemovalOption removalOption) {
     if (removalOption == RemovalOption.REMOVE_NONE
         || removalOption == RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE_TO_DESTINATION) {
       // this method is to handle the case of adding empty relationship list to clear relationships of an entity urn
       // REMOVE_NONE and REMOVE_ALL_EDGES_FROM_SOURCE_TO_DESTINATION won't apply for this case.
       return;
     }
-    if (relationshipClasses.length == 0) {
-      // if no relationship supported relationship classes are declared, then there's no relationship tables to delete.
-      return;
+    RelationshipValidator.validateRelationshipSchema(relationshipClass);
+    SqlUpdate deletionSQL = _server.createSqlUpdate(
+        SQLStatementUtils.deleteLocaRelationshipSQL(SQLSchemaUtils.getRelationshipTableName(relationshipClass),
+            removalOption));
+    if (removalOption == RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE) {
+      deletionSQL.setParameter(CommonColumnName.SOURCE, urn.toString());
+    } else if (removalOption == RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION) {
+      deletionSQL.setParameter(CommonColumnName.DESTINATION, urn.toString());
     }
-    for (Class<? extends RecordTemplate> relationshipClass : relationshipClasses) {
-      RelationshipValidator.validateRelationshipSchema(relationshipClass);
-      SqlUpdate deletionSQL = _server.createSqlUpdate(
-          SQLStatementUtils.deleteLocaRelationshipSQL(SQLSchemaUtils.getRelationshipTableName(relationshipClass),
-              removalOption));
-      if (removalOption == RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE) {
-        deletionSQL.setParameter(CommonColumnName.SOURCE, urn.toString());
-      } else if (removalOption == RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION) {
-        deletionSQL.setParameter(CommonColumnName.DESTINATION, urn.toString());
-      }
-      deletionSQL.execute();
-    }
+    deletionSQL.execute();
   }
 
   @Override
