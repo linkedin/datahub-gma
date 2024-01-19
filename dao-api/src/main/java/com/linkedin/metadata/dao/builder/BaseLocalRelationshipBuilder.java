@@ -16,9 +16,9 @@ public abstract class BaseLocalRelationshipBuilder<ASPECT extends RecordTemplate
   private final Class<ASPECT> _aspectClass;
 
   @Value
-  public static class LocalRelationshipUpdates {
-    List<? extends RecordTemplate> relationships;
-    Class<? extends RecordTemplate>[] relationshipClasses;
+  public static class LocalRelationshipUpdates<RELATIONSHIP extends RecordTemplate> {
+    List<RELATIONSHIP> relationships;
+    Class<RELATIONSHIP> relationshipClass;
     BaseGraphWriterDAO.RemovalOption removalOption;
   }
 

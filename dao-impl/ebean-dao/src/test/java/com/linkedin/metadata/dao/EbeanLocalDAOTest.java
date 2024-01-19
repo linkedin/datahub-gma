@@ -2713,7 +2713,7 @@ public class EbeanLocalDAOTest {
       BarUrnArray sources = new BarUrnArray();
       for (int i = 0; i < results.size(); i++) {
         try {
-          RecordTemplate relationship = relationshipUpdates.get(0).getRelationships().get(i);
+          RecordTemplate relationship = (RecordTemplate) relationshipUpdates.get(0).getRelationships().get(i);
           Urn source = (Urn) relationship.getClass().getMethod("getSource").invoke(relationship);
           Urn dest = (Urn) relationship.getClass().getMethod("getDestination").invoke(relationship);
           assertEquals(dest.toString(), "urn:li:foo:1");
