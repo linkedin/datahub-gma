@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import lombok.extern.slf4j.Slf4j;
 
 
@@ -36,7 +37,7 @@ public class SchemaAnnotationRetriever {
     _baseNamespace = baseNamespace;
   }
 
-  public SchemaAnnotationRetriever(@Nonnull String resolverPath, @Nonnull GmaEntitiesAnnotationAllowList allowList,
+  public SchemaAnnotationRetriever(@Nonnull String resolverPath, @Nullable GmaEntitiesAnnotationAllowList allowList,
                                    String baseNamespace) {
     this(resolverPath, new GmaAnnotationParser(allowList), baseNamespace);
   }

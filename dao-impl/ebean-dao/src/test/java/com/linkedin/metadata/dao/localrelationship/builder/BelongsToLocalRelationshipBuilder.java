@@ -24,8 +24,9 @@ public class BelongsToLocalRelationshipBuilder extends BaseLocalRelationshipBuil
       belongsToRelationships.add(new BelongsTo().setSource(barUrn).setDestination(urn));
     }
 
-    LocalRelationshipUpdates localRelationshipUpdates = new LocalRelationshipUpdates(belongsToRelationships,
-        BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION);
+    LocalRelationshipUpdates localRelationshipUpdates =
+        new LocalRelationshipUpdates(belongsToRelationships, BelongsTo.class,
+            BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION);
 
     return Collections.singletonList(localRelationshipUpdates);
   }

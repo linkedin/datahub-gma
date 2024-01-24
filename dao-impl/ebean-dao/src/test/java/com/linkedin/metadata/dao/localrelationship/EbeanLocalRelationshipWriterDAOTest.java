@@ -2,14 +2,16 @@ package com.linkedin.metadata.dao.localrelationship;
 
 import com.google.common.io.Resources;
 import com.linkedin.metadata.dao.EbeanLocalRelationshipWriterDAO;
+import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
 import com.linkedin.metadata.dao.localrelationship.builder.BelongsToLocalRelationshipBuilder;
 import com.linkedin.metadata.dao.localrelationship.builder.PairsWithLocalRelationshipBuilder;
 import com.linkedin.metadata.dao.localrelationship.builder.ReportsToLocalRelationshipBuilder;
 import com.linkedin.metadata.dao.localrelationship.builder.VersionOfLocalRelationshipBuilder;
 import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
-import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder;
+import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.testing.BarUrnArray;
 import com.linkedin.testing.localrelationship.AspectFooBar;
+import com.linkedin.testing.localrelationship.PairsWith;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.FooUrn;
 import io.ebean.Ebean;
@@ -47,14 +49,14 @@ public class EbeanLocalRelationshipWriterDAOTest {
         BarUrn.createFromString("urn:li:bar:456"),
         BarUrn.createFromString("urn:li:bar:789")));
 
-    List<BaseLocalRelationshipBuilder<AspectFooBar>.LocalRelationshipUpdates> updates = new BelongsToLocalRelationshipBuilder(AspectFooBar.class)
+    List<LocalRelationshipUpdates> updates = new BelongsToLocalRelationshipBuilder(AspectFooBar.class)
         .buildRelationships(FooUrn.createFromString("urn:li:foo:123"), aspectFooBar);
 
     // Before processing
     List<SqlRow> before = _server.createSqlQuery("select * from metadata_relationship_belongsto where source='urn:li:bar:000'").findList();
     assertEquals(before.size(), 1);
 
-    _localRelationshipWriterDAO.processLocalRelationshipUpdates(updates);
+    _localRelationshipWriterDAO.processLocalRelationshipUpdates(FooUrn.createFromString("urn:li:foo:123"), updates);
 
     // After processing verification
     List<SqlRow> all = _server.createSqlQuery("select * from metadata_relationship_belongsto").findList();
@@ -82,14 +84,14 @@ public class EbeanLocalRelationshipWriterDAOTest {
         BarUrn.createFromString("urn:li:bar:456"),
         BarUrn.createFromString("urn:li:bar:789")));
 
-    List<BaseLocalRelationshipBuilder<AspectFooBar>.LocalRelationshipUpdates> updates = new ReportsToLocalRelationshipBuilder(AspectFooBar.class)
+    List<LocalRelationshipUpdates> updates = new ReportsToLocalRelationshipBuilder(AspectFooBar.class)
         .buildRelationships(FooUrn.createFromString("urn:li:foo:123"), aspectFooBar);
 
     // Before processing
     List<SqlRow> before = _server.createSqlQuery("select * from metadata_relationship_reportsto where source='urn:li:bar:000'").findList();
     assertEquals(before.size(), 1);
 
-    _localRelationshipWriterDAO.processLocalRelationshipUpdates(updates);
+    _localRelationshipWriterDAO.processLocalRelationshipUpdates(FooUrn.createFromString("urn:li:foo:123"), updates);
 
     // After processing verification
     List<SqlRow> after = _server.createSqlQuery("select * from metadata_relationship_reportsto where destination='urn:li:foo:123'").findList();
@@ -114,14 +116,14 @@ public class EbeanLocalRelationshipWriterDAOTest {
 
     AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(BarUrn.createFromString("urn:li:bar:123")));
 
-    List<BaseLocalRelationshipBuilder<AspectFooBar>.LocalRelationshipUpdates> updates = new PairsWithLocalRelationshipBuilder(AspectFooBar.class)
+    List<LocalRelationshipUpdates> updates = new PairsWithLocalRelationshipBuilder(AspectFooBar.class)
         .buildRelationships(FooUrn.createFromString("urn:li:foo:123"), aspectFooBar);
 
     // Before processing
     List<SqlRow> before = _server.createSqlQuery("select * from metadata_relationship_pairswith").findList();
     assertEquals(before.size(), 3);
 
-    _localRelationshipWriterDAO.processLocalRelationshipUpdates(updates);
+    _localRelationshipWriterDAO.processLocalRelationshipUpdates(FooUrn.createFromString("urn:li:foo:123"), updates);
 
     // After processing verification
     List<SqlRow> all = _server.createSqlQuery("select * from metadata_relationship_pairswith").findList();
@@ -151,14 +153,14 @@ public class EbeanLocalRelationshipWriterDAOTest {
 
     AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(BarUrn.createFromString("urn:li:bar:123")));
 
-    List<BaseLocalRelationshipBuilder<AspectFooBar>.LocalRelationshipUpdates> updates = new VersionOfLocalRelationshipBuilder(AspectFooBar.class)
+    List<LocalRelationshipUpdates> updates = new VersionOfLocalRelationshipBuilder(AspectFooBar.class)
         .buildRelationships(FooUrn.createFromString("urn:li:foo:123"), aspectFooBar);
 
     // Before processing
     List<SqlRow> before = _server.createSqlQuery("select * from metadata_relationship_versionof").findList();
     assertEquals(before.size(), 3);
 
-    _localRelationshipWriterDAO.processLocalRelationshipUpdates(updates);
+    _localRelationshipWriterDAO.processLocalRelationshipUpdates(FooUrn.createFromString("urn:li:foo:123"), updates);
 
     // After processing verification
     List<SqlRow> all = _server.createSqlQuery("select * from metadata_relationship_versionof").findList();
@@ -177,6 +179,47 @@ public class EbeanLocalRelationshipWriterDAOTest {
 
     // Clean up
     _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_versionof"));
+  }
+
+
+  @Test
+  public void testClearRelationshipsByEntityUrn() throws URISyntaxException {
+    _server.execute(Ebean.createSqlUpdate(insertRelationships("metadata_relationship_pairswith", "urn:li:bar:123",
+        "bar", "urn:li:foo:123", "foo")));
+
+    _server.execute(Ebean.createSqlUpdate(insertRelationships("metadata_relationship_pairswith", "urn:li:bar:123",
+        "bar", "urn:li:foo:456", "foo")));
+
+    BarUrn barUrn = BarUrn.createFromString("urn:li:bar:123");
+    FooUrn fooUrn = FooUrn.createFromString("urn:li:foo:123");
+
+    // Before processing
+    List<SqlRow> before = _server.createSqlQuery("select * from metadata_relationship_pairswith where deleted_ts is null").findList();
+    assertEquals(before.size(), 2);
+
+    _localRelationshipWriterDAO.clearRelationshipsByEntity(barUrn, PairsWith.class,
+        BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE);
+
+    // After processing verification
+    List<SqlRow> all = _server.createSqlQuery("select * from metadata_relationship_pairswith where deleted_ts is null").findList();
+    assertEquals(all.size(), 0); // Total number of edges is 0
+
+
+    _server.execute(Ebean.createSqlUpdate(insertRelationships("metadata_relationship_pairswith", "urn:li:bar:123",
+        "bar", "urn:li:foo:123", "foo")));
+
+    _server.execute(Ebean.createSqlUpdate(insertRelationships("metadata_relationship_pairswith", "urn:li:bar:123",
+        "bar", "urn:li:foo:456", "foo")));
+
+    _localRelationshipWriterDAO.clearRelationshipsByEntity(fooUrn, PairsWith.class,
+        BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION);
+
+    // After processing verification
+    all = _server.createSqlQuery("select * from metadata_relationship_pairswith where deleted_ts is null").findList();
+    assertEquals(all.size(), 1); // Total number of edges is 1
+
+    // Clean up
+    _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_pairswith"));
   }
 
   private String insertRelationships(String table, String sourceUrn, String sourceType, String destinationUrn, String destinationType) {

@@ -25,8 +25,9 @@ public class ReportsToLocalRelationshipBuilder extends BaseLocalRelationshipBuil
       reportsToRelationships.add(new ReportsTo().setSource(barUrn).setDestination(urn));
     }
 
-    LocalRelationshipUpdates localRelationshipUpdates = new LocalRelationshipUpdates(reportsToRelationships,
-        BaseGraphWriterDAO.RemovalOption.REMOVE_NONE);
+    LocalRelationshipUpdates localRelationshipUpdates =
+        new LocalRelationshipUpdates(reportsToRelationships, ReportsTo.class,
+            BaseGraphWriterDAO.RemovalOption.REMOVE_NONE);
 
     return Collections.singletonList(localRelationshipUpdates);
   }

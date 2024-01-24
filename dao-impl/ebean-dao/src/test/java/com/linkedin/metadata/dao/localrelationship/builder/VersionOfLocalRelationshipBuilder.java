@@ -26,6 +26,7 @@ public class VersionOfLocalRelationshipBuilder extends BaseLocalRelationshipBuil
     }
 
     LocalRelationshipUpdates localRelationshipUpdates = new LocalRelationshipUpdates(versionOfRelationships,
+        VersionOf.class,
         BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE);
 
     return Collections.singletonList(localRelationshipUpdates);

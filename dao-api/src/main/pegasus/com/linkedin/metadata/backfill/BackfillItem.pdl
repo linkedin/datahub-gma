@@ -1,0 +1,17 @@
+namespace com.linkedin.metadata.backfill
+
+/**
+ * A model that represents an item in a backfill action.
+ */
+record BackfillItem {
+
+  /**
+   * The urn to backfill.
+   */
+  urn: string
+
+  /**
+   * The list of aspects to backfill.
+   */
+  aspects: array[string] = []
+}

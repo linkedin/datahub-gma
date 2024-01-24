@@ -1,16 +1,24 @@
 package com.linkedin.metadata.dao.utils;
 
 import com.google.common.io.Resources;
+import com.linkedin.data.template.StringArray;
 import com.linkedin.metadata.aspect.AuditedAspect;
 import com.linkedin.metadata.dao.EbeanLocalAccess;
 import com.linkedin.metadata.dao.EbeanMetadataAspect;
 import com.linkedin.metadata.dao.ListResult;
+import com.linkedin.metadata.query.AspectField;
+import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.ListResultMetadata;
+import com.linkedin.metadata.query.LocalRelationshipCriterion;
+import com.linkedin.metadata.query.LocalRelationshipValue;
+import com.linkedin.metadata.query.RelationshipField;
+import com.linkedin.metadata.query.UrnField;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.urn.BurgerUrn;
 import com.linkedin.testing.urn.FooUrn;
 import io.ebean.Ebean;
 import io.ebean.EbeanServer;
+import io.ebean.SqlRow;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -25,7 +33,9 @@ import javax.annotation.Nonnull;
 import org.testng.annotations.Test;
 
 import static com.linkedin.testing.TestUtils.*;
-import static org.testng.Assert.*;
+import static org.mockito.Mockito.*;
+import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertTrue;
 import static org.testng.AssertJUnit.assertEquals;
 import static org.testng.AssertJUnit.assertNotNull;
 
@@ -506,11 +516,54 @@ public class EBeanDAOUtilsTest {
     aspect.setMetadata(RecordUtils.toJsonString(fooAspect));
     aspect.setCreatedOn(new Timestamp(now - 100));
     aspect.setCreatedBy("fooActor");
+    aspect.setEmitTime(12345L);
 
     // add aspect to the db
     server.insert(aspect);
 
     // sanity test on JDBC functions
     assertNotNull(EBeanDAOUtils.getWithJdbc(fooUrn.toString(), fooAspect.getClass().getCanonicalName(), server, key));
+  }
+
+  @Test
+  public void testIsSoftDeletedAspect() {
+    SqlRow sqlRow = mock(SqlRow.class);
+    when(sqlRow.getString("a_aspectfoo")).thenReturn("{\"gma_deleted\": true}");
+    assertTrue(EBeanDAOUtils.isSoftDeletedAspect(sqlRow, "a_aspectfoo"));
+
+    when(sqlRow.getString("a_aspectbar")).thenReturn(
+        "{\"aspect\": {\"value\": \"bar\"}, \"lastmodifiedby\": \"urn:li:tester\"}");
+    assertFalse(EBeanDAOUtils.isSoftDeletedAspect(sqlRow, "a_aspectbar"));
+
+    when(sqlRow.getString("a_aspectbaz")).thenReturn("{\"random_value\": \"baz\"}");
+    assertFalse(EBeanDAOUtils.isSoftDeletedAspect(sqlRow, "a_aspectbaz"));
+  }
+
+  @Test
+  public void testBuildRelationshipFieldCriterionWithAspectField() {
+    LocalRelationshipValue localRelationshipValue = LocalRelationshipValue.create(new StringArray("bar"));
+    Condition condition = Condition.IN;
+    AspectField aspectField = new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value");
+
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(localRelationshipValue,
+        condition,
+        aspectField);
+
+    assertEquals(aspectField, filterCriterion.getField().getAspectField());
+    assertEquals(condition, filterCriterion.getCondition());
+    assertEquals(localRelationshipValue, filterCriterion.getValue());
+
+    // to test with other type of fields, don't think there's a need to have a separate test case
+    UrnField urnField = new UrnField();
+    filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(localRelationshipValue,
+        condition,
+        urnField);
+    assertEquals(urnField, filterCriterion.getField().getUrnField());
+
+    RelationshipField relationshipField = new RelationshipField().setPath("/environment");
+    filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(localRelationshipValue,
+        condition,
+        relationshipField);
+    assertEquals(relationshipField, filterCriterion.getField().getRelationshipField());
   }
 }

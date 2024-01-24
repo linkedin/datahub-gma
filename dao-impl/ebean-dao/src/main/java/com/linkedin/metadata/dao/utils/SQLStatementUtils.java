@@ -8,7 +8,6 @@ import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
-import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.query.LocalRelationshipCriterion;
 import com.linkedin.metadata.query.LocalRelationshipFilter;
 import com.linkedin.metadata.query.LocalRelationshipValue;
@@ -38,6 +37,8 @@ public class SQLStatementUtils {
 
   public static final String SOFT_DELETED_CHECK = "JSON_EXTRACT(%s, '$.gma_deleted') IS NULL"; // true when not soft deleted
 
+  public static final String NONNULL_CHECK = "%s IS NOT NULL"; // true when the value of aspect_column is not NULL
+
   private static final String SQL_UPSERT_ASPECT_TEMPLATE =
       "INSERT INTO %s (urn, %s, lastmodifiedon, lastmodifiedby) VALUE (:urn, :metadata, :lastmodifiedon, :lastmodifiedby) "
           + "ON DUPLICATE KEY UPDATE %s = :metadata, lastmodifiedon = :lastmodifiedon;";
@@ -46,13 +47,41 @@ public class SQLStatementUtils {
       "INSERT INTO %s (urn, a_urn, %s, lastmodifiedon, lastmodifiedby) VALUE (:urn, :a_urn, :metadata, :lastmodifiedon, :lastmodifiedby) "
           + "ON DUPLICATE KEY UPDATE %s = :metadata, lastmodifiedon = :lastmodifiedon;";
 
+  // "JSON_EXTRACT(%s, '$.gma_deleted') IS NOT NULL" is used to exclude soft-deleted entity which has no lastmodifiedon.
+  // for details, see the known limitations on https://github.com/linkedin/datahub-gma/pull/311. Same reason for
+  // SQL_UPDATE_ASPECT_WITH_URN_TEMPLATE
+  private static final String SQL_UPDATE_ASPECT_TEMPLATE =
+      "UPDATE %s SET %s = :metadata, lastmodifiedon = :lastmodifiedon, lastmodifiedby = :lastmodifiedby "
+          + "WHERE urn = :urn and (JSON_EXTRACT(%s, '$.lastmodifiedon') = :oldTimestamp OR JSON_EXTRACT(%s, '$.gma_deleted') IS NOT NULL);";
+
+  private static final String SQL_UPDATE_ASPECT_WITH_URN_TEMPLATE =
+      "UPDATE %s SET %s = :metadata, a_urn = :a_urn, lastmodifiedon = :lastmodifiedon, lastmodifiedby = :lastmodifiedby "
+          + "WHERE urn = :urn and (JSON_EXTRACT(%s, '$.lastmodifiedon') = :oldTimestamp OR JSON_EXTRACT(%s, '$.gma_deleted') IS NOT NULL);";
+
   private static final String SQL_READ_ASPECT_TEMPLATE =
       String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby FROM %%s WHERE urn = '%%s' AND %s", SOFT_DELETED_CHECK);
 
-  private static final String INDEX_GROUP_BY_CRITERION = "SELECT count(*) as COUNT, %s FROM %s";
-  private static final String SQL_GROUP_BY_COLUMN_EXISTS_TEMPLATE =
-      "SELECT * FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = database() AND TABLE_NAME = '%s' AND COLUMN_NAME = '%s'";
+  private static final String SQL_LIST_ASPECT_BY_URN_TEMPLATE =
+      String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby, createdfor FROM %%s WHERE urn = '%%s' AND %s AND %s", NONNULL_CHECK, SOFT_DELETED_CHECK);
 
+  private static final String SQL_LIST_ASPECT_BY_URN_WITH_SOFT_DELETED_TEMPLATE =
+      String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby, createdfor FROM %%s WHERE urn = '%%s' AND %s", NONNULL_CHECK);
+
+  private static final String SQL_LIST_ASPECT_WITH_PAGINATION_TEMPLATE =
+      String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby, createdfor, (SELECT COUNT(urn) FROM %%s WHERE %s AND %s) "
+          + "as _total_count FROM %%s WHERE %s AND %s LIMIT %%s OFFSET %%s", NONNULL_CHECK, SOFT_DELETED_CHECK, NONNULL_CHECK, SOFT_DELETED_CHECK);
+
+  private static final String SQL_LIST_ASPECT_WITH_PAGINATION_WITH_SOFT_DELETED_TEMPLATE =
+      String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby, createdfor, (SELECT COUNT(urn) FROM %%s WHERE %s) "
+          + "as _total_count FROM %%s WHERE %s LIMIT %%s OFFSET %%s", NONNULL_CHECK,  NONNULL_CHECK);
+
+  private static final String SQL_READ_ASPECT_WITH_SOFT_DELETED_TEMPLATE =
+      "SELECT urn, %s, lastmodifiedon, lastmodifiedby FROM %s WHERE urn = '%s'";
+
+  private static final String INDEX_GROUP_BY_CRITERION = "SELECT count(*) as COUNT, %s FROM %s";
+
+  private static final String SQL_GET_ALL_COLUMNS =
+      "SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = database() AND TABLE_NAME = '%s'";
   private static final String SQL_URN_EXIST_TEMPLATE = "SELECT urn FROM %s WHERE urn = '%s'";
 
   private static final String INSERT_LOCAL_RELATIONSHIP = "INSERT INTO %s (metadata, source, destination, source_type, "
@@ -106,22 +135,68 @@ public class SQLStatementUtils {
    * </p>
    * @param aspectClass aspect class to query for
    * @param urns a Set of Urns to query for
+   * @param includeSoftDeleted a flag to include soft deleted records
    * @param <ASPECT> aspect type
    * @return aspect read sql statement for a single aspect (across multiple tables and urns)
    */
   public static <ASPECT extends RecordTemplate> String createAspectReadSql(@Nonnull Class<ASPECT> aspectClass,
-      @Nonnull Set<Urn> urns) {
+      @Nonnull Set<Urn> urns, boolean includeSoftDeleted) {
     if (urns.size() == 0) {
       throw new IllegalArgumentException("Need at least 1 urn to query.");
     }
     final String columnName = getAspectColumnName(aspectClass);
     StringBuilder stringBuilder = new StringBuilder();
     List<String> selectStatements = urns.stream().map(urn -> {
-          final String tableName = getTableName(urn);
-          return String.format(SQL_READ_ASPECT_TEMPLATE, columnName, tableName, escapeReservedCharInUrn(urn.toString()), columnName);
-        }).collect(Collectors.toList());
+      final String tableName = getTableName(urn);
+      final String sqlTemplate =
+          includeSoftDeleted ? SQL_READ_ASPECT_WITH_SOFT_DELETED_TEMPLATE : SQL_READ_ASPECT_TEMPLATE;
+      return String.format(sqlTemplate, columnName, tableName, escapeReservedCharInUrn(urn.toString()), columnName);
+    }).collect(Collectors.toList());
     stringBuilder.append(String.join(" UNION ALL ", selectStatements));
     return stringBuilder.toString();
+  }
+
+  /**
+   * List all the aspect record (0 or 1) for a given entity urn and aspect type.
+   * @param aspectClass aspect type
+   * @param urn entity urn
+   * @param includeSoftDeleted whether to include soft deleted aspects
+   * @param <ASPECT> aspect type
+   * @return a SQL to run listing aspect query
+   */
+  public static <ASPECT extends RecordTemplate> String createListAspectByUrnSql(@Nonnull Class<ASPECT> aspectClass,
+      @Nonnull Urn urn, boolean includeSoftDeleted) {
+    final String columnName = getAspectColumnName(aspectClass);
+    final String tableName = getTableName(urn);
+    if (includeSoftDeleted) {
+      return String.format(SQL_LIST_ASPECT_BY_URN_WITH_SOFT_DELETED_TEMPLATE, columnName, tableName,
+          escapeReservedCharInUrn(urn.toString()), columnName);
+    } else {
+      return String.format(SQL_LIST_ASPECT_BY_URN_TEMPLATE, columnName, tableName,
+          escapeReservedCharInUrn(urn.toString()), columnName, columnName);
+    }
+  }
+
+  /**
+   * List all the aspects for a given entity type and aspect type.
+   * @param aspectClass aspect type
+   * @param tableName table name
+   * @param includeSoftDeleted whether to include soft deleted aspects
+   * @param start pagination offset
+   * @param pageSize page size
+   * @param <ASPECT> aspect type
+   * @return a SQL to run listing aspect query with pagination.
+   */
+  public static <ASPECT extends RecordTemplate> String createListAspectWithPaginationSql(@Nonnull Class<ASPECT> aspectClass,
+      String tableName, boolean includeSoftDeleted, int start, int pageSize) {
+    final String columnName = getAspectColumnName(aspectClass);
+    if (includeSoftDeleted) {
+      return String.format(SQL_LIST_ASPECT_WITH_PAGINATION_WITH_SOFT_DELETED_TEMPLATE, columnName, tableName,
+          columnName, tableName, columnName, pageSize, start);
+    } else {
+      return String.format(SQL_LIST_ASPECT_WITH_PAGINATION_TEMPLATE, columnName, tableName, columnName, columnName,
+          tableName, columnName, columnName, pageSize, start);
+    }
   }
 
   /**
@@ -139,18 +214,39 @@ public class SQLStatementUtils {
   }
 
   /**
+   * Create Update with optimistic locking SQL statement. The SQL UPDATE use old_timestamp as a compareAndSet to check if the current update
+   * is made on an unchange record. For example: UPDATE table WHERE modifiedon = :oldTimestamp.
+   * @param urn  entity urn
+   * @param <ASPECT> aspect type
+   * @param aspectClass aspect class
+   * @return aspect upsert sql
+   */
+  public static <ASPECT extends RecordTemplate> String createAspectUpdateWithOptimisticLockSql(@Nonnull Urn urn,
+      @Nonnull Class<ASPECT> aspectClass, boolean urnExtraction) {
+    final String tableName = getTableName(urn);
+    final String columnName = getAspectColumnName(aspectClass);
+    return String.format(urnExtraction ? SQL_UPDATE_ASPECT_WITH_URN_TEMPLATE : SQL_UPDATE_ASPECT_TEMPLATE, tableName,
+        columnName, columnName, columnName);
+  }
+
+  /**
    * Create filter SQL statement.
    * @param tableName table name
    * @param indexFilter index filter
-   * @param indexSortCriterion sorting criterion
+   * @param hasTotalCount whether to calculate total count in SQL.
    * @return translated SQL where statement
    */
-  public static String createFilterSql(String tableName, @Nonnull IndexFilter indexFilter,
-      @Nullable IndexSortCriterion indexSortCriterion) {
+  public static String createFilterSql(String tableName, @Nullable IndexFilter indexFilter, boolean hasTotalCount) {
     String whereClause = parseIndexFilter(indexFilter);
     String totalCountSql = String.format("SELECT COUNT(urn) FROM %s %s", tableName, whereClause);
     StringBuilder sb = new StringBuilder();
-    sb.append(String.format(SQL_FILTER_TEMPLATE, totalCountSql, tableName));
+
+    if (hasTotalCount) {
+      sb.append(String.format(SQL_FILTER_TEMPLATE, totalCountSql, tableName));
+    } else {
+      sb.append("SELECT urn FROM ").append(tableName);
+    }
+
     sb.append("\n");
     sb.append(whereClause);
     return sb.toString();
@@ -163,7 +259,7 @@ public class SQLStatementUtils {
    * @param indexGroupByCriterion group by
    * @return translated group by SQL
    */
-  public static String createGroupBySql(String tableName, @Nonnull IndexFilter indexFilter,
+  public static String createGroupBySql(String tableName, @Nullable IndexFilter indexFilter,
       @Nonnull IndexGroupByCriterion indexGroupByCriterion) {
     final String columnName = getGeneratedColumnName(indexGroupByCriterion.getAspect(), indexGroupByCriterion.getPath());
     StringBuilder sb = new StringBuilder();
@@ -175,9 +271,8 @@ public class SQLStatementUtils {
     return sb.toString();
   }
 
-  public static String createGroupByColumnExistsSql(String tableName, @Nonnull IndexGroupByCriterion indexGroupByCriterion) {
-    return String.format(SQL_GROUP_BY_COLUMN_EXISTS_TEMPLATE, tableName, getGeneratedColumnName(indexGroupByCriterion.getAspect(),
-        indexGroupByCriterion.getPath()));
+  public static String getAllColumnForTable(String tableName) {
+    return String.format(SQL_GET_ALL_COLUMNS, tableName);
   }
 
   /**

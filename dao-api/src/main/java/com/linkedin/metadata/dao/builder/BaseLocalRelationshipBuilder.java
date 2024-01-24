@@ -13,11 +13,12 @@ import lombok.Value;
  */
 public abstract class BaseLocalRelationshipBuilder<ASPECT extends RecordTemplate> {
 
-  private Class<ASPECT> _aspectClass;
+  private final Class<ASPECT> _aspectClass;
 
   @Value
-  public class LocalRelationshipUpdates {
-    List<? extends RecordTemplate> relationships;
+  public static class LocalRelationshipUpdates<RELATIONSHIP extends RecordTemplate> {
+    List<RELATIONSHIP> relationships;
+    Class<RELATIONSHIP> relationshipClass;
     BaseGraphWriterDAO.RemovalOption removalOption;
   }
 

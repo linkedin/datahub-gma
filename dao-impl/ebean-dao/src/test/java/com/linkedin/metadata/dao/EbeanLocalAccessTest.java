@@ -5,8 +5,8 @@ import com.linkedin.common.AuditStamp;
 import com.linkedin.metadata.dao.localrelationship.SampleLocalRelationshipRegistryImpl;
 import com.linkedin.metadata.dao.scsi.EmptyPathExtractor;
 import com.linkedin.metadata.dao.utils.BarUrnPathExtractor;
-import com.linkedin.metadata.dao.utils.FooUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
+import com.linkedin.metadata.dao.utils.FooUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLIndexFilterUtils;
 import com.linkedin.metadata.query.Condition;
@@ -44,11 +44,15 @@ import org.testng.annotations.Test;
 
 import static com.linkedin.common.AuditStamps.*;
 import static com.linkedin.testing.TestUtils.*;
-import static org.testng.AssertJUnit.*;
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertNotNull;
+import static org.testng.AssertJUnit.assertFalse;
+import static org.testng.AssertJUnit.assertNull;
+import static org.testng.AssertJUnit.assertTrue;
 
 public class EbeanLocalAccessTest {
   private static EbeanServer _server;
-  private static IEbeanLocalAccess<FooUrn> _ebeanLocalAccessFoo;
+  private static EbeanLocalAccess<FooUrn> _ebeanLocalAccessFoo;
   private static IEbeanLocalAccess<BarUrn> _ebeanLocalAccessBar;
   private static IEbeanLocalAccess<BurgerUrn> _ebeanLocalAccessBurger;
   private static long _now;
@@ -79,7 +83,7 @@ public class EbeanLocalAccessTest {
       AspectFoo aspectFoo = new AspectFoo();
       aspectFoo.setValue(String.valueOf(i));
       AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
-      _ebeanLocalAccessFoo.add(fooUrn, aspectFoo, AspectFoo.class, auditStamp);
+      _ebeanLocalAccessFoo.add(fooUrn, aspectFoo, AspectFoo.class, auditStamp, null);
     }
   }
 
@@ -93,7 +97,7 @@ public class EbeanLocalAccessTest {
 
     // When get AspectFoo from urn:li:foo:0
     List<EbeanMetadataAspect> ebeanMetadataAspectList =
-        _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0);
+        _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0, false);
     assertEquals(1, ebeanMetadataAspectList.size());
 
     EbeanMetadataAspect ebeanMetadataAspect = ebeanMetadataAspectList.get(0);
@@ -110,7 +114,7 @@ public class EbeanLocalAccessTest {
     // When get AspectFoo from urn:li:foo:9999 (does not exist)
     FooUrn nonExistFooUrn = makeFooUrn(9999);
     AspectKey<FooUrn, AspectFoo> nonExistKey = new AspectKey(AspectFoo.class, nonExistFooUrn, 0L);
-    ebeanMetadataAspectList = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(nonExistKey), 1000, 0);
+    ebeanMetadataAspectList = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(nonExistKey), 1000, 0, false);
 
     // Expect: get AspectFoo from urn:li:foo:9999 returns empty result
     assertTrue(ebeanMetadataAspectList.isEmpty());
@@ -191,6 +195,22 @@ public class EbeanLocalAccessTest {
     // Expect: 5 rows are returns (35~39) and the first element is 'urn:li:foo:35'
     assertEquals(5, result2.size());
     assertEquals("35", result2.get(0).getId());
+
+    // When: list urns with no filter, no sorting criterion, no last urn.
+    List<FooUrn> result3 = _ebeanLocalAccessFoo.listUrns(null, null, null, 10);
+
+    // 0, 1, 10, 11, 12, 13, 14, 15, 16, 17
+    assertEquals(result3.size(), 10);
+    assertEquals(result3.get(0).getId(), "0");
+    assertEquals(result3.get(9).getId(), "17");
+
+    // When: list urns with no filter, no sorting criterion
+    List<FooUrn> result4 = _ebeanLocalAccessFoo.listUrns(null, null, new FooUrn(17), 10);
+
+    // 18, 19, 2, 20, 21, 22, 23, 24, 25, 26
+    assertEquals(result4.size(), 10);
+    assertEquals(result4.get(0).getId(), "18");
+    assertEquals(result4.get(9).getId(), "26");
   }
 
   @Test
@@ -264,7 +284,7 @@ public class EbeanLocalAccessTest {
     AspectFoo aspectFoo = new AspectFoo();
     aspectFoo.setValue(String.valueOf(25));
     AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
-    _ebeanLocalAccessFoo.add(fooUrn, aspectFoo, AspectFoo.class, auditStamp);
+    _ebeanLocalAccessFoo.add(fooUrn, aspectFoo, AspectFoo.class, auditStamp, null);
     countMap = _ebeanLocalAccessFoo.countAggregate(indexFilter, indexGroupByCriterion);
 
     // Expect: there are 2 counts for value 25
@@ -278,28 +298,28 @@ public class EbeanLocalAccessTest {
 
     // Single quote is a special char in SQL.
     BurgerUrn johnsBurgerUrn1 = makeBurgerUrn("urn:li:burger:John's burger");
-    _ebeanLocalAccessBurger.add(johnsBurgerUrn1, aspectFoo, AspectFoo.class, auditStamp);
+    _ebeanLocalAccessBurger.add(johnsBurgerUrn1, aspectFoo, AspectFoo.class, auditStamp, null);
 
     AspectKey aspectKey1 = new AspectKey(AspectFoo.class, johnsBurgerUrn1, 0L);
-    List<EbeanMetadataAspect> ebeanMetadataAspectList = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey1), 1, 0);
+    List<EbeanMetadataAspect> ebeanMetadataAspectList = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey1), 1, 0, false);
     assertEquals(1, ebeanMetadataAspectList.size());
     assertEquals(ebeanMetadataAspectList.get(0).getKey().getUrn(), johnsBurgerUrn1.toString());
 
     // Double quote is a special char in SQL.
     BurgerUrn johnsBurgerUrn2 = makeBurgerUrn("urn:li:burger:John\"s burger");
-    _ebeanLocalAccessBurger.add(johnsBurgerUrn2, aspectFoo, AspectFoo.class, auditStamp);
+    _ebeanLocalAccessBurger.add(johnsBurgerUrn2, aspectFoo, AspectFoo.class, auditStamp, null);
 
     AspectKey aspectKey2 = new AspectKey(AspectFoo.class, johnsBurgerUrn2, 0L);
-    ebeanMetadataAspectList = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey2), 1, 0);
+    ebeanMetadataAspectList = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey2), 1, 0, false);
     assertEquals(1, ebeanMetadataAspectList.size());
     assertEquals(ebeanMetadataAspectList.get(0).getKey().getUrn(), johnsBurgerUrn2.toString());
 
     // Backslash is a special char in SQL.
     BurgerUrn johnsBurgerUrn3 = makeBurgerUrn("urn:li:burger:John\\s burger");
-    _ebeanLocalAccessBurger.add(johnsBurgerUrn3, aspectFoo, AspectFoo.class, auditStamp);
+    _ebeanLocalAccessBurger.add(johnsBurgerUrn3, aspectFoo, AspectFoo.class, auditStamp, null);
 
     AspectKey aspectKey3 = new AspectKey(AspectFoo.class, johnsBurgerUrn3, 0L);
-    ebeanMetadataAspectList = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey3), 1, 0);
+    ebeanMetadataAspectList = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey3), 1, 0, false);
     assertEquals(1, ebeanMetadataAspectList.size());
     assertEquals(ebeanMetadataAspectList.get(0).getKey().getUrn(), johnsBurgerUrn3.toString());
   }
@@ -313,10 +333,10 @@ public class EbeanLocalAccessTest {
     AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(barUrn1, barUrn2, barUrn3));
     AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
 
-    _ebeanLocalAccessFoo.add(fooUrn, aspectFooBar, AspectFooBar.class, auditStamp);
-    _ebeanLocalAccessBar.add(barUrn1, new AspectFoo().setValue("1"), AspectFoo.class, auditStamp);
-    _ebeanLocalAccessBar.add(barUrn2, new AspectFoo().setValue("2"), AspectFoo.class, auditStamp);
-    _ebeanLocalAccessBar.add(barUrn3, new AspectFoo().setValue("3"), AspectFoo.class, auditStamp);
+    _ebeanLocalAccessFoo.add(fooUrn, aspectFooBar, AspectFooBar.class, auditStamp, null);
+    _ebeanLocalAccessBar.add(barUrn1, new AspectFoo().setValue("1"), AspectFoo.class, auditStamp, null);
+    _ebeanLocalAccessBar.add(barUrn2, new AspectFoo().setValue("2"), AspectFoo.class, auditStamp, null);
+    _ebeanLocalAccessBar.add(barUrn3, new AspectFoo().setValue("3"), AspectFoo.class, auditStamp, null);
 
     // Verify local relationships and entity are added.
     EbeanLocalRelationshipQueryDAO ebeanLocalRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server);
@@ -324,7 +344,7 @@ public class EbeanLocalAccessTest {
         BarSnapshot.class, EMPTY_FILTER, FooSnapshot.class, EMPTY_FILTER, BelongsTo.class, EMPTY_FILTER, 0, 10);
 
     AspectKey<FooUrn, AspectFooBar> key = new AspectKey<>(AspectFooBar.class, fooUrn, 0L);
-    List<EbeanMetadataAspect> aspects = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(key), 10, 0);
+    List<EbeanMetadataAspect> aspects = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(key), 10, 0, false);
 
     assertEquals(3, relationships.size());
     assertEquals(1, aspects.size());
@@ -343,7 +363,7 @@ public class EbeanLocalAccessTest {
     AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
 
     try {
-      _ebeanLocalAccessFoo.add(makeFooUrn(1), aspectFooBar, AspectFooBar.class, auditStamp);
+      _ebeanLocalAccessFoo.add(makeFooUrn(1), aspectFooBar, AspectFooBar.class, auditStamp, null);
     } catch (Exception exception) {
       // Verify no relationship is added.
       List<SqlRow> relationships = _server.createSqlQuery("SELECT * FROM metadata_relationship_belongsto").findList();
@@ -355,7 +375,7 @@ public class EbeanLocalAccessTest {
   public void testUrnExtraction() {
     FooUrn urn1 = makeFooUrn(1);
     AspectFoo foo1 = new AspectFoo().setValue("foo");
-    _ebeanLocalAccessFoo.add(urn1, foo1, AspectFoo.class, makeAuditStamp("actor", _now));
+    _ebeanLocalAccessFoo.add(urn1, foo1, AspectFoo.class, makeAuditStamp("actor", _now), null);
 
     // get content of virtual column
     List<SqlRow> results = _server.createSqlQuery("SELECT i_urn$fooId as id FROM metadata_entity_foo").findList();
@@ -377,10 +397,10 @@ public class EbeanLocalAccessTest {
 
     // Turn off local relationship ingestion first, to fill only the entity tables.
     _ebeanLocalAccessFoo.setLocalRelationshipBuilderRegistry(null);
-    _ebeanLocalAccessFoo.add(fooUrn, aspectFooBar, AspectFooBar.class, auditStamp);
-    _ebeanLocalAccessBar.add(barUrn1, new AspectFoo().setValue("1"), AspectFoo.class, auditStamp);
-    _ebeanLocalAccessBar.add(barUrn2, new AspectFoo().setValue("2"), AspectFoo.class, auditStamp);
-    _ebeanLocalAccessBar.add(barUrn3, new AspectFoo().setValue("3"), AspectFoo.class, auditStamp);
+    _ebeanLocalAccessFoo.add(fooUrn, aspectFooBar, AspectFooBar.class, auditStamp, null);
+    _ebeanLocalAccessBar.add(barUrn1, new AspectFoo().setValue("1"), AspectFoo.class, auditStamp, null);
+    _ebeanLocalAccessBar.add(barUrn2, new AspectFoo().setValue("2"), AspectFoo.class, auditStamp, null);
+    _ebeanLocalAccessBar.add(barUrn3, new AspectFoo().setValue("3"), AspectFoo.class, auditStamp, null);
 
     // Verify that NO local relationships were added
     EbeanLocalRelationshipQueryDAO ebeanLocalRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server);
@@ -435,4 +455,26 @@ public class EbeanLocalAccessTest {
     assertNull(EbeanLocalAccess.findLatestMetadataAspect(_server, foo9999, AspectFoo.class));
   }
 
+  @Test
+  public void testGetAspectNoSoftDeleteCheck() {
+    FooUrn fooUrn = makeFooUrn(0);
+    _ebeanLocalAccessFoo.add(fooUrn, null, AspectFoo.class, makeAuditStamp("foo", System.currentTimeMillis()), null);
+    AspectKey<FooUrn, AspectFoo> aspectKey = new AspectKey(AspectFoo.class, fooUrn, 0L);
+    List<EbeanMetadataAspect> ebeanMetadataAspectList =
+        _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0, false);
+    assertEquals(0, ebeanMetadataAspectList.size());
+
+    ebeanMetadataAspectList =
+        _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0, true);
+    assertFalse(ebeanMetadataAspectList.isEmpty());
+    assertEquals(fooUrn.toString(), ebeanMetadataAspectList.get(0).getKey().getUrn());
+  }
+
+  @Test
+  public void testCheckColumnExists() {
+    assertTrue(_ebeanLocalAccessFoo.checkColumnExists("metadata_entity_foo", "a_aspectfoo"));
+    assertTrue(_ebeanLocalAccessFoo.checkColumnExists("metadata_entity_foo", "i_aspectfoo$value"));
+    assertFalse(_ebeanLocalAccessFoo.checkColumnExists("metadata_entity_foo", "a_aspect_not_exist"));
+    assertFalse(_ebeanLocalAccessFoo.checkColumnExists("metadata_entity_notexist", "a_aspectfoo"));
+  }
 }

@@ -5,7 +5,7 @@ import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.SetMode;
 import com.linkedin.metadata.aspect.AuditedAspect;
-import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder;
+import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.builder.LocalRelationshipBuilderRegistry;
 import com.linkedin.metadata.dao.scsi.EmptyPathExtractor;
 import com.linkedin.metadata.dao.scsi.UrnPathExtractor;
@@ -14,9 +14,13 @@ import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
 import com.linkedin.metadata.dao.utils.SQLStatementUtils;
+import com.linkedin.metadata.events.IngestionTrackingContext;
+import com.linkedin.metadata.query.ExtraInfo;
+import com.linkedin.metadata.query.ExtraInfoArray;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
+import com.linkedin.metadata.query.ListResultMetadata;
 import io.ebean.EbeanServer;
 import io.ebean.SqlQuery;
 import io.ebean.SqlRow;
@@ -29,18 +33,23 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.persistence.PersistenceException;
 import lombok.extern.slf4j.Slf4j;
 import org.json.simple.JSONObject;
 
+import static com.linkedin.metadata.dao.EbeanLocalDAO.*;
 import static com.linkedin.metadata.dao.utils.EBeanDAOUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLIndexFilterUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLSchemaUtils.*;
@@ -64,6 +73,10 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   private static final String ASPECT_JSON_PLACEHOLDER = "__PLACEHOLDER__";
   private static final String DEFAULT_ACTOR = "urn:li:principal:UNKNOWN";
 
+  // key: table_name,
+  // value: Set(column1, column2, column3 ...)
+  private final Map<String, Set<String>> tableColumns = new ConcurrentHashMap<>();
+
   public EbeanLocalAccess(EbeanServer server, ServerConfig serverConfig, @Nonnull Class<URN> urnClass, UrnPathExtractor<URN> urnPathExtractor) {
     _server = server;
     _urnClass = urnClass;
@@ -84,15 +97,34 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   @Override
   @Transactional
   public <ASPECT extends RecordTemplate> int add(@Nonnull URN urn, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
-      @Nonnull AuditStamp auditStamp) {
+      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext ingestionTrackingContext) {
+    return addWithOptimisticLocking(urn, newValue, aspectClass, auditStamp, null, ingestionTrackingContext);
+  }
 
+  @Override
+  public <ASPECT extends RecordTemplate> int addWithOptimisticLocking(
+      @Nonnull URN urn,
+      @Nullable ASPECT newValue,
+      @Nonnull Class<ASPECT> aspectClass,
+      @Nonnull AuditStamp auditStamp,
+      @Nullable Timestamp oldTimestamp,
+      @Nullable IngestionTrackingContext ingestionTrackingContext) {
+
+    final long timestamp = auditStamp.hasTime() ? auditStamp.getTime() : System.currentTimeMillis();
     final String actor = auditStamp.hasActor() ? auditStamp.getActor().toString() : DEFAULT_ACTOR;
     final String impersonator = auditStamp.hasImpersonator() ? auditStamp.getImpersonator().toString() : null;
     final boolean urnExtraction = _urnPathExtractor != null && !(_urnPathExtractor instanceof EmptyPathExtractor);
 
-    final SqlUpdate sqlUpdate = _server.createSqlUpdate(SQLStatementUtils.createAspectUpsertSql(urn, aspectClass, urnExtraction))
-        .setParameter("urn", urn.toString())
-        .setParameter("lastmodifiedon", new Timestamp(System.currentTimeMillis()).toString())
+    final SqlUpdate sqlUpdate;
+    if (oldTimestamp != null) {
+      sqlUpdate = _server.createSqlUpdate(
+          SQLStatementUtils.createAspectUpdateWithOptimisticLockSql(urn, aspectClass, urnExtraction));
+      sqlUpdate.setParameter("oldTimestamp", oldTimestamp.toString());
+    } else {
+      sqlUpdate = _server.createSqlUpdate(SQLStatementUtils.createAspectUpsertSql(urn, aspectClass, urnExtraction));
+    }
+    sqlUpdate.setParameter("urn", urn.toString())
+        .setParameter("lastmodifiedon", new Timestamp(timestamp).toString())
         .setParameter("lastmodifiedby", actor);
 
     // If a non-default UrnPathExtractor is provided, the user MUST specify in their schema generation scripts
@@ -122,26 +154,30 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     // Add local relationships if builder is provided.
     addRelationships(urn, newValue, aspectClass);
 
-    final long timestamp = auditStamp.hasTime() ? auditStamp.getTime() : System.currentTimeMillis();
-
     AuditedAspect auditedAspect = new AuditedAspect()
         .setAspect(RecordUtils.toJsonString(newValue))
         .setCanonicalName(aspectClass.getCanonicalName())
         .setLastmodifiedby(actor)
         .setLastmodifiedon(new Timestamp(timestamp).toString())
         .setCreatedfor(impersonator, SetMode.IGNORE_NULL);
+    if (ingestionTrackingContext != null) {
+      auditedAspect.setEmitTime(ingestionTrackingContext.getEmitTime(), SetMode.IGNORE_NULL);
+    }
 
-    return sqlUpdate.setParameter("metadata", toJsonString(auditedAspect)).execute();
+      final String metadata = toJsonString(auditedAspect);
+      return sqlUpdate.setParameter("metadata", metadata).execute();
   }
 
   @Override
-  public <ASPECT extends RecordTemplate> void addRelationships(@Nonnull URN urn, @Nonnull ASPECT aspect, @Nonnull Class<ASPECT> aspectClass) {
+  public <ASPECT extends RecordTemplate> List<LocalRelationshipUpdates> addRelationships(@Nonnull URN urn,
+      @Nonnull ASPECT aspect, @Nonnull Class<ASPECT> aspectClass) {
     if (_localRelationshipBuilderRegistry != null && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
-      List<BaseLocalRelationshipBuilder<ASPECT>.LocalRelationshipUpdates> localRelationshipUpdates =
+      List<LocalRelationshipUpdates> localRelationshipUpdates =
           _localRelationshipBuilderRegistry.getLocalRelationshipBuilder(aspect).buildRelationships(urn, aspect);
-
-      _localRelationshipWriterDAO.processLocalRelationshipUpdates(localRelationshipUpdates);
+      _localRelationshipWriterDAO.processLocalRelationshipUpdates(urn, localRelationshipUpdates);
+      return localRelationshipUpdates;
     }
+    return new ArrayList<>();
   }
 
   /**
@@ -154,49 +190,60 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    * @param aspectKeys a List of keys (urn, aspect pairings) to query for
    * @param keysCount number of keys to query
    * @param position position of the key to start from
+   * @param includeSoftDeleted whether to include soft deleted aspect in the query
    */
   @Override
   public <ASPECT extends RecordTemplate> List<EbeanMetadataAspect> batchGetUnion(
-      @Nonnull List<AspectKey<URN, ? extends RecordTemplate>> aspectKeys, int keysCount, int position) {
+      @Nonnull List<AspectKey<URN, ? extends RecordTemplate>> aspectKeys, int keysCount, int position,
+      boolean includeSoftDeleted) {
 
     final int end = Math.min(aspectKeys.size(), position + keysCount);
     final Map<Class<ASPECT>, Set<Urn>> keysToQueryMap = new HashMap<>();
     for (int index = position; index < end; index++) {
       final Urn entityUrn = aspectKeys.get(index).getUrn();
       final Class<ASPECT> aspectClass = (Class<ASPECT>) aspectKeys.get(index).getAspectClass();
-      keysToQueryMap.computeIfAbsent(aspectClass, unused -> new HashSet<>()).add(entityUrn);
+      if (checkColumnExists(getTableName(entityUrn), getAspectColumnName(aspectClass))) {
+        keysToQueryMap.computeIfAbsent(aspectClass, unused -> new HashSet<>()).add(entityUrn);
+      }
     }
 
     // each statement is for a single aspect class
-    List<String> selectStatements = keysToQueryMap.entrySet().stream()
-        .map(entry -> SQLStatementUtils.createAspectReadSql(entry.getKey(), entry.getValue()))
-        .collect(Collectors.toList());
+    Map<String, Class<ASPECT>> selectStatements = keysToQueryMap.entrySet()
+        .stream()
+        .collect(Collectors.toMap(
+            entry -> SQLStatementUtils.createAspectReadSql(entry.getKey(), entry.getValue(), includeSoftDeleted),
+            entry -> entry.getKey()));
 
     // consolidate/join the results
-    List<SqlRow> sqlRows = selectStatements.stream().flatMap(sql -> _server.createSqlQuery(sql).findList().stream()).collect(Collectors.toList());
+    final Map<SqlRow, Class<ASPECT>> sqlRows = new LinkedHashMap<>();
+    for (Map.Entry<String, Class<ASPECT>> entry : selectStatements.entrySet()) {
+      for (SqlRow sqlRow : _server.createSqlQuery(entry.getKey()).findList()) {
+        sqlRows.put(sqlRow, entry.getValue());
+      }
+    }
     return EBeanDAOUtils.readSqlRows(sqlRows);
   }
 
   @Override
-  public List<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
+  public List<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       @Nullable URN lastUrn, int pageSize) {
-    SqlQuery sqlQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, lastUrn, 0, pageSize);
+    SqlQuery sqlQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, lastUrn, pageSize);
     final List<SqlRow> sqlRows = sqlQuery.setFirstRow(0).findList();
     return sqlRows.stream().map(sqlRow -> getUrn(sqlRow.getString("urn"), _urnClass)).collect(Collectors.toList());
   }
 
   @Override
-  public ListResult<URN> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
+  public ListResult<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       int start, int pageSize) {
-    final SqlQuery sqlQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, null, start, pageSize);
+    final SqlQuery sqlQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, start, pageSize);
     final List<SqlRow> sqlRows = sqlQuery.findList();
     if (sqlRows.size() == 0) {
-      final List<SqlRow> totalCountResults = createFilterSqlQuery(indexFilter, indexSortCriterion, null, 0, DEFAULT_PAGE_SIZE).findList();
+      final List<SqlRow> totalCountResults = createFilterSqlQuery(indexFilter, indexSortCriterion, 0, DEFAULT_PAGE_SIZE).findList();
       final int actualTotalCount = totalCountResults.isEmpty() ? 0 : totalCountResults.get(0).getInteger("_total_count");
       return toListResult(actualTotalCount, start, pageSize);
     }
     final List<URN> values = sqlRows.stream().map(sqlRow -> getUrn(sqlRow.getString("urn"), _urnClass)).collect(Collectors.toList());
-    return toListResult(values, sqlRows, start, pageSize);
+    return toListResult(values, sqlRows, null, start, pageSize);
   }
 
   @Override
@@ -223,19 +270,75 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     final List<URN> values = sqlRows.stream()
         .map(sqlRow -> getUrn(sqlRow.getString("urn"), _urnClass))
         .collect(Collectors.toList());
-    return toListResult(values, sqlRows, start, pageSize);
+    return toListResult(values, sqlRows, null, start, pageSize);
   }
 
   @Nonnull
   @Override
-  public Map<String, Long> countAggregate(@Nonnull IndexFilter indexFilter,
+  public <ASPECT extends RecordTemplate> ListResult<ASPECT> list(@Nonnull Class<ASPECT> aspectClass, @Nonnull URN urn,
+      int start, int pageSize) {
+    // start / pageSize will be ignored since there will be at most one record returned from entity table.
+    final String listAspectByUrnSql = SQLStatementUtils.createListAspectByUrnSql(aspectClass, urn, false);
+    final SqlQuery sqlQuery = _server.createSqlQuery(listAspectByUrnSql);
+
+    try {
+      final SqlRow sqlRow = sqlQuery.findOne();
+      if (sqlRow == null) {
+        return toListResult(0, start, pageSize);
+      } else {
+        sqlRow.set("_total_count", 1);
+        final ASPECT aspect = RecordUtils.toRecordTemplate(aspectClass,
+            extractAspectJsonString(sqlRow.getString(getAspectColumnName(aspectClass))));
+        final ListResultMetadata listResultMetadata = new ListResultMetadata().setExtraInfos(new ExtraInfoArray());
+        final ExtraInfo extraInfo = new ExtraInfo().setUrn(urn)
+            .setVersion(LATEST_VERSION)
+            .setAudit(makeAuditStamp(sqlRow.getTimestamp("lastmodifiedon"), sqlRow.getString("lastmodifiedby"),
+                sqlRow.getString("createdfor")));
+        listResultMetadata.getExtraInfos().add(extraInfo);
+        return toListResult(Collections.singletonList(aspect), Collections.singletonList(sqlRow), listResultMetadata,
+            start, pageSize);
+      }
+    } catch (PersistenceException pe) {
+      throw new RuntimeException(
+          String.format("Expect at most 1 aspect value per entity per aspect type . Sql: %s", listAspectByUrnSql));
+    }
+  }
+
+  @Nonnull
+  @Override
+  public <ASPECT extends RecordTemplate> ListResult<ASPECT> list(@Nonnull Class<ASPECT> aspectClass, int start,
+      int pageSize) {
+
+    final String tableName = SQLSchemaUtils.getTableName(_entityType);
+    final String listAspectSql = SQLStatementUtils.createListAspectWithPaginationSql(aspectClass, tableName, false, start, pageSize);
+    final SqlQuery sqlQuery = _server.createSqlQuery(listAspectSql);
+    final List<SqlRow> sqlRows = sqlQuery.findList();
+    if (sqlRows.isEmpty()) {
+      return toListResult(0, start, pageSize);
+    }
+    final ListResultMetadata listResultMetadata = new ListResultMetadata().setExtraInfos(new ExtraInfoArray());
+    final List<ASPECT> aspectList = sqlRows.stream().map(sqlRow -> {
+      final ExtraInfo extraInfo = new ExtraInfo().setUrn(getUrn(sqlRow.getString("urn"), _urnClass))
+          .setVersion(LATEST_VERSION).setAudit(
+              makeAuditStamp(sqlRow.getTimestamp("lastmodifiedon"), sqlRow.getString("lastmodifiedby"),
+                  sqlRow.getString("createdfor")));
+      listResultMetadata.getExtraInfos().add(extraInfo);
+      return RecordUtils.toRecordTemplate(aspectClass,
+          extractAspectJsonString(sqlRow.getString(getAspectColumnName(aspectClass))));
+    }).collect(Collectors.toList());
+    return toListResult(aspectList, sqlRows, listResultMetadata, start, pageSize);
+  }
+
+
+  @Nonnull
+  @Override
+  public Map<String, Long> countAggregate(@Nullable IndexFilter indexFilter,
       @Nonnull IndexGroupByCriterion indexGroupByCriterion) {
     final String tableName = SQLSchemaUtils.getTableName(_entityType);
+    final String groupByColumn = getGeneratedColumnName(indexGroupByCriterion.getAspect(), indexGroupByCriterion.getPath());
 
     // first, check for existence of the column we want to GROUP BY
-    final String groupByColumnExistsSql = SQLStatementUtils.createGroupByColumnExistsSql(tableName, indexGroupByCriterion);
-    final SqlRow groupByColumnExistsResults = _server.createSqlQuery(groupByColumnExistsSql).findOne();
-    if (groupByColumnExistsResults == null) {
+    if (!checkColumnExists(tableName, groupByColumn)) {
       // if we are trying to GROUP BY the results on a column that does not exist, just return an empty map
       return Collections.emptyMap();
     }
@@ -260,43 +363,52 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   }
 
   /**
-   * Produce {@link SqlQuery} for list urn by offset (start) and by lastUrn.
+   * Produce {@link SqlQuery} for list urn by offset (start) and limit (pageSize).
    * @param indexFilter index filter conditions
    * @param indexSortCriterion sorting criterion, default ACS
-   * @param lastUrn last urn of the previous fetched page. For the first page, this should be set as NULL
    * @return SqlQuery a SQL query which can be executed by ebean server.
    */
-  private SqlQuery createFilterSqlQuery(@Nonnull IndexFilter indexFilter,
-      @Nullable IndexSortCriterion indexSortCriterion, @Nullable URN lastUrn, int offset, int pageSize) {
-    if (indexFilter.hasCriteria() && indexFilter.getCriteria().isEmpty()) {
-      throw new UnsupportedOperationException("Empty Index Filter is not supported by EbeanLocalDAO");
-    }
+  private SqlQuery createFilterSqlQuery(@Nullable IndexFilter indexFilter,
+      @Nullable IndexSortCriterion indexSortCriterion, int offset, int pageSize) {
 
     final String tableName = SQLSchemaUtils.getTableName(_entityType);
     StringBuilder filterSql = new StringBuilder();
-    filterSql.append(SQLStatementUtils.createFilterSql(tableName, indexFilter, indexSortCriterion));
-
-    // append last urn where condition
-    if (lastUrn != null) {
-      // because createFilterSql will only include a WHERE clause if there are non-urn filters, we need to make sure
-      // that we add a WHERE if it wasn't added already.
-      final boolean filterOnlyOnUrns = indexFilter.getCriteria().stream().allMatch(criteria -> isUrn(criteria.getAspect()));
-      filterSql.append(filterOnlyOnUrns ? " WHERE " : " AND ");
-      filterSql.append("urn > '");
-      filterSql.append(lastUrn);
-      filterSql.append("'");
-    }
-
-    if (indexSortCriterion != null) {
-      filterSql.append("\n");
-      filterSql.append(parseSortCriteria(indexSortCriterion));
-    }
-
+    filterSql.append(SQLStatementUtils.createFilterSql(tableName, indexFilter, true));
+    filterSql.append("\n");
+    filterSql.append(parseSortCriteria(indexSortCriterion));
     filterSql.append(String.format(" LIMIT %d", Math.max(pageSize, 0)));
     filterSql.append(String.format(" OFFSET %d", Math.max(offset, 0)));
     return _server.createSqlQuery(filterSql.toString());
   }
 
+  /**
+   * Produce {@link SqlQuery} for list urns by last urn.
+   */
+  private SqlQuery createFilterSqlQuery(@Nullable IndexFilter indexFilter,
+      @Nullable IndexSortCriterion indexSortCriterion, @Nullable URN lastUrn, int pageSize) {
+    StringBuilder filterSql = new StringBuilder();
+    final String tableName = SQLSchemaUtils.getTableName(_entityType);
+    filterSql.append(SQLStatementUtils.createFilterSql(tableName, indexFilter, false));
+
+    if (lastUrn != null) {
+      // because createFilterSql will only include a WHERE clause if there are non-urn filters, we need to make sure
+      // that we add a WHERE if it wasn't added already.
+      String operator = "AND";
+
+      if (indexFilter == null
+          || !indexFilter.hasCriteria()
+          || indexFilter.getCriteria().stream().allMatch(criteria -> isUrn(criteria.getAspect()))) {
+        operator = "WHERE";
+      }
+
+      filterSql.append(String.format(" %s URN > '%s'", operator, lastUrn));
+    }
+
+    filterSql.append("\n");
+    filterSql.append(parseSortCriteria(indexSortCriterion));
+    filterSql.append(String.format(" LIMIT %d", Math.max(pageSize, 0)));
+    return _server.createSqlQuery(filterSql.toString());
+  }
 
   /**
    * Convert sqlRows into {@link ListResult}. This version of toListResult is used when the original SQL query
@@ -344,13 +456,14 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    * Convert sqlRows into {@link ListResult}.
    * @param values a list of query response result
    * @param sqlRows list of {@link SqlRow} from ebean query execution
+   * @param listResultMetadata {@link ListResultMetadata} with {@link com.linkedin.metadata.query.ExtraInfo}
    * @param start starting position
    * @param pageSize number of rows in a page
    * @param <T> type of query response
    * @return {@link ListResult} which contains paging metadata information
    */
   @Nonnull
-  protected <T> ListResult<T> toListResult(@Nonnull List<T> values, @Nonnull List<SqlRow> sqlRows,
+  protected <T> ListResult<T> toListResult(@Nonnull List<T> values, @Nonnull List<SqlRow> sqlRows, @Nullable ListResultMetadata listResultMetadata,
       int start, int pageSize) {
     if (pageSize == 0) {
       pageSize = DEFAULT_PAGE_SIZE;
@@ -372,7 +485,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     }
     return ListResult.<T>builder()
         .values(values)
-        .metadata(null)
+        .metadata(listResultMetadata)
         .nextStart(nextStart)
         .havingMore(hasNext)
         .totalCount(totalCount)
@@ -422,6 +535,23 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
         serverConfig.getDataSourceConfig().getUsername());
 
     return new FlywaySchemaEvolutionManager(config);
+  }
+
+  /**
+   * Check column exists in table.
+   */
+  public boolean checkColumnExists(@Nonnull String tableName, @Nonnull String columnName) {
+    // Fetch table columns on very first read and cache it in tableColumns
+    if (!tableColumns.containsKey(tableName)) {
+      final List<SqlRow> rows = _server.createSqlQuery(SQLStatementUtils.getAllColumnForTable(tableName)).findList();
+      Set<String> columns = new HashSet<>();
+      for (SqlRow row : rows) {
+        columns.add(row.getString("COLUMN_NAME"));
+      }
+      tableColumns.put(tableName, columns);
+    }
+
+    return tableColumns.get(tableName).contains(columnName);
   }
 
   /**

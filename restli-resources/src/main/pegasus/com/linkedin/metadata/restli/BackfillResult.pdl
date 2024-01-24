@@ -20,4 +20,29 @@ record BackfillResult {
      */
     aspects: array[string]
   }]
+
+  /**
+   * List of relationships backfilled
+   */
+  relationships: optional array[record BackfillResultRelationship {
+    /**
+     * Urn of the source entity
+     */
+    source: Urn
+
+    /**
+     * Urn of the destination entity
+     */
+    destination: Urn
+
+    /**
+     * Relationship between source and destination, e.g. downstream of.
+     */
+    relationship: string
+
+    /**
+     * Remove option used to process the relationship
+     */
+    removalOption: string
+  }]
 }

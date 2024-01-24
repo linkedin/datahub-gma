@@ -20,6 +20,24 @@ Use [gradle wrapper](https://docs.gradle.org/current/userguide/gradle_wrapper.ht
 ./gradlew build
 ```
 
+If you are using Mac with Apple chip, there are additional steps required.
+
+Install MariaDB.
+
+```bash
+brew install mariadb
+```
+
+Uncomment the following three lines in `EmbeddedMariaInstance.java`:
+
+```java
+configurationBuilder.setBaseDir("/opt/homebrew");
+configurationBuilder.setUnpackingFromClasspath(false);
+configurationBuilder.setLibDir(System.getProperty("java.io.tmpdir") + "/MariaDB4j/no-libs");
+```
+
+Now you can build the project.
+
 ## IDE Support
 
 The recommended IDE for DataHub development is [IntelliJ IDEA](https://www.jetbrains.com/idea/). You can run the

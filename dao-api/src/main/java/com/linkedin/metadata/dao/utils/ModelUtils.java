@@ -21,6 +21,8 @@ import com.linkedin.metadata.validator.InvalidSchemaException;
 import com.linkedin.metadata.validator.RelationshipValidator;
 import com.linkedin.metadata.validator.SnapshotValidator;
 import com.linkedin.metadata.validator.ValidationUtils;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -28,6 +30,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import org.reflections.Reflections;
 
 
@@ -105,7 +108,7 @@ public class ModelUtils {
     try {
       return CLASS_LOADER.loadClass(className).asSubclass(parentClass);
     } catch (ClassNotFoundException e) {
-      throw new RuntimeException(e);
+      throw new IllegalArgumentException(className + " cannot be found", e);
     }
   }
 
@@ -133,6 +136,27 @@ public class ModelUtils {
   public static <SNAPSHOT extends RecordTemplate> Urn getUrnFromSnapshot(@Nonnull SNAPSHOT snapshot) {
     SnapshotValidator.validateSnapshotSchema(snapshot.getClass());
     return RecordUtils.getRecordTemplateField(snapshot, "urn", urnClassForSnapshot(snapshot.getClass()));
+  }
+
+  /**
+   * Get Urn based on provided urn string and urn class.
+   *
+   * @param <URN> must be a valid URN type that extends {@link Urn}
+   * @param urn urn string
+   * @param urnClass urn class
+   * @return converted urn
+   */
+  public static <URN extends Urn> URN getUrnFromString(@Nullable String urn, @Nonnull Class<URN> urnClass) {
+    if (urn == null) {
+      return null;
+    }
+
+    try {
+      final Method getUrn = urnClass.getMethod("createFromString", String.class);
+      return urnClass.cast(getUrn.invoke(null, urn));
+    } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
+      throw new IllegalArgumentException("URN conversion error for " + urn, e);
+    }
   }
 
   /**

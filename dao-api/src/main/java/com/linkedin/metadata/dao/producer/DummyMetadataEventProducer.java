@@ -1,5 +1,6 @@
 package com.linkedin.metadata.dao.producer;
 
+import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dummy.DummyAspect;
@@ -32,7 +33,7 @@ public class DummyMetadataEventProducer<URN extends Urn>
 
   @Override
   public <ASPECT extends RecordTemplate> void produceAspectSpecificMetadataAuditEvent(@Nonnull URN urn,
-      @Nullable ASPECT oldValue, @Nonnull ASPECT newValue) {
+      @Nullable ASPECT oldValue, @Nonnull ASPECT newValue, @Nullable AuditStamp auditStamp) {
     // Do nothing
   }
 }

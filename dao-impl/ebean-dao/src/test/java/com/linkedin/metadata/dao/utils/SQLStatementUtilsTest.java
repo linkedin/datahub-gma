@@ -13,10 +13,10 @@ import com.linkedin.metadata.query.LocalRelationshipCriterionArray;
 import com.linkedin.metadata.query.LocalRelationshipFilter;
 import com.linkedin.metadata.query.LocalRelationshipValue;
 import com.linkedin.metadata.query.RelationshipField;
-import com.linkedin.metadata.query.SortOrder;
 import com.linkedin.metadata.query.UrnField;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.urn.FooUrn;
+import java.net.URISyntaxException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
@@ -56,7 +56,7 @@ public class SQLStatementUtilsTest {
         "SELECT urn, a_aspectfoo, lastmodifiedon, lastmodifiedby FROM metadata_entity_foo WHERE urn = 'urn:li:foo:1' "
             + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL UNION ALL SELECT urn, a_aspectfoo, lastmodifiedon, lastmodifiedby "
             + "FROM metadata_entity_foo WHERE urn = 'urn:li:foo:2' AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL";
-    assertEquals(SQLStatementUtils.createAspectReadSql(AspectFoo.class, set), expectedSql);
+    assertEquals(SQLStatementUtils.createAspectReadSql(AspectFoo.class, set, false), expectedSql);
   }
 
   @Test
@@ -75,8 +75,7 @@ public class SQLStatementUtilsTest {
     indexCriterionArray.add(indexCriterion2);
     indexFilter.setCriteria(indexCriterionArray);
 
-    String sql = SQLStatementUtils.createFilterSql("metadata_entity_foo", indexFilter,
-        SQLIndexFilterUtils.createIndexSortCriterion(AspectFoo.class, "value", SortOrder.ASCENDING));
+    String sql = SQLStatementUtils.createFilterSql("metadata_entity_foo", indexFilter, true);
     String expectedSql = "SELECT *, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE a_aspectfoo IS NOT NULL\n"
         + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo$value >= 25\n"
         + "AND a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
@@ -259,5 +258,52 @@ public class SQLStatementUtilsTest {
     assertEquals(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), new Pair<>(filter1, "foo"),
         new Pair<>(filter2, "bar")), "(foo.i_aspectfoo$value='value2' AND (foo.urn='value1' OR foo.urn='value3')"
         + " AND foo.metadata$value='value4') AND (bar.urn='value1' OR bar.urn='value2')");
+  }
+
+  @Test
+  public void testCreateListAspectByUrnSql() throws URISyntaxException {
+    FooUrn fooUrn = new FooUrn(1);
+    assertEquals(SQLStatementUtils.createListAspectByUrnSql(AspectFoo.class, fooUrn, true),
+        "SELECT urn, a_aspectfoo, lastmodifiedon, lastmodifiedby, createdfor FROM "
+            + "metadata_entity_foo WHERE urn = 'urn:li:foo:1' AND a_aspectfoo IS NOT NULL");
+    assertEquals(SQLStatementUtils.createListAspectByUrnSql(AspectFoo.class, fooUrn, false),
+        "SELECT urn, a_aspectfoo, lastmodifiedon, lastmodifiedby, createdfor FROM "
+            + "metadata_entity_foo WHERE urn = 'urn:li:foo:1' AND a_aspectfoo IS NOT NULL AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL");
+  }
+
+  @Test
+  public void testCreateListAspectSql() throws URISyntaxException {
+    FooUrn fooUrn = new FooUrn(1);
+    String tableName = SQLSchemaUtils.getTableName(fooUrn.getEntityType());
+    assertEquals(
+        SQLStatementUtils.createListAspectWithPaginationSql(AspectFoo.class, tableName, true, 0, 5),
+        "SELECT urn, a_aspectfoo, lastmodifiedon, lastmodifiedby, createdfor, (SELECT COUNT(urn) FROM "
+            + "metadata_entity_foo WHERE a_aspectfoo IS NOT NULL) as _total_count FROM metadata_entity_foo "
+            + "WHERE a_aspectfoo IS NOT NULL LIMIT 5 OFFSET 0");
+    assertEquals(
+        SQLStatementUtils.createListAspectWithPaginationSql(AspectFoo.class, tableName, false, 0, 5),
+        "SELECT urn, a_aspectfoo, lastmodifiedon, lastmodifiedby, createdfor, (SELECT COUNT(urn) FROM "
+            + "metadata_entity_foo WHERE a_aspectfoo IS NOT NULL AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL) "
+            + "as _total_count FROM metadata_entity_foo WHERE a_aspectfoo IS NOT NULL AND "
+            + "JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL LIMIT 5 OFFSET 0");
+  }
+
+  @Test
+  public void testUpdateAspectWithOptimisticLockSql() {
+    FooUrn fooUrn = makeFooUrn(1);
+    String expectedSql =
+        "UPDATE metadata_entity_foo SET a_aspectfoo = :metadata, a_urn = :a_urn, lastmodifiedon = :lastmodifiedon, "
+            + "lastmodifiedby = :lastmodifiedby WHERE urn = :urn and (JSON_EXTRACT(a_aspectfoo, '$.lastmodifiedon') = "
+            + ":oldTimestamp OR JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NOT NULL);";
+    assertEquals(SQLStatementUtils.createAspectUpdateWithOptimisticLockSql(fooUrn, AspectFoo.class, true),
+        expectedSql);
+
+    expectedSql =
+        "UPDATE metadata_entity_foo SET a_aspectfoo = :metadata, lastmodifiedon = :lastmodifiedon, lastmodifiedby = "
+            + ":lastmodifiedby WHERE urn = :urn and (JSON_EXTRACT(a_aspectfoo, '$.lastmodifiedon') = :oldTimestamp "
+            + "OR JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NOT NULL);";
+    assertEquals(
+        SQLStatementUtils.createAspectUpdateWithOptimisticLockSql(fooUrn, AspectFoo.class, false),
+        expectedSql);
   }
 }

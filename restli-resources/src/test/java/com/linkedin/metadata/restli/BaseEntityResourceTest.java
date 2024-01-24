@@ -10,8 +10,11 @@ import com.linkedin.metadata.dao.AspectKey;
 import com.linkedin.metadata.dao.BaseLocalDAO;
 import com.linkedin.metadata.dao.ListResult;
 import com.linkedin.metadata.dao.UrnAspectEntry;
+import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
+import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
+import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
@@ -39,6 +42,7 @@ import com.linkedin.testing.EntityKey;
 import com.linkedin.testing.EntitySnapshot;
 import com.linkedin.testing.EntityValue;
 import com.linkedin.testing.localrelationship.AspectFooBar;
+import com.linkedin.testing.localrelationship.BelongsTo;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.FooUrn;
 import java.net.URISyntaxException;
@@ -682,6 +686,112 @@ public class BaseEntityResourceTest extends BaseEngineTest {
   }
 
   @Test
+  public void testEmitNoChangeMetadataAuditEvent() {
+    FooUrn urn1 = makeFooUrn(1);
+    FooUrn urn2 = makeFooUrn(2);
+    AspectFoo foo1 = new AspectFoo().setValue("foo1");
+    AspectBar bar1 = new AspectBar().setValue("bar1");
+    AspectBar bar2 = new AspectBar().setValue("bar2");
+    String[] aspects = new String[]{"com.linkedin.testing.AspectFoo", "com.linkedin.testing.AspectBar"};
+    when(_mockLocalDAO.backfill(BackfillMode.BACKFILL_INCLUDING_LIVE_INDEX, _resource.parseAspectsParam(aspects), ImmutableSet.of(urn1, urn2)))
+        .thenReturn(
+            ImmutableMap.of(urn1, ImmutableMap.of(AspectFoo.class, Optional.of(foo1), AspectBar.class, Optional.of(bar1)),
+                urn2, ImmutableMap.of(AspectBar.class, Optional.of(bar2)))
+        );
+
+    BackfillResult backfillResult =
+        runAndWait(_resource.emitNoChangeMetadataAuditEvent(new String[]{urn1.toString(), urn2.toString()}, aspects,
+            IngestionMode.BACKFILL));
+    assertEquals(backfillResult.getEntities().size(), 2);
+
+    // Test first entity
+    BackfillResultEntity backfillResultEntity = backfillResult.getEntities().get(0);
+    assertEquals(backfillResultEntity.getUrn(), urn1);
+    assertEquals(backfillResultEntity.getAspects().size(), 2);
+    assertTrue(backfillResultEntity.getAspects().contains("com.linkedin.testing.AspectFoo"));
+    assertTrue(backfillResultEntity.getAspects().contains("com.linkedin.testing.AspectBar"));
+
+    // Test second entity
+    backfillResultEntity = backfillResult.getEntities().get(1);
+    assertEquals(backfillResultEntity.getUrn(), urn2);
+    assertEquals(backfillResultEntity.getAspects().size(), 1);
+    assertTrue(backfillResultEntity.getAspects().contains("com.linkedin.testing.AspectBar"));
+  }
+
+  @Test
+  public void testEmitNoChangeMetadataAuditEventBootstrap() {
+    FooUrn urn1 = makeFooUrn(1);
+    FooUrn urn2 = makeFooUrn(2);
+    AspectFoo foo1 = new AspectFoo().setValue("foo1");
+    AspectBar bar1 = new AspectBar().setValue("bar1");
+    AspectBar bar2 = new AspectBar().setValue("bar2");
+    String[] aspects = new String[]{"com.linkedin.testing.AspectFoo", "com.linkedin.testing.AspectBar"};
+    when(_mockLocalDAO.backfill(BackfillMode.BACKFILL_ALL, _resource.parseAspectsParam(aspects), ImmutableSet.of(urn1, urn2)))
+        .thenReturn(
+            ImmutableMap.of(urn1, ImmutableMap.of(AspectFoo.class, Optional.of(foo1), AspectBar.class, Optional.of(bar1)),
+                urn2, ImmutableMap.of(AspectBar.class, Optional.of(bar2)))
+        );
+
+    BackfillResult backfillResult =
+        runAndWait(_resource.emitNoChangeMetadataAuditEvent(new String[]{urn1.toString(), urn2.toString()}, aspects,
+            IngestionMode.BOOTSTRAP));
+    assertEquals(backfillResult.getEntities().size(), 2);
+
+    // Test first entity
+    BackfillResultEntity backfillResultEntity = backfillResult.getEntities().get(0);
+    assertEquals(backfillResultEntity.getUrn(), urn1);
+    assertEquals(backfillResultEntity.getAspects().size(), 2);
+    assertTrue(backfillResultEntity.getAspects().contains("com.linkedin.testing.AspectFoo"));
+    assertTrue(backfillResultEntity.getAspects().contains("com.linkedin.testing.AspectBar"));
+
+    // Test second entity
+    backfillResultEntity = backfillResult.getEntities().get(1);
+    assertEquals(backfillResultEntity.getUrn(), urn2);
+    assertEquals(backfillResultEntity.getAspects().size(), 1);
+    assertTrue(backfillResultEntity.getAspects().contains("com.linkedin.testing.AspectBar"));
+  }
+
+  @Test
+  public void testEmitNoChangeMetadataAuditEventNoResult() {
+    FooUrn urn1 = makeFooUrn(1);
+    FooUrn urn2 = makeFooUrn(2);
+    AspectFoo foo1 = new AspectFoo().setValue("foo1");
+    AspectBar bar1 = new AspectBar().setValue("bar1");
+    AspectBar bar2 = new AspectBar().setValue("bar2");
+    String[] aspects = new String[]{"com.linkedin.testing.AspectFoo", "com.linkedin.testing.AspectBar"};
+
+    BackfillResult backfillResult =
+        runAndWait(_resource.emitNoChangeMetadataAuditEvent(new String[]{urn1.toString(), urn2.toString()}, aspects,
+            IngestionMode.LIVE));
+    verify(_mockLocalDAO, times(0)).backfill(any(BackfillMode.class), any(Set.class), any(Set.class));
+    assertFalse(backfillResult.hasEntities());
+  }
+
+  @Test
+  public void testBackfillRelationshipTables() {
+    FooUrn fooUrn = makeFooUrn(1);
+    BarUrn barUrn = makeBarUrn(1);
+
+    String[] aspects = new String[]{"com.linkedin.testing.AspectFoo"};
+    BelongsTo belongsTo = new BelongsTo().setSource(fooUrn).setDestination(barUrn);
+    List<BelongsTo> belongsTos = Collections.singletonList(belongsTo);
+
+    LocalRelationshipUpdates updates = new LocalRelationshipUpdates(belongsTos, BelongsTo.class,
+        BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE);
+    List<LocalRelationshipUpdates> relationships = Collections.singletonList(updates);
+
+    when(_mockLocalDAO.backfillLocalRelationshipsFromEntityTables(fooUrn, AspectFoo.class)).thenReturn(relationships);
+    BackfillResult backfillResult = runAndWait(_resource.backfillRelationshipTables(new String[]{fooUrn.toString()}, aspects));
+
+    assertTrue(backfillResult.hasRelationships());
+    assertEquals(backfillResult.getRelationships().size(), 1);
+    assertEquals(backfillResult.getRelationships().get(0).getDestination().toString(), "urn:li:bar:1");
+    assertEquals(backfillResult.getRelationships().get(0).getSource().toString(), "urn:li:foo:1");
+    assertEquals(backfillResult.getRelationships().get(0).getRelationship(), "BelongsTo");
+    assertEquals(backfillResult.getRelationships().get(0).getRemovalOption(), "REMOVE_ALL_EDGES_FROM_SOURCE");
+  }
+
+  @Test
   public void testListUrnsFromIndex() {
     // case 1: indexFilter is non-null
     IndexCriterion indexCriterion1 = new IndexCriterion().setAspect("aspect1");
@@ -699,13 +809,13 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     IndexCriterion indexCriterion2 = new IndexCriterion().setAspect(FooUrn.class.getCanonicalName());
     IndexFilter indexFilter2 = new IndexFilter().setCriteria(new IndexCriterionArray(indexCriterion2));
     when(_mockLocalDAO.listUrns(indexFilter2, urn1, 2)).thenReturn(urns1);
-    actual = runAndWait(_resource.listUrnsFromIndex(null, urn1.toString(), 2));
+    actual = runAndWait(_resource.listUrnsFromIndex(indexFilter2, urn1.toString(), 2));
     assertEquals(actual, new String[]{urn2.toString(), urn3.toString()});
 
     // case 3: lastUrn is null
     List<FooUrn> urns3 = Arrays.asList(urn1, urn2);
     when(_mockLocalDAO.listUrns(indexFilter2, null, 2)).thenReturn(urns3);
-    actual = runAndWait(_resource.listUrnsFromIndex(null, null, 2));
+    actual = runAndWait(_resource.listUrnsFromIndex(indexFilter2, null, 2));
     assertEquals(actual, new String[]{urn1.toString(), urn2.toString()});
   }
 
@@ -732,7 +842,7 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     List<FooUrn> urns2 = Arrays.asList(urn1, urn2);
     IndexCriterion indexCriterion2 = new IndexCriterion().setAspect(FooUrn.class.getCanonicalName());
     IndexFilter indexFilter2 = new IndexFilter().setCriteria(new IndexCriterionArray(indexCriterion2));
-    when(_mockLocalDAO.listUrns(indexFilter2, null, null, 2)).thenReturn(urns2);
+    when(_mockLocalDAO.listUrns(null, null, null, 2)).thenReturn(urns2);
     actual = runAndWait(_resource.filter(null, new String[0], null, new PagingContext(0, 2)));
     assertEquals(actual.size(), 2);
     assertEquals(actual.get(0), new EntityValue());
@@ -742,7 +852,7 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     List<FooUrn> urns3 = Arrays.asList(urn3, urn2);
     IndexSortCriterion indexSortCriterion = new IndexSortCriterion().setAspect("aspect1").setPath("/id")
         .setOrder(SortOrder.DESCENDING);
-    when(_mockLocalDAO.listUrns(indexFilter2, indexSortCriterion, null, 2)).thenReturn(urns3);
+    when(_mockLocalDAO.listUrns(null, indexSortCriterion, null, 2)).thenReturn(urns3);
     actual = runAndWait(_resource.filter(null, indexSortCriterion, new String[0], null, 2));
     assertEquals(actual.size(), 2);
     assertEquals(actual.get(0), new EntityValue());
@@ -758,7 +868,7 @@ public class BaseEntityResourceTest extends BaseEngineTest {
         .totalPageCount(1)
         .pageSize(2)
         .build();
-    when(_mockLocalDAO.listUrns(indexFilter2, indexSortCriterion, 0, 2)).thenReturn(urnsListResult);
+    when(_mockLocalDAO.listUrns(null, indexSortCriterion, 0, 2)).thenReturn(urnsListResult);
     ListResult<EntityValue>
         listResultActual = runAndWait(_resource.filter(null, indexSortCriterion, new String[0], new PagingContext(0, 2)));
     List<EntityValue> actualValues = listResultActual.getValues();

@@ -9,8 +9,12 @@ import com.linkedin.metadata.dao.EbeanLocalAccess;
 import com.linkedin.metadata.dao.EbeanLocalRelationshipQueryDAO;
 import com.linkedin.metadata.dao.EbeanLocalRelationshipWriterDAO;
 import com.linkedin.metadata.dao.IEbeanLocalAccess;
+import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
 import com.linkedin.metadata.dao.scsi.EmptyPathExtractor;
+import com.linkedin.metadata.dao.utils.EBeanDAOUtils;
 import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
+import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
+import com.linkedin.metadata.dao.utils.SQLStatementUtils;
 import com.linkedin.metadata.query.AspectField;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.LocalRelationshipCriterion;
@@ -18,6 +22,8 @@ import com.linkedin.metadata.query.LocalRelationshipCriterionArray;
 import com.linkedin.metadata.query.LocalRelationshipFilter;
 import com.linkedin.metadata.query.LocalRelationshipValue;
 import com.linkedin.metadata.query.RelationshipDirection;
+import com.linkedin.metadata.query.RelationshipField;
+import com.linkedin.metadata.query.UrnField;
 import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.BarSnapshot;
@@ -25,12 +31,15 @@ import com.linkedin.testing.EntityAspectUnion;
 import com.linkedin.testing.EntityAspectUnionArray;
 import com.linkedin.testing.FooSnapshot;
 import com.linkedin.testing.localrelationship.BelongsTo;
+import com.linkedin.testing.localrelationship.ConsumeFrom;
+import com.linkedin.testing.localrelationship.EnvorinmentType;
 import com.linkedin.testing.localrelationship.PairsWith;
 import com.linkedin.testing.localrelationship.ReportsTo;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.FooUrn;
 import io.ebean.Ebean;
 import io.ebean.EbeanServer;
+import io.ebean.SqlUpdate;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
@@ -72,17 +81,12 @@ public class EbeanLocalRelationshipQueryDAOTest {
   @Test
   public void testFindOneEntity() throws URISyntaxException {
     // Ingest data
-    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp());
+    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null);
 
     // Prepare filter
-    AspectField aspectField = new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value");
-    LocalRelationshipCriterion.Field field = new LocalRelationshipCriterion.Field();
-    field.setAspectField(aspectField);
-
-    LocalRelationshipCriterion filterCriterion = new LocalRelationshipCriterion()
-        .setField(field)
-        .setValue(LocalRelationshipValue.create("foo"))
-        .setCondition(Condition.EQUAL);
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("foo"),
+        Condition.EQUAL,
+        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
 
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
     List<FooSnapshot> fooSnapshotList = _localRelationshipQueryDAO.findEntities(FooSnapshot.class, filter, 0, 10);
@@ -95,18 +99,13 @@ public class EbeanLocalRelationshipQueryDAOTest {
   @Test
   public void testFindOneEntityTwoAspects() throws URISyntaxException {
     // Ingest data
-    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp());
-    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectBar().setValue("bar"), AspectBar.class, new AuditStamp());
+    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null);
+    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectBar().setValue("bar"), AspectBar.class, new AuditStamp(), null);
 
     // Prepare filter
-    AspectField aspectField = new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value");
-    LocalRelationshipCriterion.Field field = new LocalRelationshipCriterion.Field();
-    field.setAspectField(aspectField);
-
-    LocalRelationshipCriterion filterCriterion = new LocalRelationshipCriterion()
-        .setField(field)
-        .setValue(LocalRelationshipValue.create("foo"))
-        .setCondition(Condition.EQUAL);
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("foo"),
+        Condition.EQUAL,
+        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
 
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
 
@@ -131,9 +130,9 @@ public class EbeanLocalRelationshipQueryDAOTest {
     FooUrn jack = new FooUrn(3);
 
     // Add Alice, Bob and Jack into entity tables.
-    _fooUrnEBeanLocalAccess.add(alice, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp());
-    _fooUrnEBeanLocalAccess.add(bob, new AspectFoo().setValue("Bob"), AspectFoo.class, new AuditStamp());
-    _fooUrnEBeanLocalAccess.add(jack, new AspectFoo().setValue("Jack"), AspectFoo.class, new AuditStamp());
+    _fooUrnEBeanLocalAccess.add(alice, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp(), null);
+    _fooUrnEBeanLocalAccess.add(bob, new AspectFoo().setValue("Bob"), AspectFoo.class, new AuditStamp(), null);
+    _fooUrnEBeanLocalAccess.add(jack, new AspectFoo().setValue("Jack"), AspectFoo.class, new AuditStamp(), null);
 
     // Add Bob reports-to ALice relationship
     ReportsTo bobReportsToAlice = new ReportsTo().setSource(bob).setDestination(alice);
@@ -144,14 +143,9 @@ public class EbeanLocalRelationshipQueryDAOTest {
     _localRelationshipWriterDAO.addRelationship(jackReportsToAlice);
 
     // Find all reports-to relationship for Alice.
-    AspectField aspectField = new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value");
-    LocalRelationshipCriterion.Field field = new LocalRelationshipCriterion.Field();
-    field.setAspectField(aspectField);
-
-    LocalRelationshipCriterion filterCriterion = new LocalRelationshipCriterion()
-        .setField(field)
-        .setValue(LocalRelationshipValue.create("Alice"))
-        .setCondition(Condition.EQUAL);
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Alice"),
+        Condition.EQUAL,
+        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
 
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
     List<ReportsTo> reportsToAlice = _localRelationshipQueryDAO.findRelationships(FooSnapshot.class,
@@ -163,6 +157,96 @@ public class EbeanLocalRelationshipQueryDAOTest {
     Set<FooUrn> actual = reportsToAlice.stream().map(reportsTo -> makeFooUrn(reportsTo.getSource().toString())).collect(Collectors.toSet());
     Set<FooUrn> expected = ImmutableSet.of(jack, bob);
     assertEquals(actual, expected);
+
+    // Soft (set delete_ts = now()) Delete Jack reports-to ALice relationship
+    SqlUpdate deletionSQL = _server.createSqlUpdate(
+        SQLStatementUtils.deleteLocaRelationshipSQL(SQLSchemaUtils.getRelationshipTableName(jackReportsToAlice),
+            BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE));
+    deletionSQL.setParameter("source", jack.toString());
+    deletionSQL.execute();
+
+    reportsToAlice = _localRelationshipQueryDAO.findRelationships(FooSnapshot.class,
+        new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()), FooSnapshot.class, filter,
+        ReportsTo.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()), 0, 10);
+
+    // Expect: only bob reports to Alice
+    assertEquals(reportsToAlice.size(), 1);
+    actual = reportsToAlice.stream()
+        .map(reportsTo -> makeFooUrn(reportsTo.getSource().toString()))
+        .collect(Collectors.toSet());
+    expected = ImmutableSet.of(bob);
+    assertEquals(actual, expected);
+  }
+
+  @Test
+  public void testFindOneRelationshipWithFilter() throws Exception {
+    FooUrn kafka = new FooUrn(1);
+    FooUrn hdfs = new FooUrn(2);
+    FooUrn restli = new FooUrn(3);
+
+    BarUrn spark = new BarUrn(1);
+    BarUrn samza = new BarUrn(2);
+
+    // Add Kafka_Topic, HDFS_Dataset and Restli_Service into entity tables.
+    _fooUrnEBeanLocalAccess.add(kafka, new AspectFoo().setValue("Kafka_Topic"), AspectFoo.class, new AuditStamp(), null);
+    _fooUrnEBeanLocalAccess.add(hdfs, new AspectFoo().setValue("HDFS_Dataset"), AspectFoo.class, new AuditStamp(), null);
+    _fooUrnEBeanLocalAccess.add(restli, new AspectFoo().setValue("Restli_Service"), AspectFoo.class, new AuditStamp(),
+        null);
+
+    // Add Spark and Samza into entity tables.
+    _barUrnEBeanLocalAccess.add(spark, new AspectFoo().setValue("Spark"), AspectFoo.class, new AuditStamp(), null);
+    _barUrnEBeanLocalAccess.add(samza, new AspectFoo().setValue("Samza"), AspectFoo.class, new AuditStamp(), null);
+
+    // Add Spark consume-from hdfs relationship
+    ConsumeFrom sparkConsumeFromHdfs = new ConsumeFrom().setSource(spark).setDestination(hdfs).setEnvironment(EnvorinmentType.OFFLINE);
+    _localRelationshipWriterDAO.addRelationship(sparkConsumeFromHdfs);
+
+    // Add Samza consume-from kafka relationship
+    ConsumeFrom samzaConsumeFromKafka = new ConsumeFrom().setSource(samza).setDestination(kafka).setEnvironment(EnvorinmentType.NEARLINE);
+    _localRelationshipWriterDAO.addRelationship(samzaConsumeFromKafka);
+
+    // Add Samza consume-from restli relationship
+    ConsumeFrom samzaConsumeFromRestli = new ConsumeFrom().setSource(samza).setDestination(restli).setEnvironment(EnvorinmentType.ONLINE);
+    _localRelationshipWriterDAO.addRelationship(samzaConsumeFromRestli);
+
+    // Find all consume-from relationship for Samza.
+    LocalRelationshipCriterion filterUrnCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(
+        LocalRelationshipValue.create("urn:li:bar:2"), // 2 is Samza as defined at very beginning.
+        Condition.EQUAL,
+        new UrnField());
+
+    LocalRelationshipFilter filterUrn = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterUrnCriterion));
+    List<ConsumeFrom> consumeFromSamza = _localRelationshipQueryDAO.findRelationships(
+        BarSnapshot.class,
+        filterUrn,
+        FooSnapshot.class,
+        new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()),
+        ConsumeFrom.class,
+        new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()),
+        0, 10);
+
+    // Assert
+    assertEquals(consumeFromSamza.size(), 2); // Because Samza consume from 1. kafka and 2. restli
+
+    // Find all consume-from relationship for Samza which happens in NEARLINE.
+    LocalRelationshipCriterion filterRelationshipCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("NEARLINE"),
+        Condition.EQUAL,
+        new RelationshipField().setPath("/environment"));
+
+    LocalRelationshipFilter filterRelationship = new LocalRelationshipFilter().setCriteria(
+        new LocalRelationshipCriterionArray(filterRelationshipCriterion));
+
+    List<ConsumeFrom> consumeFromSamzaInNearline = _localRelationshipQueryDAO.findRelationships(
+        BarSnapshot.class,
+        filterUrn,
+        FooSnapshot.class,
+        new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()),
+        ConsumeFrom.class,
+        filterRelationship,
+        0, 10);
+
+    // Assert
+    assertEquals(consumeFromSamzaInNearline.size(), 1); // Because Samza only consumes kafka in NEARLINE.
   }
 
   @Test
@@ -172,9 +256,9 @@ public class EbeanLocalRelationshipQueryDAOTest {
     FooUrn jack = new FooUrn(3);
 
     // Add Alice, Bob and Jack into entity tables.
-    _fooUrnEBeanLocalAccess.add(alice, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp());
-    _fooUrnEBeanLocalAccess.add(bob, new AspectFoo().setValue("Bob"), AspectFoo.class, new AuditStamp());
-    _fooUrnEBeanLocalAccess.add(jack, new AspectFoo().setValue("Jack"), AspectFoo.class, new AuditStamp());
+    _fooUrnEBeanLocalAccess.add(alice, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp(), null);
+    _fooUrnEBeanLocalAccess.add(bob, new AspectFoo().setValue("Bob"), AspectFoo.class, new AuditStamp(), null);
+    _fooUrnEBeanLocalAccess.add(jack, new AspectFoo().setValue("Jack"), AspectFoo.class, new AuditStamp(), null);
 
     // Add Bob reports-to ALice relationship
     ReportsTo bobReportsToAlice = new ReportsTo().setSource(bob).setDestination(alice);
@@ -185,14 +269,9 @@ public class EbeanLocalRelationshipQueryDAOTest {
     _localRelationshipWriterDAO.addRelationship(jackReportsToAlice);
 
     // Find all Alice's direct reports.
-    AspectField aspectField = new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value");
-    LocalRelationshipCriterion.Field field = new LocalRelationshipCriterion.Field();
-    field.setAspectField(aspectField);
-
-    LocalRelationshipCriterion filterCriterion = new LocalRelationshipCriterion()
-        .setField(field)
-        .setValue(LocalRelationshipValue.create("Alice"))
-        .setCondition(Condition.EQUAL);
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Alice"),
+        Condition.EQUAL,
+        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
 
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
     List<RecordTemplate> aliceDirectReports = _localRelationshipQueryDAO.findEntities(
@@ -225,12 +304,12 @@ public class EbeanLocalRelationshipQueryDAOTest {
     BarUrn mit = new BarUrn(2);
 
     // Add Alice and Bob into entity tables.
-    _fooUrnEBeanLocalAccess.add(alice, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp());
-    _fooUrnEBeanLocalAccess.add(bob, new AspectFoo().setValue("Bob"), AspectFoo.class, new AuditStamp());
+    _fooUrnEBeanLocalAccess.add(alice, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp(), null);
+    _fooUrnEBeanLocalAccess.add(bob, new AspectFoo().setValue("Bob"), AspectFoo.class, new AuditStamp(), null);
 
     // Add Stanford and MIT into entity tables.
-    _barUrnEBeanLocalAccess.add(stanford, new AspectFoo().setValue("Stanford"), AspectFoo.class, new AuditStamp());
-    _barUrnEBeanLocalAccess.add(mit, new AspectFoo().setValue("MIT"), AspectFoo.class, new AuditStamp());
+    _barUrnEBeanLocalAccess.add(stanford, new AspectFoo().setValue("Stanford"), AspectFoo.class, new AuditStamp(), null);
+    _barUrnEBeanLocalAccess.add(mit, new AspectFoo().setValue("MIT"), AspectFoo.class, new AuditStamp(), null);
 
     // Add Alice belongs to MIT and Stanford.
     BelongsTo aliceBelongsToMit = new BelongsTo().setSource(alice).setDestination(mit);
@@ -243,14 +322,9 @@ public class EbeanLocalRelationshipQueryDAOTest {
     _localRelationshipWriterDAO.addRelationship(bobBelongsToStandford);
 
     // Alice filter
-    AspectField aspectField = new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value");
-    LocalRelationshipCriterion.Field field = new LocalRelationshipCriterion.Field();
-    field.setAspectField(aspectField);
-
-    LocalRelationshipCriterion filterCriterion = new LocalRelationshipCriterion()
-        .setField(field)
-        .setValue(LocalRelationshipValue.create("Alice"))
-        .setCondition(Condition.EQUAL);
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Alice"),
+        Condition.EQUAL,
+        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
 
     LocalRelationshipFilter aliceFilter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
 
@@ -285,15 +359,18 @@ public class EbeanLocalRelationshipQueryDAOTest {
     FooUrn john = new FooUrn(4);
 
     // Add Alice, Bob, Jack and John into entity tables.
-    _fooUrnEBeanLocalAccess.add(alice, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp());
-    _fooUrnEBeanLocalAccess.add(bob, new AspectFoo().setValue("Bob"), AspectFoo.class, new AuditStamp());
-    _fooUrnEBeanLocalAccess.add(jack, new AspectFoo().setValue("Jack"), AspectFoo.class, new AuditStamp());
-    _fooUrnEBeanLocalAccess.add(john, new AspectFoo().setValue("John"), AspectFoo.class, new AuditStamp());
+    _fooUrnEBeanLocalAccess.add(alice, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp(), null);
+    _fooUrnEBeanLocalAccess.add(bob, new AspectFoo().setValue("Bob"), AspectFoo.class, new AuditStamp(), null);
+    _fooUrnEBeanLocalAccess.add(jack, new AspectFoo().setValue("Jack"), AspectFoo.class, new AuditStamp(), null);
+    _fooUrnEBeanLocalAccess.add(john, new AspectFoo().setValue("John"), AspectFoo.class, new AuditStamp(), null);
 
-    _fooUrnEBeanLocalAccess.add(alice, new AspectBar().setValue("32"), AspectBar.class, new AuditStamp()); // Alice 32 years old
-    _fooUrnEBeanLocalAccess.add(bob, new AspectBar().setValue("52"), AspectBar.class, new AuditStamp()); // Bob 52 years old
-    _fooUrnEBeanLocalAccess.add(jack, new AspectBar().setValue("16"), AspectBar.class, new AuditStamp()); // Jack 16 years old
-    _fooUrnEBeanLocalAccess.add(john, new AspectBar().setValue("42"), AspectBar.class, new AuditStamp()); // John 42 years old
+    _fooUrnEBeanLocalAccess.add(alice, new AspectBar().setValue("32"), AspectBar.class, new AuditStamp(), null); // Alice 32 years old
+
+    _fooUrnEBeanLocalAccess.add(bob, new AspectBar().setValue("52"), AspectBar.class, new AuditStamp(), null); // Bob 52 years old
+
+    _fooUrnEBeanLocalAccess.add(jack, new AspectBar().setValue("16"), AspectBar.class, new AuditStamp(), null); // Jack 16 years old
+
+    _fooUrnEBeanLocalAccess.add(john, new AspectBar().setValue("42"), AspectBar.class, new AuditStamp(), null); // John 42 years old
 
     // Add Alice pair-with Jack relationships. Alice --> Jack.
     PairsWith alicePairsWithJack = new PairsWith().setSource(alice).setDestination(jack);
@@ -308,26 +385,16 @@ public class EbeanLocalRelationshipQueryDAOTest {
     _localRelationshipWriterDAO.addRelationship(alicePairsWithJohn);
 
     // Alice filter
-    AspectField aspectField = new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value");
-    LocalRelationshipCriterion.Field field = new LocalRelationshipCriterion.Field();
-    field.setAspectField(aspectField);
-
-    LocalRelationshipCriterion filterCriterion = new LocalRelationshipCriterion()
-        .setField(field)
-        .setValue(LocalRelationshipValue.create("Alice"))
-        .setCondition(Condition.EQUAL);
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Alice"),
+        Condition.EQUAL,
+        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
 
     LocalRelationshipFilter aliceFilter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
 
     // Age filter
-    AspectField aspectField2 = new AspectField().setAspect(AspectBar.class.getCanonicalName()).setPath("/value");
-    LocalRelationshipCriterion.Field field2 = new LocalRelationshipCriterion.Field();
-    field2.setAspectField(aspectField2);
-
-    LocalRelationshipCriterion filterCriterion2 = new LocalRelationshipCriterion()
-        .setField(field2)
-        .setValue(LocalRelationshipValue.create("30"))
-        .setCondition(Condition.GREATER_THAN);
+    LocalRelationshipCriterion filterCriterion2 = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("30"),
+        Condition.GREATER_THAN,
+        new AspectField().setAspect(AspectBar.class.getCanonicalName()).setPath("/value"));
 
     LocalRelationshipFilter ageFilter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion2));
 
@@ -358,17 +425,12 @@ public class EbeanLocalRelationshipQueryDAOTest {
   @Test
   public void testFindOneEntityWithInCondition() throws URISyntaxException {
     // Ingest data
-    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp());
+    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null);
 
     // Prepare filter
-    AspectField aspectField = new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value");
-    LocalRelationshipCriterion.Field field = new LocalRelationshipCriterion.Field();
-    field.setAspectField(aspectField);
-
-    LocalRelationshipCriterion filterCriterion = new LocalRelationshipCriterion()
-        .setField(field)
-        .setValue(LocalRelationshipValue.create(new StringArray("foo")))
-        .setCondition(Condition.IN);
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create(new StringArray("foo")),
+        Condition.IN,
+        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
 
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
     List<FooSnapshot> fooSnapshotList = _localRelationshipQueryDAO.findEntities(FooSnapshot.class, filter, 0, 10);
@@ -381,17 +443,12 @@ public class EbeanLocalRelationshipQueryDAOTest {
   @Test
   public void testFindNoEntityWithInCondition() throws URISyntaxException {
     // Ingest data
-    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp());
+    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null);
 
     // Prepare filter
-    AspectField aspectField = new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value");
-    LocalRelationshipCriterion.Field field = new LocalRelationshipCriterion.Field();
-    field.setAspectField(aspectField);
-
-    LocalRelationshipCriterion filterCriterion = new LocalRelationshipCriterion()
-        .setField(field)
-        .setValue(LocalRelationshipValue.create(new StringArray("bar")))
-        .setCondition(Condition.IN);
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create(new StringArray("bar")),
+        Condition.IN,
+        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
 
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
     List<FooSnapshot> fooSnapshotList = _localRelationshipQueryDAO.findEntities(FooSnapshot.class, filter, 0, 10);
@@ -402,7 +459,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
   @Test
   public void testFindEntitiesWithEmptyRelationshipFilter() throws URISyntaxException {
     // Ingest data
-    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp());
+    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null);
 
     // Create empty filter
     LocalRelationshipFilter emptyFilter = new LocalRelationshipFilter();
