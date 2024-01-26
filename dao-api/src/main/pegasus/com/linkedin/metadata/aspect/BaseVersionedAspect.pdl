@@ -1,0 +1,16 @@
+namespace com.linkedin.metadata.aspect
+
+/**
+* A record containing semantic version of aspects
+*/
+record BaseVersionedAspect {
+
+ /**
+  * The version of the metadata aspect
+  */
+ semanticVersion: optional record SemanticVersion {
+   major: int
+   minor: int
+   patch: int
+ }
+}
