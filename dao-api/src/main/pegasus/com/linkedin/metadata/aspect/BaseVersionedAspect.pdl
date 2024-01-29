@@ -1,7 +1,8 @@
 namespace com.linkedin.metadata.aspect
 
 /**
-* A record containing semantic version of aspects
+* A base record containing semantic version of aspects
+* Usage: Aspects can include this record to add semantic version metadata to themselves
 */
 record BaseVersionedAspect {
 
