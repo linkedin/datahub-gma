@@ -31,8 +31,8 @@ record BaseVersionedAspect {
    /** Default write mode. First in first out. */
    FIFO
 
-   /** Override existing version. */
-   OVERRIDE
+   /** Overwrite existing version. */
+   OVERWRITE
  }
 
 
