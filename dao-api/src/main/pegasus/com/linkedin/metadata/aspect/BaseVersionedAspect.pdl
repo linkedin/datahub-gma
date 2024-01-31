@@ -25,4 +25,16 @@ record BaseVersionedAspect {
    */
    patch: int
  }
+
+ /** Mode used when writing aspect version into backend */
+ writeMode: optional enum WriteMode {
+   /** Default write mode. First in first out. */
+   FIFO
+
+   /** Override existing version. */
+   OVERRIDE
+ }
+
+
+ }
 }
