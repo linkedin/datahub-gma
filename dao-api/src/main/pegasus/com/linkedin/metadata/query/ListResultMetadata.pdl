@@ -47,5 +47,11 @@ record ListResultMetadata {
        * - The record was inserted via ingest instead of ingestWithTracking
        */
        emitTime: optional long
+
+      /**
+       * The name of the service from which the ingestion event is being emitted.
+       * This is the same emitter set in IngestionTrackingContext.
+       */
+      emitter: optional string
     }]
 }

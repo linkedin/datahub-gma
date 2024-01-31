@@ -517,6 +517,7 @@ public class EBeanDAOUtilsTest {
     aspect.setCreatedOn(new Timestamp(now - 100));
     aspect.setCreatedBy("fooActor");
     aspect.setEmitTime(12345L);
+    aspect.setEmitter("fooEmitter");
 
     // add aspect to the db
     server.insert(aspect);
