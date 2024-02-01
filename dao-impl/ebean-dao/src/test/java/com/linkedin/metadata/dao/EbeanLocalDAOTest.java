@@ -35,6 +35,7 @@ import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
+import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.IndexCriterion;
@@ -2883,6 +2884,28 @@ public class EbeanLocalDAOTest {
     assertTrue(oldSchemaResultLatest.isPresent());
     assertEquals(oldSchemaResultLatest.get().getValue(), "bar");
     assertFalse(oldSchemaResultNonLatest.isPresent());
+  }
+
+  @Test
+  public void testGetWithExtraInfoFromNewSchema() {
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+      EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+      FooUrn urn = makeFooUrn(1);
+      AspectFoo aspectFoo = new AspectFoo().setValue("foo");
+      IngestionTrackingContext context = new IngestionTrackingContext().setEmitter("testEmitter");
+
+      Urn creator1 = Urns.createFromTypeSpecificString("test", "testCreator1");
+      Urn impersonator1 = Urns.createFromTypeSpecificString("test", "testImpersonator1");
+      dao.add(urn, aspectFoo, makeAuditStamp(creator1, impersonator1, _now), context);
+      Optional<AspectWithExtraInfo<AspectFoo>> foo = dao.getWithExtraInfo(AspectFoo.class, urn);
+
+      assertTrue(foo.isPresent());
+      assertEquals(foo.get(), new AspectWithExtraInfo<>(aspectFoo,
+          new ExtraInfo().setAudit(makeAuditStamp(creator1, impersonator1, _now))
+              .setUrn(urn)
+              .setVersion(0)
+              .setEmitter("testEmitter")));
+    }
   }
 
   @Nonnull

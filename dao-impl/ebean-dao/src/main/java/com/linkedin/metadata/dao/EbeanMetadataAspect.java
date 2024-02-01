@@ -96,6 +96,12 @@ public class EbeanMetadataAspect extends Model {
   @Transient
   private Long emitTime;
 
+  // this column doesn't exist in the old schema
+  // in the new schema, it's part of the aspect json
+  @Nullable
+  @Transient
+  private String emitter;
+
   // TODO (@jphui) META-18962 De-deduplicity investigation
   // @SneakyThrows
   // @Override

@@ -231,6 +231,7 @@ public class EBeanDAOUtils {
       ebeanMetadataAspect.setCreatedOn(Timestamp.valueOf(auditedAspect.getLastmodifiedon()));
       ebeanMetadataAspect.setCreatedFor(auditedAspect.getCreatedfor());
       ebeanMetadataAspect.setEmitTime(auditedAspect.getEmitTime());
+      ebeanMetadataAspect.setEmitter(auditedAspect.getEmitter());
       ebeanMetadataAspect.setMetadata(extractAspectJsonString(sqlRow.getString(columnName)));
     }
     ebeanMetadataAspect.setKey(primaryKey);

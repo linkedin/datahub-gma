@@ -1256,6 +1256,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     extraInfo.setVersion(aspect.getKey().getVersion());
     extraInfo.setAudit(makeAuditStamp(aspect));
     extraInfo.setEmitTime(aspect.getEmitTime(), SetMode.IGNORE_NULL);
+    extraInfo.setEmitter(aspect.getEmitter(), SetMode.IGNORE_NULL);
     try {
       extraInfo.setUrn(Urn.createFromString(aspect.getKey().getUrn()));
     } catch (URISyntaxException e) {
