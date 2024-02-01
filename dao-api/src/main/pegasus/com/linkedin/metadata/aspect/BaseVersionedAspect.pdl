@@ -9,7 +9,7 @@ record BaseVersionedAspect {
  /**
   * The version of the metadata aspect
   */
- baseSemanticVersion: optional record BaseSemanticVersion {
+ baseSematicVersion: optional record BaseSematicVersion {
    /**
     * The major version of this version. This is the x in x.y.z.
     */
@@ -25,20 +25,4 @@ record BaseVersionedAspect {
    */
    patch: int
  }
-
- /**
- * Mode used when writing aspect version into backend
- */
- writeMode: optional enum WriteMode {
-   /**
-   * Default write mode. First in first out.
-   */
-   FIFO
-
-   /**
-   * Overwrite existing version.
-   */
-   OVERWRITE
- }
-
 }
