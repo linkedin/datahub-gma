@@ -139,6 +139,16 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
   }
 
   /**
+   * TODO: Implement searchV2 if elasticsearch-dao is still needed.
+   */
+  @Nonnull
+  @Override
+  public SearchResult<DOCUMENT> searchV2(@Nonnull String input, @Nullable Filter postFilters,
+      @Nullable SortCriterion sortCriterion, @Nullable String preference, int from, int size) {
+    return search(input, postFilters, sortCriterion, null, from, size);
+  }
+
+  /**
    * Gets a list of documents that match given search request. The results are aggregated and filters are applied to the
    * search hits and not the aggregation results.
    *
