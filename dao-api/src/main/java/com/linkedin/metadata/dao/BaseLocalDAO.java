@@ -449,9 +449,14 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       }
     }
 
+    // !!! Test to see if we can detect field in schema
+
     // Skip saving if there's no actual change
-    if ((oldValue == null && newValue == null) || oldValue != null && newValue != null
-        && equalityTester.equals(oldValue, newValue)) {
+    if ((oldValue == null && newValue == null)
+        // !!! Check that aspects have version, and old version < new version
+        || newValue != null && newValue.schema().contains("BaseVersionedAspect")
+        || oldValue != null && newValue != null && equalityTester.equals(oldValue, newValue)
+    ) {
       return new AddResult<>(oldValue, oldValue, aspectClass);
     }
 

@@ -1,0 +1,14 @@
+namespace com.linkedin.testing
+
+import com.linkedin.metadata.aspect.BaseVersionedAspect
+
+/**
+ * For unit tests
+ */
+record AspectVersioned includes BaseVersionedAspect {
+
+  /**
+   * For unit tests
+   */
+  value: string
+}
