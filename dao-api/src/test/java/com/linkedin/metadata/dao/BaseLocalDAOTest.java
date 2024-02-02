@@ -1,8 +1,10 @@
 package com.linkedin.metadata.dao;
 
 import com.linkedin.common.AuditStamp;
+import com.linkedin.data.DataMap;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.SetMode;
+import com.linkedin.metadata.aspect.BaseSemanticVersion;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
@@ -24,6 +26,7 @@ import java.net.URISyntaxException;
 import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -589,7 +592,16 @@ public class BaseLocalDAOTest {
   @Test(description = "!!!Test MAE emissions when a versioned aspect will have a value change ")
   public void testMAEEmissionVersionValueChange() throws URISyntaxException {
     FooUrn urn = new FooUrn(1);
-    AspectVersioned foo = new AspectVersioned().setValue("foo");
+    AspectVersioned foo = new AspectVersioned().setValue("foo")
+        .setBaseSemanticVersion(createBaseSemanticVersion(1,1,1));
+  }
+
+  private BaseSemanticVersion createBaseSemanticVersion(int major, int minor, int patch) {
+    Map<String, Integer> versionMap = new HashMap<>();
+    versionMap.put("major",major);
+    versionMap.put("minor",minor);
+    versionMap.put("patch",patch);
+    return new BaseSemanticVersion(new DataMap(versionMap));
   }
 
 }
