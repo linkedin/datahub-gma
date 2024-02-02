@@ -11,6 +11,7 @@ import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
 import com.linkedin.metadata.dao.retention.VersionBasedRetention;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
+import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.ExtraInfo;
@@ -591,17 +592,41 @@ public class BaseLocalDAOTest {
 
   @Test(description = "!!!Test MAE emissions when a versioned aspect will have a value change ")
   public void testMAEEmissionVersionValueChange() throws URISyntaxException {
-    FooUrn urn = new FooUrn(1);
-    AspectVersioned foo = new AspectVersioned().setValue("foo")
-        .setBaseSemanticVersion(createBaseSemanticVersion(1,1,1));
+    //FooUrn urn = new FooUrn(1);
+    //AspectVersioned foo = new AspectVersioned().setValue("foo")
+    //    .setBaseSemanticVersion(createBaseSemanticVersion(1,1,1));
   }
 
-  private BaseSemanticVersion createBaseSemanticVersion(int major, int minor, int patch) {
+  @Test(description = "!!!Test aspectVersionComparator ")
+  public void testAspectVersionComparator() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectVersioned foo = toRecordTemplate(AspectVersioned.class, createBaseSemanticVersion(1,1,1));
+    int a = _dummyLocalDAO.aspectVersionComparator(foo, foo);
+
+    assertEquals(a, 1);
+  }
+
+  private <ASPECT extends RecordTemplate> ASPECT toRecordTemplate(@Nonnull Class<ASPECT> aspectClass,
+      @Nonnull DataMap dataMap) {
+
+      return RecordUtils.toRecordTemplate(aspectClass,
+          dataMap);
+
+  }
+
+
+
+  private DataMap createBaseSemanticVersion(int major, int minor, int patch) {
     Map<String, Integer> versionMap = new HashMap<>();
     versionMap.put("major",major);
     versionMap.put("minor",minor);
     versionMap.put("patch",patch);
-    return new BaseSemanticVersion(new DataMap(versionMap));
+    DataMap innerMap = new DataMap(versionMap);
+    Map<String, Object> recordMap = new HashMap<>();
+    recordMap.put("baseSemanticVersion", innerMap);
+    recordMap.put("value", new Integer(1));
+
+    return new DataMap(recordMap);
   }
 
 }
