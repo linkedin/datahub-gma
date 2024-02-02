@@ -17,6 +17,7 @@ import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectFoo;
+import com.linkedin.testing.AspectVersioned;
 import com.linkedin.testing.EntityAspectUnion;
 import com.linkedin.testing.urn.FooUrn;
 import java.net.URISyntaxException;
@@ -584,4 +585,11 @@ public class BaseLocalDAOTest {
         urn, null, newFoo, _dummyAuditStamp, ingestionTrackingContext, IngestionMode.LIVE);
     verifyNoMoreInteractions(_mockTrackingEventProducer);
   }
+
+  @Test(description = "!!!Test MAE emissions when a versioned aspect will have a value change ")
+  public void testMAEEmissionVersionValueChange() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectVersioned foo = new AspectVersioned().setValue("foo");
+  }
+
 }
