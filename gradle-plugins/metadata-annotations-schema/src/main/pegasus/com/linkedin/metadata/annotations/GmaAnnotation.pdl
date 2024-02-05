@@ -8,4 +8,9 @@ record GmaAnnotation {
    * Information about an aspect.
    */
   aspect: optional AspectAnnotation
+
+  /**
+   * Information about GMA Search functionality.
+   */
+  search: optional SearchAnnotation
 }

@@ -1,0 +1,11 @@
+namespace com.linkedin.metadata.annotations
+
+/**
+ * Annotation on a field in an Aspect model indicating the field's Search configuration.
+ */
+record IndexAnnotation {
+  /**
+   * The FQCN of the URN that identifies the entity of which to index the field the annotation is placed on.
+   */
+  urn: string
+}
