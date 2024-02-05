@@ -11,7 +11,6 @@ import com.linkedin.data.schema.validation.ValidationOptions;
 import com.linkedin.data.schema.validation.ValidationResult;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.UnionTemplate;
-import com.linkedin.metadata.aspect.BaseSemanticVersion;
 import com.linkedin.metadata.backfill.BackfillMode;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.equality.DefaultEqualityTester;
@@ -27,7 +26,6 @@ import com.linkedin.metadata.dao.storage.LocalDAOStorageConfig;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.tracking.TrackingUtils;
 import com.linkedin.metadata.dao.utils.ModelUtils;
-import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.ExtraInfo;
@@ -36,7 +34,6 @@ import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
-import java.lang.Integer;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.util.Collections;
@@ -1417,25 +1414,36 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     return mapToReturn;
   }
 
-  /** !!! Aspect Version Comparator
+  /** !!! Aspect Version Comparator.
    *
    */
   protected int aspectVersionComparator(@Nonnull RecordTemplate newValue, @Nonnull RecordTemplate oldValue) {
-    DataMap newVer = newValue.data().getDataMap("baseSemanticVersion");
+    DataMap newVerMap = newValue.data().getDataMap("baseSemanticVersion");
+    DataMap oldVerMap = oldValue.data().getDataMap("baseSemanticVersion");
 
-    int major = newVer.getInteger("major").intValue();
+    if (newVerMap == null && oldVerMap == null) {
+      return 0;
+    } else if (newVerMap == null && oldVerMap != null) {
+      return -1;
+    } else if (newVerMap != null && oldVerMap == null) {
+      return 1;
+    } else { //newVerMap != null && oldVerMap != null)
+      int[] newVerArr = { newVerMap.getInteger("major").intValue(), newVerMap.getInteger("minor").intValue(),
+          newVerMap.getInteger("patch").intValue()};
+      int[] oldVerArr = { oldVerMap.getInteger("major").intValue(), oldVerMap.getInteger("minor").intValue(),
+          oldVerMap.getInteger("patch").intValue()};
 
-    return major;
-    //    BaseSemanticVersion newVer = RecordUtils.getRecordTemplateWrappedField(newValue, "baseSematicVersion", BaseSemanticVersion.class);
-    //    boolean newHasVersion = newValue.schema().contains("baseSemanticVersion") && newValue.getBaseSemanticVersion() != null;
-    //    boolean oldHasVersion = oldValue.schema().contains("baseSemanticVersion") && oldValue.getBaseSemanticVersion() != null;
-    //
-    //    if (newHasVersion && oldHasVersion) {
-    //      return 1;
-    //    } else {
-    //      return 0;
-    //    }
+      for (int i = 0; i < newVerArr.length; i++) {
+        if (newVerArr[i] > oldVerArr[i]) {
+          return 1;
+        } else if (newVerArr[i] < oldVerArr[i]) {
+          return -1;
+        }
+      }
 
+      return 0;
+
+    }
   }
 
 }

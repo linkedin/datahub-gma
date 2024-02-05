@@ -4,7 +4,6 @@ import com.linkedin.common.AuditStamp;
 import com.linkedin.data.DataMap;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.SetMode;
-import com.linkedin.metadata.aspect.BaseSemanticVersion;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
@@ -599,32 +598,35 @@ public class BaseLocalDAOTest {
 
   @Test(description = "!!!Test aspectVersionComparator ")
   public void testAspectVersionComparator() throws URISyntaxException {
-    FooUrn urn = new FooUrn(1);
-    AspectVersioned foo = toRecordTemplate(AspectVersioned.class, createBaseSemanticVersion(1,1,1));
-    int a = _dummyLocalDAO.aspectVersionComparator(foo, foo);
+    AspectVersioned ver010101 = toRecordTemplate(AspectVersioned.class, createVersionDataMap(1, 1, 1));
+    AspectVersioned ver020101 = toRecordTemplate(AspectVersioned.class, createVersionDataMap(2, 1, 1));
 
-    assertEquals(a, 1);
+    Map<String, Object> noVerMap = new HashMap<>();
+    noVerMap.put("value", "testValue");
+    AspectVersioned noVer = toRecordTemplate(AspectVersioned.class, new DataMap(noVerMap));
+
+    assertEquals(_dummyLocalDAO.aspectVersionComparator(ver010101, ver010101), 0);
+    assertEquals(_dummyLocalDAO.aspectVersionComparator(ver010101, ver020101), -1);
+    assertEquals(_dummyLocalDAO.aspectVersionComparator(ver020101, ver010101), 1);
+    assertEquals(_dummyLocalDAO.aspectVersionComparator(noVer, noVer), 0);
+    assertEquals(_dummyLocalDAO.aspectVersionComparator(noVer, ver010101), -1);
+    assertEquals(_dummyLocalDAO.aspectVersionComparator(ver010101, noVer), 1);
   }
 
   private <ASPECT extends RecordTemplate> ASPECT toRecordTemplate(@Nonnull Class<ASPECT> aspectClass,
       @Nonnull DataMap dataMap) {
-
-      return RecordUtils.toRecordTemplate(aspectClass,
-          dataMap);
-
+      return RecordUtils.toRecordTemplate(aspectClass, dataMap);
   }
 
-
-
-  private DataMap createBaseSemanticVersion(int major, int minor, int patch) {
+  private DataMap createVersionDataMap(int major, int minor, int patch) {
     Map<String, Integer> versionMap = new HashMap<>();
-    versionMap.put("major",major);
-    versionMap.put("minor",minor);
-    versionMap.put("patch",patch);
+    versionMap.put("major", major);
+    versionMap.put("minor", minor);
+    versionMap.put("patch", patch);
     DataMap innerMap = new DataMap(versionMap);
     Map<String, Object> recordMap = new HashMap<>();
     recordMap.put("baseSemanticVersion", innerMap);
-    recordMap.put("value", new Integer(1));
+    recordMap.put("value", "testValue");
 
     return new DataMap(recordMap);
   }
