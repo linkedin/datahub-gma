@@ -591,15 +591,31 @@ public class BaseLocalDAOTest {
 
   @Test(description = "!!!Test MAE emissions when a versioned aspect will have a value change ")
   public void testMAEEmissionVersionValueChange() throws URISyntaxException {
-    //FooUrn urn = new FooUrn(1);
-    //AspectVersioned foo = new AspectVersioned().setValue("foo")
-    //    .setBaseSemanticVersion(createBaseSemanticVersion(1,1,1));
+    FooUrn urn = new FooUrn(1);
+    AspectVersioned ver010101 = toRecordTemplate(AspectVersioned.class, createVersionDataMap(1, 1, 1, "testValue1"));
+    AspectVersioned ver020101 = toRecordTemplate(AspectVersioned.class, createVersionDataMap(2, 1, 1, "testValue2"));
+
+    _dummyLocalDAO.setAlwaysEmitAuditEvent(true);
+    expectGetLatest(urn, AspectVersioned.class,
+        Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(ver010101, _dummyAuditStamp)));
+
+    _dummyLocalDAO.add(urn, ver010101, _dummyAuditStamp);
+    AuditStamp auditStamp2 = makeAuditStamp("tester", 5678L);
+    _dummyLocalDAO.add(urn, ver020101, auditStamp2);
+
+    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, ver010101);
+    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, ver010101, _dummyAuditStamp);
+    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, ver010101, ver020101);
+    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, ver010101, ver020101, auditStamp2);
+    verifyNoMoreInteractions(_mockEventProducer);
+
+
   }
 
   @Test(description = "!!!Test aspectVersionComparator ")
   public void testAspectVersionComparator() throws URISyntaxException {
-    AspectVersioned ver010101 = toRecordTemplate(AspectVersioned.class, createVersionDataMap(1, 1, 1));
-    AspectVersioned ver020101 = toRecordTemplate(AspectVersioned.class, createVersionDataMap(2, 1, 1));
+    AspectVersioned ver010101 = toRecordTemplate(AspectVersioned.class, createVersionDataMap(1, 1, 1, "testValue1"));
+    AspectVersioned ver020101 = toRecordTemplate(AspectVersioned.class, createVersionDataMap(2, 1, 1, "testValue2"));
 
     Map<String, Object> noVerMap = new HashMap<>();
     noVerMap.put("value", "testValue");
@@ -618,7 +634,7 @@ public class BaseLocalDAOTest {
       return RecordUtils.toRecordTemplate(aspectClass, dataMap);
   }
 
-  private DataMap createVersionDataMap(int major, int minor, int patch) {
+  private DataMap createVersionDataMap(int major, int minor, int patch, String value) {
     Map<String, Integer> versionMap = new HashMap<>();
     versionMap.put("major", major);
     versionMap.put("minor", minor);
@@ -626,7 +642,7 @@ public class BaseLocalDAOTest {
     DataMap innerMap = new DataMap(versionMap);
     Map<String, Object> recordMap = new HashMap<>();
     recordMap.put("baseSemanticVersion", innerMap);
-    recordMap.put("value", "testValue");
+    recordMap.put("value", value);
 
     return new DataMap(recordMap);
   }

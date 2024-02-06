@@ -455,7 +455,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     // Skip saving if there's no actual change
     if ((oldValue == null && newValue == null)
         // !!! Check that aspects have version, and old version < new version
-        || newValue != null && newValue.schema().contains("baseSemanticVersion")
+        || aspectVersionComparator(newValue, oldValue) < 0
         || oldValue != null && newValue != null && equalityTester.equals(oldValue, newValue)
     ) {
       return new AddResult<>(oldValue, oldValue, aspectClass);
@@ -1418,8 +1418,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    *
    */
   protected int aspectVersionComparator(@Nonnull RecordTemplate newValue, @Nonnull RecordTemplate oldValue) {
-    DataMap newVerMap = newValue.data().getDataMap("baseSemanticVersion");
-    DataMap oldVerMap = oldValue.data().getDataMap("baseSemanticVersion");
+    DataMap newVerMap = newValue != null? newValue.data().getDataMap("baseSemanticVersion"): null;
+    DataMap oldVerMap = oldValue != null? oldValue.data().getDataMap("baseSemanticVersion"): null;
 
     if (newVerMap == null && oldVerMap == null) {
       return 0;

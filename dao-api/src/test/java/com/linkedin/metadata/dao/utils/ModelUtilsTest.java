@@ -24,6 +24,7 @@ import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.validator.InvalidSchemaException;
 import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectFoo;
+import com.linkedin.testing.AspectVersioned;
 import com.linkedin.testing.DeltaUnion;
 import com.linkedin.testing.EntityAspectUnion;
 import com.linkedin.testing.EntityAspectUnionAlias;
@@ -80,7 +81,7 @@ public class ModelUtilsTest {
   public void testGetValidAspectTypes() {
     Set<Class<? extends RecordTemplate>> validTypes = ModelUtils.getValidAspectTypes(EntityAspectUnion.class);
 
-    assertEquals(validTypes, ImmutableSet.of(AspectFoo.class, AspectBar.class, AspectFooBar.class, AspectAttributes.class));
+    assertEquals(validTypes, ImmutableSet.of(AspectVersioned.class, AspectFoo.class, AspectBar.class, AspectFooBar.class, AspectAttributes.class));
   }
 
   @Test
