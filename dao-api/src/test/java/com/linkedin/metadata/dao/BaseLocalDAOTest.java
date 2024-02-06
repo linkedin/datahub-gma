@@ -19,7 +19,6 @@ import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectFoo;
-import com.linkedin.testing.AspectVersioned;
 import com.linkedin.testing.EntityAspectUnion;
 import com.linkedin.testing.urn.FooUrn;
 import java.net.URISyntaxException;
@@ -279,6 +278,34 @@ public class BaseLocalDAOTest {
   }
 
   @Test
+  public void testMAEEmissionOnVerChange() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo1 = new AspectFoo().setValue("foo1");
+    AspectFoo ver010101 = toRecordTemplate(AspectFoo.class, createVersionDataMap(1, 1, 1, "ver1"));
+    AspectFoo ver020101 = toRecordTemplate(AspectFoo.class, createVersionDataMap(2, 1, 1, "ver2"));
+
+    AuditStamp auditStamp2 = makeAuditStamp("tester", 5678L);
+    AuditStamp auditStamp3 = makeAuditStamp("tester", 5679L);
+
+    _dummyLocalDAO.setAlwaysEmitAuditEvent(false);
+    expectGetLatest(urn, AspectFoo.class,
+        Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(foo1, _dummyAuditStamp),
+            makeAspectEntry(ver010101, auditStamp2), makeAspectEntry(ver020101, auditStamp3)));
+
+    _dummyLocalDAO.add(urn, foo1, _dummyAuditStamp);
+    _dummyLocalDAO.add(urn, ver010101, auditStamp2);
+    _dummyLocalDAO.add(urn, ver020101, auditStamp3);
+
+    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo1);
+    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo1, _dummyAuditStamp);
+    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, foo1, ver010101);
+    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, foo1, ver010101, auditStamp2);
+    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, ver010101, ver020101);
+    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, ver010101, ver020101, auditStamp3);
+    verifyNoMoreInteractions(_mockEventProducer);
+  }
+
+  @Test
   public void testMAEEmissionNoValueChange() throws URISyntaxException {
     FooUrn urn = new FooUrn(1);
     AspectFoo foo1 = new AspectFoo().setValue("foo");
@@ -294,6 +321,28 @@ public class BaseLocalDAOTest {
 
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo1);
     verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo1, _dummyAuditStamp);
+    verifyNoMoreInteractions(_mockEventProducer);
+  }
+
+  @Test
+  public void testMAEEmissionVerNoChange() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo ver020101 = toRecordTemplate(AspectFoo.class, createVersionDataMap(2, 1, 1, "ver2"));
+    AspectFoo foo1 = new AspectFoo().setValue("foo");
+    AspectFoo ver010101 = toRecordTemplate(AspectFoo.class, createVersionDataMap(1, 1, 1, "ver1"));
+
+    _dummyLocalDAO.setAlwaysEmitAuditEvent(false);
+    expectGetLatest(urn, AspectFoo.class,
+        Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(ver020101, _dummyAuditStamp)));
+
+    _dummyLocalDAO.add(urn, ver020101, _dummyAuditStamp);
+    _dummyLocalDAO.add(urn, foo1, _dummyAuditStamp);
+    _dummyLocalDAO.add(urn, ver010101, _dummyAuditStamp);
+    _dummyLocalDAO.add(urn, ver020101, _dummyAuditStamp);
+
+    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, ver020101);
+    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, ver020101, _dummyAuditStamp);
+
     verifyNoMoreInteractions(_mockEventProducer);
   }
 
@@ -589,37 +638,14 @@ public class BaseLocalDAOTest {
     verifyNoMoreInteractions(_mockTrackingEventProducer);
   }
 
-  @Test(description = "!!!Test MAE emissions when a versioned aspect will have a value change ")
-  public void testMAEEmissionVersionValueChange() throws URISyntaxException {
-    FooUrn urn = new FooUrn(1);
-    AspectVersioned ver010101 = toRecordTemplate(AspectVersioned.class, createVersionDataMap(1, 1, 1, "testValue1"));
-    AspectVersioned ver020101 = toRecordTemplate(AspectVersioned.class, createVersionDataMap(2, 1, 1, "testValue2"));
-
-    _dummyLocalDAO.setAlwaysEmitAuditEvent(true);
-    expectGetLatest(urn, AspectVersioned.class,
-        Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(ver010101, _dummyAuditStamp)));
-
-    _dummyLocalDAO.add(urn, ver010101, _dummyAuditStamp);
-    AuditStamp auditStamp2 = makeAuditStamp("tester", 5678L);
-    _dummyLocalDAO.add(urn, ver020101, auditStamp2);
-
-    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, ver010101);
-    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, ver010101, _dummyAuditStamp);
-    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, ver010101, ver020101);
-    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, ver010101, ver020101, auditStamp2);
-    verifyNoMoreInteractions(_mockEventProducer);
-
-
-  }
-
   @Test(description = "!!!Test aspectVersionComparator ")
   public void testAspectVersionComparator() throws URISyntaxException {
-    AspectVersioned ver010101 = toRecordTemplate(AspectVersioned.class, createVersionDataMap(1, 1, 1, "testValue1"));
-    AspectVersioned ver020101 = toRecordTemplate(AspectVersioned.class, createVersionDataMap(2, 1, 1, "testValue2"));
+    AspectFoo ver010101 = toRecordTemplate(AspectFoo.class, createVersionDataMap(1, 1, 1, "testValue1"));
+    AspectFoo ver020101 = toRecordTemplate(AspectFoo.class, createVersionDataMap(2, 1, 1, "testValue2"));
 
     Map<String, Object> noVerMap = new HashMap<>();
     noVerMap.put("value", "testValue");
-    AspectVersioned noVer = toRecordTemplate(AspectVersioned.class, new DataMap(noVerMap));
+    AspectFoo noVer = toRecordTemplate(AspectFoo.class, new DataMap(noVerMap));
 
     assertEquals(_dummyLocalDAO.aspectVersionComparator(ver010101, ver010101), 0);
     assertEquals(_dummyLocalDAO.aspectVersionComparator(ver010101, ver020101), -1);

@@ -1,9 +1,11 @@
 namespace com.linkedin.testing
 
+import com.linkedin.metadata.aspect.BaseVersionedAspect
+
 /**
  * For unit tests
  */
-record AspectFooEvolved {
+record AspectFooEvolved includes BaseVersionedAspect{
 
   /**
    * For unit tests

@@ -450,13 +450,10 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       }
     }
 
-    // !!! Test to see if we can detect field in schema
-
-    // Skip saving if there's no actual change
-    if ((oldValue == null && newValue == null)
-        // !!! Check that aspects have version, and old version < new version
-        || aspectVersionComparator(newValue, oldValue) < 0
-        || oldValue != null && newValue != null && equalityTester.equals(oldValue, newValue)
+    // Skip saving for the following scenarios
+    if ((oldValue == null && newValue == null) // values are null
+        || aspectVersionComparator(newValue, oldValue) < 0 // newValue ver < oldValue ver
+        || oldValue != null && newValue != null && equalityTester.equals(oldValue, newValue) // values are equal
     ) {
       return new AddResult<>(oldValue, oldValue, aspectClass);
     }
@@ -1414,12 +1411,17 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     return mapToReturn;
   }
 
-  /** !!! Aspect Version Comparator.
-   *
+  /** Aspect Version Comparator.
+   * @param newValue - Aspect that may have baseSemanticVersion field (by including BaseVersionedAspect).
+   * @param oldValue - Aspect that may have baseSemanticVersion field (by including BaseVersionedAspect).
+   * @return Return integer (-1, 0, 1) depending on if newValue version is (greater than, equal to, less than)
+   *     oldValue version.
    */
   protected int aspectVersionComparator(@Nonnull RecordTemplate newValue, @Nonnull RecordTemplate oldValue) {
-    DataMap newVerMap = newValue != null? newValue.data().getDataMap("baseSemanticVersion"): null;
-    DataMap oldVerMap = oldValue != null? oldValue.data().getDataMap("baseSemanticVersion"): null;
+    // Attempt to extract baseSemanticVersion from incoming aspects
+    // If aspect or version does not exist, set version as lowest ranking (null)
+    DataMap newVerMap = newValue != null ? newValue.data().getDataMap("baseSemanticVersion") : null;
+    DataMap oldVerMap = oldValue != null ? oldValue.data().getDataMap("baseSemanticVersion") : null;
 
     if (newVerMap == null && oldVerMap == null) {
       return 0;
@@ -1428,11 +1430,13 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     } else if (newVerMap != null && oldVerMap == null) {
       return 1;
     } else { //newVerMap != null && oldVerMap != null)
+      // Translate baseSemanticVersion into array [major, minor, patch]
       int[] newVerArr = { newVerMap.getInteger("major").intValue(), newVerMap.getInteger("minor").intValue(),
           newVerMap.getInteger("patch").intValue()};
       int[] oldVerArr = { oldVerMap.getInteger("major").intValue(), oldVerMap.getInteger("minor").intValue(),
           oldVerMap.getInteger("patch").intValue()};
 
+      // Iterate through baseSemanticVersions from highest to lowest priority and return appropriate result
       for (int i = 0; i < newVerArr.length; i++) {
         if (newVerArr[i] > oldVerArr[i]) {
           return 1;
@@ -1441,6 +1445,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
         }
       }
 
+      // newValue version == oldValue version
       return 0;
 
     }

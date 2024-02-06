@@ -1,10 +1,12 @@
 namespace com.linkedin.testing
 
+import com.linkedin.metadata.aspect.BaseVersionedAspect
+
 /**
  * For unit tests
  */
 @gma.aspect.column.name = "aspectfoo"
-record AspectFoo {
+record AspectFoo includes BaseVersionedAspect{
 
   /**
    * For unit tests
