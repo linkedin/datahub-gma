@@ -98,6 +98,7 @@ import org.mockito.ArgumentMatchers;
 import org.mockito.InOrder;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.testng.Assert;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
@@ -1470,6 +1471,50 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
+  public void testListUrnsPaginatedByLastUrn() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    if (_schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
+      assertThrows(UnsupportedOperationException.class, () -> dao.listUrnsPaginatedByLastUrn(null, 1));
+      return;
+    }
+
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    List<FooUrn> urns = new ArrayList<>();
+    for (int i = 0; i < 3; i++) {
+      FooUrn urn = makeFooUrn(i);
+      for (int j = 0; j < 3; j++) {
+        dao.add(urn, foo, _dummyAuditStamp);
+      }
+      urns.add(urn);
+    }
+
+    // initial pagination
+    List<FooUrn> results = dao.listUrnsPaginatedByLastUrn(null, 1);
+    assertEquals(results, urns.subList(0, 1));
+
+    // next pagination
+    results = dao.listUrnsPaginatedByLastUrn(results.get(0), 2);
+    assertEquals(results, urns.subList(1, 3));
+
+    // sort size
+    results = dao.listUrnsPaginatedByLastUrn(null, 5);
+    assertEquals(results, urns.subList(0, 3));
+    assertEquals(results.get(0), makeFooUrn(0));
+    assertEquals(results.get(1), makeFooUrn(1));
+    assertEquals(results.get(2), makeFooUrn(2));
+
+    // duplicate urns
+    AspectBar bar = new AspectBar().setValue("bar");
+    dao.add(urns.get(0), bar, _dummyAuditStamp);
+    results = dao.listUrnsPaginatedByLastUrn(null, 5);
+    assertEquals(results.size(), 4);
+    assertEquals(results.get(0), makeFooUrn(0));
+    assertEquals(results.get(1), makeFooUrn(0));
+    assertEquals(results.get(2), makeFooUrn(1));
+    assertEquals(results.get(3), makeFooUrn(2));
+  }
+
+  @Test
   public void testList() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     List<AspectFoo> foos = new LinkedList<>();
@@ -1841,6 +1886,25 @@ public class EbeanLocalDAOTest {
     // List bar urns
     List<BarUrn> urns2 = dao2.listUrns(BarUrn.class, null, 1);
     assertEquals(urns2, Collections.singletonList(urn4));
+  }
+
+  @Test
+  void testIndexedListUrnsInOldSchema() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      assertThrows(UnsupportedOperationException.class, () -> dao.listUrns(
+          new IndexFilter(),
+          new IndexSortCriterion(),
+          makeFooUrn(1),
+          1
+      ));
+
+      try {
+        dao.listUrns(null, null, makeFooUrn(1), 1);
+      } catch (Exception ex) {
+        Assert.fail("Unexpected exception thrown in calling indexedListUrns with null filters");
+      }
+    }
   }
 
   @Test

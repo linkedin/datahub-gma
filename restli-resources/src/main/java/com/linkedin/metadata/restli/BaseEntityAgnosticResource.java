@@ -108,7 +108,8 @@ public abstract class BaseEntityAgnosticResource {
    * @param lastUrn last urn of the previous fetched page. For the first page, this should be set as NULL
    * @param entityType entity type for the urn
    * @param limit maximum number of distinct urns to return
-   * @return Array of urns represented as string
+   * @return Array of urns represented as string. Expect duplicate urns in the result if the entity is stored in a old schema
+   * mode GMS.
    */
   @Action(name = ACTION_LIST_URNS)
   @Nonnull

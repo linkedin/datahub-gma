@@ -36,6 +36,7 @@ import com.linkedin.metadata.query.IndexValue;
 import com.linkedin.metadata.query.ListResultMetadata;
 import io.ebean.DuplicateKeyException;
 import io.ebean.EbeanServer;
+import io.ebean.ExpressionList;
 import io.ebean.PagedList;
 import io.ebean.Query;
 import io.ebean.SqlUpdate;
@@ -1099,6 +1100,39 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     return toListResult(urns, null, pagedList, start);
   }
 
+  /*
+    * List all URNs of the entity registered in the DAO, paginated by last urn. Expect duplicate urns in the result.
+    *
+    * This method is old schema mode use only. Seek alternatives in other schemas.
+   */
+  @Deprecated
+  protected List<URN> listUrnsPaginatedByLastUrn(@Nullable URN lastUrn, int pageSize) {
+    if (_schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
+      throw new UnsupportedOperationException("this method is only allowed in OLD_SCHEMA_ONLY mode");
+    }
+
+    final String entityType = ModelUtils.getEntityTypeFromUrnClass(_urnClass);
+
+    ExpressionList<EbeanMetadataAspect> query = _server.find(EbeanMetadataAspect.class)
+        .select(KEY_ID)
+        .where()
+        .startsWith(URN_COLUMN, "urn:li:" + entityType + ":")
+        .eq(VERSION_COLUMN, LATEST_VERSION)
+        .ne(METADATA_COLUMN, DELETED_VALUE);
+
+    if (lastUrn != null) {
+      query = query.gt(URN_COLUMN, String.valueOf(lastUrn));
+    }
+
+    final PagedList<EbeanMetadataAspect> pagedList = query
+        .setMaxRows(pageSize)
+        .orderBy()
+        .asc(URN_COLUMN)
+        .findPagedList();
+
+    return pagedList.getList().stream().map(entry -> getUrn(entry.getKey().getUrn())).collect(Collectors.toList());
+  }
+
   @Nonnull
   <ASPECT extends RecordTemplate> ListResult<ASPECT> getListResult(@Nonnull Class<ASPECT> aspectClass,
       @Nonnull PagedList<EbeanMetadataAspect> pagedList, int start) {
@@ -1401,6 +1435,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    *
    * <p>NOTE: Currently this works for upto 10 filter conditions.
    *
+   * <p>This method can only be used in old schema mode if the provided indexFilter and indexSortCriterion are null. In old
+   * schema mode, expect duplicate urns in the result.
+   *
    * @param indexFilter {@link IndexFilter} containing filter conditions to be applied
    * @param indexSortCriterion {@link IndexSortCriterion} sorting criteria to be applied
    * @param lastUrn last urn of the previous fetched page. This eliminates the need to use offset which
@@ -1412,9 +1449,12 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Nonnull
   public List<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       @Nullable URN lastUrn, int pageSize) {
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY && !(indexFilter == null && indexSortCriterion == null)) {
+      throw new UnsupportedOperationException("listUrns with nonnull index filter is only supported in new schema.");
+    }
 
     if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
-      throw new UnsupportedOperationException("listUrns with index filter is only supported in new schema.");
+      return listUrnsPaginatedByLastUrn(lastUrn, pageSize);
     }
 
     return _localAccess.listUrns(indexFilter, indexSortCriterion, lastUrn, pageSize);
