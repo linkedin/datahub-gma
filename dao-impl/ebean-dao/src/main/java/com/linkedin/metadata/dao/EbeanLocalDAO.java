@@ -1455,7 +1455,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       throw new UnsupportedOperationException("countAggregate is only supported in new schema.");
     }
 
-    if(!_nonDollarVirtualColumnsEnabled) {
+    if (!_nonDollarVirtualColumnsEnabled) {
       return _localAccess.countAggregate(indexFilter, indexGroupByCriterion);
     }
 
