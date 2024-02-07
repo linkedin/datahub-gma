@@ -281,8 +281,8 @@ public class BaseLocalDAOTest {
   public void testMAEEmissionOnVerChange() throws URISyntaxException {
     FooUrn urn = new FooUrn(1);
     AspectFoo foo1 = new AspectFoo().setValue("foo1");
-    AspectFoo ver010101 = toRecordTemplate(AspectFoo.class, createVersionDataMap(1, 1, 1, "ver1"));
-    AspectFoo ver020101 = toRecordTemplate(AspectFoo.class, createVersionDataMap(2, 1, 1, "ver2"));
+    AspectFoo ver010101 = RecordUtils.toRecordTemplate(AspectFoo.class, createVersionDataMap(1, 1, 1, "ver1"));
+    AspectFoo ver020101 = RecordUtils.toRecordTemplate(AspectFoo.class, createVersionDataMap(2, 1, 1, "ver2"));
 
     AuditStamp auditStamp2 = makeAuditStamp("tester", 5678L);
     AuditStamp auditStamp3 = makeAuditStamp("tester", 5679L);
@@ -327,9 +327,9 @@ public class BaseLocalDAOTest {
   @Test
   public void testMAEEmissionVerNoChange() throws URISyntaxException {
     FooUrn urn = new FooUrn(1);
-    AspectFoo ver020101 = toRecordTemplate(AspectFoo.class, createVersionDataMap(2, 1, 1, "ver2"));
+    AspectFoo ver020101 = RecordUtils.toRecordTemplate(AspectFoo.class, createVersionDataMap(2, 1, 1, "ver2"));
     AspectFoo foo1 = new AspectFoo().setValue("foo");
-    AspectFoo ver010101 = toRecordTemplate(AspectFoo.class, createVersionDataMap(1, 1, 1, "ver1"));
+    AspectFoo ver010101 = RecordUtils.toRecordTemplate(AspectFoo.class, createVersionDataMap(1, 1, 1, "ver1"));
 
     _dummyLocalDAO.setAlwaysEmitAuditEvent(false);
     expectGetLatest(urn, AspectFoo.class,
@@ -638,14 +638,11 @@ public class BaseLocalDAOTest {
     verifyNoMoreInteractions(_mockTrackingEventProducer);
   }
 
-  @Test(description = "!!!Test aspectVersionComparator ")
+  @Test(description = "Test aspectVersionComparator ")
   public void testAspectVersionComparator() throws URISyntaxException {
-    AspectFoo ver010101 = toRecordTemplate(AspectFoo.class, createVersionDataMap(1, 1, 1, "testValue1"));
-    AspectFoo ver020101 = toRecordTemplate(AspectFoo.class, createVersionDataMap(2, 1, 1, "testValue2"));
-
-    Map<String, Object> noVerMap = new HashMap<>();
-    noVerMap.put("value", "testValue");
-    AspectFoo noVer = toRecordTemplate(AspectFoo.class, new DataMap(noVerMap));
+    AspectFoo ver010101 = RecordUtils.toRecordTemplate(AspectFoo.class, createVersionDataMap(1, 1, 1, "testValue1"));
+    AspectFoo ver020101 = RecordUtils.toRecordTemplate(AspectFoo.class, createVersionDataMap(2, 1, 1, "testValue2"));
+    AspectFoo noVer = new AspectFoo().setValue("noVer");
 
     assertEquals(_dummyLocalDAO.aspectVersionComparator(ver010101, ver010101), 0);
     assertEquals(_dummyLocalDAO.aspectVersionComparator(ver010101, ver020101), -1);
@@ -653,11 +650,6 @@ public class BaseLocalDAOTest {
     assertEquals(_dummyLocalDAO.aspectVersionComparator(noVer, noVer), 0);
     assertEquals(_dummyLocalDAO.aspectVersionComparator(noVer, ver010101), -1);
     assertEquals(_dummyLocalDAO.aspectVersionComparator(ver010101, noVer), 1);
-  }
-
-  private <ASPECT extends RecordTemplate> ASPECT toRecordTemplate(@Nonnull Class<ASPECT> aspectClass,
-      @Nonnull DataMap dataMap) {
-      return RecordUtils.toRecordTemplate(aspectClass, dataMap);
   }
 
   private DataMap createVersionDataMap(int major, int minor, int patch, String value) {
