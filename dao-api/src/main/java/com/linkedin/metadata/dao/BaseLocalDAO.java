@@ -452,8 +452,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     // Skip saving for the following scenarios
     if ((oldValue == null && newValue == null) // values are null
-        || aspectVersionComparator(newValue, oldValue) < 0 // newValue ver < oldValue ver
-        || oldValue != null && newValue != null && equalityTester.equals(oldValue, newValue) // values are equal
+        || (aspectVersionComparator(newValue, oldValue) < 0) // newValue ver < oldValue ver
+        || (oldValue != null && newValue != null && equalityTester.equals(oldValue, newValue)) // values are equal
     ) {
       return new AddResult<>(oldValue, oldValue, aspectClass);
     }

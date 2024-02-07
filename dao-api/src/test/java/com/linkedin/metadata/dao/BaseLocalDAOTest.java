@@ -277,7 +277,7 @@ public class BaseLocalDAOTest {
     verifyNoMoreInteractions(_mockEventProducer);
   }
 
-  @Test
+  @Test(description = "Test MAE emission triggered by incoming aspects with higher versions")
   public void testMAEEmissionOnVerChange() throws URISyntaxException {
     FooUrn urn = new FooUrn(1);
     AspectFoo foo1 = new AspectFoo().setValue("foo1");
@@ -324,7 +324,7 @@ public class BaseLocalDAOTest {
     verifyNoMoreInteractions(_mockEventProducer);
   }
 
-  @Test
+  @Test(description = "Test that no MAEs are emitted if incoming aspect has a lower version than existing aspect")
   public void testMAEEmissionVerNoChange() throws URISyntaxException {
     FooUrn urn = new FooUrn(1);
     AspectFoo ver020101 = RecordUtils.toRecordTemplate(AspectFoo.class, createVersionDataMap(2, 1, 1, "ver2"));
@@ -342,7 +342,6 @@ public class BaseLocalDAOTest {
 
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, ver020101);
     verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, ver020101, _dummyAuditStamp);
-
     verifyNoMoreInteractions(_mockEventProducer);
   }
 
@@ -638,7 +637,7 @@ public class BaseLocalDAOTest {
     verifyNoMoreInteractions(_mockTrackingEventProducer);
   }
 
-  @Test(description = "Test aspectVersionComparator ")
+  @Test(description = "Test aspectVersionComparator")
   public void testAspectVersionComparator() throws URISyntaxException {
     AspectFoo ver010101 = RecordUtils.toRecordTemplate(AspectFoo.class, createVersionDataMap(1, 1, 1, "testValue1"));
     AspectFoo ver020101 = RecordUtils.toRecordTemplate(AspectFoo.class, createVersionDataMap(2, 1, 1, "testValue2"));
@@ -652,6 +651,7 @@ public class BaseLocalDAOTest {
     assertEquals(_dummyLocalDAO.aspectVersionComparator(ver010101, noVer), 1);
   }
 
+  // Helper function to create DataMap with fields baseSemanticVersion and value
   private DataMap createVersionDataMap(int major, int minor, int patch, String value) {
     Map<String, Integer> versionMap = new HashMap<>();
     versionMap.put("major", major);
