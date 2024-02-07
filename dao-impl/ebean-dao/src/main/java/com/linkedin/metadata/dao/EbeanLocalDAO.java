@@ -136,6 +136,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
   }
 
+  public void setNonDollarVirtualColumnsEnabled(boolean nonDollarVirtualColumnsEnabled) {
+    _nonDollarVirtualColumnsEnabled = nonDollarVirtualColumnsEnabled;
+  }
+
   public enum FindMethodology {
     UNIQUE_ID,      // (legacy) https://javadoc.io/static/io.ebean/ebean/11.19.2/io/ebean/EbeanServer.html#find-java.lang.Class-java.lang.Object-
     DIRECT_SQL,     // https://javadoc.io/static/io.ebean/ebean/11.19.2/io/ebean/EbeanServer.html#findNative-java.lang.Class-java.lang.String-
@@ -1451,6 +1455,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       throw new UnsupportedOperationException("countAggregate is only supported in new schema.");
     }
 
-    return _localAccess.countAggregate(indexFilter, indexGroupByCriterion);
+    if(!_nonDollarVirtualColumnsEnabled) {
+      return _localAccess.countAggregate(indexFilter, indexGroupByCriterion);
+    }
+
+    return _localAccess.countAggregate(indexFilter, indexGroupByCriterion, true);
   }
 }

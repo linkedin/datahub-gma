@@ -115,8 +115,14 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * @return map of the field to the count
    */
   @Nonnull
-  Map<String, Long> countAggregate(@Nullable IndexFilter indexFilter,
-      @Nonnull IndexGroupByCriterion indexGroupByCriterion);
+  default Map<String, Long> countAggregate(@Nullable IndexFilter indexFilter,
+      @Nonnull IndexGroupByCriterion indexGroupByCriterion) {
+        return countAggregate(indexFilter, indexGroupByCriterion, false);
+      }
+
+    @Nonnull
+    Map<String, Long> countAggregate(@Nullable IndexFilter indexFilter,
+      @Nonnull IndexGroupByCriterion indexGroupByCriterion, boolean nonDollarVirtualColumnsEnabled);
 
   /**
    * Paginates over all URNs for entities that have a specific aspect. This does not include the urn(s) for which the
