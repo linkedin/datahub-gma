@@ -1420,8 +1420,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   protected int aspectVersionComparator(@Nonnull RecordTemplate newValue, @Nonnull RecordTemplate oldValue) {
     // Attempt to extract baseSemanticVersion from incoming aspects
     // If aspect or version does not exist, set version as lowest ranking (null)
-    DataMap newVerMap = newValue != null ? newValue.data().getDataMap("baseSemanticVersion") : null;
-    DataMap oldVerMap = oldValue != null ? oldValue.data().getDataMap("baseSemanticVersion") : null;
+    final DataMap newVerMap = newValue != null ? newValue.data().getDataMap("baseSemanticVersion") : null;
+    final DataMap oldVerMap = oldValue != null ? oldValue.data().getDataMap("baseSemanticVersion") : null;
 
     if (newVerMap == null && oldVerMap == null) {
       return 0;
@@ -1429,11 +1429,11 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       return -1;
     } else if (newVerMap != null && oldVerMap == null) {
       return 1;
-    } else { //newVerMap != null && oldVerMap != null)
+    } else { //newVerMap != null && oldVerMap != null
       // Translate baseSemanticVersion into array [major, minor, patch]
-      int[] newVerArr = { newVerMap.getInteger("major").intValue(), newVerMap.getInteger("minor").intValue(),
+      final int[] newVerArr = { newVerMap.getInteger("major").intValue(), newVerMap.getInteger("minor").intValue(),
           newVerMap.getInteger("patch").intValue()};
-      int[] oldVerArr = { oldVerMap.getInteger("major").intValue(), oldVerMap.getInteger("minor").intValue(),
+      final int[] oldVerArr = { oldVerMap.getInteger("major").intValue(), oldVerMap.getInteger("minor").intValue(),
           oldVerMap.getInteger("patch").intValue()};
 
       // Iterate through baseSemanticVersions from highest to lowest priority and return appropriate result
