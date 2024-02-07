@@ -102,6 +102,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   // true = overwrite 2nd latest version with latest version (equivalent to keeping only version = 0 rows in metadata_aspect)
   private boolean _overwriteLatestVersionEnabled = false;
 
+  //true if virtual columns with non dollar characters are enabled
+  private boolean _nonDollarVirtualColumnsEnabled = false;
+
   public void setChangeLogEnabled(boolean changeLogEnabled) {
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
       _changeLogEnabled = changeLogEnabled;
