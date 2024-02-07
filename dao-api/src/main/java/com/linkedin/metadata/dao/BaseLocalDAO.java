@@ -1414,7 +1414,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   /** Aspect Version Comparator.
    * @param newValue - Aspect that may have baseSemanticVersion field (by including BaseVersionedAspect).
    * @param oldValue - Aspect that may have baseSemanticVersion field (by including BaseVersionedAspect).
-   * @return Return integer (-1, 0, 1) depending on if newValue version is (greater than, equal to, less than)
+   * @return Return integer (-1, 0, 1) depending on if newValue version is (lesser than, equal to, greater than)
    *     oldValue version.
    */
   protected int aspectVersionComparator(@Nonnull RecordTemplate newValue, @Nonnull RecordTemplate oldValue) {
