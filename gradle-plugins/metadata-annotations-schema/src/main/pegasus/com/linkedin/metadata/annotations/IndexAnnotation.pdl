@@ -6,6 +6,7 @@ namespace com.linkedin.metadata.annotations
 record IndexAnnotation {
   /**
    * The FQCN of the URN that identifies the entity of which to index the field the annotation is placed on.
+   * MUST also be present in the @gma.aspect.entity or @gma.aspect.entities annotation.
    */
   urn: string
 }

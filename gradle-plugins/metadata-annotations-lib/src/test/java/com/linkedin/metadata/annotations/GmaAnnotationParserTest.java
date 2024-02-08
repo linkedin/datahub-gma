@@ -7,6 +7,7 @@ import com.linkedin.testing.AnnotatedAspectBar;
 import com.linkedin.testing.AnnotatedAspectFoo;
 import com.linkedin.testing.BarAspect;
 import com.linkedin.testing.CommonAspect;
+import com.linkedin.testing.SearchAnnotatedAspectBar;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
@@ -76,4 +77,15 @@ public class GmaAnnotationParserTest {
         new AspectEntityAnnotationArray(new AspectEntityAnnotation().setUrn("com.linkedin.testing.FooUrn"),
             new AspectEntityAnnotation().setUrn("com.linkedin.testing.BarUrn")))));
   }
+
+  @Test
+  public void parseAspectWithSearchIndexAnnotations() {
+    // has both @gma.aspect.entity.urn and @gma.aspect.column.name annotations
+    final Optional<GmaAnnotation> gma =
+            new GmaAnnotationParser().parse((RecordDataSchema) DataTemplateUtil.getSchema(SearchAnnotatedAspectBar.class));
+    // assertThat(gma).contains(new GmaAnnotation().setAspect(
+    //         new SearchAnnotation().setEntity(new AspectEntityAnnotation().setUrn("com.linkedin.testing.BarUrn"))));
+  }
+
+  // TODO: add testing for failure when Search urns are NOT in entity/entities annotation
 }

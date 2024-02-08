@@ -29,6 +29,7 @@ MANIFEST
 /config
 */i18n
 /out
+**/bin
 
 # Mac OS
 **/.DS_Store
