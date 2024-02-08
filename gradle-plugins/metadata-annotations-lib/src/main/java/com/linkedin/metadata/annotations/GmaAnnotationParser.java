@@ -99,7 +99,6 @@ public class GmaAnnotationParser {
 
   /**
    * Obtains the {@code @gma} search annotations from the schema.
-   *
    * Currently does not perform any validation checks.
    */
   private @Nonnull IndexAnnotationArrayMap parseSearchIndexFields(@Nonnull DataSchema schema) {
