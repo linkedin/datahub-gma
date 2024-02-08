@@ -11,12 +11,12 @@ record BaseIngestionMode {
  */
  writeMode: optional enum WriteMode {
    /**
-   * Default write mode. First in first out.
+   * Default write mode. Same behavior as not setting writeMode
    */
-   FIFO
+   DEFAULT
 
    /**
-   * Override logic that may skip aspect metadata write (eg equality check)
+   * Override checks that may skip metadata write (eg equality check)
    */
    OVERRIDE
  }
