@@ -61,6 +61,10 @@ public class GmaAnnotationParser {
 
     // Normal case:
     // if parsing top-level annotations resulted in a non-null GmaAnnotation, then fill out the indexMappings and return
+    if (!gmaAnnotation.get().hasSearch()) {
+      // no top-level search annotations parsed, need to create a placeholder
+      gmaAnnotation.get().setSearch(new SearchAnnotation());
+    }
     gmaAnnotation.get().getSearch().setIndex(searchIndexFields);
     return gmaAnnotation;
   }

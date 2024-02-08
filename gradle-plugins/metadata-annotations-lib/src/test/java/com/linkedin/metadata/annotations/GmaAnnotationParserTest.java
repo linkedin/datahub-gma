@@ -1,5 +1,6 @@
 package com.linkedin.metadata.annotations;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSetMultimap;
 import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.template.DataTemplateUtil;
@@ -8,6 +9,7 @@ import com.linkedin.testing.AnnotatedAspectFoo;
 import com.linkedin.testing.BarAspect;
 import com.linkedin.testing.CommonAspect;
 import com.linkedin.testing.SearchAnnotatedAspectBar;
+
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
@@ -79,13 +81,19 @@ public class GmaAnnotationParserTest {
   }
 
   @Test
-  public void parseAspectWithSearchIndexAnnotations() {
-    // has both @gma.aspect.entity.urn and @gma.aspect.column.name annotations
+  public void parseAspectWithOnlySearchIndexAnnotations() {
     final Optional<GmaAnnotation> gma =
             new GmaAnnotationParser().parse((RecordDataSchema) DataTemplateUtil.getSchema(SearchAnnotatedAspectBar.class));
-    // assertThat(gma).contains(new GmaAnnotation().setAspect(
-    //         new SearchAnnotation().setEntity(new AspectEntityAnnotation().setUrn("com.linkedin.testing.BarUrn"))));
+     assertThat(gma).contains(new GmaAnnotation().setSearch(
+         new SearchAnnotation().setIndex(
+             new IndexAnnotationArrayMap(ImmutableMap.of(
+                 "stringField", new IndexAnnotationArray(
+                     new IndexAnnotation().setUrn("com.linkedin.testing.BarkUrn"),
+                     new IndexAnnotation().setUrn("com.linkedin.testing.FooUrn")),
+                 "longField", new IndexAnnotationArray(
+                     new IndexAnnotation().setUrn("com.linkedin.testing.BarkUrn")
+                 ))))));
   }
 
-  // TODO: add testing for failure when Search urns are NOT in entity/entities annotation
+  // TODO: if add support for disallowing certain search annotations, add tests for them
 }
