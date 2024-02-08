@@ -72,7 +72,6 @@ public class EmbeddedMariaInstance {
            * configurationBuilder.setLibDir(System.getProperty("java.io.tmpdir") + "/MariaDB4j/no-libs");
            */
 
-
           try {
             // ensure the DB directory is deleted before we start to have a clean start
             if (new File(baseDbDir).exists()) {
