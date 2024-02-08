@@ -81,13 +81,13 @@ public class GmaAnnotationParser {
     options.setUnrecognizedFieldMode(UnrecognizedFieldMode.DISALLOW);
 
     final ValidationResult result =
-            ValidateDataAgainstSchema.validate(gmaObj, DataTemplateUtil.getSchema(GmaAnnotation.class), options);
+        ValidateDataAgainstSchema.validate(gmaObj, DataTemplateUtil.getSchema(GmaAnnotation.class), options);
 
     final GmaAnnotation gmaAnnotation = DataTemplateUtil.wrap(gmaObj, GmaAnnotation.class);
 
     if (!result.isValid()) {
       throw new GmaAnnotationParseException(String.format("Error parsing @gma on %s: \n%s", DataSchemaUtil.getFullName(schema),
-              Joiner.on('\n').join(result.getMessages())));
+          Joiner.on('\n').join(result.getMessages())));
     }
 
     if (_gmaEntitiesAnnotationAllowList != null && gmaAnnotation.hasAspect() && gmaAnnotation.getAspect().hasEntities()) {
@@ -100,7 +100,7 @@ public class GmaAnnotationParser {
   /**
    * Obtains the {@code @gma} search annotations from the schema.
    *
-   * @throws GmaAnnotationParseException if the provided {@code @gma} annotation does not match the schema.
+   * Currently does not perform any validation checks.
    */
   private @Nonnull IndexAnnotationArrayMap parseSearchIndexFields(@Nonnull DataSchema schema) {
     Map<String, IndexAnnotationArray> javaMap = new HashMap<>();
