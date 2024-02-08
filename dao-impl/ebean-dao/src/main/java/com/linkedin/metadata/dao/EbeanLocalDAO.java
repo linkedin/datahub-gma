@@ -36,9 +36,9 @@ import com.linkedin.metadata.query.IndexValue;
 import com.linkedin.metadata.query.ListResultMetadata;
 import io.ebean.DuplicateKeyException;
 import io.ebean.EbeanServer;
-import io.ebean.ExpressionList;
 import io.ebean.PagedList;
 import io.ebean.Query;
+import io.ebean.SqlRow;
 import io.ebean.SqlUpdate;
 import io.ebean.Transaction;
 import io.ebean.config.ServerConfig;
@@ -1101,7 +1101,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   /*
-    * List all URNs of the entity registered in the DAO, paginated by last urn. Expect duplicate urns in the result.
+    * List all URNs of the entity registered in the DAO, paginated by last urn.
     *
     * This method is old schema mode use only. Seek alternatives in other schemas.
    */
@@ -1111,26 +1111,26 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       throw new UnsupportedOperationException("this method is only allowed in OLD_SCHEMA_ONLY mode");
     }
 
+    final String query = getDistinctUrnsOfEntitySqlQuery(lastUrn, pageSize);
+    final List<SqlRow> sqlRows = _server.createSqlQuery(query).setFirstRow(0).findList();
+    return sqlRows.stream().map(sqlRow -> getUrn(sqlRow.getString(URN_COLUMN))).collect(Collectors.toList());
+  }
+
+  private String getDistinctUrnsOfEntitySqlQuery(URN lastUrn, int pageSize) {
     final String entityType = ModelUtils.getEntityTypeFromUrnClass(_urnClass);
+    final String entityUrnPrefix = "urn:li:" + entityType + ":%";
 
-    ExpressionList<EbeanMetadataAspect> query = _server.find(EbeanMetadataAspect.class)
-        .select(KEY_ID)
-        .where()
-        .startsWith(URN_COLUMN, "urn:li:" + entityType + ":")
-        .eq(VERSION_COLUMN, LATEST_VERSION)
-        .ne(METADATA_COLUMN, DELETED_VALUE);
-
+    StringBuilder sb = new StringBuilder();
+    sb.append(String.format("SELECT DISTINCT(%s) FROM metadata_aspect ", URN_COLUMN));
+    sb.append(String.format("WHERE %s LIKE '%s' ", URN_COLUMN, entityUrnPrefix));
+    sb.append(String.format("AND version = %d ", LATEST_VERSION));
+    sb.append(String.format("AND metadata != '%s' ", DELETED_VALUE));
     if (lastUrn != null) {
-      query = query.gt(URN_COLUMN, String.valueOf(lastUrn));
+      sb.append(String.format("AND %s > '%s' ", URN_COLUMN, lastUrn));
     }
-
-    final PagedList<EbeanMetadataAspect> pagedList = query
-        .setMaxRows(pageSize)
-        .orderBy()
-        .asc(URN_COLUMN)
-        .findPagedList();
-
-    return pagedList.getList().stream().map(entry -> getUrn(entry.getKey().getUrn())).collect(Collectors.toList());
+    sb.append(String.format("ORDER BY %s asc ", URN_COLUMN));
+    sb.append(String.format("LIMIT %d ", pageSize));
+    return sb.toString();
   }
 
   @Nonnull
@@ -1435,8 +1435,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    *
    * <p>NOTE: Currently this works for upto 10 filter conditions.
    *
-   * <p>This method can only be used in old schema mode if the provided indexFilter and indexSortCriterion are null. In old
-   * schema mode, expect duplicate urns in the result.
+   * <p>This method can only be used in old schema mode if the provided indexFilter and indexSortCriterion are null.
    *
    * @param indexFilter {@link IndexFilter} containing filter conditions to be applied
    * @param indexSortCriterion {@link IndexSortCriterion} sorting criteria to be applied

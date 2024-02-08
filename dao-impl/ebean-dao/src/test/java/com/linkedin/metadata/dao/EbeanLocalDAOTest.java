@@ -1496,22 +1496,21 @@ public class EbeanLocalDAOTest {
     results = dao.listUrnsPaginatedByLastUrn(results.get(0), 2);
     assertEquals(results, urns.subList(1, 3));
 
-    // sort size
+    // sort order
     results = dao.listUrnsPaginatedByLastUrn(null, 5);
     assertEquals(results, urns.subList(0, 3));
     assertEquals(results.get(0), makeFooUrn(0));
     assertEquals(results.get(1), makeFooUrn(1));
     assertEquals(results.get(2), makeFooUrn(2));
 
-    // duplicate urns
+    // distinct urns
     AspectBar bar = new AspectBar().setValue("bar");
     dao.add(urns.get(0), bar, _dummyAuditStamp);
     results = dao.listUrnsPaginatedByLastUrn(null, 5);
-    assertEquals(results.size(), 4);
+    assertEquals(results.size(), 3);
     assertEquals(results.get(0), makeFooUrn(0));
-    assertEquals(results.get(1), makeFooUrn(0));
-    assertEquals(results.get(2), makeFooUrn(1));
-    assertEquals(results.get(3), makeFooUrn(2));
+    assertEquals(results.get(1), makeFooUrn(1));
+    assertEquals(results.get(2), makeFooUrn(2));
   }
 
   @Test
