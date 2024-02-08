@@ -14,7 +14,6 @@ import com.linkedin.data.template.DataTemplateUtil;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -46,31 +45,24 @@ public class GmaAnnotationParser {
    */
   public Optional<GmaAnnotation> parse(@Nonnull DataSchema schema) {
     Optional<GmaAnnotation> gmaAnnotation = parseTopLevelAnnotations(schema);
-    final IndexAnnotationArrayMap searchIndexFields = parseSearchIndexFields(schema);
 
-    // No top-level annotations
-    if (!gmaAnnotation.isPresent()) {
-      if (searchIndexFields.isEmpty()) {
-        // if there are no field-level search annotations, there are in totality no annotations: return empty
-        return Optional.empty();
+    // if annotation ecosystem grows, can abstract the following into a subroutine
+    final IndexAnnotationArrayMap searchIndexFields = parseSearchIndexFields(schema);
+    if (!searchIndexFields.isEmpty()) {
+      // we need to augment GmaAnnotation with SearchIndex metadata
+      if (!gmaAnnotation.isPresent()) {
+        // no top-level annotations, so we need to create one and fill out SearchIndex metadata
+        gmaAnnotation = Optional.of(new GmaAnnotation().setSearch(new SearchAnnotation().setIndex(searchIndexFields)));
       } else {
-        // this means there are field-level search annotations, just return those
-        return Optional.of(new GmaAnnotation().setSearch(new SearchAnnotation().setIndex(searchIndexFields)));
+        // yes top-level annotations, so we need to just fill out SearchIndex metadata
+        gmaAnnotation.get().setSearch(new SearchAnnotation().setIndex(searchIndexFields));
       }
     }
 
-    // Normal case:
-    // if parsing top-level annotations resulted in a non-null GmaAnnotation, then fill out the indexMappings and return
-    if (!gmaAnnotation.get().hasSearch()) {
-      // no top-level search annotations parsed, need to create a placeholder
-      gmaAnnotation.get().setSearch(new SearchAnnotation());
-    }
-    gmaAnnotation.get().getSearch().setIndex(searchIndexFields);
     return gmaAnnotation;
   }
 
   /**
-   *
    * Obtains the top-level {@code @gma} annotations from the given schema, if there are any.
    * Note: this is the old parse() method before field-level parsing was introduced
    *
@@ -110,29 +102,32 @@ public class GmaAnnotationParser {
    *
    * @throws GmaAnnotationParseException if the provided {@code @gma} annotation does not match the schema.
    */
-  private IndexAnnotationArrayMap parseSearchIndexFields(@Nonnull DataSchema schema) {
-//    return null;
+  private @Nonnull IndexAnnotationArrayMap parseSearchIndexFields(@Nonnull DataSchema schema) {
     Map<String, IndexAnnotationArray> javaMap = new HashMap<>();
-    for(RecordDataSchema.Field f : ((RecordDataSchema) schema).getFields()) {
-      final Object gmaObj = f.getProperties().get(GMA);
-      if (gmaObj == null) {
-        continue;
+
+    // only Record types will have fields with SearchIndex annotations
+    if (schema.getType().equals(DataSchema.Type.RECORD)) {
+      for (RecordDataSchema.Field f : ((RecordDataSchema) schema).getFields()) {
+        final Object gmaObj = f.getProperties().get(GMA);
+        if (gmaObj == null) {
+          continue;
+        }
+
+        final Object searchObj = ((DataMap) gmaObj).get(SEARCH);
+        if (searchObj == null) {
+          continue;
+        }
+
+        final Object indexObj = ((DataMap) searchObj).get("index");
+        if (indexObj == null) {
+          continue;
+        }
+
+        // TODO: at this point, run any desired validations just like parseTopLevelAnnotations()'s flow of logic
+
+        final IndexAnnotationArray fieldIndexAnnotations = DataTemplateUtil.wrap(indexObj, IndexAnnotationArray.class);
+        javaMap.put(f.getName(), fieldIndexAnnotations);
       }
-
-      final Object searchObj = ((DataMap) gmaObj).get(SEARCH);
-      if (searchObj == null) {
-        continue;
-      }
-
-      final Object indexObj = ((DataMap) searchObj).get("index");
-      if (indexObj == null) {
-        continue;
-      }
-
-      // TODO: at this point, run any desired validations just like parseTopLevelAnnotations()'s flow of logic
-
-      final IndexAnnotationArray fieldIndexAnnotations = DataTemplateUtil.wrap(indexObj, IndexAnnotationArray.class);
-      javaMap.put(f.getName(), fieldIndexAnnotations);
     }
 
     return new IndexAnnotationArrayMap(javaMap);
