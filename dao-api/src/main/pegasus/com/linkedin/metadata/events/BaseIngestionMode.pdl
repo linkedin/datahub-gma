@@ -16,9 +16,9 @@ record BaseIngestionMode {
    FIFO
 
    /**
-   * Overwrite existing version.
+   * Override logic that may skip aspect metadata write (eg equality check)
    */
-   OVERWRITE
+   OVERRIDE
  }
 
 }
