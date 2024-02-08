@@ -162,6 +162,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
         .setCreatedfor(impersonator, SetMode.IGNORE_NULL);
     if (ingestionTrackingContext != null) {
       auditedAspect.setEmitTime(ingestionTrackingContext.getEmitTime(), SetMode.IGNORE_NULL);
+      auditedAspect.setEmitter(ingestionTrackingContext.getEmitter(), SetMode.IGNORE_NULL);
     }
 
       final String metadata = toJsonString(auditedAspect);

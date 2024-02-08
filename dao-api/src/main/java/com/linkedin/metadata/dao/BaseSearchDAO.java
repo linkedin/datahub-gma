@@ -43,6 +43,21 @@ public abstract class BaseSearchDAO<DOCUMENT extends RecordTemplate> {
       @Nullable SortCriterion sortCriterion, int from, int size);
 
   /**
+   * Gets a list of documents that match given search request. The results are aggregated and filters are applied to the
+   * search hits AND the aggregation results.
+   *
+   * @param input the search input text
+   * @param postFilters the request map with fields and values as filters to be applied to search hits and aggregation results
+   * @param sortCriterion {@link SortCriterion} to be applied to search results
+   * @param from index to start the search from
+   * @param size the number of search hits to return
+   * @return a {@link SearchResult} that contains a list of matched documents and related search result metadata
+   */
+  @Nonnull
+  public abstract SearchResult<DOCUMENT> searchV2(@Nonnull String input, @Nullable Filter postFilters,
+      @Nullable SortCriterion sortCriterion, @Nullable String preference, int from, int size);
+
+  /**
    * Gets a list of documents after applying the input filters.
    *
    * @param filters the request map with fields and values to be applied as filters to the search query

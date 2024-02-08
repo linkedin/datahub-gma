@@ -9,7 +9,7 @@ record BaseVersionedAspect {
  /**
   * The version of the metadata aspect
   */
- baseSematicVersion: optional record BaseSematicVersion {
+ baseSemanticVersion: optional record BaseSemanticVersion {
    /**
     * The major version of this version. This is the x in x.y.z.
     */

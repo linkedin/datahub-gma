@@ -191,6 +191,7 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
   /**
    * Unlike {@link #search(String, Filter, SortCriterion, String, int, int)}, this method supports multiple filters with AND relationship during aggregation.
    */
+  @Override
   @Nonnull
   public SearchResult<DOCUMENT> searchV2(@Nonnull String input, @Nullable Filter postFilters,
       @Nullable SortCriterion sortCriterion, @Nullable String preference, int from, int size) {

@@ -47,5 +47,13 @@ record ListResultMetadata {
        * - The record was inserted via ingest instead of ingestWithTracking
        */
        emitTime: optional long
+
+      /**
+       * This is the same emitter set in IngestionTrackingContext.
+       * For those don't provide emitter in ingestionTrackingContext,
+       * the MCE consumer will populate the emitter from the appName in kafkaAuditHeader,
+       * e.g. The name of the application from which the event is being emitted, such as kafka-tool.
+       */
+      emitter: optional string
     }]
 }

@@ -494,7 +494,7 @@ public class EBeanDAOUtilsTest {
 
     Method extractAspectJsonString = EBeanDAOUtils.class.getDeclaredMethod("extractAspectJsonString", String.class);
     extractAspectJsonString.setAccessible(true);
-    assertEquals("{\"lastmodifiedby\":\"0\",\"lastmodifiedon\":\"1\",\"aspect\":{\"value\":\"test\"}}", toJson);
+    assertEquals("{\"lastmodifiedon\":\"1\",\"aspect\":{\"value\":\"test\"},\"lastmodifiedby\":\"0\"}", toJson);
     assertNotNull(RecordUtils.toRecordTemplate(AspectFoo.class, (String) extractAspectJsonString.invoke(EBeanDAOUtils.class, toJson)));
   }
 
@@ -517,6 +517,7 @@ public class EBeanDAOUtilsTest {
     aspect.setCreatedOn(new Timestamp(now - 100));
     aspect.setCreatedBy("fooActor");
     aspect.setEmitTime(12345L);
+    aspect.setEmitter("fooEmitter");
 
     // add aspect to the db
     server.insert(aspect);
