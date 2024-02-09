@@ -318,7 +318,6 @@ public class BaseLocalDAOTest {
     _dummyLocalDAO.add(urn, foo1, _dummyAuditStamp);
     _dummyLocalDAO.add(urn, foo2, _dummyAuditStamp);
     _dummyLocalDAO.add(urn, foo3, _dummyAuditStamp);
-    _dummyLocalDAO.add(urn, null, _dummyAuditStamp);
 
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo1);
     verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo1, _dummyAuditStamp);
@@ -650,6 +649,9 @@ public class BaseLocalDAOTest {
     assertEquals(_dummyLocalDAO.aspectVersionComparator(noVer, noVer), 0);
     assertEquals(_dummyLocalDAO.aspectVersionComparator(noVer, ver010101), -1);
     assertEquals(_dummyLocalDAO.aspectVersionComparator(ver010101, noVer), 1);
+    assertEquals(_dummyLocalDAO.aspectVersionComparator(ver010101, null), 1);
+    assertEquals(_dummyLocalDAO.aspectVersionComparator(null, ver010101), -1);
+    assertEquals(_dummyLocalDAO.aspectVersionComparator(null, null), 0);
   }
 
   // Helper function to create DataMap with fields baseSemanticVersion and value
