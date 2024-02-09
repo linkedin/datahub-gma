@@ -283,7 +283,7 @@ public class BaseLocalDAOTest {
     AspectFoo foo1 = new AspectFoo().setValue("foo1");
     AspectFoo ver010101 = RecordUtils.toRecordTemplate(AspectFoo.class, createVersionDataMap(1, 1, 1, "ver1"));
     AspectFoo ver020101 = RecordUtils.toRecordTemplate(AspectFoo.class, createVersionDataMap(2, 1, 1, "ver2"));
-    AspectFoo ver020201OldValue = RecordUtils.toRecordTemplate(AspectFoo.class, createVersionDataMap(2, 1, 1, "ver2"));
+    AspectFoo ver020201OldValue = RecordUtils.toRecordTemplate(AspectFoo.class, createVersionDataMap(2, 2, 1, "ver2"));
 
     AuditStamp auditStamp2 = makeAuditStamp("tester", 5678L);
     AuditStamp auditStamp3 = makeAuditStamp("tester", 5679L);
