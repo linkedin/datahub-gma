@@ -2,6 +2,7 @@ package com.linkedin.metadata.dao;
 
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
+import com.linkedin.data.DataMap;
 import com.linkedin.data.schema.validation.CoercionMode;
 import com.linkedin.data.schema.validation.RequiredMode;
 import com.linkedin.data.schema.validation.UnrecognizedFieldMode;
@@ -138,6 +139,14 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   private static final String DEFAULT_ID_NAMESPACE = "global";
 
   private static final String BACKFILL_EMITTER = "dao_backfill_endpoint";
+
+  private static final String BASE_SEMANTIC_VERSION = "baseSemanticVersion";
+
+  private static final String MAJOR = "major";
+
+  private static final String MINOR = "minor";
+
+  private static final String PATCH = "patch";
 
   private static final IndefiniteRetention INDEFINITE_RETENTION = new IndefiniteRetention();
 
@@ -449,9 +458,11 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       }
     }
 
-    // Skip saving if there's no actual change
-    if ((oldValue == null && newValue == null) || oldValue != null && newValue != null
-        && equalityTester.equals(oldValue, newValue)) {
+    // Skip saving for the following scenarios
+    if ((oldValue == null && newValue == null) // values are null
+        || (aspectVersionSkipWrite(newValue, oldValue)) // newValue ver < oldValue ver
+        || (oldValue != null && newValue != null && equalityTester.equals(oldValue, newValue)) // values are equal
+    ) {
       return new AddResult<>(oldValue, oldValue, aspectClass);
     }
 
@@ -1407,4 +1418,64 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     }
     return mapToReturn;
   }
+
+  /** Aspect Version Comparator.
+   * @param newValue - Aspect that may have baseSemanticVersion field (by including BaseVersionedAspect).
+   * @param oldValue - Aspect that may have baseSemanticVersion field (by including BaseVersionedAspect).
+   * @return Return integer (-1, 0, 1) depending on if newValue version is (lesser than, equal to, greater than)
+   *     oldValue version.
+   */
+  protected int aspectVersionComparator(@Nullable RecordTemplate newValue, @Nullable RecordTemplate oldValue) {
+    // Attempt to extract baseSemanticVersion from incoming aspects
+    // If aspect or version does not exist, set version as lowest ranking (null)
+    final DataMap newVerMap = newValue != null ? newValue.data().getDataMap(BASE_SEMANTIC_VERSION) : null;
+    final DataMap oldVerMap = oldValue != null ? oldValue.data().getDataMap(BASE_SEMANTIC_VERSION) : null;
+
+    if (newVerMap == null && oldVerMap == null) { // Both inputs are either null or have no version.
+      return 0;
+    } else if (newVerMap == null && oldVerMap != null) { // Old value has version, but new one does not
+      return -1;
+    } else if (newVerMap != null && oldVerMap == null) { // New value has version, but old one does not
+      return 1;
+    } else { //newVerMap != null && oldVerMap != null
+      // Translate baseSemanticVersion into array [major, minor, patch]
+      final int[] newVerArr = { newVerMap.getInteger(MAJOR).intValue(), newVerMap.getInteger(MINOR).intValue(),
+          newVerMap.getInteger(PATCH).intValue()};
+      final int[] oldVerArr = { oldVerMap.getInteger(MAJOR).intValue(), oldVerMap.getInteger(MINOR).intValue(),
+          oldVerMap.getInteger(PATCH).intValue()};
+
+      // Iterate through version numbers from highest to lowest priority (major->minor->patch)
+      for (int i = 0; i < newVerArr.length; i++) {
+        // If version numbers are not equal, return appropriate result
+        if (newVerArr[i] > oldVerArr[i]) {
+          return 1;
+        } else if (newVerArr[i] < oldVerArr[i]) {
+          return -1;
+        }
+        // else version numbers are equal. Continue to version numbers of next priority
+      }
+
+      // newValue version == oldValue version
+      return 0;
+
+    }
+  }
+
+  /** Logic to check aspect versions and skip write if needed.
+   * @param newValue - Aspect that may have baseSemanticVersion field (by including BaseVersionedAspect).
+   * @param oldValue - Aspect that may have baseSemanticVersion field (by including BaseVersionedAspect).
+   * @return Return true if we should skip writing newValue. Return false if we won't skip based on aspect version
+   *     check.
+   */
+  protected boolean aspectVersionSkipWrite(@Nullable RecordTemplate newValue, @Nullable RecordTemplate oldValue) {
+    /* In the scope of version check, the only case where we should skip writing is when comparator returns -1.
+       This includes the following cases:
+           - newValue version < oldValue version
+           - newValue is null and oldValue is not null
+           - newValue has no version, and oldValue has a version
+     */
+    return aspectVersionComparator(newValue, oldValue) == -1;
+  }
+
+
 }
