@@ -1444,13 +1444,15 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       final int[] oldVerArr = { oldVerMap.getInteger(MAJOR).intValue(), oldVerMap.getInteger(MINOR).intValue(),
           oldVerMap.getInteger(PATCH).intValue()};
 
-      // Iterate through baseSemanticVersions from highest to lowest priority and return appropriate result
+      // Iterate through version numbers from highest to lowest priority (major->minor->patch)
       for (int i = 0; i < newVerArr.length; i++) {
+        // If version numbers are not equal, return appropriate result
         if (newVerArr[i] > oldVerArr[i]) {
           return 1;
         } else if (newVerArr[i] < oldVerArr[i]) {
           return -1;
         }
+        // else version numbers are equal. Continue to version numbers of next priority
       }
 
       // newValue version == oldValue version
