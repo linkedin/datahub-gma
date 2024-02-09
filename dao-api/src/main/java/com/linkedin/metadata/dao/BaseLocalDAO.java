@@ -1425,7 +1425,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @return Return integer (-1, 0, 1) depending on if newValue version is (lesser than, equal to, greater than)
    *     oldValue version.
    */
-  protected int aspectVersionComparator(RecordTemplate newValue, RecordTemplate oldValue) {
+  protected int aspectVersionComparator(@Nullable RecordTemplate newValue, @Nullable RecordTemplate oldValue) {
     // Attempt to extract baseSemanticVersion from incoming aspects
     // If aspect or version does not exist, set version as lowest ranking (null)
     final DataMap newVerMap = newValue != null ? newValue.data().getDataMap(BASE_SEMANTIC_VERSION) : null;
@@ -1467,7 +1467,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @return Return true if we should skip writing newValue. Return false if we won't skip based on aspect version
    *     check.
    */
-  protected boolean aspectVersionSkipWrite(RecordTemplate newValue, RecordTemplate oldValue) {
+  protected boolean aspectVersionSkipWrite(@Nullable RecordTemplate newValue, @Nullable RecordTemplate oldValue) {
     /* In the scope of version check, the only case where we should skip writing is when comparator returns -1.
        This includes the following cases:
            - newValue version < oldValue version
