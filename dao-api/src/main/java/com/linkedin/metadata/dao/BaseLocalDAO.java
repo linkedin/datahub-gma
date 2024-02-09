@@ -460,7 +460,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     // Skip saving for the following scenarios
     if ((oldValue == null && newValue == null) // values are null
-        || (aspectVersionComparator(newValue, oldValue) < 0) // newValue ver < oldValue ver
+        || (aspectVersionSkipWrite(newValue, oldValue)) // newValue ver < oldValue ver
         || (oldValue != null && newValue != null && equalityTester.equals(oldValue, newValue)) // values are equal
     ) {
       return new AddResult<>(oldValue, oldValue, aspectClass);
@@ -1456,6 +1456,23 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       // newValue version == oldValue version
       return 0;
 
+    }
+  }
+
+  /** Logic to check aspect versions and skip write if needed.
+   * @param newValue - Aspect that may have baseSemanticVersion field (by including BaseVersionedAspect).
+   * @param oldValue - Aspect that may have baseSemanticVersion field (by including BaseVersionedAspect).
+   * @return Return true if we should skip writing newValue. Return false if we won't skip based on aspect version
+   *     check.
+   */
+  protected boolean aspectVersionSkipWrite(RecordTemplate newValue, RecordTemplate oldValue) {
+    /* In the scope of version check, the only case where we should skip writing is when comparator returns -1.
+       This includes the following cases:
+           - newValue version < oldValue version
+           - newValue is null and oldValue is not null
+           - newValue has no version, and oldValue has a version
+     */
+    return aspectVersionComparator(newValue, oldValue) == -1;
     }
   }
 

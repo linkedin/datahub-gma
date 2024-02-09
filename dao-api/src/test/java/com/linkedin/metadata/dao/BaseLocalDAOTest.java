@@ -637,21 +637,24 @@ public class BaseLocalDAOTest {
     verifyNoMoreInteractions(_mockTrackingEventProducer);
   }
 
-  @Test(description = "Test aspectVersionComparator")
-  public void testAspectVersionComparator() throws URISyntaxException {
+  @Test(description = "Test aspectVersionSkipWrite")
+  public void testAspectVersionSkipWrite() throws URISyntaxException {
     AspectFoo ver010101 = RecordUtils.toRecordTemplate(AspectFoo.class, createVersionDataMap(1, 1, 1, "testValue1"));
     AspectFoo ver020101 = RecordUtils.toRecordTemplate(AspectFoo.class, createVersionDataMap(2, 1, 1, "testValue2"));
     AspectFoo noVer = new AspectFoo().setValue("noVer");
 
-    assertEquals(_dummyLocalDAO.aspectVersionComparator(ver010101, ver010101), 0);
-    assertEquals(_dummyLocalDAO.aspectVersionComparator(ver010101, ver020101), -1);
-    assertEquals(_dummyLocalDAO.aspectVersionComparator(ver020101, ver010101), 1);
-    assertEquals(_dummyLocalDAO.aspectVersionComparator(noVer, noVer), 0);
-    assertEquals(_dummyLocalDAO.aspectVersionComparator(noVer, ver010101), -1);
-    assertEquals(_dummyLocalDAO.aspectVersionComparator(ver010101, noVer), 1);
-    assertEquals(_dummyLocalDAO.aspectVersionComparator(ver010101, null), 1);
-    assertEquals(_dummyLocalDAO.aspectVersionComparator(null, ver010101), -1);
-    assertEquals(_dummyLocalDAO.aspectVersionComparator(null, null), 0);
+    // Cases where the version check will force writing to be skipped
+    assertEquals(_dummyLocalDAO.aspectVersionSkipWrite(ver010101, ver020101), true);
+    assertEquals(_dummyLocalDAO.aspectVersionSkipWrite(noVer, ver010101), true);
+    assertEquals(_dummyLocalDAO.aspectVersionSkipWrite(null, ver010101), true);
+
+    // Cases where the version check will NOT force writing to be skipped
+    assertEquals(_dummyLocalDAO.aspectVersionSkipWrite(ver010101, ver010101), false);
+    assertEquals(_dummyLocalDAO.aspectVersionSkipWrite(ver020101, ver010101), false);
+    assertEquals(_dummyLocalDAO.aspectVersionSkipWrite(noVer, noVer), false);
+    assertEquals(_dummyLocalDAO.aspectVersionSkipWrite(ver010101, noVer), false);
+    assertEquals(_dummyLocalDAO.aspectVersionSkipWrite(ver010101, null), false);
+    assertEquals(_dummyLocalDAO.aspectVersionSkipWrite(null, null), false);
   }
 
   // Helper function to create DataMap with fields baseSemanticVersion and value
