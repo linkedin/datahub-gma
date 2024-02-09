@@ -283,18 +283,21 @@ public class BaseLocalDAOTest {
     AspectFoo foo1 = new AspectFoo().setValue("foo1");
     AspectFoo ver010101 = RecordUtils.toRecordTemplate(AspectFoo.class, createVersionDataMap(1, 1, 1, "ver1"));
     AspectFoo ver020101 = RecordUtils.toRecordTemplate(AspectFoo.class, createVersionDataMap(2, 1, 1, "ver2"));
+    AspectFoo ver020201OldValue = RecordUtils.toRecordTemplate(AspectFoo.class, createVersionDataMap(2, 1, 1, "ver2"));
 
     AuditStamp auditStamp2 = makeAuditStamp("tester", 5678L);
     AuditStamp auditStamp3 = makeAuditStamp("tester", 5679L);
+    AuditStamp auditStamp4 = makeAuditStamp("tester", 5680L);
 
     _dummyLocalDAO.setAlwaysEmitAuditEvent(false);
     expectGetLatest(urn, AspectFoo.class,
         Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(foo1, _dummyAuditStamp),
-            makeAspectEntry(ver010101, auditStamp2), makeAspectEntry(ver020101, auditStamp3)));
+            makeAspectEntry(ver010101, auditStamp2), makeAspectEntry(ver020101, auditStamp3), makeAspectEntry(ver020201OldValue, auditStamp4)));
 
     _dummyLocalDAO.add(urn, foo1, _dummyAuditStamp);
     _dummyLocalDAO.add(urn, ver010101, auditStamp2);
     _dummyLocalDAO.add(urn, ver020101, auditStamp3);
+    _dummyLocalDAO.add(urn, ver020201OldValue, auditStamp4);
 
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo1);
     verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo1, _dummyAuditStamp);
@@ -302,6 +305,8 @@ public class BaseLocalDAOTest {
     verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, foo1, ver010101, auditStamp2);
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, ver010101, ver020101);
     verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, ver010101, ver020101, auditStamp3);
+    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, ver020101, ver020201OldValue);
+    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, ver020101, ver020201OldValue, auditStamp3);
     verifyNoMoreInteractions(_mockEventProducer);
   }
 
