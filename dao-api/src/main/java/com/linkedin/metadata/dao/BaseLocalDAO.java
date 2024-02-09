@@ -140,6 +140,14 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   private static final String BACKFILL_EMITTER = "dao_backfill_endpoint";
 
+  private static final String BASE_SEMANTIC_VERSION = "baseSemanticVersion";
+
+  private static final String MAJOR = "major";
+
+  private static final String MINOR = "minor";
+
+  private static final String PATCH = "patch";
+
   private static final IndefiniteRetention INDEFINITE_RETENTION = new IndefiniteRetention();
 
   private static final int DEFAULT_MAX_TRANSACTION_RETRY = 3;
@@ -1417,24 +1425,24 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @return Return integer (-1, 0, 1) depending on if newValue version is (lesser than, equal to, greater than)
    *     oldValue version.
    */
-  protected int aspectVersionComparator(@Nonnull RecordTemplate newValue, @Nonnull RecordTemplate oldValue) {
+  protected int aspectVersionComparator(RecordTemplate newValue, RecordTemplate oldValue) {
     // Attempt to extract baseSemanticVersion from incoming aspects
     // If aspect or version does not exist, set version as lowest ranking (null)
-    final DataMap newVerMap = newValue != null ? newValue.data().getDataMap("baseSemanticVersion") : null;
-    final DataMap oldVerMap = oldValue != null ? oldValue.data().getDataMap("baseSemanticVersion") : null;
+    final DataMap newVerMap = newValue != null ? newValue.data().getDataMap(BASE_SEMANTIC_VERSION) : null;
+    final DataMap oldVerMap = oldValue != null ? oldValue.data().getDataMap(BASE_SEMANTIC_VERSION) : null;
 
-    if (newVerMap == null && oldVerMap == null) {
+    if (newVerMap == null && oldVerMap == null) { // Both inputs are either null or have no version.
       return 0;
-    } else if (newVerMap == null && oldVerMap != null) {
+    } else if (newVerMap == null && oldVerMap != null) { // Old value has version, but new one does not
       return -1;
-    } else if (newVerMap != null && oldVerMap == null) {
+    } else if (newVerMap != null && oldVerMap == null) { // New value has version, but old one does not
       return 1;
     } else { //newVerMap != null && oldVerMap != null
       // Translate baseSemanticVersion into array [major, minor, patch]
-      final int[] newVerArr = { newVerMap.getInteger("major").intValue(), newVerMap.getInteger("minor").intValue(),
-          newVerMap.getInteger("patch").intValue()};
-      final int[] oldVerArr = { oldVerMap.getInteger("major").intValue(), oldVerMap.getInteger("minor").intValue(),
-          oldVerMap.getInteger("patch").intValue()};
+      final int[] newVerArr = { newVerMap.getInteger(MAJOR).intValue(), newVerMap.getInteger(MINOR).intValue(),
+          newVerMap.getInteger(PATCH).intValue()};
+      final int[] oldVerArr = { oldVerMap.getInteger(MAJOR).intValue(), oldVerMap.getInteger(MINOR).intValue(),
+          oldVerMap.getInteger(PATCH).intValue()};
 
       // Iterate through baseSemanticVersions from highest to lowest priority and return appropriate result
       for (int i = 0; i < newVerArr.length; i++) {

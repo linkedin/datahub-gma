@@ -318,6 +318,7 @@ public class BaseLocalDAOTest {
     _dummyLocalDAO.add(urn, foo1, _dummyAuditStamp);
     _dummyLocalDAO.add(urn, foo2, _dummyAuditStamp);
     _dummyLocalDAO.add(urn, foo3, _dummyAuditStamp);
+    _dummyLocalDAO.add(urn, null, _dummyAuditStamp);
 
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo1);
     verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo1, _dummyAuditStamp);
