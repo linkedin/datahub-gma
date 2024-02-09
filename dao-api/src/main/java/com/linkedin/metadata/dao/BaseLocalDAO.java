@@ -1473,7 +1473,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
            - newValue has no version, and oldValue has a version
      */
     return aspectVersionComparator(newValue, oldValue) == -1;
-    }
   }
+
 
 }
