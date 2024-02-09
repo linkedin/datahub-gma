@@ -38,6 +38,7 @@ import io.ebean.DuplicateKeyException;
 import io.ebean.EbeanServer;
 import io.ebean.PagedList;
 import io.ebean.Query;
+import io.ebean.SqlRow;
 import io.ebean.SqlUpdate;
 import io.ebean.Transaction;
 import io.ebean.config.ServerConfig;
@@ -1099,6 +1100,39 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     return toListResult(urns, null, pagedList, start);
   }
 
+  /*
+    * List all URNs of the entity registered in the DAO, paginated by last urn.
+    *
+    * This method is old schema mode use only. Seek alternatives in other schemas.
+   */
+  @Deprecated
+  protected List<URN> listUrnsPaginatedByLastUrn(@Nullable URN lastUrn, int pageSize) {
+    if (_schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
+      throw new UnsupportedOperationException("this method is only allowed in OLD_SCHEMA_ONLY mode");
+    }
+
+    final String query = getDistinctUrnsOfEntitySqlQuery(lastUrn, pageSize);
+    final List<SqlRow> sqlRows = _server.createSqlQuery(query).setFirstRow(0).findList();
+    return sqlRows.stream().map(sqlRow -> getUrn(sqlRow.getString(URN_COLUMN))).collect(Collectors.toList());
+  }
+
+  private String getDistinctUrnsOfEntitySqlQuery(URN lastUrn, int pageSize) {
+    final String entityType = ModelUtils.getEntityTypeFromUrnClass(_urnClass);
+    final String entityUrnPrefix = "urn:li:" + entityType + ":%";
+
+    StringBuilder sb = new StringBuilder();
+    sb.append(String.format("SELECT DISTINCT(%s) FROM metadata_aspect ", URN_COLUMN));
+    sb.append(String.format("WHERE %s LIKE '%s' ", URN_COLUMN, entityUrnPrefix));
+    sb.append(String.format("AND version = %d ", LATEST_VERSION));
+    sb.append(String.format("AND metadata != '%s' ", DELETED_VALUE));
+    if (lastUrn != null) {
+      sb.append(String.format("AND %s > '%s' ", URN_COLUMN, lastUrn));
+    }
+    sb.append(String.format("ORDER BY %s asc ", URN_COLUMN));
+    sb.append(String.format("LIMIT %d ", pageSize));
+    return sb.toString();
+  }
+
   @Nonnull
   <ASPECT extends RecordTemplate> ListResult<ASPECT> getListResult(@Nonnull Class<ASPECT> aspectClass,
       @Nonnull PagedList<EbeanMetadataAspect> pagedList, int start) {
@@ -1401,6 +1435,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    *
    * <p>NOTE: Currently this works for upto 10 filter conditions.
    *
+   * <p>This method can only be used in old schema mode if the provided indexFilter and indexSortCriterion are null.
+   *
    * @param indexFilter {@link IndexFilter} containing filter conditions to be applied
    * @param indexSortCriterion {@link IndexSortCriterion} sorting criteria to be applied
    * @param lastUrn last urn of the previous fetched page. This eliminates the need to use offset which
@@ -1412,9 +1448,12 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Nonnull
   public List<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       @Nullable URN lastUrn, int pageSize) {
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY && !(indexFilter == null && indexSortCriterion == null)) {
+      throw new UnsupportedOperationException("listUrns with nonnull index filter is only supported in new schema.");
+    }
 
     if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
-      throw new UnsupportedOperationException("listUrns with index filter is only supported in new schema.");
+      return listUrnsPaginatedByLastUrn(lastUrn, pageSize);
     }
 
     return _localAccess.listUrns(indexFilter, indexSortCriterion, lastUrn, pageSize);
