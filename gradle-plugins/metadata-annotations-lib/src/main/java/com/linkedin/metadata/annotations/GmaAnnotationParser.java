@@ -52,7 +52,7 @@ public class GmaAnnotationParser {
       // we need to augment GmaAnnotation with SearchIndex metadata
       if (!gmaAnnotation.isPresent()) {
         // no top-level annotations, so we need to create one and fill out SearchIndex metadata
-        gmaAnnotation = Optional.of(new GmaAnnotation().setSearch(new SearchAnnotation().setIndex(searchIndexFields)));
+        return Optional.of(new GmaAnnotation().setSearch(new SearchAnnotation().setIndex(searchIndexFields)));
       } else {
         // yes top-level annotations, so we need to just fill out SearchIndex metadata
         gmaAnnotation.get().setSearch(new SearchAnnotation().setIndex(searchIndexFields));
@@ -102,7 +102,7 @@ public class GmaAnnotationParser {
    * Currently does not perform any validation checks.
    */
   private @Nonnull IndexAnnotationArrayMap parseSearchIndexFields(@Nonnull DataSchema schema) {
-    Map<String, IndexAnnotationArray> javaMap = new HashMap<>();
+    Map<String, IndexAnnotationArray> fieldNameToEntityUrnClassNames = new HashMap<>();
 
     // only Record types will have fields with SearchIndex annotations
     if (schema.getType().equals(DataSchema.Type.RECORD)) {
@@ -125,10 +125,10 @@ public class GmaAnnotationParser {
         // TODO: at this point, run any desired validations just like parseTopLevelAnnotations()'s flow of logic
 
         final IndexAnnotationArray fieldIndexAnnotations = DataTemplateUtil.wrap(indexObj, IndexAnnotationArray.class);
-        javaMap.put(f.getName(), fieldIndexAnnotations);
+        fieldNameToEntityUrnClassNames.put(f.getName(), fieldIndexAnnotations);
       }
     }
 
-    return new IndexAnnotationArrayMap(javaMap);
+    return new IndexAnnotationArrayMap(fieldNameToEntityUrnClassNames);
   }
 }

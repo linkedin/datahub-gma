@@ -12,15 +12,18 @@ The annotation currently has the following properties.
 
 ## `@gma.search.index`
 
-This annotation is put onto fields inside an Aspect model and consists of an array specifying:
+This annotation is put onto top-level fields inside an Aspect model and consists of an array specifying:
 
-1. the fully qualified Java class names of the entity urns that would like to specify Search options
+1. the fully qualified Java class names of the entity urns that would like to specify Search options (ex.
+   `com.linkedin.common.DatasetUrn`)
    - the entity urn(s) MUST also appear in the _@gma.aspect.entity_ or _@gma.aspect.entities_ annotation
 2. _(to be expanded...)_
 
-> LinkedIn internal: as of 02/06/2024, the first iteration of Code Generation will support only adding this annotation
-> as a way to use a barebones set of Search defaults; no customization is supported at this level yet. (TODO: adding a
-> reference link would be nice to some wiki :)
+> LinkedIn internal: As of 02/06/2024, the first iteration of Code Generation will support only adding this annotation
+> as a way to use a barebones set of Search defaults; no customization is supported at this level yet. Limitations and
+> other functionality details are described in
+> [RFC - No Code Gen Search Onboarding](https://docs.google.com/document/d/1QgSnP8td8yWft_E-KBxt4wmYg2yWKReuH-JtCWa-4DY).
+> (TODO: convert to final Wiki link when done)
 
 Example:
 
