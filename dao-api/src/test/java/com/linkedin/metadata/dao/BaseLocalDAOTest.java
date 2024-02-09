@@ -306,7 +306,7 @@ public class BaseLocalDAOTest {
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, ver010101, ver020101);
     verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, ver010101, ver020101, auditStamp3);
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, ver020101, ver020201OldValue);
-    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, ver020101, ver020201OldValue, auditStamp3);
+    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, ver020101, ver020201OldValue, auditStamp4);
     verifyNoMoreInteractions(_mockEventProducer);
   }
 
