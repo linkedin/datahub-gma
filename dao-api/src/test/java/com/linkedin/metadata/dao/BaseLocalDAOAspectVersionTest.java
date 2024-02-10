@@ -3,7 +3,6 @@ package com.linkedin.metadata.dao;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.data.DataMap;
 import com.linkedin.data.template.RecordTemplate;
-import com.linkedin.data.template.SetMode;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
@@ -11,15 +10,13 @@ import com.linkedin.metadata.dao.retention.TimeBasedRetention;
 import com.linkedin.metadata.dao.retention.VersionBasedRetention;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.utils.RecordUtils;
-import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
-import com.linkedin.testing.AspectBar;
-import com.linkedin.testing.AspectFoo;
-import com.linkedin.testing.EntityAspectUnion;
+import com.linkedin.testing.AspectVersioned;
+import com.linkedin.testing.EntityAspectUnionVersioned;
 import com.linkedin.testing.urn.FooUrn;
 import java.net.URISyntaxException;
 import java.sql.Timestamp;
@@ -30,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import javax.annotation.Nonnull;
@@ -53,21 +49,21 @@ public class BaseLocalDAOAspectVersionTest {
     }
   }
 
-  static class DummyLocalDAO extends BaseLocalDAO<EntityAspectUnion, FooUrn> {
+  static class DummyLocalDAO extends BaseLocalDAO<EntityAspectUnionVersioned, FooUrn> {
 
     private final BiFunction<FooUrn, Class<? extends RecordTemplate>, AspectEntry> _getLatestFunction;
     private final DummyTransactionRunner _transactionRunner;
 
     public DummyLocalDAO(BiFunction<FooUrn, Class<? extends RecordTemplate>, AspectEntry> getLatestFunction,
         BaseMetadataEventProducer eventProducer, DummyTransactionRunner transactionRunner) {
-      super(EntityAspectUnion.class, eventProducer, FooUrn.class);
+      super(EntityAspectUnionVersioned.class, eventProducer, FooUrn.class);
       _getLatestFunction = getLatestFunction;
       _transactionRunner = transactionRunner;
     }
 
     public DummyLocalDAO(BiFunction<FooUrn, Class<? extends RecordTemplate>, AspectEntry> getLatestFunction,
         BaseTrackingMetadataEventProducer eventProducer, BaseTrackingManager trackingManager, DummyTransactionRunner transactionRunner) {
-      super(EntityAspectUnion.class, eventProducer, trackingManager, FooUrn.class);
+      super(EntityAspectUnionVersioned.class, eventProducer, trackingManager, FooUrn.class);
       _getLatestFunction = getLatestFunction;
       _transactionRunner = transactionRunner;
     }
@@ -245,19 +241,19 @@ public class BaseLocalDAOAspectVersionTest {
   @Test(description = "Test MAE emission triggered by incoming aspects with higher versions")
   public void testMAEEmissionOnVerChange() throws URISyntaxException {
     FooUrn urn = new FooUrn(1);
-    AspectFoo foo1 = new AspectFoo().setValue("foo1");
-    AspectFoo ver010101 = RecordUtils.toRecordTemplate(AspectFoo.class, createVersionDataMap(1, 1, 1, "ver1"));
-    AspectFoo ver020101 = RecordUtils.toRecordTemplate(AspectFoo.class, createVersionDataMap(2, 1, 1, "ver2"));
+    AspectVersioned foo1 = new AspectVersioned().setValue("foo1");
+    AspectVersioned ver010101 = RecordUtils.toRecordTemplate(AspectVersioned.class, createVersionDataMap(1, 1, 1, "ver1"));
+    AspectVersioned ver020101 = RecordUtils.toRecordTemplate(AspectVersioned.class, createVersionDataMap(2, 1, 1, "ver2"));
 
     // Test that a version bump without a value change will still cause aspect to be written
-    AspectFoo ver020201OldValue = RecordUtils.toRecordTemplate(AspectFoo.class, createVersionDataMap(2, 2, 1, "ver2"));
+    AspectVersioned ver020201OldValue = RecordUtils.toRecordTemplate(AspectVersioned.class, createVersionDataMap(2, 2, 1, "ver2"));
 
     AuditStamp auditStamp2 = makeAuditStamp("tester", 5678L);
     AuditStamp auditStamp3 = makeAuditStamp("tester", 5679L);
     AuditStamp auditStamp4 = makeAuditStamp("tester", 5680L);
 
     _dummyLocalDAO.setAlwaysEmitAuditEvent(false);
-    expectGetLatest(urn, AspectFoo.class,
+    expectGetLatest(urn, AspectVersioned.class,
         Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(foo1, _dummyAuditStamp),
             makeAspectEntry(ver010101, auditStamp2), makeAspectEntry(ver020101, auditStamp3), makeAspectEntry(ver020201OldValue, auditStamp4)));
 
@@ -281,12 +277,12 @@ public class BaseLocalDAOAspectVersionTest {
   @Test(description = "Test that no MAEs are emitted if incoming aspect has a lower version than existing aspect")
   public void testMAEEmissionVerNoChange() throws URISyntaxException {
     FooUrn urn = new FooUrn(1);
-    AspectFoo ver020101 = RecordUtils.toRecordTemplate(AspectFoo.class, createVersionDataMap(2, 1, 1, "ver2"));
-    AspectFoo foo1 = new AspectFoo().setValue("foo");
-    AspectFoo ver010101 = RecordUtils.toRecordTemplate(AspectFoo.class, createVersionDataMap(1, 1, 1, "ver1"));
+    AspectVersioned ver020101 = RecordUtils.toRecordTemplate(AspectVersioned.class, createVersionDataMap(2, 1, 1, "ver2"));
+    AspectVersioned foo1 = new AspectVersioned().setValue("foo");
+    AspectVersioned ver010101 = RecordUtils.toRecordTemplate(AspectVersioned.class, createVersionDataMap(1, 1, 1, "ver1"));
 
     _dummyLocalDAO.setAlwaysEmitAuditEvent(false);
-    expectGetLatest(urn, AspectFoo.class,
+    expectGetLatest(urn, AspectVersioned.class,
         Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(ver020101, _dummyAuditStamp)));
 
     _dummyLocalDAO.add(urn, ver020101, _dummyAuditStamp);
@@ -305,9 +301,9 @@ public class BaseLocalDAOAspectVersionTest {
 
   @Test(description = "Test aspectVersionSkipWrite")
   public void testAspectVersionSkipWrite() throws URISyntaxException {
-    AspectFoo ver010101 = RecordUtils.toRecordTemplate(AspectFoo.class, createVersionDataMap(1, 1, 1, "testValue1"));
-    AspectFoo ver020101 = RecordUtils.toRecordTemplate(AspectFoo.class, createVersionDataMap(2, 1, 1, "testValue2"));
-    AspectFoo noVer = new AspectFoo().setValue("noVer");
+    AspectVersioned ver010101 = RecordUtils.toRecordTemplate(AspectVersioned.class, createVersionDataMap(1, 1, 1, "testValue1"));
+    AspectVersioned ver020101 = RecordUtils.toRecordTemplate(AspectVersioned.class, createVersionDataMap(2, 1, 1, "testValue2"));
+    AspectVersioned noVer = new AspectVersioned().setValue("noVer");
 
     // Cases where the version check will force writing to be skipped
     assertEquals(_dummyLocalDAO.aspectVersionSkipWrite(ver010101, ver020101), true);
