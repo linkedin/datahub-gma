@@ -89,17 +89,17 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * @return List of urns from local secondary index that satisfy the given filter conditions
    */
   List<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
-      @Nullable URN lastUrn, int pageSize);
+      @Nullable URN lastUrn, int pageSize, boolean nonDollarVirtualColumnsEnabled);
 
   /**
-   * Similar to {@link #listUrns(IndexFilter, IndexSortCriterion, Urn, int)} but returns a list result with pagination
+   * Similar to {@link #listUrns(IndexFilter, IndexSortCriterion, Urn, int, boolean)} but returns a list result with pagination
    * information.
    *
    * @param start the starting offset of the page
    * @return a {@link ListResult} containing a list of urns and other pagination information
    */
   ListResult<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
-      int start, int pageSize);
+      int start, int pageSize, boolean nonDollarVirtualColumnsEnabled);
 
   /**
    * Returns a boolean representing if an Urn has any Aspects associated with it (i.e. if it exists in the DB).
@@ -109,19 +109,13 @@ public interface IEbeanLocalAccess<URN extends Urn> {
   boolean exists(@Nonnull URN urn);
 
   /**
-   *  Gets the count of an aggregation specified by the aspect and field to group on.
+   * Gets the count of an aggregation specified by the aspect and field to group on.
    * @param indexFilter {@link IndexFilter} that defines the filter conditions
    * @param indexGroupByCriterion {@link IndexGroupByCriterion} that defines the aspect to group by
    * @return map of the field to the count
    */
   @Nonnull
-  default Map<String, Long> countAggregate(@Nullable IndexFilter indexFilter,
-      @Nonnull IndexGroupByCriterion indexGroupByCriterion) {
-        return countAggregate(indexFilter, indexGroupByCriterion, false);
-      }
-
-    @Nonnull
-    Map<String, Long> countAggregate(@Nullable IndexFilter indexFilter,
+  Map<String, Long> countAggregate(@Nullable IndexFilter indexFilter,
       @Nonnull IndexGroupByCriterion indexGroupByCriterion, boolean nonDollarVirtualColumnsEnabled);
 
   /**

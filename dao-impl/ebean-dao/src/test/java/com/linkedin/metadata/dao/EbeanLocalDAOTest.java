@@ -129,16 +129,19 @@ public class EbeanLocalDAOTest {
   private final FindMethodology _findMethodology;
 
   private final boolean _enableChangeLog;
+  private final boolean _nonDollarVirtualColumnEnabled;
 
   private static final String NEW_SCHEMA_CREATE_ALL_SQL = "ebean-local-dao-create-all.sql";
   private static final String GMA_CREATE_ALL_SQL = "gma-create-all.sql";
   private static final String GMA_DROP_ALL_SQL = "gma-drop-all.sql";
 
   @Factory(dataProvider = "inputList")
-  public EbeanLocalDAOTest(SchemaConfig schemaConfig, FindMethodology findMethodology, boolean enableChangeLog) {
+  public EbeanLocalDAOTest(SchemaConfig schemaConfig, FindMethodology findMethodology, boolean enableChangeLog,
+      boolean nonDollarVirtualColumnEnabled) {
     _schemaConfig = schemaConfig;
     _findMethodology = findMethodology;
     _enableChangeLog = enableChangeLog;
+    _nonDollarVirtualColumnEnabled = nonDollarVirtualColumnEnabled;
   }
 
   @Nonnull
@@ -155,20 +158,21 @@ public class EbeanLocalDAOTest {
     return new Object[][]{
 
         // tests with change history enabled (legacy mode)
-        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, true},
-        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, true},
-        {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID, true},
-        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, true},
-        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, true},
-        {SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL, true},
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, true, true},
+        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, true, true},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID, true, true},
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, true, false},
+        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, true, false},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL, true, false},
 
         // tests with change history disabled (cold-archive mode)
-        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, false},
-        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, false},
-        {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID, false},
-        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, false},
-        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, false},
-        {SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL, false},
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, false, true},
+        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, false, true},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID, false, true},
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, false, false},
+        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, false, false},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL, false, false},
+
     };
   }
 
@@ -2997,7 +3001,7 @@ public class EbeanLocalDAOTest {
     */
 
     String aspectColumnName = isUrn(aspectName) ? null : SQLSchemaUtils.getAspectColumnName(aspectName); // e.g. a_aspectfoo;
-    String fullIndexColumnName = SQLSchemaUtils.getGeneratedColumnName(aspectName, pathName); // e.g. i_aspectfoo$path1$value1
+    String fullIndexColumnName = SQLSchemaUtils.getGeneratedColumnName(aspectName, pathName, false); // e.g. i_aspectfoo$path1$value1
 
     String checkColumnExistance = String.format("SELECT * FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '%s' AND"
         + " TABLE_NAME = '%s' AND COLUMN_NAME = '%s'", _server.getName(), getTableName(urn), fullIndexColumnName);

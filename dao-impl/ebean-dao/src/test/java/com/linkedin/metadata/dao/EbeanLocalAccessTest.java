@@ -144,7 +144,7 @@ public class EbeanLocalAccessTest {
 
     // When: list out results with start = 5 and pageSize = 5
 
-    ListResult<FooUrn> listUrns = _ebeanLocalAccessFoo.listUrns(indexFilter, indexSortCriterion, 5, 5);
+    ListResult<FooUrn> listUrns = _ebeanLocalAccessFoo.listUrns(indexFilter, indexSortCriterion, 5, 5, false);
 
     assertEquals(5, listUrns.getValues().size());
     assertEquals(5, listUrns.getPageSize());
@@ -178,7 +178,7 @@ public class EbeanLocalAccessTest {
     FooUrn lastUrn = new FooUrn(29);
 
     // When: list out results with lastUrn = 'urn:li:foo:29' and pageSize = 5
-    List<FooUrn> result1 = _ebeanLocalAccessFoo.listUrns(indexFilter, indexSortCriterion, lastUrn, 5);
+    List<FooUrn> result1 = _ebeanLocalAccessFoo.listUrns(indexFilter, indexSortCriterion, lastUrn, 5, false);
 
     // Expect: 5 rows are returns (30~34) and the first element is 'urn:li:foo:30'
     assertEquals(5, result1.size());
@@ -190,14 +190,14 @@ public class EbeanLocalAccessTest {
     IndexCriterion indexCriterion3 = new IndexCriterion().setAspect(FooUrn.class.getCanonicalName());
     indexCriterionArray = new IndexCriterionArray(Collections.singleton(indexCriterion3));
     IndexFilter filter = new IndexFilter().setCriteria(indexCriterionArray);
-    List<FooUrn> result2 = _ebeanLocalAccessFoo.listUrns(filter, indexSortCriterion, lastUrn, 5);
+    List<FooUrn> result2 = _ebeanLocalAccessFoo.listUrns(filter, indexSortCriterion, lastUrn, 5, false);
 
     // Expect: 5 rows are returns (35~39) and the first element is 'urn:li:foo:35'
     assertEquals(5, result2.size());
     assertEquals("35", result2.get(0).getId());
 
     // When: list urns with no filter, no sorting criterion, no last urn.
-    List<FooUrn> result3 = _ebeanLocalAccessFoo.listUrns(null, null, null, 10);
+    List<FooUrn> result3 = _ebeanLocalAccessFoo.listUrns(null, null, null, 10, false);
 
     // 0, 1, 10, 11, 12, 13, 14, 15, 16, 17
     assertEquals(result3.size(), 10);
@@ -205,7 +205,7 @@ public class EbeanLocalAccessTest {
     assertEquals(result3.get(9).getId(), "17");
 
     // When: list urns with no filter, no sorting criterion
-    List<FooUrn> result4 = _ebeanLocalAccessFoo.listUrns(null, null, new FooUrn(17), 10);
+    List<FooUrn> result4 = _ebeanLocalAccessFoo.listUrns(null, null, new FooUrn(17), 10, false);
 
     // 18, 19, 2, 20, 21, 22, 23, 24, 25, 26
     assertEquals(result4.size(), 10);
@@ -273,7 +273,7 @@ public class EbeanLocalAccessTest {
     IndexGroupByCriterion indexGroupByCriterion = new IndexGroupByCriterion();
     indexGroupByCriterion.setPath("/value");
     indexGroupByCriterion.setAspect(AspectFoo.class.getCanonicalName());
-    Map<String, Long> countMap = _ebeanLocalAccessFoo.countAggregate(indexFilter, indexGroupByCriterion);
+    Map<String, Long> countMap = _ebeanLocalAccessFoo.countAggregate(indexFilter, indexGroupByCriterion, false);
 
     // Expect: there is 1 count for value 25
     assertEquals(countMap.get("25"), Long.valueOf(1));
@@ -285,7 +285,7 @@ public class EbeanLocalAccessTest {
     aspectFoo.setValue(String.valueOf(25));
     AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
     _ebeanLocalAccessFoo.add(fooUrn, aspectFoo, AspectFoo.class, auditStamp, null);
-    countMap = _ebeanLocalAccessFoo.countAggregate(indexFilter, indexGroupByCriterion);
+    countMap = _ebeanLocalAccessFoo.countAggregate(indexFilter, indexGroupByCriterion, false);
 
     // Expect: there are 2 counts for value 25
     assertEquals(countMap.get("25"), Long.valueOf(2));

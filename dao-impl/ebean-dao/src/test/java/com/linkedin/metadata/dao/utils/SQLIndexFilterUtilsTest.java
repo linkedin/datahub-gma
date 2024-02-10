@@ -22,12 +22,18 @@ public class SQLIndexFilterUtilsTest {
     assertEquals(indexSortCriterion.getOrder(), SortOrder.ASCENDING);
     assertEquals(indexSortCriterion.getAspect(), AspectFoo.class.getCanonicalName());
 
-    String sql = SQLIndexFilterUtils.parseSortCriteria(indexSortCriterion);
-    assertEquals(sql, "ORDER BY i_aspectfoo$id ASC");
+    String sql1 = SQLIndexFilterUtils.parseSortCriteria(indexSortCriterion, false);
+    assertEquals(sql1, "ORDER BY i_aspectfoo$id ASC");
+
+    String sql2 = SQLIndexFilterUtils.parseSortCriteria(indexSortCriterion, true);
+    assertEquals(sql2, "ORDER BY i_aspectfoo0id ASC");
 
     indexSortCriterion.setOrder(SortOrder.DESCENDING);
-    sql = SQLIndexFilterUtils.parseSortCriteria(indexSortCriterion);
-    assertEquals(sql, "ORDER BY i_aspectfoo$id DESC");
+    sql1 = SQLIndexFilterUtils.parseSortCriteria(indexSortCriterion, false);
+    assertEquals(sql1, "ORDER BY i_aspectfoo$id DESC");
+
+    sql2 = SQLIndexFilterUtils.parseSortCriteria(indexSortCriterion, true);
+    assertEquals(sql2, "ORDER BY i_aspectfoo0id DESC");
   }
 
   @Test
@@ -39,7 +45,10 @@ public class SQLIndexFilterUtilsTest {
     indexCriterionArray.add(indexCriterion);
     indexFilter.setCriteria(indexCriterionArray);
 
-    String sql = SQLIndexFilterUtils.parseIndexFilter(indexFilter);
+    String sql = SQLIndexFilterUtils.parseIndexFilter(indexFilter, false);
     assertEquals(sql, "WHERE a_aspectfoo IS NOT NULL\nAND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\nAND i_aspectfoo$id < 12");
+
+    sql = SQLIndexFilterUtils.parseIndexFilter(indexFilter, true);
+    assertEquals(sql, "WHERE a_aspectfoo IS NOT NULL\nAND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\nAND i_aspectfoo0id < 12");
   }
 }

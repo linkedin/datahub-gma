@@ -11,8 +11,11 @@ public class SQLSchemaUtilsTest {
 
   @Test
   public void testGetGeneratedColumnName() {
-    String generatedColumnName = getGeneratedColumnName(AspectFoo.class.getCanonicalName(), "/value");
+    String generatedColumnName = getGeneratedColumnName(AspectFoo.class.getCanonicalName(), "/value", false);
     assertEquals(generatedColumnName, "i_aspectfoo$value");
+
+    generatedColumnName = getGeneratedColumnName(AspectFoo.class.getCanonicalName(), "/value", true);
+    assertEquals(generatedColumnName, "i_aspectfoo0value");
   }
 
   @Test

@@ -236,8 +236,8 @@ public class SQLStatementUtils {
    * @param hasTotalCount whether to calculate total count in SQL.
    * @return translated SQL where statement
    */
-  public static String createFilterSql(String tableName, @Nullable IndexFilter indexFilter, boolean hasTotalCount) {
-    String whereClause = parseIndexFilter(indexFilter);
+  public static String createFilterSql(String tableName, @Nullable IndexFilter indexFilter, boolean hasTotalCount, boolean nonDollarVirtualColumnsEnabled) {
+    String whereClause = parseIndexFilter(indexFilter, nonDollarVirtualColumnsEnabled);
     String totalCountSql = String.format("SELECT COUNT(urn) FROM %s %s", tableName, whereClause);
     StringBuilder sb = new StringBuilder();
 
@@ -260,12 +260,12 @@ public class SQLStatementUtils {
    * @return translated group by SQL
    */
   public static String createGroupBySql(String tableName, @Nullable IndexFilter indexFilter,
-      @Nonnull IndexGroupByCriterion indexGroupByCriterion) {
-    final String columnName = getGeneratedColumnName(indexGroupByCriterion.getAspect(), indexGroupByCriterion.getPath());
+      @Nonnull IndexGroupByCriterion indexGroupByCriterion, boolean nonDollarVirtualColumnsEnabled) {
+    final String columnName = getGeneratedColumnName(indexGroupByCriterion.getAspect(), indexGroupByCriterion.getPath(), nonDollarVirtualColumnsEnabled);
     StringBuilder sb = new StringBuilder();
     sb.append(String.format(INDEX_GROUP_BY_CRITERION, columnName, tableName));
     sb.append("\n");
-    sb.append(parseIndexFilter(indexFilter));
+    sb.append(parseIndexFilter(indexFilter, nonDollarVirtualColumnsEnabled));
     sb.append("\nGROUP BY ");
     sb.append(columnName);
     return sb.toString();
@@ -330,15 +330,15 @@ public class SQLStatementUtils {
    */
   @SafeVarargs
   @Nullable
-  public static String whereClause(@Nonnull Map<Condition, String> supportedCondition,
+  public static String whereClause(@Nonnull Map<Condition, String> supportedCondition, boolean nonDollarVirtualColumnsEnabled,
       @Nonnull Pair<LocalRelationshipFilter, String>... filters) {
     List<String> andClauses = new ArrayList<>();
     for (Pair<LocalRelationshipFilter, String> filter : filters) {
       if (filter.getValue0().hasCriteria() && filter.getValue0().getCriteria().size() > 0) {
-        andClauses.add("(" + whereClause(filter.getValue0(), supportedCondition, filter.getValue1()) + ")");
+        andClauses.add("(" + whereClause(filter.getValue0(), supportedCondition, filter.getValue1(), nonDollarVirtualColumnsEnabled) + ")");
       }
     }
-
+    System.out.println("andClauses: " + andClauses);
     if (andClauses.isEmpty()) {
       return null;
     } else if (andClauses.size() == 1) {
@@ -353,10 +353,13 @@ public class SQLStatementUtils {
    * @param filter contains field, condition and value
    * @param supportedCondition contains supported conditions such as EQUAL.
    * @param tablePrefix Table prefix append to the field name. Useful during SQL joining across multiple tables.
+   * @param nonDollarVirtualColumnsEnabled whether to use dollar sign in virtual column names.
    * @return sql that can be appended after where clause.
    */
   @Nonnull
-  public static String whereClause(@Nonnull LocalRelationshipFilter filter, @Nonnull Map<Condition, String> supportedCondition, @Nullable String tablePrefix) {
+  public static String whereClause(@Nonnull LocalRelationshipFilter filter,
+      @Nonnull Map<Condition, String> supportedCondition, @Nullable String tablePrefix,
+      boolean nonDollarVirtualColumnsEnabled) {
     if (!filter.hasCriteria() || filter.getCriteria().size() == 0) {
       throw new IllegalArgumentException("Empty filter cannot construct where clause.");
     }
@@ -364,7 +367,7 @@ public class SQLStatementUtils {
     // Group the conditions by field.
     Map<String, List<Pair<Condition, LocalRelationshipValue>>> groupByField = new HashMap<>();
     filter.getCriteria().forEach(criterion -> {
-      String field = parseLocalRelationshipField(criterion, tablePrefix);
+      String field = parseLocalRelationshipField(criterion, tablePrefix, nonDollarVirtualColumnsEnabled);
       List<Pair<Condition, LocalRelationshipValue>> group = groupByField.getOrDefault(field, new ArrayList<>());
       group.add(new Pair<>(criterion.getCondition(), criterion.getValue()));
       groupByField.put(field, group);
@@ -390,7 +393,6 @@ public class SQLStatementUtils {
         andClauses.add("(" + String.join(" OR ", orClauses) + ")");
       }
     }
-
     if (andClauses.size() == 1) {
       String andClause = andClauses.get(0);
       if (andClauses.get(0).startsWith("(")) {
@@ -402,20 +404,24 @@ public class SQLStatementUtils {
     return String.join(" AND ", andClauses);
   }
 
-  private static String parseLocalRelationshipField(@Nonnull final LocalRelationshipCriterion localRelationshipCriterion, @Nullable String tablePrefix) {
+  private static String parseLocalRelationshipField(
+      @Nonnull final LocalRelationshipCriterion localRelationshipCriterion, @Nullable String tablePrefix,
+      boolean nonDollarVirtualColumnsEnabled) {
     tablePrefix = tablePrefix == null ? "" : tablePrefix + ".";
     LocalRelationshipCriterion.Field field = localRelationshipCriterion.getField();
+    char delimiter = nonDollarVirtualColumnsEnabled ? '0' : '$';
 
     if (field.isUrnField()) {
       return tablePrefix + field.getUrnField().getName();
     }
 
     if (field.isRelationshipField()) {
-      return tablePrefix + field.getRelationshipField().getName() + SQLSchemaUtils.processPath(field.getRelationshipField().getPath());
+      return tablePrefix + field.getRelationshipField().getName() + SQLSchemaUtils.processPath(field.getRelationshipField().getPath(), delimiter);
     }
 
     if (field.isAspectField()) {
-      return tablePrefix + SQLSchemaUtils.getGeneratedColumnName(field.getAspectField().getAspect(), field.getAspectField().getPath());
+      return tablePrefix + SQLSchemaUtils.getGeneratedColumnName(field.getAspectField().getAspect(),
+          field.getAspectField().getPath(), nonDollarVirtualColumnsEnabled);
     }
 
     throw new IllegalArgumentException("Unrecognized field type");

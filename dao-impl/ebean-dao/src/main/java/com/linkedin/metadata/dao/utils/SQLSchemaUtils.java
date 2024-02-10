@@ -88,12 +88,13 @@ public class SQLSchemaUtils {
    * Get generated column name from aspect and path.
    */
   @Nonnull
-  public static String getGeneratedColumnName(@Nonnull String aspect, @Nonnull String path) {
+  public static String getGeneratedColumnName(@Nonnull String aspect, @Nonnull String path, boolean nonDollarVirtualColumnsEnabled) {
+    char delimiter = nonDollarVirtualColumnsEnabled ? '0' : '$';
     if (isUrn(aspect)) {
-      return INDEX_PREFIX + "urn" + processPath(path);
+      return INDEX_PREFIX + "urn" + processPath(path, delimiter);
     }
 
-    return INDEX_PREFIX + getColumnNameFromAnnotation(aspect) + processPath(path);
+    return INDEX_PREFIX + getColumnNameFromAnnotation(aspect) + processPath(path, delimiter);
   }
 
   /**
@@ -106,13 +107,14 @@ public class SQLSchemaUtils {
   /**
    * process 'path' into mysql column name convention.
    * @param path path in string e.g. /name/value, /name
-   * @return $name$value or $name
+   * @param delimiter delimiter i.e '$' or '0'
+   * @return $name$value or $name or 0name$value or 0name
    */
   @Nonnull
-  public static String processPath(@Nonnull String path) {
-    path = path.replace("/", "$");
-    if (!path.startsWith("$")) {
-      path = "$" + path;
+  public static String processPath(@Nonnull String path, char delimiter) {
+    path = path.replace("/", String.valueOf(delimiter));
+    if (!path.startsWith(String.valueOf(delimiter))) {
+      path = delimiter + path;
     }
     return path;
   }

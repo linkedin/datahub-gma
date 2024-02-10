@@ -68,12 +68,14 @@ public class SQLIndexFilterUtils {
    * @param indexSortCriterion filter sorting criterion
    * @return SQL statement of sorting, e.g. ORDER BY ... DESC ..etc.
    */
-  public static String parseSortCriteria(@Nullable IndexSortCriterion indexSortCriterion) {
+  public static String parseSortCriteria(@Nullable IndexSortCriterion indexSortCriterion, boolean nonDollarVirtualColumnsEnabled) {
     if (indexSortCriterion == null) {
       // Default to order by urn if user does not provide sort criterion.
       return "ORDER BY URN";
     }
-    final String indexColumn = SQLSchemaUtils.getGeneratedColumnName(indexSortCriterion.getAspect(), indexSortCriterion.getPath());
+    final String indexColumn =
+        SQLSchemaUtils.getGeneratedColumnName(indexSortCriterion.getAspect(), indexSortCriterion.getPath(),
+            nonDollarVirtualColumnsEnabled);
 
     if (!indexSortCriterion.hasOrder()) {
       return "ORDER BY " + indexColumn;
@@ -84,10 +86,12 @@ public class SQLIndexFilterUtils {
 
   /**
    * Parse {@link IndexFilter} into MySQL syntax.
-   * @param indexFilter index filter
+   *
+   * @param indexFilter                    index filter
+   * @param nonDollarVirtualColumnsEnabled whether to enable non-dollar virtual columns
    * @return translated SQL condition expression, e.g. WHERE ...
    */
-  public static String parseIndexFilter(@Nullable IndexFilter indexFilter) {
+  public static String parseIndexFilter(@Nullable IndexFilter indexFilter, boolean nonDollarVirtualColumnsEnabled) {
     List<String> sqlFilters = new ArrayList<>();
 
     if (indexFilter == null || !indexFilter.hasCriteria()) {
@@ -107,7 +111,7 @@ public class SQLIndexFilterUtils {
       if (pathParams != null) {
         validateConditionAndValue(indexCriterion);
         final Condition condition = pathParams.getCondition();
-        final String indexColumn = getGeneratedColumnName(aspect, pathParams.getPath());
+        final String indexColumn = getGeneratedColumnName(aspect, pathParams.getPath(), nonDollarVirtualColumnsEnabled);
         sqlFilters.add(parseSqlFilter(indexColumn, condition, pathParams.getValue()));
       }
     }
