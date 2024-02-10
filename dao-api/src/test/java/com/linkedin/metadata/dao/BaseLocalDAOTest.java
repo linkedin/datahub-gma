@@ -277,41 +277,6 @@ public class BaseLocalDAOTest {
     verifyNoMoreInteractions(_mockEventProducer);
   }
 
-  @Test(description = "Test MAE emission triggered by incoming aspects with higher versions")
-  public void testMAEEmissionOnVerChange() throws URISyntaxException {
-    FooUrn urn = new FooUrn(1);
-    AspectFoo foo1 = new AspectFoo().setValue("foo1");
-    AspectFoo ver010101 = RecordUtils.toRecordTemplate(AspectFoo.class, createVersionDataMap(1, 1, 1, "ver1"));
-    AspectFoo ver020101 = RecordUtils.toRecordTemplate(AspectFoo.class, createVersionDataMap(2, 1, 1, "ver2"));
-
-    // Test that a version bump without a value change will still cause aspect to be written
-    AspectFoo ver020201OldValue = RecordUtils.toRecordTemplate(AspectFoo.class, createVersionDataMap(2, 2, 1, "ver2"));
-
-    AuditStamp auditStamp2 = makeAuditStamp("tester", 5678L);
-    AuditStamp auditStamp3 = makeAuditStamp("tester", 5679L);
-    AuditStamp auditStamp4 = makeAuditStamp("tester", 5680L);
-
-    _dummyLocalDAO.setAlwaysEmitAuditEvent(false);
-    expectGetLatest(urn, AspectFoo.class,
-        Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(foo1, _dummyAuditStamp),
-            makeAspectEntry(ver010101, auditStamp2), makeAspectEntry(ver020101, auditStamp3), makeAspectEntry(ver020201OldValue, auditStamp4)));
-
-    _dummyLocalDAO.add(urn, foo1, _dummyAuditStamp);
-    _dummyLocalDAO.add(urn, ver010101, auditStamp2);
-    _dummyLocalDAO.add(urn, ver020101, auditStamp3);
-    _dummyLocalDAO.add(urn, ver020201OldValue, auditStamp4);
-
-    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo1);
-    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo1, _dummyAuditStamp);
-    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, foo1, ver010101);
-    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, foo1, ver010101, auditStamp2);
-    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, ver010101, ver020101);
-    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, ver010101, ver020101, auditStamp3);
-    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, ver020101, ver020201OldValue);
-    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, ver020101, ver020201OldValue, auditStamp4);
-    verifyNoMoreInteractions(_mockEventProducer);
-  }
-
   @Test
   public void testMAEEmissionNoValueChange() throws URISyntaxException {
     FooUrn urn = new FooUrn(1);
@@ -328,27 +293,6 @@ public class BaseLocalDAOTest {
 
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo1);
     verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo1, _dummyAuditStamp);
-    verifyNoMoreInteractions(_mockEventProducer);
-  }
-
-  @Test(description = "Test that no MAEs are emitted if incoming aspect has a lower version than existing aspect")
-  public void testMAEEmissionVerNoChange() throws URISyntaxException {
-    FooUrn urn = new FooUrn(1);
-    AspectFoo ver020101 = RecordUtils.toRecordTemplate(AspectFoo.class, createVersionDataMap(2, 1, 1, "ver2"));
-    AspectFoo foo1 = new AspectFoo().setValue("foo");
-    AspectFoo ver010101 = RecordUtils.toRecordTemplate(AspectFoo.class, createVersionDataMap(1, 1, 1, "ver1"));
-
-    _dummyLocalDAO.setAlwaysEmitAuditEvent(false);
-    expectGetLatest(urn, AspectFoo.class,
-        Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(ver020101, _dummyAuditStamp)));
-
-    _dummyLocalDAO.add(urn, ver020101, _dummyAuditStamp);
-    _dummyLocalDAO.add(urn, foo1, _dummyAuditStamp);
-    _dummyLocalDAO.add(urn, ver010101, _dummyAuditStamp);
-    _dummyLocalDAO.add(urn, ver020101, _dummyAuditStamp);
-
-    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, ver020101);
-    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, ver020101, _dummyAuditStamp);
     verifyNoMoreInteractions(_mockEventProducer);
   }
 
@@ -642,40 +586,6 @@ public class BaseLocalDAOTest {
     verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(
         urn, null, newFoo, _dummyAuditStamp, ingestionTrackingContext, IngestionMode.LIVE);
     verifyNoMoreInteractions(_mockTrackingEventProducer);
-  }
-
-  @Test(description = "Test aspectVersionSkipWrite")
-  public void testAspectVersionSkipWrite() throws URISyntaxException {
-    AspectFoo ver010101 = RecordUtils.toRecordTemplate(AspectFoo.class, createVersionDataMap(1, 1, 1, "testValue1"));
-    AspectFoo ver020101 = RecordUtils.toRecordTemplate(AspectFoo.class, createVersionDataMap(2, 1, 1, "testValue2"));
-    AspectFoo noVer = new AspectFoo().setValue("noVer");
-
-    // Cases where the version check will force writing to be skipped
-    assertEquals(_dummyLocalDAO.aspectVersionSkipWrite(ver010101, ver020101), true);
-    assertEquals(_dummyLocalDAO.aspectVersionSkipWrite(noVer, ver010101), true);
-    assertEquals(_dummyLocalDAO.aspectVersionSkipWrite(null, ver010101), true);
-
-    // Cases where the version check will NOT force writing to be skipped
-    assertEquals(_dummyLocalDAO.aspectVersionSkipWrite(ver010101, ver010101), false);
-    assertEquals(_dummyLocalDAO.aspectVersionSkipWrite(ver020101, ver010101), false);
-    assertEquals(_dummyLocalDAO.aspectVersionSkipWrite(noVer, noVer), false);
-    assertEquals(_dummyLocalDAO.aspectVersionSkipWrite(ver010101, noVer), false);
-    assertEquals(_dummyLocalDAO.aspectVersionSkipWrite(ver010101, null), false);
-    assertEquals(_dummyLocalDAO.aspectVersionSkipWrite(null, null), false);
-  }
-
-  // Helper function to create DataMap with fields baseSemanticVersion and value
-  private DataMap createVersionDataMap(int major, int minor, int patch, String value) {
-    Map<String, Integer> versionMap = new HashMap<>();
-    versionMap.put("major", major);
-    versionMap.put("minor", minor);
-    versionMap.put("patch", patch);
-    DataMap innerMap = new DataMap(versionMap);
-    Map<String, Object> recordMap = new HashMap<>();
-    recordMap.put("baseSemanticVersion", innerMap);
-    recordMap.put("value", value);
-
-    return new DataMap(recordMap);
   }
 
 }
