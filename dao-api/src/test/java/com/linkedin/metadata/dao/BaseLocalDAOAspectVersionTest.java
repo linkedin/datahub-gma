@@ -61,13 +61,6 @@ public class BaseLocalDAOAspectVersionTest {
       _transactionRunner = transactionRunner;
     }
 
-    public DummyLocalDAO(BiFunction<FooUrn, Class<? extends RecordTemplate>, AspectEntry> getLatestFunction,
-        BaseTrackingMetadataEventProducer eventProducer, BaseTrackingManager trackingManager, DummyTransactionRunner transactionRunner) {
-      super(EntityAspectUnionVersioned.class, eventProducer, trackingManager, FooUrn.class);
-      _getLatestFunction = getLatestFunction;
-      _transactionRunner = transactionRunner;
-    }
-
     @Override
     protected <ASPECT extends RecordTemplate> long saveLatest(FooUrn urn, Class<ASPECT> aspectClass, ASPECT oldEntry,
         AuditStamp oldAuditStamp, ASPECT newEntry, AuditStamp newAuditStamp, boolean isSoftDeleted,
@@ -236,8 +229,6 @@ public class BaseLocalDAOAspectVersionTest {
     }
   }
 
-
-
   @Test(description = "Test MAE emission triggered by incoming aspects with higher versions")
   public void testMAEEmissionOnVerChange() throws URISyntaxException {
     FooUrn urn = new FooUrn(1);
@@ -273,7 +264,6 @@ public class BaseLocalDAOAspectVersionTest {
     verifyNoMoreInteractions(_mockEventProducer);
   }
 
-
   @Test(description = "Test that no MAEs are emitted if incoming aspect has a lower version than existing aspect")
   public void testMAEEmissionVerNoChange() throws URISyntaxException {
     FooUrn urn = new FooUrn(1);
@@ -294,10 +284,6 @@ public class BaseLocalDAOAspectVersionTest {
     verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, ver020101, _dummyAuditStamp);
     verifyNoMoreInteractions(_mockEventProducer);
   }
-
-
-
-
 
   @Test(description = "Test aspectVersionSkipWrite")
   public void testAspectVersionSkipWrite() throws URISyntaxException {
