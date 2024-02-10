@@ -1,16 +1,15 @@
 package com.linkedin.metadata.dao;
 
 import com.linkedin.common.AuditStamp;
-import com.linkedin.data.DataMap;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.SetMode;
+import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
 import com.linkedin.metadata.dao.retention.VersionBasedRetention;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
-import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.ExtraInfo;
@@ -25,7 +24,6 @@ import java.net.URISyntaxException;
 import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -53,21 +51,21 @@ public class BaseLocalDAOTest {
     }
   }
 
-  static class DummyLocalDAO extends BaseLocalDAO<EntityAspectUnion, FooUrn> {
+  static class DummyLocalDAO<ENTITY_ASPECT_UNION extends UnionTemplate> extends BaseLocalDAO<ENTITY_ASPECT_UNION, FooUrn> {
 
     private final BiFunction<FooUrn, Class<? extends RecordTemplate>, AspectEntry> _getLatestFunction;
     private final DummyTransactionRunner _transactionRunner;
 
-    public DummyLocalDAO(BiFunction<FooUrn, Class<? extends RecordTemplate>, AspectEntry> getLatestFunction,
+    public DummyLocalDAO(Class<ENTITY_ASPECT_UNION> aspectClass, BiFunction<FooUrn, Class<? extends RecordTemplate>, AspectEntry> getLatestFunction,
         BaseMetadataEventProducer eventProducer, DummyTransactionRunner transactionRunner) {
-      super(EntityAspectUnion.class, eventProducer, FooUrn.class);
+      super(aspectClass, eventProducer, FooUrn.class);
       _getLatestFunction = getLatestFunction;
       _transactionRunner = transactionRunner;
     }
 
-    public DummyLocalDAO(BiFunction<FooUrn, Class<? extends RecordTemplate>, AspectEntry> getLatestFunction,
+    public DummyLocalDAO(Class<ENTITY_ASPECT_UNION> aspectClass, BiFunction<FooUrn, Class<? extends RecordTemplate>, AspectEntry> getLatestFunction,
         BaseTrackingMetadataEventProducer eventProducer, BaseTrackingManager trackingManager, DummyTransactionRunner transactionRunner) {
-      super(EntityAspectUnion.class, eventProducer, trackingManager, FooUrn.class);
+      super(aspectClass, eventProducer, trackingManager, FooUrn.class);
       _getLatestFunction = getLatestFunction;
       _transactionRunner = transactionRunner;
     }
@@ -202,7 +200,7 @@ public class BaseLocalDAOTest {
     }
   }
 
-  private DummyLocalDAO _dummyLocalDAO;
+  private DummyLocalDAO<EntityAspectUnion> _dummyLocalDAO;
   private AuditStamp _dummyAuditStamp;
   private BaseMetadataEventProducer _mockEventProducer;
   private BaseTrackingMetadataEventProducer _mockTrackingEventProducer;
@@ -217,7 +215,8 @@ public class BaseLocalDAOTest {
     _mockTrackingEventProducer = mock(BaseTrackingMetadataEventProducer.class);
     _mockTrackingManager = mock(BaseTrackingManager.class);
     _mockTransactionRunner = spy(DummyTransactionRunner.class);
-    _dummyLocalDAO = new DummyLocalDAO(_mockGetLatestFunction, _mockEventProducer, _mockTransactionRunner);
+    _dummyLocalDAO = new DummyLocalDAO<>(EntityAspectUnion.class, _mockGetLatestFunction, _mockEventProducer,
+        _mockTransactionRunner);
     _dummyLocalDAO.setEmitAuditEvent(true);
     _dummyLocalDAO.setEmitAspectSpecificAuditEvent(true);
     _dummyAuditStamp = makeAuditStamp("foo", 1234);
@@ -319,7 +318,8 @@ public class BaseLocalDAOTest {
     FooUrn urn = new FooUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");
     IngestionTrackingContext mockTrackingContext = mock(IngestionTrackingContext.class);
-    DummyLocalDAO dummyLocalDAO = new DummyLocalDAO(_mockGetLatestFunction, _mockTrackingEventProducer, _mockTrackingManager,
+    DummyLocalDAO<EntityAspectUnion> dummyLocalDAO = new DummyLocalDAO<>(EntityAspectUnion.class,
+        _mockGetLatestFunction, _mockTrackingEventProducer, _mockTrackingManager,
         _dummyLocalDAO._transactionRunner);
     dummyLocalDAO.setEmitAuditEvent(true);
     dummyLocalDAO.setAlwaysEmitAuditEvent(true);
@@ -482,7 +482,8 @@ public class BaseLocalDAOTest {
     extraInfo.setAudit(oldAuditStamp);
     extraInfo.setEmitTime(oldEmitTime, SetMode.IGNORE_NULL);
 
-    DummyLocalDAO dummyLocalDAO = new DummyLocalDAO(_mockGetLatestFunction, _mockTrackingEventProducer, _mockTrackingManager,
+    DummyLocalDAO<EntityAspectUnion> dummyLocalDAO = new DummyLocalDAO<>(EntityAspectUnion.class,
+        _mockGetLatestFunction, _mockTrackingEventProducer, _mockTrackingManager,
         _dummyLocalDAO._transactionRunner);
     dummyLocalDAO.setEmitAuditEvent(true);
     dummyLocalDAO.setAlwaysEmitAuditEvent(true);
@@ -539,7 +540,8 @@ public class BaseLocalDAOTest {
     extraInfo.setAudit(oldAuditStamp);
     extraInfo.setEmitTime(oldEmitTime, SetMode.IGNORE_NULL);
 
-    DummyLocalDAO dummyLocalDAO = new DummyLocalDAO(_mockGetLatestFunction, _mockTrackingEventProducer, _mockTrackingManager,
+    DummyLocalDAO<EntityAspectUnion> dummyLocalDAO = new DummyLocalDAO<>(EntityAspectUnion.class,
+        _mockGetLatestFunction, _mockTrackingEventProducer, _mockTrackingManager,
         _dummyLocalDAO._transactionRunner);
     dummyLocalDAO.setEmitAuditEvent(true);
     dummyLocalDAO.setAlwaysEmitAuditEvent(true);
@@ -565,7 +567,8 @@ public class BaseLocalDAOTest {
     AuditStamp oldAuditStamp = makeAuditStamp("nonSusActor", 5L);
     extraInfo.setAudit(oldAuditStamp);
 
-    DummyLocalDAO dummyLocalDAO = new DummyLocalDAO(_mockGetLatestFunction, _mockTrackingEventProducer, _mockTrackingManager,
+    DummyLocalDAO<EntityAspectUnion> dummyLocalDAO = new DummyLocalDAO<>(EntityAspectUnion.class,
+        _mockGetLatestFunction, _mockTrackingEventProducer, _mockTrackingManager,
         _dummyLocalDAO._transactionRunner);
     dummyLocalDAO.setEmitAuditEvent(true);
     dummyLocalDAO.setAlwaysEmitAuditEvent(true);

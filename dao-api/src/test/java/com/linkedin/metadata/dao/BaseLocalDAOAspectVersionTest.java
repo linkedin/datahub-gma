@@ -1,39 +1,26 @@
 package com.linkedin.metadata.dao;
 
+import static com.linkedin.metadata.dao.BaseLocalDAOTest.DummyLocalDAO;
+import static com.linkedin.metadata.dao.BaseLocalDAOTest.DummyTransactionRunner;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.data.DataMap;
 import com.linkedin.data.template.RecordTemplate;
-import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
-import com.linkedin.metadata.dao.retention.TimeBasedRetention;
-import com.linkedin.metadata.dao.retention.VersionBasedRetention;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.utils.RecordUtils;
-import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.ExtraInfo;
-import com.linkedin.metadata.query.IndexFilter;
-import com.linkedin.metadata.query.IndexGroupByCriterion;
-import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.testing.AspectVersioned;
 import com.linkedin.testing.EntityAspectUnionVersioned;
 import com.linkedin.testing.urn.FooUrn;
 import java.net.URISyntaxException;
-import java.sql.Timestamp;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
 import java.util.function.BiFunction;
-import java.util.function.Supplier;
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import org.mockito.stubbing.OngoingStubbing;
 import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import static com.linkedin.common.AuditStamps.*;
@@ -43,155 +30,7 @@ import static org.testng.Assert.*;
 
 public class BaseLocalDAOAspectVersionTest {
 
-  static class DummyTransactionRunner {
-    public <T> T run(Supplier<T> block) {
-      return block.get();
-    }
-  }
-
-  static class DummyLocalDAO extends BaseLocalDAO<EntityAspectUnionVersioned, FooUrn> {
-
-    private final BiFunction<FooUrn, Class<? extends RecordTemplate>, AspectEntry> _getLatestFunction;
-    private final DummyTransactionRunner _transactionRunner;
-
-    public DummyLocalDAO(BiFunction<FooUrn, Class<? extends RecordTemplate>, AspectEntry> getLatestFunction,
-        BaseMetadataEventProducer eventProducer, DummyTransactionRunner transactionRunner) {
-      super(EntityAspectUnionVersioned.class, eventProducer, FooUrn.class);
-      _getLatestFunction = getLatestFunction;
-      _transactionRunner = transactionRunner;
-    }
-
-    @Override
-    protected <ASPECT extends RecordTemplate> long saveLatest(FooUrn urn, Class<ASPECT> aspectClass, ASPECT oldEntry,
-        AuditStamp oldAuditStamp, ASPECT newEntry, AuditStamp newAuditStamp, boolean isSoftDeleted,
-        @Nullable IngestionTrackingContext trackingContext) {
-      return 0;
-    }
-
-    @Override
-    public <ASPECT extends RecordTemplate> void updateEntityTables(@Nonnull FooUrn urn, @Nonnull Class<ASPECT> aspectClass) {
-
-    }
-
-    @Override
-    public <ASPECT extends RecordTemplate> List<LocalRelationshipUpdates> backfillLocalRelationshipsFromEntityTables(
-        @Nonnull FooUrn urn, @Nonnull Class<ASPECT> aspectClass) {
-      return null;
-    }
-
-    @Nonnull
-    @Override
-    protected <T> T runInTransactionWithRetry(Supplier<T> block, int maxTransactionRetry) {
-      return _transactionRunner.run(block);
-    }
-
-    @Override
-    protected <ASPECT extends RecordTemplate> AspectEntry<ASPECT> getLatest(FooUrn urn, Class<ASPECT> aspectClass) {
-      return _getLatestFunction.apply(urn, aspectClass);
-    }
-
-    @Override
-    protected <ASPECT extends RecordTemplate> long getNextVersion(FooUrn urn, Class<ASPECT> aspectClass) {
-      return 0;
-    }
-
-    @Override
-    protected <ASPECT extends RecordTemplate> void insert(FooUrn urn, RecordTemplate value, Class<ASPECT> aspectClass,
-        AuditStamp auditStamp, long version, @Nullable IngestionTrackingContext trackingContext) {
-
-    }
-
-    @Override
-    protected <ASPECT extends RecordTemplate> void updateWithOptimisticLocking(@Nonnull FooUrn urn,
-        @Nullable RecordTemplate value, @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp newAuditStamp,
-        long version, @Nonnull Timestamp oldTimestamp, @Nullable IngestionTrackingContext trackingContext) {
-
-    }
-
-    @Override
-    public boolean exists(FooUrn urn) {
-      return true;
-    }
-
-    @Override
-    protected <ASPECT extends RecordTemplate> void applyVersionBasedRetention(Class<ASPECT> aspectClass, FooUrn urn,
-        VersionBasedRetention retention, long largestVersion) {
-
-    }
-
-    @Override
-    protected <ASPECT extends RecordTemplate> void applyTimeBasedRetention(Class<ASPECT> aspectClass, FooUrn urn,
-        TimeBasedRetention retention, long currentTime) {
-
-    }
-
-    @Override
-    public <ASPECT extends RecordTemplate> ListResult<Long> listVersions(Class<ASPECT> aspectClass, FooUrn urn,
-        int start, int pageSize) {
-      return null;
-    }
-
-    @Override
-    public <ASPECT extends RecordTemplate> ListResult<FooUrn> listUrns(Class<ASPECT> aspectClass, int start,
-        int pageSize) {
-      return null;
-    }
-
-    @Override
-    public List<FooUrn> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
-        @Nullable FooUrn lastUrn, int pageSize) {
-      return null;
-    }
-
-    @Override
-    public ListResult<FooUrn> listUrns(@Nonnull IndexFilter indexFilter,
-        @Nullable IndexSortCriterion indexSortCriterion, int start, int pageSize) {
-      return ListResult.<FooUrn>builder().build();
-    }
-
-    @Override
-    public <ASPECT extends RecordTemplate> ListResult<ASPECT> list(Class<ASPECT> aspectClass, FooUrn urn, int start,
-        int pageSize) {
-      return null;
-    }
-
-    @Override
-    public <ASPECT extends RecordTemplate> ListResult<ASPECT> list(Class<ASPECT> aspectClass, long version, int start,
-        int pageSize) {
-      return null;
-    }
-
-    @Override
-    public <ASPECT extends RecordTemplate> ListResult<ASPECT> list(Class<ASPECT> aspectClass, int start, int pageSize) {
-      return null;
-    }
-
-    @Override
-    public Map<String, Long> countAggregate(@Nonnull IndexFilter indexFilter, @Nonnull IndexGroupByCriterion groupCriterion) {
-      return Collections.emptyMap();
-    }
-
-    @Override
-    public long newNumericId(String namespace, int maxTransactionRetry) {
-      return 0;
-    }
-
-    @Override
-    @Nonnull
-    public Map<AspectKey<FooUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> get(
-        Set<AspectKey<FooUrn, ? extends RecordTemplate>> aspectKeys) {
-      return Collections.emptyMap();
-    }
-
-    @Override
-    @Nonnull
-    public Map<AspectKey<FooUrn, ? extends RecordTemplate>, AspectWithExtraInfo<? extends RecordTemplate>> getWithExtraInfo(
-        @Nonnull Set<AspectKey<FooUrn, ? extends RecordTemplate>> keys) {
-      return Collections.emptyMap();
-    }
-  }
-
-  private DummyLocalDAO _dummyLocalDAO;
+  private DummyLocalDAO<EntityAspectUnionVersioned> _dummyLocalDAO;
   private AuditStamp _dummyAuditStamp;
   private BaseMetadataEventProducer _mockEventProducer;
   private BaseTrackingMetadataEventProducer _mockTrackingEventProducer;
@@ -206,7 +45,8 @@ public class BaseLocalDAOAspectVersionTest {
     _mockTrackingEventProducer = mock(BaseTrackingMetadataEventProducer.class);
     _mockTrackingManager = mock(BaseTrackingManager.class);
     _mockTransactionRunner = spy(DummyTransactionRunner.class);
-    _dummyLocalDAO = new DummyLocalDAO(_mockGetLatestFunction, _mockEventProducer, _mockTransactionRunner);
+    _dummyLocalDAO = new DummyLocalDAO<EntityAspectUnionVersioned>(EntityAspectUnionVersioned.class,
+        _mockGetLatestFunction, _mockEventProducer, _mockTransactionRunner);
     _dummyLocalDAO.setEmitAuditEvent(true);
     _dummyLocalDAO.setEmitAspectSpecificAuditEvent(true);
     _dummyAuditStamp = makeAuditStamp("foo", 1234);
