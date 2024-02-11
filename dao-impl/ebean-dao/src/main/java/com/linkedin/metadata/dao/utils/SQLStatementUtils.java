@@ -234,6 +234,7 @@ public class SQLStatementUtils {
    * @param tableName table name
    * @param indexFilter index filter
    * @param hasTotalCount whether to calculate total count in SQL.
+   * @param nonDollarVirtualColumnsEnabled  true if virtual column does not contain $, false otherwise
    * @return translated SQL where statement
    */
   public static String createFilterSql(String tableName, @Nullable IndexFilter indexFilter, boolean hasTotalCount, boolean nonDollarVirtualColumnsEnabled) {
@@ -257,6 +258,7 @@ public class SQLStatementUtils {
    * @param tableName table name
    * @param indexFilter index filter
    * @param indexGroupByCriterion group by
+   * @param nonDollarVirtualColumnsEnabled  true if virtual column does not contain $, false otherwise
    * @return translated group by SQL
    */
   public static String createGroupBySql(String tableName, @Nullable IndexFilter indexFilter,
@@ -325,6 +327,7 @@ public class SQLStatementUtils {
   /**
    * Construct where clause SQL from multiple filters. Return null if all filters are empty.
    * @param supportedCondition contains supported conditions such as EQUAL.
+   * @param nonDollarVirtualColumnsEnabled  true if virtual column does not contain $, false otherwise
    * @param filters An array of pairs which are filter and table prefix.
    * @return sql that can be appended after where clause.
    */

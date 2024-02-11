@@ -86,6 +86,7 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * @param indexSortCriterion {@link IndexSortCriterion} sorting criterion to be applied
    * @param lastUrn last urn of the previous fetched page. For the first page, this should be set as NULL
    * @param pageSize maximum number of distinct urns to return
+   * @param nonDollarVirtualColumnsEnabled  true if virtual column does not contain $, false otherwise
    * @return List of urns from local secondary index that satisfy the given filter conditions
    */
   List<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
@@ -112,6 +113,7 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * Gets the count of an aggregation specified by the aspect and field to group on.
    * @param indexFilter {@link IndexFilter} that defines the filter conditions
    * @param indexGroupByCriterion {@link IndexGroupByCriterion} that defines the aspect to group by
+   * @param nonDollarVirtualColumnsEnabled  true if virtual column does not contain $, false otherwise
    * @return map of the field to the count
    */
   @Nonnull

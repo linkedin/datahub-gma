@@ -66,6 +66,7 @@ public class SQLIndexFilterUtils {
   /**
    * Parse {@link IndexSortCriterion} into SQL syntax.
    * @param indexSortCriterion filter sorting criterion
+   * @param nonDollarVirtualColumnsEnabled  true if virtual column does not contain $, false otherwise
    * @return SQL statement of sorting, e.g. ORDER BY ... DESC ..etc.
    */
   public static String parseSortCriteria(@Nullable IndexSortCriterion indexSortCriterion, boolean nonDollarVirtualColumnsEnabled) {

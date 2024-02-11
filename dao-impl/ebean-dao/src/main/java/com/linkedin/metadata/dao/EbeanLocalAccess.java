@@ -367,6 +367,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    * Produce {@link SqlQuery} for list urn by offset (start) and limit (pageSize).
    * @param indexFilter index filter conditions
    * @param indexSortCriterion sorting criterion, default ACS
+   * @param nonDollarVirtualColumnsEnabled true if virtual column does not contain $, false otherwise
    * @return SqlQuery a SQL query which can be executed by ebean server.
    */
   private SqlQuery createFilterSqlQuery(@Nullable IndexFilter indexFilter,
