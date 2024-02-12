@@ -180,7 +180,6 @@ public class EbeanLocalDAOTest {
 
   @BeforeMethod
   public void setupTest() {
-    System.out.println("setupTest Invoked");
     if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
       _server.execute(Ebean.createSqlUpdate(readSQLfromFile(GMA_DROP_ALL_SQL)));
       _server.execute(Ebean.createSqlUpdate(readSQLfromFile(GMA_CREATE_ALL_SQL)));

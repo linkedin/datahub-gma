@@ -341,7 +341,6 @@ public class SQLStatementUtils {
         andClauses.add("(" + whereClause(filter.getValue0(), supportedCondition, filter.getValue1(), nonDollarVirtualColumnsEnabled) + ")");
       }
     }
-    System.out.println("andClauses: " + andClauses);
     if (andClauses.isEmpty()) {
       return null;
     } else if (andClauses.size() == 1) {
