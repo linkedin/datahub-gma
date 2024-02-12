@@ -140,6 +140,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     _nonDollarVirtualColumnsEnabled = nonDollarVirtualColumnsEnabled;
   }
 
+  public boolean isNonDollarVirtualColumnsEnabled() {
+    return _nonDollarVirtualColumnsEnabled;
+  }
+
   public enum FindMethodology {
     UNIQUE_ID,      // (legacy) https://javadoc.io/static/io.ebean/ebean/11.19.2/io/ebean/EbeanServer.html#find-java.lang.Class-java.lang.Object-
     DIRECT_SQL,     // https://javadoc.io/static/io.ebean/ebean/11.19.2/io/ebean/EbeanServer.html#findNative-java.lang.Class-java.lang.String-
@@ -396,7 +400,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     this(aspectUnionClass, producer, server, urnClass);
     _schemaConfig = schemaConfig;
     if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
-      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, _urnPathExtractor);
+      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, _urnPathExtractor, _nonDollarVirtualColumnsEnabled);
     }
   }
 
@@ -406,7 +410,19 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     this(aspectUnionClass, producer, server, urnClass, trackingManager);
     _schemaConfig = schemaConfig;
     if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
-      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, _urnPathExtractor);
+      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, _urnPathExtractor, _nonDollarVirtualColumnsEnabled);
+    }
+  }
+
+  @VisibleForTesting
+  EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseTrackingMetadataEventProducer producer,
+      @Nonnull EbeanServer server, @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass, @Nonnull SchemaConfig schemaConfig,
+      boolean nonDollarVirtualColumnsEnabled) {
+    this(aspectUnionClass, producer, server, urnClass);
+    _schemaConfig = schemaConfig;
+    _nonDollarVirtualColumnsEnabled = nonDollarVirtualColumnsEnabled;
+    if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
+      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, _urnPathExtractor, _nonDollarVirtualColumnsEnabled);
     }
   }
 
@@ -424,13 +440,25 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     _findMethodology = findMethodology;
   }
 
-  // Only called in testing (test all possible combos of SchemaConfig and FindMethodology)
+  private EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
+      @Nonnull EbeanServer server, @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass,
+      @Nonnull SchemaConfig schemaConfig, boolean nonDollarVirtualColumnsEnabled) {
+    this(aspectUnionClass, producer, server, urnClass);
+    _schemaConfig = schemaConfig;
+    _nonDollarVirtualColumnsEnabled = nonDollarVirtualColumnsEnabled;
+    if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
+      _localAccess =
+          new EbeanLocalAccess<>(server, serverConfig, urnClass, _urnPathExtractor, _nonDollarVirtualColumnsEnabled);
+    }
+  }
+
+  // Only called in testing (test all possible combos of SchemaConfig, FindMethodology and nonDollarVirtualColumnsEnabled)
   @VisibleForTesting
   EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
       @Nonnull EbeanServer server, @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass,
       @Nonnull SchemaConfig schemaConfig,
-      @Nonnull FindMethodology findMethodology) {
-    this(aspectUnionClass, producer, server, serverConfig, urnClass, schemaConfig);
+      @Nonnull FindMethodology findMethodology, boolean nonDollarVirtualColumnsEnabled) {
+    this(aspectUnionClass, producer, server, serverConfig, urnClass, schemaConfig, nonDollarVirtualColumnsEnabled);
     _findMethodology = findMethodology;
   }
 
@@ -459,7 +487,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     this(producer, server, storageConfig, urnClass, urnPathExtractor);
     _schemaConfig = schemaConfig;
     if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
-      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, urnPathExtractor);
+      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, urnPathExtractor, _nonDollarVirtualColumnsEnabled);
     }
   }
 
@@ -469,7 +497,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     this(producer, server, storageConfig, urnClass, urnPathExtractor, trackingManager);
     _schemaConfig = schemaConfig;
     if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
-      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, urnPathExtractor);
+      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, urnPathExtractor, _nonDollarVirtualColumnsEnabled);
     }
   }
 
@@ -1423,7 +1451,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
       throw new UnsupportedOperationException("listUrns with index filter is only supported in new schema.");
     }
-    return _localAccess.listUrns(indexFilter, indexSortCriterion, lastUrn, pageSize, _nonDollarVirtualColumnsEnabled);
+    return _localAccess.listUrns(indexFilter, indexSortCriterion, lastUrn, pageSize);
   }
 
   /**
@@ -1442,7 +1470,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       throw new UnsupportedOperationException("listUrns with index filter is only supported in new schema.");
     }
 
-    return _localAccess.listUrns(indexFilter, indexSortCriterion, start, pageSize, _nonDollarVirtualColumnsEnabled);
+    return _localAccess.listUrns(indexFilter, indexSortCriterion, start, pageSize);
   }
 
   @Override
@@ -1453,6 +1481,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
       throw new UnsupportedOperationException("countAggregate is only supported in new schema.");
     }
-    return _localAccess.countAggregate(indexFilter, indexGroupByCriterion, _nonDollarVirtualColumnsEnabled);
+    return _localAccess.countAggregate(indexFilter, indexGroupByCriterion);
   }
 }

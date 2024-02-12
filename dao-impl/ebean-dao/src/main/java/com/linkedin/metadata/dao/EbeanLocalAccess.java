@@ -67,6 +67,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   private final EbeanLocalRelationshipWriterDAO _localRelationshipWriterDAO;
   private LocalRelationshipBuilderRegistry _localRelationshipBuilderRegistry;
   private final SchemaEvolutionManager _schemaEvolutionManager;
+  private final boolean _nonDollarVirtualColumnsEnabled;
 
   // TODO confirm if the default page size is 1000 in other code context.
   private static final int DEFAULT_PAGE_SIZE = 1000;
@@ -77,13 +78,15 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   // value: Set(column1, column2, column3 ...)
   private final Map<String, Set<String>> tableColumns = new ConcurrentHashMap<>();
 
-  public EbeanLocalAccess(EbeanServer server, ServerConfig serverConfig, @Nonnull Class<URN> urnClass, UrnPathExtractor<URN> urnPathExtractor) {
+  public EbeanLocalAccess(EbeanServer server, ServerConfig serverConfig, @Nonnull Class<URN> urnClass,
+      UrnPathExtractor<URN> urnPathExtractor, boolean nonDollarVirtualColumnsEnabled) {
     _server = server;
     _urnClass = urnClass;
     _urnPathExtractor = urnPathExtractor;
     _entityType = ModelUtils.getEntityTypeFromUrnClass(_urnClass);
     _localRelationshipWriterDAO = new EbeanLocalRelationshipWriterDAO(_server);
     _schemaEvolutionManager = createSchemaEvolutionManager(serverConfig);
+    _nonDollarVirtualColumnsEnabled = nonDollarVirtualColumnsEnabled;
   }
 
   public void setUrnPathExtractor(@Nonnull UrnPathExtractor<URN> urnPathExtractor) {
@@ -227,20 +230,19 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
   @Override
   public List<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
-      @Nullable URN lastUrn, int pageSize, boolean nonDollarVirtualColumnsEnabled) {
-    SqlQuery sqlQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, lastUrn, pageSize, nonDollarVirtualColumnsEnabled);
+      @Nullable URN lastUrn, int pageSize) {
+    SqlQuery sqlQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, lastUrn, pageSize);
     final List<SqlRow> sqlRows = sqlQuery.setFirstRow(0).findList();
     return sqlRows.stream().map(sqlRow -> getUrn(sqlRow.getString("urn"), _urnClass)).collect(Collectors.toList());
   }
 
   @Override
   public ListResult<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
-      int start, int pageSize, boolean nonDollarVirtualColumnsEnabled) {
-    final SqlQuery sqlQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, start, pageSize, nonDollarVirtualColumnsEnabled);
+      int start, int pageSize) {
+    final SqlQuery sqlQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, start, pageSize);
     final List<SqlRow> sqlRows = sqlQuery.findList();
     if (sqlRows.size() == 0) {
-      final List<SqlRow> totalCountResults = createFilterSqlQuery(indexFilter, indexSortCriterion, 0, DEFAULT_PAGE_SIZE,
-          nonDollarVirtualColumnsEnabled).findList();
+      final List<SqlRow> totalCountResults = createFilterSqlQuery(indexFilter, indexSortCriterion, 0, DEFAULT_PAGE_SIZE).findList();
       final int actualTotalCount = totalCountResults.isEmpty() ? 0 : totalCountResults.get(0).getInteger("_total_count");
       return toListResult(actualTotalCount, start, pageSize);
     }
@@ -335,9 +337,9 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   @Nonnull
   @Override
   public Map<String, Long> countAggregate(@Nullable IndexFilter indexFilter,
-      @Nonnull IndexGroupByCriterion indexGroupByCriterion, boolean nonDollarVirtualColumnsEnabled) {
+      @Nonnull IndexGroupByCriterion indexGroupByCriterion) {
     final String tableName = SQLSchemaUtils.getTableName(_entityType);
-    String groupByColumn = getGeneratedColumnName(indexGroupByCriterion.getAspect(), indexGroupByCriterion.getPath(), nonDollarVirtualColumnsEnabled);
+    String groupByColumn = getGeneratedColumnName(indexGroupByCriterion.getAspect(), indexGroupByCriterion.getPath(), _nonDollarVirtualColumnsEnabled);
     // first, check for existence of the column we want to GROUP BY
     if (!checkColumnExists(tableName, groupByColumn)) {
       // if we are trying to GROUP BY the results on a column that does not exist, just return an empty map
@@ -345,7 +347,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     }
 
     // now run the actual GROUP BY query
-    final String groupBySql = SQLStatementUtils.createGroupBySql(tableName, indexFilter, indexGroupByCriterion, nonDollarVirtualColumnsEnabled);
+    final String groupBySql = SQLStatementUtils.createGroupBySql(tableName, indexFilter, indexGroupByCriterion, _nonDollarVirtualColumnsEnabled);
     final SqlQuery sqlQuery = _server.createSqlQuery(groupBySql);
     final List<SqlRow> sqlRows = sqlQuery.findList();
     Map<String, Long> resultMap = new HashMap<>();
@@ -367,17 +369,16 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    * Produce {@link SqlQuery} for list urn by offset (start) and limit (pageSize).
    * @param indexFilter index filter conditions
    * @param indexSortCriterion sorting criterion, default ACS
-   * @param nonDollarVirtualColumnsEnabled true if virtual column does not contain $, false otherwise
    * @return SqlQuery a SQL query which can be executed by ebean server.
    */
   private SqlQuery createFilterSqlQuery(@Nullable IndexFilter indexFilter,
-      @Nullable IndexSortCriterion indexSortCriterion, int offset, int pageSize, boolean nonDollarVirtualColumnsEnabled) {
+      @Nullable IndexSortCriterion indexSortCriterion, int offset, int pageSize) {
 
     final String tableName = SQLSchemaUtils.getTableName(_entityType);
     StringBuilder filterSql = new StringBuilder();
-    filterSql.append(SQLStatementUtils.createFilterSql(tableName, indexFilter, true, nonDollarVirtualColumnsEnabled));
+    filterSql.append(SQLStatementUtils.createFilterSql(tableName, indexFilter, true, _nonDollarVirtualColumnsEnabled));
     filterSql.append("\n");
-    filterSql.append(parseSortCriteria(indexSortCriterion, nonDollarVirtualColumnsEnabled));
+    filterSql.append(parseSortCriteria(indexSortCriterion, _nonDollarVirtualColumnsEnabled));
     filterSql.append(String.format(" LIMIT %d", Math.max(pageSize, 0)));
     filterSql.append(String.format(" OFFSET %d", Math.max(offset, 0)));
     return _server.createSqlQuery(filterSql.toString());
@@ -387,10 +388,10 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    * Produce {@link SqlQuery} for list urns by last urn.
    */
   private SqlQuery createFilterSqlQuery(@Nullable IndexFilter indexFilter,
-      @Nullable IndexSortCriterion indexSortCriterion, @Nullable URN lastUrn, int pageSize, boolean nonDollarVirtualColumnsEnabled) {
+      @Nullable IndexSortCriterion indexSortCriterion, @Nullable URN lastUrn, int pageSize) {
     StringBuilder filterSql = new StringBuilder();
     final String tableName = SQLSchemaUtils.getTableName(_entityType);
-    filterSql.append(SQLStatementUtils.createFilterSql(tableName, indexFilter, false, nonDollarVirtualColumnsEnabled));
+    filterSql.append(SQLStatementUtils.createFilterSql(tableName, indexFilter, false, _nonDollarVirtualColumnsEnabled));
 
     if (lastUrn != null) {
       // because createFilterSql will only include a WHERE clause if there are non-urn filters, we need to make sure
@@ -407,7 +408,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     }
 
     filterSql.append("\n");
-    filterSql.append(parseSortCriteria(indexSortCriterion, nonDollarVirtualColumnsEnabled));
+    filterSql.append(parseSortCriteria(indexSortCriterion, _nonDollarVirtualColumnsEnabled));
     filterSql.append(String.format(" LIMIT %d", Math.max(pageSize, 0)));
     return _server.createSqlQuery(filterSql.toString());
   }

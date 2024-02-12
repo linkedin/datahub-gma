@@ -61,7 +61,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
   private IEbeanLocalAccess<FooUrn> _fooUrnEBeanLocalAccess;
   private IEbeanLocalAccess<BarUrn> _barUrnEBeanLocalAccess;
   // run the tests 1 time for each of nonDollarVirtualColumnsEnabled values (2 total, true and false)
-  private boolean _nonDollarVirtualColumnsEnabled = true;
+  private boolean _nonDollarVirtualColumnsEnabled = false;
 
   @BeforeClass
   public void init() {
@@ -69,9 +69,9 @@ public class EbeanLocalRelationshipQueryDAOTest {
     _localRelationshipWriterDAO = new EbeanLocalRelationshipWriterDAO(_server);
     _localRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server);
     _fooUrnEBeanLocalAccess = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()),
-        FooUrn.class, new EmptyPathExtractor<>());
+        FooUrn.class, new EmptyPathExtractor<>(), _nonDollarVirtualColumnsEnabled);
     _barUrnEBeanLocalAccess = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()),
-        BarUrn.class, new EmptyPathExtractor<>());
+        BarUrn.class, new EmptyPathExtractor<>(), _nonDollarVirtualColumnsEnabled);
     _localRelationshipQueryDAO.setNonDollarVirtualColumnsEnabled(_nonDollarVirtualColumnsEnabled);
   }
 
