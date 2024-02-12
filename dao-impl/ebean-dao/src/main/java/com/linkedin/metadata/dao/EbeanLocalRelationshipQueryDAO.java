@@ -45,6 +45,10 @@ public class EbeanLocalRelationshipQueryDAO {
     _nonDollarVirtualColumnsEnabled = nonDollarVirtualColumnsEnabled;
   }
 
+  public boolean isNonDollarVirtualColumnsEnabled() {
+    return _nonDollarVirtualColumnsEnabled;
+  }
+
   static final Map<Condition, String> SUPPORTED_CONDITIONS =
       Collections.unmodifiableMap(new HashMap<Condition, String>() {
         {
