@@ -1,0 +1,26 @@
+namespace com.linkedin.testing
+
+/**
+ * For unit tests
+ */
+record SearchAnnotatedAspectBar {
+
+  /** For unit tests */
+  @gma.search.index = [
+    { "urn": "com.linkedin.testing.BarkUrn" },
+    { "urn": "com.linkedin.testing.FooUrn" }
+  ]
+  stringField: string
+
+  /** For unit tests */
+  boolField: boolean
+
+  /** For unit tests */
+  @gma.search.index = [
+    { "urn": "com.linkedin.testing.BarkUrn" }
+  ]
+  longField: long
+
+  /** For unit tests */
+  arrayField: array[string]
+}
