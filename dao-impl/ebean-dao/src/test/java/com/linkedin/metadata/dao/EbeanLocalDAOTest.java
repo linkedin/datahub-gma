@@ -157,20 +157,20 @@ public class EbeanLocalDAOTest {
     return new Object[][]{
 
         // tests with change history enabled (legacy mode)
-        // {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, true},
-        // {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, true},
-        // {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID, true},
-        // {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, true},
-        // {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, true},
-        // SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL, true},
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, true},
+        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, true},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID, true},
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, true},
+        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, true},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL, true},
 
         // tests with change history disabled (cold-archive mode)
-        // {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, false},
-        // {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, false},
-        // {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID, false},
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, false},
+        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, false},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID, false},
         {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, false},
         {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, false},
-        // {SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL, false},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL, false},
     };
   }
 
@@ -2898,12 +2898,6 @@ public class EbeanLocalDAOTest {
       // Verify nothing found
       assertTrue(empty2.isEmpty());
     }
-  }
-
-  @Test
-  public void testJdonn() {
-    AspectFoo aspectFoo = new AspectFoo().setValue("test").setWriteMode(WriteMode.OVERRIDE);
-    // aspectFoo.getValue
   }
 
   @Test
