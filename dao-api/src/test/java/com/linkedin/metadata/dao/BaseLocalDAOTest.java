@@ -12,6 +12,7 @@ import com.linkedin.metadata.dao.retention.VersionBasedRetention;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.events.IngestionTrackingContext;
+import com.linkedin.metadata.events.WriteMode;
 import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
@@ -337,6 +338,32 @@ public class BaseLocalDAOTest {
         foo, _dummyAuditStamp, mockTrackingContext, IngestionMode.LIVE);
     verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, foo,
         foo, _dummyAuditStamp, mockTrackingContext, IngestionMode.LIVE);
+    verifyNoMoreInteractions(_mockTrackingEventProducer);
+  }
+
+  @Test
+  public void testMAEv5WithOverride() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo").setWriteMode(WriteMode.OVERRIDE);
+    IngestionTrackingContext mockTrackingContext = mock(IngestionTrackingContext.class);
+    DummyLocalDAO<EntityAspectUnion> dummyLocalDAO = new DummyLocalDAO<>(EntityAspectUnion.class,
+        _mockGetLatestFunction, _mockTrackingEventProducer, _mockTrackingManager,
+        _dummyLocalDAO._transactionRunner);
+
+    // make sure MAE emission is on
+    dummyLocalDAO.setEmitAuditEvent(true);
+    dummyLocalDAO.setAlwaysEmitAuditEvent(true);
+    dummyLocalDAO.setEmitAspectSpecificAuditEvent(true);
+    dummyLocalDAO.setAlwaysEmitAspectSpecificAuditEvent(true);
+
+    // pretend there is already foo in the database
+    when(dummyLocalDAO.getLatest(urn, AspectFoo.class))
+        .thenReturn(new BaseLocalDAO.AspectEntry<>(foo, null, false));
+
+    // try to add foo again but with the OVERRIDE write mode
+    dummyLocalDAO.add(urn, foo, _dummyAuditStamp, mockTrackingContext);
+
+    // verify that there are no MAE emissions
     verifyNoMoreInteractions(_mockTrackingEventProducer);
   }
 

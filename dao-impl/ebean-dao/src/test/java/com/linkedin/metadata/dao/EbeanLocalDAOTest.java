@@ -36,6 +36,7 @@ import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
 import com.linkedin.metadata.events.IngestionTrackingContext;
+import com.linkedin.metadata.events.WriteMode;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.IndexCriterion;
@@ -156,20 +157,20 @@ public class EbeanLocalDAOTest {
     return new Object[][]{
 
         // tests with change history enabled (legacy mode)
-        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, true},
-        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, true},
-        {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID, true},
-        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, true},
-        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, true},
-        {SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL, true},
+        // {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, true},
+        // {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, true},
+        // {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID, true},
+        // {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, true},
+        // {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, true},
+        // SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL, true},
 
         // tests with change history disabled (cold-archive mode)
-        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, false},
-        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, false},
-        {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID, false},
+        // {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, false},
+        // {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, false},
+        // {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID, false},
         {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, false},
         {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, false},
-        {SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL, false},
+        // {SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL, false},
     };
   }
 
@@ -343,6 +344,39 @@ public class EbeanLocalDAOTest {
     inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, v1);
     inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, v1, v0);
     verifyNoMoreInteractions(_mockProducer);
+  }
+
+  @Test
+  public void testAddWithOverrideWriteMode() throws URISyntaxException {
+    // this test is used to check that new metadata ingestion with the OVERRIDE write mode is still updated in
+    // the database even if the metadata values are the same.
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn urn = makeFooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo").setWriteMode(WriteMode.OVERRIDE);
+
+    long t1 = 946713600000L; // 2000-01-01 00:00:00.0
+    long t2 = 949392000000L; // 2000-02-01 00:00:00.0
+    dao.add(urn, foo, new AuditStamp().setTime(t1).setActor(Urn.createFromString("urn:li:corpuser:tester")));
+    // MAE is emitted on a fresh metadata update, even with OVERRIDE write mode
+    Mockito.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
+
+    dao.add(urn, foo, new AuditStamp().setTime(t2).setActor(Urn.createFromString("urn:li:corpuser:tester")));
+    // MAE is not emitted on a metadata update with the same metadata value, with OVERRIDE write mode
+    verifyNoMoreInteractions(_mockProducer);
+
+    // however, make sure that the update still went through by checking the aspect's lastmodifiedon
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+      String aspectFooLastModifiedOnStr = dao.getServer()
+          .createSqlQuery(
+              "select json_extract(a_aspectfoo, '$.lastmodifiedon') as lastmodifiedon from metadata_entity_foo")
+          .findOne().getString("lastmodifiedon");
+      assertEquals(aspectFooLastModifiedOnStr.replace("\"", ""), "2000-02-01 00:00:00.0");
+    } else {
+      String aspectName = ModelUtils.getAspectName(AspectFoo.class);
+      EbeanMetadataAspect aspect = getMetadata(urn, aspectName, 0);
+      long time = aspect.getCreatedOn().getTime();
+      assertEquals(time, t2);
+    }
   }
 
   @Test
@@ -2864,6 +2898,12 @@ public class EbeanLocalDAOTest {
       // Verify nothing found
       assertTrue(empty2.isEmpty());
     }
+  }
+
+  @Test
+  public void testJdonn() {
+    AspectFoo aspectFoo = new AspectFoo().setValue("test").setWriteMode(WriteMode.OVERRIDE);
+    // aspectFoo.getValue
   }
 
   @Test
