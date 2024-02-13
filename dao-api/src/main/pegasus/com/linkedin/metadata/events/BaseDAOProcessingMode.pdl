@@ -4,7 +4,7 @@ namespace com.linkedin.metadata.events
 * A base record containing ingestion mode of aspects
 * Usage: Aspects can include this record to specify ingestion mode
 */
-record BaseIngestionMode {
+record BaseDAOProcessingMode {
 
  /**
  * Mode used when writing aspect metadata into backend

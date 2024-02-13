@@ -1,12 +1,12 @@
 namespace com.linkedin.testing
 
-import com.linkedin.metadata.events.BaseIngestionMode
+import com.linkedin.metadata.events.BaseDAOProcessingMode
 
 /**
  * For unit tests
  */
 @gma.aspect.column.name = "aspectfoo"
-record AspectFoo includes BaseIngestionMode {
+record AspectFoo includes BaseDAOProcessingMode {
 
   /**
    * For unit tests
