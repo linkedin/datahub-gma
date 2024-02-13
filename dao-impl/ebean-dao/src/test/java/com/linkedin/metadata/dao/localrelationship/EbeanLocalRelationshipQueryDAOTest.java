@@ -48,6 +48,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.DataProvider;
+import org.testng.annotations.Factory;
 import org.testng.annotations.Test;
 
 import static com.linkedin.testing.TestUtils.*;
@@ -60,8 +62,20 @@ public class EbeanLocalRelationshipQueryDAOTest {
   private EbeanLocalRelationshipQueryDAO _localRelationshipQueryDAO;
   private IEbeanLocalAccess<FooUrn> _fooUrnEBeanLocalAccess;
   private IEbeanLocalAccess<BarUrn> _barUrnEBeanLocalAccess;
-  // run the tests 1 time for each of nonDollarVirtualColumnsEnabled values (2 total, true and false)
-  private boolean _nonDollarVirtualColumnsEnabled = false;
+  private final boolean _nonDollarVirtualColumnsEnabled;
+
+  @Factory(dataProvider = "inputList")
+  public EbeanLocalRelationshipQueryDAOTest(boolean nonDollarVirtualColumnsEnabled) {
+    _nonDollarVirtualColumnsEnabled = nonDollarVirtualColumnsEnabled;
+  }
+
+  @DataProvider(name = "inputList")
+  public static Object[][] inputList() {
+    return new Object[][] {
+        { true },
+        { false }
+    };
+  }
 
   @BeforeClass
   public void init() {

@@ -40,6 +40,8 @@ import java.util.List;
 import java.util.Map;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.DataProvider;
+import org.testng.annotations.Factory;
 import org.testng.annotations.Test;
 
 import static com.linkedin.common.AuditStamps.*;
@@ -56,10 +58,22 @@ public class EbeanLocalAccessTest {
   private static IEbeanLocalAccess<BarUrn> _ebeanLocalAccessBar;
   private static IEbeanLocalAccess<BurgerUrn> _ebeanLocalAccessBurger;
   private static long _now;
-
-  //run these tests with nonDollarVirtualColumnsEnabled = false and true
-  private final boolean _nonDollarVirtualColumnsEnabled = false;
+  private final boolean _nonDollarVirtualColumnsEnabled;
   private static final LocalRelationshipFilter EMPTY_FILTER = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray());
+
+  @Factory(dataProvider = "inputList")
+  public EbeanLocalAccessTest(boolean nonDollarVirtualColumnsEnabled) {
+    _nonDollarVirtualColumnsEnabled = nonDollarVirtualColumnsEnabled;
+  }
+
+  @DataProvider(name = "inputList")
+  public static Object[][] inputList() {
+    return new Object[][] {
+        { true },
+        { false }
+    };
+  }
+
 
   @BeforeClass
   public void init() {
