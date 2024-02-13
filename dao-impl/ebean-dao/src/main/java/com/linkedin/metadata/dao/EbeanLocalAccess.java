@@ -547,12 +547,12 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       final List<SqlRow> rows = _server.createSqlQuery(SQLStatementUtils.getAllColumnForTable(tableName)).findList();
       Set<String> columns = new HashSet<>();
       for (SqlRow row : rows) {
-        columns.add(row.getString("COLUMN_NAME"));
+        columns.add(row.getString("COLUMN_NAME").toLowerCase());
       }
       tableColumns.put(tableName, columns);
     }
 
-    return tableColumns.get(tableName).contains(columnName);
+    return tableColumns.get(tableName).contains(columnName.toLowerCase());
   }
 
   /**
