@@ -370,7 +370,7 @@ public class EbeanLocalDAOTest {
           .createSqlQuery(
               "select json_extract(a_aspectfoo, '$.lastmodifiedon') as lastmodifiedon from metadata_entity_foo")
           .findOne().getString("lastmodifiedon");
-      assertEquals(aspectFooLastModifiedOnStr.replace("\"", ""), "2000-02-01 00:00:00.0");
+      assertEquals(Timestamp.valueOf(aspectFooLastModifiedOnStr.replace("\"", "")).getTime(), t2);
     } else {
       String aspectName = ModelUtils.getAspectName(AspectFoo.class);
       EbeanMetadataAspect aspect = getMetadata(urn, aspectName, 0);
