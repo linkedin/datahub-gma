@@ -136,14 +136,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
   }
 
-  public void setNonDollarVirtualColumnsEnabled(boolean nonDollarVirtualColumnsEnabled) {
-    _nonDollarVirtualColumnsEnabled = nonDollarVirtualColumnsEnabled;
-  }
-
-  public boolean isNonDollarVirtualColumnsEnabled() {
-    return _nonDollarVirtualColumnsEnabled;
-  }
-
   public enum FindMethodology {
     UNIQUE_ID,      // (legacy) https://javadoc.io/static/io.ebean/ebean/11.19.2/io/ebean/EbeanServer.html#find-java.lang.Class-java.lang.Object-
     DIRECT_SQL,     // https://javadoc.io/static/io.ebean/ebean/11.19.2/io/ebean/EbeanServer.html#findNative-java.lang.Class-java.lang.String-
@@ -380,6 +372,11 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     this(producer, createServer(serverConfig), serverConfig, storageConfig, urnClass, new EmptyPathExtractor<>(), schemaConfig, trackingManager);
   }
 
+  public EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseTrackingMetadataEventProducer producer,
+      @Nonnull EbeanServer server, @Nonnull ServerConfig serverConfig, @Nonnull SchemaConfig schemaConfig, @Nonnull Class<URN> urnClass) {
+    this(aspectUnionClass, producer, server, serverConfig, urnClass, schemaConfig, new EBeanDAOConfig());
+  }
+
   private EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
       @Nonnull EbeanServer server, @Nonnull Class<URN> urnClass) {
     super(aspectUnionClass, producer, urnClass);
@@ -414,13 +411,12 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
   }
 
-  @VisibleForTesting
-  EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseTrackingMetadataEventProducer producer,
+  private EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseTrackingMetadataEventProducer producer,
       @Nonnull EbeanServer server, @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass, @Nonnull SchemaConfig schemaConfig,
-      boolean nonDollarVirtualColumnsEnabled) {
+      @Nonnull EBeanDAOConfig ebeanDAOConfig) {
     this(aspectUnionClass, producer, server, urnClass);
     _schemaConfig = schemaConfig;
-    _nonDollarVirtualColumnsEnabled = nonDollarVirtualColumnsEnabled;
+    _nonDollarVirtualColumnsEnabled = ebeanDAOConfig.isNonDollarVirtualColumnsEnabled();
     if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
       _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, _urnPathExtractor, _nonDollarVirtualColumnsEnabled);
     }

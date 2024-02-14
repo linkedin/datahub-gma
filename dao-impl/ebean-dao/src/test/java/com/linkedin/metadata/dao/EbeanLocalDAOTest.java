@@ -221,7 +221,6 @@ public class EbeanLocalDAOTest {
     }
     dao.setEmitAuditEvent(true);
     dao.setChangeLogEnabled(_enableChangeLog);
-    dao.setNonDollarVirtualColumnsEnabled(_nonDollarVirtualColumnEnabled);
     return dao;
   }
 

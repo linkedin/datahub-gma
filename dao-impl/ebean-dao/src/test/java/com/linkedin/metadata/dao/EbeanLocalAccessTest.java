@@ -59,6 +59,7 @@ public class EbeanLocalAccessTest {
   private static IEbeanLocalAccess<BurgerUrn> _ebeanLocalAccessBurger;
   private static long _now;
   private final boolean _nonDollarVirtualColumnsEnabled;
+  private EBeanDAOConfig config;
   private static final LocalRelationshipFilter EMPTY_FILTER = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray());
 
   @Factory(dataProvider = "inputList")
@@ -86,6 +87,9 @@ public class EbeanLocalAccessTest {
         BurgerUrn.class, new EmptyPathExtractor<>(), _nonDollarVirtualColumnsEnabled);
     _ebeanLocalAccessFoo.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
     _now = System.currentTimeMillis();
+    config = new EBeanDAOConfig();
+    config.setNonDollarVirtualColumnsEnabled(_nonDollarVirtualColumnsEnabled);
+
   }
 
   @BeforeMethod
@@ -361,7 +365,7 @@ public class EbeanLocalAccessTest {
     _ebeanLocalAccessBar.add(barUrn3, new AspectFoo().setValue("3"), AspectFoo.class, auditStamp, null);
 
     // Verify local relationships and entity are added.
-    EbeanLocalRelationshipQueryDAO ebeanLocalRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server);
+    EbeanLocalRelationshipQueryDAO ebeanLocalRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server, config);
     List<BelongsTo> relationships = ebeanLocalRelationshipQueryDAO.findRelationships(
         BarSnapshot.class, EMPTY_FILTER, FooSnapshot.class, EMPTY_FILTER, BelongsTo.class, EMPTY_FILTER, 0, 10);
 
@@ -430,7 +434,7 @@ public class EbeanLocalAccessTest {
     _ebeanLocalAccessBar.add(barUrn3, new AspectFoo().setValue("3"), AspectFoo.class, auditStamp, null);
 
     // Verify that NO local relationships were added
-    EbeanLocalRelationshipQueryDAO ebeanLocalRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server);
+    EbeanLocalRelationshipQueryDAO ebeanLocalRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server, config);
     List<BelongsTo> relationships = ebeanLocalRelationshipQueryDAO.findRelationships(
         BarSnapshot.class, EMPTY_FILTER, FooSnapshot.class, EMPTY_FILTER, BelongsTo.class, EMPTY_FILTER, 0, 10);
     assertEquals(0, relationships.size());

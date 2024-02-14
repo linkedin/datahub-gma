@@ -34,19 +34,12 @@ public class EbeanLocalRelationshipQueryDAO {
   private final EbeanServer _server;
   private final MultiHopsTraversalSqlGenerator _sqlGenerator;
 
-  private boolean _nonDollarVirtualColumnsEnabled = false;
+  private final boolean _nonDollarVirtualColumnsEnabled;
 
-  public EbeanLocalRelationshipQueryDAO(EbeanServer server) {
+  public EbeanLocalRelationshipQueryDAO(EbeanServer server, EBeanDAOConfig config) {
     _server = server;
     _sqlGenerator = new MultiHopsTraversalSqlGenerator(SUPPORTED_CONDITIONS);
-  }
-
-  public void setNonDollarVirtualColumnsEnabled(boolean nonDollarVirtualColumnsEnabled) {
-    _nonDollarVirtualColumnsEnabled = nonDollarVirtualColumnsEnabled;
-  }
-
-  public boolean isNonDollarVirtualColumnsEnabled() {
-    return _nonDollarVirtualColumnsEnabled;
+    _nonDollarVirtualColumnsEnabled = config.isNonDollarVirtualColumnsEnabled();
   }
 
   static final Map<Condition, String> SUPPORTED_CONDITIONS =
