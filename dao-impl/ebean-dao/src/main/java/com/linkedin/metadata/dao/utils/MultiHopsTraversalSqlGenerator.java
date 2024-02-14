@@ -27,7 +27,7 @@ public class MultiHopsTraversalSqlGenerator {
   @ParametersAreNonnullByDefault
   public String multiHopTraversalSql(int minHop, int maxHop, int count, int offset, String relationshipTable,
       String srcEntityTable, String destEntityTable, LocalRelationshipFilter relationshipFilter, LocalRelationshipFilter srcFilter,
-      LocalRelationshipFilter destFilter) {
+      LocalRelationshipFilter destFilter, boolean nonDollarVirtualColumnsEnabled) {
 
     /*
      * For now, only one-hop traversal is supported because multi-hops traversal using SQL is expensive
@@ -48,13 +48,13 @@ public class MultiHopsTraversalSqlGenerator {
     if (relationshipFilter.getDirection() == RelationshipDirection.INCOMING
         || relationshipFilter.getDirection() == RelationshipDirection.OUTGOING) {
       String urnSql = firstHopUrnsDirected(relationshipTable, srcEntityTable, destEntityTable, relationshipFilter, srcFilter,
-          destFilter, relationshipFilter.getDirection());
+          destFilter, relationshipFilter.getDirection(), nonDollarVirtualColumnsEnabled);
       return String.format("SELECT * FROM %s WHERE urn IN (%s) ORDER BY urn LIMIT %d OFFSET %d", entityTable, urnSql, count, offset);
     }
 
     // Relationship is undirected.
-    String urnSql = firstHopUrnsUndirected(relationshipTable, entityTable, relationshipFilter, srcFilter);
-    return findEntitiesUndirected(entityTable, relationshipTable, urnSql, destFilter);
+    String urnSql = firstHopUrnsUndirected(relationshipTable, entityTable, relationshipFilter, srcFilter, nonDollarVirtualColumnsEnabled);
+    return findEntitiesUndirected(entityTable, relationshipTable, urnSql, destFilter, nonDollarVirtualColumnsEnabled);
   }
 
   /**
@@ -64,7 +64,8 @@ public class MultiHopsTraversalSqlGenerator {
   @Nonnull
   @ParametersAreNonnullByDefault
   private String firstHopUrnsDirected(String relationshipTable, String srcEntityTable, String destEntityTable,
-      LocalRelationshipFilter relationshipFilter, LocalRelationshipFilter srcFilter, LocalRelationshipFilter destFilter, RelationshipDirection direction) {
+      LocalRelationshipFilter relationshipFilter, LocalRelationshipFilter srcFilter, LocalRelationshipFilter destFilter, RelationshipDirection direction,
+      boolean nonDollarVirtualColumnsEnabled) {
 
     String urnColumn = "destination";
     if (direction == RelationshipDirection.INCOMING) {
@@ -75,7 +76,7 @@ public class MultiHopsTraversalSqlGenerator {
         String.format("SELECT rt.%s FROM %s rt INNER JOIN %s dt ON rt.destination=dt.urn INNER JOIN %s st ON rt.source=st.urn WHERE rt.deleted_ts IS NULL",
             urnColumn, relationshipTable, destEntityTable, srcEntityTable));
 
-    String whereClause = SQLStatementUtils.whereClause(_supportedConditions,
+    String whereClause = SQLStatementUtils.whereClause(_supportedConditions,  nonDollarVirtualColumnsEnabled,
         new Pair<>(relationshipFilter, "rt"),
         new Pair<>(destFilter, "dt"),
         new Pair<>(srcFilter, "st"));
@@ -93,7 +94,7 @@ public class MultiHopsTraversalSqlGenerator {
   @Nonnull
   @ParametersAreNonnullByDefault
   private String firstHopUrnsUndirected(String relationshipTable, String entityTable, LocalRelationshipFilter relationshipFilter,
-      LocalRelationshipFilter srcFilter) {
+      LocalRelationshipFilter srcFilter, boolean nonDollarVirtualColumnsEnabled) {
 
     StringBuilder sourceUrnsSql = new StringBuilder(
         String.format("SELECT rt.source FROM %s rt INNER JOIN %s et ON rt.source=et.urn WHERE rt.deleted_ts IS NULL",
@@ -103,7 +104,7 @@ public class MultiHopsTraversalSqlGenerator {
         String.format("SELECT rt.destination FROM %s rt INNER JOIN %s et ON rt.destination=et.urn WHERE rt.deleted_ts IS NULL",
             relationshipTable, entityTable));
 
-    String whereClause = SQLStatementUtils.whereClause(_supportedConditions,
+    String whereClause = SQLStatementUtils.whereClause(_supportedConditions, nonDollarVirtualColumnsEnabled,
         new Pair<>(relationshipFilter, "rt"),
         new Pair<>(srcFilter, "et"));
 
@@ -120,8 +121,9 @@ public class MultiHopsTraversalSqlGenerator {
    */
   @Nonnull
   @ParametersAreNonnullByDefault
-  private String findEntitiesUndirected(String entityTable, String relationshipTable, String firstHopUrnSql, LocalRelationshipFilter destFilter) {
-    String whereClause = SQLStatementUtils.whereClause(_supportedConditions, new Pair<>(destFilter, "et"));
+  private String findEntitiesUndirected(String entityTable, String relationshipTable, String firstHopUrnSql, LocalRelationshipFilter destFilter,
+  boolean nonDollarVirtualColumnsEnabled) {
+    String whereClause = SQLStatementUtils.whereClause(_supportedConditions, nonDollarVirtualColumnsEnabled, new Pair<>(destFilter, "et"));
 
     StringBuilder sourceEntitySql = new StringBuilder(
         String.format("SELECT et.* FROM %s et INNER JOIN %s rt ON et.urn=rt.source WHERE rt.destination IN (%s)",

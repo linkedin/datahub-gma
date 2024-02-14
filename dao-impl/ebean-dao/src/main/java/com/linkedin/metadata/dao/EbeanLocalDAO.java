@@ -83,6 +83,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   private IEbeanLocalAccess<URN> _localAccess;
   private UrnPathExtractor<URN> _urnPathExtractor;
   private SchemaConfig _schemaConfig = SchemaConfig.OLD_SCHEMA_ONLY;
+  private final EBeanDAOConfig _eBeanDAOConfig = new EBeanDAOConfig();
 
   public enum SchemaConfig {
     OLD_SCHEMA_ONLY, // Default: read from and write to the old schema table
@@ -370,6 +371,11 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     this(producer, createServer(serverConfig), serverConfig, storageConfig, urnClass, new EmptyPathExtractor<>(), schemaConfig, trackingManager);
   }
 
+  public EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseTrackingMetadataEventProducer producer,
+      @Nonnull EbeanServer server, @Nonnull ServerConfig serverConfig, @Nonnull SchemaConfig schemaConfig, @Nonnull Class<URN> urnClass) {
+    this(aspectUnionClass, producer, server, serverConfig, urnClass, schemaConfig, new EBeanDAOConfig());
+  }
+
   private EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
       @Nonnull EbeanServer server, @Nonnull Class<URN> urnClass) {
     super(aspectUnionClass, producer, urnClass);
@@ -390,7 +396,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     this(aspectUnionClass, producer, server, urnClass);
     _schemaConfig = schemaConfig;
     if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
-      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, _urnPathExtractor);
+      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, _urnPathExtractor, _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled());
     }
   }
 
@@ -400,7 +406,17 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     this(aspectUnionClass, producer, server, urnClass, trackingManager);
     _schemaConfig = schemaConfig;
     if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
-      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, _urnPathExtractor);
+      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, _urnPathExtractor, _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled());
+    }
+  }
+
+  private EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseTrackingMetadataEventProducer producer,
+      @Nonnull EbeanServer server, @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass, @Nonnull SchemaConfig schemaConfig,
+      @Nonnull EBeanDAOConfig ebeanDAOConfig) {
+    this(aspectUnionClass, producer, server, urnClass);
+    _schemaConfig = schemaConfig;
+    if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
+      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, _urnPathExtractor, ebeanDAOConfig.isNonDollarVirtualColumnsEnabled());
     }
   }
 
@@ -418,14 +434,17 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     _findMethodology = findMethodology;
   }
 
-  // Only called in testing (test all possible combos of SchemaConfig and FindMethodology)
+  // Only called in testing (test all possible combos of SchemaConfig, FindMethodology)
   @VisibleForTesting
   EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
       @Nonnull EbeanServer server, @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass,
       @Nonnull SchemaConfig schemaConfig,
-      @Nonnull FindMethodology findMethodology) {
+      @Nonnull FindMethodology findMethodology, @Nonnull EBeanDAOConfig ebeanDAOConfig) {
     this(aspectUnionClass, producer, server, serverConfig, urnClass, schemaConfig);
     _findMethodology = findMethodology;
+    if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
+      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, _urnPathExtractor, ebeanDAOConfig.isNonDollarVirtualColumnsEnabled());
+    }
   }
 
   @VisibleForTesting
@@ -453,7 +472,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     this(producer, server, storageConfig, urnClass, urnPathExtractor);
     _schemaConfig = schemaConfig;
     if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
-      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, urnPathExtractor);
+      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, urnPathExtractor, _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled());
     }
   }
 
@@ -463,7 +482,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     this(producer, server, storageConfig, urnClass, urnPathExtractor, trackingManager);
     _schemaConfig = schemaConfig;
     if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
-      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, urnPathExtractor);
+      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, urnPathExtractor, _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled());
     }
   }
 
@@ -1455,7 +1474,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
       return listUrnsPaginatedByLastUrn(lastUrn, pageSize);
     }
-
     return _localAccess.listUrns(indexFilter, indexSortCriterion, lastUrn, pageSize);
   }
 
@@ -1486,7 +1504,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
       throw new UnsupportedOperationException("countAggregate is only supported in new schema.");
     }
-
     return _localAccess.countAggregate(indexFilter, indexGroupByCriterion);
   }
 }

@@ -109,7 +109,7 @@ public interface IEbeanLocalAccess<URN extends Urn> {
   boolean exists(@Nonnull URN urn);
 
   /**
-   *  Gets the count of an aggregation specified by the aspect and field to group on.
+   * Gets the count of an aggregation specified by the aspect and field to group on.
    * @param indexFilter {@link IndexFilter} that defines the filter conditions
    * @param indexGroupByCriterion {@link IndexGroupByCriterion} that defines the aspect to group by
    * @return map of the field to the count

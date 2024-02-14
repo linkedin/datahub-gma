@@ -40,6 +40,8 @@ import java.util.List;
 import java.util.Map;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.DataProvider;
+import org.testng.annotations.Factory;
 import org.testng.annotations.Test;
 
 import static com.linkedin.common.AuditStamps.*;
@@ -56,26 +58,46 @@ public class EbeanLocalAccessTest {
   private static IEbeanLocalAccess<BarUrn> _ebeanLocalAccessBar;
   private static IEbeanLocalAccess<BurgerUrn> _ebeanLocalAccessBurger;
   private static long _now;
+  private final EBeanDAOConfig _ebeanConfig = new EBeanDAOConfig();
   private static final LocalRelationshipFilter EMPTY_FILTER = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray());
+
+  @Factory(dataProvider = "inputList")
+  public EbeanLocalAccessTest(boolean nonDollarVirtualColumnsEnabled) {
+    _ebeanConfig.setNonDollarVirtualColumnsEnabled(nonDollarVirtualColumnsEnabled);
+  }
+
+  @DataProvider(name = "inputList")
+  public static Object[][] inputList() {
+    return new Object[][] {
+        { true },
+        { false }
+    };
+  }
+
 
   @BeforeClass
   public void init() {
     _server = EmbeddedMariaInstance.getServer(EbeanLocalAccessTest.class.getSimpleName());
     _ebeanLocalAccessFoo = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()),
-        FooUrn.class, new FooUrnPathExtractor());
+        FooUrn.class, new FooUrnPathExtractor(), _ebeanConfig.isNonDollarVirtualColumnsEnabled());
     _ebeanLocalAccessBar = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()),
-        BarUrn.class, new BarUrnPathExtractor());
+        BarUrn.class, new BarUrnPathExtractor(), _ebeanConfig.isNonDollarVirtualColumnsEnabled());
     _ebeanLocalAccessBurger = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()),
-        BurgerUrn.class, new EmptyPathExtractor<>());
+        BurgerUrn.class, new EmptyPathExtractor<>(), _ebeanConfig.isNonDollarVirtualColumnsEnabled());
     _ebeanLocalAccessFoo.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
     _now = System.currentTimeMillis();
   }
 
   @BeforeMethod
   public void setupTest() throws IOException {
-    _server.execute(Ebean.createSqlUpdate(
-        Resources.toString(Resources.getResource("ebean-local-access-create-all.sql"), StandardCharsets.UTF_8)));
-
+    if (!_ebeanConfig.isNonDollarVirtualColumnsEnabled()) {
+      _server.execute(Ebean.createSqlUpdate(
+          Resources.toString(Resources.getResource("ebean-local-access-create-all.sql"), StandardCharsets.UTF_8)));
+    } else {
+      _server.execute(Ebean.createSqlUpdate(Resources.toString(
+          Resources.getResource("ebean-local-access-create-all-with-non-dollar-virtual-column-names.sql"),
+          StandardCharsets.UTF_8)));
+    }
     // initialize data with metadata_entity_foo table with fooUrns from 0 ~ 99
     int numOfRecords = 100;
     for (int i = 0; i < numOfRecords; i++) {
@@ -339,7 +361,7 @@ public class EbeanLocalAccessTest {
     _ebeanLocalAccessBar.add(barUrn3, new AspectFoo().setValue("3"), AspectFoo.class, auditStamp, null);
 
     // Verify local relationships and entity are added.
-    EbeanLocalRelationshipQueryDAO ebeanLocalRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server);
+    EbeanLocalRelationshipQueryDAO ebeanLocalRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server, _ebeanConfig);
     List<BelongsTo> relationships = ebeanLocalRelationshipQueryDAO.findRelationships(
         BarSnapshot.class, EMPTY_FILTER, FooSnapshot.class, EMPTY_FILTER, BelongsTo.class, EMPTY_FILTER, 0, 10);
 
@@ -377,8 +399,13 @@ public class EbeanLocalAccessTest {
     AspectFoo foo1 = new AspectFoo().setValue("foo");
     _ebeanLocalAccessFoo.add(urn1, foo1, AspectFoo.class, makeAuditStamp("actor", _now), null);
 
+    List<SqlRow> results;
     // get content of virtual column
-    List<SqlRow> results = _server.createSqlQuery("SELECT i_urn$fooId as id FROM metadata_entity_foo").findList();
+    if (_ebeanConfig.isNonDollarVirtualColumnsEnabled()) {
+      results = _server.createSqlQuery("SELECT i_urn0fooId as id FROM metadata_entity_foo").findList();
+    } else {
+      results = _server.createSqlQuery("SELECT i_urn$fooId as id FROM metadata_entity_foo").findList();
+    }
     assertEquals(100, results.size());
 
     // ensure content is as expected
@@ -403,7 +430,7 @@ public class EbeanLocalAccessTest {
     _ebeanLocalAccessBar.add(barUrn3, new AspectFoo().setValue("3"), AspectFoo.class, auditStamp, null);
 
     // Verify that NO local relationships were added
-    EbeanLocalRelationshipQueryDAO ebeanLocalRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server);
+    EbeanLocalRelationshipQueryDAO ebeanLocalRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server, _ebeanConfig);
     List<BelongsTo> relationships = ebeanLocalRelationshipQueryDAO.findRelationships(
         BarSnapshot.class, EMPTY_FILTER, FooSnapshot.class, EMPTY_FILTER, BelongsTo.class, EMPTY_FILTER, 0, 10);
     assertEquals(0, relationships.size());
@@ -473,8 +500,12 @@ public class EbeanLocalAccessTest {
   @Test
   public void testCheckColumnExists() {
     assertTrue(_ebeanLocalAccessFoo.checkColumnExists("metadata_entity_foo", "a_aspectfoo"));
-    assertTrue(_ebeanLocalAccessFoo.checkColumnExists("metadata_entity_foo", "i_aspectfoo$value"));
     assertFalse(_ebeanLocalAccessFoo.checkColumnExists("metadata_entity_foo", "a_aspect_not_exist"));
     assertFalse(_ebeanLocalAccessFoo.checkColumnExists("metadata_entity_notexist", "a_aspectfoo"));
+    if (!_ebeanConfig.isNonDollarVirtualColumnsEnabled()) {
+      assertTrue(_ebeanLocalAccessFoo.checkColumnExists("metadata_entity_foo", "i_aspectfoo$value"));
+    } else {
+      assertTrue(_ebeanLocalAccessFoo.checkColumnExists("metadata_entity_foo", "i_aspectfoo0value"));
+    }
   }
 }

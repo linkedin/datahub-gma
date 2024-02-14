@@ -5,6 +5,7 @@ import com.google.common.io.Resources;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.StringArray;
+import com.linkedin.metadata.dao.EBeanDAOConfig;
 import com.linkedin.metadata.dao.EbeanLocalAccess;
 import com.linkedin.metadata.dao.EbeanLocalRelationshipQueryDAO;
 import com.linkedin.metadata.dao.EbeanLocalRelationshipWriterDAO;
@@ -48,6 +49,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.DataProvider;
+import org.testng.annotations.Factory;
 import org.testng.annotations.Test;
 
 import static com.linkedin.testing.TestUtils.*;
@@ -60,22 +63,41 @@ public class EbeanLocalRelationshipQueryDAOTest {
   private EbeanLocalRelationshipQueryDAO _localRelationshipQueryDAO;
   private IEbeanLocalAccess<FooUrn> _fooUrnEBeanLocalAccess;
   private IEbeanLocalAccess<BarUrn> _barUrnEBeanLocalAccess;
+  private final EBeanDAOConfig _eBeanDAOConfig = new EBeanDAOConfig();
+
+  @Factory(dataProvider = "inputList")
+  public EbeanLocalRelationshipQueryDAOTest(boolean nonDollarVirtualColumnsEnabled) {
+    _eBeanDAOConfig.setNonDollarVirtualColumnsEnabled(nonDollarVirtualColumnsEnabled);
+  }
+
+  @DataProvider(name = "inputList")
+  public static Object[][] inputList() {
+    return new Object[][] {
+        { true },
+        { false }
+    };
+  }
 
   @BeforeClass
   public void init() {
     _server = EmbeddedMariaInstance.getServer(EbeanLocalRelationshipQueryDAOTest.class.getSimpleName());
     _localRelationshipWriterDAO = new EbeanLocalRelationshipWriterDAO(_server);
-    _localRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server);
+    _localRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server, _eBeanDAOConfig);
     _fooUrnEBeanLocalAccess = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()),
-        FooUrn.class, new EmptyPathExtractor<>());
+        FooUrn.class, new EmptyPathExtractor<>(), _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled());
     _barUrnEBeanLocalAccess = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()),
-        BarUrn.class, new EmptyPathExtractor<>());
+        BarUrn.class, new EmptyPathExtractor<>(), _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled());
   }
 
   @BeforeMethod
   public void recreateTables() throws IOException {
-    _server.execute(Ebean.createSqlUpdate(
-        Resources.toString(Resources.getResource("ebean-local-relationship-dao-create-all.sql"), StandardCharsets.UTF_8)));
+    if (!_eBeanDAOConfig.isNonDollarVirtualColumnsEnabled()) {
+      _server.execute(Ebean.createSqlUpdate(
+          Resources.toString(Resources.getResource("ebean-local-relationship-dao-create-all.sql"), StandardCharsets.UTF_8)));
+    } else {
+      _server.execute(Ebean.createSqlUpdate(
+          Resources.toString(Resources.getResource("ebean-local-relationship-create-all-with-non-dollar-virtual-column-names.sql"), StandardCharsets.UTF_8)));
+    }
   }
 
   @Test

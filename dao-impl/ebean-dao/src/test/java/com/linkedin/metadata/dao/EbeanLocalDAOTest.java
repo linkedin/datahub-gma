@@ -135,8 +135,13 @@ public class EbeanLocalDAOTest {
   private static final String GMA_CREATE_ALL_SQL = "gma-create-all.sql";
   private static final String GMA_DROP_ALL_SQL = "gma-drop-all.sql";
 
+  private static final String CREATE_ALL_WITH_NON_DOLLAR_VIRTUAL_COLUMN_SQL = "ebean-local-dao-create-all-with-non-dollar-virtual-column-names.sql";
+  private final EBeanDAOConfig _eBeanDAOConfig = new EBeanDAOConfig();
+
   @Factory(dataProvider = "inputList")
-  public EbeanLocalDAOTest(SchemaConfig schemaConfig, FindMethodology findMethodology, boolean enableChangeLog) {
+  public EbeanLocalDAOTest(SchemaConfig schemaConfig, FindMethodology findMethodology, boolean enableChangeLog,
+      boolean nonDollarVirtualColumnEnabled) {
+    _eBeanDAOConfig.setNonDollarVirtualColumnsEnabled(nonDollarVirtualColumnEnabled);
     _schemaConfig = schemaConfig;
     _findMethodology = findMethodology;
     _enableChangeLog = enableChangeLog;
@@ -156,20 +161,21 @@ public class EbeanLocalDAOTest {
     return new Object[][]{
 
         // tests with change history enabled (legacy mode)
-        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, true},
-        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, true},
-        {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID, true},
-        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, true},
-        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, true},
-        {SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL, true},
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, true, true},
+        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, true, true},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID, true, true},
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, true, false},
+        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, true, false},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL, true, false},
 
         // tests with change history disabled (cold-archive mode)
-        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, false},
-        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, false},
-        {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID, false},
-        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, false},
-        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, false},
-        {SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL, false},
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, false, true},
+        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, false, true},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID, false, true},
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, false, false},
+        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, false, false},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL, false, false},
+
     };
   }
 
@@ -179,7 +185,11 @@ public class EbeanLocalDAOTest {
       _server.execute(Ebean.createSqlUpdate(readSQLfromFile(GMA_DROP_ALL_SQL)));
       _server.execute(Ebean.createSqlUpdate(readSQLfromFile(GMA_CREATE_ALL_SQL)));
     } else {
-      _server.execute(Ebean.createSqlUpdate(readSQLfromFile(NEW_SCHEMA_CREATE_ALL_SQL)));
+      if (_eBeanDAOConfig.isNonDollarVirtualColumnsEnabled()) {
+        _server.execute(Ebean.createSqlUpdate(readSQLfromFile(CREATE_ALL_WITH_NON_DOLLAR_VIRTUAL_COLUMN_SQL)));
+      } else {
+        _server.execute(Ebean.createSqlUpdate(readSQLfromFile(NEW_SCHEMA_CREATE_ALL_SQL)));
+      }
     }
     _mockProducer = mock(BaseMetadataEventProducer.class);
     _mockTrackingProducer = mock(BaseTrackingMetadataEventProducer.class);
@@ -201,7 +211,7 @@ public class EbeanLocalDAOTest {
   private <URN extends Urn> EbeanLocalDAO<EntityAspectUnion, URN> createDao(@Nonnull EbeanServer server,
       @Nonnull Class<URN> urnClass) {
     EbeanLocalDAO<EntityAspectUnion, URN> dao = new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, server,
-        EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()), urnClass, _schemaConfig, _findMethodology);
+        EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()), urnClass, _schemaConfig, _findMethodology, _eBeanDAOConfig);
     // Since we added a_urn columns to both metadata_entity_foo and metadata_entity_bar tables in the SQL initialization scripts,
     // it is required that we set non-default UrnPathExtractors for the corresponding DAOs when initialized.
     if (urnClass == FooUrn.class) {
@@ -3060,7 +3070,8 @@ public class EbeanLocalDAOTest {
     */
 
     String aspectColumnName = isUrn(aspectName) ? null : SQLSchemaUtils.getAspectColumnName(aspectName); // e.g. a_aspectfoo;
-    String fullIndexColumnName = SQLSchemaUtils.getGeneratedColumnName(aspectName, pathName); // e.g. i_aspectfoo$path1$value1
+    String fullIndexColumnName = SQLSchemaUtils.getGeneratedColumnName(aspectName, pathName,
+        _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled()); // e.g. i_aspectfoo$path1$value1
 
     String checkColumnExistance = String.format("SELECT * FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '%s' AND"
         + " TABLE_NAME = '%s' AND COLUMN_NAME = '%s'", _server.getName(), getTableName(urn), fullIndexColumnName);
