@@ -63,12 +63,11 @@ public class EbeanLocalRelationshipQueryDAOTest {
   private EbeanLocalRelationshipQueryDAO _localRelationshipQueryDAO;
   private IEbeanLocalAccess<FooUrn> _fooUrnEBeanLocalAccess;
   private IEbeanLocalAccess<BarUrn> _barUrnEBeanLocalAccess;
-  private EBeanDAOConfig _eBeanDAOConfig;
-  private final boolean _nonDollarVirtualColumnsEnabled;
+  private final EBeanDAOConfig _eBeanDAOConfig = new EBeanDAOConfig();
 
   @Factory(dataProvider = "inputList")
   public EbeanLocalRelationshipQueryDAOTest(boolean nonDollarVirtualColumnsEnabled) {
-    _nonDollarVirtualColumnsEnabled = nonDollarVirtualColumnsEnabled;
+    _eBeanDAOConfig.setNonDollarVirtualColumnsEnabled(nonDollarVirtualColumnsEnabled);
   }
 
   @DataProvider(name = "inputList")
@@ -81,20 +80,18 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
   @BeforeClass
   public void init() {
-    _eBeanDAOConfig = new EBeanDAOConfig();
-    _eBeanDAOConfig.setNonDollarVirtualColumnsEnabled(_nonDollarVirtualColumnsEnabled);
     _server = EmbeddedMariaInstance.getServer(EbeanLocalRelationshipQueryDAOTest.class.getSimpleName());
     _localRelationshipWriterDAO = new EbeanLocalRelationshipWriterDAO(_server);
     _localRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server, _eBeanDAOConfig);
     _fooUrnEBeanLocalAccess = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()),
-        FooUrn.class, new EmptyPathExtractor<>(), _nonDollarVirtualColumnsEnabled);
+        FooUrn.class, new EmptyPathExtractor<>(), _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled());
     _barUrnEBeanLocalAccess = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()),
-        BarUrn.class, new EmptyPathExtractor<>(), _nonDollarVirtualColumnsEnabled);
+        BarUrn.class, new EmptyPathExtractor<>(), _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled());
   }
 
   @BeforeMethod
   public void recreateTables() throws IOException {
-    if (!_nonDollarVirtualColumnsEnabled) {
+    if (!_eBeanDAOConfig.isNonDollarVirtualColumnsEnabled()) {
       _server.execute(Ebean.createSqlUpdate(
           Resources.toString(Resources.getResource("ebean-local-relationship-dao-create-all.sql"), StandardCharsets.UTF_8)));
     } else {

@@ -58,13 +58,12 @@ public class EbeanLocalAccessTest {
   private static IEbeanLocalAccess<BarUrn> _ebeanLocalAccessBar;
   private static IEbeanLocalAccess<BurgerUrn> _ebeanLocalAccessBurger;
   private static long _now;
-  private final boolean _nonDollarVirtualColumnsEnabled;
-  private EBeanDAOConfig config;
+  private final EBeanDAOConfig config = new EBeanDAOConfig();
   private static final LocalRelationshipFilter EMPTY_FILTER = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray());
 
   @Factory(dataProvider = "inputList")
   public EbeanLocalAccessTest(boolean nonDollarVirtualColumnsEnabled) {
-    _nonDollarVirtualColumnsEnabled = nonDollarVirtualColumnsEnabled;
+    config.setNonDollarVirtualColumnsEnabled(nonDollarVirtualColumnsEnabled);
   }
 
   @DataProvider(name = "inputList")
@@ -80,21 +79,18 @@ public class EbeanLocalAccessTest {
   public void init() {
     _server = EmbeddedMariaInstance.getServer(EbeanLocalAccessTest.class.getSimpleName());
     _ebeanLocalAccessFoo = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()),
-        FooUrn.class, new FooUrnPathExtractor(), _nonDollarVirtualColumnsEnabled);
+        FooUrn.class, new FooUrnPathExtractor(), config.isNonDollarVirtualColumnsEnabled());
     _ebeanLocalAccessBar = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()),
-        BarUrn.class, new BarUrnPathExtractor(), _nonDollarVirtualColumnsEnabled);
+        BarUrn.class, new BarUrnPathExtractor(), config.isNonDollarVirtualColumnsEnabled());
     _ebeanLocalAccessBurger = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()),
-        BurgerUrn.class, new EmptyPathExtractor<>(), _nonDollarVirtualColumnsEnabled);
+        BurgerUrn.class, new EmptyPathExtractor<>(), config.isNonDollarVirtualColumnsEnabled());
     _ebeanLocalAccessFoo.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
     _now = System.currentTimeMillis();
-    config = new EBeanDAOConfig();
-    config.setNonDollarVirtualColumnsEnabled(_nonDollarVirtualColumnsEnabled);
-
   }
 
   @BeforeMethod
   public void setupTest() throws IOException {
-    if (!_nonDollarVirtualColumnsEnabled) {
+    if (!config.isNonDollarVirtualColumnsEnabled()) {
       _server.execute(Ebean.createSqlUpdate(
           Resources.toString(Resources.getResource("ebean-local-access-create-all.sql"), StandardCharsets.UTF_8)));
     } else {
@@ -405,7 +401,7 @@ public class EbeanLocalAccessTest {
 
     List<SqlRow> results;
     // get content of virtual column
-    if (_nonDollarVirtualColumnsEnabled) {
+    if (config.isNonDollarVirtualColumnsEnabled()) {
       results = _server.createSqlQuery("SELECT i_urn0fooId as id FROM metadata_entity_foo").findList();
     } else {
       results = _server.createSqlQuery("SELECT i_urn$fooId as id FROM metadata_entity_foo").findList();
@@ -506,7 +502,7 @@ public class EbeanLocalAccessTest {
     assertTrue(_ebeanLocalAccessFoo.checkColumnExists("metadata_entity_foo", "a_aspectfoo"));
     assertFalse(_ebeanLocalAccessFoo.checkColumnExists("metadata_entity_foo", "a_aspect_not_exist"));
     assertFalse(_ebeanLocalAccessFoo.checkColumnExists("metadata_entity_notexist", "a_aspectfoo"));
-    if (!_nonDollarVirtualColumnsEnabled) {
+    if (!config.isNonDollarVirtualColumnsEnabled()) {
       assertTrue(_ebeanLocalAccessFoo.checkColumnExists("metadata_entity_foo", "i_aspectfoo$value"));
     } else {
       assertTrue(_ebeanLocalAccessFoo.checkColumnExists("metadata_entity_foo", "i_aspectfoo0value"));
