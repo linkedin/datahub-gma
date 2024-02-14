@@ -339,7 +339,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   public Map<String, Long> countAggregate(@Nullable IndexFilter indexFilter,
       @Nonnull IndexGroupByCriterion indexGroupByCriterion) {
     final String tableName = SQLSchemaUtils.getTableName(_entityType);
-    String groupByColumn = getGeneratedColumnName(indexGroupByCriterion.getAspect(), indexGroupByCriterion.getPath(), _nonDollarVirtualColumnsEnabled);
+    final String groupByColumn = getGeneratedColumnName(indexGroupByCriterion.getAspect(), indexGroupByCriterion.getPath(), _nonDollarVirtualColumnsEnabled);
     // first, check for existence of the column we want to GROUP BY
     if (!checkColumnExists(tableName, groupByColumn)) {
       // if we are trying to GROUP BY the results on a column that does not exist, just return an empty map

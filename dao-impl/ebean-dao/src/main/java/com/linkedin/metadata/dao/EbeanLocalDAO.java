@@ -82,6 +82,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   private IEbeanLocalAccess<URN> _localAccess;
   private UrnPathExtractor<URN> _urnPathExtractor;
   private SchemaConfig _schemaConfig = SchemaConfig.OLD_SCHEMA_ONLY;
+  private final EBeanDAOConfig _eBeanDAOConfig = new EBeanDAOConfig();
 
   public enum SchemaConfig {
     OLD_SCHEMA_ONLY, // Default: read from and write to the old schema table
@@ -101,9 +102,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   // false = read/bump 2nd latest version + insert latest version
   // true = overwrite 2nd latest version with latest version (equivalent to keeping only version = 0 rows in metadata_aspect)
   private boolean _overwriteLatestVersionEnabled = false;
-
-  //true if virtual columns with non dollar characters are enabled
-  private boolean _nonDollarVirtualColumnsEnabled = false;
 
   public void setChangeLogEnabled(boolean changeLogEnabled) {
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
@@ -397,7 +395,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     this(aspectUnionClass, producer, server, urnClass);
     _schemaConfig = schemaConfig;
     if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
-      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, _urnPathExtractor, _nonDollarVirtualColumnsEnabled);
+      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, _urnPathExtractor, _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled());
     }
   }
 
@@ -407,7 +405,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     this(aspectUnionClass, producer, server, urnClass, trackingManager);
     _schemaConfig = schemaConfig;
     if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
-      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, _urnPathExtractor, _nonDollarVirtualColumnsEnabled);
+      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, _urnPathExtractor, _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled());
     }
   }
 
@@ -416,9 +414,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       @Nonnull EBeanDAOConfig ebeanDAOConfig) {
     this(aspectUnionClass, producer, server, urnClass);
     _schemaConfig = schemaConfig;
-    _nonDollarVirtualColumnsEnabled = ebeanDAOConfig.isNonDollarVirtualColumnsEnabled();
     if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
-      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, _urnPathExtractor, _nonDollarVirtualColumnsEnabled);
+      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, _urnPathExtractor, ebeanDAOConfig.isNonDollarVirtualColumnsEnabled());
     }
   }
 
@@ -443,10 +440,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       @Nonnull SchemaConfig schemaConfig,
       @Nonnull FindMethodology findMethodology, @Nonnull EBeanDAOConfig ebeanDAOConfig) {
     this(aspectUnionClass, producer, server, serverConfig, urnClass, schemaConfig);
-    _nonDollarVirtualColumnsEnabled = ebeanDAOConfig.isNonDollarVirtualColumnsEnabled();
     _findMethodology = findMethodology;
     if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
-      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, _urnPathExtractor, _nonDollarVirtualColumnsEnabled);
+      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, _urnPathExtractor, ebeanDAOConfig.isNonDollarVirtualColumnsEnabled());
     }
   }
 
@@ -475,7 +471,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     this(producer, server, storageConfig, urnClass, urnPathExtractor);
     _schemaConfig = schemaConfig;
     if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
-      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, urnPathExtractor, _nonDollarVirtualColumnsEnabled);
+      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, urnPathExtractor, _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled());
     }
   }
 
@@ -485,7 +481,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     this(producer, server, storageConfig, urnClass, urnPathExtractor, trackingManager);
     _schemaConfig = schemaConfig;
     if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
-      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, urnPathExtractor, _nonDollarVirtualColumnsEnabled);
+      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, urnPathExtractor, _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled());
     }
   }
 

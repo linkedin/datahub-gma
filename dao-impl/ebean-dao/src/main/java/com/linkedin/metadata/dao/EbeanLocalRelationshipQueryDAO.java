@@ -34,12 +34,12 @@ public class EbeanLocalRelationshipQueryDAO {
   private final EbeanServer _server;
   private final MultiHopsTraversalSqlGenerator _sqlGenerator;
 
-  private final boolean _nonDollarVirtualColumnsEnabled;
+  private final EBeanDAOConfig _eBeanDAOConfig;
 
-  public EbeanLocalRelationshipQueryDAO(EbeanServer server, EBeanDAOConfig config) {
+  public EbeanLocalRelationshipQueryDAO(EbeanServer server, EBeanDAOConfig eBeanDAOConfig) {
     _server = server;
+    _eBeanDAOConfig = eBeanDAOConfig;
     _sqlGenerator = new MultiHopsTraversalSqlGenerator(SUPPORTED_CONDITIONS);
-    _nonDollarVirtualColumnsEnabled = config.isNonDollarVirtualColumnsEnabled();
   }
 
   static final Map<Condition, String> SUPPORTED_CONDITIONS =
@@ -73,7 +73,8 @@ public class EbeanLocalRelationshipQueryDAO {
     final StringBuilder sqlBuilder = new StringBuilder();
     sqlBuilder.append("SELECT * FROM ").append(tableName);
     if (filter.hasCriteria() && filter.getCriteria().size() > 0) {
-      sqlBuilder.append(" WHERE ").append(SQLStatementUtils.whereClause(filter, SUPPORTED_CONDITIONS, null, _nonDollarVirtualColumnsEnabled));
+      sqlBuilder.append(" WHERE ").append(SQLStatementUtils.whereClause(filter, SUPPORTED_CONDITIONS, null,
+          _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled()));
     }
     sqlBuilder.append(" ORDER BY urn LIMIT ").append(Math.max(1, count)).append(" OFFSET ").append(Math.max(0, offset));
 
@@ -98,7 +99,8 @@ public class EbeanLocalRelationshipQueryDAO {
     final String srcEntityTable = SQLSchemaUtils.getTableName(ModelUtils.getUrnTypeFromSnapshot(sourceEntityClass));
     final String destEntityTable = SQLSchemaUtils.getTableName(ModelUtils.getUrnTypeFromSnapshot(destinationEntityClass));
     final String sql = _sqlGenerator.multiHopTraversalSql(minHops, maxHops, Math.max(1, count), Math.max(0, offset), relationshipTable,
-        srcEntityTable, destEntityTable, relationshipFilter, sourceEntityFilter, destinationEntityFilter, _nonDollarVirtualColumnsEnabled);
+        srcEntityTable, destEntityTable, relationshipFilter, sourceEntityFilter, destinationEntityFilter,
+        _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled());
 
     final Class snapshotClass = relationshipFilter.getDirection() == RelationshipDirection.INCOMING ? sourceEntityClass : destinationEntityClass;
 
@@ -249,7 +251,8 @@ public class EbeanLocalRelationshipQueryDAO {
     }
 
     sqlBuilder.append("WHERE deleted_ts is NULL");
-    String whereClause = SQLStatementUtils.whereClause(SUPPORTED_CONDITIONS, _nonDollarVirtualColumnsEnabled,
+    String whereClause = SQLStatementUtils.whereClause(SUPPORTED_CONDITIONS,
+        _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled(),
         new Pair<>(sourceEntityFilter, "st"),
         new Pair<>(destinationEntityFilter, "dt"),
         new Pair<>(relationshipFilter, "rt"));
