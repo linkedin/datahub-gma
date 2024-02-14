@@ -436,26 +436,18 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     _findMethodology = findMethodology;
   }
 
-  private EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
-      @Nonnull EbeanServer server, @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass,
-      @Nonnull SchemaConfig schemaConfig, boolean nonDollarVirtualColumnsEnabled) {
-    this(aspectUnionClass, producer, server, urnClass);
-    _schemaConfig = schemaConfig;
-    _nonDollarVirtualColumnsEnabled = nonDollarVirtualColumnsEnabled;
-    if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
-      _localAccess =
-          new EbeanLocalAccess<>(server, serverConfig, urnClass, _urnPathExtractor, _nonDollarVirtualColumnsEnabled);
-    }
-  }
-
-  // Only called in testing (test all possible combos of SchemaConfig, FindMethodology and nonDollarVirtualColumnsEnabled)
+  // Only called in testing (test all possible combos of SchemaConfig, FindMethodology)
   @VisibleForTesting
   EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
       @Nonnull EbeanServer server, @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass,
       @Nonnull SchemaConfig schemaConfig,
-      @Nonnull FindMethodology findMethodology, boolean nonDollarVirtualColumnsEnabled) {
-    this(aspectUnionClass, producer, server, serverConfig, urnClass, schemaConfig, nonDollarVirtualColumnsEnabled);
+      @Nonnull FindMethodology findMethodology, @Nonnull EBeanDAOConfig ebeanDAOConfig) {
+    this(aspectUnionClass, producer, server, serverConfig, urnClass, schemaConfig);
+    _nonDollarVirtualColumnsEnabled = ebeanDAOConfig.isNonDollarVirtualColumnsEnabled();
     _findMethodology = findMethodology;
+    if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
+      _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, _urnPathExtractor, _nonDollarVirtualColumnsEnabled);
+    }
   }
 
   @VisibleForTesting
