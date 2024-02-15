@@ -9,7 +9,7 @@ import com.linkedin.metadata.dao.AspectKey;
 import com.linkedin.metadata.dao.BaseLocalDAO;
 import com.linkedin.metadata.dao.ListResult;
 import com.linkedin.metadata.dao.utils.ModelUtils;
-import com.linkedin.metadata.events.IngestionMode;
+import com.linkedin.metadata.events.IngestionParams;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.ListResultMetadata;
 import com.linkedin.metadata.validator.ValidationUtils;
@@ -110,10 +110,10 @@ public abstract class BaseAspectV2Resource<
   @RestMethod.Create
   @Nonnull
   public Task<CreateResponse> createWithTracking(@Nonnull URN urn, @Nonnull ASPECT aspect,
-      @Nonnull IngestionTrackingContext trackingContext, @Optional IngestionMode ingestionMode) {
+      @Nonnull IngestionTrackingContext trackingContext, @Optional IngestionParams ingestionParams) {
     return RestliUtils.toTask(() -> {
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
-      getLocalDAO().add(urn, aspect, auditStamp, trackingContext, ingestionMode);
+      getLocalDAO().add(urn, aspect, auditStamp, trackingContext, ingestionParams);
       return new CreateResponse(HttpStatus.S_201_CREATED);
     });
   }

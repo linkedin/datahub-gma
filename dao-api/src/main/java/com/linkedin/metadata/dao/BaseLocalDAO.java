@@ -28,6 +28,7 @@ import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.tracking.TrackingUtils;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.events.IngestionMode;
+import com.linkedin.metadata.events.IngestionParams;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.IndexCriterion;
@@ -109,18 +110,10 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   @Value
-  @AllArgsConstructor
   static class AddResult<ASPECT extends RecordTemplate> {
     ASPECT oldValue;
     ASPECT newValue;
     Class<ASPECT> klass;
-    Boolean dontEmitMAE;
-    public AddResult(ASPECT oldValue, ASPECT newValue, Class<ASPECT> klass) {
-      this.oldValue = oldValue;
-      this.newValue = newValue;
-      this.klass = klass;
-      this.dontEmitMAE = false;
-    }
   }
 
   /**
@@ -140,18 +133,18 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     Function<Optional<ASPECT>, ASPECT> updateLambda;
 
     @NonNull
-    IngestionMode ingestionMode;
+    IngestionParams ingestionParams;
 
     AspectUpdateLambda(ASPECT value) {
       this.aspectClass = (Class<ASPECT>) value.getClass();
       this.updateLambda = (ignored) -> value;
-      this.ingestionMode = IngestionMode.LIVE;
+      this.ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
     }
 
     AspectUpdateLambda(@NonNull Class<ASPECT> aspectClass, @NonNull Function<Optional<ASPECT>, ASPECT> updateLambda) {
       this.aspectClass = aspectClass;
       this.updateLambda = updateLambda;
-      this.ingestionMode = IngestionMode.LIVE;
+      this.ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
     }
   }
 
@@ -430,13 +423,15 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param aspectClass aspectClass of the aspect being saved
    * @param auditStamp audit stamp for the operation
    * @param equalityTester {@link EqualityTester} that is an interface for testing equality between two objects of the same type
+   * @param trackingContext {@link IngestionTrackingContext} which contains ingestion metadata used for tracking purposes
+   * @param ingestionParams {@link IngestionParams} which indicates how the aspect should be ingested
    * @param <ASPECT> must be a supported aspect type in {@code ASPECT_UNION}
    * @return {@link AddResult} corresponding to the old and new value of metadata
    */
   private <ASPECT extends RecordTemplate> AddResult<ASPECT> addCommon(@Nonnull URN urn,
       @Nonnull AspectEntry<ASPECT> latest, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull AuditStamp auditStamp, @Nonnull EqualityTester<ASPECT> equalityTester,
-      @Nullable IngestionTrackingContext trackingContext, @Nonnull IngestionMode ingestionMode) {
+      @Nullable IngestionTrackingContext trackingContext, @Nonnull IngestionParams ingestionParams) {
 
     final ASPECT oldValue = latest.getAspect() == null ? null : latest.getAspect();
     final AuditStamp oldAuditStamp = latest.getExtraInfo() == null ? null : latest.getExtraInfo().getAudit();
@@ -481,6 +476,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     final boolean oldAndNewEqual = (oldValue == null && newValue == null) || (oldValue != null && newValue != null && equalityTester.equals(
         oldValue, newValue));
 
+    final IngestionMode ingestionMode = ingestionParams.getIngestionMode();
+
     // Skip saving for the following scenarios
     if (ingestionMode != IngestionMode.LIVE_OVERRIDE // ensure that the new metadata received is skippable (i.e. not marked as a forced write).
         && (oldAndNewEqual || (aspectVersionSkipWrite(newValue, oldValue)))) { // values are equal or newValue ver < oldValue ver
@@ -500,8 +497,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     // Apply retention policy
     applyRetention(urn, aspectClass, getRetention(aspectClass), largestVersion);
 
-    // don't emit MAE if we are force updating metadata whose value does not change (i.e. timestamp-only update)
-    return new AddResult<>(oldValue, newValue, aspectClass, ingestionMode == IngestionMode.LIVE_OVERRIDE && oldAndNewEqual);
+    return new AddResult<>(oldValue, newValue, aspectClass);
   }
 
   /**
@@ -611,7 +607,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     }
 
     return addCommon(urn, latest, newValue, updateTuple.getAspectClass(), auditStamp, getEqualityTester(updateTuple.getAspectClass()),
-        trackingContext, updateTuple.getIngestionMode());
+        trackingContext, updateTuple.getIngestionParams());
   }
 
   private <ASPECT extends RecordTemplate> ASPECT_UNION unwrapAddResultToUnion(URN urn, AddResult<ASPECT> result,
@@ -629,21 +625,17 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     final Class<ASPECT> aspectClass = result.getKlass();
     final ASPECT oldValue = result.getOldValue();
     final ASPECT newValue = result.getNewValue();
-    final boolean dontEmitMAE = result.getDontEmitMAE();
+    final boolean oldAndNewEqual = (oldValue == null && newValue == null) || (oldValue != null && newValue != null && oldValue.equals(newValue));
 
     // Invoke post-update hooks if there's any
     if (_aspectPostUpdateHooksMap.containsKey(aspectClass)) {
       _aspectPostUpdateHooksMap.get(aspectClass).forEach(hook -> hook.accept(urn, newValue));
     }
 
-    if (dontEmitMAE) {
-      return newValue;
-    }
-
     // Produce MAE after a successful update
     if (_emitAuditEvent) {
       // https://jira01.corp.linkedin.com:8443/browse/APA-80115
-      if (_alwaysEmitAuditEvent || oldValue != newValue) {
+      if (_alwaysEmitAuditEvent || !oldAndNewEqual) {
         if (_trackingProducer != null) {
           _trackingProducer.produceMetadataAuditEvent(urn, oldValue, newValue);
         } else {
@@ -655,7 +647,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     // TODO: Replace the previous step with the step below, after pipeline is fully migrated to aspect specific events.
     // Produce aspect specific MAE after a successful update
     if (_emitAspectSpecificAuditEvent) {
-      if (_alwaysEmitAspectSpecificAuditEvent || oldValue != newValue) {
+      if (_alwaysEmitAspectSpecificAuditEvent || !oldAndNewEqual) {
         if (_trackingProducer != null) {
           _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, auditStamp, trackingContext,
               IngestionMode.LIVE);
@@ -688,7 +680,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * Same as above {@link #add(Urn, Class, Function, AuditStamp, int)} but with tracking context.
+   * Same as {@link #add(Urn, Class, Function, AuditStamp, int)} but with tracking context.
    */
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
@@ -698,13 +690,13 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * Same as above {@link #add(Urn, Class, Function, AuditStamp, int)} but with a write mode parameter.
+   * Same as {@link #add(Urn, Class, Function, AuditStamp, int)} but with a write mode parameter.
    */
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp,
-      int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext, @Nonnull IngestionMode ingestionMode) {
-    return add(urn, new AspectUpdateLambda<>(aspectClass, updateLambda, ingestionMode), auditStamp, maxTransactionRetry, trackingContext);
+      int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext, @Nonnull IngestionParams ingestionParams) {
+    return add(urn, new AspectUpdateLambda<>(aspectClass, updateLambda, ingestionParams), auditStamp, maxTransactionRetry, trackingContext);
   }
 
   /**
@@ -772,8 +764,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     runInTransactionWithRetry(() -> {
       final AspectEntry<ASPECT> latest = getLatest(urn, aspectClass);
-
-      return addCommon(urn, latest, null, aspectClass, auditStamp, new DefaultEqualityTester<>(), trackingContext, IngestionMode.LIVE);
+      final IngestionParams ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
+      return addCommon(urn, latest, null, aspectClass, auditStamp, new DefaultEqualityTester<>(), trackingContext, ingestionParams);
     }, maxTransactionRetry);
 
     // TODO: add support for sending MAE for soft deleted aspects
@@ -794,8 +786,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp,
-      @Nullable IngestionTrackingContext trackingContext, @Nonnull IngestionMode ingestionMode) {
-    return add(urn, aspectClass, updateLambda, auditStamp, DEFAULT_MAX_TRANSACTION_RETRY, trackingContext, ingestionMode);
+      @Nullable IngestionTrackingContext trackingContext, @Nonnull IngestionParams ingestionParams) {
+    return add(urn, aspectClass, updateLambda, auditStamp, DEFAULT_MAX_TRANSACTION_RETRY, trackingContext, ingestionParams);
   }
 
   /**
@@ -813,9 +805,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    */
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull ASPECT newValue,
-      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext, @Nullable IngestionMode ingestionMode) {
-    final IngestionMode nonNullIngestionMode = ingestionMode == null ? IngestionMode.LIVE : ingestionMode;
-    return add(urn, (Class<ASPECT>) newValue.getClass(), ignored -> newValue, auditStamp, trackingContext, nonNullIngestionMode);
+      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext, @Nullable IngestionParams ingestionParams) {
+    final IngestionParams nonNullIngestionParams = ingestionParams == null ? new IngestionParams().setIngestionMode(IngestionMode.LIVE) : ingestionParams;
+    return add(urn, (Class<ASPECT>) newValue.getClass(), ignored -> newValue, auditStamp, trackingContext, nonNullIngestionParams);
   }
 
   /**

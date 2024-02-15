@@ -41,6 +41,7 @@ public final class RestliConstants {
   public static final String PARAM_URNS = "urns";
   public static final String PARAM_MODE = "mode";
   public static final String PARAM_INGESTION_MODE = "ingestionMode";
+  public static final String PARAM_INGESTION_PARAMS = "ingestionParams";
   public static final String PARAM_TRACKING_CONTEXT = "trackingContext";
 
   public static final String PARAM_ENTITY_TYPE = "entityType";

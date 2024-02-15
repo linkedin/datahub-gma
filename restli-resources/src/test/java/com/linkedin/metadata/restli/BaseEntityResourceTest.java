@@ -15,6 +15,7 @@ import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.events.IngestionMode;
+import com.linkedin.metadata.events.IngestionParams;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
@@ -473,15 +474,11 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(foo), any(), eq(trackingContext), eq(null));
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(trackingContext), eq(null));
 
-    runAndWait(_resource.ingestWithTracking(snapshot, trackingContext, IngestionMode.LIVE));
+    IngestionParams ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
+    runAndWait(_resource.ingestWithTracking(snapshot, trackingContext, ingestionParams));
 
-    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(foo), any(), eq(trackingContext), eq(IngestionMode.LIVE));
-    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(trackingContext), eq(IngestionMode.LIVE));
-
-    runAndWait(_resource.ingestWithTracking(snapshot, trackingContext, IngestionMode.LIVE_OVERRIDE));
-
-    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(foo), any(), eq(trackingContext), eq(IngestionMode.LIVE_OVERRIDE));
-    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(trackingContext), eq(IngestionMode.LIVE_OVERRIDE));
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(foo), any(), eq(trackingContext), eq(ingestionParams));
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(trackingContext), eq(ingestionParams));
     verifyNoMoreInteractions(_mockLocalDAO);
   }
 

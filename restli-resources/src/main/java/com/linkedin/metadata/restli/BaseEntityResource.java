@@ -14,6 +14,7 @@ import com.linkedin.metadata.dao.UrnAspectEntry;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.events.IngestionMode;
+import com.linkedin.metadata.events.IngestionParams;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
@@ -245,20 +246,20 @@ public abstract class BaseEntityResource<
   @Nonnull
   public Task<Void> ingestWithTracking(@ActionParam(PARAM_SNAPSHOT) @Nonnull SNAPSHOT snapshot,
       @ActionParam(PARAM_TRACKING_CONTEXT) @Nonnull IngestionTrackingContext trackingContext,
-      @Optional @ActionParam(PARAM_INGESTION_MODE) IngestionMode ingestionMode) {
-    return ingestInternal(snapshot, Collections.emptySet(), trackingContext, ingestionMode);
+      @Optional @ActionParam(PARAM_INGESTION_PARAMS) IngestionParams ingestionParams) {
+    return ingestInternal(snapshot, Collections.emptySet(), trackingContext, ingestionParams);
   }
 
   @Nonnull
   protected Task<Void> ingestInternal(@Nonnull SNAPSHOT snapshot,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore,
-      @Nullable IngestionTrackingContext trackingContext, @Nullable IngestionMode ingestionMode) {
+      @Nullable IngestionTrackingContext trackingContext, @Nullable IngestionParams ingestionParams) {
     return RestliUtils.toTask(() -> {
       final URN urn = (URN) ModelUtils.getUrnFromSnapshot(snapshot);
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
       ModelUtils.getAspectsFromSnapshot(snapshot).stream().forEach(aspect -> {
         if (!aspectsToIgnore.contains(aspect.getClass())) {
-          getLocalDAO().add(urn, aspect, auditStamp, trackingContext, ingestionMode);
+          getLocalDAO().add(urn, aspect, auditStamp, trackingContext, ingestionParams);
         }
       });
       return null;

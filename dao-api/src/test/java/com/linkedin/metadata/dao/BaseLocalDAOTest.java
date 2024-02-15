@@ -11,6 +11,7 @@ import com.linkedin.metadata.dao.retention.TimeBasedRetention;
 import com.linkedin.metadata.dao.retention.VersionBasedRetention;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.events.IngestionMode;
+import com.linkedin.metadata.events.IngestionParams;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.IndexFilter;
@@ -349,18 +350,12 @@ public class BaseLocalDAOTest {
         _mockGetLatestFunction, _mockTrackingEventProducer, _mockTrackingManager,
         _dummyLocalDAO._transactionRunner);
 
-    // make sure MAE emission is on
-    dummyLocalDAO.setEmitAuditEvent(true);
-    dummyLocalDAO.setAlwaysEmitAuditEvent(true);
-    dummyLocalDAO.setEmitAspectSpecificAuditEvent(true);
-    dummyLocalDAO.setAlwaysEmitAspectSpecificAuditEvent(true);
-
     // pretend there is already foo in the database
     when(dummyLocalDAO.getLatest(urn, AspectFoo.class))
         .thenReturn(new BaseLocalDAO.AspectEntry<>(foo, null, false));
 
     // try to add foo again but with the OVERRIDE write mode
-    dummyLocalDAO.add(urn, foo, _dummyAuditStamp, mockTrackingContext, IngestionMode.LIVE_OVERRIDE);
+    dummyLocalDAO.add(urn, foo, _dummyAuditStamp, mockTrackingContext, new IngestionParams().setIngestionMode(IngestionMode.LIVE_OVERRIDE));
 
     // verify that there are no MAE emissions
     verifyNoMoreInteractions(_mockTrackingEventProducer);

@@ -1,7 +1,6 @@
 namespace com.linkedin.testing.mxe.bar
 
 import com.linkedin.avro2pegasus.events.KafkaAuditHeader
-import com.linkedin.metadata.events.IngestionMode
 import com.linkedin.metadata.events.IngestionTrackingContext
 import com.linkedin.metadata.events.ChangeType
 import com.linkedin.testing.BarUrn
@@ -28,11 +27,6 @@ record MCEBarAspect {
    * Tracking context to identify the lifecycle of the trackable ingestion item.
    */
   ingestionTrackingContext: optional union[null, IngestionTrackingContext] = null
-
-  /**
-   * Type of the ingestion. Allow null for backward compatibility. Null will be treated as live ingestion.
-   */
-  ingestionMode: optional union[null, IngestionMode] = null
 
   /**
    * Proposed change values for aspect AnnotatedAspectBar.
