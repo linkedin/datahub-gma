@@ -1,0 +1,24 @@
+namespace com.linkedin.metadata.annotations
+
+record AspectIngestionAnnotation {
+
+  /**
+   * Ingestion Mode applied this aspect.
+   */
+  mode: optional enum Mode {
+    /**
+     * Skip any check in data access layer. Update the aspect in database irrespectively.
+     */
+    FORCE_UPDATE
+
+    /**
+     * Honor all existing checks in data access layer.
+     */
+    DEFAULT
+  }
+
+  /**
+   * The FQCN of the URN that identifies this entity. The ingestion mode will be applied to the aspect associated with this entity.
+   */
+  urn: optional string
+}

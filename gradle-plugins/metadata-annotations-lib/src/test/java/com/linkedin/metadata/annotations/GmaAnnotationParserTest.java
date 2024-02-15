@@ -26,7 +26,8 @@ public class GmaAnnotationParserTest {
         .setAspect(new AspectAnnotation()
             .setEntity(new AspectEntityAnnotation().setUrn("com.linkedin.testing.BarUrn"))
             .setColumn(new ColumnNameAnnotation().setName("barurn"))
-            .setIngestion(Mode.FORCE_UPDATE)));
+            .setIngestion(new AspectIngestionAnnotationArray(new AspectIngestionAnnotation()
+                .setUrn("com.linkedin.testing.BarUrn").setMode(Mode.FORCE_UPDATE)))));
   }
 
   @Test

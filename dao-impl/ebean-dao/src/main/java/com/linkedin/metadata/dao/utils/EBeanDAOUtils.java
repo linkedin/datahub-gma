@@ -3,9 +3,9 @@ package com.linkedin.metadata.dao.utils;
 import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.template.DataTemplateUtil;
 import com.linkedin.data.template.RecordTemplate;
+import com.linkedin.metadata.annotations.AspectIngestionAnnotationArray;
 import com.linkedin.metadata.annotations.GmaAnnotation;
 import com.linkedin.metadata.annotations.GmaAnnotationParser;
-import com.linkedin.metadata.annotations.Mode;
 import com.linkedin.metadata.aspect.AuditedAspect;
 import com.linkedin.metadata.aspect.SoftDeletedAspect;
 import com.linkedin.metadata.dao.EbeanMetadataAspect;
@@ -56,18 +56,16 @@ public class EBeanDAOUtils {
 
   /**
    * Parse the ingestion mode annotation given an aspect class.
-   * @param aspectCanonicalName The canonical aspect class name.
-   * @return The ingestion mode
    */
-  @Nonnull
-  public static Mode parseIngestionModeFromAnnotation(@Nonnull final String aspectCanonicalName) {
+  @Nullable
+  public static AspectIngestionAnnotationArray parseIngestionModeFromAnnotation(@Nonnull final String aspectCanonicalName) {
     try {
       final RecordDataSchema schema = (RecordDataSchema) DataTemplateUtil.getSchema(ClassUtils.loadClass(aspectCanonicalName));
       final Optional<GmaAnnotation> gmaAnnotation = new GmaAnnotationParser().parse(schema);
 
-      // If user did not specify mode, treat it as default.
+      // Return null if user did not specify ingestion annotation on the aspect.
       if (!gmaAnnotation.isPresent() || !gmaAnnotation.get().hasAspect() || !gmaAnnotation.get().getAspect().hasIngestion()) {
-        return Mode.DEFAULT;
+        return null;
       }
 
       return gmaAnnotation.get().getAspect().getIngestion();
