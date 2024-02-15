@@ -1,10 +1,17 @@
 package com.linkedin.metadata.dao.utils;
 
+import com.linkedin.data.schema.RecordDataSchema;
+import com.linkedin.data.template.DataTemplateUtil;
 import com.linkedin.data.template.RecordTemplate;
+import com.linkedin.metadata.annotations.GmaAnnotation;
+import com.linkedin.metadata.annotations.GmaAnnotationParser;
+import com.linkedin.metadata.annotations.Mode;
+import com.linkedin.metadata.aspect.AspectColumnMetadata;
 import com.linkedin.metadata.aspect.AuditedAspect;
 import com.linkedin.metadata.aspect.SoftDeletedAspect;
 import com.linkedin.metadata.dao.EbeanMetadataAspect;
 import com.linkedin.metadata.dao.ListResult;
+import com.linkedin.metadata.dao.exception.MissingAnnotationException;
 import com.linkedin.metadata.query.AspectField;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.LocalRelationshipCriterion;
@@ -13,6 +20,7 @@ import com.linkedin.metadata.query.RelationshipField;
 import com.linkedin.metadata.query.UrnField;
 import io.ebean.EbeanServer;
 import io.ebean.SqlRow;
+import io.ebeaninternal.server.lib.util.Str;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.sql.Connection;
@@ -22,6 +30,7 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -46,6 +55,23 @@ public class EBeanDAOUtils {
 
   private EBeanDAOUtils() {
     // Utils class
+  }
+
+  @Nonnull
+  public static Mode parseIngestionModeFromAnnotation(@Nonnull final String aspectCanonicalName) {
+    try {
+      final RecordDataSchema schema = (RecordDataSchema) DataTemplateUtil.getSchema(ClassUtils.loadClass(aspectCanonicalName));
+      final Optional<GmaAnnotation> gmaAnnotation = new GmaAnnotationParser().parse(schema);
+
+      // If user did not specify mode, treat it as default.
+      if (!gmaAnnotation.isPresent() || !gmaAnnotation.get().hasAspect() || !gmaAnnotation.get().getAspect().hasIngestion()) {
+        return Mode.DEFAULT;
+      }
+
+      return gmaAnnotation.get().getAspect().getIngestion();
+    } catch (Exception e) {
+      throw new RuntimeException(String.format("Failed to parse the annotations for aspect %s", aspectCanonicalName), e);
+    }
   }
 
   /**

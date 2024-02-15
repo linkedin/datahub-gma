@@ -22,9 +22,11 @@ public class GmaAnnotationParserTest {
     // has both @gma.aspect.entity.urn and @gma.aspect.column.name annotations
     final Optional<GmaAnnotation> gma =
         new GmaAnnotationParser().parse((RecordDataSchema) DataTemplateUtil.getSchema(AnnotatedAspectBar.class));
-    assertThat(gma).contains(new GmaAnnotation().setAspect(
-        new AspectAnnotation().setEntity(new AspectEntityAnnotation().setUrn("com.linkedin.testing.BarUrn"))
-            .setColumn(new ColumnNameAnnotation().setName("barurn"))));
+    assertThat(gma).contains(new GmaAnnotation()
+        .setAspect(new AspectAnnotation()
+            .setEntity(new AspectEntityAnnotation().setUrn("com.linkedin.testing.BarUrn"))
+            .setColumn(new ColumnNameAnnotation().setName("barurn"))
+            .setIngestion(Mode.FORCE_UPDATE)));
   }
 
   @Test

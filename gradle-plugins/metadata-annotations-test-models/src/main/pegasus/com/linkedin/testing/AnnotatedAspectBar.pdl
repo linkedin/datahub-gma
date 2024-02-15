@@ -3,6 +3,7 @@ namespace com.linkedin.testing
 /**
  * For unit tests
  */
+@gma.aspect.ingestion = "FORCE_UPDATE"
 @gma.aspect.column.name = "barurn"
 @gma.aspect.entity = {
   "urn": "com.linkedin.testing.BarUrn"
