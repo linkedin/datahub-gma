@@ -35,8 +35,8 @@ import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
+import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.events.IngestionTrackingContext;
-import com.linkedin.metadata.events.WriteMode;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.IndexCriterion;
@@ -347,20 +347,20 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
-  public void testAddWithOverrideWriteMode() throws URISyntaxException {
+  public void testAddWithOverrideIngestionMode() throws URISyntaxException {
     // this test is used to check that new metadata ingestion with the OVERRIDE write mode is still updated in
     // the database even if the metadata values are the same.
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     FooUrn urn = makeFooUrn(1);
-    AspectFoo foo = new AspectFoo().setValue("foo").setWriteMode(WriteMode.OVERRIDE);
+    AspectFoo foo = new AspectFoo().setValue("foo");
 
     long t1 = 946713600000L; // 2000-01-01 00:00:00.0
     long t2 = 949392000000L; // 2000-02-01 00:00:00.0
-    dao.add(urn, foo, new AuditStamp().setTime(t1).setActor(Urn.createFromString("urn:li:corpuser:tester")));
+    dao.add(urn, foo, new AuditStamp().setTime(t1).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, IngestionMode.LIVE_OVERRIDE);
     // MAE is emitted on a fresh metadata update, even with OVERRIDE write mode
     Mockito.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
 
-    dao.add(urn, foo, new AuditStamp().setTime(t2).setActor(Urn.createFromString("urn:li:corpuser:tester")));
+    dao.add(urn, foo, new AuditStamp().setTime(t2).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, IngestionMode.LIVE_OVERRIDE);
     // MAE is not emitted on a metadata update with the same metadata value, with OVERRIDE write mode
     verifyNoMoreInteractions(_mockProducer);
 
@@ -2993,7 +2993,7 @@ public class EbeanLocalDAOTest {
 
       Urn creator1 = Urns.createFromTypeSpecificString("test", "testCreator1");
       Urn impersonator1 = Urns.createFromTypeSpecificString("test", "testImpersonator1");
-      dao.add(urn, aspectFoo, makeAuditStamp(creator1, impersonator1, _now), context);
+      dao.add(urn, aspectFoo, makeAuditStamp(creator1, impersonator1, _now), context, null);
       Optional<AspectWithExtraInfo<AspectFoo>> foo = dao.getWithExtraInfo(AspectFoo.class, urn);
 
       assertTrue(foo.isPresent());

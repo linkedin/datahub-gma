@@ -140,9 +140,9 @@ public class BaseAspectV2ResourceTest extends BaseEngineTest {
     AspectFoo foo = new AspectFoo().setValue("foo");
     IngestionTrackingContext trackingContext = new IngestionTrackingContext();
 
-    runAndWait(_resource.createWithTracking(ENTITY_URN, foo, trackingContext));
+    runAndWait(_resource.createWithTracking(ENTITY_URN, foo, trackingContext, null));
 
-    verify(_mockLocalDAO, times(1)).add(eq(ENTITY_URN), eq(foo), any(AuditStamp.class), eq(trackingContext));
+    verify(_mockLocalDAO, times(1)).add(eq(ENTITY_URN), eq(foo), any(AuditStamp.class), eq(trackingContext), eq(null));
     verifyNoMoreInteractions(_mockLocalDAO);
   }
 

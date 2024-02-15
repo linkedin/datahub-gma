@@ -9,6 +9,7 @@ import com.linkedin.metadata.dao.AspectKey;
 import com.linkedin.metadata.dao.BaseLocalDAO;
 import com.linkedin.metadata.dao.ListResult;
 import com.linkedin.metadata.dao.utils.ModelUtils;
+import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.ListResultMetadata;
 import com.linkedin.metadata.validator.ValidationUtils;
@@ -20,12 +21,12 @@ import com.linkedin.restli.server.CreateResponse;
 import com.linkedin.restli.server.PagingContext;
 import com.linkedin.restli.server.UpdateResponse;
 import com.linkedin.restli.server.annotations.Action;
+import com.linkedin.restli.server.annotations.Optional;
 import com.linkedin.restli.server.annotations.PagingContextParam;
 import com.linkedin.restli.server.annotations.RestMethod;
 import com.linkedin.restli.server.annotations.ReturnEntity;
 import com.linkedin.restli.server.resources.CollectionResourceTaskTemplate;
 import java.time.Clock;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import javax.annotation.Nonnull;
@@ -108,10 +109,11 @@ public abstract class BaseAspectV2Resource<
 
   @RestMethod.Create
   @Nonnull
-  public Task<CreateResponse> createWithTracking(@Nonnull URN urn, @Nonnull ASPECT aspect, @Nonnull IngestionTrackingContext trackingContext) {
+  public Task<CreateResponse> createWithTracking(@Nonnull URN urn, @Nonnull ASPECT aspect,
+      @Nonnull IngestionTrackingContext trackingContext, @Optional IngestionMode ingestionMode) {
     return RestliUtils.toTask(() -> {
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
-      getLocalDAO().add(urn, aspect, auditStamp, trackingContext);
+      getLocalDAO().add(urn, aspect, auditStamp, trackingContext, ingestionMode);
       return new CreateResponse(HttpStatus.S_201_CREATED);
     });
   }
@@ -123,7 +125,7 @@ public abstract class BaseAspectV2Resource<
   @ReturnEntity
   @Nonnull
   public Task<CreateKVResponse<URN, ASPECT>> createAndGet(@Nonnull URN urn,
-      @Nonnull Function<Optional<ASPECT>, ASPECT> createLambda) {
+      @Nonnull Function<java.util.Optional<ASPECT>, ASPECT> createLambda) {
     return RestliUtils.toTask(() -> {
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
       final ASPECT newValue = getLocalDAO().add(urn, _aspectClass, createLambda, auditStamp);

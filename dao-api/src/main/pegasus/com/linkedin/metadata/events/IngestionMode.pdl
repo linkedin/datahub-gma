@@ -11,6 +11,13 @@ enum IngestionMode {
   LIVE
 
   /**
+   * Live ingestion with override toggled on. Intended to be used with Metadata Change Events (MCEs).
+   * The metadata will be ingested irrespective of whether or not the old and new values are the same.
+   * A Metadata Audit Event (MAE) will be emitted only if the old and new values are different.
+   */
+  LIVE_OVERRIDE
+
+  /**
    * Backfill metadata that is skipped or fails in previous processing.
    */
   BACKFILL

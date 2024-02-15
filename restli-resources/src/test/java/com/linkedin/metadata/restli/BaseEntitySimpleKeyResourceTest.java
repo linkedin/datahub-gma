@@ -204,8 +204,8 @@ public class BaseEntitySimpleKeyResourceTest extends BaseEngineTest {
 
     runAndWait(_resource.ingest(snapshot));
 
-    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(foo), any(), eq(null));
-    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(null));
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(foo), any(), eq(null), eq(null));
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(null), eq(null));
     verifyNoMoreInteractions(_mockLocalDAO);
   }
 

@@ -85,6 +85,8 @@ public class TestEventSchemaComposer {
   private void assertSame(File baseOutputDir, File relativeFilePath) throws IOException {
     File outputPath = baseOutputDir.toPath().resolve(relativeFilePath.toPath()).toFile();
     assertThat(outputPath).exists();
+    System.out.println(outputPath);
+    System.out.println(relativeFilePath);
 
     try (InputStream expected = this.getClass().getClassLoader().getResourceAsStream(relativeFilePath.toString());
         InputStream actual = FileUtils.openInputStream(outputPath)) {

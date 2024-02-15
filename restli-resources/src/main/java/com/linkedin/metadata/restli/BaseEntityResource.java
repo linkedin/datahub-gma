@@ -232,7 +232,7 @@ public abstract class BaseEntityResource<
   @Action(name = ACTION_INGEST)
   @Nonnull
   public Task<Void> ingest(@ActionParam(PARAM_SNAPSHOT) @Nonnull SNAPSHOT snapshot) {
-    return ingestInternal(snapshot, Collections.emptySet(), null);
+    return ingestInternal(snapshot, Collections.emptySet(), null, null);
   }
 
   /**
@@ -244,20 +244,21 @@ public abstract class BaseEntityResource<
   @Action(name = ACTION_INGEST_WITH_TRACKING)
   @Nonnull
   public Task<Void> ingestWithTracking(@ActionParam(PARAM_SNAPSHOT) @Nonnull SNAPSHOT snapshot,
-      @ActionParam(PARAM_TRACKING_CONTEXT) @Nonnull IngestionTrackingContext trackingContext) {
-    return ingestInternal(snapshot, Collections.emptySet(), trackingContext);
+      @ActionParam(PARAM_TRACKING_CONTEXT) @Nonnull IngestionTrackingContext trackingContext,
+      @Optional @ActionParam(PARAM_INGESTION_MODE) IngestionMode ingestionMode) {
+    return ingestInternal(snapshot, Collections.emptySet(), trackingContext, ingestionMode);
   }
 
   @Nonnull
   protected Task<Void> ingestInternal(@Nonnull SNAPSHOT snapshot,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore,
-      @Nullable IngestionTrackingContext trackingContext) {
+      @Nullable IngestionTrackingContext trackingContext, @Nullable IngestionMode ingestionMode) {
     return RestliUtils.toTask(() -> {
       final URN urn = (URN) ModelUtils.getUrnFromSnapshot(snapshot);
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
       ModelUtils.getAspectsFromSnapshot(snapshot).stream().forEach(aspect -> {
         if (!aspectsToIgnore.contains(aspect.getClass())) {
-          getLocalDAO().add(urn, aspect, auditStamp, trackingContext);
+          getLocalDAO().add(urn, aspect, auditStamp, trackingContext, ingestionMode);
         }
       });
       return null;

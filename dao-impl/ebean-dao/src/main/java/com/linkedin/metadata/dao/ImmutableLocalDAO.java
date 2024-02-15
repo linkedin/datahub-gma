@@ -8,8 +8,8 @@ import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.producer.DummyMetadataEventProducer;
 import com.linkedin.metadata.dao.utils.RecordUtils;
+import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.events.IngestionTrackingContext;
-import com.linkedin.metadata.events.WriteMode;
 import io.ebean.Ebean;
 import java.io.IOException;
 import java.io.InputStream;
@@ -115,7 +115,7 @@ public class ImmutableLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends U
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp,
-      int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext, @Nullable WriteMode writeMode) {
+      int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext, @Nullable IngestionMode ingestionMode) {
     throw new UnsupportedOperationException("Not supported by immutable DAO");
   }
 
