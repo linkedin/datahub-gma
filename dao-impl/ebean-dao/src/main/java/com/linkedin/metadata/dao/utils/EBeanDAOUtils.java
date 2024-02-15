@@ -54,6 +54,11 @@ public class EBeanDAOUtils {
     // Utils class
   }
 
+  /**
+   * Parse the ingestion mode annotation given an aspect class.
+   * @param aspectCanonicalName The canonical aspect class name.
+   * @return The ingestion mode
+   */
   @Nonnull
   public static Mode parseIngestionModeFromAnnotation(@Nonnull final String aspectCanonicalName) {
     try {
