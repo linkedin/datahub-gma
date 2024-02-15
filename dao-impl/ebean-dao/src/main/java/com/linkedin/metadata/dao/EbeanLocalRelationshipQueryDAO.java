@@ -42,6 +42,12 @@ public class EbeanLocalRelationshipQueryDAO {
     _sqlGenerator = new MultiHopsTraversalSqlGenerator(SUPPORTED_CONDITIONS);
   }
 
+  public EbeanLocalRelationshipQueryDAO(EbeanServer server) {
+    _server = server;
+    _eBeanDAOConfig = new EBeanDAOConfig();
+    _sqlGenerator = new MultiHopsTraversalSqlGenerator(SUPPORTED_CONDITIONS);
+  }
+
   static final Map<Condition, String> SUPPORTED_CONDITIONS =
       Collections.unmodifiableMap(new HashMap<Condition, String>() {
         {
