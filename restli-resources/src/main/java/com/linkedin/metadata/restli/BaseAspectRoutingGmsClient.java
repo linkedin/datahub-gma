@@ -3,9 +3,11 @@ package com.linkedin.metadata.restli;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.events.IngestionTrackingContext;
+import com.linkedin.metadata.internal.IngestionParams;
 import com.linkedin.restli.server.RestLiServiceException;
 import java.util.Set;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 
 /**
@@ -32,5 +34,5 @@ public abstract class BaseAspectRoutingGmsClient {
    * Ingests the latest version of the routing aspect for an entity, with tracking context.
    */
   public abstract <URN extends Urn> void ingestWithTracking(URN urn, RecordTemplate aspect, @Nonnull
-      IngestionTrackingContext trackingContext) throws RestLiServiceException;
+      IngestionTrackingContext trackingContext, @Nullable IngestionParams ingestionParams) throws RestLiServiceException;
 }

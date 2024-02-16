@@ -211,7 +211,7 @@ public abstract class BaseAspectRoutingResource<
           if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
             try {
               if (trackingContext != null) {
-                getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingestWithTracking(urn, aspect, trackingContext);
+                getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingestWithTracking(urn, aspect, trackingContext, ingestionParams);
               } else {
                 getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingest(urn, aspect);
               }
