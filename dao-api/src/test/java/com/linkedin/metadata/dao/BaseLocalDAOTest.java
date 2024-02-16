@@ -12,6 +12,7 @@ import com.linkedin.metadata.dao.retention.VersionBasedRetention;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.events.IngestionTrackingContext;
+import com.linkedin.metadata.internal.IngestionParams;
 import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
@@ -328,8 +329,8 @@ public class BaseLocalDAOTest {
     expectGetLatest(urn, AspectFoo.class,
         Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(foo, _dummyAuditStamp)));
 
-    dummyLocalDAO.add(urn, foo, _dummyAuditStamp, mockTrackingContext);
-    dummyLocalDAO.add(urn, foo, _dummyAuditStamp, mockTrackingContext);
+    dummyLocalDAO.add(urn, foo, _dummyAuditStamp, mockTrackingContext, null);
+    dummyLocalDAO.add(urn, foo, _dummyAuditStamp, mockTrackingContext, null);
 
     verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
     verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, foo, foo);
@@ -337,6 +338,26 @@ public class BaseLocalDAOTest {
         foo, _dummyAuditStamp, mockTrackingContext, IngestionMode.LIVE);
     verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, foo,
         foo, _dummyAuditStamp, mockTrackingContext, IngestionMode.LIVE);
+    verifyNoMoreInteractions(_mockTrackingEventProducer);
+  }
+
+  @Test
+  public void testMAEv5WithOverride() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    IngestionTrackingContext mockTrackingContext = mock(IngestionTrackingContext.class);
+    DummyLocalDAO<EntityAspectUnion> dummyLocalDAO = new DummyLocalDAO<>(EntityAspectUnion.class,
+        _mockGetLatestFunction, _mockTrackingEventProducer, _mockTrackingManager,
+        _dummyLocalDAO._transactionRunner);
+
+    // pretend there is already foo in the database
+    when(dummyLocalDAO.getLatest(urn, AspectFoo.class))
+        .thenReturn(new BaseLocalDAO.AspectEntry<>(foo, null, false));
+
+    // try to add foo again but with the OVERRIDE write mode
+    dummyLocalDAO.add(urn, foo, _dummyAuditStamp, mockTrackingContext, new IngestionParams().setIngestionMode(IngestionMode.LIVE_OVERRIDE));
+
+    // verify that there are no MAE emissions
     verifyNoMoreInteractions(_mockTrackingEventProducer);
   }
 
@@ -492,7 +513,7 @@ public class BaseLocalDAOTest {
     BaseLocalDAO.AspectEntry<AspectFoo> aspectEntry = new BaseLocalDAO.AspectEntry<>(oldFoo, extraInfo);
     expectGetLatest(urn, AspectFoo.class, Collections.singletonList(aspectEntry));
 
-    dummyLocalDAO.add(urn, newFoo, _dummyAuditStamp, ingestionTrackingContext);
+    dummyLocalDAO.add(urn, newFoo, _dummyAuditStamp, ingestionTrackingContext, null);
 
     verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, oldFoo, oldFoo);
     verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(
@@ -550,7 +571,7 @@ public class BaseLocalDAOTest {
     BaseLocalDAO.AspectEntry<AspectFoo> aspectEntry = new BaseLocalDAO.AspectEntry<>(oldFoo, extraInfo);
     expectGetLatest(urn, AspectFoo.class, Collections.singletonList(aspectEntry));
 
-    dummyLocalDAO.add(urn, newFoo, _dummyAuditStamp, ingestionTrackingContext);
+    dummyLocalDAO.add(urn, newFoo, _dummyAuditStamp, ingestionTrackingContext, null);
 
     verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, oldFoo, newFoo);
     verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(
@@ -583,7 +604,7 @@ public class BaseLocalDAOTest {
     // Although this should not happen in real life
     ingestionTrackingContext.setEmitTime(4L);
 
-    dummyLocalDAO.add(urn, newFoo, _dummyAuditStamp, ingestionTrackingContext);
+    dummyLocalDAO.add(urn, newFoo, _dummyAuditStamp, ingestionTrackingContext, null);
 
     verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, null, newFoo);
     verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(

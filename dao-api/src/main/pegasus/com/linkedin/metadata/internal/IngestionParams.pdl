@@ -1,0 +1,13 @@
+namespace com.linkedin.metadata.internal
+
+import com.linkedin.metadata.events.IngestionMode
+
+/**
+ * Record defining ingestion-related parameters that can be passed into DAO API calls.
+ */
+record IngestionParams {
+  /**
+   * Ingestion mode
+   */
+  ingestionMode: optional IngestionMode
+}

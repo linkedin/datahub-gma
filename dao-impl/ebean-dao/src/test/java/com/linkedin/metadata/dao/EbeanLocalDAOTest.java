@@ -35,7 +35,9 @@ import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
+import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.events.IngestionTrackingContext;
+import com.linkedin.metadata.internal.IngestionParams;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.IndexCriterion;
@@ -353,6 +355,42 @@ public class EbeanLocalDAOTest {
     inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, v1);
     inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, v1, v0);
     verifyNoMoreInteractions(_mockProducer);
+  }
+
+  @Test
+  public void testAddWithOverrideIngestionMode() throws URISyntaxException {
+    // this test is used to check that new metadata ingestion with the OVERRIDE write mode is still updated in
+    // the database even if the metadata values are the same.
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn urn = makeFooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    IngestionParams ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE_OVERRIDE);
+    dao.setAlwaysEmitAuditEvent(false);
+    dao.setAlwaysEmitAspectSpecificAuditEvent(false);
+
+    long t1 = 946713600000L; // 2000-01-01 00:00:00.0
+    long t2 = 949392000000L; // 2000-02-01 00:00:00.0
+    dao.add(urn, foo, new AuditStamp().setTime(t1).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams);
+    // MAE is emitted on a fresh metadata update, even with OVERRIDE write mode
+    Mockito.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
+
+    dao.add(urn, foo, new AuditStamp().setTime(t2).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams);
+    // MAE is not emitted on a metadata update with the same metadata value, with OVERRIDE write mode
+    verifyNoMoreInteractions(_mockProducer);
+
+    // however, make sure that the update still went through by checking the aspect's lastmodifiedon
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+      String aspectFooLastModifiedOnStr = dao.getServer()
+          .createSqlQuery(
+              "select json_extract(a_aspectfoo, '$.lastmodifiedon') as lastmodifiedon from metadata_entity_foo")
+          .findOne().getString("lastmodifiedon");
+      assertEquals(Timestamp.valueOf(aspectFooLastModifiedOnStr.replace("\"", "")).getTime(), t2);
+    } else {
+      String aspectName = ModelUtils.getAspectName(AspectFoo.class);
+      EbeanMetadataAspect aspect = getMetadata(urn, aspectName, 0);
+      long time = aspect.getCreatedOn().getTime();
+      assertEquals(time, t2);
+    }
   }
 
   @Test
@@ -2969,7 +3007,7 @@ public class EbeanLocalDAOTest {
 
       Urn creator1 = Urns.createFromTypeSpecificString("test", "testCreator1");
       Urn impersonator1 = Urns.createFromTypeSpecificString("test", "testImpersonator1");
-      dao.add(urn, aspectFoo, makeAuditStamp(creator1, impersonator1, _now), context);
+      dao.add(urn, aspectFoo, makeAuditStamp(creator1, impersonator1, _now), context, null);
       Optional<AspectWithExtraInfo<AspectFoo>> foo = dao.getWithExtraInfo(AspectFoo.class, urn);
 
       assertTrue(foo.isPresent());

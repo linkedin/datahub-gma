@@ -9,6 +9,7 @@ import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.AspectKey;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.events.IngestionTrackingContext;
+import com.linkedin.metadata.internal.IngestionParams;
 import com.linkedin.parseq.Task;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.RestLiServiceException;
@@ -200,7 +201,7 @@ public abstract class BaseAspectRoutingResource<
   @Override
   protected Task<Void> ingestInternal(@Nonnull SNAPSHOT snapshot,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore,
-      @Nullable IngestionTrackingContext trackingContext) {
+      @Nullable IngestionTrackingContext trackingContext, @Nullable IngestionParams ingestionParams) {
     // TODO: META-18950: add trackingContext to BaseAspectRoutingResource. currently the param is unused.
     return RestliUtils.toTask(() -> {
       final URN urn = (URN) ModelUtils.getUrnFromSnapshot(snapshot);
@@ -220,7 +221,7 @@ public abstract class BaseAspectRoutingResource<
                   exception);
             }
           } else {
-            getLocalDAO().add(urn, aspect, auditStamp, trackingContext);
+            getLocalDAO().add(urn, aspect, auditStamp, trackingContext, ingestionParams);
           }
         }
       });

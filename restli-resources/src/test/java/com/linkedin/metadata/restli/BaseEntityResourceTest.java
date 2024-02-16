@@ -16,6 +16,7 @@ import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.events.IngestionTrackingContext;
+import com.linkedin.metadata.internal.IngestionParams;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
@@ -453,8 +454,8 @@ public class BaseEntityResourceTest extends BaseEngineTest {
 
     runAndWait(_resource.ingest(snapshot));
 
-    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(foo), any(), eq(null));
-    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(null));
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(foo), any(), eq(null), eq(null));
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(null), eq(null));
     verifyNoMoreInteractions(_mockLocalDAO);
   }
 
@@ -468,10 +469,16 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
     IngestionTrackingContext trackingContext = new IngestionTrackingContext();
 
-    runAndWait(_resource.ingestWithTracking(snapshot, trackingContext));
+    runAndWait(_resource.ingestWithTracking(snapshot, trackingContext, null));
 
-    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(foo), any(), eq(trackingContext));
-    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(trackingContext));
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(foo), any(), eq(trackingContext), eq(null));
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(trackingContext), eq(null));
+
+    IngestionParams ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
+    runAndWait(_resource.ingestWithTracking(snapshot, trackingContext, ingestionParams));
+
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(foo), any(), eq(trackingContext), eq(ingestionParams));
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(trackingContext), eq(ingestionParams));
     verifyNoMoreInteractions(_mockLocalDAO);
   }
 
@@ -484,9 +491,9 @@ public class BaseEntityResourceTest extends BaseEngineTest {
         ModelUtils.newAspectUnion(EntityAspectUnion.class, bar));
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
 
-    runAndWait(_resource.ingestInternal(snapshot, Collections.singleton(AspectBar.class), null));
+    runAndWait(_resource.ingestInternal(snapshot, Collections.singleton(AspectBar.class), null, null));
 
-    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(foo), any(), eq(null));
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(foo), any(), eq(null), eq(null));
     verifyNoMoreInteractions(_mockLocalDAO);
   }
 

@@ -1,5 +1,6 @@
 package com.linkedin.metadata.dao;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.DataMap;
@@ -28,6 +29,7 @@ import com.linkedin.metadata.dao.tracking.TrackingUtils;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.events.IngestionTrackingContext;
+import com.linkedin.metadata.internal.IngestionParams;
 import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
@@ -130,9 +132,19 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     @NonNull
     Function<Optional<ASPECT>, ASPECT> updateLambda;
 
+    @NonNull
+    IngestionParams ingestionParams;
+
     AspectUpdateLambda(ASPECT value) {
       this.aspectClass = (Class<ASPECT>) value.getClass();
       this.updateLambda = (ignored) -> value;
+      this.ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
+    }
+
+    AspectUpdateLambda(@NonNull Class<ASPECT> aspectClass, @NonNull Function<Optional<ASPECT>, ASPECT> updateLambda) {
+      this.aspectClass = aspectClass;
+      this.updateLambda = updateLambda;
+      this.ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
     }
   }
 
@@ -411,18 +423,21 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param aspectClass aspectClass of the aspect being saved
    * @param auditStamp audit stamp for the operation
    * @param equalityTester {@link EqualityTester} that is an interface for testing equality between two objects of the same type
+   * @param trackingContext {@link IngestionTrackingContext} which contains ingestion metadata used for tracking purposes
+   * @param ingestionParams {@link IngestionParams} which indicates how the aspect should be ingested
    * @param <ASPECT> must be a supported aspect type in {@code ASPECT_UNION}
    * @return {@link AddResult} corresponding to the old and new value of metadata
    */
   private <ASPECT extends RecordTemplate> AddResult<ASPECT> addCommon(@Nonnull URN urn,
       @Nonnull AspectEntry<ASPECT> latest, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
-      @Nonnull AuditStamp auditStamp, @Nonnull EqualityTester<ASPECT> equalityTester, @Nullable IngestionTrackingContext trackingContext) {
+      @Nonnull AuditStamp auditStamp, @Nonnull EqualityTester<ASPECT> equalityTester,
+      @Nullable IngestionTrackingContext trackingContext, @Nonnull IngestionParams ingestionParams) {
 
     final ASPECT oldValue = latest.getAspect() == null ? null : latest.getAspect();
     final AuditStamp oldAuditStamp = latest.getExtraInfo() == null ? null : latest.getExtraInfo().getAudit();
     final Long oldEmitTime = latest.getExtraInfo() == null ? null : latest.getExtraInfo().getEmitTime();
 
-    boolean isBackfillEvent = trackingContext != null
+    final boolean isBackfillEvent = trackingContext != null
         && trackingContext.hasBackfill() && trackingContext.isBackfill();
     if (isBackfillEvent) {
       boolean shouldBackfill =
@@ -458,12 +473,22 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       }
     }
 
+    final boolean oldAndNewEqual = (oldValue == null && newValue == null) || (oldValue != null && newValue != null && equalityTester.equals(
+        oldValue, newValue));
+
+    final IngestionMode ingestionMode = ingestionParams.getIngestionMode();
+
     // Skip saving for the following scenarios
-    if ((oldValue == null && newValue == null) // values are null
-        || (aspectVersionSkipWrite(newValue, oldValue)) // newValue ver < oldValue ver
-        || (oldValue != null && newValue != null && equalityTester.equals(oldValue, newValue)) // values are equal
-    ) {
+    if (ingestionMode != IngestionMode.LIVE_OVERRIDE // ensure that the new metadata received is skippable (i.e. not marked as a forced write).
+        && (oldAndNewEqual || (aspectVersionSkipWrite(newValue, oldValue)))) { // values are equal or newValue ver < oldValue ver
       return new AddResult<>(oldValue, oldValue, aspectClass);
+    }
+
+    if (ingestionMode == IngestionMode.LIVE_OVERRIDE) {
+      log.info((String.format(
+          "Received ingestion event with LIVE_OVERRIDE write mode. urn: %s, aspectClass: %s, auditStamp: %s,"
+              + "newValue == oldValue: %b. An MAE will %sbe emitted.", urn, aspectClass, auditStamp, oldAndNewEqual,
+          oldAndNewEqual ? "not " : "")));
     }
 
     // Save the newValue as the latest version
@@ -581,7 +606,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       _aspectPreUpdateHooksMap.get(updateTuple.getAspectClass()).forEach(hook -> hook.accept(urn, newValue));
     }
 
-    return addCommon(urn, latest, newValue, updateTuple.getAspectClass(), auditStamp, getEqualityTester(updateTuple.getAspectClass()), trackingContext);
+    return addCommon(urn, latest, newValue, updateTuple.getAspectClass(), auditStamp, getEqualityTester(updateTuple.getAspectClass()),
+        trackingContext, updateTuple.getIngestionParams());
   }
 
   private <ASPECT extends RecordTemplate> ASPECT_UNION unwrapAddResultToUnion(URN urn, AddResult<ASPECT> result,
@@ -596,14 +622,22 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       trackingContext.setBackfill(false); // reset backfill since MAE won't be a backfill event
     }
 
-    Class<ASPECT> aspectClass = result.getKlass();
+    final Class<ASPECT> aspectClass = result.getKlass();
     final ASPECT oldValue = result.getOldValue();
     final ASPECT newValue = result.getNewValue();
+    final EqualityTester<ASPECT> equalityTester = getEqualityTester(aspectClass);
+    final boolean oldAndNewEqual = (oldValue == null && newValue == null)
+        || (oldValue != null && newValue != null && equalityTester.equals(oldValue, newValue));
+
+    // Invoke post-update hooks if there's any
+    if (_aspectPostUpdateHooksMap.containsKey(aspectClass)) {
+      _aspectPostUpdateHooksMap.get(aspectClass).forEach(hook -> hook.accept(urn, newValue));
+    }
 
     // Produce MAE after a successful update
     if (_emitAuditEvent) {
       // https://jira01.corp.linkedin.com:8443/browse/APA-80115
-      if (_alwaysEmitAuditEvent || oldValue != newValue) {
+      if (_alwaysEmitAuditEvent || !oldAndNewEqual) {
         if (_trackingProducer != null) {
           _trackingProducer.produceMetadataAuditEvent(urn, oldValue, newValue);
         } else {
@@ -615,7 +649,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     // TODO: Replace the previous step with the step below, after pipeline is fully migrated to aspect specific events.
     // Produce aspect specific MAE after a successful update
     if (_emitAspectSpecificAuditEvent) {
-      if (_alwaysEmitAspectSpecificAuditEvent || oldValue != newValue) {
+      if (_alwaysEmitAspectSpecificAuditEvent || !oldAndNewEqual) {
         if (_trackingProducer != null) {
           _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, auditStamp, trackingContext,
               IngestionMode.LIVE);
@@ -623,10 +657,6 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
           _producer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, auditStamp);
         }
       }
-    }
-    // Invoke post-update hooks if there's any
-    if (_aspectPostUpdateHooksMap.containsKey(aspectClass)) {
-      _aspectPostUpdateHooksMap.get(aspectClass).forEach(hook -> hook.accept(urn, newValue));
     }
 
     return newValue;
@@ -652,13 +682,23 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * Same as above {@link #add(Urn, Class, Function, AuditStamp, int)} but with tracking context.
+   * Same as {@link #add(Urn, Class, Function, AuditStamp, int)} but with tracking context.
    */
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp,
       int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext) {
     return add(urn, new AspectUpdateLambda<>(aspectClass, updateLambda), auditStamp, maxTransactionRetry, trackingContext);
+  }
+
+  /**
+   * Same as {@link #add(Urn, Class, Function, AuditStamp, int, IngestionTrackingContext)} but with ingestion parameters.
+   */
+  @Nonnull
+  public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
+      @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp,
+      int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext, @Nonnull IngestionParams ingestionParams) {
+    return add(urn, new AspectUpdateLambda<>(aspectClass, updateLambda, ingestionParams), auditStamp, maxTransactionRetry, trackingContext);
   }
 
   /**
@@ -726,8 +766,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     runInTransactionWithRetry(() -> {
       final AspectEntry<ASPECT> latest = getLatest(urn, aspectClass);
-
-      return addCommon(urn, latest, null, aspectClass, auditStamp, new DefaultEqualityTester<>(), trackingContext);
+      final IngestionParams ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
+      return addCommon(urn, latest, null, aspectClass, auditStamp, new DefaultEqualityTester<>(), trackingContext, ingestionParams);
     }, maxTransactionRetry);
 
     // TODO: add support for sending MAE for soft deleted aspects
@@ -747,17 +787,19 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    */
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
-      @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext) {
-    return add(urn, aspectClass, updateLambda, auditStamp, DEFAULT_MAX_TRANSACTION_RETRY, trackingContext);
+      @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp,
+      @Nullable IngestionTrackingContext trackingContext, @Nonnull IngestionParams ingestionParams) {
+    return add(urn, aspectClass, updateLambda, auditStamp, DEFAULT_MAX_TRANSACTION_RETRY, trackingContext, ingestionParams);
   }
 
   /**
    * Similar to {@link #add(Urn, Class, Function, AuditStamp)} but takes the new value directly.
    */
+  @VisibleForTesting
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull ASPECT newValue,
       @Nonnull AuditStamp auditStamp) {
-    return add(urn, newValue, auditStamp, null);
+    return add(urn, newValue, auditStamp, null, null);
   }
 
   /**
@@ -765,8 +807,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    */
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull ASPECT newValue,
-      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext) {
-    return add(urn, (Class<ASPECT>) newValue.getClass(), ignored -> newValue, auditStamp, trackingContext);
+      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext, @Nullable IngestionParams ingestionParams) {
+    final IngestionParams nonNullIngestionParams = ingestionParams == null ? new IngestionParams().setIngestionMode(IngestionMode.LIVE) : ingestionParams;
+    return add(urn, (Class<ASPECT>) newValue.getClass(), ignored -> newValue, auditStamp, trackingContext, nonNullIngestionParams);
   }
 
   /**

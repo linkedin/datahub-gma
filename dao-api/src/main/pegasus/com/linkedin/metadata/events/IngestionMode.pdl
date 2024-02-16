@@ -19,4 +19,12 @@ enum IngestionMode {
    * Bootstrap metadata from scratch.
    */
   BOOTSTRAP
+
+  /**
+   * Live ingestion with override toggled on. Intended to be used with Metadata Change Events (MCEs).
+   * The metadata will be ingested irrespective of all other "skip ingestion" checks (e.g. oldValue == newValue,
+   * oldSemanticVer > newSemanticVer)
+   */
+  LIVE_OVERRIDE
+
 }

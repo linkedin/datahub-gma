@@ -95,6 +95,7 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
 
       import com.linkedin.avro2pegasus.events.KafkaAuditHeader
       import com.linkedin.metadata.events.ChangeType
+      import com.linkedin.metadata.events.IngestionMode
       import com.linkedin.metadata.events.IngestionTrackingContext
       import com.linkedin.testing.FooUrn
       import com.linkedin.metadata.test.aspects.TestAspect
@@ -129,6 +130,11 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
          * Tracking context to identify the lifecycle of the trackable ingestion item.
          */
         ingestionTrackingContext: optional union[null, IngestionTrackingContext] = null
+        
+        /**
+         * Type of the ingestion. Allow null for backward compatibility. Null will be treated as live ingestion.
+         */
+        ingestionMode: optional union[null, IngestionMode] = null
       }'''.stripIndent()
 
     projectFile('build/my-dummy-module/generateMetadataEventsSchema/com/linkedin/mxe/foo/testAspect/MetadataAuditEvent.pdl').text == '''\
@@ -221,6 +227,7 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
 
       import com.linkedin.avro2pegasus.events.KafkaAuditHeader
       import com.linkedin.metadata.events.ChangeType
+      import com.linkedin.metadata.events.IngestionMode
       import com.linkedin.metadata.events.IngestionTrackingContext
       import com.linkedin.testing.FooUrn
       import com.linkedin.metadata.test.aspects.TestTyperefAspect
@@ -255,6 +262,11 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
          * Tracking context to identify the lifecycle of the trackable ingestion item.
          */
         ingestionTrackingContext: optional union[null, IngestionTrackingContext] = null
+        
+        /**
+         * Type of the ingestion. Allow null for backward compatibility. Null will be treated as live ingestion.
+         */
+        ingestionMode: optional union[null, IngestionMode] = null
       }'''.stripIndent()
 
     projectFile('build/my-dummy-module/generateMetadataEventsSchema/com/linkedin/mxe/foo/testTyperefAspect/MetadataAuditEvent.pdl').text == '''\
