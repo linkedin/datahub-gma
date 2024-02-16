@@ -1,6 +1,7 @@
 namespace com.linkedin.testing.mxe.bar
 
 import com.linkedin.avro2pegasus.events.KafkaAuditHeader
+import com.linkedin.metadata.events.IngestionParams
 import com.linkedin.metadata.events.IngestionTrackingContext
 import com.linkedin.metadata.events.ChangeType
 import com.linkedin.testing.BarUrn
@@ -34,6 +35,7 @@ record MCEBarAspect {
   proposedAnnotatedAspectBar: optional record ProposedAnnotatedAspectBar {
     value: optional AnnotatedAspectBar
     changeType: ChangeType = "UPSERT"
+    ingestionParams: optional IngestionParams
   }
 
   /**
@@ -42,6 +44,7 @@ record MCEBarAspect {
   proposedAnotherAspectBar: optional record ProposedAnotherAspectBar {
     value: optional AnotherAspectBar
     changeType: ChangeType = "UPSERT"
+    ingestionParams: optional IngestionParams
   }
 
 }

@@ -4,6 +4,7 @@
 namespace @(eventSpec.getNamespace())
 
 import com.linkedin.avro2pegasus.events.KafkaAuditHeader
+import com.linkedin.metadata.events.IngestionParams
 import com.linkedin.metadata.events.IngestionTrackingContext
 import com.linkedin.metadata.events.ChangeType
 import @eventSpec.getUrnType()
@@ -39,7 +40,7 @@ record MCE@(eventSpec.getShortTyperefName()) {
   proposed@(SchemaGeneratorUtil.stripNamespace(valueType)): optional record Proposed@(SchemaGeneratorUtil.stripNamespace(valueType)) {
     value: optional @(SchemaGeneratorUtil.stripNamespace(valueType))
     changeType: ChangeType = "UPSERT"
+    ingestionParams: optional IngestionParams
   }
-
   }
 }

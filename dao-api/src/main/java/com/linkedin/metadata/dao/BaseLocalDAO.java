@@ -625,7 +625,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     final Class<ASPECT> aspectClass = result.getKlass();
     final ASPECT oldValue = result.getOldValue();
     final ASPECT newValue = result.getNewValue();
-    final boolean oldAndNewEqual = (oldValue == null && newValue == null) || (oldValue != null && newValue != null && oldValue.equals(newValue));
+    final EqualityTester<ASPECT> equalityTester = getEqualityTester(aspectClass);
+    final boolean oldAndNewEqual = (oldValue == null && newValue == null)
+        || (oldValue != null && newValue != null && equalityTester.equals(oldValue, newValue));
 
     // Invoke post-update hooks if there's any
     if (_aspectPostUpdateHooksMap.containsKey(aspectClass)) {
@@ -690,7 +692,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * Same as {@link #add(Urn, Class, Function, AuditStamp, int)} but with a write mode parameter.
+   * Same as {@link #add(Urn, Class, Function, AuditStamp, int, IngestionTrackingContext)} but with ingestion parameters.
    */
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,

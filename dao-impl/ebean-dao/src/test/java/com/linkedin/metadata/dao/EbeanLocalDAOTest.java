@@ -440,8 +440,7 @@ public class EbeanLocalDAOTest {
     }
 
     verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, foo1);
-    // TODO - fix this test, MAE is not emitted because foo1 == foo2.
-    // verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, foo1, foo2);
+    verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, foo1, foo2);
     verifyNoMoreInteractions(_mockProducer);
   }
 
