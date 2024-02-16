@@ -142,6 +142,7 @@ public class EbeanLocalDAOTest {
   public EbeanLocalDAOTest(SchemaConfig schemaConfig, FindMethodology findMethodology, boolean enableChangeLog,
       boolean nonDollarVirtualColumnEnabled) {
     _eBeanDAOConfig.setNonDollarVirtualColumnsEnabled(nonDollarVirtualColumnEnabled);
+    SQLSchemaUtils.setNonDollarVirtualColumnsEnabled(nonDollarVirtualColumnEnabled);
     _schemaConfig = schemaConfig;
     _findMethodology = findMethodology;
     _enableChangeLog = enableChangeLog;
@@ -3070,8 +3071,7 @@ public class EbeanLocalDAOTest {
     */
 
     String aspectColumnName = isUrn(aspectName) ? null : SQLSchemaUtils.getAspectColumnName(aspectName); // e.g. a_aspectfoo;
-    String fullIndexColumnName = SQLSchemaUtils.getGeneratedColumnName(aspectName, pathName,
-        _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled()); // e.g. i_aspectfoo$path1$value1
+    String fullIndexColumnName = SQLSchemaUtils.getGeneratedColumnName(aspectName, pathName); // e.g. i_aspectfoo$path1$value1
 
     String checkColumnExistance = String.format("SELECT * FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '%s' AND"
         + " TABLE_NAME = '%s' AND COLUMN_NAME = '%s'", _server.getName(), getTableName(urn), fullIndexColumnName);
