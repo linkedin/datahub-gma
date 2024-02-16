@@ -40,7 +40,7 @@ record MCE@(eventSpec.getShortTyperefName()) {
   proposed@(SchemaGeneratorUtil.stripNamespace(valueType)): optional record Proposed@(SchemaGeneratorUtil.stripNamespace(valueType)) {
     value: optional @(SchemaGeneratorUtil.stripNamespace(valueType))
     changeType: ChangeType = "UPSERT"
-    ingestionMode: optional IngestionMode
+    ingestionMode: optional union[null, IngestionMode] = null
   }
 
   }

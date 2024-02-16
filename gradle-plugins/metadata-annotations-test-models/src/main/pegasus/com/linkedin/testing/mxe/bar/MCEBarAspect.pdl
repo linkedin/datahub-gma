@@ -35,7 +35,7 @@ record MCEBarAspect {
   proposedAnnotatedAspectBar: optional record ProposedAnnotatedAspectBar {
     value: optional AnnotatedAspectBar
     changeType: ChangeType = "UPSERT"
-    ingestionMode: optional IngestionMode
+    ingestionMode: optional union[null, IngestionMode] = null
   }
 
   /**
@@ -44,7 +44,7 @@ record MCEBarAspect {
   proposedAnotherAspectBar: optional record ProposedAnotherAspectBar {
     value: optional AnotherAspectBar
     changeType: ChangeType = "UPSERT"
-    ingestionMode: optional IngestionMode
+    ingestionMode: optional union[null, IngestionMode] = null
   }
 
 }
