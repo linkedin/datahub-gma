@@ -164,6 +164,37 @@ public class BaseSearchableEntityResourceTest extends BaseEngineTest {
     assertEquals(searchResult.getMetadata(), searchResultMetadata);
   }
 
+  @Test
+  public void testSearchV2() {
+    Urn urn1 = makeUrn(1);
+    Urn urn2 = makeUrn(2);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectKey<Urn, AspectFoo> aspectKey1 = new AspectKey<>(AspectFoo.class, urn1, BaseLocalDAO.LATEST_VERSION);
+    AspectKey<Urn, AspectFoo> aspectKey2 = new AspectKey<>(AspectFoo.class, urn2, BaseLocalDAO.LATEST_VERSION);
+
+    // Test with two filter criteria and validate it returns the right search result metadata
+    Filter filterWithTwoCriteria = newFilter(ImmutableMap.of("removed1", "true", "removed2", "false"));
+
+    SearchResultMetadata  searchResultMetadataWithOneFilterCriteria = makeSearchResultMetadata(new AggregationMetadata().setName("agg")
+        .setAggregations(new LongMap(ImmutableMap.of("bucket1", 1L, "bucket2", 2L))));
+
+    when(_mockSearchDAO.searchV2("bar", filterWithTwoCriteria, null, null,0, 10)).thenReturn(
+        makeSearchResult(ImmutableList.of(makeDocument(urn1), makeDocument(urn2)), 3, searchResultMetadataWithOneFilterCriteria));
+
+    String[] aspectNames = new String[]{ModelUtils.getAspectName(AspectFoo.class)};
+    when(_mockLocalDAO.get(ImmutableSet.of(aspectKey1, aspectKey2))).thenReturn(
+          ImmutableMap.of(aspectKey1, Optional.of(foo), aspectKey2, Optional.of(foo)));
+
+    CollectionResult<EntityValue, SearchResultMetadata> searchResult =
+        runAndWait(_resource.searchV2("bar", aspectNames, filterWithTwoCriteria, null, null, new PagingContext(0, 10)));
+
+    List<EntityValue> values = searchResult.getElements();
+    assertEquals(values.size(), 2);
+    assertEquals(values.get(0).getFoo(), foo);
+    assertEquals(values.get(1).getFoo(), foo);
+    assertEquals(searchResult.getMetadata(), searchResultMetadataWithOneFilterCriteria);
+  }
+
   private SearchResult<EntityDocument> makeSearchResult(List<EntityDocument> documents, int totalCount,
       SearchResultMetadata searchResultMetadata) {
     return SearchResult.<EntityDocument>builder().documentList(documents)
