@@ -125,7 +125,7 @@ public abstract class BaseSearchableEntityResource<
    * @param pagingContext pagination context
    * @return list of all {@link VALUE} objects along with search result metadata
    */
-  @Finder(FINDER_SEARCH)
+  @Finder(FINDER_SEARCH_V2)
   @Nonnull
   public Task<CollectionResult<VALUE, SearchResultMetadata>> searchV2(@QueryParam(PARAM_INPUT) @Nonnull String input,
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
