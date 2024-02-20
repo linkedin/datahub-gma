@@ -178,7 +178,7 @@ public class BaseSearchableEntityResourceTest extends BaseEngineTest {
     SearchResultMetadata  searchResultMetadataWithOneFilterCriteria = makeSearchResultMetadata(new AggregationMetadata().setName("agg")
         .setAggregations(new LongMap(ImmutableMap.of("bucket1", 1L, "bucket2", 2L))));
 
-    when(_mockSearchDAO.searchV2("bar", filterWithTwoCriteria, null, null,0, 10)).thenReturn(
+    when(_mockSearchDAO.searchV2("bar", filterWithTwoCriteria, null, null, 0, 10)).thenReturn(
         makeSearchResult(ImmutableList.of(makeDocument(urn1), makeDocument(urn2)), 3, searchResultMetadataWithOneFilterCriteria));
 
     String[] aspectNames = new String[]{ModelUtils.getAspectName(AspectFoo.class)};
