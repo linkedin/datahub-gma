@@ -45,4 +45,5 @@ public final class RestliConstants {
   public static final String PARAM_TRACKING_CONTEXT = "trackingContext";
 
   public static final String PARAM_ENTITY_TYPE = "entityType";
+  public static final String PARAM_PREFERENCE = "preference";
 }

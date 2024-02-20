@@ -114,6 +114,33 @@ public abstract class BaseSearchableEntityResource<
         () -> getSearchQueryCollectionResult(searchResult, aspectNames));
   }
 
+  /**
+   * The v2 version of search method which supports preference parameter and returns the right search result metadata
+   * when there are more than one filter criteria.
+   * @param input search query
+   * @param aspectNames list of aspect names that need to be returned
+   * @param filter {@link Filter} to filter the search results
+   * @param sortCriterion {@link SortCriterion} to sort the search results
+   * @param preference preference of the shard copy on which to execute the search
+   * @param pagingContext pagination context
+   * @return list of all {@link VALUE} objects along with search result metadata
+   */
+  @Finder(FINDER_SEARCH)
+  @Nonnull
+  public Task<CollectionResult<VALUE, SearchResultMetadata>> searchV2(@QueryParam(PARAM_INPUT) @Nonnull String input,
+      @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
+      @QueryParam(PARAM_FILTER) @Optional @Nullable Filter filter,
+      @QueryParam(PARAM_SORT) @Optional @Nullable SortCriterion sortCriterion,
+      @QueryParam(PARAM_PREFERENCE) @Optional @Nullable String preference,
+      @PagingContextParam @Nonnull PagingContext pagingContext) {
+
+    final Filter searchFilter = filter != null ? filter : QueryUtils.EMPTY_FILTER;
+    final SearchResult<DOCUMENT> searchResult =
+        getSearchDAO().searchV2(input, searchFilter, sortCriterion, preference, pagingContext.getStart(), pagingContext.getCount());
+    return RestliUtils.toTask(
+        () -> getSearchQueryCollectionResult(searchResult, aspectNames));
+  }
+
   @Action(name = ACTION_AUTOCOMPLETE)
   @Nonnull
   public Task<AutoCompleteResult> autocomplete(@ActionParam(PARAM_QUERY) @Nonnull String query,
