@@ -4,6 +4,7 @@ public final class RestliConstants {
   private RestliConstants() { }
 
   public static final String FINDER_SEARCH = "search";
+  public static final String FINDER_SEARCH_V2 = "searchV2";
   public static final String FINDER_FILTER = "filter";
   public static final String FINDER_COUNT_AGGREGATE = "countAggregate";
 
