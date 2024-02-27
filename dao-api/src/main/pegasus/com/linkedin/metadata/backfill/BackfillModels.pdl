@@ -1,0 +1,13 @@
+namespace com.linkedin.metadata.backfill
+
+/**
+ * A class for generating the pegasus schema for models used in backfill. DO NOT USE THIS CLASS DIRECTLY.
+ */
+record BackfillModels {
+
+  /**
+   * An array of com.linkedin.metadata.backfill.BackfillItem. This field is added for generating the class
+   * BackfillItemArray with schema in pegasus.
+   */
+  backfillItems: array[BackfillItem]
+}
