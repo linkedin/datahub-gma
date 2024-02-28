@@ -79,7 +79,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   protected final EbeanServer _server;
   protected final Class<URN> _urnClass;
-  private int _queryKeysCount = 100;
+
+  private final static int DEFAULT_BATCH_SIZE = 50;
+  private int _queryKeysCount = DEFAULT_BATCH_SIZE;
   private IEbeanLocalAccess<URN> _localAccess;
   private UrnPathExtractor<URN> _urnPathExtractor;
   private SchemaConfig _schemaConfig = SchemaConfig.OLD_SCHEMA_ONLY;
@@ -949,12 +951,13 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   public void setQueryKeysCount(int keysCount) {
     if (keysCount < 0) {
       throw new IllegalArgumentException("Query keys count must be non-negative: " + keysCount);
+    } else if (keysCount > DEFAULT_BATCH_SIZE) {
+      log.warn("Setting query keys count greater than " + DEFAULT_BATCH_SIZE
+          + " may cause performance issues. Defaulting to " + DEFAULT_BATCH_SIZE + ".");
+      _queryKeysCount = DEFAULT_BATCH_SIZE;
+    } else {
+      _queryKeysCount = keysCount;
     }
-    if (keysCount > 100) {
-      log.warn("Setting query keys count greater than 100 may cause performance issues: " + keysCount + "Defaulting to 100.");
-      _queryKeysCount = 100;
-    }
-    _queryKeysCount = keysCount;
   }
 
   /**
