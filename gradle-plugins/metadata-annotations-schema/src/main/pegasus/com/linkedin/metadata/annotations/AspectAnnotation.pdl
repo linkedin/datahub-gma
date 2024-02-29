@@ -15,6 +15,14 @@ record AspectAnnotation {
   column: optional ColumnNameAnnotation
 
   /**
+   * Information about how the aspect should be ingested.
+   * Example use cases:
+   * 1. Skip equality check.
+   * 2. Skip sementic versioning check.
+   */
+  ingestion: optional array[AspectIngestionAnnotation]
+
+  /**
    * Information on multiple entities this aspect is associated with. Deprecated; it is an error to use outside of a limited set of allowed models. Used to help migrate existing "common aspects" to v5 only.
    */
   @deprecated

@@ -3,6 +3,11 @@ namespace com.linkedin.testing
 /**
  * For unit tests
  */
+@gma.aspect.ingestion = [
+  {"mode": "FORCE_UPDATE", "urn": "com.linkedin.testing.BarUrn", "filter": [
+    {"path": "/platform", "value": "hdfs"}
+  ]}
+]
 @gma.aspect.column.name = "barurn"
 @gma.aspect.entity = {
   "urn": "com.linkedin.testing.BarUrn"

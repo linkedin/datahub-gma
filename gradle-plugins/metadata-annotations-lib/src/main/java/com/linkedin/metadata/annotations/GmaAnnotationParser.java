@@ -21,6 +21,7 @@ import javax.annotation.Nullable;
 public class GmaAnnotationParser {
   private static final String GMA = "gma";
   private static final String SEARCH = "search";
+  private static final String INDEX = "index";
 
   private final GmaEntitiesAnnotationAllowList _gmaEntitiesAnnotationAllowList;
 
@@ -117,7 +118,7 @@ public class GmaAnnotationParser {
           continue;
         }
 
-        final Object indexObj = ((DataMap) searchObj).get("index");
+        final Object indexObj = ((DataMap) searchObj).get(INDEX);
         if (indexObj == null) {
           continue;
         }

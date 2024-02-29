@@ -1,0 +1,41 @@
+namespace com.linkedin.metadata.annotations
+
+record AspectIngestionAnnotation {
+
+  /**
+   * Ingestion Mode applied this aspect. This can be overridden by IngestionMode set in (union) MCE.
+   */
+  mode: optional enum Mode {
+    /**
+     * Skip any check in data access layer. Update the aspect in database irrespectively.
+     */
+    FORCE_UPDATE
+
+    /**
+     * Honor all existing checks in data access layer.
+     */
+    DEFAULT
+  }
+
+  /**
+   * The FQCN of the URN that identifies this entity. The ingestion mode will be applied to the aspect associated with this entity.
+   */
+  urn: optional string
+
+  /**
+   * Filter on the URN so that this ingestion mode is only applicable to a subset of entities.
+   */
+  filter: optional array[record UrnFilter {
+
+    /**
+     * Path extracted by UrnPathExtractor
+     * https://github.com/linkedin/datahub-gma/blob/master/dao-impl/ebean-dao/src/main/java/com/linkedin/metadata/dao/scsi/UrnPathExtractor.java
+     */
+    path: optional string,
+
+    /**
+     * The target value lead to by by the path.
+     */
+    value: optional string
+  }]
+}
