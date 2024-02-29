@@ -19,6 +19,12 @@ import static org.assertj.core.api.Assertions.*;
 public class GmaAnnotationParserTest {
   @Test
   public void parseBar() {
+    AspectIngestionAnnotationArray ingestionAnnotations = new AspectIngestionAnnotationArray(
+        new AspectIngestionAnnotation()
+            .setUrn("com.linkedin.testing.BarUrn")
+            .setMode(Mode.FORCE_UPDATE)
+            .setFilter(new UrnFilterArray(new UrnFilter().setPath("/platform").setValue("hdfs"))));
+
     // has both @gma.aspect.entity.urn and @gma.aspect.column.name annotations
     final Optional<GmaAnnotation> gma =
         new GmaAnnotationParser().parse((RecordDataSchema) DataTemplateUtil.getSchema(AnnotatedAspectBar.class));
@@ -26,8 +32,7 @@ public class GmaAnnotationParserTest {
         .setAspect(new AspectAnnotation()
             .setEntity(new AspectEntityAnnotation().setUrn("com.linkedin.testing.BarUrn"))
             .setColumn(new ColumnNameAnnotation().setName("barurn"))
-            .setIngestion(new AspectIngestionAnnotationArray(new AspectIngestionAnnotation()
-                .setUrn("com.linkedin.testing.BarUrn").setMode(Mode.FORCE_UPDATE)))));
+            .setIngestion(ingestionAnnotations)));
   }
 
   @Test
