@@ -3,7 +3,7 @@ namespace com.linkedin.metadata.annotations
 record AspectIngestionAnnotation {
 
   /**
-   * Ingestion Mode applied this aspect.
+   * Ingestion Mode applied this aspect. This can be overridden by IngestionMode set in (union) MCE.
    */
   mode: optional enum Mode {
     /**
