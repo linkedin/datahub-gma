@@ -5,6 +5,7 @@ import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dummy.DummyAspect;
 import com.linkedin.metadata.dummy.DummySnapshot;
+import com.linkedin.metadata.events.IngestionMode;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -33,7 +34,7 @@ public class DummyMetadataEventProducer<URN extends Urn>
 
   @Override
   public <ASPECT extends RecordTemplate> void produceAspectSpecificMetadataAuditEvent(@Nonnull URN urn,
-      @Nullable ASPECT oldValue, @Nonnull ASPECT newValue, @Nullable AuditStamp auditStamp) {
+      @Nullable ASPECT oldValue, @Nonnull ASPECT newValue, @Nullable AuditStamp auditStamp, @Nullable IngestionMode ingestionMode) {
     // Do nothing
   }
 }

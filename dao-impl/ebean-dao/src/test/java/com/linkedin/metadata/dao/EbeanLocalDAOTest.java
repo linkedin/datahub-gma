@@ -770,7 +770,7 @@ public class EbeanLocalDAOTest {
     Optional<AspectFoo> foo = dao.backfill(AspectFoo.class, urn);
 
     assertEquals(foo.get(), expected);
-    verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, expected, expected, null);
+    verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, expected, expected, null, IngestionMode.BOOTSTRAP);
     verifyNoMoreInteractions(_mockProducer);
   }
 
@@ -856,7 +856,7 @@ public class EbeanLocalDAOTest {
       for (Class<? extends RecordTemplate> clazz : aspects.get(urn).keySet()) {
         RecordTemplate aspect = aspects.get(urn).get(clazz);
         assertEquals(backfilledAspects.get(urn).get(clazz).get(), aspect);
-        verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, null);
+        verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, null, IngestionMode.BOOTSTRAP);
       }
     }
     verifyNoMoreInteractions(_mockProducer);
@@ -892,7 +892,7 @@ public class EbeanLocalDAOTest {
       for (Class<? extends RecordTemplate> clazz : aspects.get(urn).keySet()) {
         assertTrue(backfilledAspects.get(urn.toString()).contains(getAspectName(clazz)));
         RecordTemplate metadata = aspects.get(urn).get(clazz);
-        verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, metadata, metadata, null);
+        verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, metadata, metadata, null, IngestionMode.BOOTSTRAP);
       }
       assertFalse(backfilledAspects.get(urn.toString()).contains(getAspectName(AspectFooBar.class)));
     }
@@ -929,7 +929,7 @@ public class EbeanLocalDAOTest {
       for (Class<? extends RecordTemplate> clazz : aspects.get(urn).keySet()) {
         assertTrue(backfilledAspects.get(urn.toString()).contains(getAspectName(clazz)));
         RecordTemplate metadata = aspects.get(urn).get(clazz);
-        verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, metadata, metadata, null);
+        verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, metadata, metadata, null, IngestionMode.BOOTSTRAP);
       }
       assertFalse(backfilledAspects.get(urn.toString()).contains(getAspectName(AspectBar.class)));
     }
@@ -963,7 +963,7 @@ public class EbeanLocalDAOTest {
       for (Class<? extends RecordTemplate> clazz : aspects.get(urn).keySet()) {
         assertTrue(backfilledAspects.get(urn.toString()).contains(getAspectName(clazz)));
         RecordTemplate metadata = aspects.get(urn).get(clazz);
-        verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, metadata, metadata, null);
+        verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, metadata, metadata, null, IngestionMode.BOOTSTRAP);
       }
     }
     verifyNoMoreInteractions(_mockProducer);
