@@ -8,6 +8,8 @@ import com.linkedin.metadata.aspect.AspectColumnMetadata;
 import com.linkedin.metadata.dao.exception.MissingAnnotationException;
 import java.util.Map;
 import javax.annotation.Nonnull;
+import lombok.Getter;
+import lombok.Setter;
 
 
 /**
@@ -22,6 +24,10 @@ public class SQLSchemaUtils {
   public static final String INDEX_PREFIX = "i_";
 
   private static final int MYSQL_MAX_COLUMN_NAME_LENGTH = 64 - ASPECT_PREFIX.length();
+
+  @Getter
+  @Setter
+  private static boolean nonDollarVirtualColumnsEnabled = false; // default value
 
   private SQLSchemaUtils() {
   }
@@ -88,13 +94,13 @@ public class SQLSchemaUtils {
    * Get generated column name from aspect and path.
    */
   @Nonnull
-  public static String getGeneratedColumnName(@Nonnull String aspect, @Nonnull String path, boolean nonDollarVirtualColumnsEnabled) {
+  public static String getGeneratedColumnName(@Nonnull String aspect, @Nonnull String path) {
     char delimiter = nonDollarVirtualColumnsEnabled ? '0' : '$';
     if (isUrn(aspect)) {
-      return INDEX_PREFIX + "urn" + processPath(path, delimiter);
+      return INDEX_PREFIX + "urn" + processPath(path);
     }
 
-    return INDEX_PREFIX + getColumnNameFromAnnotation(aspect) + processPath(path, delimiter);
+    return INDEX_PREFIX + getColumnNameFromAnnotation(aspect) + processPath(path);
   }
 
   /**
@@ -107,11 +113,11 @@ public class SQLSchemaUtils {
   /**
    * process 'path' into mysql column name convention.
    * @param path path in string e.g. /name/value, /name
-   * @param delimiter delimiter i.e '$' or '0'
    * @return $name$value or $name or 0name$value or 0name
    */
   @Nonnull
-  public static String processPath(@Nonnull String path, char delimiter) {
+  public static String processPath(@Nonnull String path) {
+    char delimiter = nonDollarVirtualColumnsEnabled ? '0' : '$';
     path = path.replace("/", String.valueOf(delimiter));
     if (!path.startsWith(String.valueOf(delimiter))) {
       path = delimiter + path;

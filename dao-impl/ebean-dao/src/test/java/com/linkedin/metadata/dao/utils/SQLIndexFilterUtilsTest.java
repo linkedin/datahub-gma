@@ -8,12 +8,27 @@ import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.query.IndexValue;
 import com.linkedin.metadata.query.SortOrder;
 import com.linkedin.testing.AspectFoo;
+import org.testng.annotations.DataProvider;
+import org.testng.annotations.Factory;
 import org.testng.annotations.Test;
 
 import static org.testng.Assert.*;
 
 
 public class SQLIndexFilterUtilsTest {
+
+  @Factory(dataProvider = "inputList")
+  public SQLIndexFilterUtilsTest(boolean nonDollarVirtualColumnsEnabled) {
+    SQLSchemaUtils.setNonDollarVirtualColumnsEnabled(nonDollarVirtualColumnsEnabled);
+  }
+
+  @DataProvider(name = "inputList")
+  public static Object[][] inputList() {
+    return new Object[][] {
+        { true },
+        { false }
+    };
+  }
 
   @Test
   public void testParseSortCriteria() {
@@ -22,18 +37,20 @@ public class SQLIndexFilterUtilsTest {
     assertEquals(indexSortCriterion.getOrder(), SortOrder.ASCENDING);
     assertEquals(indexSortCriterion.getAspect(), AspectFoo.class.getCanonicalName());
 
-    String sql1 = SQLIndexFilterUtils.parseSortCriteria(indexSortCriterion, false);
-    assertEquals(sql1, "ORDER BY i_aspectfoo$id ASC");
+    if (!SQLSchemaUtils.isNonDollarVirtualColumnsEnabled()) {
+      String sql1 = SQLIndexFilterUtils.parseSortCriteria(indexSortCriterion);
+      assertEquals(sql1, "ORDER BY i_aspectfoo$id ASC");
 
-    String sql2 = SQLIndexFilterUtils.parseSortCriteria(indexSortCriterion, true);
-    assertEquals(sql2, "ORDER BY i_aspectfoo0id ASC");
+      indexSortCriterion.setOrder(SortOrder.DESCENDING);
+      sql1 = SQLIndexFilterUtils.parseSortCriteria(indexSortCriterion);
+      assertEquals(sql1, "ORDER BY i_aspectfoo$id DESC");
+    } else {
+      String sql2 = SQLIndexFilterUtils.parseSortCriteria(indexSortCriterion);
+      assertEquals(sql2, "ORDER BY i_aspectfoo0id ASC");
 
-    indexSortCriterion.setOrder(SortOrder.DESCENDING);
-    sql1 = SQLIndexFilterUtils.parseSortCriteria(indexSortCriterion, false);
-    assertEquals(sql1, "ORDER BY i_aspectfoo$id DESC");
-
-    sql2 = SQLIndexFilterUtils.parseSortCriteria(indexSortCriterion, true);
-    assertEquals(sql2, "ORDER BY i_aspectfoo0id DESC");
+      sql2 = SQLIndexFilterUtils.parseSortCriteria(indexSortCriterion);
+      assertEquals(sql2, "ORDER BY i_aspectfoo0id DESC");
+    }
   }
 
   @Test
@@ -45,10 +62,14 @@ public class SQLIndexFilterUtilsTest {
     indexCriterionArray.add(indexCriterion);
     indexFilter.setCriteria(indexCriterionArray);
 
-    String sql = SQLIndexFilterUtils.parseIndexFilter(indexFilter, false);
-    assertEquals(sql, "WHERE a_aspectfoo IS NOT NULL\nAND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\nAND i_aspectfoo$id < 12");
-
-    sql = SQLIndexFilterUtils.parseIndexFilter(indexFilter, true);
-    assertEquals(sql, "WHERE a_aspectfoo IS NOT NULL\nAND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\nAND i_aspectfoo0id < 12");
+    if (!SQLSchemaUtils.isNonDollarVirtualColumnsEnabled()) {
+      String sql1 = SQLIndexFilterUtils.parseIndexFilter(indexFilter);
+      assertEquals(sql1,
+          "WHERE a_aspectfoo IS NOT NULL\nAND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\nAND i_aspectfoo$id < 12");
+    } else {
+      String sql2 = SQLIndexFilterUtils.parseIndexFilter(indexFilter);
+      assertEquals(sql2,
+          "WHERE a_aspectfoo IS NOT NULL\nAND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\nAND i_aspectfoo0id < 12");
+    }
   }
 }

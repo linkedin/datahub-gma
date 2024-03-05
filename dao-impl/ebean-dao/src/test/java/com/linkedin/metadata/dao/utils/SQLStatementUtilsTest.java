@@ -24,6 +24,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.javatuples.Pair;
+import org.testng.annotations.DataProvider;
+import org.testng.annotations.Factory;
 import org.testng.annotations.Test;
 
 import static com.linkedin.testing.TestUtils.*;
@@ -31,21 +33,34 @@ import static org.testng.Assert.*;
 
 
 public class SQLStatementUtilsTest {
+  @Factory(dataProvider = "inputList")
+  public SQLStatementUtilsTest(boolean nonDollarVirtualColumnsEnabled) {
+    SQLSchemaUtils.setNonDollarVirtualColumnsEnabled(nonDollarVirtualColumnsEnabled);
+  }
+  @DataProvider(name = "inputList")
+  public static Object[][] inputList() {
+    return new Object[][] {
+        { true },
+        { false }
+    };
+  }
 
   @Test
   public void testCreateUpsertAspectSql() {
     FooUrn fooUrn = makeFooUrn(1);
-    String expectedSql =
-        "INSERT INTO metadata_entity_foo (urn, a_urn, a_aspectfoo, lastmodifiedon, lastmodifiedby) VALUE (:urn, "
-            + ":a_urn, :metadata, :lastmodifiedon, :lastmodifiedby) ON DUPLICATE KEY UPDATE a_aspectfoo = :metadata,"
-            + " lastmodifiedon = :lastmodifiedon;";
-    assertEquals(SQLStatementUtils.createAspectUpsertSql(fooUrn, AspectFoo.class, true), expectedSql);
+    String expectedSql;
+    if (!SQLSchemaUtils.isNonDollarVirtualColumnsEnabled()) {
+      expectedSql =
+          "INSERT INTO metadata_entity_foo (urn, a_urn, a_aspectfoo, lastmodifiedon, lastmodifiedby) VALUE (:urn, "
+              + ":a_urn, :metadata, :lastmodifiedon, :lastmodifiedby) ON DUPLICATE KEY UPDATE a_aspectfoo = :metadata,"
+              + " lastmodifiedon = :lastmodifiedon;";
 
-    expectedSql =
-        "INSERT INTO metadata_entity_foo (urn, a_aspectfoo, lastmodifiedon, lastmodifiedby) VALUE (:urn, "
-            + ":metadata, :lastmodifiedon, :lastmodifiedby) ON DUPLICATE KEY UPDATE a_aspectfoo = :metadata,"
-            + " lastmodifiedon = :lastmodifiedon;";
-    assertEquals(SQLStatementUtils.createAspectUpsertSql(fooUrn, AspectFoo.class, false), expectedSql);
+    } else {
+      expectedSql = "INSERT INTO metadata_entity_foo (urn, a_aspectfoo, lastmodifiedon, lastmodifiedby) VALUE (:urn, "
+          + ":metadata, :lastmodifiedon, :lastmodifiedby) ON DUPLICATE KEY UPDATE a_aspectfoo = :metadata,"
+          + " lastmodifiedon = :lastmodifiedon;";
+    }
+    assertEquals(SQLStatementUtils.createAspectUpsertSql(fooUrn, AspectFoo.class, true), expectedSql);
   }
 
   @Test
@@ -78,27 +93,26 @@ public class SQLStatementUtilsTest {
     indexCriterionArray.add(indexCriterion2);
     indexFilter.setCriteria(indexCriterionArray);
 
-    String sql1 = SQLStatementUtils.createFilterSql("metadata_entity_foo", indexFilter, true, false);
-    String expectedSql1 = "SELECT *, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE a_aspectfoo IS NOT NULL\n"
-        + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo$value >= 25\n"
-        + "AND a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
-        + "AND i_aspectfoo$value < 50) as _total_count FROM metadata_entity_foo\n" + "WHERE a_aspectfoo IS NOT NULL\n"
-        + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo$value >= 25\n"
-        + "AND a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
-        + "AND i_aspectfoo$value < 50";
-
-    assertEquals(sql1, expectedSql1);
-
-    String sql2 = SQLStatementUtils.createFilterSql("metadata_entity_foo", indexFilter, true, true);
-    String expectedSql2 = "SELECT *, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE a_aspectfoo IS NOT NULL\n"
-        + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo0value >= 25\n"
-        + "AND a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
-        + "AND i_aspectfoo0value < 50) as _total_count FROM metadata_entity_foo\n" + "WHERE a_aspectfoo IS NOT NULL\n"
-        + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo0value >= 25\n"
-        + "AND a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
-        + "AND i_aspectfoo0value < 50";
-
-    assertEquals(sql2, expectedSql2);
+    String sql = SQLStatementUtils.createFilterSql("metadata_entity_foo", indexFilter, true);
+    String expectedSql;
+    if (!SQLSchemaUtils.isNonDollarVirtualColumnsEnabled()) {
+      expectedSql = "SELECT *, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE a_aspectfoo IS NOT NULL\n"
+          + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo$value >= 25\n"
+          + "AND a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
+          + "AND i_aspectfoo$value < 50) as _total_count FROM metadata_entity_foo\n" + "WHERE a_aspectfoo IS NOT NULL\n"
+          + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo$value >= 25\n"
+          + "AND a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
+          + "AND i_aspectfoo$value < 50";
+    } else {
+      expectedSql = "SELECT *, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE a_aspectfoo IS NOT NULL\n"
+          + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo0value >= 25\n"
+          + "AND a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
+          + "AND i_aspectfoo0value < 50) as _total_count FROM metadata_entity_foo\n" + "WHERE a_aspectfoo IS NOT NULL\n"
+          + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo0value >= 25\n"
+          + "AND a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
+          + "AND i_aspectfoo0value < 50";
+    }
+    assertEquals(sql, expectedSql);
   }
 
   @Test
@@ -119,20 +133,22 @@ public class SQLStatementUtilsTest {
     IndexGroupByCriterion indexGroupByCriterion = new IndexGroupByCriterion();
     indexGroupByCriterion.setAspect(AspectFoo.class.getCanonicalName());
     indexGroupByCriterion.setPath("/value");
-
-    String sql1 = SQLStatementUtils.createGroupBySql("metadata_entity_foo", indexFilter, indexGroupByCriterion, false);
-    assertEquals(sql1, "SELECT count(*) as COUNT, i_aspectfoo$value FROM metadata_entity_foo\n"
-        + "WHERE a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
-        + "AND i_aspectfoo$value >= 25\n" + "AND a_aspectfoo IS NOT NULL\n"
-        + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo$value < 50\n"
-        + "GROUP BY i_aspectfoo$value");
-
-    String sql2 = SQLStatementUtils.createGroupBySql("metadata_entity_foo", indexFilter, indexGroupByCriterion, true);
-    assertEquals(sql2, "SELECT count(*) as COUNT, i_aspectfoo0value FROM metadata_entity_foo\n"
-        + "WHERE a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
-        + "AND i_aspectfoo0value >= 25\n" + "AND a_aspectfoo IS NOT NULL\n"
-        + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo0value < 50\n"
-        + "GROUP BY i_aspectfoo0value");
+    String sql = SQLStatementUtils.createGroupBySql("metadata_entity_foo", indexFilter, indexGroupByCriterion);
+    String expectSQL;
+    if (!SQLSchemaUtils.isNonDollarVirtualColumnsEnabled()) {
+      expectSQL =
+          "SELECT count(*) as COUNT, i_aspectfoo$value FROM metadata_entity_foo\n" + "WHERE a_aspectfoo IS NOT NULL\n"
+              + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo$value >= 25\n"
+              + "AND a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
+              + "AND i_aspectfoo$value < 50\n" + "GROUP BY i_aspectfoo$value";
+    } else {
+      expectSQL =
+          "SELECT count(*) as COUNT, i_aspectfoo0value FROM metadata_entity_foo\n" + "WHERE a_aspectfoo IS NOT NULL\n"
+              + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo0value >= 25\n"
+              + "AND a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
+              + "AND i_aspectfoo0value < 50\n" + "GROUP BY i_aspectfoo0value";
+    }
+    assertEquals(sql, expectSQL);
   }
 
   @Test
@@ -145,8 +161,7 @@ public class SQLStatementUtilsTest {
         .setValue(LocalRelationshipValue.create("value1"));
     LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion);
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, false), "urn='value1'");
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, true), "urn='value1'");
+    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null), "urn='value1'");
   }
 
   @Test
@@ -167,8 +182,7 @@ public class SQLStatementUtilsTest {
 
     LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion1, criterion2);
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, false), "urn='value1' OR urn='value2'");
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, true), "urn='value1' OR urn='value2'");
+    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null), "urn='value1' OR urn='value2'");
   }
 
   @Test
@@ -189,10 +203,14 @@ public class SQLStatementUtilsTest {
 
     LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion1, criterion2);
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, false),
-        "urn='value1' AND i_aspectfoo$value='value2'");
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, true),
-        "urn='value1' AND i_aspectfoo0value='value2'");
+    String sql = SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null);
+    String expectedSQL;
+    if (!SQLSchemaUtils.isNonDollarVirtualColumnsEnabled()) {
+      expectedSQL = "urn='value1' AND i_aspectfoo$value='value2'";
+    } else {
+      expectedSQL = "urn='value1' AND i_aspectfoo0value='value2'";
+    }
+    assertEquals(sql, expectedSQL);
   }
 
   @Test
@@ -227,10 +245,14 @@ public class SQLStatementUtilsTest {
 
     LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion1, criterion2, criterion3, criterion4);
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
-    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, false),
-        "(urn='value1' OR urn='value3') AND metadata$value='value4' AND i_aspectfoo$value='value2'");
-    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, true),
-        "(urn='value1' OR urn='value3') AND metadata0value='value4' AND i_aspectfoo0value='value2'");
+    String sql = SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null);
+    String expectedSQL;
+    if (!SQLSchemaUtils.isNonDollarVirtualColumnsEnabled()) {
+      expectedSQL = "(urn='value1' OR urn='value3') AND metadata$value='value4' AND i_aspectfoo$value='value2'";
+    } else {
+      expectedSQL = "(urn='value1' OR urn='value3') AND metadata0value='value4' AND i_aspectfoo0value='value2'";
+    }
+    assertConditionsEqual(sql, expectedSQL);
   }
 
   @Test
@@ -282,18 +304,18 @@ public class SQLStatementUtilsTest {
 
     LocalRelationshipCriterionArray criteria2 = new LocalRelationshipCriterionArray(criterion5, criterion6);
     LocalRelationshipFilter filter2 = new LocalRelationshipFilter().setCriteria(criteria2);
-
     //test for multi filters with dollar virtual columns names
-    assertConditionsEqual(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), false, new Pair<>(filter1, "foo"),
-            new Pair<>(filter2, "bar")), "(foo.i_aspectfoo$value='value2' AND (foo.urn='value1' OR foo.urn='value3') "
-            + "AND foo.metadata$value='value4') AND (bar.urn='value1' OR bar.urn='value2')"
-        );
-
-    //test for multi filters with non dollar virtual columns names
-    assertConditionsEqual(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), true, new Pair<>(filter1, "foo"),
-            new Pair<>(filter2, "bar")), "(foo.i_aspectfoo0value='value2' AND (foo.urn='value1' OR foo.urn='value3') "
-            + "AND foo.metadata0value='value4') AND (bar.urn='value1' OR bar.urn='value2')"
-        );
+    String sql = SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), new Pair<>(filter1, "foo"),
+        new Pair<>(filter2, "bar"));
+    String expectedSQL;
+    if (!SQLSchemaUtils.isNonDollarVirtualColumnsEnabled()) {
+      expectedSQL = "(foo.i_aspectfoo$value='value2' AND (foo.urn='value1' OR foo.urn='value3') "
+          + "AND foo.metadata$value='value4') AND (bar.urn='value1' OR bar.urn='value2')";
+    } else {
+      expectedSQL = "(foo.i_aspectfoo0value='value2' AND (foo.urn='value1' OR foo.urn='value3') "
+          + "AND foo.metadata0value='value4') AND (bar.urn='value1' OR bar.urn='value2')";
+    }
+    assertConditionsEqual(sql, expectedSQL);
   }
 
   private void assertConditionsEqual(String actualWhereClause, String expectedWhereClause) {
@@ -303,7 +325,8 @@ public class SQLStatementUtilsTest {
   }
 
   private List<String> splitAndSortConditions(String whereClause) {
-    List<String> conditions = new ArrayList<>(Arrays.asList(whereClause.replace("(", "").replace(")", "").split(" AND ")));
+    List<String> conditions =
+        new ArrayList<>(Arrays.asList(whereClause.replace("(", "").replace(")", "").split(" AND ")));
     Collections.sort(conditions);
     return conditions;
   }
