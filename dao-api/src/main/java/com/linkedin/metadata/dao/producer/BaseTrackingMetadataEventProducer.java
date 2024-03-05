@@ -18,7 +18,7 @@ public abstract class BaseTrackingMetadataEventProducer<SNAPSHOT extends RecordT
   }
 
   /**
-   * Same as inherited method {@link #produceAspectSpecificMetadataAuditEvent(Urn, RecordTemplate, RecordTemplate, AuditStamp)}
+   * Same as inherited method {@link #produceAspectSpecificMetadataAuditEvent(Urn, RecordTemplate, RecordTemplate, AuditStamp, IngestionMode)}
    * but with tracking context.
    * Produces an aspect specific Metadata Audit Event (MAE) after a metadata aspect is updated for an entity.
    *

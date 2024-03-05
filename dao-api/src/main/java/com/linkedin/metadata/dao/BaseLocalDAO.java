@@ -654,7 +654,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
           _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, auditStamp, trackingContext,
               IngestionMode.LIVE);
         } else {
-          _producer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, auditStamp);
+          _producer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, auditStamp, IngestionMode.LIVE);
         }
       }
     }
@@ -1271,7 +1271,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
         _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, null, trackingContext, ingestionMode);
       } else {
-        _producer.produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, null);
+        _producer.produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, null, ingestionMode);
       }
     }
   }

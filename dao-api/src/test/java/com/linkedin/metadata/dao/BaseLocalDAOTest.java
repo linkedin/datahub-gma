@@ -252,7 +252,7 @@ public class BaseLocalDAOTest {
     _dummyLocalDAO.add(urn, foo, _dummyAuditStamp);
 
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
-    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo, _dummyAuditStamp);
+    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo, _dummyAuditStamp, IngestionMode.LIVE);
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, foo, foo);
     verifyNoMoreInteractions(_mockEventProducer);
   }
@@ -271,9 +271,9 @@ public class BaseLocalDAOTest {
     _dummyLocalDAO.add(urn, foo2, auditStamp2);
 
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo1);
-    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo1, _dummyAuditStamp);
+    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo1, _dummyAuditStamp, IngestionMode.LIVE);
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, foo1, foo2);
-    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, foo1, foo2, auditStamp2);
+    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, foo1, foo2, auditStamp2, IngestionMode.LIVE);
     verifyNoMoreInteractions(_mockEventProducer);
   }
 
@@ -292,7 +292,7 @@ public class BaseLocalDAOTest {
     _dummyLocalDAO.add(urn, foo3, _dummyAuditStamp);
 
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo1);
-    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo1, _dummyAuditStamp);
+    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo1, _dummyAuditStamp, IngestionMode.LIVE);
     verifyNoMoreInteractions(_mockEventProducer);
   }
 
@@ -308,7 +308,7 @@ public class BaseLocalDAOTest {
     _dummyLocalDAO.delete(urn, AspectFoo.class, _dummyAuditStamp);
 
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
-    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo, _dummyAuditStamp);
+    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo, _dummyAuditStamp, IngestionMode.LIVE);
     // TODO: ensure MAE is produced with newValue set as null for soft deleted aspect
     // verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, foo, null);
     verifyNoMoreInteractions(_mockEventProducer);

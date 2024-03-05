@@ -9,6 +9,7 @@ import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.utils.RecordUtils;
+import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.testing.AspectVersioned;
 import com.linkedin.testing.EntityAspectUnionVersioned;
@@ -94,13 +95,13 @@ public class BaseLocalDAOAspectVersionTest {
     _dummyLocalDAO.add(urn, ver020201OldValue, auditStamp4);
 
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo1);
-    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo1, _dummyAuditStamp);
+    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo1, _dummyAuditStamp, IngestionMode.LIVE);
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, foo1, ver010101);
-    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, foo1, ver010101, auditStamp2);
+    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, foo1, ver010101, auditStamp2, IngestionMode.LIVE);
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, ver010101, ver020101);
-    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, ver010101, ver020101, auditStamp3);
+    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, ver010101, ver020101, auditStamp3, IngestionMode.LIVE);
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, ver020101, ver020201OldValue);
-    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, ver020101, ver020201OldValue, auditStamp4);
+    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, ver020101, ver020201OldValue, auditStamp4, IngestionMode.LIVE);
     verifyNoMoreInteractions(_mockEventProducer);
   }
 
@@ -121,7 +122,7 @@ public class BaseLocalDAOAspectVersionTest {
     _dummyLocalDAO.add(urn, ver020101, _dummyAuditStamp);
 
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, ver020101);
-    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, ver020101, _dummyAuditStamp);
+    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, ver020101, _dummyAuditStamp, IngestionMode.LIVE);
     verifyNoMoreInteractions(_mockEventProducer);
   }
 
