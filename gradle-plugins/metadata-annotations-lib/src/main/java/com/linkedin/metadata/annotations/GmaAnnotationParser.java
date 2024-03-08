@@ -20,6 +20,8 @@ import javax.annotation.Nullable;
 
 public class GmaAnnotationParser {
   private static final String GMA = "gma";
+  private static final String DELTA = "delta";
+  private static final String ENTITIES = "entities";
   private static final String SEARCH = "search";
   private static final String INDEX = "index";
 
@@ -57,6 +59,17 @@ public class GmaAnnotationParser {
       } else {
         // yes top-level annotations, so we need to just fill out SearchIndex metadata
         gmaAnnotation.get().setSearch(new SearchAnnotation().setIndex(searchIndexFields));
+      }
+    }
+
+    final DeltaEntityAnnotationArrayMap deltaEntityAnnotationArrayMap = parseDeltaFields(schema);
+    if (!deltaEntityAnnotationArrayMap.isEmpty()) {
+      if (!gmaAnnotation.isPresent()) {
+        throw new RuntimeException(
+            String.format("The delta annotation should be used in aspect model with top level @gma annotations %s",
+                deltaEntityAnnotationArrayMap));
+      } else {
+        gmaAnnotation.get().setDelta(new DeltaAnnotation().setEntities(deltaEntityAnnotationArrayMap));
       }
     }
 
@@ -131,5 +144,37 @@ public class GmaAnnotationParser {
     }
 
     return new IndexAnnotationArrayMap(fieldNameToEntityUrnClassNames);
+  }
+
+  /**
+   * Parse the delta annotation given an aspect class.
+   * @param schema schema of an aspect
+   * @return deltaEntityAnnotationArrayMap
+   */
+  @Nonnull
+  public static DeltaEntityAnnotationArrayMap parseDeltaFields(@Nonnull DataSchema schema) {
+    final Map<String, DeltaEntityAnnotationArray> fieldNameToEntityLambdas = new HashMap<>();
+    if (schema.getType().equals(DataSchema.Type.RECORD)) {
+      for (RecordDataSchema.Field f : ((RecordDataSchema) schema).getFields()) {
+        final Object gmaObj = f.getProperties().get(GMA);
+        if (gmaObj == null) {
+          continue;
+        }
+
+        final Object deltaObj = ((DataMap) gmaObj).get(DELTA);
+        if (deltaObj == null) {
+          continue;
+        }
+
+        final Object entitiesObj = ((DataMap) deltaObj).get(ENTITIES);
+        if (entitiesObj == null) {
+          continue;
+        }
+        final DeltaEntityAnnotationArray fieldDeltaEntityAnnotations =
+            DataTemplateUtil.wrap(entitiesObj, DeltaEntityAnnotationArray.class);
+        fieldNameToEntityLambdas.put(f.getName(), fieldDeltaEntityAnnotations);
+      }
+    }
+    return new DeltaEntityAnnotationArrayMap(fieldNameToEntityLambdas);
   }
 }

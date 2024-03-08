@@ -1,0 +1,11 @@
+namespace com.linkedin.metadata.annotations
+
+/**
+ * Subnamespace for information related to an Delta pre-ingestion.
+ */
+record DeltaAnnotation {
+  /**
+   * Information on multiple entities with their lambda funcions this field is associated with.
+   */
+  entities: optional map[string, array[DeltaEntityAnnotation]]
+}

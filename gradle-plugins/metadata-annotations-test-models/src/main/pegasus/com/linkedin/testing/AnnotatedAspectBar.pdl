@@ -24,5 +24,9 @@ record AnnotatedAspectBar {
   longField: long
 
   /** For unit tests */
+  @gma.delta.entities = [
+    { "urn": "com.linkedin.testing.BarUrn", "lambdas": ["com.linkedin.testing.lambda1", "com.linkedin.testing.lambda2"] },
+    { "urn": "com.linkedin.testing.FooUrn", "lambdas": ["com.linkedin.testing.lambda3"] }
+  ]
   arrayField: array[string]
 }

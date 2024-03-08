@@ -1,0 +1,16 @@
+namespace com.linkedin.metadata.annotations
+
+/**
+ * Annotation on an field, describing an entity and its associated pre-ingestion lambda functions.
+ */
+record DeltaEntityAnnotation {
+  /**
+   * The FQCN of the URN that identifies this entity.
+   */
+  urn: string
+
+  /**
+   * The FQCN of the lambda function chains that apply to pre-ingestion.
+   */
+  lambdas: array[string]
+}
