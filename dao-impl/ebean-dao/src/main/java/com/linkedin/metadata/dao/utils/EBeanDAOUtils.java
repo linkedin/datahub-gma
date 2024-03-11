@@ -4,6 +4,7 @@ import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.template.DataTemplateUtil;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.annotations.AspectIngestionAnnotationArray;
+import com.linkedin.metadata.annotations.DeltaEntityAnnotationArrayMap;
 import com.linkedin.metadata.annotations.GmaAnnotation;
 import com.linkedin.metadata.annotations.GmaAnnotationParser;
 import com.linkedin.metadata.aspect.AuditedAspect;
@@ -35,6 +36,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
+
+import static com.linkedin.metadata.annotations.GmaAnnotationParser.parseDeltaFields;
 
 
 /**
@@ -71,6 +74,23 @@ public class EBeanDAOUtils {
       return gmaAnnotation.get().getAspect().getIngestion();
     } catch (Exception e) {
       throw new RuntimeException(String.format("Failed to parse the annotations for aspect %s", aspectCanonicalName), e);
+    }
+  }
+
+  /**
+   * Parse the delta annotation given an aspect class.
+   * @param aspectCanonicalName canonical name of an aspect
+   * @return deltaEntityAnnotationArrayMap field to entity-lambdas pairs
+   */
+  @Nonnull
+  public static DeltaEntityAnnotationArrayMap getDeltaFromAnnotation(@Nonnull String aspectCanonicalName) {
+    try {
+      final RecordDataSchema schema =
+          (RecordDataSchema) DataTemplateUtil.getSchema(ClassUtils.loadClass(aspectCanonicalName));
+      return parseDeltaFields(schema);
+    } catch (Exception e) {
+      throw new RuntimeException(
+          String.format("Failed to parse the delta annotation for aspect %s", aspectCanonicalName), e);
     }
   }
 

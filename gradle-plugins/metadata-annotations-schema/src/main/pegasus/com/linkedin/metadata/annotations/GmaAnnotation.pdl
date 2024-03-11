@@ -10,6 +10,11 @@ record GmaAnnotation {
   aspect: optional AspectAnnotation
 
   /**
+   * Information about delta pre-ingestions of a field.
+   */
+  delta: optional DeltaAnnotation
+
+  /**
    * Information about GMA Search functionality.
    */
   search: optional SearchAnnotation

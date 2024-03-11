@@ -4,6 +4,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSetMultimap;
 import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.template.DataTemplateUtil;
+import com.linkedin.data.template.StringArray;
 import com.linkedin.testing.AnnotatedAspectBar;
 import com.linkedin.testing.AnnotatedAspectFoo;
 import com.linkedin.testing.BarAspect;
@@ -25,14 +26,25 @@ public class GmaAnnotationParserTest {
             .setMode(Mode.FORCE_UPDATE)
             .setFilter(new UrnFilterArray(new UrnFilter().setPath("/platform").setValue("hdfs"))));
 
-    // has both @gma.aspect.entity.urn and @gma.aspect.column.name annotations
+    DeltaEntityAnnotationArray deltaEntityAnnotationArray = new DeltaEntityAnnotationArray();
+    DeltaEntityAnnotation deltaEntityAnnotationBar = new DeltaEntityAnnotation().setUrn("com.linkedin.testing.BarUrn")
+        .setLambdas(new StringArray("com.linkedin.testing.lambda1", "com.linkedin.testing.lambda2"));
+    DeltaEntityAnnotation deltaEntityAnnotationFoo = new DeltaEntityAnnotation().setUrn("com.linkedin.testing.FooUrn")
+        .setLambdas(new StringArray("com.linkedin.testing.lambda3"));
+    deltaEntityAnnotationArray.add(deltaEntityAnnotationBar);
+    deltaEntityAnnotationArray.add(deltaEntityAnnotationFoo);
+    DeltaEntityAnnotationArrayMap deltaEntityAnnotationArrayMap = new DeltaEntityAnnotationArrayMap();
+    deltaEntityAnnotationArrayMap.put("arrayField", deltaEntityAnnotationArray);
+
+    // has both @gma.aspect.entity.urn, @gma.aspect.column.name, @gma.aspect.ingestion
+    // on aspect-level with and @gma.delta.entities on field-level annotations
     final Optional<GmaAnnotation> gma =
         new GmaAnnotationParser().parse((RecordDataSchema) DataTemplateUtil.getSchema(AnnotatedAspectBar.class));
-    assertThat(gma).contains(new GmaAnnotation()
-        .setAspect(new AspectAnnotation()
-            .setEntity(new AspectEntityAnnotation().setUrn("com.linkedin.testing.BarUrn"))
-            .setColumn(new ColumnNameAnnotation().setName("barurn"))
-            .setIngestion(ingestionAnnotations)));
+    assertThat(gma).contains(new GmaAnnotation().setAspect(
+            new AspectAnnotation().setEntity(new AspectEntityAnnotation().setUrn("com.linkedin.testing.BarUrn"))
+                .setColumn(new ColumnNameAnnotation().setName("barurn"))
+                .setIngestion(ingestionAnnotations))
+        .setDelta(new DeltaAnnotation().setEntities(deltaEntityAnnotationArrayMap)));
   }
 
   @Test
