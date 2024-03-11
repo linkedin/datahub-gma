@@ -20,5 +20,5 @@ public abstract class BaseLambdaFunction<ASPECT extends RecordTemplate> {
    * Returns a corresponding lambda function update for the given metadata aspect.
    */
   @Nonnull
-  public abstract <URN extends Urn> ASPECT applyLambdaFunctions(@Nonnull URN urn, @Nonnull ASPECT aspect);
+  public abstract <URN extends Urn> ASPECT applyLambdaFunction(@Nonnull URN urn, @Nonnull ASPECT aspect);
 }

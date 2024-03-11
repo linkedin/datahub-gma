@@ -65,7 +65,7 @@ public class GmaAnnotationParser {
     final DeltaEntityAnnotationArrayMap deltaEntityAnnotationArrayMap = parseDeltaFields(schema);
     if (!deltaEntityAnnotationArrayMap.isEmpty()) {
       if (!gmaAnnotation.isPresent()) {
-        throw new RuntimeException(
+        throw new GmaAnnotationParseException(
             String.format("The delta annotation should be used in aspect model with top level @gma annotations %s",
                 deltaEntityAnnotationArrayMap));
       } else {

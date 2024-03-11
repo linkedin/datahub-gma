@@ -37,7 +37,7 @@ import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
-import static com.linkedin.metadata.annotations.GmaAnnotationParser.*;
+import static com.linkedin.metadata.annotations.GmaAnnotationParser.parseDeltaFields;
 
 
 /**
