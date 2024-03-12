@@ -39,4 +39,8 @@ public final class BazUrn extends Urn {
 
     return new BazUrn(urn.getIdAsInt());
   }
+
+  public static BazUrn deserialize(String serializedUrn) throws URISyntaxException {
+    return createFromString(serializedUrn);
+  }
 }

@@ -39,4 +39,8 @@ public final class FooUrn extends Urn {
 
     return new FooUrn(urn.getIdAsInt());
   }
+
+  public static FooUrn deserialize(String serializedUrn) throws URISyntaxException {
+    return createFromString(serializedUrn);
+  }
 }
