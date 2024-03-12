@@ -40,4 +40,8 @@ public final class BarUrn extends Urn {
 
     return new BarUrn(urn.getIdAsInt());
   }
+
+  public static BarUrn deserialize(String serializedUrn) throws URISyntaxException {
+    return createFromString(serializedUrn);
+  }
 }

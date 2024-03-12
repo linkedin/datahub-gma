@@ -40,4 +40,8 @@ public final class BurgerUrn extends Urn {
 
     return new BurgerUrn(urn.getId());
   }
+
+  public static BurgerUrn deserialize(String serializedUrn) throws URISyntaxException {
+    return createFromString(serializedUrn);
+  }
 }

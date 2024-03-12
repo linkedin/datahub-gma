@@ -15,4 +15,8 @@ public final class SingleAspectEntityUrn extends Urn {
   public static SingleAspectEntityUrn createFromString(String rawUrn) throws URISyntaxException {
     return new SingleAspectEntityUrn(Urn.createFromString(rawUrn).getIdAsInt());
   }
+
+  public static SingleAspectEntityUrn deserialize(String serializedUrn) throws URISyntaxException {
+    return createFromString(serializedUrn);
+  }
 }
