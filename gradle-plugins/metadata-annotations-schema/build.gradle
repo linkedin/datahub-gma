@@ -8,5 +8,5 @@ apply from: "$rootDir/gradle/java-publishing.gradle"
 
 dependencies {
   dataModel project(':core-models')
-  dataModel project(':dao-api')
+  //dataModel project(':dao-api')
 }

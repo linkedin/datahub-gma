@@ -3,7 +3,7 @@ package com.linkedin.metadata.dao;
 import com.google.common.io.Resources;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.metadata.dao.localrelationship.SampleLocalRelationshipRegistryImpl;
-import com.linkedin.metadata.dao.scsi.EmptyPathExtractor;
+import com.linkedin.metadata.dao.urnpath.EmptyPathExtractor;
 import com.linkedin.metadata.dao.utils.BarUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
 import com.linkedin.metadata.dao.utils.FooUrnPathExtractor;

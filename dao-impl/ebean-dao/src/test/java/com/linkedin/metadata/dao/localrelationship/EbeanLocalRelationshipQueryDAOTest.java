@@ -11,7 +11,7 @@ import com.linkedin.metadata.dao.EbeanLocalRelationshipQueryDAO;
 import com.linkedin.metadata.dao.EbeanLocalRelationshipWriterDAO;
 import com.linkedin.metadata.dao.IEbeanLocalAccess;
 import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
-import com.linkedin.metadata.dao.scsi.EmptyPathExtractor;
+import com.linkedin.metadata.dao.urnpath.EmptyPathExtractor;
 import com.linkedin.metadata.dao.utils.EBeanDAOUtils;
 import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;

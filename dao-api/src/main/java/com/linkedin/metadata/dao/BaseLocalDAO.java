@@ -12,6 +12,11 @@ import com.linkedin.data.schema.validation.ValidationOptions;
 import com.linkedin.data.schema.validation.ValidationResult;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.UnionTemplate;
+import com.linkedin.metadata.annotations.AspectIngestionAnnotation;
+import com.linkedin.metadata.annotations.AspectIngestionAnnotationArray;
+import com.linkedin.metadata.annotations.Mode;
+import com.linkedin.metadata.annotations.UrnFilter;
+import com.linkedin.metadata.annotations.UrnFilterArray;
 import com.linkedin.metadata.backfill.BackfillMode;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.equality.DefaultEqualityTester;
@@ -26,6 +31,7 @@ import com.linkedin.metadata.dao.retention.VersionBasedRetention;
 import com.linkedin.metadata.dao.storage.LocalDAOStorageConfig;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.tracking.TrackingUtils;
+import com.linkedin.metadata.dao.urnpath.UrnPathExtractor;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.events.IngestionTrackingContext;
@@ -167,8 +173,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   protected final BaseMetadataEventProducer _producer;
   protected final BaseTrackingMetadataEventProducer _trackingProducer;
   protected final LocalDAOStorageConfig _storageConfig;
-
   protected final BaseTrackingManager _trackingManager;
+  protected UrnPathExtractor<URN> _urnPathExtractor;
 
   // Maps an aspect class to the corresponding retention policy
   private final Map<Class<? extends RecordTemplate>, Retention> _aspectRetentionMap = new HashMap<>();
@@ -210,7 +216,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param urnClass class of the URN type
    */
   public BaseLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
-      @Nonnull Class<URN> urnClass) {
+      @Nonnull Class<URN> urnClass, @Nonnull UrnPathExtractor<URN> urnPathExtractor) {
     super(aspectUnionClass);
     _producer = producer;
     _storageConfig = LocalDAOStorageConfig.builder().build();
@@ -218,6 +224,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     _trackingManager = null;
     _trackingProducer = null;
     _urnClass = urnClass;
+    _urnPathExtractor = urnPathExtractor;
   }
 
   /**
@@ -230,7 +237,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param urnClass class of the URN type
    */
   public BaseLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseTrackingMetadataEventProducer trackingProducer,
-      @Nonnull BaseTrackingManager trackingManager, @Nonnull Class<URN> urnClass) {
+      @Nonnull BaseTrackingManager trackingManager, @Nonnull Class<URN> urnClass, @Nonnull UrnPathExtractor<URN> urnPathExtractor) {
     super(aspectUnionClass);
     _producer = null;
     _storageConfig = LocalDAOStorageConfig.builder().build();
@@ -238,6 +245,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     _trackingManager = trackingManager;
     _trackingProducer = trackingProducer;
     _urnClass = urnClass;
+    _urnPathExtractor = urnPathExtractor;
   }
 
   /**
@@ -248,7 +256,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param urnClass class of the URN type
    */
   public BaseLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull LocalDAOStorageConfig storageConfig,
-      @Nonnull Class<URN> urnClass) {
+      @Nonnull Class<URN> urnClass, @Nonnull UrnPathExtractor<URN> urnPathExtractor) {
     super(storageConfig.getAspectStorageConfigMap().keySet());
     _producer = producer;
     _storageConfig = storageConfig;
@@ -256,6 +264,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     _trackingManager = null;
     _trackingProducer = null;
     _urnClass = urnClass;
+    _urnPathExtractor = urnPathExtractor;
   }
 
   /**
@@ -268,7 +277,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    *
    */
   public BaseLocalDAO(@Nonnull BaseTrackingMetadataEventProducer trackingProducer, @Nonnull LocalDAOStorageConfig storageConfig,
-      @Nonnull BaseTrackingManager trackingManager, @Nonnull Class<URN> urnClass) {
+      @Nonnull BaseTrackingManager trackingManager, @Nonnull Class<URN> urnClass, @Nonnull UrnPathExtractor<URN> urnPathExtractor) {
     super(storageConfig.getAspectStorageConfigMap().keySet());
     _producer = null;
     _storageConfig = storageConfig;
@@ -276,6 +285,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     _trackingManager = trackingManager;
     _trackingProducer = trackingProducer;
     _urnClass = urnClass;
+    _urnPathExtractor = urnPathExtractor;
   }
 
   /**
@@ -473,22 +483,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       }
     }
 
-    final boolean oldAndNewEqual = (oldValue == null && newValue == null) || (oldValue != null && newValue != null && equalityTester.equals(
-        oldValue, newValue));
-
-    final IngestionMode ingestionMode = ingestionParams.getIngestionMode();
-
-    // Skip saving for the following scenarios
-    if (ingestionMode != IngestionMode.LIVE_OVERRIDE // ensure that the new metadata received is skippable (i.e. not marked as a forced write).
-        && (oldAndNewEqual || (aspectVersionSkipWrite(newValue, oldValue)))) { // values are equal or newValue ver < oldValue ver
+    // Logic determines whether an update to aspect should be persisted.
+    if (!shouldUpdateAspect(ingestionParams.getIngestionMode(), urn, oldValue, newValue, aspectClass, auditStamp, equalityTester)) {
       return new AddResult<>(oldValue, oldValue, aspectClass);
-    }
-
-    if (ingestionMode == IngestionMode.LIVE_OVERRIDE) {
-      log.info((String.format(
-          "Received ingestion event with LIVE_OVERRIDE write mode. urn: %s, aspectClass: %s, auditStamp: %s,"
-              + "newValue == oldValue: %b. An MAE will %sbe emitted.", urn, aspectClass, auditStamp, oldAndNewEqual,
-          oldAndNewEqual ? "not " : "")));
     }
 
     // Save the newValue as the latest version
@@ -1520,5 +1517,66 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     return aspectVersionComparator(newValue, oldValue) == -1;
   }
 
+  /**
+   * The logic determines if we will update the aspect.
+   */
+  private <ASPECT extends RecordTemplate> boolean  shouldUpdateAspect(IngestionMode ingestionMode, URN urn, ASPECT oldValue,
+      ASPECT newValue, Class<ASPECT> aspectClass, AuditStamp auditStamp, EqualityTester<ASPECT> equalityTester) {
+
+    final boolean oldAndNewEqual = (oldValue == null && newValue == null) || (oldValue != null && newValue != null && equalityTester.equals(
+        oldValue, newValue));
+
+    AspectIngestionAnnotationArray ingestionAnnotations = parseIngestionModeFromAnnotation(aspectClass);
+    AspectIngestionAnnotation annotation = findIngestionAnnotationForEntity(ingestionAnnotations, urn);
+    Mode mode = annotation == null || !annotation.hasMode() ? Mode.DEFAULT : annotation.getMode();
+
+    // Skip saving for the following scenarios
+    if (mode != Mode.FORCE_UPDATE
+        && ingestionMode != IngestionMode.LIVE_OVERRIDE // ensure that the new metadata received is skippable (i.e. not marked as a forced write).
+        && (oldAndNewEqual || aspectVersionSkipWrite(newValue, oldValue))) { // values are equal or newValue ver < oldValue ver
+      return false;
+    }
+
+    if (ingestionMode == IngestionMode.LIVE_OVERRIDE) {
+      log.info((String.format(
+          "Received ingestion event with LIVE_OVERRIDE write mode. urn: %s, aspectClass: %s, auditStamp: %s,"
+              + "newValue == oldValue: %b. An MAE will %sbe emitted.", urn, aspectClass, auditStamp, oldAndNewEqual,
+          oldAndNewEqual ? "not " : "")));
+      return true;
+    }
+
+    if (mode == Mode.FORCE_UPDATE) {
+      // If no filters specified in the annotation, FORCE_UPDATE
+      if (!annotation.hasFilter() || annotation.getFilter() == null) {
+        log.info((String.format("@gma.aspect.ingestion is FORCE_UPDATE on aspect %s and no filters set in annotation."
+            + " Force update aspect.", aspectClass.getCanonicalName())));
+        return true;
+      }
+
+      UrnFilterArray filters = annotation.getFilter();
+      Map<String, Object> urnPaths = _urnPathExtractor.extractPaths(urn);
+
+      // If there are filters in annotation, every filter conditions has to be met.
+      boolean passAllFilters = true;
+      for (UrnFilter filter : filters) {
+        if (!urnPaths.containsKey(filter.getPath())) {
+          passAllFilters = false;
+          break;
+        }
+
+        if (!urnPaths.get(filter.getPath()).toString().equals(filter.getValue())) {
+          System.out.println("v: " + filter.getValue());
+          passAllFilters = false;
+          break;
+        }
+      }
+
+      if (passAllFilters) {
+        return true;
+      }
+    }
+
+    return !(oldAndNewEqual || aspectVersionSkipWrite(newValue, oldValue));
+  }
 
 }

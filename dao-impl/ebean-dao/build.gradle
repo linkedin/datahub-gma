@@ -7,7 +7,6 @@ configurations {
 }
 
 dependencies {
-  compile project(':gradle-plugins:metadata-annotations-lib')
   compile project(':core-models-utils')
   compile project(':dao-api')
   compile externalDependency.ebean

@@ -1,4 +1,4 @@
-package com.linkedin.metadata.dao.scsi;
+package com.linkedin.metadata.dao.urnpath;
 
 import com.linkedin.common.urn.Urn;
 import java.util.Map;
