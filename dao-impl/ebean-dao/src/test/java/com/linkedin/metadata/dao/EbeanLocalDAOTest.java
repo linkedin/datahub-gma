@@ -384,7 +384,7 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
-  public void testAddWithIngestionAnnotationWithFilters() throws URISyntaxException {
+  public void testAddWithIngestionAnnotationWithOneFilter() throws URISyntaxException {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     FooUrn urn = makeFooUrn(2);
     AspectFoo foo = new AspectFoo().setValue("foo");
@@ -403,6 +403,62 @@ public class EbeanLocalDAOTest {
       assertEquals(aspectFooLastModifiedOn, t1);
     } else {
       String aspectName = ModelUtils.getAspectName(AspectFoo.class);
+      EbeanMetadataAspect aspect = getMetadata(urn, aspectName, 0);
+      long time = aspect.getCreatedOn().getTime();
+      // update not persisted, timestamp should still be t1.
+      assertEquals(time, t1);
+    }
+  }
+
+  @Test
+  public void testAddWithIngestionAnnotationWithMultipleFilters() throws URISyntaxException {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn urn = makeFooUrn(2); // This will not match the filter {"path": "/fooId", "value": "1"}
+    AspectBar foo = new AspectBar().setValue("bar");
+
+    IngestionParams ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
+    long t1 = 1704067200000L; // 2024-01-01 00:00:00.0 GMT
+    dao.add(urn, foo, new AuditStamp().setTime(t1).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams);
+
+    long t2 = 1706745600000L; // 2024-02-01 00:00:00.0 GMT
+    dao.add(urn, foo, new AuditStamp().setTime(t2).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams);
+
+    // One filter (two filters in total) matched, we should persist into db.
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+      AspectKey<FooUrn, AspectBar> aspectKey = new AspectKey<>(AspectBar.class, urn, 0L);
+      long aspectFooLastModifiedOn = dao.getWithExtraInfo(aspectKey).get().getExtraInfo().getAudit().getTime();
+      assertEquals(aspectFooLastModifiedOn, t2);
+    } else {
+      String aspectName = ModelUtils.getAspectName(AspectBar.class);
+      EbeanMetadataAspect aspect = getMetadata(urn, aspectName, 0);
+      long time = aspect.getCreatedOn().getTime();
+      // update not persisted, timestamp should still be t1.
+      assertEquals(time, t2);
+    }
+  }
+
+  @Test
+  public void testAddWithIngestionAnnotationWithMultipleFiltersButNoMatch() throws URISyntaxException {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrnPathExtractor urnPathExtractor = (FooUrnPathExtractor) dao.getUrnPathExtractor();
+    urnPathExtractor.updateDummyEntry(1);
+    FooUrn urn = makeFooUrn(2); // This will not match any filter.
+    AspectBar foo = new AspectBar().setValue("bar");
+
+    IngestionParams ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
+    long t1 = 1704067200000L; // 2024-01-01 00:00:00.0 GMT
+    dao.add(urn, foo, new AuditStamp().setTime(t1).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams);
+
+    long t2 = 1706745600000L; // 2024-02-01 00:00:00.0 GMT
+    dao.add(urn, foo, new AuditStamp().setTime(t2).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams);
+
+    // No filter, we should not persist into db.
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+      AspectKey<FooUrn, AspectBar> aspectKey = new AspectKey<>(AspectBar.class, urn, 0L);
+      long aspectFooLastModifiedOn = dao.getWithExtraInfo(aspectKey).get().getExtraInfo().getAudit().getTime();
+      assertEquals(aspectFooLastModifiedOn, t1);
+    } else {
+      String aspectName = ModelUtils.getAspectName(AspectBar.class);
       EbeanMetadataAspect aspect = getMetadata(urn, aspectName, 0);
       long time = aspect.getCreatedOn().getTime();
       // update not persisted, timestamp should still be t1.
@@ -2237,7 +2293,6 @@ public class EbeanLocalDAOTest {
       assertTrue(fooOptional.isPresent());
       assertEquals(fooOptional.get(), v0);
     }
-
 
     InOrder inOrder = inOrder(_mockProducer);
     inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, v1);

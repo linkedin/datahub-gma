@@ -502,6 +502,11 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     _urnPathExtractor = urnPathExtractor;
   }
 
+  @Nonnull
+  public UrnPathExtractor<URN> getUrnPathExtractor() {
+    return _urnPathExtractor;
+  }
+
   /**
    * Return the {@link EbeanServer} server instance used for customized queries.
    */

@@ -1520,7 +1520,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   /**
    * The logic determines if we will update the aspect.
    */
-  private <ASPECT extends RecordTemplate> boolean  shouldUpdateAspect(IngestionMode ingestionMode, URN urn, ASPECT oldValue,
+  private <ASPECT extends RecordTemplate> boolean shouldUpdateAspect(IngestionMode ingestionMode, URN urn, ASPECT oldValue,
       ASPECT newValue, Class<ASPECT> aspectClass, AuditStamp auditStamp, EqualityTester<ASPECT> equalityTester) {
 
     final boolean oldAndNewEqual = (oldValue == null && newValue == null) || (oldValue != null && newValue != null && equalityTester.equals(
@@ -1556,22 +1556,17 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       UrnFilterArray filters = annotation.getFilter();
       Map<String, Object> urnPaths = _urnPathExtractor.extractPaths(urn);
 
-      // If there are filters in annotation, every filter conditions has to be met.
-      boolean passAllFilters = true;
+      // If there are filters in annotation, at least one filter conditions has to be met.
+      boolean atLeastOneFilterPass = false;
       for (UrnFilter filter : filters) {
-        if (!urnPaths.containsKey(filter.getPath())) {
-          passAllFilters = false;
-          break;
-        }
-
-        if (!urnPaths.get(filter.getPath()).toString().equals(filter.getValue())) {
-          System.out.println("v: " + filter.getValue());
-          passAllFilters = false;
+        if (urnPaths.containsKey(filter.getPath())
+            && urnPaths.get(filter.getPath()).toString().equals(filter.getValue())) {
+          atLeastOneFilterPass = true;
           break;
         }
       }
 
-      if (passAllFilters) {
+      if (atLeastOneFilterPass) {
         return true;
       }
     }

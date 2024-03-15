@@ -14,11 +14,15 @@ import com.linkedin.metadata.annotations.GmaAnnotationParser;
 import com.linkedin.metadata.backfill.BackfillMode;
 import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.events.IngestionTrackingContext;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import lombok.extern.slf4j.Slf4j;
 
 
+@Slf4j
 public class IngestionUtils {
 
   private IngestionUtils() {
@@ -73,8 +77,8 @@ public class IngestionUtils {
   @Nullable
   public static AspectIngestionAnnotation findIngestionAnnotationForEntity(@Nonnull AspectIngestionAnnotationArray ingestionAnnotations,
       Urn urn) {
+    List<AspectIngestionAnnotation> aspectIngestionAnnotationList = new ArrayList<>();
     for (AspectIngestionAnnotation ingestionAnnotation : ingestionAnnotations) {
-      System.out.println("At least we found the annotation " + ingestionAnnotation.toString() + " and urn " + urn.toString());
       if (!ingestionAnnotation.hasUrn() || !ingestionAnnotation.hasMode()) {
         continue;
       }
@@ -83,11 +87,18 @@ public class IngestionUtils {
       final String urnFromInput = getLastElementsInUrnString(urn.getClass().getCanonicalName());
 
       if (urnFromAnnotation.equals(urnFromInput)) {
-        return ingestionAnnotation;
+        aspectIngestionAnnotationList.add(ingestionAnnotation);
       }
     }
 
-    return null;
+    if (aspectIngestionAnnotationList.size() == 1) {
+      return aspectIngestionAnnotationList.get(0);
+    } else if (aspectIngestionAnnotationList.size() > 1) {
+      log.error("Invalid usage. More than one ingestion rule defined for same urn {}", urn);
+      return null;
+    } else {
+      return null;
+    }
   }
 
   /**

@@ -23,7 +23,7 @@ record AspectIngestionAnnotation {
   urn: optional string
 
   /**
-   * Filter on the URN so that this ingestion mode is only applicable to a subset of entities. Filters are chained by AND relation.
+   * Filter on the URN so that this ingestion mode is only applicable to a subset of entities. Filters are chained by OR relation.
    */
   filter: optional array[record UrnFilter {
 

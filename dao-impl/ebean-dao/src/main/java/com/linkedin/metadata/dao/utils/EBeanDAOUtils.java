@@ -1,5 +1,7 @@
 package com.linkedin.metadata.dao.utils;
 
+import com.linkedin.data.schema.RecordDataSchema;
+import com.linkedin.data.template.DataTemplateUtil;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.annotations.AspectIngestionAnnotationArray;
 import com.linkedin.metadata.annotations.DeltaEntityAnnotationArrayMap;
@@ -26,6 +28,7 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;

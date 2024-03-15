@@ -14,7 +14,6 @@ dependencies {
   dataModel project(':validators')
 
   compileOnly externalDependency.lombok
-
   annotationProcessor externalDependency.lombok
 
   testCompile project(':testing:core-models-testing')
