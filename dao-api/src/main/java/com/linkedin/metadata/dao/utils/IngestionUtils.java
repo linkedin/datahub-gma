@@ -3,12 +3,26 @@ package com.linkedin.metadata.dao.utils;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.linkedin.avro2pegasus.events.UUID;
+import com.linkedin.common.urn.Urn;
+import com.linkedin.data.schema.RecordDataSchema;
+import com.linkedin.data.template.DataTemplateUtil;
+import com.linkedin.data.template.RecordTemplate;
+import com.linkedin.metadata.annotations.AspectIngestionAnnotation;
+import com.linkedin.metadata.annotations.AspectIngestionAnnotationArray;
+import com.linkedin.metadata.annotations.GmaAnnotation;
+import com.linkedin.metadata.annotations.GmaAnnotationParser;
 import com.linkedin.metadata.backfill.BackfillMode;
 import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.events.IngestionTrackingContext;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import lombok.extern.slf4j.Slf4j;
 
 
+@Slf4j
 public class IngestionUtils {
 
   private IngestionUtils() {
@@ -36,5 +50,63 @@ public class IngestionUtils {
         .setTrackingId(uuid)
         .setEmitter(emitter)
         .setEmitTime(timestamp);
+  }
+
+  /**
+   * Parse the ingestion mode annotation given an aspect class.
+   */
+  @Nonnull
+  public static <ASPECT extends RecordTemplate> AspectIngestionAnnotationArray parseIngestionModeFromAnnotation(
+      @Nonnull final Class<ASPECT> aspectClass) {
+
+    try {
+      final RecordDataSchema schema = (RecordDataSchema) DataTemplateUtil.getSchema(aspectClass);
+      final Optional<GmaAnnotation> gmaAnnotation = new GmaAnnotationParser().parse(schema);
+
+      // Return empty array if user did not specify any ingestion annotation on the aspect.
+      if (!gmaAnnotation.isPresent() || !gmaAnnotation.get().hasAspect() || !gmaAnnotation.get().getAspect().hasIngestion()) {
+        return new AspectIngestionAnnotationArray();
+      }
+
+      return gmaAnnotation.get().getAspect().getIngestion();
+    } catch (Exception e) {
+      throw new RuntimeException(String.format("Failed to parse the annotations for aspect %s", aspectClass.getCanonicalName()), e);
+    }
+  }
+
+  @Nullable
+  public static AspectIngestionAnnotation findIngestionAnnotationForEntity(@Nonnull AspectIngestionAnnotationArray ingestionAnnotations,
+      Urn urn) {
+    List<AspectIngestionAnnotation> aspectIngestionAnnotationList = new ArrayList<>();
+    for (AspectIngestionAnnotation ingestionAnnotation : ingestionAnnotations) {
+      if (!ingestionAnnotation.hasUrn() || !ingestionAnnotation.hasMode()) {
+        continue;
+      }
+
+      final String urnFromAnnotation = getLastElementsInUrnString(ingestionAnnotation.getUrn());
+      final String urnFromInput = getLastElementsInUrnString(urn.getClass().getCanonicalName());
+
+      if (urnFromAnnotation.equals(urnFromInput)) {
+        aspectIngestionAnnotationList.add(ingestionAnnotation);
+      }
+    }
+
+    if (aspectIngestionAnnotationList.size() == 1) {
+      return aspectIngestionAnnotationList.get(0);
+    } else if (aspectIngestionAnnotationList.size() > 1) {
+      log.error("Invalid usage. More than one ingestion rule defined for same urn {}", urn);
+      return null;
+    } else {
+      return null;
+    }
+  }
+
+  /**
+   * Get last element from urnStr.
+   * for example, if urnStr is com.linkedin.common.FooUrn, then last element is FooUrn.
+   */
+  private static String getLastElementsInUrnString(String urnStr) {
+    final String[] urnParts = urnStr.split("\\.");
+    return urnParts[urnParts.length - 1];
   }
 }

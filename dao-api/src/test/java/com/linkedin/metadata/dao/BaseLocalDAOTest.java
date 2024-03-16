@@ -10,6 +10,7 @@ import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
 import com.linkedin.metadata.dao.retention.VersionBasedRetention;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
+import com.linkedin.metadata.dao.urnpath.EmptyPathExtractor;
 import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.internal.IngestionParams;
@@ -59,14 +60,14 @@ public class BaseLocalDAOTest {
 
     public DummyLocalDAO(Class<ENTITY_ASPECT_UNION> aspectClass, BiFunction<FooUrn, Class<? extends RecordTemplate>, AspectEntry> getLatestFunction,
         BaseMetadataEventProducer eventProducer, DummyTransactionRunner transactionRunner) {
-      super(aspectClass, eventProducer, FooUrn.class);
+      super(aspectClass, eventProducer, FooUrn.class, new EmptyPathExtractor<>());
       _getLatestFunction = getLatestFunction;
       _transactionRunner = transactionRunner;
     }
 
     public DummyLocalDAO(Class<ENTITY_ASPECT_UNION> aspectClass, BiFunction<FooUrn, Class<? extends RecordTemplate>, AspectEntry> getLatestFunction,
         BaseTrackingMetadataEventProducer eventProducer, BaseTrackingManager trackingManager, DummyTransactionRunner transactionRunner) {
-      super(aspectClass, eventProducer, trackingManager, FooUrn.class);
+      super(aspectClass, eventProducer, trackingManager, FooUrn.class, new EmptyPathExtractor<>());
       _getLatestFunction = getLatestFunction;
       _transactionRunner = transactionRunner;
     }

@@ -3,6 +3,7 @@ apply plugin: 'pegasus'
 apply from: "$rootDir/gradle/java-publishing.gradle"
 
 dependencies {
+  compile project(':gradle-plugins:metadata-annotations-lib')
   compile project(':core-models')
   compile project(':validators')
   compile externalDependency.javatuples
@@ -13,7 +14,6 @@ dependencies {
   dataModel project(':validators')
 
   compileOnly externalDependency.lombok
-
   annotationProcessor externalDependency.lombok
 
   testCompile project(':testing:core-models-testing')

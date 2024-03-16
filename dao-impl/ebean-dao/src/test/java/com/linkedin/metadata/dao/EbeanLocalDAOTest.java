@@ -25,7 +25,7 @@ import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
 import com.linkedin.metadata.dao.retention.VersionBasedRetention;
-import com.linkedin.metadata.dao.scsi.UrnPathExtractor;
+import com.linkedin.metadata.dao.urnpath.UrnPathExtractor;
 import com.linkedin.metadata.dao.storage.LocalDAOStorageConfig;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.utils.BarUrnPathExtractor;
@@ -358,6 +358,115 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
+  public void testAddWithIngestionAnnotation() throws URISyntaxException {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn urn = makeFooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+
+    IngestionParams ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
+    long t1 = 1704067200000L; // 2024-01-01 00:00:00.0 GMT
+    dao.add(urn, foo, new AuditStamp().setTime(t1).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams);
+
+    long t2 = 1706745600000L; // 2024-02-01 00:00:00.0 GMT
+    dao.add(urn, foo, new AuditStamp().setTime(t2).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams);
+
+    // make sure that the update still went through by checking the aspect's lastmodifiedon
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+      AspectKey<FooUrn, AspectFoo> aspectKey = new AspectKey<>(AspectFoo.class, urn, 0L);
+      long aspectFooLastModifiedOn = dao.getWithExtraInfo(aspectKey).get().getExtraInfo().getAudit().getTime();
+      assertEquals(aspectFooLastModifiedOn, t2);
+    } else {
+      String aspectName = ModelUtils.getAspectName(AspectFoo.class);
+      EbeanMetadataAspect aspect = getMetadata(urn, aspectName, 0);
+      long time = aspect.getCreatedOn().getTime();
+      assertEquals(time, t2);
+    }
+  }
+
+  @Test
+  public void testAddWithIngestionAnnotationWithOneFilter() throws URISyntaxException {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn urn = makeFooUrn(2);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+
+    IngestionParams ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
+    long t1 = 1704067200000L; // 2024-01-01 00:00:00.0 GMT
+    dao.add(urn, foo, new AuditStamp().setTime(t1).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams);
+
+    long t2 = 1706745600000L; // 2024-02-01 00:00:00.0 GMT
+    dao.add(urn, foo, new AuditStamp().setTime(t2).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams);
+
+    // Even though the aspect is annotated with FORCE_UPDATE annotation, the filter does not match so the update is not persisted.
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+      AspectKey<FooUrn, AspectFoo> aspectKey = new AspectKey<>(AspectFoo.class, urn, 0L);
+      long aspectFooLastModifiedOn = dao.getWithExtraInfo(aspectKey).get().getExtraInfo().getAudit().getTime();
+      assertEquals(aspectFooLastModifiedOn, t1);
+    } else {
+      String aspectName = ModelUtils.getAspectName(AspectFoo.class);
+      EbeanMetadataAspect aspect = getMetadata(urn, aspectName, 0);
+      long time = aspect.getCreatedOn().getTime();
+      // update not persisted, timestamp should still be t1.
+      assertEquals(time, t1);
+    }
+  }
+
+  @Test
+  public void testAddWithIngestionAnnotationWithMultipleFilters() throws URISyntaxException {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn urn = makeFooUrn(2); // This will not match the filter {"path": "/fooId", "value": "1"}
+    AspectBar foo = new AspectBar().setValue("bar");
+
+    IngestionParams ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
+    long t1 = 1704067200000L; // 2024-01-01 00:00:00.0 GMT
+    dao.add(urn, foo, new AuditStamp().setTime(t1).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams);
+
+    long t2 = 1706745600000L; // 2024-02-01 00:00:00.0 GMT
+    dao.add(urn, foo, new AuditStamp().setTime(t2).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams);
+
+    // One filter (two filters in total) matched, we should persist into db.
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+      AspectKey<FooUrn, AspectBar> aspectKey = new AspectKey<>(AspectBar.class, urn, 0L);
+      long aspectFooLastModifiedOn = dao.getWithExtraInfo(aspectKey).get().getExtraInfo().getAudit().getTime();
+      assertEquals(aspectFooLastModifiedOn, t2);
+    } else {
+      String aspectName = ModelUtils.getAspectName(AspectBar.class);
+      EbeanMetadataAspect aspect = getMetadata(urn, aspectName, 0);
+      long time = aspect.getCreatedOn().getTime();
+      // update not persisted, timestamp should still be t1.
+      assertEquals(time, t2);
+    }
+  }
+
+  @Test
+  public void testAddWithIngestionAnnotationWithMultipleFiltersButNoMatch() throws URISyntaxException {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrnPathExtractor urnPathExtractor = (FooUrnPathExtractor) dao.getUrnPathExtractor();
+    urnPathExtractor.updateDummyEntry(1);
+    FooUrn urn = makeFooUrn(2); // This will not match any filter.
+    AspectBar foo = new AspectBar().setValue("bar");
+
+    IngestionParams ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
+    long t1 = 1704067200000L; // 2024-01-01 00:00:00.0 GMT
+    dao.add(urn, foo, new AuditStamp().setTime(t1).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams);
+
+    long t2 = 1706745600000L; // 2024-02-01 00:00:00.0 GMT
+    dao.add(urn, foo, new AuditStamp().setTime(t2).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams);
+
+    // No filter, we should not persist into db.
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+      AspectKey<FooUrn, AspectBar> aspectKey = new AspectKey<>(AspectBar.class, urn, 0L);
+      long aspectFooLastModifiedOn = dao.getWithExtraInfo(aspectKey).get().getExtraInfo().getAudit().getTime();
+      assertEquals(aspectFooLastModifiedOn, t1);
+    } else {
+      String aspectName = ModelUtils.getAspectName(AspectBar.class);
+      EbeanMetadataAspect aspect = getMetadata(urn, aspectName, 0);
+      long time = aspect.getCreatedOn().getTime();
+      // update not persisted, timestamp should still be t1.
+      assertEquals(time, t1);
+    }
+  }
+
+  @Test
   public void testAddWithOverrideIngestionMode() throws URISyntaxException {
     // this test is used to check that new metadata ingestion with the OVERRIDE write mode is still updated in
     // the database even if the metadata values are the same.
@@ -380,11 +489,9 @@ public class EbeanLocalDAOTest {
 
     // however, make sure that the update still went through by checking the aspect's lastmodifiedon
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
-      String aspectFooLastModifiedOnStr = dao.getServer()
-          .createSqlQuery(
-              "select json_extract(a_aspectfoo, '$.lastmodifiedon') as lastmodifiedon from metadata_entity_foo")
-          .findOne().getString("lastmodifiedon");
-      assertEquals(Timestamp.valueOf(aspectFooLastModifiedOnStr.replace("\"", "")).getTime(), t2);
+      AspectKey<FooUrn, AspectFoo> aspectKey = new AspectKey<>(AspectFoo.class, urn, 0L);
+      long aspectFooLastModifiedOn = dao.getWithExtraInfo(aspectKey).get().getExtraInfo().getAudit().getTime();
+      assertEquals(aspectFooLastModifiedOn, t2);
     } else {
       String aspectName = ModelUtils.getAspectName(AspectFoo.class);
       EbeanMetadataAspect aspect = getMetadata(urn, aspectName, 0);
@@ -397,7 +504,7 @@ public class EbeanLocalDAOTest {
   public void testDefaultEqualityTester() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     dao.setEqualityTester(AspectFoo.class, DefaultEqualityTester.<AspectFoo>newInstance());
-    FooUrn urn = makeFooUrn(1);
+    FooUrn urn = makeFooUrn(2);
     String aspectName = ModelUtils.getAspectName(AspectFoo.class);
     AspectFoo foo = new AspectFoo().setValue("foo");
     AspectFoo bar = new AspectFoo().setValue("bar");
@@ -2187,7 +2294,6 @@ public class EbeanLocalDAOTest {
       assertEquals(fooOptional.get(), v0);
     }
 
-
     InOrder inOrder = inOrder(_mockProducer);
     inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, v1);
     inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, v1, v0);
@@ -2198,7 +2304,7 @@ public class EbeanLocalDAOTest {
   @Test
   public void testSoftDeletedAspectWithNoExistingMetadata() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
-    FooUrn urn = makeFooUrn(1);
+    FooUrn urn = makeFooUrn(2);
     String aspectName = ModelUtils.getAspectName(AspectFoo.class);
 
     // no metadata already exists

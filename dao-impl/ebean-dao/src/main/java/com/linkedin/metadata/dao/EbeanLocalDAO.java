@@ -16,8 +16,8 @@ import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
 import com.linkedin.metadata.dao.retention.VersionBasedRetention;
-import com.linkedin.metadata.dao.scsi.EmptyPathExtractor;
-import com.linkedin.metadata.dao.scsi.UrnPathExtractor;
+import com.linkedin.metadata.dao.urnpath.EmptyPathExtractor;
+import com.linkedin.metadata.dao.urnpath.UrnPathExtractor;
 import com.linkedin.metadata.dao.storage.LocalDAOStorageConfig;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.utils.EBeanDAOUtils;
@@ -83,7 +83,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   private final static int DEFAULT_BATCH_SIZE = 50;
   private int _queryKeysCount = DEFAULT_BATCH_SIZE;
   private IEbeanLocalAccess<URN> _localAccess;
-  private UrnPathExtractor<URN> _urnPathExtractor;
   private SchemaConfig _schemaConfig = SchemaConfig.OLD_SCHEMA_ONLY;
   private final EBeanDAOConfig _eBeanDAOConfig = new EBeanDAOConfig();
 
@@ -380,18 +379,16 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   private EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
       @Nonnull EbeanServer server, @Nonnull Class<URN> urnClass) {
-    super(aspectUnionClass, producer, urnClass);
+    super(aspectUnionClass, producer, urnClass, new EmptyPathExtractor<>());
     _server = server;
     _urnClass = urnClass;
-    _urnPathExtractor = new EmptyPathExtractor<>();
   }
 
   private EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseTrackingMetadataEventProducer producer,
       @Nonnull EbeanServer server, @Nonnull Class<URN> urnClass, @Nonnull BaseTrackingManager trackingManager) {
-    super(aspectUnionClass, producer, trackingManager, urnClass);
+    super(aspectUnionClass, producer, trackingManager, urnClass, new EmptyPathExtractor<>());
     _server = server;
     _urnClass = urnClass;
-    _urnPathExtractor = new EmptyPathExtractor<>();
   }
   private EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
       @Nonnull EbeanServer server, @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass, @Nonnull SchemaConfig schemaConfig) {
@@ -453,19 +450,17 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull EbeanServer server,
       @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass,
       @Nonnull UrnPathExtractor<URN> urnPathExtractor) {
-    super(producer, storageConfig, urnClass);
+    super(producer, storageConfig, urnClass, urnPathExtractor);
     _server = server;
     _urnClass = urnClass;
-    _urnPathExtractor = urnPathExtractor;
   }
 
   private EbeanLocalDAO(@Nonnull BaseTrackingMetadataEventProducer producer, @Nonnull EbeanServer server,
       @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass,
       @Nonnull UrnPathExtractor<URN> urnPathExtractor, @Nonnull BaseTrackingManager trackingManager) {
-    super(producer, storageConfig, trackingManager, urnClass);
+    super(producer, storageConfig, trackingManager, urnClass, urnPathExtractor);
     _server = server;
     _urnClass = urnClass;
-    _urnPathExtractor = urnPathExtractor;
   }
 
   private EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull EbeanServer server,
@@ -505,6 +500,11 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       _localAccess.setUrnPathExtractor(urnPathExtractor);
     }
     _urnPathExtractor = urnPathExtractor;
+  }
+
+  @Nonnull
+  public UrnPathExtractor<URN> getUrnPathExtractor() {
+    return _urnPathExtractor;
   }
 
   /**

@@ -3,6 +3,11 @@ namespace com.linkedin.testing
 /**
  * For unit tests
  */
+@gma.aspect.ingestion = [
+  {"mode": "FORCE_UPDATE", "urn": "com.linkedin.testing.FooUrn", "filter": [
+    {"path": "/fooId", "value": "1"}, {"path": "/dummyId", "value": "10"}
+  ]}
+]
 @gma.aspect.column.name = "aspectbar"
 record AspectBar {
 
