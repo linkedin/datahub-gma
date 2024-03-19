@@ -2,6 +2,7 @@ package com.linkedin.metadata.dao.utils;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
+import com.google.common.collect.ImmutableSetMultimap;
 import com.linkedin.avro2pegasus.events.UUID;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.schema.RecordDataSchema;
@@ -11,6 +12,7 @@ import com.linkedin.metadata.annotations.AspectIngestionAnnotation;
 import com.linkedin.metadata.annotations.AspectIngestionAnnotationArray;
 import com.linkedin.metadata.annotations.GmaAnnotation;
 import com.linkedin.metadata.annotations.GmaAnnotationParser;
+import com.linkedin.metadata.annotations.GmaEntitiesAnnotationAllowListImpl;
 import com.linkedin.metadata.backfill.BackfillMode;
 import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.events.IngestionTrackingContext;
@@ -61,7 +63,8 @@ public class IngestionUtils {
 
     try {
       final RecordDataSchema schema = (RecordDataSchema) DataTemplateUtil.getSchema(aspectClass);
-      final Optional<GmaAnnotation> gmaAnnotation = new GmaAnnotationParser().parse(schema);
+      final Optional<GmaAnnotation> gmaAnnotation = new GmaAnnotationParser(new GmaEntitiesAnnotationAllowListImpl(
+          ImmutableSetMultimap.of())).parse(schema);
 
       // Return empty array if user did not specify any ingestion annotation on the aspect.
       if (!gmaAnnotation.isPresent() || !gmaAnnotation.get().hasAspect() || !gmaAnnotation.get().getAspect().hasIngestion()) {

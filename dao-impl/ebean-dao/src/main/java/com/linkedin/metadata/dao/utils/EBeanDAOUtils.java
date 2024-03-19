@@ -58,26 +58,6 @@ public class EBeanDAOUtils {
   }
 
   /**
-   * Parse the ingestion mode annotation given an aspect class.
-   */
-  @Nonnull
-  public static AspectIngestionAnnotationArray parseIngestionModeFromAnnotation(@Nonnull final String aspectCanonicalName) {
-    try {
-      final RecordDataSchema schema = (RecordDataSchema) DataTemplateUtil.getSchema(ClassUtils.loadClass(aspectCanonicalName));
-      final Optional<GmaAnnotation> gmaAnnotation = new GmaAnnotationParser().parse(schema);
-
-      // Return empty array if user did not specify any ingestion annotation on the aspect.
-      if (!gmaAnnotation.isPresent() || !gmaAnnotation.get().hasAspect() || !gmaAnnotation.get().getAspect().hasIngestion()) {
-        return new AspectIngestionAnnotationArray();
-      }
-
-      return gmaAnnotation.get().getAspect().getIngestion();
-    } catch (Exception e) {
-      throw new RuntimeException(String.format("Failed to parse the annotations for aspect %s", aspectCanonicalName), e);
-    }
-  }
-
-  /**
    * Parse the delta annotation given an aspect class.
    * @param aspectCanonicalName canonical name of an aspect
    * @return deltaEntityAnnotationArrayMap field to entity-lambdas pairs
