@@ -22,6 +22,8 @@ import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelat
 import com.linkedin.metadata.dao.equality.DefaultEqualityTester;
 import com.linkedin.metadata.dao.equality.EqualityTester;
 import com.linkedin.metadata.dao.exception.ModelValidationException;
+import com.linkedin.metadata.dao.ingestion.BaseLambdaFunction;
+import com.linkedin.metadata.dao.ingestion.LambdaFunctionRegistry;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.IndefiniteRetention;
@@ -175,6 +177,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   protected final LocalDAOStorageConfig _storageConfig;
   protected final BaseTrackingManager _trackingManager;
   protected UrnPathExtractor<URN> _urnPathExtractor;
+
+  private LambdaFunctionRegistry _lambdaFunctionRegistry;
 
   // Maps an aspect class to the corresponding retention policy
   private final Map<Class<? extends RecordTemplate>, Retention> _aspectRetentionMap = new HashMap<>();
@@ -385,6 +389,13 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
+   * Set lambda function registry.
+   */
+  public void setLambdaFunctionRegistry(@Nullable LambdaFunctionRegistry lambdaFunctionRegistry) {
+    _lambdaFunctionRegistry = lambdaFunctionRegistry;
+  }
+
+  /**
    * Enables or disables atomic updates of multiple aspects.
    */
   public void enableAtomicMultipleUpdate(boolean enabled) {
@@ -592,6 +603,10 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       throw new UnsupportedOperationException(String.format("Attempted to update %s with null aspect %s", urn, updateTuple.getAspectClass().getName()));
     }
 
+    if (_lambdaFunctionRegistry != null && _lambdaFunctionRegistry.isRegistered(updateTuple.getAspectClass())) {
+      newValue = updatePreIngestionLambdas(urn, oldValue, newValue);
+    }
+
     checkValidAspect(newValue.getClass());
 
     if (_modelValidationOnWrite) {
@@ -600,7 +615,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     // Invoke pre-update hooks, if any
     if (_aspectPreUpdateHooksMap.containsKey(updateTuple.getAspectClass())) {
-      _aspectPreUpdateHooksMap.get(updateTuple.getAspectClass()).forEach(hook -> hook.accept(urn, newValue));
+      for (final BiConsumer<Urn, RecordTemplate> hook : _aspectPreUpdateHooksMap.get(updateTuple.getAspectClass())) {
+        hook.accept(urn, newValue);
+      }
     }
 
     return addCommon(urn, latest, newValue, updateTuple.getAspectClass(), auditStamp, getEqualityTester(updateTuple.getAspectClass()),
@@ -1574,4 +1591,14 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     return !(oldAndNewEqual || aspectVersionSkipWrite(newValue, oldValue));
   }
 
+  /**
+   * Update the aspect value with pre-defined lambda functions.
+   */
+  protected <ASPECT extends RecordTemplate> ASPECT updatePreIngestionLambdas(@Nonnull URN urn,
+      @Nullable Optional<ASPECT> oldValue, @Nonnull ASPECT newValue) {
+    for (final BaseLambdaFunction function : _lambdaFunctionRegistry.getLambdaFunctions(newValue)) {
+      newValue = (ASPECT) function.apply(urn, oldValue, newValue);
+    }
+    return newValue;
+  }
 }
