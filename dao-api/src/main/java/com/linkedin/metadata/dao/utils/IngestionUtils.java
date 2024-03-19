@@ -8,6 +8,7 @@ import com.linkedin.common.urn.Urn;
 import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.template.DataTemplateUtil;
 import com.linkedin.data.template.RecordTemplate;
+import com.linkedin.metadata.annotations.AlwaysAllowList;
 import com.linkedin.metadata.annotations.AspectIngestionAnnotation;
 import com.linkedin.metadata.annotations.AspectIngestionAnnotationArray;
 import com.linkedin.metadata.annotations.GmaAnnotation;
@@ -63,8 +64,7 @@ public class IngestionUtils {
 
     try {
       final RecordDataSchema schema = (RecordDataSchema) DataTemplateUtil.getSchema(aspectClass);
-      final Optional<GmaAnnotation> gmaAnnotation = new GmaAnnotationParser(new GmaEntitiesAnnotationAllowListImpl(
-          ImmutableSetMultimap.of())).parse(schema);
+      final Optional<GmaAnnotation> gmaAnnotation = new GmaAnnotationParser(new AlwaysAllowList()).parse(schema);
 
       // Return empty array if user did not specify any ingestion annotation on the aspect.
       if (!gmaAnnotation.isPresent() || !gmaAnnotation.get().hasAspect() || !gmaAnnotation.get().getAspect().hasIngestion()) {
