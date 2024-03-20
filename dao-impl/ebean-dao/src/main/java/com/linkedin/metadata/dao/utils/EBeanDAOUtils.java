@@ -3,10 +3,7 @@ package com.linkedin.metadata.dao.utils;
 import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.template.DataTemplateUtil;
 import com.linkedin.data.template.RecordTemplate;
-import com.linkedin.metadata.annotations.AspectIngestionAnnotationArray;
 import com.linkedin.metadata.annotations.DeltaEntityAnnotationArrayMap;
-import com.linkedin.metadata.annotations.GmaAnnotation;
-import com.linkedin.metadata.annotations.GmaAnnotationParser;
 import com.linkedin.metadata.aspect.AuditedAspect;
 import com.linkedin.metadata.aspect.SoftDeletedAspect;
 import com.linkedin.metadata.dao.EbeanMetadataAspect;
@@ -28,7 +25,6 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -55,26 +51,6 @@ public class EBeanDAOUtils {
 
   private EBeanDAOUtils() {
     // Utils class
-  }
-
-  /**
-   * Parse the ingestion mode annotation given an aspect class.
-   */
-  @Nonnull
-  public static AspectIngestionAnnotationArray parseIngestionModeFromAnnotation(@Nonnull final String aspectCanonicalName) {
-    try {
-      final RecordDataSchema schema = (RecordDataSchema) DataTemplateUtil.getSchema(ClassUtils.loadClass(aspectCanonicalName));
-      final Optional<GmaAnnotation> gmaAnnotation = new GmaAnnotationParser().parse(schema);
-
-      // Return empty array if user did not specify any ingestion annotation on the aspect.
-      if (!gmaAnnotation.isPresent() || !gmaAnnotation.get().hasAspect() || !gmaAnnotation.get().getAspect().hasIngestion()) {
-        return new AspectIngestionAnnotationArray();
-      }
-
-      return gmaAnnotation.get().getAspect().getIngestion();
-    } catch (Exception e) {
-      throw new RuntimeException(String.format("Failed to parse the annotations for aspect %s", aspectCanonicalName), e);
-    }
   }
 
   /**
