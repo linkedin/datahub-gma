@@ -1594,10 +1594,14 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   /**
    * Update the aspect value with pre-defined lambda functions.
    */
+  @Nonnull
   protected <ASPECT extends RecordTemplate> ASPECT updatePreIngestionLambdas(@Nonnull URN urn,
       @Nullable Optional<ASPECT> oldValue, @Nonnull ASPECT newValue) {
     for (final BaseLambdaFunction function : _lambdaFunctionRegistry.getLambdaFunctions(newValue)) {
       newValue = (ASPECT) function.apply(urn, oldValue, newValue);
+    }
+    if (newValue == null) {
+      throw new UnsupportedOperationException(String.format("Attempted to update %s with null aspect.", urn));
     }
     return newValue;
   }
