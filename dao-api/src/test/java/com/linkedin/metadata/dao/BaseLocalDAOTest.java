@@ -5,6 +5,7 @@ import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
+import com.linkedin.metadata.dao.ingestion.SampleLambdaFunctionRegistryImpl;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
@@ -20,7 +21,10 @@ import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectFoo;
+import com.linkedin.testing.BarUrnArray;
 import com.linkedin.testing.EntityAspectUnion;
+import com.linkedin.testing.localrelationship.AspectFooBar;
+import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.FooUrn;
 import java.net.URISyntaxException;
 import java.sql.Timestamp;
@@ -613,4 +617,35 @@ public class BaseLocalDAOTest {
     verifyNoMoreInteractions(_mockTrackingEventProducer);
   }
 
+  @Test
+  public void testPreIngestionLambda() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFooBar fooBar1 = new AspectFooBar().setBars(new BarUrnArray(new BarUrn(1), new BarUrn(2)));
+    AspectFooBar fooBar2 = new AspectFooBar().setBars(new BarUrnArray(new BarUrn(3), new BarUrn(4)));
+    AspectFooBar mergedFooBar =
+        new AspectFooBar().setBars(new BarUrnArray(new BarUrn(1), new BarUrn(2), new BarUrn(3), new BarUrn(4)));
+    DummyLocalDAO<EntityAspectUnion> dummyLocalDAO =
+        new DummyLocalDAO<>(EntityAspectUnion.class, _mockGetLatestFunction, _mockTrackingEventProducer,
+            _mockTrackingManager, _dummyLocalDAO._transactionRunner);
+    dummyLocalDAO.setEmitAuditEvent(true);
+    dummyLocalDAO.setAlwaysEmitAuditEvent(true);
+    dummyLocalDAO.setEmitAspectSpecificAuditEvent(true);
+    dummyLocalDAO.setAlwaysEmitAspectSpecificAuditEvent(true);
+    dummyLocalDAO.setLambdaFunctionRegistry(new SampleLambdaFunctionRegistryImpl());
+    expectGetLatest(urn, AspectFooBar.class,
+        Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(fooBar1, _dummyAuditStamp)));
+
+    dummyLocalDAO.add(urn, fooBar1, _dummyAuditStamp);
+    verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, null, fooBar1);
+    verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, fooBar1,
+        _dummyAuditStamp, null, IngestionMode.LIVE);
+
+    AuditStamp auditStamp2 = makeAuditStamp("tester", 5678L);
+    dummyLocalDAO.add(urn, fooBar2, auditStamp2);
+    verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, fooBar1, mergedFooBar);
+    verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, fooBar1, mergedFooBar,
+        auditStamp2, null, IngestionMode.LIVE);
+
+    verifyNoMoreInteractions(_mockTrackingEventProducer);
+  }
 }
