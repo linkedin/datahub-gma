@@ -35,7 +35,12 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: test-reports
-          path: /home/runner/work/datahub-gma/datahub-gma/dao-impl/ebean-dao/build/reports/tests/test/**  
+          path: /home/runner/work/datahub-gma/datahub-gma/dao-impl/ebean-dao/build/reports/tests/test/**
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v4.0.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: linkedin/datahub-gma
       - name: Slack failure notification
         if: failure() && github.event_name == 'push'
         uses: kpritam/slack-job-status-action@v1
