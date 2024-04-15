@@ -1,0 +1,12 @@
+coverage:
+  status:
+    project:
+      default:
+        informational: true # set informational to true to not fail the build if coverage is below threshold
+    patch:
+      default:
+        informational: true # set informational to true to not fail the build if coverage is below threshold
+
+
+# When modifying this file, please validate using
+# curl -X POST --data-binary @codecov.yml https://codecov.io/validate

@@ -106,6 +106,7 @@ allprojects {
 
 subprojects { sp ->
   apply plugin: 'maven'
+  apply plugin: 'jacoco'
 
   plugins.withType(JavaPlugin) {
     dependencies {
@@ -116,12 +117,24 @@ subprojects { sp ->
       useTestNG()
     }
 
+    test {
+      finalizedBy jacocoTestReport
+    }
+
     checkstyle {
       configDirectory = file("${project.rootDir}/gradle/checkstyle")
       sourceSets = [ getProject().sourceSets.main, getProject().sourceSets.test ]
       toolVersion = "8.35"
       maxWarnings = 0
       ignoreFailures = false
+    }
+
+    jacocoTestReport {
+      reports {
+        xml.enabled true
+        html.enabled true
+        csv.enabled false
+      }
     }
   }
 
