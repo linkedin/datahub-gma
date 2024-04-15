@@ -12,6 +12,7 @@ import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.OutputDirectories;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
@@ -53,6 +54,7 @@ public class GenerateMetadataEventsTask extends DefaultTask {
   }
 
   @Nonnull
+  @Internal
   public Property<GmaEntitiesAnnotationAllowList> getEntitiesAnnotationAllowList() {
     return _allowList;
   }
