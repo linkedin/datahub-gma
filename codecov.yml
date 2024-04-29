@@ -2,10 +2,17 @@ coverage:
   status:
     project:
       default:
-        informational: true # set informational to true to not fail the build if coverage is below threshold
-    patch:
-      default:
-        informational: true # set informational to true to not fail the build if coverage is below threshold
+        target: auto # auto compares coverage to the previous base commit
+        # adjust accordingly based on how flaky your tests are
+        # this allows a 0% drop from the previous base commit coverage
+        threshold: 0%
+        only_pulls: true # no status will be posted for commits not on a pull request
+
+github_checks:
+  annotations: false
+
+ignore:
+  - "core-models"
 
 
 # When modifying this file, please validate using
