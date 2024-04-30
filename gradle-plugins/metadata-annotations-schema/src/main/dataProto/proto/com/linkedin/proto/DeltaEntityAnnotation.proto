@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+
+package proto.com.linkedin.annotations;
+
+
+// Annotation on an field, describing an entity and its associated pre-ingestion lambda functions.
+message DeltaEntityAnnotation {
+
+  // The FQCN of the URN that identifies this entity.
+  string urn = 1;
+
+  // The FQCN of the lambda function chains that apply to pre-ingestion.
+  repeated string lambdas = 2;
+}
