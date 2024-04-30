@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+
+package proto.com.linkedin.annotations;
+
+
+message AspectIngestionAnnotation {
+
+  enum Mode {
+    // Honor all existing checks in data access layer.
+    Mode_UNKNOWN = 0;
+
+    // Skip any check in data access layer. Update the aspect in database irrespectively.
+    Mode_FORCE_UPDATE = 1;
+  }
+
+  // Ingestion Mode applied this aspect. This can be overridden by IngestionMode set in (union) MCE.
+  optional Mode mode = 1;
+
+  // The FQCN of the URN that identifies this entity. The ingestion mode will be applied to the aspect associated with this entity.
+  optional string urn = 2;
+
+  message UrnFilter {
+    // Path extracted by UrnPathExtractor
+    // https://github.com/linkedin/datahub-gma/blob/master/dao-impl/ebean-dao/src/main/java/com/linkedin/metadata/dao/scsi/UrnPathExtractor.java
+    optional string path = 1;
+
+    // The target value lead to by by the path.
+    optional string value = 2;
+  }
+
+  // Filter on the URN so that this ingestion mode is only applicable to a subset of entities. Filters are chained by OR relation.
+  //
+  // optional
+  repeated UrnFilter filter = 3;
+}

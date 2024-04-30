@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+
+package proto.com.linkedin.annotations;
+
+
+// Annotation on a field in an Aspect model indicating the field's Search configuration.
+message IndexAnnotation {
+
+  // The FQCN of the URN that identifies the entity of which to index the field the annotation is placed on.
+  // MUST also be present in the @gma.aspect.entity or @gma.aspect.entities annotation.
+  string urn = 1;
+}

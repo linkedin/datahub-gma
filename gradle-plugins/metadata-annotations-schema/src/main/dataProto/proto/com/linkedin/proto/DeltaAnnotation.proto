@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+import "proto/com/linkedin/proto/DeltaEntityAnnotation.proto";
+
+option java_multiple_files = true;
+
+package proto.com.linkedin.annotations;
+
+
+// Subnamespace for information related to an Delta pre-ingestion.
+message DeltaAnnotation {
+
+  message DeltaEntityAnnotationList {
+    repeated DeltaEntityAnnotation deltaEntityAnnotations = 1;
+  }
+
+  // Information on multiple entities with their lambda funcions this field is associated with.
+  //
+  // optional
+  map<string, DeltaEntityAnnotationList> entities = 1;
+}
