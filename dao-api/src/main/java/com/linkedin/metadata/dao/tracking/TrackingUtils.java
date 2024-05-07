@@ -111,7 +111,8 @@ public class TrackingUtils {
    */
   public enum Dimension {
     ASPECT_TYPE("aspectType"),
-    ERROR_TYPE("errorType"),
+    ERROR_TYPE("errorType"), // category of the error, e.g., client vs server error
+    EXCEPTION("exception"), // exception name of the error, e.g., NullPointerException
     ORIGINAL_EMIT_TIME("originalEmitTime"),
     PLATFORM_TYPE("platformType");
 
