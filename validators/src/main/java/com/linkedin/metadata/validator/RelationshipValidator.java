@@ -44,13 +44,13 @@ public class RelationshipValidator {
 
     if (!ValidationUtils.schemaHasExactlyOneSuchField(schema,
         field -> ValidationUtils.isValidUrnField(field, "source"))) {
-      ValidationUtils.invalidSchema("Relationship '%s' must contain an non-optional 'source' field of URN type",
+      ValidationUtils.invalidSchema("Relationship '%s' must contain a 'source' field of URN type",
           className);
     }
 
     if (!ValidationUtils.schemaHasExactlyOneSuchField(schema,
         field -> ValidationUtils.isValidUrnField(field, "destination"))) {
-      ValidationUtils.invalidSchema("Relationship '%s' must contain an non-optional 'destination' field of URN type",
+      ValidationUtils.invalidSchema("Relationship '%s' must contain a 'destination' field of URN type",
           className);
     }
 

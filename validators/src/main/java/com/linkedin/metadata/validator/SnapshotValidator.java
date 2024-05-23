@@ -33,11 +33,11 @@ public class SnapshotValidator {
     final String className = schema.getBindingName();
 
     if (!ValidationUtils.schemaHasExactlyOneSuchField(schema, ValidationUtils::isValidUrnField)) {
-      ValidationUtils.invalidSchema("Snapshot '%s' must contain an non-optional 'urn' field of URN type", className);
+      ValidationUtils.invalidSchema("Snapshot '%s' must contain an 'urn' field of URN type", className);
     }
 
     if (!ValidationUtils.schemaHasExactlyOneSuchField(schema, SnapshotValidator::isValidAspectsField)) {
-      ValidationUtils.invalidSchema("Snapshot '%s' must contain an non-optional 'aspects' field of ARRAY type",
+      ValidationUtils.invalidSchema("Snapshot '%s' must contain an 'aspects' field of ARRAY type",
           className);
     }
 
@@ -75,7 +75,7 @@ public class SnapshotValidator {
   }
 
   private static boolean isValidAspectsField(@Nonnull RecordDataSchema.Field field) {
-    return field.getName().equals("aspects") && !field.getOptional()
+    return field.getName().equals("aspects")
         && field.getType().getType() == DataSchema.Type.ARRAY;
   }
 
