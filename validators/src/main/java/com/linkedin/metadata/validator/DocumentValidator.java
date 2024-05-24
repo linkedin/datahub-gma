@@ -38,16 +38,12 @@ public final class DocumentValidator {
     final String className = schema.getBindingName();
 
     if (!ValidationUtils.schemaHasExactlyOneSuchField(schema, ValidationUtils::isValidUrnField)) {
-      ValidationUtils.invalidSchema("Document '%s' must contain an non-optional 'urn' field of URN type", className);
+      ValidationUtils.invalidSchema("Document '%s' must contain an 'urn' field of URN type", className);
     }
 
     ValidationUtils.fieldsUsingInvalidType(schema, ValidationUtils.PRIMITIVE_TYPES).forEach(field -> {
       ValidationUtils.invalidSchema("Document '%s' contains a field '%s' that makes use of a disallowed type '%s'.",
           className, field.getName(), field.getType().getType());
-    });
-
-    ValidationUtils.nonOptionalFields(schema, NON_OPTIONAL_FIELDS).forEach(field -> {
-      ValidationUtils.invalidSchema("Document '%s' must contain an optional '%s' field", className, field.getName());
     });
   }
 

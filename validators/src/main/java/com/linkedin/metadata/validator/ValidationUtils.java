@@ -89,10 +89,10 @@ public final class ValidationUtils {
   }
 
   /**
-   * Returns true if the non-optional field matches the field name and has a URN type.
+   * Returns true if the passed-in field matches the field name and is of URN type.
    */
   public static boolean isValidUrnField(@Nonnull RecordDataSchema.Field field, @Nonnull String fieldName) {
-    return field.getName().equals(fieldName) && !field.getOptional()
+    return field.getName().equals(fieldName)
         && field.getType().getType() == DataSchema.Type.TYPEREF && Urn.class.isAssignableFrom(getUrnClass(field));
   }
 
@@ -196,5 +196,9 @@ public final class ValidationUtils {
       return type.getDereferencedType();
     }
     return type.getType();
+  }
+
+  public static void throwNullFieldException(String field) {
+    throw new NullFieldException(String.format("The '%s' field cannot be null.", field));
   }
 }

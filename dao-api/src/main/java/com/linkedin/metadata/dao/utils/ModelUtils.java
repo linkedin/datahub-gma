@@ -38,6 +38,8 @@ public class ModelUtils {
 
   private static final ClassLoader CLASS_LOADER = DummySnapshot.class.getClassLoader();
   private static final String METADATA_AUDIT_EVENT_PREFIX = "METADATA_AUDIT_EVENT";
+  private static final String URN_FIELD = "urn";
+  private static final String ASPECTS_FIELD = "aspects";
 
   private ModelUtils() {
     // Util class
@@ -135,7 +137,11 @@ public class ModelUtils {
   @Nonnull
   public static <SNAPSHOT extends RecordTemplate> Urn getUrnFromSnapshot(@Nonnull SNAPSHOT snapshot) {
     SnapshotValidator.validateSnapshotSchema(snapshot.getClass());
-    return RecordUtils.getRecordTemplateField(snapshot, "urn", urnClassForSnapshot(snapshot.getClass()));
+    final Urn urn = RecordUtils.getRecordTemplateField(snapshot, URN_FIELD, urnClassForSnapshot(snapshot.getClass()));
+    if (urn == null) {
+      ValidationUtils.throwNullFieldException(URN_FIELD);
+    }
+    return urn;
   }
 
   /**
@@ -191,7 +197,7 @@ public class ModelUtils {
   @Nonnull
   public static <DELTA extends RecordTemplate> Urn getUrnFromDelta(@Nonnull DELTA delta) {
     DeltaValidator.validateDeltaSchema(delta.getClass());
-    return RecordUtils.getRecordTemplateField(delta, "urn", urnClassForDelta(delta.getClass()));
+    return RecordUtils.getRecordTemplateField(delta, URN_FIELD, urnClassForDelta(delta.getClass()));
   }
 
   /**
@@ -212,7 +218,11 @@ public class ModelUtils {
   @Nonnull
   public static <DOCUMENT extends RecordTemplate> Urn getUrnFromDocument(@Nonnull DOCUMENT document) {
     DocumentValidator.validateDocumentSchema(document.getClass());
-    return RecordUtils.getRecordTemplateField(document, "urn", urnClassForDocument(document.getClass()));
+    final Urn urn = RecordUtils.getRecordTemplateField(document, URN_FIELD, urnClassForDocument(document.getClass()));
+    if (urn == null) {
+      ValidationUtils.throwNullFieldException(URN_FIELD);
+    }
+    return urn;
   }
 
   /**
@@ -225,7 +235,11 @@ public class ModelUtils {
   @Nonnull
   public static <ENTITY extends RecordTemplate> Urn getUrnFromEntity(@Nonnull ENTITY entity) {
     EntityValidator.validateEntitySchema(entity.getClass());
-    return RecordUtils.getRecordTemplateField(entity, "urn", urnClassForDocument(entity.getClass()));
+    final Urn urn = RecordUtils.getRecordTemplateField(entity, URN_FIELD, urnClassForDocument(entity.getClass()));
+    if (urn == null) {
+      ValidationUtils.throwNullFieldException(URN_FIELD);
+    }
+    return urn;
   }
 
   /**
@@ -240,8 +254,11 @@ public class ModelUtils {
   private static <RELATIONSHIP extends RecordTemplate> Urn getUrnFromRelationship(@Nonnull RELATIONSHIP relationship,
       @Nonnull String fieldName) {
     RelationshipValidator.validateRelationshipSchema(relationship.getClass());
-    return RecordUtils.getRecordTemplateField(relationship, fieldName,
-        urnClassForRelationship(relationship.getClass(), fieldName));
+    final Urn urn = RecordUtils.getRecordTemplateField(relationship, fieldName, urnClassForRelationship(relationship.getClass(), fieldName));
+    if (urn == null) {
+      ValidationUtils.throwNullFieldException(URN_FIELD);
+    }
+    return urn;
   }
 
   /**
@@ -272,7 +289,6 @@ public class ModelUtils {
   @Nonnull
   public static <SNAPSHOT extends RecordTemplate> List<RecordTemplate> getAspectsFromSnapshot(
       @Nonnull SNAPSHOT snapshot) {
-
     SnapshotValidator.validateSnapshotSchema(snapshot.getClass());
     return getAspects(snapshot);
   }
@@ -307,7 +323,10 @@ public class ModelUtils {
   private static List<RecordTemplate> getAspects(@Nonnull RecordTemplate snapshot) {
     final Class<? extends WrappingArrayTemplate> clazz = getAspectsArrayClass(snapshot.getClass());
 
-    WrappingArrayTemplate aspectArray = RecordUtils.getRecordTemplateWrappedField(snapshot, "aspects", clazz);
+    final WrappingArrayTemplate aspectArray = RecordUtils.getRecordTemplateWrappedField(snapshot, ASPECTS_FIELD, clazz);
+    if (aspectArray == null) {
+      ValidationUtils.throwNullFieldException(ASPECTS_FIELD);
+    }
 
     final List<RecordTemplate> aspects = new ArrayList<>();
     aspectArray.forEach(item -> aspects.add(RecordUtils.getSelectedRecordTemplateFromUnion((UnionTemplate) item)));
@@ -352,10 +371,16 @@ public class ModelUtils {
 
     try {
       final SNAPSHOT snapshot = snapshotClass.newInstance();
-      RecordUtils.setRecordTemplatePrimitiveField(snapshot, "urn", urn);
+      if (urn == null) {
+        ValidationUtils.throwNullFieldException(URN_FIELD);
+      }
+      if (aspects == null) {
+        ValidationUtils.throwNullFieldException(ASPECTS_FIELD);
+      }
+      RecordUtils.setRecordTemplatePrimitiveField(snapshot, URN_FIELD, urn);
       WrappingArrayTemplate aspectArray = aspectArrayClass.newInstance();
       aspectArray.addAll(aspects);
-      RecordUtils.setRecordTemplateComplexField(snapshot, "aspects", aspectArray);
+      RecordUtils.setRecordTemplateComplexField(snapshot, ASPECTS_FIELD, aspectArray);
       return snapshot;
     } catch (InstantiationException | IllegalAccessException e) {
       throw new RuntimeException(e);
@@ -418,7 +443,7 @@ public class ModelUtils {
     SnapshotValidator.validateSnapshotSchema(snapshotClass);
 
     String aspectClassName = ((TyperefDataSchema) ((ArrayDataSchema) ValidationUtils.getRecordSchema(snapshotClass)
-        .getField("aspects")
+        .getField(ASPECTS_FIELD)
         .getType()).getItems()).getBindingName();
 
     return getClassFromName(aspectClassName, UnionTemplate.class);
@@ -430,7 +455,7 @@ public class ModelUtils {
   @Nonnull
   public static Class<? extends Urn> urnClassForEntity(@Nonnull Class<? extends RecordTemplate> entityClass) {
     EntityValidator.validateEntitySchema(entityClass);
-    return urnClassForField(entityClass, "urn");
+    return urnClassForField(entityClass, URN_FIELD);
   }
 
   /**
@@ -439,7 +464,7 @@ public class ModelUtils {
   @Nonnull
   public static Class<? extends Urn> urnClassForSnapshot(@Nonnull Class<? extends RecordTemplate> snapshotClass) {
     SnapshotValidator.validateSnapshotSchema(snapshotClass);
-    return urnClassForField(snapshotClass, "urn");
+    return urnClassForField(snapshotClass, URN_FIELD);
   }
 
   /**
@@ -448,7 +473,7 @@ public class ModelUtils {
   @Nonnull
   public static Class<? extends Urn> urnClassForDelta(@Nonnull Class<? extends RecordTemplate> deltaClass) {
     DeltaValidator.validateDeltaSchema(deltaClass);
-    return urnClassForField(deltaClass, "urn");
+    return urnClassForField(deltaClass, URN_FIELD);
   }
 
   /**
@@ -457,7 +482,7 @@ public class ModelUtils {
   @Nonnull
   public static Class<? extends Urn> urnClassForDocument(@Nonnull Class<? extends RecordTemplate> documentClass) {
     DocumentValidator.validateDocumentSchema(documentClass);
-    return urnClassForField(documentClass, "urn");
+    return urnClassForField(documentClass, URN_FIELD);
   }
 
   /**

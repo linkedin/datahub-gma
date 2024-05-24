@@ -281,7 +281,7 @@ public class RecordUtils {
    * @param valueClass the expected type for the value
    * @return the value for the field
    */
-  @Nonnull
+  @Nullable
   public static <T extends RecordTemplate, V> V getRecordTemplateField(@Nonnull T recordTemplate,
       @Nonnull String fieldName, @Nonnull Class<V> valueClass) {
 
@@ -300,7 +300,7 @@ public class RecordUtils {
    * @param valueClass the expected type for the value
    * @return the value for the field
    */
-  @Nonnull
+  @Nullable
   public static <T extends RecordTemplate, V extends DataTemplate> V getRecordTemplateWrappedField(
       @Nonnull T recordTemplate, @Nonnull String fieldName, @Nonnull Class<V> valueClass) {
 
@@ -389,7 +389,7 @@ public class RecordUtils {
     }
   }
 
-  @Nonnull
+  @Nullable
   private static <T> T invokeProtectedMethod(Object object, Method method, Object... args) {
     try {
       method.setAccessible(true);

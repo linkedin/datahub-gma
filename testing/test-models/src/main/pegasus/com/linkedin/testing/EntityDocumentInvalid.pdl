@@ -1,0 +1,9 @@
+namespace com.linkedin.testing
+
+import com.linkedin.common.Urn
+
+/**
+ * For unit tests
+ */
+record EntityDocumentInvalid {
+}
