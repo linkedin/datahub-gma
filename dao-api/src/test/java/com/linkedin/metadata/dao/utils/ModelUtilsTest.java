@@ -3,19 +3,25 @@ package com.linkedin.metadata.dao.utils;
 import com.google.common.collect.ImmutableSet;
 import com.linkedin.common.CommonTestAspect;
 import com.linkedin.common.urn.Urn;
+import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.UnionTemplate;
+import com.linkedin.metadata.validator.NullFieldException;
 import com.linkedin.testing.AspectAttributes;
 import com.linkedin.testing.AspectUnionWithSoftDeletedAspect;
 import com.linkedin.testing.DeltaUnionAlias;
 import com.linkedin.testing.EntityAspectUnionAliasArray;
 import com.linkedin.testing.EntityDeltaAlias;
 import com.linkedin.testing.EntityFoo;
+import com.linkedin.testing.EntityFooInvalid;
+import com.linkedin.testing.EntityFooOptionalUrn;
 import com.linkedin.testing.EntitySnapshotAlias;
+import com.linkedin.testing.EntitySnapshotAliasOptionalFields;
 import com.linkedin.testing.EntityUnion;
 import com.linkedin.testing.EntityUnionAlias;
 import com.linkedin.testing.PizzaInfo;
 import com.linkedin.testing.PizzaOrder;
 import com.linkedin.testing.SnapshotUnionAlias;
+import com.linkedin.testing.SnapshotUnionAliasWithEntitySnapshotAliasOptionalFields;
 import com.linkedin.testing.TyperefPizzaAspect;
 import com.linkedin.testing.localrelationship.AspectFooBar;
 import com.linkedin.testing.urn.PizzaUrn;
@@ -31,14 +37,19 @@ import com.linkedin.testing.EntityAspectUnionArray;
 import com.linkedin.testing.EntityBar;
 import com.linkedin.testing.EntityDelta;
 import com.linkedin.testing.EntityDocument;
+import com.linkedin.testing.EntityDocumentInvalid;
+import com.linkedin.testing.EntityDocumentOptionalUrn;
 import com.linkedin.testing.EntitySnapshot;
+import com.linkedin.testing.EntitySnapshotInvalid;
+import com.linkedin.testing.EntitySnapshotOptionalFields;
 import com.linkedin.testing.InvalidAspectUnion;
 import com.linkedin.testing.RelationshipFoo;
+import com.linkedin.testing.RelationshipFooOptionalFields;
 import com.linkedin.testing.RelationshipUnion;
 import com.linkedin.testing.RelationshipUnionAlias;
 import com.linkedin.testing.SnapshotUnion;
+import com.linkedin.testing.SnapshotUnionWithEntitySnapshotOptionalFields;
 import com.linkedin.testing.urn.FooUrn;
-import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Optional;
@@ -118,6 +129,12 @@ public class ModelUtilsTest {
   }
 
   @Test
+  public void testGetNullUrnFromSnapshot() {
+    EntitySnapshotOptionalFields snapshot = new EntitySnapshotOptionalFields().setUrn(null, SetMode.IGNORE_NULL);
+    assertThrows(NullFieldException.class, () -> ModelUtils.getUrnFromSnapshot(snapshot));
+  }
+
+  @Test
   public void testGetUrnFromSnapshotUnion() {
     Urn expected = makeUrn(1);
     EntitySnapshot snapshot = new EntitySnapshot().setUrn(expected);
@@ -180,12 +197,24 @@ public class ModelUtilsTest {
   }
 
   @Test
+  public void testGetNullUrnFromDocument() {
+    EntityDocumentOptionalUrn document = new EntityDocumentOptionalUrn().setUrn(null, SetMode.IGNORE_NULL);
+    assertThrows(NullFieldException.class, () -> ModelUtils.getUrnFromDocument(document));
+  }
+
+  @Test
   public void testGetUrnFromEntity() {
     FooUrn expected = makeFooUrn(1);
     EntityFoo entity = new EntityFoo().setUrn(expected);
 
     Urn urn = ModelUtils.getUrnFromEntity(entity);
     assertEquals(urn, expected);
+  }
+
+  @Test
+  public void testGetNullUrnFromEntity() {
+    EntityFooOptionalUrn entity = new EntityFooOptionalUrn().setUrn(null, SetMode.IGNORE_NULL);
+    assertThrows(NullFieldException.class, () -> ModelUtils.getUrnFromEntity(entity));
   }
 
   @Test
@@ -201,7 +230,16 @@ public class ModelUtilsTest {
   }
 
   @Test
-  public void testGetAspectsFromSnapshot() throws IOException {
+  public void testGetNullUrnFromRelationship() {
+    RelationshipFooOptionalFields relationship = new RelationshipFooOptionalFields()
+        .setSource(null, SetMode.IGNORE_NULL)
+        .setDestination(null, SetMode.IGNORE_NULL);
+    assertThrows(NullFieldException.class, () -> ModelUtils.getSourceUrnFromRelationship(relationship));
+    assertThrows(NullFieldException.class, () -> ModelUtils.getDestinationUrnFromRelationship(relationship));
+  }
+
+  @Test
+  public void testGetAspectsFromSnapshot() {
     EntitySnapshot snapshot = new EntitySnapshot();
     snapshot.setAspects(new EntityAspectUnionArray());
     snapshot.getAspects().add(new EntityAspectUnion());
@@ -215,7 +253,14 @@ public class ModelUtilsTest {
   }
 
   @Test
-  public void testGetAspectsFromSnapshotAlias() throws IOException {
+  public void testGetNullAspectsFromSnapshot() {
+    EntitySnapshotOptionalFields snapshot = new EntitySnapshotOptionalFields();
+    snapshot.setAspects(null, SetMode.IGNORE_NULL);
+    assertThrows(NullFieldException.class, () -> ModelUtils.getAspectsFromSnapshot(snapshot));
+  }
+
+  @Test
+  public void testGetAspectsFromSnapshotAlias() {
     EntitySnapshotAlias snapshot = new EntitySnapshotAlias();
     snapshot.setAspects(new EntityAspectUnionAliasArray());
     AspectFoo foo = new AspectFoo();
@@ -235,7 +280,14 @@ public class ModelUtilsTest {
   }
 
   @Test
-  public void testGetAspectFromSnapshot() throws IOException {
+  public void testGetNullAspectsFromSnapshotAlias() {
+    EntitySnapshotAliasOptionalFields snapshot = new EntitySnapshotAliasOptionalFields();
+    snapshot.setAspects(null, SetMode.IGNORE_NULL);
+    assertThrows(NullFieldException.class, () -> ModelUtils.getAspectsFromSnapshot(snapshot));
+  }
+
+  @Test
+  public void testGetAspectFromSnapshot() {
     EntitySnapshot snapshot = new EntitySnapshot();
     snapshot.setAspects(new EntityAspectUnionArray());
     snapshot.getAspects().add(new EntityAspectUnion());
@@ -251,7 +303,14 @@ public class ModelUtilsTest {
   }
 
   @Test
-  public void testGetAspectsFromSnapshotUnion() throws IOException {
+  public void testGetNullAspectFromSnapshot() {
+    EntitySnapshotOptionalFields snapshot = new EntitySnapshotOptionalFields();
+    snapshot.setAspects(null, SetMode.IGNORE_NULL);
+    assertThrows(NullFieldException.class, () -> ModelUtils.getAspectFromSnapshot(snapshot, AspectFoo.class));
+  }
+
+  @Test
+  public void testGetAspectsFromSnapshotUnion() {
     EntitySnapshot snapshot = new EntitySnapshot();
     snapshot.setAspects(new EntityAspectUnionArray());
     snapshot.getAspects().add(new EntityAspectUnion());
@@ -267,7 +326,16 @@ public class ModelUtilsTest {
   }
 
   @Test
-  public void testGetAspectsFromSnapshotUnionAlias() throws IOException {
+  public void testGetNullAspectsFromSnapshotUnion() {
+    EntitySnapshotOptionalFields snapshot = new EntitySnapshotOptionalFields();
+    snapshot.setAspects(null, SetMode.IGNORE_NULL);
+    SnapshotUnionWithEntitySnapshotOptionalFields snapshotUnion = new SnapshotUnionWithEntitySnapshotOptionalFields();
+    snapshotUnion.setEntitySnapshotOptionalFields(snapshot);
+    assertThrows(NullFieldException.class, () -> ModelUtils.getAspectsFromSnapshotUnion(snapshotUnion));
+  }
+
+  @Test
+  public void testGetAspectsFromSnapshotUnionAlias() {
     EntitySnapshotAlias snapshot = new EntitySnapshotAlias();
     snapshot.setAspects(new EntityAspectUnionAliasArray());
     snapshot.getAspects().add(new EntityAspectUnionAlias());
@@ -282,6 +350,15 @@ public class ModelUtilsTest {
     assertEquals(aspects.get(0), foo);
   }
 
+  public void testGetNullAspectsFromSnapshotUnionAlias() {
+    EntitySnapshotAliasOptionalFields snapshot = new EntitySnapshotAliasOptionalFields();
+    snapshot.setAspects(null, SetMode.IGNORE_NULL);
+    SnapshotUnionAliasWithEntitySnapshotAliasOptionalFields snapshotUnion = new SnapshotUnionAliasWithEntitySnapshotAliasOptionalFields();
+    snapshotUnion.setEntity(snapshot);
+
+    assertThrows(NullFieldException.class, () -> ModelUtils.getAspectsFromSnapshotUnion(snapshotUnion));
+  }
+
   @Test
   public void testNewSnapshot() {
     Urn urn = makeUrn(1);
@@ -294,6 +371,16 @@ public class ModelUtilsTest {
     assertEquals(snapshot.getUrn(), urn);
     assertEquals(snapshot.getAspects().size(), 1);
     assertEquals(snapshot.getAspects().get(0).getAspectFoo(), foo);
+  }
+
+  @Test
+  public void testNewSnapshotInvalidSchema() {
+    Urn urn = makeUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    EntityAspectUnion aspectUnion = new EntityAspectUnion();
+    aspectUnion.setAspectFoo(foo);
+
+    assertThrows(InvalidSchemaException.class, () -> ModelUtils.newSnapshot(EntitySnapshotInvalid.class, urn, Lists.newArrayList(aspectUnion)));
   }
 
   @Test
@@ -320,13 +407,28 @@ public class ModelUtilsTest {
   }
 
   @Test
+  public void testAspectClassForSnapshotInvalidSchema() {
+    assertThrows(InvalidSchemaException.class, () -> ModelUtils.aspectClassForSnapshot(EntitySnapshotInvalid.class));
+  }
+
+  @Test
   public void testUrnClassForEntity() {
     assertEquals(ModelUtils.urnClassForEntity(EntityBar.class), BarUrn.class);
   }
 
   @Test
+  public void testUrnClassForEntityInvalidSchema() {
+    assertThrows(InvalidSchemaException.class, () -> ModelUtils.urnClassForEntity(EntityFooInvalid.class));
+  }
+
+  @Test
   public void testUrnClassForSnapshot() {
     assertEquals(ModelUtils.urnClassForSnapshot(EntitySnapshot.class), Urn.class);
+  }
+
+  @Test
+  public void testUrnClassForSnapshotInvalidSchema() {
+    assertThrows(InvalidSchemaException.class, () -> ModelUtils.urnClassForSnapshot(EntitySnapshotInvalid.class));
   }
 
   @Test
@@ -337,6 +439,11 @@ public class ModelUtilsTest {
   @Test
   public void testUrnClassForDocument() {
     assertEquals(ModelUtils.urnClassForDocument(EntityDocument.class), Urn.class);
+  }
+
+  @Test
+  public void testUrnClassForDocumentInvalidSchema() {
+    assertThrows(InvalidSchemaException.class, () -> ModelUtils.urnClassForDocument(EntityDocumentInvalid.class));
   }
 
   @Test(expectedExceptions = InvalidSchemaException.class)
@@ -356,7 +463,7 @@ public class ModelUtilsTest {
   }
 
   @Test
-  public void testNewRelatioshipUnion() {
+  public void testNewRelationshipUnion() {
     RelationshipFoo foo = new RelationshipFoo().setDestination(makeFooUrn(1)).setSource(makeFooUrn(2));
 
     RelationshipUnion relationshipUnion = ModelUtils.newRelationshipUnion(RelationshipUnion.class, foo);
@@ -365,7 +472,7 @@ public class ModelUtilsTest {
   }
 
   @Test
-  public void testNewRelatioshipUnionAlias() {
+  public void testNewRelationshipUnionAlias() {
     RelationshipFoo foo = new RelationshipFoo().setDestination(makeFooUrn(1)).setSource(makeFooUrn(2));
 
     RelationshipUnionAlias relationshipUnion = ModelUtils.newRelationshipUnion(RelationshipUnionAlias.class, foo);

@@ -1,0 +1,17 @@
+namespace com.linkedin.testing
+
+/**
+ * For unit tests
+ */
+record EntityFooOptionalUrn {
+
+  /**
+   * For unit tests
+   */
+  urn: optional FooUrn
+
+  /**
+   * For unit tests
+   */
+  value: optional string
+}

@@ -1,0 +1,19 @@
+namespace com.linkedin.testing
+
+import com.linkedin.common.Urn
+
+/**
+ * For unit tests
+ */
+record EntityDocumentOptionalUrn {
+
+  /**
+   * For unit tests
+   */
+  urn: optional Urn
+
+  /**
+   * For unit tests
+   */
+  value: optional string
+}

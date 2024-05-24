@@ -199,6 +199,6 @@ public final class ValidationUtils {
   }
 
   public static void throwNullFieldException(String field) {
-    throw new NullFieldException(String.format("The %s field cannot be null.", field));
+    throw new NullFieldException(String.format("The '%s' field cannot be null.", field));
   }
 }

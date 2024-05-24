@@ -1,0 +1,33 @@
+namespace com.linkedin.testing
+
+import com.linkedin.common.Urn
+
+/**
+ * For unit tests
+ */
+@pairings = [ {
+  "destination" : "com.linkedin.common.urn.Urn",
+  "source" : "com.linkedin.common.urn.Urn"
+} ]
+record RelationshipFooOptionalFields {
+
+  /**
+   * Urn of the source entity
+   */
+  source: optional Urn
+
+  /**
+   * Urn of the destination entity
+   */
+  destination: optional Urn
+
+  /**
+   * Type attribute of the relationship
+   */
+  type: optional string
+
+  /**
+   * Integer field as a relationship attribute
+   */
+  intField: optional int
+}

@@ -1,0 +1,7 @@
+namespace com.linkedin.testing
+
+/**
+ * For unit tests
+ */
+record EntitySnapshotInvalid {
+}
