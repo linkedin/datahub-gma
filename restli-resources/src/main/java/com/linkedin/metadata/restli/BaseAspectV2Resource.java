@@ -155,7 +155,7 @@ public abstract class BaseAspectV2Resource<
    */
   @Action(name = ACTION_BACKFILL_WITH_URNS)
   @Nonnull
-  public Task<BackfillResult> backfillWithUrns(@Nonnull Set<URN> urns) {
+  public Task<BackfillResult> backfillWithUrns(@Nonnull Set<Urn> urns) {
     return RestliUtils.toTask(() ->
         RestliUtils.buildBackfillResult(getLocalDAO().backfill(ImmutableSet.of(_aspectClass), urns)));
   }

@@ -262,7 +262,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    */
   public EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull ServerConfig serverConfig,
       @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass,
-      @Nonnull UrnPathExtractor<URN> urnPathExtractor) {
+      @Nonnull UrnPathExtractor urnPathExtractor) {
     this(producer, createServer(serverConfig), storageConfig, urnClass, urnPathExtractor);
   }
 
@@ -278,7 +278,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    */
   public EbeanLocalDAO(@Nonnull BaseTrackingMetadataEventProducer producer, @Nonnull ServerConfig serverConfig,
       @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass,
-      @Nonnull UrnPathExtractor<URN> urnPathExtractor, @Nonnull BaseTrackingManager trackingManager) {
+      @Nonnull UrnPathExtractor urnPathExtractor, @Nonnull BaseTrackingManager trackingManager) {
     this(producer, createServer(serverConfig), storageConfig, urnClass, urnPathExtractor, trackingManager);
   }
 
@@ -294,7 +294,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    */
   public EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull ServerConfig serverConfig,
       @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass,
-      @Nonnull UrnPathExtractor<URN> urnPathExtractor, @Nonnull SchemaConfig schemaConfig) {
+      @Nonnull UrnPathExtractor urnPathExtractor, @Nonnull SchemaConfig schemaConfig) {
     this(producer, createServer(serverConfig), serverConfig, storageConfig, urnClass, urnPathExtractor, schemaConfig);
   }
 
@@ -311,7 +311,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    */
   public EbeanLocalDAO(@Nonnull BaseTrackingMetadataEventProducer producer, @Nonnull ServerConfig serverConfig,
       @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass,
-      @Nonnull UrnPathExtractor<URN> urnPathExtractor, @Nonnull SchemaConfig schemaConfig, @Nonnull BaseTrackingManager trackingManager) {
+      @Nonnull UrnPathExtractor urnPathExtractor, @Nonnull SchemaConfig schemaConfig, @Nonnull BaseTrackingManager trackingManager) {
     this(producer, createServer(serverConfig), serverConfig, storageConfig, urnClass, urnPathExtractor, schemaConfig, trackingManager);
   }
 
@@ -325,7 +325,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    */
   public EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull ServerConfig serverConfig,
       @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass) {
-    this(producer, createServer(serverConfig), storageConfig, urnClass, new EmptyPathExtractor<>());
+    this(producer, createServer(serverConfig), storageConfig, urnClass, new EmptyPathExtractor());
   }
 
   /**
@@ -339,7 +339,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    */
   public EbeanLocalDAO(@Nonnull BaseTrackingMetadataEventProducer producer, @Nonnull ServerConfig serverConfig,
       @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass, @Nonnull BaseTrackingManager trackingManager) {
-    this(producer, createServer(serverConfig), storageConfig, urnClass, new EmptyPathExtractor<>(), trackingManager);
+    this(producer, createServer(serverConfig), storageConfig, urnClass, new EmptyPathExtractor(), trackingManager);
   }
 
   /**
@@ -353,7 +353,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    */
   public EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull ServerConfig serverConfig,
       @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass, @Nonnull SchemaConfig schemaConfig) {
-    this(producer, createServer(serverConfig), serverConfig, storageConfig, urnClass, new EmptyPathExtractor<>(), schemaConfig);
+    this(producer, createServer(serverConfig), serverConfig, storageConfig, urnClass, new EmptyPathExtractor(), schemaConfig);
   }
 
   /**
@@ -369,7 +369,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   public EbeanLocalDAO(@Nonnull BaseTrackingMetadataEventProducer producer, @Nonnull ServerConfig serverConfig,
       @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass, @Nonnull SchemaConfig schemaConfig,
       @Nonnull BaseTrackingManager trackingManager) {
-    this(producer, createServer(serverConfig), serverConfig, storageConfig, urnClass, new EmptyPathExtractor<>(), schemaConfig, trackingManager);
+    this(producer, createServer(serverConfig), serverConfig, storageConfig, urnClass, new EmptyPathExtractor(), schemaConfig, trackingManager);
   }
 
   public EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseTrackingMetadataEventProducer producer,
@@ -379,14 +379,14 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   private EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
       @Nonnull EbeanServer server, @Nonnull Class<URN> urnClass) {
-    super(aspectUnionClass, producer, urnClass, new EmptyPathExtractor<>());
+    super(aspectUnionClass, producer, urnClass, new EmptyPathExtractor());
     _server = server;
     _urnClass = urnClass;
   }
 
   private EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseTrackingMetadataEventProducer producer,
       @Nonnull EbeanServer server, @Nonnull Class<URN> urnClass, @Nonnull BaseTrackingManager trackingManager) {
-    super(aspectUnionClass, producer, trackingManager, urnClass, new EmptyPathExtractor<>());
+    super(aspectUnionClass, producer, trackingManager, urnClass, new EmptyPathExtractor());
     _server = server;
     _urnClass = urnClass;
   }
@@ -449,7 +449,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @VisibleForTesting
   EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull EbeanServer server,
       @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass,
-      @Nonnull UrnPathExtractor<URN> urnPathExtractor) {
+      @Nonnull UrnPathExtractor urnPathExtractor) {
     super(producer, storageConfig, urnClass, urnPathExtractor);
     _server = server;
     _urnClass = urnClass;
@@ -457,7 +457,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   private EbeanLocalDAO(@Nonnull BaseTrackingMetadataEventProducer producer, @Nonnull EbeanServer server,
       @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass,
-      @Nonnull UrnPathExtractor<URN> urnPathExtractor, @Nonnull BaseTrackingManager trackingManager) {
+      @Nonnull UrnPathExtractor urnPathExtractor, @Nonnull BaseTrackingManager trackingManager) {
     super(producer, storageConfig, trackingManager, urnClass, urnPathExtractor);
     _server = server;
     _urnClass = urnClass;
@@ -465,7 +465,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   private EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull EbeanServer server,
       @Nonnull ServerConfig serverConfig, @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass,
-      @Nonnull UrnPathExtractor<URN> urnPathExtractor, @Nonnull SchemaConfig schemaConfig) {
+      @Nonnull UrnPathExtractor urnPathExtractor, @Nonnull SchemaConfig schemaConfig) {
     this(producer, server, storageConfig, urnClass, urnPathExtractor);
     _schemaConfig = schemaConfig;
     if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
@@ -474,7 +474,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   private EbeanLocalDAO(@Nonnull BaseTrackingMetadataEventProducer producer, @Nonnull EbeanServer server, @Nonnull ServerConfig serverConfig,
-      @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass, @Nonnull UrnPathExtractor<URN> urnPathExtractor,
+      @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass, @Nonnull UrnPathExtractor urnPathExtractor,
       @Nonnull SchemaConfig schemaConfig, @Nonnull BaseTrackingManager trackingManager) {
     this(producer, server, storageConfig, urnClass, urnPathExtractor, trackingManager);
     _schemaConfig = schemaConfig;
@@ -486,16 +486,16 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @VisibleForTesting
   EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull EbeanServer server,
       @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass) {
-    this(producer, server, storageConfig, urnClass, new EmptyPathExtractor<>());
+    this(producer, server, storageConfig, urnClass, new EmptyPathExtractor());
   }
 
   @VisibleForTesting
   EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull EbeanServer server, @Nonnull ServerConfig serverConfig,
       @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull Class<URN> urnClass, @Nonnull SchemaConfig schemaConfig) {
-    this(producer, server, serverConfig, storageConfig, urnClass, new EmptyPathExtractor<>(), schemaConfig);
+    this(producer, server, serverConfig, storageConfig, urnClass, new EmptyPathExtractor(), schemaConfig);
   }
 
-  public void setUrnPathExtractor(@Nonnull UrnPathExtractor<URN> urnPathExtractor) {
+  public void setUrnPathExtractor(@Nonnull UrnPathExtractor urnPathExtractor) {
     if (_schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
       _localAccess.setUrnPathExtractor(urnPathExtractor);
     }
@@ -503,7 +503,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Nonnull
-  public UrnPathExtractor<URN> getUrnPathExtractor() {
+  public UrnPathExtractor getUrnPathExtractor() {
     return _urnPathExtractor;
   }
 
@@ -567,7 +567,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Override
-  protected <ASPECT extends RecordTemplate> long saveLatest(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
+  protected <ASPECT extends RecordTemplate> long saveLatest(@Nonnull Urn urn, @Nonnull Class<ASPECT> aspectClass,
       @Nullable ASPECT oldValue, @Nullable AuditStamp oldAuditStamp, @Nullable ASPECT newValue,
       @Nonnull AuditStamp newAuditStamp, boolean isSoftDeleted, @Nullable IngestionTrackingContext trackingContext) {
     // Save oldValue as the largest version + 1
@@ -612,7 +612,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Override
-  public <ASPECT extends RecordTemplate> void updateEntityTables(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass) {
+  public <ASPECT extends RecordTemplate> void updateEntityTables(@Nonnull Urn urn, @Nonnull Class<ASPECT> aspectClass) {
     if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
       throw new UnsupportedOperationException("Entity tables cannot be used in OLD_SCHEMA_ONLY mode, so they cannot be backfilled.");
     }
@@ -634,7 +634,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
       throw new UnsupportedOperationException("Local relationship tables cannot be used in OLD_SCHEMA_ONLY mode, so they cannot be backfilled.");
     }
-    AspectKey<URN, ASPECT> key = new AspectKey<>(aspectClass, urn, LATEST_VERSION);
+    AspectKey<ASPECT> key = new AspectKey<>(aspectClass, urn, LATEST_VERSION);
     return runInTransactionWithRetry(() -> {
           List<EbeanMetadataAspect> results = _localAccess.batchGetUnion(Collections.singletonList(key), 1, 0, false);
       if (results.size() == 0) {
@@ -652,7 +652,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * @param <ASPECT> aspect type
    * @return metadata aspect ebean model {@link EbeanMetadataAspect}
    */
-  private @Nullable <ASPECT extends RecordTemplate> EbeanMetadataAspect queryLatest(@Nonnull URN urn,
+  private @Nullable <ASPECT extends RecordTemplate> EbeanMetadataAspect queryLatest(@Nonnull Urn urn,
       @Nonnull Class<ASPECT> aspectClass) {
 
     EbeanMetadataAspect result;
@@ -682,7 +682,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   @Override
   @Nonnull
-  protected <ASPECT extends RecordTemplate> AspectEntry<ASPECT> getLatest(@Nonnull URN urn,
+  protected <ASPECT extends RecordTemplate> AspectEntry<ASPECT> getLatest(@Nonnull Urn urn,
       @Nonnull Class<ASPECT> aspectClass) {
     EbeanMetadataAspect latest = queryLatest(urn, aspectClass);
     if (latest == null) {
@@ -698,7 +698,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Nonnull
-  private <ASPECT extends RecordTemplate> EbeanMetadataAspect buildMetadataAspectBean(@Nonnull URN urn,
+  private <ASPECT extends RecordTemplate> EbeanMetadataAspect buildMetadataAspectBean(@Nonnull Urn urn,
       @Nullable RecordTemplate value, @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, long version) {
 
     final String aspectName = ModelUtils.getAspectName(aspectClass);
@@ -760,7 +760,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   @VisibleForTesting
   @Override
-  protected <ASPECT extends RecordTemplate> void updateWithOptimisticLocking(@Nonnull URN urn,
+  protected <ASPECT extends RecordTemplate> void updateWithOptimisticLocking(@Nonnull Urn urn,
       @Nullable RecordTemplate value, @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp newAuditStamp,
       long version, @Nonnull Timestamp oldTimestamp, @Nullable IngestionTrackingContext trackingContext) {
 
@@ -801,7 +801,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Override
-  protected <ASPECT extends RecordTemplate> void insert(@Nonnull URN urn, @Nullable RecordTemplate value,
+  protected <ASPECT extends RecordTemplate> void insert(@Nonnull Urn urn, @Nullable RecordTemplate value,
       @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, long version, @Nullable IngestionTrackingContext trackingContext) {
 
     final EbeanMetadataAspect aspect = buildMetadataAspectBean(urn, value, aspectClass, auditStamp, version);
@@ -823,7 +823,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Override
-  protected <ASPECT extends RecordTemplate> long getNextVersion(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass) {
+  protected <ASPECT extends RecordTemplate> long getNextVersion(@Nonnull Urn urn, @Nonnull Class<ASPECT> aspectClass) {
     if (!_changeLogEnabled) {
       throw new UnsupportedOperationException("getNextVersion shouldn't be called when changeLog is disabled");
     } else {
@@ -842,7 +842,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   @Override
   protected <ASPECT extends RecordTemplate> void applyVersionBasedRetention(@Nonnull Class<ASPECT> aspectClass,
-      @Nonnull URN urn, @Nonnull VersionBasedRetention retention, long largestVersion) {
+      @Nonnull Urn urn, @Nonnull VersionBasedRetention retention, long largestVersion) {
     if (_changeLogEnabled) {
       // only apply version based retention when changeLog is enabled
       _server.find(EbeanMetadataAspect.class)
@@ -857,7 +857,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   @Override
   protected <ASPECT extends RecordTemplate> void applyTimeBasedRetention(@Nonnull Class<ASPECT> aspectClass,
-      @Nonnull URN urn, @Nonnull TimeBasedRetention retention, long currentTime) {
+      @Nonnull Urn urn, @Nonnull TimeBasedRetention retention, long currentTime) {
     if (_changeLogEnabled) {
       // only apply time based retention when changeLog is enabled
       _server.find(EbeanMetadataAspect.class)
@@ -871,8 +871,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   @Override
   @Nonnull
-  public Map<AspectKey<URN, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> get(
-      @Nonnull Set<AspectKey<URN, ? extends RecordTemplate>> keys) {
+  public Map<AspectKey<? extends RecordTemplate>, Optional<? extends RecordTemplate>> get(
+      @Nonnull Set<AspectKey<? extends RecordTemplate>> keys) {
     if (keys.isEmpty()) {
       return Collections.emptyMap();
     }
@@ -896,8 +896,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   @Override
   @Nonnull
-  public Map<AspectKey<URN, ? extends RecordTemplate>, AspectWithExtraInfo<? extends RecordTemplate>> getWithExtraInfo(
-      @Nonnull Set<AspectKey<URN, ? extends RecordTemplate>> keys) {
+  public Map<AspectKey<? extends RecordTemplate>, AspectWithExtraInfo<? extends RecordTemplate>> getWithExtraInfo(
+      @Nonnull Set<AspectKey<? extends RecordTemplate>> keys) {
     if (keys.isEmpty()) {
       return Collections.emptyMap();
     }
@@ -907,7 +907,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     } else {
       records = batchGet(keys, _queryKeysCount);
     }
-    final Map<AspectKey<URN, ? extends RecordTemplate>, AspectWithExtraInfo<? extends RecordTemplate>> result =
+    final Map<AspectKey<? extends RecordTemplate>, AspectWithExtraInfo<? extends RecordTemplate>> result =
         new HashMap<>();
     keys.forEach(key -> records.stream()
         .filter(record -> matchKeys(key, record.getKey()))
@@ -975,7 +975,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * @param keysCount the max number of keys for each sub query
    */
   @Nonnull
-  private List<EbeanMetadataAspect> batchGet(@Nonnull Set<AspectKey<URN, ? extends RecordTemplate>> keys,
+  private List<EbeanMetadataAspect> batchGet(@Nonnull Set<AspectKey<? extends RecordTemplate>> keys,
       int keysCount) {
 
     int position = 0;
@@ -1006,7 +1006,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Nonnull
-  private List<EbeanMetadataAspect> batchGetUnion(@Nonnull List<AspectKey<URN, ? extends RecordTemplate>> keys,
+  private List<EbeanMetadataAspect> batchGetUnion(@Nonnull List<AspectKey<? extends RecordTemplate>> keys,
       int keysCount, int position) {
 
     // Build one SELECT per key and then UNION ALL the results. This can be much more performant than OR'ing the
@@ -1041,7 +1041,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   @Nonnull
   @SuppressWarnings({"checkstyle:FallThrough", "checkstyle:DefaultComesLast"})
-  List<EbeanMetadataAspect> batchGetHelper(@Nonnull List<AspectKey<URN, ? extends RecordTemplate>> keys,
+  List<EbeanMetadataAspect> batchGetHelper(@Nonnull List<AspectKey<? extends RecordTemplate>> keys,
       int keysCount, int position) {
 
     boolean nonLatestVersionFlag = keys.stream().anyMatch(key -> key.getVersion() != LATEST_VERSION);
@@ -1071,7 +1071,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    *
    * @param aspectKey Urn needs to do a ignore case match
    */
-  boolean matchKeys(@Nonnull AspectKey<URN, ? extends RecordTemplate> aspectKey, @Nonnull PrimaryKey pk) {
+  boolean matchKeys(@Nonnull AspectKey<? extends RecordTemplate> aspectKey, @Nonnull PrimaryKey pk) {
     return aspectKey.getUrn().toString().equalsIgnoreCase(pk.getUrn()) && aspectKey.getVersion() == pk.getVersion()
         && ModelUtils.getAspectName(aspectKey.getAspectClass()).equals(pk.getAspect());
   }
@@ -1135,7 +1135,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     * This method is old schema mode use only. Seek alternatives in other schemas.
    */
   @Deprecated
-  protected List<URN> listUrnsPaginatedByLastUrn(@Nullable URN lastUrn, int pageSize) {
+  protected List<Urn> listUrnsPaginatedByLastUrn(@Nullable Urn lastUrn, int pageSize) {
     if (_schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
       throw new UnsupportedOperationException("this method is only allowed in OLD_SCHEMA_ONLY mode");
     }
@@ -1145,7 +1145,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     return sqlRows.stream().map(sqlRow -> getUrn(sqlRow.getString(URN_COLUMN))).collect(Collectors.toList());
   }
 
-  private String getDistinctUrnsOfEntitySqlQuery(URN lastUrn, int pageSize) {
+  private String getDistinctUrnsOfEntitySqlQuery(Urn lastUrn, int pageSize) {
     final String entityType = ModelUtils.getEntityTypeFromUrnClass(_urnClass);
     final String entityUrnPrefix = "urn:li:" + entityType + ":%";
 
@@ -1475,8 +1475,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    */
   @Override
   @Nonnull
-  public List<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
-      @Nullable URN lastUrn, int pageSize) {
+  public List<Urn> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
+      @Nullable Urn lastUrn, int pageSize) {
     if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY && !(indexFilter == null && indexSortCriterion == null)) {
       throw new UnsupportedOperationException("listUrns with nonnull index filter is only supported in new schema.");
     }
@@ -1496,7 +1496,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    */
   @Override
   @Nonnull
-  public ListResult<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
+  public ListResult<Urn> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       int start, int pageSize) {
 
     if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {

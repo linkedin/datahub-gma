@@ -140,8 +140,8 @@ public class BaseSearchableEntityResourceTest extends BaseEngineTest {
     Urn urn1 = makeUrn(1);
     Urn urn2 = makeUrn(2);
     AspectFoo foo = new AspectFoo().setValue("foo");
-    AspectKey<Urn, AspectFoo> aspectKey1 = new AspectKey<>(AspectFoo.class, urn1, BaseLocalDAO.LATEST_VERSION);
-    AspectKey<Urn, AspectFoo> aspectKey2 = new AspectKey<>(AspectFoo.class, urn2, BaseLocalDAO.LATEST_VERSION);
+    AspectKey<AspectFoo> aspectKey1 = new AspectKey<>(AspectFoo.class, urn1, BaseLocalDAO.LATEST_VERSION);
+    AspectKey<AspectFoo> aspectKey2 = new AspectKey<>(AspectFoo.class, urn2, BaseLocalDAO.LATEST_VERSION);
     SearchResultMetadata searchResultMetadata = makeSearchResultMetadata(new AggregationMetadata().setName("agg")
         .setAggregations(new LongMap(ImmutableMap.of("bucket1", 1L, "bucket2", 2L))));
 
@@ -169,8 +169,8 @@ public class BaseSearchableEntityResourceTest extends BaseEngineTest {
     Urn urn1 = makeUrn(1);
     Urn urn2 = makeUrn(2);
     AspectFoo foo = new AspectFoo().setValue("foo");
-    AspectKey<Urn, AspectFoo> aspectKey1 = new AspectKey<>(AspectFoo.class, urn1, BaseLocalDAO.LATEST_VERSION);
-    AspectKey<Urn, AspectFoo> aspectKey2 = new AspectKey<>(AspectFoo.class, urn2, BaseLocalDAO.LATEST_VERSION);
+    AspectKey<AspectFoo> aspectKey1 = new AspectKey<>(AspectFoo.class, urn1, BaseLocalDAO.LATEST_VERSION);
+    AspectKey<AspectFoo> aspectKey2 = new AspectKey<>(AspectFoo.class, urn2, BaseLocalDAO.LATEST_VERSION);
 
     // Test with two filter criteria and validate it returns the right search result metadata
     Filter filterWithTwoCriteria = newFilter(ImmutableMap.of("removed1", "true", "removed2", "false"));
@@ -227,8 +227,8 @@ public class BaseSearchableEntityResourceTest extends BaseEngineTest {
     Urn urn1 = makeUrn(1);
     Urn urn2 = makeUrn(2);
     AspectFoo foo = new AspectFoo().setValue("foo");
-    AspectKey<Urn, AspectFoo> aspectKey1 = new AspectKey<>(AspectFoo.class, urn1, BaseLocalDAO.LATEST_VERSION);
-    AspectKey<Urn, AspectFoo> aspectKey2 = new AspectKey<>(AspectFoo.class, urn2, BaseLocalDAO.LATEST_VERSION);
+    AspectKey<AspectFoo> aspectKey1 = new AspectKey<>(AspectFoo.class, urn1, BaseLocalDAO.LATEST_VERSION);
+    AspectKey<AspectFoo> aspectKey2 = new AspectKey<>(AspectFoo.class, urn2, BaseLocalDAO.LATEST_VERSION);
 
     SortCriterion sortCriterion1 = new SortCriterion().setField("urn").setOrder(SortOrder.ASCENDING);
 
@@ -263,7 +263,7 @@ public class BaseSearchableEntityResourceTest extends BaseEngineTest {
 
     // test the case when there is more results in the search index
     Urn urn3 = makeUrn(3);
-    AspectKey<Urn, AspectFoo> aspectKey3 = new AspectKey<>(AspectFoo.class, urn3, BaseLocalDAO.LATEST_VERSION);
+    AspectKey<AspectFoo> aspectKey3 = new AspectKey<>(AspectFoo.class, urn3, BaseLocalDAO.LATEST_VERSION);
     when(_mockSearchDAO.filter(EMPTY_FILTER, sortCriterion1, 1, 3)).thenReturn(
         makeSearchResult(ImmutableList.of(makeDocument(urn1), makeDocument(urn2), makeDocument(urn3)), 3, new SearchResultMetadata()));
     when(_mockLocalDAO.get(ImmutableSet.of(aspectKey1, aspectKey2, aspectKey3))).thenReturn(

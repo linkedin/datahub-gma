@@ -154,7 +154,7 @@ public abstract class BaseAspectRoutingResource<
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
 
     return RestliUtils.toTask(() -> {
-      final Set<URN> urnSet = Arrays.stream(urns).map(this::parseUrnParam).collect(Collectors.toSet());
+      final Set<Urn> urnSet = Arrays.stream(urns).map(this::parseUrnParam).collect(Collectors.toSet());
       final Set<Class<? extends RecordTemplate>> aspectClasses = parseAspectsParam(aspectNames);
       Map<URN, Map<Class<? extends RecordTemplate>, java.util.Optional<? extends RecordTemplate>>> urnToAspect =
           new HashMap<>();
@@ -191,7 +191,7 @@ public abstract class BaseAspectRoutingResource<
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
 
     return RestliUtils.toTask(() -> {
-      final Set<URN> urnSet = Arrays.stream(urns).map(this::parseUrnParam).collect(Collectors.toSet());
+      final Set<Urn> urnSet = Arrays.stream(urns).map(this::parseUrnParam).collect(Collectors.toSet());
       final Set<Class<? extends RecordTemplate>> aspectClasses = parseAspectsParam(aspectNames);
       return RestliUtils.buildBackfillResult(getLocalDAO().backfillWithNewValue(getNonRoutingAspects(aspectClasses), urnSet));
     });
@@ -292,7 +292,7 @@ public abstract class BaseAspectRoutingResource<
       return Collections.emptyList();
     }
 
-    final Set<AspectKey<URN, ? extends RecordTemplate>> keys = aspectClasses.stream()
+    final Set<AspectKey<? extends RecordTemplate>> keys = aspectClasses.stream()
         .map(aspectClass -> new AspectKey<>(aspectClass, urn, LATEST_VERSION))
         .collect(Collectors.toSet());
 
@@ -379,7 +379,7 @@ public abstract class BaseAspectRoutingResource<
   }
 
   @Nonnull
-  private BackfillResult backfillWithDefault(@Nonnull final Set<URN> urns) {
+  private BackfillResult backfillWithDefault(@Nonnull final Set<Urn> urns) {
     try {
       List<BackfillResult> backfillResults = getAspectRoutingGmsClientManager().getRegisteredRoutingGmsClients()
           .stream()

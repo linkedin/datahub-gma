@@ -72,7 +72,7 @@ public abstract class BaseSingleAspectEntityResource<
    * @return the complete entity.
    */
   @Nonnull
-  protected abstract VALUE createEntity(@Nonnull VALUE partialEntity, @Nonnull URN urn);
+  protected abstract VALUE createEntity(@Nonnull VALUE partialEntity, @Nonnull Urn urn);
 
   /**
    * Override {@link BaseEntityResource}'s method to override the default logic of returning entity values
@@ -81,7 +81,7 @@ public abstract class BaseSingleAspectEntityResource<
    */
   @Override
   @Nonnull
-  protected Map<URN, VALUE> getInternal(@Nonnull Collection<URN> urns,
+  protected Map<Urn, VALUE> getInternal(@Nonnull Collection<Urn> urns,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses) {
     return getUrnEntityMapInternal(urns);
   }
@@ -93,24 +93,24 @@ public abstract class BaseSingleAspectEntityResource<
    */
   @Override
   @Nonnull
-  protected Map<URN, VALUE> getInternalNonEmpty(@Nonnull Collection<URN> urns,
+  protected Map<Urn, VALUE> getInternalNonEmpty(@Nonnull Collection<Urn> urns,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses) {
     return getUrnEntityMapInternal(urns);
   }
 
   @Nonnull
-  private Map<URN, VALUE> getUrnEntityMapInternal(@Nonnull Collection<URN> urns) {
-    final Set<AspectKey<URN, ? extends RecordTemplate>> aspectKeys =
+  private Map<Urn, VALUE> getUrnEntityMapInternal(@Nonnull Collection<Urn> urns) {
+    final Set<AspectKey<? extends RecordTemplate>> aspectKeys =
         urns.stream().map(urn -> new AspectKey<>(_aspectClass, urn, LATEST_VERSION)).collect(Collectors.toSet());
 
-    final Map<AspectKey<URN, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> aspectKeyOptionalAspects =
+    final Map<AspectKey<? extends RecordTemplate>, Optional<? extends RecordTemplate>> aspectKeyOptionalAspects =
         getLocalDAO().get(aspectKeys);
 
     return aspectKeyOptionalAspects.entrySet()
         .stream()
         .filter(entry -> entry.getValue().isPresent())
         .collect(Collectors.toMap(entry -> entry.getKey().getUrn(), entry -> {
-          final URN urn = entry.getKey().getUrn();
+          final Urn urn = entry.getKey().getUrn();
           @SuppressWarnings("unchecked")
           ASPECT aspect = (ASPECT) entry.getValue().get();
           return createEntity(createPartialEntityFromAspect(aspect), urn);

@@ -159,12 +159,12 @@ public abstract class BaseSearchableEntityResource<
   public CollectionResult<VALUE, SearchResultMetadata> getSearchQueryCollectionResult(@Nonnull SearchResult<DOCUMENT> searchResult,
       @Nullable String[] aspectNames) {
 
-    final List<URN> matchedUrns = searchResult.getDocumentList()
+    final List<Urn> matchedUrns = searchResult.getDocumentList()
         .stream()
         .map(d -> (URN) ModelUtils.getUrnFromDocument(d))
         .collect(Collectors.toList());
-    final Map<URN, VALUE> urnValueMap = getInternalNonEmpty(matchedUrns, parseAspectsParam(aspectNames));
-    final List<URN> existingUrns = matchedUrns.stream().filter(urn -> urnValueMap.containsKey(urn)).collect(Collectors.toList());
+    final Map<Urn, VALUE> urnValueMap = getInternalNonEmpty(matchedUrns, parseAspectsParam(aspectNames));
+    final List<Urn> existingUrns = matchedUrns.stream().filter(urn -> urnValueMap.containsKey(urn)).collect(Collectors.toList());
     return new CollectionResult<>(
         existingUrns.stream().map(urn -> urnValueMap.get(urn)).collect(Collectors.toList()),
         searchResult.getTotalCount(),

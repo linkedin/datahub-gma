@@ -1,6 +1,7 @@
 package com.linkedin.metadata.dao;
 
 import com.linkedin.common.AuditStamp;
+import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.UnionTemplate;
@@ -59,32 +60,32 @@ public class BaseLocalDAOTest {
 
   static class DummyLocalDAO<ENTITY_ASPECT_UNION extends UnionTemplate> extends BaseLocalDAO<ENTITY_ASPECT_UNION, FooUrn> {
 
-    private final BiFunction<FooUrn, Class<? extends RecordTemplate>, AspectEntry> _getLatestFunction;
+    private final BiFunction<Urn, Class<? extends RecordTemplate>, AspectEntry> _getLatestFunction;
     private final DummyTransactionRunner _transactionRunner;
 
-    public DummyLocalDAO(Class<ENTITY_ASPECT_UNION> aspectClass, BiFunction<FooUrn, Class<? extends RecordTemplate>, AspectEntry> getLatestFunction,
+    public DummyLocalDAO(Class<ENTITY_ASPECT_UNION> aspectClass, BiFunction<Urn, Class<? extends RecordTemplate>, AspectEntry> getLatestFunction,
         BaseMetadataEventProducer eventProducer, DummyTransactionRunner transactionRunner) {
-      super(aspectClass, eventProducer, FooUrn.class, new EmptyPathExtractor<>());
+      super(aspectClass, eventProducer, FooUrn.class, new EmptyPathExtractor());
       _getLatestFunction = getLatestFunction;
       _transactionRunner = transactionRunner;
     }
 
-    public DummyLocalDAO(Class<ENTITY_ASPECT_UNION> aspectClass, BiFunction<FooUrn, Class<? extends RecordTemplate>, AspectEntry> getLatestFunction,
+    public DummyLocalDAO(Class<ENTITY_ASPECT_UNION> aspectClass, BiFunction<Urn, Class<? extends RecordTemplate>, AspectEntry> getLatestFunction,
         BaseTrackingMetadataEventProducer eventProducer, BaseTrackingManager trackingManager, DummyTransactionRunner transactionRunner) {
-      super(aspectClass, eventProducer, trackingManager, FooUrn.class, new EmptyPathExtractor<>());
+      super(aspectClass, eventProducer, trackingManager, FooUrn.class, new EmptyPathExtractor());
       _getLatestFunction = getLatestFunction;
       _transactionRunner = transactionRunner;
     }
 
     @Override
-    protected <ASPECT extends RecordTemplate> long saveLatest(FooUrn urn, Class<ASPECT> aspectClass, ASPECT oldEntry,
+    protected <ASPECT extends RecordTemplate> long saveLatest(Urn urn, Class<ASPECT> aspectClass, ASPECT oldEntry,
         AuditStamp oldAuditStamp, ASPECT newEntry, AuditStamp newAuditStamp, boolean isSoftDeleted,
         @Nullable IngestionTrackingContext trackingContext) {
       return 0;
     }
 
     @Override
-    public <ASPECT extends RecordTemplate> void updateEntityTables(@Nonnull FooUrn urn, @Nonnull Class<ASPECT> aspectClass) {
+    public <ASPECT extends RecordTemplate> void updateEntityTables(@Nonnull Urn urn, @Nonnull Class<ASPECT> aspectClass) {
 
     }
 
@@ -101,23 +102,23 @@ public class BaseLocalDAOTest {
     }
 
     @Override
-    protected <ASPECT extends RecordTemplate> AspectEntry<ASPECT> getLatest(FooUrn urn, Class<ASPECT> aspectClass) {
+    protected <ASPECT extends RecordTemplate> AspectEntry<ASPECT> getLatest(Urn urn, Class<ASPECT> aspectClass) {
       return _getLatestFunction.apply(urn, aspectClass);
     }
 
     @Override
-    protected <ASPECT extends RecordTemplate> long getNextVersion(FooUrn urn, Class<ASPECT> aspectClass) {
+    protected <ASPECT extends RecordTemplate> long getNextVersion(Urn urn, Class<ASPECT> aspectClass) {
       return 0;
     }
 
     @Override
-    protected <ASPECT extends RecordTemplate> void insert(FooUrn urn, RecordTemplate value, Class<ASPECT> aspectClass,
+    protected <ASPECT extends RecordTemplate> void insert(Urn urn, RecordTemplate value, Class<ASPECT> aspectClass,
         AuditStamp auditStamp, long version, @Nullable IngestionTrackingContext trackingContext) {
 
     }
 
     @Override
-    protected <ASPECT extends RecordTemplate> void updateWithOptimisticLocking(@Nonnull FooUrn urn,
+    protected <ASPECT extends RecordTemplate> void updateWithOptimisticLocking(@Nonnull Urn urn,
         @Nullable RecordTemplate value, @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp newAuditStamp,
         long version, @Nonnull Timestamp oldTimestamp, @Nullable IngestionTrackingContext trackingContext) {
 
@@ -129,13 +130,13 @@ public class BaseLocalDAOTest {
     }
 
     @Override
-    protected <ASPECT extends RecordTemplate> void applyVersionBasedRetention(Class<ASPECT> aspectClass, FooUrn urn,
+    protected <ASPECT extends RecordTemplate> void applyVersionBasedRetention(Class<ASPECT> aspectClass, Urn urn,
         VersionBasedRetention retention, long largestVersion) {
 
     }
 
     @Override
-    protected <ASPECT extends RecordTemplate> void applyTimeBasedRetention(Class<ASPECT> aspectClass, FooUrn urn,
+    protected <ASPECT extends RecordTemplate> void applyTimeBasedRetention(Class<ASPECT> aspectClass, Urn urn,
         TimeBasedRetention retention, long currentTime) {
 
     }
@@ -153,8 +154,8 @@ public class BaseLocalDAOTest {
     }
 
     @Override
-    public List<FooUrn> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
-        @Nullable FooUrn lastUrn, int pageSize) {
+    public List<Urn> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
+        @Nullable Urn lastUrn, int pageSize) {
       return null;
     }
 
@@ -193,15 +194,15 @@ public class BaseLocalDAOTest {
 
     @Override
     @Nonnull
-    public Map<AspectKey<FooUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> get(
-        Set<AspectKey<FooUrn, ? extends RecordTemplate>> aspectKeys) {
+    public Map<AspectKey<? extends RecordTemplate>, Optional<? extends RecordTemplate>> get(
+        Set<AspectKey<? extends RecordTemplate>> aspectKeys) {
       return Collections.emptyMap();
     }
 
     @Override
     @Nonnull
-    public Map<AspectKey<FooUrn, ? extends RecordTemplate>, AspectWithExtraInfo<? extends RecordTemplate>> getWithExtraInfo(
-        @Nonnull Set<AspectKey<FooUrn, ? extends RecordTemplate>> keys) {
+    public Map<AspectKey<? extends RecordTemplate>, AspectWithExtraInfo<? extends RecordTemplate>> getWithExtraInfo(
+        @Nonnull Set<AspectKey<? extends RecordTemplate>> keys) {
       return Collections.emptyMap();
     }
   }
@@ -211,7 +212,7 @@ public class BaseLocalDAOTest {
   private BaseMetadataEventProducer _mockEventProducer;
   private BaseTrackingMetadataEventProducer _mockTrackingEventProducer;
   private BaseTrackingManager _mockTrackingManager;
-  private BiFunction<FooUrn, Class<? extends RecordTemplate>, BaseLocalDAO.AspectEntry> _mockGetLatestFunction;
+  private BiFunction<Urn, Class<? extends RecordTemplate>, BaseLocalDAO.AspectEntry> _mockGetLatestFunction;
   private DummyTransactionRunner _mockTransactionRunner;
 
   @BeforeMethod

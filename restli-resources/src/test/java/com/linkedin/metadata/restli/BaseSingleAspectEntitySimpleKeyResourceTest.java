@@ -60,7 +60,7 @@ public class BaseSingleAspectEntitySimpleKeyResourceTest extends BaseEngineTest 
 
     SingleAspectEntityUrn urn = new SingleAspectEntityUrn(id1);
     AspectBar aspect = new AspectBar().setValue(field1);
-    AspectKey<SingleAspectEntityUrn, AspectBar> aspectKey = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
+    AspectKey<AspectBar> aspectKey = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
     when(_mockLocalDao.exists(urn)).thenReturn(true);
     when(_mockLocalDao.get(Collections.singleton(aspectKey))).thenReturn(
         Collections.singletonMap(aspectKey, Optional.of(aspect)));
@@ -82,15 +82,15 @@ public class BaseSingleAspectEntitySimpleKeyResourceTest extends BaseEngineTest 
 
     SingleAspectEntityUrn urn1 = new SingleAspectEntityUrn(id1);
     AspectBar aspect1 = new AspectBar().setValue(field1);
-    AspectKey<SingleAspectEntityUrn, AspectBar> aspectKey1 = new AspectKey<>(AspectBar.class, urn1, LATEST_VERSION);
+    AspectKey<AspectBar> aspectKey1 = new AspectKey<>(AspectBar.class, urn1, LATEST_VERSION);
 
     SingleAspectEntityUrn urn2 = new SingleAspectEntityUrn(id2);
     AspectBar aspect2 = new AspectBar().setValue(field11);
-    AspectKey<SingleAspectEntityUrn, AspectBar> aspectKey2 = new AspectKey<>(AspectBar.class, urn2, LATEST_VERSION);
+    AspectKey<AspectBar> aspectKey2 = new AspectKey<>(AspectBar.class, urn2, LATEST_VERSION);
 
-    Set<AspectKey<SingleAspectEntityUrn, ? extends RecordTemplate>> keys =
+    Set<AspectKey<? extends RecordTemplate>> keys =
         new HashSet<>(Arrays.asList(aspectKey1, aspectKey2));
-    Map<AspectKey<SingleAspectEntityUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> keyAspectMap =
+    Map<AspectKey<? extends RecordTemplate>, Optional<? extends RecordTemplate>> keyAspectMap =
         new HashMap<>();
     keyAspectMap.put(aspectKey1, Optional.of(aspect1));
     keyAspectMap.put(aspectKey2, Optional.of(aspect2));
@@ -111,7 +111,7 @@ public class BaseSingleAspectEntitySimpleKeyResourceTest extends BaseEngineTest 
     long id1 = 100L;
 
     SingleAspectEntityUrn urn = new SingleAspectEntityUrn(id1);
-    AspectKey<SingleAspectEntityUrn, AspectBar> aspectKey = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
+    AspectKey<AspectBar> aspectKey = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
     when(_mockLocalDao.get(Collections.singleton(aspectKey))).thenReturn(Collections.emptyMap());
 
     try {
@@ -149,7 +149,7 @@ public class BaseSingleAspectEntitySimpleKeyResourceTest extends BaseEngineTest 
     AspectBar aspect = new AspectBar().setValue(field1);
     List<EntityAspectUnion> aspectUnions =
         Collections.singletonList(ModelUtils.newAspectUnion(EntityAspectUnion.class, aspect));
-    AspectKey<SingleAspectEntityUrn, AspectBar> aspectKey = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
+    AspectKey<AspectBar> aspectKey = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
 
     when(_mockLocalDao.get(Collections.singleton(aspectKey))).thenReturn(
         Collections.singletonMap(aspectKey, Optional.of(aspect)));
@@ -162,7 +162,7 @@ public class BaseSingleAspectEntitySimpleKeyResourceTest extends BaseEngineTest 
   public void testGetSnapshotWithInvalidUrn() throws URISyntaxException {
     long id1 = 100L;
     SingleAspectEntityUrn urn = new SingleAspectEntityUrn(id1);
-    AspectKey<SingleAspectEntityUrn, AspectBar> aspectKey = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
+    AspectKey<AspectBar> aspectKey = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
 
     when(_mockLocalDao.get(aspectKey)).thenReturn(Optional.empty());
     try {
@@ -254,7 +254,7 @@ public class BaseSingleAspectEntitySimpleKeyResourceTest extends BaseEngineTest 
 
     @Override
     @Nonnull
-    protected EntityValue createEntity(@Nonnull EntityValue partialEntity, @Nonnull SingleAspectEntityUrn urn) {
+    protected EntityValue createEntity(@Nonnull EntityValue partialEntity, @Nonnull Urn urn) {
       return partialEntity.setId(urn.getIdAsLong());
     }
 

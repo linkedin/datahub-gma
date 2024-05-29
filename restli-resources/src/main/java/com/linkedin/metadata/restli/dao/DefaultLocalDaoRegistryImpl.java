@@ -5,8 +5,8 @@ import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.BaseLocalDAO;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import java.util.Map;
+import java.util.Optional;
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 
 /**
@@ -57,13 +57,10 @@ public class DefaultLocalDaoRegistryImpl implements LocalDaoRegistry {
   }
 
   /**
-   * Returns the {@link BaseLocalDAO} registered on the given entity type.
-   *
-   * @param entityType the entity type string
-   * @return the {@link BaseLocalDAO} registered on the given entity type, or null if no such registration.
+   * Helper method to get the {@link BaseLocalDAO} from class {@link LocalDaoRegistry} for the given entity type.
    */
-  @Nullable
-  public BaseLocalDAO<? extends UnionTemplate, ? extends Urn> getLocalDaoByEntityType(@Nonnull String entityType) {
-    return entityTypeToLocalDaoMap.get(entityType);
+  @Override
+  public Optional<BaseLocalDAO<? extends UnionTemplate, ? extends Urn>> getLocalDaoByEntityType(@Nonnull String entityType) {
+    return Optional.ofNullable(entityTypeToLocalDaoMap.get(entityType));
   }
 }

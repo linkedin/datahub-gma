@@ -3,6 +3,7 @@ package com.linkedin.metadata.restli;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.StringArray;
 import com.linkedin.metadata.dao.AspectKey;
 import com.linkedin.metadata.dao.BaseLocalDAO;
@@ -55,7 +56,7 @@ public class BaseSingleAspectSearchableEntitySimpleKeyResourceTest extends BaseE
     SingleAspectEntityUrn urn1 = new SingleAspectEntityUrn(id1);
     AspectBar aspect1 = new AspectBar().setValue(field1);
     EntityValue value1 = new EntityValue().setValue(field1).setId(id1);
-    AspectKey<SingleAspectEntityUrn, AspectBar> key1 = new AspectKey<>(AspectBar.class, urn1, LATEST_VERSION);
+    AspectKey<AspectBar> key1 = new AspectKey<>(AspectBar.class, urn1, LATEST_VERSION);
 
     String searchInput = "foo";
 
@@ -113,7 +114,7 @@ public class BaseSingleAspectSearchableEntitySimpleKeyResourceTest extends BaseE
     AspectBar aspect1 = new AspectBar().setValue(field1);
     EntityValue value1 = new EntityValue().setValue(field1).setId(id1);
     EntityDocument document1 = new EntityDocument().setF1(field1).setUrn(urn1);
-    AspectKey<SingleAspectEntityUrn, AspectBar> key1 = new AspectKey<>(AspectBar.class, urn1, LATEST_VERSION);
+    AspectKey<AspectBar> key1 = new AspectKey<>(AspectBar.class, urn1, LATEST_VERSION);
 
     long id11 = 200L;
     SingleAspectEntityUrn urn11 = new SingleAspectEntityUrn(id11);
@@ -121,7 +122,7 @@ public class BaseSingleAspectSearchableEntitySimpleKeyResourceTest extends BaseE
     AspectBar aspect11 = new AspectBar().setValue(field11);
     EntityValue value11 = new EntityValue().setValue(field11).setId(id11);
     EntityDocument document11 = new EntityDocument().setF1(field11).setUrn(urn11);
-    AspectKey<SingleAspectEntityUrn, AspectBar> key11 = new AspectKey<>(AspectBar.class, urn11, LATEST_VERSION);
+    AspectKey<AspectBar> key11 = new AspectKey<>(AspectBar.class, urn11, LATEST_VERSION);
 
     PagingContext pagingContext1 = new PagingContext(0, 2);
 
@@ -186,7 +187,7 @@ public class BaseSingleAspectSearchableEntitySimpleKeyResourceTest extends BaseE
 
     @Override
     @Nonnull
-    protected EntityValue createEntity(@Nonnull EntityValue partialEntity, @Nonnull SingleAspectEntityUrn urn) {
+    protected EntityValue createEntity(@Nonnull EntityValue partialEntity, @Nonnull Urn urn) {
       return partialEntity.setId(urn.getIdAsLong());
     }
   }

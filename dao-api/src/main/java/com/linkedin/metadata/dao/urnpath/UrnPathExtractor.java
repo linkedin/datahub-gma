@@ -21,9 +21,8 @@ import javax.annotation.Nonnull;
  *   /origin -&gt; %ORIGIN%
  * </pre>
  *
- * @param <URN> the concrete URN type this can extract paths from
  */
-public interface UrnPathExtractor<URN extends Urn> {
+public interface UrnPathExtractor {
   @Nonnull
-  Map<String, Object> extractPaths(@Nonnull URN urn);
+  Map<String, Object> extractPaths(@Nonnull Urn urn);
 }

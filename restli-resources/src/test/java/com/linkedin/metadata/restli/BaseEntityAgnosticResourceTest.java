@@ -3,6 +3,7 @@ package com.linkedin.metadata.restli;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.StringArray;
 import com.linkedin.metadata.backfill.BackfillItem;
 import com.linkedin.metadata.backfill.BackfillMode;
@@ -212,7 +213,7 @@ public class BaseEntityAgnosticResourceTest extends BaseEngineTest {
   @Test
   public void testListUrns() {
     TestResource testResource = new TestResource();
-    List<FooUrn> urns = ImmutableList.of(makeFooUrn(2), makeFooUrn(3));
+    List<Urn> urns = ImmutableList.of(makeFooUrn(2), makeFooUrn(3));
 
     when(_fooLocalDAO.listUrns("urn:li:foo:1", 2, null, null))
         .thenReturn(urns);

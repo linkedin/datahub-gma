@@ -217,10 +217,10 @@ public class EbeanLocalDAOTest {
     // Since we added a_urn columns to both metadata_entity_foo and metadata_entity_bar tables in the SQL initialization scripts,
     // it is required that we set non-default UrnPathExtractors for the corresponding DAOs when initialized.
     if (urnClass == FooUrn.class) {
-      dao.setUrnPathExtractor((UrnPathExtractor<URN>) new FooUrnPathExtractor());
+      dao.setUrnPathExtractor((UrnPathExtractor) new FooUrnPathExtractor());
     }
     if (urnClass == BarUrn.class) {
-      dao.setUrnPathExtractor((UrnPathExtractor<URN>) new BarUrnPathExtractor());
+      dao.setUrnPathExtractor((UrnPathExtractor) new BarUrnPathExtractor());
     }
     dao.setEmitAuditEvent(true);
     dao.setChangeLogEnabled(_enableChangeLog);
@@ -372,7 +372,7 @@ public class EbeanLocalDAOTest {
 
     // make sure that the update still went through by checking the aspect's lastmodifiedon
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
-      AspectKey<FooUrn, AspectFoo> aspectKey = new AspectKey<>(AspectFoo.class, urn, 0L);
+      AspectKey<AspectFoo> aspectKey = new AspectKey<>(AspectFoo.class, urn, 0L);
       long aspectFooLastModifiedOn = dao.getWithExtraInfo(aspectKey).get().getExtraInfo().getAudit().getTime();
       assertEquals(aspectFooLastModifiedOn, t2);
     } else {
@@ -398,7 +398,7 @@ public class EbeanLocalDAOTest {
 
     // Even though the aspect is annotated with FORCE_UPDATE annotation, the filter does not match so the update is not persisted.
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
-      AspectKey<FooUrn, AspectFoo> aspectKey = new AspectKey<>(AspectFoo.class, urn, 0L);
+      AspectKey<AspectFoo> aspectKey = new AspectKey<>(AspectFoo.class, urn, 0L);
       long aspectFooLastModifiedOn = dao.getWithExtraInfo(aspectKey).get().getExtraInfo().getAudit().getTime();
       assertEquals(aspectFooLastModifiedOn, t1);
     } else {
@@ -425,7 +425,7 @@ public class EbeanLocalDAOTest {
 
     // One filter (two filters in total) matched, we should persist into db.
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
-      AspectKey<FooUrn, AspectBar> aspectKey = new AspectKey<>(AspectBar.class, urn, 0L);
+      AspectKey<AspectBar> aspectKey = new AspectKey<>(AspectBar.class, urn, 0L);
       long aspectFooLastModifiedOn = dao.getWithExtraInfo(aspectKey).get().getExtraInfo().getAudit().getTime();
       assertEquals(aspectFooLastModifiedOn, t2);
     } else {
@@ -454,7 +454,7 @@ public class EbeanLocalDAOTest {
 
     // No filter, we should not persist into db.
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
-      AspectKey<FooUrn, AspectBar> aspectKey = new AspectKey<>(AspectBar.class, urn, 0L);
+      AspectKey<AspectBar> aspectKey = new AspectKey<>(AspectBar.class, urn, 0L);
       long aspectFooLastModifiedOn = dao.getWithExtraInfo(aspectKey).get().getExtraInfo().getAudit().getTime();
       assertEquals(aspectFooLastModifiedOn, t1);
     } else {
@@ -489,7 +489,7 @@ public class EbeanLocalDAOTest {
 
     // however, make sure that the update still went through by checking the aspect's lastmodifiedon
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
-      AspectKey<FooUrn, AspectFoo> aspectKey = new AspectKey<>(AspectFoo.class, urn, 0L);
+      AspectKey<AspectFoo> aspectKey = new AspectKey<>(AspectFoo.class, urn, 0L);
       long aspectFooLastModifiedOn = dao.getWithExtraInfo(aspectKey).get().getExtraInfo().getAudit().getTime();
       assertEquals(aspectFooLastModifiedOn, t2);
     } else {
@@ -827,7 +827,7 @@ public class EbeanLocalDAOTest {
     // urn3 has nothing
     FooUrn urn3 = makeFooUrn(3);
 
-    Map<FooUrn, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> result =
+    Map<Urn, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> result =
         dao.get(ImmutableSet.of(AspectFoo.class, AspectBar.class), ImmutableSet.of(urn1, urn2, urn3));
 
     assertEquals(result.size(), 3);
@@ -898,7 +898,7 @@ public class EbeanLocalDAOTest {
     });
 
     // when
-    Map<FooUrn, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfilledAspects =
+    Map<Urn, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfilledAspects =
         dao.backfill(Collections.singleton(AspectFoo.class), new HashSet<>(urns));
 
     // then
@@ -925,7 +925,7 @@ public class EbeanLocalDAOTest {
     });
 
     // when
-    Map<FooUrn, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfilledAspects =
+    Map<Urn, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfilledAspects =
         dao.backfill(ImmutableSet.of(AspectFoo.class, AspectBar.class), Collections.singleton(urns.get(0)));
 
     // then
@@ -955,7 +955,7 @@ public class EbeanLocalDAOTest {
     });
 
     // when
-    Map<FooUrn, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfilledAspects =
+    Map<Urn, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfilledAspects =
         dao.backfill(ImmutableSet.of(AspectFoo.class, AspectBar.class), new HashSet<>(urns));
 
     // then
@@ -1230,40 +1230,40 @@ public class EbeanLocalDAOTest {
     // 1. with two filter conditions
     IndexCriterionArray indexCriterionArray1 = new IndexCriterionArray(Arrays.asList(criterion1, criterion2));
     final IndexFilter indexFilter1 = new IndexFilter().setCriteria(indexCriterionArray1);
-    List<FooUrn> urns1 = dao.listUrns(indexFilter1, null, 3);
+    List<Urn> urns1 = dao.listUrns(indexFilter1, null, 3);
 
     assertEquals(urns1, Arrays.asList(urn1, urn2, urn3));
 
     // 2. with two filter conditions, check if LIMIT is working as desired i.e. totalCount is more than the page size
-    List<FooUrn> urns2 = dao.listUrns(indexFilter1, null, 2);
+    List<Urn> urns2 = dao.listUrns(indexFilter1, null, 2);
     assertEquals(urns2, Arrays.asList(urn1, urn2));
 
     // 3. with six filter conditions covering all different data types that value can take
     IndexCriterionArray indexCriterionArray3 =
         new IndexCriterionArray(Arrays.asList(criterion1, criterion2, criterion3, criterion4, criterion5, criterion6));
     final IndexFilter indexFilter3 = new IndexFilter().setCriteria(indexCriterionArray3);
-    List<FooUrn> urns3 = dao.listUrns(indexFilter3, urn1, 5);
+    List<Urn> urns3 = dao.listUrns(indexFilter3, urn1, 5);
     assertEquals(urns3, Collections.singletonList(urn3));
 
     // 4. GREATER_THAN criterion
     IndexCriterionArray indexCriterionArray4 = new IndexCriterionArray(
         Arrays.asList(criterion1, criterion2, criterion3, criterion4, criterion5, criterion6, criterion7));
     final IndexFilter indexFilter4 = new IndexFilter().setCriteria(indexCriterionArray4);
-    List<FooUrn> urns4 = dao.listUrns(indexFilter4, null, 5);
+    List<Urn> urns4 = dao.listUrns(indexFilter4, null, 5);
     assertEquals(urns4, Arrays.asList(urn1, urn3));
 
     // 5. GREATER_THAN_EQUAL_TO criterion
     IndexCriterionArray indexCriterionArray5 = new IndexCriterionArray(
         Arrays.asList(criterion1, criterion2, criterion3, criterion4, criterion5, criterion6, criterion7, criterion8));
     final IndexFilter indexFilter5 = new IndexFilter().setCriteria(indexCriterionArray5);
-    List<FooUrn> urns5 = dao.listUrns(indexFilter5, null, 10);
+    List<Urn> urns5 = dao.listUrns(indexFilter5, null, 10);
     assertEquals(urns5, Arrays.asList(urn1, urn3));
 
     // 6. LESS_THAN criterion
     IndexCriterionArray indexCriterionArray6 = new IndexCriterionArray(
         Arrays.asList(criterion1, criterion3, criterion4, criterion5, criterion6, criterion7, criterion8, criterion9));
     final IndexFilter indexFilter6 = new IndexFilter().setCriteria(indexCriterionArray6);
-    List<FooUrn> urns6 = dao.listUrns(indexFilter6, urn1, 8);
+    List<Urn> urns6 = dao.listUrns(indexFilter6, urn1, 8);
     assertEquals(urns6, Collections.singletonList(urn3));
 
     // 7. LESS_THAN_EQUAL_TO
@@ -1271,7 +1271,7 @@ public class EbeanLocalDAOTest {
         Arrays.asList(criterion1, criterion3, criterion4, criterion5, criterion6, criterion7, criterion8, criterion9,
             criterion10));
     final IndexFilter indexFilter7 = new IndexFilter().setCriteria(indexCriterionArray7);
-    List<FooUrn> urns7 = dao.listUrns(indexFilter7, null, 4);
+    List<Urn> urns7 = dao.listUrns(indexFilter7, null, 4);
     assertEquals(urns7, Collections.emptyList());
   }
 
@@ -1300,7 +1300,7 @@ public class EbeanLocalDAOTest {
 
     IndexCriterionArray indexCriterionArray1 = new IndexCriterionArray(Collections.singletonList(criterion1));
     final IndexFilter indexFilter1 = new IndexFilter().setCriteria(indexCriterionArray1);
-    List<FooUrn> urns1 = dao.listUrns(indexFilter1, null, 5);
+    List<Urn> urns1 = dao.listUrns(indexFilter1, null, 5);
     assertEquals(urns1, Arrays.asList(urn1, urn2));
 
     // full string
@@ -1311,7 +1311,7 @@ public class EbeanLocalDAOTest {
 
     IndexCriterionArray indexCriterionArray2 = new IndexCriterionArray(Collections.singletonList(criterion2));
     final IndexFilter indexFilter2 = new IndexFilter().setCriteria(indexCriterionArray2);
-    List<FooUrn> urns2 = dao.listUrns(indexFilter2, null, 5);
+    List<Urn> urns2 = dao.listUrns(indexFilter2, null, 5);
     assertEquals(urns2, Collections.singletonList(urn1));
   }
 
@@ -1419,21 +1419,21 @@ public class EbeanLocalDAOTest {
     IndexCriterionArray indexCriterionArray1 = new IndexCriterionArray(Collections.singletonList(criterion1));
     final IndexFilter indexFilter1 = new IndexFilter().setCriteria(indexCriterionArray1);
 
-    List<FooUrn> urns1 = dao.listUrns(indexFilter1, null, null, 5);
+    List<Urn> urns1 = dao.listUrns(indexFilter1, null, null, 5);
     assertEquals(urns1, Arrays.asList(urn1, urn2, urn3));
 
     // filter and sort on same aspect and path
     IndexSortCriterion indexSortCriterion1 =
         new IndexSortCriterion().setAspect(aspect1).setPath("/value").setOrder(SortOrder.DESCENDING);
 
-    List<FooUrn> urns2 = dao.listUrns(indexFilter1, indexSortCriterion1, null, 5);
+    List<Urn> urns2 = dao.listUrns(indexFilter1, indexSortCriterion1, null, 5);
     assertEquals(urns2, Arrays.asList(urn2, urn1, urn3));
 
     // filter and sort on different aspect and path
     IndexSortCriterion indexSortCriterion2 =
         new IndexSortCriterion().setAspect(aspect2).setPath("/stringField").setOrder(SortOrder.ASCENDING);
 
-    List<FooUrn> urns3 = dao.listUrns(indexFilter1, indexSortCriterion2, null, 5);
+    List<Urn> urns3 = dao.listUrns(indexFilter1, indexSortCriterion2, null, 5);
     assertEquals(urns3, Arrays.asList(urn3, urn1, urn2));
 
     // sorting on long column
@@ -1449,14 +1449,14 @@ public class EbeanLocalDAOTest {
     IndexSortCriterion indexSortCriterion3 =
         new IndexSortCriterion().setAspect(aspect2).setPath("/longField").setOrder(SortOrder.DESCENDING);
 
-    List<FooUrn> urns4 = dao.listUrns(indexFilter2, indexSortCriterion3, null, 5);
+    List<Urn> urns4 = dao.listUrns(indexFilter2, indexSortCriterion3, null, 5);
     assertEquals(urns4, Arrays.asList(urn3, urn1));
 
     // sorting on nested field
     IndexSortCriterion indexSortCriterion4 =
         new IndexSortCriterion().setAspect(aspect2).setPath("/recordField/value").setOrder(SortOrder.ASCENDING);
 
-    List<FooUrn> urns5 = dao.listUrns(indexFilter1, indexSortCriterion4, null, 5);
+    List<Urn> urns5 = dao.listUrns(indexFilter1, indexSortCriterion4, null, 5);
     assertEquals(urns5, Arrays.asList(urn3, urn2, urn1));
   }
 
@@ -1488,7 +1488,7 @@ public class EbeanLocalDAOTest {
 
     IndexCriterionArray indexCriterionArray1 = new IndexCriterionArray(Collections.singletonList(criterion1));
     final IndexFilter indexFilter1 = new IndexFilter().setCriteria(indexCriterionArray1);
-    List<FooUrn> urns1 = dao.listUrns(indexFilter1, null, 5);
+    List<Urn> urns1 = dao.listUrns(indexFilter1, null, 5);
     assertEquals(urns1, Arrays.asList(urn1, urn2));
 
     IndexValue indexValue2 = new IndexValue();
@@ -1498,7 +1498,7 @@ public class EbeanLocalDAOTest {
 
     IndexCriterionArray indexCriterionArray2 = new IndexCriterionArray(Collections.singletonList(criterion2));
     final IndexFilter indexFilter2 = new IndexFilter().setCriteria(indexCriterionArray2);
-    List<FooUrn> urns2 = dao.listUrns(indexFilter2, null, 5);
+    List<Urn> urns2 = dao.listUrns(indexFilter2, null, 5);
     assertEquals(urns2, Arrays.asList());
 
     IndexValue indexValue3 = new IndexValue();
@@ -1557,7 +1557,7 @@ public class EbeanLocalDAOTest {
         new IndexSortCriterion().setAspect(aspect1).setPath("/value").setOrder(SortOrder.DESCENDING);
 
     // first page
-    ListResult<FooUrn> results1 = dao.listUrns(indexFilter, indexSortCriterion, 0, 2);
+    ListResult<Urn> results1 = dao.listUrns(indexFilter, indexSortCriterion, 0, 2);
     assertEquals(results1.getValues(), Arrays.asList(urn2, urn1));
     assertTrue(results1.isHavingMore());
     assertEquals(results1.getNextStart(), 2);
@@ -1566,7 +1566,7 @@ public class EbeanLocalDAOTest {
     assertEquals(results1.getTotalPageCount(), 2);
 
     // last page
-    ListResult<FooUrn> results2 = dao.listUrns(indexFilter, indexSortCriterion, 2, 2);
+    ListResult<Urn> results2 = dao.listUrns(indexFilter, indexSortCriterion, 2, 2);
     assertEquals(results2.getValues(), Arrays.asList(urn3));
     assertFalse(results2.isHavingMore());
     assertEquals(results2.getNextStart(), ListResult.INVALID_NEXT_START);
@@ -1575,7 +1575,7 @@ public class EbeanLocalDAOTest {
     assertEquals(results2.getTotalPageCount(), 2);
 
     // beyond last page
-    ListResult<FooUrn> results3 = dao.listUrns(indexFilter, indexSortCriterion, 4, 2);
+    ListResult<Urn> results3 = dao.listUrns(indexFilter, indexSortCriterion, 4, 2);
     assertEquals(results3.getValues(), new ArrayList<>());
     assertFalse(results3.isHavingMore());
     assertEquals(results3.getNextStart(), ListResult.INVALID_NEXT_START);
@@ -1644,7 +1644,7 @@ public class EbeanLocalDAOTest {
     }
 
     // initial pagination
-    List<FooUrn> results = dao.listUrnsPaginatedByLastUrn(null, 1);
+    List<Urn> results = dao.listUrnsPaginatedByLastUrn(null, 1);
     assertEquals(results, urns.subList(0, 1));
 
     // next pagination
@@ -1965,7 +1965,7 @@ public class EbeanLocalDAOTest {
     // 1. only aspect and not path or value is provided in Index Filter
     indexCriterion = new IndexCriterion().setAspect(aspect);
     final IndexFilter indexFilter4 = new IndexFilter().setCriteria(new IndexCriterionArray(indexCriterion));
-    List<FooUrn> urns = dao.listUrns(indexFilter4, null, 2);
+    List<Urn> urns = dao.listUrns(indexFilter4, null, 2);
     assertEquals(urns, Arrays.asList(urn1, urn2));
 
     // 2. aspect with path and value is provided in index filter
@@ -2006,7 +2006,7 @@ public class EbeanLocalDAOTest {
     IndexCriterion indexCriterion = new IndexCriterion().setAspect(aspect);
     final IndexFilter indexFilter = new IndexFilter().setCriteria(new IndexCriterionArray(indexCriterion));
 
-    List<FooUrn> urns = dao.listUrns(indexFilter, null, 0);
+    List<Urn> urns = dao.listUrns(indexFilter, null, 0);
 
     assertEquals(urns, Collections.emptyList());
   }
@@ -2034,11 +2034,11 @@ public class EbeanLocalDAOTest {
     addIndex(urn4, BarUrn.class.getCanonicalName(), "/path4", "0");
 
     // List foo urns
-    List<FooUrn> urns1 = dao1.listUrns(FooUrn.class, null, 2);
+    List<Urn> urns1 = dao1.listUrns(FooUrn.class, null, 2);
     assertEquals(urns1, Arrays.asList(urn1, urn2));
 
     // List bar urns
-    List<BarUrn> urns2 = dao2.listUrns(BarUrn.class, null, 1);
+    List<Urn> urns2 = dao2.listUrns(BarUrn.class, null, 1);
     assertEquals(urns2, Collections.singletonList(urn4));
   }
 
@@ -2417,8 +2417,8 @@ public class EbeanLocalDAOTest {
     FooUrn fooUrn = makeFooUrn(1);
 
     // both aspect keys exist
-    AspectKey<FooUrn, AspectFoo> aspectKey1 = new AspectKey<>(AspectFoo.class, fooUrn, 1L);
-    AspectKey<FooUrn, AspectBar> aspectKey2 = new AspectKey<>(AspectBar.class, fooUrn, 0L);
+    AspectKey<AspectFoo> aspectKey1 = new AspectKey<>(AspectFoo.class, fooUrn, 1L);
+    AspectKey<AspectBar> aspectKey2 = new AspectKey<>(AspectBar.class, fooUrn, 0L);
 
     // add metadata
     addMetadata(fooUrn, AspectFoo.class, 1, null);
@@ -2426,7 +2426,7 @@ public class EbeanLocalDAOTest {
     addMetadata(fooUrn, AspectBar.class, 0, barV0);
 
     // when
-    Map<AspectKey<FooUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> records =
+    Map<AspectKey<? extends RecordTemplate>, Optional<? extends RecordTemplate>> records =
         dao.get(new HashSet<>(Arrays.asList(aspectKey1, aspectKey2)));
 
     // then
@@ -2508,10 +2508,10 @@ public class EbeanLocalDAOTest {
         impersonator3.toString());
 
     // both aspect keys exist
-    AspectKey<FooUrn, AspectFoo> aspectKey1 = new AspectKey<>(AspectFoo.class, urn, 1L);
-    AspectKey<FooUrn, AspectBar> aspectKey2 = new AspectKey<>(AspectBar.class, urn, 0L);
+    AspectKey<AspectFoo> aspectKey1 = new AspectKey<>(AspectFoo.class, urn, 1L);
+    AspectKey<AspectBar> aspectKey2 = new AspectKey<>(AspectBar.class, urn, 0L);
 
-    Map<AspectKey<FooUrn, ? extends RecordTemplate>, AspectWithExtraInfo<? extends RecordTemplate>> result =
+    Map<AspectKey<? extends RecordTemplate>, AspectWithExtraInfo<? extends RecordTemplate>> result =
         dao.getWithExtraInfo(new HashSet<>(Arrays.asList(aspectKey1, aspectKey2)));
 
     assertEquals(result.keySet().size(), 2);
@@ -2521,7 +2521,7 @@ public class EbeanLocalDAOTest {
         new ExtraInfo().setAudit(makeAuditStamp(creator3, impersonator3, _now)).setVersion(0).setUrn(urn)));
 
     // one of the aspect keys does not exist
-    AspectKey<FooUrn, AspectBar> aspectKey3 = new AspectKey<>(AspectBar.class, urn, 1L);
+    AspectKey<AspectBar> aspectKey3 = new AspectKey<>(AspectBar.class, urn, 1L);
 
     result = dao.getWithExtraInfo(new HashSet<>(Arrays.asList(aspectKey1, aspectKey3)));
 
@@ -2538,8 +2538,8 @@ public class EbeanLocalDAOTest {
     FooUrn fooUrn = makeFooUrn(1);
 
     // both aspect keys exist
-    AspectKey<FooUrn, AspectFoo> aspectKey1 = new AspectKey<>(AspectFoo.class, fooUrn, 1L);
-    AspectKey<FooUrn, AspectBar> aspectKey2 = new AspectKey<>(AspectBar.class, fooUrn, 0L);
+    AspectKey<AspectFoo> aspectKey1 = new AspectKey<>(AspectFoo.class, fooUrn, 1L);
+    AspectKey<AspectBar> aspectKey2 = new AspectKey<>(AspectBar.class, fooUrn, 0L);
 
     // add metadata
     AspectFoo fooV1 = new AspectFoo().setValue("foo");
@@ -2549,7 +2549,7 @@ public class EbeanLocalDAOTest {
 
     // batch get without query keys count set
     // when
-    Map<AspectKey<FooUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> records =
+    Map<AspectKey<? extends RecordTemplate>, Optional<? extends RecordTemplate>> records =
         dao.get(new HashSet<>(Arrays.asList(aspectKey1, aspectKey2)));
 
     // then
@@ -2682,7 +2682,7 @@ public class EbeanLocalDAOTest {
     final IndexFilter indexFilter4 = new IndexFilter().setCriteria(indexCriterionArray4);
 
     result = dao.countAggregate(indexFilter4, indexGroupByCriterion1);
-    List<FooUrn> test = dao.listUrns(indexFilter4, null, null, 10);
+    List<Urn> test = dao.listUrns(indexFilter4, null, null, 10);
     assertEquals(test.size(), 3);
     assertEquals(result.size(), 2);
     assertEquals(result.get("valB").longValue(), 2);
@@ -2704,8 +2704,8 @@ public class EbeanLocalDAOTest {
     FooUrn fooUrn = makeFooUrn(1);
 
     // both aspect keys exist
-    AspectKey<FooUrn, AspectFoo> aspectKey1 = new AspectKey<>(AspectFoo.class, fooUrn, 1L);
-    AspectKey<FooUrn, AspectBar> aspectKey2 = new AspectKey<>(AspectBar.class, fooUrn, 0L);
+    AspectKey<AspectFoo> aspectKey1 = new AspectKey<>(AspectFoo.class, fooUrn, 1L);
+    AspectKey<AspectBar> aspectKey2 = new AspectKey<>(AspectBar.class, fooUrn, 0L);
 
     // add metadata
     AspectFoo fooV1 = new AspectFoo().setValue("foo");
@@ -2714,9 +2714,9 @@ public class EbeanLocalDAOTest {
     addMetadata(fooUrn, AspectBar.class, 0, barV0);
 
     FooUrn fooUrn2 = makeFooUrn(2);
-    AspectKey<FooUrn, AspectFoo> aspectKey3 = new AspectKey<>(AspectFoo.class, fooUrn2, 0L);
-    AspectKey<FooUrn, AspectFoo> aspectKey4 = new AspectKey<>(AspectFoo.class, fooUrn2, 1L);
-    AspectKey<FooUrn, AspectBar> aspectKey5 = new AspectKey<>(AspectBar.class, fooUrn2, 0L);
+    AspectKey<AspectFoo> aspectKey3 = new AspectKey<>(AspectFoo.class, fooUrn2, 0L);
+    AspectKey<AspectFoo> aspectKey4 = new AspectKey<>(AspectFoo.class, fooUrn2, 1L);
+    AspectKey<AspectBar> aspectKey5 = new AspectKey<>(AspectBar.class, fooUrn2, 0L);
 
     // add metadata
     AspectFoo fooV3 = new AspectFoo().setValue("foo3");
@@ -2729,7 +2729,7 @@ public class EbeanLocalDAOTest {
     dao.setQueryKeysCount(querySize);
 
     // when
-    Map<AspectKey<FooUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> fiveRecords =
+    Map<AspectKey<? extends RecordTemplate>, Optional<? extends RecordTemplate>> fiveRecords =
         dao.get(new HashSet<>(Arrays.asList(aspectKey1, aspectKey2, aspectKey3, aspectKey4, aspectKey5)));
 
     // then
@@ -2960,7 +2960,7 @@ public class EbeanLocalDAOTest {
       IndexCriterion criterion = new IndexCriterion().setAspect(AspectAttributes.class.getCanonicalName()).setPathParams(indexPathParams);
       IndexFilter indexFilter = new IndexFilter().setCriteria(new IndexCriterionArray(criterion));
       dao.add(fooUrn, attributes, _dummyAuditStamp);
-      List<FooUrn> urns = dao.listUrns(indexFilter, null, 5);
+      List<Urn> urns = dao.listUrns(indexFilter, null, 5);
 
       // Verify find one
       assertEquals(urns, Collections.singletonList(fooUrn));
@@ -2970,7 +2970,7 @@ public class EbeanLocalDAOTest {
       IndexCriterion criterion2 = new IndexCriterion().setAspect(AspectAttributes.class.getCanonicalName()).setPathParams(indexPathParams2);
       IndexFilter indexFilter2 = new IndexFilter().setCriteria(new IndexCriterionArray(criterion2));
       dao.add(fooUrn, attributes, _dummyAuditStamp);
-      List<FooUrn> empty = dao.listUrns(indexFilter2, null, 5);
+      List<Urn> empty = dao.listUrns(indexFilter2, null, 5);
 
       // Verify nothing found
       assertTrue(empty.isEmpty());
@@ -2993,7 +2993,7 @@ public class EbeanLocalDAOTest {
       IndexCriterion criterion = new IndexCriterion().setAspect(AspectAttributes.class.getCanonicalName()).setPathParams(indexPathParams);
       IndexFilter indexFilter = new IndexFilter().setCriteria(new IndexCriterionArray(criterion));
 
-      List<FooUrn> urns = dao.listUrns(indexFilter, null, 5);
+      List<Urn> urns = dao.listUrns(indexFilter, null, 5);
 
       // Verify find one
       assertEquals(urns, Collections.singletonList(fooUrn));
@@ -3003,7 +3003,7 @@ public class EbeanLocalDAOTest {
       IndexPathParams indexPathParams2 = new IndexPathParams().setPath("/attributes").setValue(arrayValue2).setCondition(Condition.EQUAL);
       IndexCriterion criterion2 = new IndexCriterion().setAspect(AspectAttributes.class.getCanonicalName()).setPathParams(indexPathParams2);
       IndexFilter indexFilter2 = new IndexFilter().setCriteria(new IndexCriterionArray(criterion2));
-      List<FooUrn> empty1 = dao.listUrns(indexFilter2, null, 5);
+      List<Urn> empty1 = dao.listUrns(indexFilter2, null, 5);
 
       // Verify nothing found
       assertTrue(empty1.isEmpty());
@@ -3013,7 +3013,7 @@ public class EbeanLocalDAOTest {
       IndexPathParams indexPathParams3 = new IndexPathParams().setPath("/attributes").setValue(arrayValue3).setCondition(Condition.EQUAL);
       IndexCriterion criterion3 = new IndexCriterion().setAspect(AspectAttributes.class.getCanonicalName()).setPathParams(indexPathParams3);
       IndexFilter indexFilter3 = new IndexFilter().setCriteria(new IndexCriterionArray(criterion3));
-      List<FooUrn> empty2 = dao.listUrns(indexFilter3, null, 5);
+      List<Urn> empty2 = dao.listUrns(indexFilter3, null, 5);
 
       // Verify nothing found
       assertTrue(empty2.isEmpty());
@@ -3037,7 +3037,7 @@ public class EbeanLocalDAOTest {
           new IndexCriterion().setAspect(AspectAttributes.class.getCanonicalName()).setPathParams(indexPathParams);
       IndexFilter indexFilter = new IndexFilter().setCriteria(new IndexCriterionArray(criterion));
 
-      List<FooUrn> urns = dao.listUrns(indexFilter, null, 5);
+      List<Urn> urns = dao.listUrns(indexFilter, null, 5);
 
       // Verify find one
       assertEquals(urns, Collections.singletonList(fooUrn));

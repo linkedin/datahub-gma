@@ -84,9 +84,9 @@ public class EbeanLocalRelationshipQueryDAOTest {
     _localRelationshipWriterDAO = new EbeanLocalRelationshipWriterDAO(_server);
     _localRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server, _eBeanDAOConfig);
     _fooUrnEBeanLocalAccess = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()),
-        FooUrn.class, new EmptyPathExtractor<>(), _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled());
+        FooUrn.class, new EmptyPathExtractor(), _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled());
     _barUrnEBeanLocalAccess = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()),
-        BarUrn.class, new EmptyPathExtractor<>(), _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled());
+        BarUrn.class, new EmptyPathExtractor(), _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled());
   }
 
   @BeforeMethod

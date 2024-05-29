@@ -11,10 +11,10 @@ import lombok.Value;
  * A value class that holds urn of a given entity and list of aspects (as {@link RecordTemplate}) associated with the urn.
  */
 @Value
-public class UrnAspectEntry<URN extends Urn> {
+public class UrnAspectEntry {
 
   @NonNull
-  URN urn;
+  Urn urn;
 
   @NonNull
   List<RecordTemplate> aspects;

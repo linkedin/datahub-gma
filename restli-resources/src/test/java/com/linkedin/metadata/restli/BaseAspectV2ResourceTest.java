@@ -82,7 +82,7 @@ public class BaseAspectV2ResourceTest extends BaseEngineTest {
   @Test
   public void testGet() {
     AspectFoo foo = new AspectFoo().setValue("foo");
-    AspectKey<Urn, AspectFoo> aspectKey = new AspectKey<>(AspectFoo.class, ENTITY_URN, LATEST_VERSION);
+    AspectKey<AspectFoo> aspectKey = new AspectKey<>(AspectFoo.class, ENTITY_URN, LATEST_VERSION);
     when(_mockLocalDAO.get(aspectKey)).thenReturn(Optional.of(foo));
     AspectFoo result = runAndWait(_resource.get(ENTITY_URN));
     assertEquals(result, foo);

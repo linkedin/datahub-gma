@@ -2,6 +2,7 @@ package com.linkedin.metadata.dao;
 
 import com.google.common.io.Resources;
 import com.linkedin.common.AuditStamp;
+import com.linkedin.common.urn.Urn;
 import com.linkedin.metadata.dao.localrelationship.SampleLocalRelationshipRegistryImpl;
 import com.linkedin.metadata.dao.urnpath.EmptyPathExtractor;
 import com.linkedin.metadata.dao.utils.BarUrnPathExtractor;
@@ -83,7 +84,7 @@ public class EbeanLocalAccessTest {
     _ebeanLocalAccessBar = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()),
         BarUrn.class, new BarUrnPathExtractor(), _ebeanConfig.isNonDollarVirtualColumnsEnabled());
     _ebeanLocalAccessBurger = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()),
-        BurgerUrn.class, new EmptyPathExtractor<>(), _ebeanConfig.isNonDollarVirtualColumnsEnabled());
+        BurgerUrn.class, new EmptyPathExtractor(), _ebeanConfig.isNonDollarVirtualColumnsEnabled());
     _ebeanLocalAccessFoo.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
     _now = System.currentTimeMillis();
   }
@@ -115,7 +116,7 @@ public class EbeanLocalAccessTest {
     // Given: metadata_entity_foo table with fooUrns from 0 ~ 99
 
     FooUrn fooUrn = makeFooUrn(0);
-    AspectKey<FooUrn, AspectFoo> aspectKey = new AspectKey(AspectFoo.class, fooUrn, 0L);
+    AspectKey<AspectFoo> aspectKey = new AspectKey(AspectFoo.class, fooUrn, 0L);
 
     // When get AspectFoo from urn:li:foo:0
     List<EbeanMetadataAspect> ebeanMetadataAspectList =
@@ -135,7 +136,7 @@ public class EbeanLocalAccessTest {
 
     // When get AspectFoo from urn:li:foo:9999 (does not exist)
     FooUrn nonExistFooUrn = makeFooUrn(9999);
-    AspectKey<FooUrn, AspectFoo> nonExistKey = new AspectKey(AspectFoo.class, nonExistFooUrn, 0L);
+    AspectKey<AspectFoo> nonExistKey = new AspectKey(AspectFoo.class, nonExistFooUrn, 0L);
     ebeanMetadataAspectList = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(nonExistKey), 1000, 0, false);
 
     // Expect: get AspectFoo from urn:li:foo:9999 returns empty result
@@ -166,7 +167,7 @@ public class EbeanLocalAccessTest {
 
     // When: list out results with start = 5 and pageSize = 5
 
-    ListResult<FooUrn> listUrns = _ebeanLocalAccessFoo.listUrns(indexFilter, indexSortCriterion, 5, 5);
+    ListResult<Urn> listUrns = _ebeanLocalAccessFoo.listUrns(indexFilter, indexSortCriterion, 5, 5);
 
     assertEquals(5, listUrns.getValues().size());
     assertEquals(5, listUrns.getPageSize());
@@ -197,10 +198,10 @@ public class EbeanLocalAccessTest {
     IndexSortCriterion indexSortCriterion =
         SQLIndexFilterUtils.createIndexSortCriterion(AspectFoo.class, "value", SortOrder.ASCENDING);
 
-    FooUrn lastUrn = new FooUrn(29);
+    Urn lastUrn = new FooUrn(29);
 
     // When: list out results with lastUrn = 'urn:li:foo:29' and pageSize = 5
-    List<FooUrn> result1 = _ebeanLocalAccessFoo.listUrns(indexFilter, indexSortCriterion, lastUrn, 5);
+    List<Urn> result1 = _ebeanLocalAccessFoo.listUrns(indexFilter, indexSortCriterion, lastUrn, 5);
 
     // Expect: 5 rows are returns (30~34) and the first element is 'urn:li:foo:30'
     assertEquals(5, result1.size());
@@ -212,14 +213,14 @@ public class EbeanLocalAccessTest {
     IndexCriterion indexCriterion3 = new IndexCriterion().setAspect(FooUrn.class.getCanonicalName());
     indexCriterionArray = new IndexCriterionArray(Collections.singleton(indexCriterion3));
     IndexFilter filter = new IndexFilter().setCriteria(indexCriterionArray);
-    List<FooUrn> result2 = _ebeanLocalAccessFoo.listUrns(filter, indexSortCriterion, lastUrn, 5);
+    List<Urn> result2 = _ebeanLocalAccessFoo.listUrns(filter, indexSortCriterion, lastUrn, 5);
 
     // Expect: 5 rows are returns (35~39) and the first element is 'urn:li:foo:35'
     assertEquals(5, result2.size());
     assertEquals("35", result2.get(0).getId());
 
     // When: list urns with no filter, no sorting criterion, no last urn.
-    List<FooUrn> result3 = _ebeanLocalAccessFoo.listUrns(null, null, null, 10);
+    List<Urn> result3 = _ebeanLocalAccessFoo.listUrns(null, null, null, 10);
 
     // 0, 1, 10, 11, 12, 13, 14, 15, 16, 17
     assertEquals(result3.size(), 10);
@@ -227,7 +228,7 @@ public class EbeanLocalAccessTest {
     assertEquals(result3.get(9).getId(), "17");
 
     // When: list urns with no filter, no sorting criterion
-    List<FooUrn> result4 = _ebeanLocalAccessFoo.listUrns(null, null, new FooUrn(17), 10);
+    List<Urn> result4 = _ebeanLocalAccessFoo.listUrns(null, null, new FooUrn(17), 10);
 
     // 18, 19, 2, 20, 21, 22, 23, 24, 25, 26
     assertEquals(result4.size(), 10);
@@ -365,7 +366,7 @@ public class EbeanLocalAccessTest {
     List<BelongsTo> relationships = ebeanLocalRelationshipQueryDAO.findRelationships(
         BarSnapshot.class, EMPTY_FILTER, FooSnapshot.class, EMPTY_FILTER, BelongsTo.class, EMPTY_FILTER, 0, 10);
 
-    AspectKey<FooUrn, AspectFooBar> key = new AspectKey<>(AspectFooBar.class, fooUrn, 0L);
+    AspectKey<AspectFooBar> key = new AspectKey<>(AspectFooBar.class, fooUrn, 0L);
     List<EbeanMetadataAspect> aspects = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(key), 10, 0, false);
 
     assertEquals(3, relationships.size());
@@ -486,7 +487,7 @@ public class EbeanLocalAccessTest {
   public void testGetAspectNoSoftDeleteCheck() {
     FooUrn fooUrn = makeFooUrn(0);
     _ebeanLocalAccessFoo.add(fooUrn, null, AspectFoo.class, makeAuditStamp("foo", System.currentTimeMillis()), null);
-    AspectKey<FooUrn, AspectFoo> aspectKey = new AspectKey(AspectFoo.class, fooUrn, 0L);
+    AspectKey<AspectFoo> aspectKey = new AspectKey(AspectFoo.class, fooUrn, 0L);
     List<EbeanMetadataAspect> ebeanMetadataAspectList =
         _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0, false);
     assertEquals(0, ebeanMetadataAspectList.size());

@@ -21,7 +21,7 @@ import javax.annotation.Nullable;
  */
 public interface IEbeanLocalAccess<URN extends Urn> {
 
-  void setUrnPathExtractor(@Nonnull UrnPathExtractor<URN> urnPathExtractor);
+  void setUrnPathExtractor(@Nonnull UrnPathExtractor urnPathExtractor);
 
   /**
    * Upsert aspect into entity table.
@@ -34,7 +34,7 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * @param ingestionTrackingContext the ingestionTrackingContext of the MCE responsible for this update
    * @return number of rows inserted or updated
    */
-  <ASPECT extends RecordTemplate> int add(@Nonnull URN urn, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
+  <ASPECT extends RecordTemplate> int add(@Nonnull Urn urn, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext ingestionTrackingContext);
 
   /**
@@ -49,7 +49,7 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * @param ingestionTrackingContext the ingestionTrackingContext of the MCE responsible for calling this update
    * @return number of rows inserted or updated
    */
-  <ASPECT extends RecordTemplate> int addWithOptimisticLocking(@Nonnull URN urn, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
+  <ASPECT extends RecordTemplate> int addWithOptimisticLocking(@Nonnull Urn urn, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull AuditStamp auditStamp, @Nullable Timestamp oldTimestamp, @Nullable IngestionTrackingContext ingestionTrackingContext);
 
   /**
@@ -60,7 +60,7 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * @return relationship updates applied on relationship table
    */
   @Nonnull
-  <ASPECT extends RecordTemplate> List<LocalRelationshipUpdates> addRelationships(@Nonnull URN urn,
+  <ASPECT extends RecordTemplate> List<LocalRelationshipUpdates> addRelationships(@Nonnull Urn urn,
       @Nonnull ASPECT relationship, @Nonnull Class<ASPECT> aspectClass);
 
   /**
@@ -73,7 +73,7 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * @return a list of {@link EbeanMetadataAspect} as get response
    */
   @Nonnull
-  <ASPECT extends RecordTemplate> List<EbeanMetadataAspect> batchGetUnion(@Nonnull List<AspectKey<URN, ? extends RecordTemplate>> keys,
+  <ASPECT extends RecordTemplate> List<EbeanMetadataAspect> batchGetUnion(@Nonnull List<AspectKey<? extends RecordTemplate>> keys,
       int keysCount, int position, boolean includeSoftDeleted);
 
   /**
@@ -88,8 +88,8 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * @param pageSize maximum number of distinct urns to return
    * @return List of urns from local secondary index that satisfy the given filter conditions
    */
-  List<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
-      @Nullable URN lastUrn, int pageSize);
+  List<Urn> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
+      @Nullable Urn lastUrn, int pageSize);
 
   /**
    * Similar to {@link #listUrns(IndexFilter, IndexSortCriterion, Urn, int)} but returns a list result with pagination
@@ -98,7 +98,7 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * @param start the starting offset of the page
    * @return a {@link ListResult} containing a list of urns and other pagination information
    */
-  ListResult<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
+  ListResult<Urn> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       int start, int pageSize);
 
   /**

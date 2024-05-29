@@ -3,6 +3,7 @@ package com.linkedin.metadata.dao;
 import static com.linkedin.metadata.dao.BaseLocalDAOTest.DummyLocalDAO;
 import static com.linkedin.metadata.dao.BaseLocalDAOTest.DummyTransactionRunner;
 import com.linkedin.common.AuditStamp;
+import com.linkedin.common.urn.Urn;
 import com.linkedin.data.DataMap;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
@@ -36,7 +37,7 @@ public class BaseLocalDAOAspectVersionTest {
   private BaseMetadataEventProducer _mockEventProducer;
   private BaseTrackingMetadataEventProducer _mockTrackingEventProducer;
   private BaseTrackingManager _mockTrackingManager;
-  private BiFunction<FooUrn, Class<? extends RecordTemplate>, BaseLocalDAO.AspectEntry> _mockGetLatestFunction;
+  private BiFunction<Urn, Class<? extends RecordTemplate>, BaseLocalDAO.AspectEntry> _mockGetLatestFunction;
   private DummyTransactionRunner _mockTransactionRunner;
 
   @BeforeMethod
@@ -62,7 +63,7 @@ public class BaseLocalDAOAspectVersionTest {
     return new BaseLocalDAO.AspectEntry<>(aspect, extraInfo);
   }
 
-  private <T extends RecordTemplate> void expectGetLatest(FooUrn urn, Class<T> aspectClass,
+  private <T extends RecordTemplate> void expectGetLatest(Urn urn, Class<T> aspectClass,
       List<BaseLocalDAO.AspectEntry<T>> returnValues) {
     OngoingStubbing<BaseLocalDAO.AspectEntry<T>> ongoing = when(_mockGetLatestFunction.apply(urn, aspectClass));
     for (BaseLocalDAO.AspectEntry<T> value : returnValues) {

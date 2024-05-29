@@ -84,7 +84,7 @@ public abstract class BaseEntityAgnosticResource {
 
       // for each entity type, backfill MAE for each urn in parallel
       for (String entityType : entityTypeToRequestsMap.keySet()) {
-        final Optional<BaseLocalDAO<? extends UnionTemplate, ? extends Urn>> dao = getLocalDaoByEntity(entityType);
+        final Optional<BaseLocalDAO<? extends UnionTemplate, ? extends Urn>> dao = getLocalDaoRegistry().getLocalDaoByEntityType(entityType);
         if (!dao.isPresent()) {
           log.warn("LocalDAO not found for entity type: " + entityType);
           continue;
@@ -119,7 +119,8 @@ public abstract class BaseEntityAgnosticResource {
       @ActionParam(PARAM_ENTITY_TYPE) @Nonnull String entityType,
       @ActionParam(PARAM_LIMIT) int limit) {
 
-    final Optional<BaseLocalDAO<? extends UnionTemplate, ? extends Urn>> dao = getLocalDaoByEntity(entityType);
+    final Optional<BaseLocalDAO<? extends UnionTemplate, ? extends Urn>> dao =
+        getLocalDaoRegistry().getLocalDaoByEntityType(entityType);
     if (!dao.isPresent()) {
       throw new RestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
           String.format("LocalDAO not found for entity type: %s", entityType));
@@ -154,13 +155,5 @@ public abstract class BaseEntityAgnosticResource {
       log.warn(String.format("Backfill failed for illegal state, urn: %s, aspectSet: %s", urn, aspectSet), e);
     }
     return Optional.empty();
-  }
-
-  /**
-   * Helper method to get the {@link BaseLocalDAO} from class {@link LocalDaoRegistry} for the given entity type.
-   */
-  protected Optional<BaseLocalDAO<? extends UnionTemplate, ? extends Urn>> getLocalDaoByEntity(String entityType) {
-    LocalDaoRegistry localDaoRegistry = getLocalDaoRegistry();
-    return Optional.ofNullable(localDaoRegistry.getLocalDaoByEntityType(entityType));
   }
 }

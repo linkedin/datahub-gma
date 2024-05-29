@@ -77,14 +77,14 @@ public abstract class BaseSearchableAspectResource<
   @Nonnull
   public CollectionResult<ASPECT, SearchResultMetadata> getSearchQueryCollectionResult(@Nonnull SearchResult<DOCUMENT> searchResult) {
 
-    final Set<URN> matchedUrns = searchResult.getDocumentList()
+    final Set<Urn> matchedUrns = searchResult.getDocumentList()
         .stream()
         .map(d -> (URN) ModelUtils.getUrnFromDocument(d))
         .collect(Collectors.toSet());
 
-    final Map<URN, java.util.Optional<ASPECT>> urnAspectMap = getLocalDAO().get(_aspectClass, matchedUrns);
+    final Map<Urn, java.util.Optional<ASPECT>> urnAspectMap = getLocalDAO().get(_aspectClass, matchedUrns);
 
-    final List<URN> existingUrns = matchedUrns.stream().filter(urnAspectMap::containsKey).collect(Collectors.toList());
+    final List<Urn> existingUrns = matchedUrns.stream().filter(urnAspectMap::containsKey).collect(Collectors.toList());
 
     final List<ASPECT> aspects = urnAspectMap.values().stream().filter(java.util.Optional::isPresent).map(
         java.util.Optional::get).collect(Collectors.toList());

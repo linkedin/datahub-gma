@@ -9,10 +9,10 @@ import javax.annotation.Nonnull;
 /**
  * A path extractor which does nothing.
  */
-public final class EmptyPathExtractor<URN extends Urn> implements UrnPathExtractor<URN> {
+public final class EmptyPathExtractor implements UrnPathExtractor {
   @Nonnull
   @Override
-  public Map<String, Object> extractPaths(@Nonnull URN urn) {
+  public Map<String, Object> extractPaths(@Nonnull Urn urn) {
     return Collections.emptyMap();
   }
 }

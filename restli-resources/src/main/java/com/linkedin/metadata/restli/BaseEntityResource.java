@@ -184,7 +184,7 @@ public abstract class BaseEntityResource<
       @Nonnull Set<KEY> ids,
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
     return RestliUtils.toTask(() -> {
-      final Map<URN, KEY> urnMap =
+      final Map<Urn, KEY> urnMap =
           ids.stream().collect(Collectors.toMap(this::toUrn, Function.identity()));
       return getInternal(urnMap.keySet(), parseAspectsParam(aspectNames)).entrySet()
           .stream()
@@ -206,9 +206,9 @@ public abstract class BaseEntityResource<
     return RestliUtils.toTask(() -> {
       final Map<KEY, RestLiServiceException> errors = new HashMap<>();
       final Map<KEY, HttpStatus> statuses = new HashMap<>();
-      final Map<URN, KEY> urnMap =
+      final Map<Urn, KEY> urnMap =
           ids.stream().collect(Collectors.toMap(this::toUrn, Function.identity()));
-      final Map<URN, VALUE> batchResult = getInternal(urnMap.keySet(), parseAspectsParam(aspectNames));
+      final Map<Urn, VALUE> batchResult = getInternal(urnMap.keySet(), parseAspectsParam(aspectNames));
       batchResult.entrySet().removeIf(entry -> {
         if (!entry.getValue().data().isEmpty()) {
           // don't remove if there is a non-empty value associated with the key
@@ -276,7 +276,7 @@ public abstract class BaseEntityResource<
 
     return RestliUtils.toTask(() -> {
       final URN urn = parseUrnParam(urnString);
-      final Set<AspectKey<URN, ? extends RecordTemplate>> keys = parseAspectsParam(aspectNames).stream()
+      final Set<AspectKey<? extends RecordTemplate>> keys = parseAspectsParam(aspectNames).stream()
           .map(aspectClass -> new AspectKey<>(aspectClass, urn, LATEST_VERSION))
           .collect(Collectors.toSet());
 
@@ -323,7 +323,7 @@ public abstract class BaseEntityResource<
                                        @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
 
     return RestliUtils.toTask(() -> {
-      final Set<URN> urnSet = Arrays.stream(urns).map(urnString -> parseUrnParam(urnString)).collect(Collectors.toSet());
+      final Set<Urn> urnSet = Arrays.stream(urns).map(urnString -> parseUrnParam(urnString)).collect(Collectors.toSet());
       return RestliUtils.buildBackfillResult(getLocalDAO().backfill(parseAspectsParam(aspectNames), urnSet));
     });
   }
@@ -344,7 +344,7 @@ public abstract class BaseEntityResource<
       return RestliUtils.toTask(BackfillResult::new);
     }
     return RestliUtils.toTask(() -> {
-      final Set<URN> urnSet = Arrays.stream(urns).map(urnString -> parseUrnParam(urnString)).collect(Collectors.toSet());
+      final Set<Urn> urnSet = Arrays.stream(urns).map(urnString -> parseUrnParam(urnString)).collect(Collectors.toSet());
       return RestliUtils.buildBackfillResult(getLocalDAO().backfill(backfillMode, parseAspectsParam(aspectNames), urnSet));
     });
   }
@@ -361,7 +361,7 @@ public abstract class BaseEntityResource<
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
 
     return RestliUtils.toTask(() -> {
-      final Set<URN> urnSet = Arrays.stream(urns).map(urnString -> parseUrnParam(urnString)).collect(Collectors.toSet());
+      final Set<Urn> urnSet = Arrays.stream(urns).map(urnString -> parseUrnParam(urnString)).collect(Collectors.toSet());
       return RestliUtils.buildBackfillResult(getLocalDAO().backfillWithNewValue(parseAspectsParam(aspectNames), urnSet));
     });
   }
@@ -375,7 +375,7 @@ public abstract class BaseEntityResource<
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
 
     return RestliUtils.toTask(() -> {
-      final Set<URN> urnSet = Arrays.stream(urns).map(urnString -> parseUrnParam(urnString)).collect(Collectors.toSet());
+      final Set<Urn> urnSet = Arrays.stream(urns).map(urnString -> parseUrnParam(urnString)).collect(Collectors.toSet());
       return RestliUtils.buildBackfillResult(getLocalDAO().backfillEntityTables(parseAspectsParam(aspectNames), urnSet));
     });
   }
@@ -465,9 +465,9 @@ public abstract class BaseEntityResource<
    * @return ordered list of values of multiple entities
    */
   @Nonnull
-  private List<VALUE> getUrnAspectValues(List<UrnAspectEntry<URN>> urnAspectEntries) {
-    final Map<URN, List<UnionTemplate>> urnAspectsMap = new LinkedHashMap<>();
-    for (UrnAspectEntry<URN> entry : urnAspectEntries) {
+  private List<VALUE> getUrnAspectValues(List<UrnAspectEntry> urnAspectEntries) {
+    final Map<Urn, List<UnionTemplate>> urnAspectsMap = new LinkedHashMap<>();
+    for (UrnAspectEntry entry : urnAspectEntries) {
       urnAspectsMap.compute(entry.getUrn(), (k, v) -> {
         if (v == null) {
           v = new ArrayList<>();
@@ -504,7 +504,7 @@ public abstract class BaseEntityResource<
       @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nullable IndexFilter filter,
       @Nullable IndexSortCriterion indexSortCriterion, @Nullable String lastUrn, int count) {
 
-    final List<UrnAspectEntry<URN>> urnAspectEntries =
+    final List<UrnAspectEntry> urnAspectEntries =
         getLocalDAO().getAspects(aspectClasses, filter, indexSortCriterion, parseUrnParam(lastUrn), count);
 
     return getUrnAspectValues(urnAspectEntries);
@@ -523,9 +523,9 @@ public abstract class BaseEntityResource<
       @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nullable IndexFilter filter,
       @Nullable IndexSortCriterion indexSortCriterion, int start, int count) {
 
-    final ListResult<UrnAspectEntry<URN>> listResult =
+    final ListResult<UrnAspectEntry> listResult =
         getLocalDAO().getAspects(aspectClasses, filter, indexSortCriterion, start, count);
-    final List<UrnAspectEntry<URN>> urnAspectEntries = listResult.getValues();
+    final List<UrnAspectEntry> urnAspectEntries = listResult.getValues();
     final List<VALUE> values = getUrnAspectValues(urnAspectEntries);
 
     return ListResult.<VALUE>builder()
@@ -556,7 +556,7 @@ public abstract class BaseEntityResource<
   private List<VALUE> filterUrns(@Nullable IndexFilter filter, @Nullable IndexSortCriterion indexSortCriterion,
       @Nullable String lastUrn, int count) {
 
-    final List<URN> urns = getLocalDAO().listUrns(filter, indexSortCriterion, parseUrnParam(lastUrn), count);
+    final List<Urn> urns = getLocalDAO().listUrns(filter, indexSortCriterion, parseUrnParam(lastUrn), count);
     return urns.stream().map(urn -> toValue(newSnapshot(urn))).collect(Collectors.toList());
   }
 
@@ -572,8 +572,8 @@ public abstract class BaseEntityResource<
   private ListResult<VALUE> filterUrns(@Nullable IndexFilter filter, @Nullable IndexSortCriterion indexSortCriterion,
       int start, int count) {
 
-    final ListResult<URN> listResult = getLocalDAO().listUrns(filter, indexSortCriterion, start, count);
-    final List<URN> urns = listResult.getValues();
+    final ListResult<Urn> listResult = getLocalDAO().listUrns(filter, indexSortCriterion, start, count);
+    final List<Urn> urns = listResult.getValues();
     final List<VALUE> urnValues = urns.stream().map(urn -> toValue(newSnapshot(urn))).collect(Collectors.toList());
 
     return ListResult.<VALUE>builder()
@@ -723,7 +723,7 @@ public abstract class BaseEntityResource<
    * @return All {@link VALUE} objects keyed by {@link URN} obtained from DB
    */
   @Nonnull
-  protected Map<URN, VALUE> getInternal(@Nonnull Collection<URN> urns,
+  protected Map<Urn, VALUE> getInternal(@Nonnull Collection<Urn> urns,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses) {
     return getUrnAspectMap(urns, aspectClasses).entrySet()
         .stream()
@@ -734,7 +734,7 @@ public abstract class BaseEntityResource<
    * Similar to {@link #getInternal(Collection, Set)} but filter out {@link URN}s which are not in the DB.
    */
   @Nonnull
-  protected Map<URN, VALUE> getInternalNonEmpty(@Nonnull Collection<URN> urns,
+  protected Map<Urn, VALUE> getInternalNonEmpty(@Nonnull Collection<Urn> urns,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses) {
     return getUrnAspectMap(urns, aspectClasses).entrySet()
         .stream()
@@ -743,17 +743,17 @@ public abstract class BaseEntityResource<
   }
 
   @Nonnull
-  private Map<URN, List<UnionTemplate>> getUrnAspectMap(@Nonnull Collection<URN> urns,
+  private Map<Urn, List<UnionTemplate>> getUrnAspectMap(@Nonnull Collection<Urn> urns,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses) {
     // Construct the keys to retrieve latest version of all supported aspects for all URNs.
-    final Set<AspectKey<URN, ? extends RecordTemplate>> keys = urns.stream()
+    final Set<AspectKey<? extends RecordTemplate>> keys = urns.stream()
         .map(urn -> aspectClasses.stream()
             .map(clazz -> new AspectKey<>(clazz, urn, LATEST_VERSION))
             .collect(Collectors.toList()))
         .flatMap(List::stream)
         .collect(Collectors.toSet());
 
-    final Map<URN, List<UnionTemplate>> urnAspectsMap =
+    final Map<Urn, List<UnionTemplate>> urnAspectsMap =
         urns.stream().collect(Collectors.toMap(Function.identity(), urn -> new ArrayList<>()));
 
     getLocalDAO().get(keys)
@@ -764,7 +764,7 @@ public abstract class BaseEntityResource<
   }
 
   @Nonnull
-  private SNAPSHOT newSnapshot(@Nonnull URN urn, @Nonnull List<UnionTemplate> aspects) {
+  private SNAPSHOT newSnapshot(@Nonnull Urn urn, @Nonnull List<UnionTemplate> aspects) {
     return ModelUtils.newSnapshot(_snapshotClass, urn, aspects);
   }
 
@@ -772,7 +772,7 @@ public abstract class BaseEntityResource<
    * Creates a snapshot of the entity with no aspects set, just the URN.
    */
   @Nonnull
-  protected SNAPSHOT newSnapshot(@Nonnull URN urn) {
+  protected SNAPSHOT newSnapshot(@Nonnull Urn urn) {
     return ModelUtils.newSnapshot(_snapshotClass, urn, Collections.emptyList());
   }
 

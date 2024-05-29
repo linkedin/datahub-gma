@@ -63,7 +63,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   private final EbeanServer _server;
   private final Class<URN> _urnClass;
   private final String _entityType;
-  private UrnPathExtractor<URN> _urnPathExtractor;
+  private UrnPathExtractor _urnPathExtractor;
   private final EbeanLocalRelationshipWriterDAO _localRelationshipWriterDAO;
   private LocalRelationshipBuilderRegistry _localRelationshipBuilderRegistry;
   private final SchemaEvolutionManager _schemaEvolutionManager;
@@ -79,7 +79,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   private final Map<String, Set<String>> tableColumns = new ConcurrentHashMap<>();
 
   public EbeanLocalAccess(EbeanServer server, ServerConfig serverConfig, @Nonnull Class<URN> urnClass,
-      UrnPathExtractor<URN> urnPathExtractor, boolean nonDollarVirtualColumnsEnabled) {
+      UrnPathExtractor urnPathExtractor, boolean nonDollarVirtualColumnsEnabled) {
     _server = server;
     _urnClass = urnClass;
     _urnPathExtractor = urnPathExtractor;
@@ -89,7 +89,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     _nonDollarVirtualColumnsEnabled = nonDollarVirtualColumnsEnabled;
   }
 
-  public void setUrnPathExtractor(@Nonnull UrnPathExtractor<URN> urnPathExtractor) {
+  public void setUrnPathExtractor(@Nonnull UrnPathExtractor urnPathExtractor) {
     _urnPathExtractor = urnPathExtractor;
   }
 
@@ -99,14 +99,14 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
   @Override
   @Transactional
-  public <ASPECT extends RecordTemplate> int add(@Nonnull URN urn, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
+  public <ASPECT extends RecordTemplate> int add(@Nonnull Urn urn, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext ingestionTrackingContext) {
     return addWithOptimisticLocking(urn, newValue, aspectClass, auditStamp, null, ingestionTrackingContext);
   }
 
   @Override
   public <ASPECT extends RecordTemplate> int addWithOptimisticLocking(
-      @Nonnull URN urn,
+      @Nonnull Urn urn,
       @Nullable ASPECT newValue,
       @Nonnull Class<ASPECT> aspectClass,
       @Nonnull AuditStamp auditStamp,
@@ -173,7 +173,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   }
 
   @Override
-  public <ASPECT extends RecordTemplate> List<LocalRelationshipUpdates> addRelationships(@Nonnull URN urn,
+  public <ASPECT extends RecordTemplate> List<LocalRelationshipUpdates> addRelationships(@Nonnull Urn urn,
       @Nonnull ASPECT aspect, @Nonnull Class<ASPECT> aspectClass) {
     if (_localRelationshipBuilderRegistry != null && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
       List<LocalRelationshipUpdates> localRelationshipUpdates =
@@ -198,7 +198,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    */
   @Override
   public <ASPECT extends RecordTemplate> List<EbeanMetadataAspect> batchGetUnion(
-      @Nonnull List<AspectKey<URN, ? extends RecordTemplate>> aspectKeys, int keysCount, int position,
+      @Nonnull List<AspectKey<? extends RecordTemplate>> aspectKeys, int keysCount, int position,
       boolean includeSoftDeleted) {
 
     final int end = Math.min(aspectKeys.size(), position + keysCount);
@@ -229,15 +229,15 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   }
 
   @Override
-  public List<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
-      @Nullable URN lastUrn, int pageSize) {
+  public List<Urn> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
+      @Nullable Urn lastUrn, int pageSize) {
     SqlQuery sqlQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, lastUrn, pageSize);
     final List<SqlRow> sqlRows = sqlQuery.setFirstRow(0).findList();
     return sqlRows.stream().map(sqlRow -> getUrn(sqlRow.getString("urn"), _urnClass)).collect(Collectors.toList());
   }
 
   @Override
-  public ListResult<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
+  public ListResult<Urn> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       int start, int pageSize) {
     final SqlQuery sqlQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, start, pageSize);
     final List<SqlRow> sqlRows = sqlQuery.findList();
@@ -246,7 +246,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       final int actualTotalCount = totalCountResults.isEmpty() ? 0 : totalCountResults.get(0).getInteger("_total_count");
       return toListResult(actualTotalCount, start, pageSize);
     }
-    final List<URN> values = sqlRows.stream().map(sqlRow -> getUrn(sqlRow.getString("urn"), _urnClass)).collect(Collectors.toList());
+    final List<Urn> values = sqlRows.stream().map(sqlRow -> getUrn(sqlRow.getString("urn"), _urnClass)).collect(Collectors.toList());
     return toListResult(values, sqlRows, null, start, pageSize);
   }
 
@@ -388,7 +388,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    * Produce {@link SqlQuery} for list urns by last urn.
    */
   private SqlQuery createFilterSqlQuery(@Nullable IndexFilter indexFilter,
-      @Nullable IndexSortCriterion indexSortCriterion, @Nullable URN lastUrn, int pageSize) {
+      @Nullable IndexSortCriterion indexSortCriterion, @Nullable Urn lastUrn, int pageSize) {
     StringBuilder filterSql = new StringBuilder();
     final String tableName = SQLSchemaUtils.getTableName(_entityType);
     filterSql.append(SQLStatementUtils.createFilterSql(tableName, indexFilter, false, _nonDollarVirtualColumnsEnabled));
@@ -518,7 +518,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    * @return JSON string representation of the urn
    */
   @Nonnull
-  private String toJsonString(@Nonnull URN urn) {
+  private String toJsonString(@Nonnull Urn urn) {
     final Map<String, Object> pathValueMap = _urnPathExtractor.extractPaths(urn);
     return JSONObject.toJSONString(pathValueMap);
   }

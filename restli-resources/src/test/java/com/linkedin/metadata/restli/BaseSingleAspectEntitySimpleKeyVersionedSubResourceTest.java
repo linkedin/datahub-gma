@@ -1,5 +1,6 @@
 package com.linkedin.metadata.restli;
 
+import com.linkedin.common.urn.Urn;
 import com.linkedin.metadata.dao.AspectKey;
 import com.linkedin.metadata.dao.BaseLocalDAO;
 import com.linkedin.metadata.dao.ListResult;
@@ -48,7 +49,7 @@ public class BaseSingleAspectEntitySimpleKeyVersionedSubResourceTest extends Bas
 
     SingleAspectEntityUrn urn = new SingleAspectEntityUrn(id1);
     AspectBar aspect = new AspectBar().setValue(field1);
-    AspectKey<SingleAspectEntityUrn, AspectBar> aspectKey = new AspectKey<>(AspectBar.class, urn, version);
+    AspectKey<AspectBar> aspectKey = new AspectKey<>(AspectBar.class, urn, version);
 
     when(_mockLocalDao.get(aspectKey)).thenReturn(Optional.of(aspect));
 
@@ -64,7 +65,7 @@ public class BaseSingleAspectEntitySimpleKeyVersionedSubResourceTest extends Bas
     long version = 10_000L;
 
     SingleAspectEntityUrn urn = new SingleAspectEntityUrn(id1);
-    AspectKey<SingleAspectEntityUrn, AspectBar> aspectKey = new AspectKey<>(AspectBar.class, urn, version);
+    AspectKey<AspectBar> aspectKey = new AspectKey<>(AspectBar.class, urn, version);
 
     when(_mockLocalDao.get(aspectKey)).thenReturn(Optional.empty());
 
@@ -188,7 +189,7 @@ public class BaseSingleAspectEntitySimpleKeyVersionedSubResourceTest extends Bas
 
     @Override
     @Nonnull
-    protected EntityValue createEntity(@Nonnull EntityValue partialEntity, @Nonnull SingleAspectEntityUrn urn) {
+    protected EntityValue createEntity(@Nonnull EntityValue partialEntity, @Nonnull Urn urn) {
       return partialEntity.setId(urn.getIdAsLong());
     }
 

@@ -10,13 +10,13 @@ import lombok.Value;
  * A value class that holds the components of a key for metadata retrieval.
  */
 @Value
-public class AspectKey<URN extends Urn, ASPECT extends RecordTemplate> {
+public class AspectKey<ASPECT extends RecordTemplate> {
 
   @NonNull
   Class<ASPECT> aspectClass;
 
   @NonNull
-  URN urn;
+  Urn urn;
 
   @NonNull
   Long version;

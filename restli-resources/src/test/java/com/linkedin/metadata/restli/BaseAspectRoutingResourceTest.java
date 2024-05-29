@@ -163,7 +163,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     AspectBar bar = new AspectBar().setValue("bar");
     AspectAttributes attributes = new AspectAttributes();
 
-    AspectKey<FooUrn, AspectBar> aspectBarKey = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
+    AspectKey<AspectBar> aspectBarKey = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
 
     when(_mockLocalDAO.exists(urn)).thenReturn(true);
     when(_mockLocalDAO.get(new HashSet<>(Arrays.asList(aspectBarKey)))).thenReturn(
@@ -190,7 +190,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     FooUrn urn = makeFooUrn(1234);
     AspectBar bar = new AspectBar().setValue("bar");
 
-    AspectKey<FooUrn, AspectBar> aspectBarKey = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
+    AspectKey<AspectBar> aspectBarKey = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
 
     when(_mockLocalDAO.exists(urn)).thenReturn(true);
     when(_mockLocalDAO.get(new HashSet<>(Arrays.asList(aspectBarKey)))).thenReturn(
@@ -238,7 +238,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     FooUrn urn = makeFooUrn(1234);
     AspectFoo foo = new AspectFoo().setValue("foo");
 
-    AspectKey<FooUrn, AspectBar> aspectBarKey = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
+    AspectKey<AspectBar> aspectBarKey = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
 
     when(_mockLocalDAO.exists(urn)).thenReturn(true);
     when(_mockLocalDAO.get(new HashSet<>(Arrays.asList(aspectBarKey)))).thenReturn(
@@ -258,7 +258,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     FooUrn urn = makeFooUrn(1234);
     AspectBar bar = new AspectBar().setValue("bar");
 
-    AspectKey<FooUrn, AspectBar> aspectBarKey = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
+    AspectKey<AspectBar> aspectBarKey = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
 
     when(_mockLocalDAO.exists(urn)).thenReturn(true);
     when(_mockLocalDAO.get(new HashSet<>(Arrays.asList(aspectBarKey)))).thenReturn(
@@ -346,7 +346,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
   public void testGetSnapshotWithoutRoutingAspect() {
     FooUrn urn = makeFooUrn(1);
     AspectFoo bar = new AspectFoo().setValue("bar");
-    AspectKey<FooUrn, ? extends RecordTemplate> barKey = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
+    AspectKey<? extends RecordTemplate> barKey = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
     when(_mockLocalDAO.get(ImmutableSet.of(barKey))).thenReturn(ImmutableMap.of(barKey, Optional.of(bar)));
 
     EntitySnapshot snapshot = runAndWait(_resource.getSnapshot(urn.toString(), new String[]{AspectBar.class.getCanonicalName()}));
@@ -364,8 +364,8 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     AspectFoo foo = new AspectFoo().setValue("foo");
     AspectFoo bar = new AspectFoo().setValue("bar");
     AspectAttributes attributes = new AspectAttributes();
-    AspectKey<FooUrn, ? extends RecordTemplate> barKey = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
-    Set<AspectKey<FooUrn, ? extends RecordTemplate>> aspectKeys = ImmutableSet.of(barKey);
+    AspectKey<? extends RecordTemplate> barKey = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
+    Set<AspectKey<? extends RecordTemplate>> aspectKeys = ImmutableSet.of(barKey);
     when(_mockLocalDAO.get(aspectKeys)).thenReturn(ImmutableMap.of(barKey, Optional.of(bar)));
     when(_mockAspectFooGmsClient.get(urn)).thenReturn(foo);
     when(_mockAspectAttributeGmsClient.get(urn)).thenReturn(attributes);

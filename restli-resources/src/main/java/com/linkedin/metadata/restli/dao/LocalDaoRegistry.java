@@ -3,6 +3,7 @@ package com.linkedin.metadata.restli.dao;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.BaseLocalDAO;
+import java.util.Optional;
 import javax.annotation.Nonnull;
 
 
@@ -17,6 +18,6 @@ public interface LocalDaoRegistry {
    * @param entityType the entity type string
    * @return the {@link BaseLocalDAO} registered on the given entity type, or null if no such registration.
    */
-  BaseLocalDAO<? extends UnionTemplate, ? extends Urn> getLocalDaoByEntityType(@Nonnull String entityType);
+  Optional<BaseLocalDAO<? extends UnionTemplate, ? extends Urn>> getLocalDaoByEntityType(@Nonnull String entityType);
 }
 
