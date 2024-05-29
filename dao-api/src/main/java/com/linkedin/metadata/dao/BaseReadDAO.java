@@ -16,7 +16,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 
-public abstract class BaseReadDAO<ASPECT_UNION extends UnionTemplate> {
+public abstract class BaseReadDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn> {
 
   public static final long FIRST_VERSION = 0;
   public static final long LATEST_VERSION = 0;
