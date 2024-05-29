@@ -20,7 +20,9 @@ import com.linkedin.restli.server.annotations.RestMethod;
 import com.linkedin.restli.server.resources.CollectionResourceTaskTemplate;
 import java.net.URISyntaxException;
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import javax.annotation.Nonnull;
 
@@ -78,63 +80,73 @@ public abstract class BaseAspectV3Resource<ASPECT extends RecordTemplate> extend
     }
   }
 
+  /**
+   * Create latest version of an aspect.
+   */
   @RestMethod.Create
   @Nonnull
   public Task<CreateResponse> create(@Nonnull String urnStr, @Nonnull ASPECT aspect) {
-    return RestliUtils.toTask(() -> {
-      try {
-        final Urn urn = Urn.createFromString(urnStr);
-        final String entityType = urn.getEntityType();
-        final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
-        getLocalDao(entityType).add(urn, aspect, auditStamp);
-        return new CreateResponse(HttpStatus.S_201_CREATED);
-      } catch (URISyntaxException e) {
-        throw new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
-            String.format("Failed to cast %s to Urn. Please check if urn if correctly formatted.", urnStr));
-      }
-    });
+
+    try {
+      final Urn urn = Urn.createFromString(urnStr);
+      final String entityType = urn.getEntityType();
+      final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
+      getLocalDao(entityType).add(urn, aspect, auditStamp);
+      return RestliUtils.toTask(() -> new CreateResponse(HttpStatus.S_201_CREATED));
+
+    } catch (URISyntaxException e) {
+      throw new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
+          String.format("Failed to cast %s to Urn. Please check if urn if correctly formatted.", urnStr));
+    }
+
   }
 
+  /**
+   * Create latest version of an aspect with tracking context.
+   */
   @RestMethod.Create
   @Nonnull
   public Task<CreateResponse> createWithTracking(@Nonnull String urnStr, @Nonnull ASPECT aspect,
       @Nonnull IngestionTrackingContext trackingContext, @Optional IngestionParams ingestionParams) {
-    return RestliUtils.toTask(() -> {
-      try {
-        final Urn urn = Urn.createFromString(urnStr);
-        final String entityType = urn.getEntityType();
-        final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
-        getLocalDao(entityType).add(urn, aspect, auditStamp, trackingContext, ingestionParams);
-        return new CreateResponse(HttpStatus.S_201_CREATED);
-      } catch (URISyntaxException e) {
-        throw new RuntimeException(e);
-      }
-    });
+    try {
+      final Urn urn = Urn.createFromString(urnStr);
+      final String entityType = urn.getEntityType();
+      final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
+      getLocalDao(entityType).add(urn, aspect, auditStamp, trackingContext, ingestionParams);
+      return RestliUtils.toTask(() -> new CreateResponse(HttpStatus.S_201_CREATED));
+    } catch (URISyntaxException e) {
+      throw new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
+          String.format("Failed to cast %s to Urn. Please check if urn if correctly formatted.", urnStr));
+    }
   }
 
   /**
    * Backfill ASPECT for each entity identified by its URN.
-   * @param urns Identifies a set of entities for which its ASPECT will be backfilled.
-   * @return BackfillResult for each entity identified by URN.
    */
   @Action(name = ACTION_BACKFILL_WITH_URNS)
   @Nonnull
   public Task<BackfillResult> backfillWithUrns(@Nonnull Set<String> urns) {
+    List<BackfillResult> backfillResultList = new ArrayList<>();
 
     for (String urnStr : urns) {
-      final Urn urn;
       try {
-        urn = Urn.createFromString(urnStr);
+        final Urn urn = Urn.createFromString(urnStr);
         final String entityType = urn.getEntityType();
 
-        return RestliUtils.toTask(() ->
-            RestliUtils.buildBackfillResult(getLocalDao(entityType).backfill(ImmutableSet.of(_aspectClass), Collections.singleton(urn))));
+        backfillResultList.add(
+            RestliUtils.buildBackfillResult(getLocalDao(entityType).backfill(ImmutableSet.of(_aspectClass), Collections.singleton(urn)))
+        );
+
       } catch (URISyntaxException e) {
-        throw new RuntimeException(e);
+        throw new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST,
+            String.format("Failed to cast %s to Urn. Please check if urn if correctly formatted.", urnStr));
       }
     }
 
-    return null;
+    // Merge the backfill result for each urn
+    BackfillResultEntityArray backfillResultEntities = new BackfillResultEntityArray();
+    backfillResultList.forEach(backfillResult -> backfillResultEntities.addAll(backfillResult.getEntities()));
+    return RestliUtils.toTask(() -> new BackfillResult().setEntities(backfillResultEntities));
   }
 
   private BaseLocalDAO<? extends UnionTemplate, ? extends Urn> getLocalDao(String entityType) {
