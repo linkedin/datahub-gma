@@ -39,6 +39,18 @@ public class SQLStatementUtils {
 
   public static final String NONNULL_CHECK = "%s IS NOT NULL"; // true when the value of aspect_column is not NULL
 
+  // Build manual SQL update query to enable optimistic locking on a given column
+  // Optimistic locking is supported on ebean using @version, see https://ebean.io/docs/mapping/jpa/version
+  // But we can't use @version annotation for optimistic locking for two reasons:
+  //   1. That prevents flag guarding optimistic locking feature
+  //   2. When using @version annotation, Ebean starts to override all updates to that column
+  //      by disregarding any user change.
+  // Ideally, another column for the sake of optimistic locking would be preferred but that means a change to
+  // metadata_aspect schema and we don't take this route here to keep this change backward compatible.
+  public static final String OPTIMISTIC_LOCKING_UPDATE_SQL = "UPDATE metadata_aspect "
+      + "SET urn = :urn, aspect = :aspect, version = :version, metadata = :metadata, createdOn = :createdOn, createdBy = :createdBy "
+      + "WHERE urn = :urn and aspect = :aspect and version = :version";
+
   private static final String SQL_UPSERT_ASPECT_TEMPLATE =
       "INSERT INTO %s (urn, %s, lastmodifiedon, lastmodifiedby) VALUE (:urn, :metadata, :lastmodifiedon, :lastmodifiedby) "
           + "ON DUPLICATE KEY UPDATE %s = :metadata, lastmodifiedon = :lastmodifiedon;";
