@@ -2921,7 +2921,7 @@ public class EbeanLocalDAOTest {
       _server.createSqlUpdate("delete from metadata_relationship_belongsto").execute();
 
       List<BaseLocalRelationshipBuilder.LocalRelationshipUpdates> relationshipUpdates =
-          dao.backfillLocalRelationshipsFromEntityTables(fooUrn, AspectFooBar.class);
+      dao.backfillLocalRelationshipsFromEntityTables(fooUrn, AspectFooBar.class);
 
       List<SqlRow> results = _server.createSqlQuery("select * from metadata_relationship_belongsto").findList();
       assertEquals(results.size(), 3);
