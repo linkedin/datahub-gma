@@ -16,6 +16,9 @@ import lombok.Getter;
  */
 public abstract class BaseAspectRoutingGmsClient {
 
+  /**
+   * The entity type associated with the aspect / client.
+   */
   @Getter
   private final String entityType;
 
