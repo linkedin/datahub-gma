@@ -38,6 +38,7 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import lombok.extern.slf4j.Slf4j;
 
 import static com.linkedin.metadata.dao.BaseReadDAO.*;
+import static com.linkedin.metadata.dao.utils.ModelUtils.*;
 import static com.linkedin.metadata.restli.RestliConstants.*;
 
 
@@ -61,15 +62,6 @@ public abstract class BaseAspectRoutingResource<
   private final Class<VALUE> _valueClass;
   private final Class<ASPECT_UNION> _aspectUnionClass;
   private final Class<SNAPSHOT> _snapshotClass;
-
-  public BaseAspectRoutingResource(@Nonnull Class<SNAPSHOT> snapshotClass,
-      @Nonnull Class<ASPECT_UNION> aspectUnionClass,
-      @Nonnull Class<VALUE> valueClass) {
-    super(snapshotClass, aspectUnionClass);
-    _valueClass = valueClass;
-    _aspectUnionClass = aspectUnionClass;
-    _snapshotClass = snapshotClass;
-  }
 
   public BaseAspectRoutingResource(@Nonnull Class<SNAPSHOT> snapshotClass,
       @Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull Class<URN> urnClass,
@@ -152,6 +144,10 @@ public abstract class BaseAspectRoutingResource<
   @Nonnull
   public Task<BackfillResult> backfill(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
+    if (this._urnClass == null) {
+      throw new IllegalStateException("URN class is not set for this resource");
+    }
+    final String entityType = getEntityTypeFromUrnClass(this._urnClass);
 
     return RestliUtils.toTask(() -> {
       final Set<URN> urnSet = Arrays.stream(urns).map(this::parseUrnParam).collect(Collectors.toSet());
@@ -166,13 +162,13 @@ public abstract class BaseAspectRoutingResource<
 
       if (containsRoutingAspect(aspectClasses) && aspectClasses.size() == 1) {
         // Backfill only needs aspect GMS
-        return backfillWithDefault(urnSet);
+        return backfillWithDefault(urnSet, entityType);
       }
 
       // Backfill needs both aspect GMS and local DAO.
       BackfillResult localDaoBackfillResult =
           RestliUtils.buildBackfillResult(getLocalDAO().backfill(getNonRoutingAspects(aspectClasses), urnSet));
-      BackfillResult gmsBackfillResult = backfillWithDefault(urnSet);
+      BackfillResult gmsBackfillResult = backfillWithDefault(urnSet, entityType);
       return merge(localDaoBackfillResult, gmsBackfillResult);
     });
   }
@@ -379,10 +375,11 @@ public abstract class BaseAspectRoutingResource<
   }
 
   @Nonnull
-  private BackfillResult backfillWithDefault(@Nonnull final Set<URN> urns) {
+  private BackfillResult backfillWithDefault(@Nonnull final Set<URN> urns, @Nonnull final String entityType) {
     try {
       List<BackfillResult> backfillResults = getAspectRoutingGmsClientManager().getRegisteredRoutingGmsClients()
           .stream()
+          .filter(baseAspectRoutingGmsClient -> entityType.equals(baseAspectRoutingGmsClient.getEntityType()))
           .map(baseAspectRoutingGmsClient -> baseAspectRoutingGmsClient.backfill(urns))
           .collect(Collectors.toList());
       return merge(null, backfillResults.toArray(new BackfillResult[0]));

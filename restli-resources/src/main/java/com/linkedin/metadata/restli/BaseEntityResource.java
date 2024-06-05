@@ -82,7 +82,7 @@ public abstract class BaseEntityResource<
   private final Class<SNAPSHOT> _snapshotClass;
   private final Class<ASPECT_UNION> _aspectUnionClass;
   private final Set<Class<? extends RecordTemplate>> _supportedAspectClasses;
-  private final Class<URN> _urnClass;
+  protected final Class<URN> _urnClass;
 
   protected BaseTrackingManager _trackingManager = null;
 
