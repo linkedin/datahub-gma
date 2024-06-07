@@ -79,9 +79,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   protected final EbeanServer _server;
   protected final Class<URN> _urnClass;
-
-  private final static int DEFAULT_BATCH_SIZE = 50;
-  private int _queryKeysCount = DEFAULT_BATCH_SIZE;
+  private int _queryKeysCount = 0; // 0 means no pagination on keys
   private IEbeanLocalAccess<URN> _localAccess;
   private SchemaConfig _schemaConfig = SchemaConfig.OLD_SCHEMA_ONLY;
   private final EBeanDAOConfig _eBeanDAOConfig = new EBeanDAOConfig();
@@ -901,12 +899,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     if (keys.isEmpty()) {
       return Collections.emptyMap();
     }
-    final List<EbeanMetadataAspect> records;
-    if (_queryKeysCount == 0) {
-      records = batchGet(keys, keys.size());
-    } else {
-      records = batchGet(keys, _queryKeysCount);
-    }
+
+    final List<EbeanMetadataAspect> records = batchGet(keys, keys.size());
+
     final Map<AspectKey<URN, ? extends RecordTemplate>, AspectWithExtraInfo<? extends RecordTemplate>> result =
         new HashMap<>();
     keys.forEach(key -> records.stream()
@@ -946,18 +941,13 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   /**
-   * Sets the max keys allowed for each single query, not allowed more than the default batch size.
+   * Sets the max keys allowed for each single query
    */
   public void setQueryKeysCount(int keysCount) {
     if (keysCount < 0) {
       throw new IllegalArgumentException("Query keys count must be non-negative: " + keysCount);
-    } else if (keysCount > DEFAULT_BATCH_SIZE) {
-      log.warn("Setting query keys count greater than " + DEFAULT_BATCH_SIZE
-          + " may cause performance issues. Defaulting to " + DEFAULT_BATCH_SIZE + ".");
-      _queryKeysCount = DEFAULT_BATCH_SIZE;
-    } else {
-      _queryKeysCount = keysCount;
     }
+    _queryKeysCount = keysCount;
   }
 
   /**
