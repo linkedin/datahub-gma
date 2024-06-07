@@ -59,7 +59,7 @@ public class BaseEntityAgnosticAspectResourceTest extends BaseEngineTest {
   @Test
   public void testQuery() {
     AspectFoo foo = new AspectFoo().setValue("foo");
-    when(_mockLocalDAO.queryLatest(ENTITY_URN.toString(), AspectFoo.class)).thenReturn(Optional.of(
+    when(_mockLocalDAO.queryLatest(ENTITY_URN, AspectFoo.class)).thenReturn(Optional.of(
         new GenericLocalDAO.MetadataWithExtraInfo(foo.toString(), null)));
 
     String result = runAndWait(_resource.queryLatest(ENTITY_URN.toString(), AspectFoo.class.getCanonicalName()));
@@ -70,7 +70,7 @@ public class BaseEntityAgnosticAspectResourceTest extends BaseEngineTest {
   public void testIngest() {
     AspectFoo foo = new AspectFoo().setValue("foo");
     runAndWait(_resource.ingest(ENTITY_URN.toString(), foo.toString(), AspectFoo.class.getCanonicalName()));
-    verify(_mockLocalDAO, times(1)).save(eq(ENTITY_URN.toString()),
+    verify(_mockLocalDAO, times(1)).save(eq(ENTITY_URN),
         eq(AspectFoo.class), eq(foo.toString()), any(AuditStamp.class));
     verifyNoMoreInteractions(_mockLocalDAO);
   }

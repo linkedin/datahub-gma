@@ -1,6 +1,7 @@
 package com.linkedin.metadata.restli;
 
 import com.linkedin.common.AuditStamp;
+import com.linkedin.common.urn.Urn;
 import com.linkedin.metadata.dao.GenericLocalDAO;
 import com.linkedin.parseq.Task;
 import com.linkedin.restli.common.HttpStatus;
@@ -9,6 +10,7 @@ import com.linkedin.restli.server.RestLiServiceException;
 import com.linkedin.restli.server.annotations.Action;
 import com.linkedin.restli.server.annotations.ActionParam;
 import com.linkedin.restli.server.resources.ResourceContextHolder;
+import java.net.URISyntaxException;
 import java.time.Clock;
 import java.util.Optional;
 import javax.annotation.Nonnull;
@@ -50,19 +52,22 @@ public abstract class BaseEntityAgnosticAspectResource extends ResourceContextHo
       @ActionParam(PARAM_URN) @Nonnull String urn,
       @ActionParam(PARAM_ASPECT_CLASS) @Nonnull String aspectClass) {
 
-    Class clazz;
     try {
-      clazz = this.getClass().getClassLoader().loadClass(aspectClass);
+      Class clazz = this.getClass().getClassLoader().loadClass(aspectClass);
+
+      Optional<GenericLocalDAO.MetadataWithExtraInfo> nullableMetadata =
+          genericLocalDAO().queryLatest(Urn.createFromCharSequence(urn), clazz);
+
+      if (nullableMetadata.isPresent()) {
+        return RestliUtils.toTask(() -> nullableMetadata.get().getAspect());
+      }
+
+      throw new RestLiServiceException(HttpStatus.S_404_NOT_FOUND);
     } catch (ClassNotFoundException e) {
       throw new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST, String.format("No such class %s", aspectClass));
+    } catch (URISyntaxException e) {
+      throw new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST, String.format("Urn %s is malformed.", urn));
     }
-
-    Optional<GenericLocalDAO.MetadataWithExtraInfo> nullableMetadata = genericLocalDAO().queryLatest(urn, clazz);
-    if (nullableMetadata.isPresent()) {
-      return RestliUtils.toTask(() -> nullableMetadata.get().getAspect());
-    }
-
-    throw new RestLiServiceException(HttpStatus.S_404_NOT_FOUND);
   }
 
   /**
@@ -79,15 +84,15 @@ public abstract class BaseEntityAgnosticAspectResource extends ResourceContextHo
       @ActionParam(PARAM_ASPECT) @Nonnull String aspect,
       @ActionParam(PARAM_ASPECT_CLASS) @Nonnull String aspectClass) {
     final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
-    Class clazz;
 
     try {
-      clazz = this.getClass().getClassLoader().loadClass(aspectClass);
+      Class clazz = this.getClass().getClassLoader().loadClass(aspectClass);
+      genericLocalDAO().save(Urn.createFromCharSequence(urn), clazz, aspect, auditStamp);
+      return RestliUtils.toTask(() -> new CreateResponse(HttpStatus.S_201_CREATED));
     } catch (ClassNotFoundException e) {
-      throw new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST, String.format("No such class %s", aspectClass));
+      throw new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST, String.format("No such class %s.", aspectClass));
+    } catch (URISyntaxException e) {
+      throw new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST, String.format("Urn %s is malformed.", urn));
     }
-
-    genericLocalDAO().save(urn, clazz, aspect, auditStamp);
-    return RestliUtils.toTask(() -> new CreateResponse(HttpStatus.S_201_CREATED));
   }
 }

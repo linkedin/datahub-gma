@@ -59,7 +59,7 @@ public class EbeanGenericLocalDAOTest {
     FooUrn fooUrn = FooUrn.createFromString("urn:li:foo:1");
     AspectFoo aspectFoo = new AspectFoo().setValue("foo");
 
-    _genericLocalDAO.save(fooUrn.toString(), AspectFoo.class, RecordUtils.toJsonString(aspectFoo), makeAuditStamp("tester"));
+    _genericLocalDAO.save(fooUrn, AspectFoo.class, RecordUtils.toJsonString(aspectFoo), makeAuditStamp("tester"));
 
     SqlQuery sqlQuery = _server.createSqlQuery("select * from metadata_aspect");
     List<SqlRow> result = sqlQuery.findList();
@@ -76,8 +76,8 @@ public class EbeanGenericLocalDAOTest {
     FooUrn fooUrn = FooUrn.createFromString("urn:li:foo:1");
     AspectFoo aspectFoo = new AspectFoo().setValue("foo");
 
-    _genericLocalDAO.save(fooUrn.toString(), AspectFoo.class, RecordUtils.toJsonString(aspectFoo), makeAuditStamp("tester"));
-    _genericLocalDAO.save(fooUrn.toString(), AspectFoo.class, RecordUtils.toJsonString(aspectFoo), makeAuditStamp("tester"));
+    _genericLocalDAO.save(fooUrn, AspectFoo.class, RecordUtils.toJsonString(aspectFoo), makeAuditStamp("tester"));
+    _genericLocalDAO.save(fooUrn, AspectFoo.class, RecordUtils.toJsonString(aspectFoo), makeAuditStamp("tester"));
 
     SqlQuery sqlQuery = _server.createSqlQuery("select * from metadata_aspect");
     List<SqlRow> result = sqlQuery.findList();
@@ -95,8 +95,8 @@ public class EbeanGenericLocalDAOTest {
     AspectFoo aspectFoo1 = new AspectFoo().setValue("foo");
     AspectFoo aspectFoo2 = new AspectFoo().setValue("bar");
 
-    _genericLocalDAO.save(fooUrn.toString(), AspectFoo.class, RecordUtils.toJsonString(aspectFoo1), makeAuditStamp("tester"));
-    _genericLocalDAO.save(fooUrn.toString(), AspectFoo.class, RecordUtils.toJsonString(aspectFoo2), makeAuditStamp("tester"));
+    _genericLocalDAO.save(fooUrn, AspectFoo.class, RecordUtils.toJsonString(aspectFoo1), makeAuditStamp("tester"));
+    _genericLocalDAO.save(fooUrn, AspectFoo.class, RecordUtils.toJsonString(aspectFoo2), makeAuditStamp("tester"));
 
     SqlQuery sqlQuery = _server.createSqlQuery("select * from metadata_aspect order by version asc");
     List<SqlRow> result = sqlQuery.findList();
@@ -120,10 +120,10 @@ public class EbeanGenericLocalDAOTest {
     AspectFoo aspectFoo1 = new AspectFoo().setValue("foo");
     AspectFoo aspectFoo2 = new AspectFoo().setValue("bar");
 
-    _genericLocalDAO.save(fooUrn.toString(), AspectFoo.class, RecordUtils.toJsonString(aspectFoo1), makeAuditStamp("tester"));
-    _genericLocalDAO.save(fooUrn.toString(), AspectFoo.class, RecordUtils.toJsonString(aspectFoo2), makeAuditStamp("tester"));
+    _genericLocalDAO.save(fooUrn, AspectFoo.class, RecordUtils.toJsonString(aspectFoo1), makeAuditStamp("tester"));
+    _genericLocalDAO.save(fooUrn, AspectFoo.class, RecordUtils.toJsonString(aspectFoo2), makeAuditStamp("tester"));
 
-    Optional<GenericLocalDAO.MetadataWithExtraInfo> metadata = _genericLocalDAO.queryLatest(fooUrn.toString(), AspectFoo.class);
+    Optional<GenericLocalDAO.MetadataWithExtraInfo> metadata = _genericLocalDAO.queryLatest(fooUrn, AspectFoo.class);
 
     // {"value":"bar"} is inserted later so it is the latest metadata.
     assertEquals(metadata.get().getAspect(), RecordUtils.toJsonString(aspectFoo2));

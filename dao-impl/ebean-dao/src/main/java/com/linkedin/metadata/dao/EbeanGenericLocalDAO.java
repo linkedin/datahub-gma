@@ -58,13 +58,19 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
   }
 
   /**
-   * Save the metadata into database.
+   * Save the metadata into database. High level persistence logic:
+   * 1. Find the latest version of the metadata.
+   * 2. If there is no such metadata, directly insert the metadata as the latest version.
+   * 3. If there is such metadata, run equality check to see if current and new metadata are "equal".
+   *    a. If they are equal, then skip since no need to store duplicates.
+   *    b. If they are not equal, save the new metadata as the latest version and update the old metadata as old version.
+   *
    * @param urn The identifier of the entity which the metadata is associated with.
    * @param aspectClass The aspect class for the metadata.
    * @param metadata The metadata serialized as JSON string.
    * @param auditStamp audit stamp containing information on who and when the metadata is saved.
    */
-  public void save(@Nonnull String urn, @Nonnull Class aspectClass, @Nonnull String metadata, @Nonnull AuditStamp auditStamp) {
+  public void save(@Nonnull Urn urn, @Nonnull Class aspectClass, @Nonnull String metadata, @Nonnull AuditStamp auditStamp) {
     runInTransactionWithRetry(() -> {
       final Optional<GenericLocalDAO.MetadataWithExtraInfo> latest = queryLatest(urn, aspectClass);
       RecordTemplate newValue = toRecordTemplate(aspectClass, metadata);
@@ -89,10 +95,10 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
    * @param aspectClass The aspect class for the metadata.
    * @return The metadata with extra info regarding auditing.
    */
-  public Optional<GenericLocalDAO.MetadataWithExtraInfo> queryLatest(@Nonnull String urn, @Nonnull Class aspectClass) {
-    validateUrn(urn);
+  public Optional<GenericLocalDAO.MetadataWithExtraInfo> queryLatest(@Nonnull Urn urn, @Nonnull Class aspectClass) {
+
     final String aspectName = ModelUtils.getAspectName(aspectClass);
-    final PrimaryKey key = new PrimaryKey(urn, aspectName, LATEST_VERSION);
+    final PrimaryKey key = new PrimaryKey(urn.toString(), aspectName, LATEST_VERSION);
     EbeanMetadataAspect metadata = _server.find(EbeanMetadataAspect.class, key);
 
     if (metadata == null || metadata.getMetadata() == null) {
@@ -106,13 +112,14 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
   /**
    * Save metadata into database.
    */
-  private void saveLatest(@Nonnull String urn, @Nonnull Class aspectClass, @Nonnull RecordTemplate newValue,
+  private void saveLatest(@Nonnull Urn urn, @Nonnull Class aspectClass, @Nonnull RecordTemplate newValue,
       @Nullable RecordTemplate currentValue, @Nonnull AuditStamp newAuditStamp, @Nullable AuditStamp currentAuditStamp) {
-    validateUrn(urn);
 
     // Save oldValue as the largest version + 1
     long largestVersion = getNextVersion(urn, aspectClass);
-    System.out.println("largest versio:" + largestVersion);
+
+    log.debug(String.format("The largest version of %s for entity %s is %d", aspectClass.getSimpleName(), urn, largestVersion));
+
     if (currentValue != null && currentAuditStamp != null) {
       // Move latest version to historical version by insert a new record only if we are not overwriting the latest version.
       insert(urn, currentValue, aspectClass, currentAuditStamp, largestVersion);
@@ -125,10 +132,10 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
     }
   }
 
-  private long getNextVersion(@Nonnull String urn, @Nonnull Class aspectClass) {
+  private long getNextVersion(@Nonnull Urn urn, @Nonnull Class aspectClass) {
     final List<EbeanMetadataAspect.PrimaryKey> result = _server.find(EbeanMetadataAspect.class)
         .where()
-        .eq(URN_COLUMN, urn)
+        .eq(URN_COLUMN, urn.toString())
         .eq(ASPECT_COLUMN, ModelUtils.getAspectName(aspectClass))
         .orderBy()
         .desc(VERSION_COLUMN)
@@ -138,20 +145,20 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
     return result.isEmpty() ? 0 : result.get(0).getVersion() + 1L;
   }
 
-  private void insert(@Nonnull String urn, @Nullable RecordTemplate value, @Nonnull Class aspectClass,
+  private void insert(@Nonnull Urn urn, @Nullable RecordTemplate value, @Nonnull Class aspectClass,
       @Nonnull AuditStamp auditStamp, long version) {
     final EbeanMetadataAspect aspect = buildMetadataAspectBean(urn, value, aspectClass, auditStamp, version);
     _server.insert(aspect);
   }
 
   @Nonnull
-  private <ASPECT extends RecordTemplate> EbeanMetadataAspect buildMetadataAspectBean(@Nonnull String urn,
+  private <ASPECT extends RecordTemplate> EbeanMetadataAspect buildMetadataAspectBean(@Nonnull Urn urn,
       @Nullable RecordTemplate value, @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, long version) {
 
     final String aspectName = ModelUtils.getAspectName(aspectClass);
 
     final EbeanMetadataAspect aspect = new EbeanMetadataAspect();
-    aspect.setKey(new PrimaryKey(urn, aspectName, version));
+    aspect.setKey(new PrimaryKey(urn.toString(), aspectName, version));
     if (value != null) {
       aspect.setMetadata(RecordUtils.toJsonString(value));
     } else {
@@ -168,7 +175,7 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
     return aspect;
   }
 
-  protected void updateWithOptimisticLocking(@Nonnull String urn, @Nullable RecordTemplate value, @Nonnull Class aspectClass,
+  protected void updateWithOptimisticLocking(@Nonnull Urn urn, @Nullable RecordTemplate value, @Nonnull Class aspectClass,
       @Nonnull AuditStamp newAuditStamp, long version, @Nonnull Timestamp oldTimestamp) {
 
     final EbeanMetadataAspect aspect = buildMetadataAspectBean(urn, value, aspectClass, newAuditStamp, version);

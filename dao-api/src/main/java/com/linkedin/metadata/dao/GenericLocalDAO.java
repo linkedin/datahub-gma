@@ -1,6 +1,7 @@
 package com.linkedin.metadata.dao;
 
 import com.linkedin.common.AuditStamp;
+import com.linkedin.common.urn.Urn;
 import com.linkedin.metadata.query.ExtraInfo;
 import java.util.Optional;
 import javax.annotation.Nonnull;
@@ -25,7 +26,7 @@ public interface GenericLocalDAO {
    * @param metadata The metadata serialized as JSON string.
    * @param auditStamp audit stamp containing information on who and when the metadata is saved.
    */
-  void save(@Nonnull String urn, @Nonnull Class aspectClass, @Nonnull String metadata, @Nonnull AuditStamp auditStamp);
+  void save(@Nonnull Urn urn, @Nonnull Class aspectClass, @Nonnull String metadata, @Nonnull AuditStamp auditStamp);
 
   /**
    * Query the latest metadata from database.
@@ -33,5 +34,5 @@ public interface GenericLocalDAO {
    * @param aspectClass The aspect class for the metadata.
    * @return The metadata with extra info regarding auditing.
    */
-  Optional<MetadataWithExtraInfo> queryLatest(@Nonnull String urn, @Nonnull Class aspectClass);
+  Optional<MetadataWithExtraInfo> queryLatest(@Nonnull Urn urn, @Nonnull Class aspectClass);
 }
