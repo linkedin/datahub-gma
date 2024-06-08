@@ -7,6 +7,11 @@ coverage:
         # this allows a 0% drop from the previous base commit coverage
         threshold: 0%
         only_pulls: true # no status will be posted for commits not on a pull request
+    patch:
+      default:
+        target: auto
+        threshold: 0%
+        only_pulls: true
 
 github_checks:
   annotations: false

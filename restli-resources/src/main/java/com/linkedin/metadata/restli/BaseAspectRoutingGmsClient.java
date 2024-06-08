@@ -8,12 +8,23 @@ import com.linkedin.restli.server.RestLiServiceException;
 import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import lombok.Getter;
 
 
 /**
  * A client interacts with standard GMS APIs.
  */
 public abstract class BaseAspectRoutingGmsClient {
+
+  /**
+   * The entity type associated with the aspect / client.
+   */
+  @Getter
+  private final String entityType;
+
+  public BaseAspectRoutingGmsClient(String entityType) {
+    this.entityType = entityType;
+  }
 
   /**
    * Retrieves the latest version of the routing aspect for an entity.

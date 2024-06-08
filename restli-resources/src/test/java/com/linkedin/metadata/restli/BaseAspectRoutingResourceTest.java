@@ -2,7 +2,6 @@ package com.linkedin.metadata.restli;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.StringArray;
 import com.linkedin.metadata.dao.AspectKey;
@@ -18,6 +17,7 @@ import com.linkedin.restli.common.EmptyRecord;
 import com.linkedin.restli.server.ResourceContext;
 import com.linkedin.testing.AspectAttributes;
 import com.linkedin.testing.AspectBar;
+import com.linkedin.testing.AspectBaz;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.EntityAspectUnion;
 import com.linkedin.testing.EntityAspectUnionArray;
@@ -25,6 +25,7 @@ import com.linkedin.testing.EntityDocument;
 import com.linkedin.testing.EntityKey;
 import com.linkedin.testing.EntitySnapshot;
 import com.linkedin.testing.EntityValue;
+import com.linkedin.testing.urn.BazUrn;
 import com.linkedin.testing.urn.FooUrn;
 import java.net.URISyntaxException;
 import java.util.Arrays;
@@ -49,6 +50,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
   private BaseBrowseDAO _mockBrowseDAO;
   private BaseLocalDAO _mockLocalDAO;
   private BaseAspectRoutingGmsClient _mockAspectFooGmsClient;
+  private BaseAspectRoutingGmsClient _mockAspectBazGmsClient;
   private BaseAspectRoutingGmsClient _mockAspectAttributeGmsClient;
 
   private BaseAspectRoutingResourceTest.TestResource _resource = new BaseAspectRoutingResourceTest.TestResource();
@@ -57,15 +59,15 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
   class TestResource extends BaseAspectRoutingResource<
       // format
-      ComplexResourceKey<EntityKey, EmptyRecord>, EntityValue, Urn, EntitySnapshot, EntityAspectUnion, EntityDocument> {
+      ComplexResourceKey<EntityKey, EmptyRecord>, EntityValue, FooUrn, EntitySnapshot, EntityAspectUnion, EntityDocument> {
 
     public TestResource() {
-      super(EntitySnapshot.class, EntityAspectUnion.class, EntityValue.class);
+      super(EntitySnapshot.class, EntityAspectUnion.class, FooUrn.class, EntityValue.class);
     }
 
     @Nonnull
     @Override
-    protected BaseLocalDAO<EntityAspectUnion, Urn> getLocalDAO() {
+    protected BaseLocalDAO<EntityAspectUnion, FooUrn> getLocalDAO() {
       return _mockLocalDAO;
     }
 
@@ -83,9 +85,9 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     @Nonnull
     @Override
-    protected Urn createUrnFromString(@Nonnull String urnString) {
+    protected FooUrn createUrnFromString(@Nonnull String urnString) {
       try {
-        return Urn.createFromString(urnString);
+        return FooUrn.createFromString(urnString);
       } catch (URISyntaxException e) {
         throw RestliUtils.badRequestException("Invalid URN: " + urnString);
       }
@@ -99,7 +101,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     @Nonnull
     @Override
-    protected ComplexResourceKey<EntityKey, EmptyRecord> toKey(@Nonnull Urn urn) {
+    protected ComplexResourceKey<EntityKey, EmptyRecord> toKey(@Nonnull FooUrn urn) {
       return new ComplexResourceKey<>(new EntityKey().setId(urn.getIdAsLong()), new EmptyRecord());
     }
 
@@ -122,7 +124,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     @Nonnull
     @Override
-    protected EntitySnapshot toSnapshot(@Nonnull EntityValue value, @Nonnull Urn urn) {
+    protected EntitySnapshot toSnapshot(@Nonnull EntityValue value, @Nonnull FooUrn urn) {
       EntitySnapshot snapshot = new EntitySnapshot().setUrn(urn);
       EntityAspectUnionArray aspects = new EntityAspectUnionArray();
       if (value.hasFoo()) {
@@ -151,9 +153,14 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
   public void setup() {
     _mockAspectFooGmsClient = mock(BaseAspectRoutingGmsClient.class);
     _mockAspectAttributeGmsClient = mock(BaseAspectRoutingGmsClient.class);
+    _mockAspectBazGmsClient = mock(BaseAspectRoutingGmsClient.class);
+    when(_mockAspectFooGmsClient.getEntityType()).thenReturn(FooUrn.ENTITY_TYPE);
+    when(_mockAspectAttributeGmsClient.getEntityType()).thenReturn(FooUrn.ENTITY_TYPE);
+    when(_mockAspectBazGmsClient.getEntityType()).thenReturn(BazUrn.ENTITY_TYPE);
     _mockLocalDAO = mock(BaseLocalDAO.class);
     _aspectRoutingGmsClientManager.registerRoutingGmsClient(AspectFoo.class, "setFoo", _mockAspectFooGmsClient);
     _aspectRoutingGmsClientManager.registerRoutingGmsClient(AspectAttributes.class, "setAttributes", _mockAspectAttributeGmsClient);
+    _aspectRoutingGmsClientManager.registerRoutingGmsClient(AspectBaz.class, "setBaz", _mockAspectBazGmsClient);
   }
 
   @Test
@@ -444,6 +451,9 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     assertTrue(backfillResult.getEntities().get(1).getAspects().contains(AspectBar.class.getCanonicalName()));
     assertTrue(backfillResult.getEntities().get(1).getAspects().contains(AspectFoo.class.getCanonicalName()));
     assertTrue(backfillResult.getEntities().get(1).getAspects().contains(AspectAttributes.class.getCanonicalName()));
+
+    verify(_mockAspectBazGmsClient, times(1)).getEntityType();
+    verify(_mockAspectBazGmsClient, never()).backfill(any());
   }
 
   @Test
@@ -463,6 +473,8 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     assertEquals(backfillResult.getEntities().size(), 2);
     verifyZeroInteractions(_mockAspectFooGmsClient);
+
+    verifyZeroInteractions(_mockAspectBazGmsClient);
   }
 
   @Test
@@ -503,6 +515,9 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     assertFalse(backfillResult.getEntities().get(1).getAspects().contains(AspectBar.class.getCanonicalName()));
     assertTrue(backfillResult.getEntities().get(1).getAspects().contains(AspectFoo.class.getCanonicalName()));
     assertTrue(backfillResult.getEntities().get(1).getAspects().contains(AspectAttributes.class.getCanonicalName()));
+
+    verify(_mockAspectBazGmsClient, times(1)).getEntityType();
+    verify(_mockAspectBazGmsClient, never()).backfill(any());
   }
 
   @Test
