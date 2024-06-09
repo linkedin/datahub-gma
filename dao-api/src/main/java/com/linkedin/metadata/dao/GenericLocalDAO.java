@@ -32,9 +32,11 @@ public interface GenericLocalDAO {
    * @param aspectClass The aspect class for the metadata.
    * @param metadata The metadata serialized as JSON string.
    * @param auditStamp audit stamp containing information on who and when the metadata is saved.
+   * @param trackingContext Nullable tracking context contains information passed from metadata events.
+   * @param ingestionMode Different options for ingestion.
    */
   void save(@Nonnull Urn urn, @Nonnull Class aspectClass, @Nonnull String metadata, @Nonnull AuditStamp auditStamp,
-      @Nullable IngestionTrackingContext ingestionTrackingContext, @Nullable IngestionMode ingestionMode);
+      @Nullable IngestionTrackingContext trackingContext, @Nullable IngestionMode ingestionMode);
 
   /**
    * Query the latest metadata from database.
