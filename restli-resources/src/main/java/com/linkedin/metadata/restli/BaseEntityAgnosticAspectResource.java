@@ -86,6 +86,8 @@ public abstract class BaseEntityAgnosticAspectResource extends ResourceContextHo
    * @param urn The urn identified the entity for which the metadata is associated with.
    * @param aspect The metadata aspect serialized as string in JSON format.
    * @param aspectClass The canonical class name of the aspect.
+   * @param trackingContext Nullable tracking context contains information passed from metadata events.
+   * @param ingestionParams Different options for ingestion.
    * @return CreateResponse if metadata is ingested successfully.
    */
   @Action(name = ACTION_INGEST)
