@@ -81,25 +81,35 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
    * @param aspectClass The aspect class for the metadata.
    * @param metadata The metadata serialized as JSON string.
    * @param auditStamp audit stamp containing information on who and when the metadata is saved.
+   * @param trackingContext Nullable tracking context contains information passed from metadata events.
+   * @param ingestionMode Different options for ingestion.
    */
   public void save(@Nonnull Urn urn, @Nonnull Class aspectClass, @Nonnull String metadata, @Nonnull AuditStamp auditStamp,
-      @Nullable IngestionTrackingContext ingestionTrackingContext, @Nullable IngestionMode ingestionMode) {
+      @Nullable IngestionTrackingContext trackingContext, @Nullable IngestionMode ingestionMode) {
     runInTransactionWithRetry(() -> {
       final Optional<GenericLocalDAO.MetadataWithExtraInfo> latest = queryLatest(urn, aspectClass);
       RecordTemplate newValue = toRecordTemplate(aspectClass, metadata);
 
       if (!latest.isPresent()) {
         saveLatest(urn, aspectClass, newValue, null, auditStamp, null);
-        _producer.produceAspectSpecificMetadataAuditEvent(urn, null, newValue, auditStamp,
-            ingestionTrackingContext, ingestionMode);
+        _producer.produceAspectSpecificMetadataAuditEvent(urn, null, newValue, auditStamp, trackingContext, ingestionMode);
       } else {
         RecordTemplate currentValue = toRecordTemplate(aspectClass, latest.get().getAspect());
+        final AuditStamp oldAuditStamp = latest.get().getExtraInfo() == null ? null : latest.get().getExtraInfo().getAudit();
+
+        final boolean isBackfillEvent = trackingContext != null && trackingContext.hasBackfill() && trackingContext.isBackfill();
+        final boolean shouldBackfill = trackingContext != null && trackingContext.hasEmitTime() && oldAuditStamp != null && oldAuditStamp.hasTime()
+            && trackingContext.getEmitTime() > oldAuditStamp.getTime();
+
+        // Skip update if metadata is sent by backfill event but should not be backfilled.
+        if (isBackfillEvent && !shouldBackfill) {
+          return null;
+        }
 
         // Skip update if current value and new value are equal.
         if (!areEqual(currentValue, newValue, _equalityTesters.get(aspectClass))) {
           saveLatest(urn, aspectClass, newValue, currentValue, auditStamp, latest.get().getExtraInfo().getAudit());
-          _producer.produceAspectSpecificMetadataAuditEvent(urn, currentValue, newValue, auditStamp,
-              ingestionTrackingContext, ingestionMode);
+          _producer.produceAspectSpecificMetadataAuditEvent(urn, currentValue, newValue, auditStamp, trackingContext, ingestionMode);
         }
       }
       return null;
