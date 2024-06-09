@@ -2,18 +2,29 @@ package com.linkedin.metadata.restli;
 
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
+import com.linkedin.data.template.RecordTemplate;
+import com.linkedin.metadata.backfill.BackfillMode;
 import com.linkedin.metadata.dao.GenericLocalDAO;
+import com.linkedin.metadata.dao.utils.ModelUtils;
+import com.linkedin.metadata.events.IngestionMode;
+import com.linkedin.metadata.events.IngestionTrackingContext;
+import com.linkedin.metadata.internal.IngestionParams;
 import com.linkedin.parseq.Task;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.CreateResponse;
 import com.linkedin.restli.server.RestLiServiceException;
 import com.linkedin.restli.server.annotations.Action;
 import com.linkedin.restli.server.annotations.ActionParam;
+import com.linkedin.restli.server.annotations.Optional;
 import com.linkedin.restli.server.resources.ResourceContextHolder;
 import java.net.URISyntaxException;
 import java.time.Clock;
-import java.util.Optional;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Set;
+import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import static com.linkedin.metadata.restli.RestliConstants.*;
 
@@ -55,11 +66,11 @@ public abstract class BaseEntityAgnosticAspectResource extends ResourceContextHo
     try {
       Class clazz = this.getClass().getClassLoader().loadClass(aspectClass);
 
-      Optional<GenericLocalDAO.MetadataWithExtraInfo> nullableMetadata =
-          genericLocalDAO().queryLatest(Urn.createFromCharSequence(urn), clazz);
+      GenericLocalDAO.MetadataWithExtraInfo metadataWithExtraInfo =
+          genericLocalDAO().queryLatest(Urn.createFromCharSequence(urn), clazz).orElse(null);
 
-      if (nullableMetadata.isPresent()) {
-        return RestliUtils.toTask(() -> nullableMetadata.get().getAspect());
+      if (metadataWithExtraInfo != null) {
+        return RestliUtils.toTask(metadataWithExtraInfo::getAspect);
       }
 
       throw new RestLiServiceException(HttpStatus.S_404_NOT_FOUND);
@@ -82,15 +93,40 @@ public abstract class BaseEntityAgnosticAspectResource extends ResourceContextHo
   public Task<CreateResponse> ingest(
       @ActionParam(PARAM_URN) @Nonnull String urn,
       @ActionParam(PARAM_ASPECT) @Nonnull String aspect,
-      @ActionParam(PARAM_ASPECT_CLASS) @Nonnull String aspectClass) {
+      @ActionParam(PARAM_ASPECT_CLASS) @Nonnull String aspectClass,
+      @Optional @ActionParam(PARAM_TRACKING_CONTEXT) @Nullable IngestionTrackingContext trackingContext,
+      @Optional @ActionParam(PARAM_INGESTION_PARAMS) @Nullable IngestionParams ingestionParams) {
     final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
 
     try {
       Class clazz = this.getClass().getClassLoader().loadClass(aspectClass);
-      genericLocalDAO().save(Urn.createFromCharSequence(urn), clazz, aspect, auditStamp);
+      IngestionMode ingestionMode = ingestionParams == null ? null : ingestionParams.getIngestionMode();
+      genericLocalDAO().save(Urn.createFromCharSequence(urn), clazz, aspect, auditStamp, trackingContext, ingestionMode);
       return RestliUtils.toTask(() -> new CreateResponse(HttpStatus.S_201_CREATED));
     } catch (ClassNotFoundException e) {
       throw new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST, String.format("No such class %s.", aspectClass));
+    } catch (URISyntaxException e) {
+      throw new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST, String.format("Urn %s is malformed.", urn));
+    }
+  }
+
+  /**
+   * Backfill secondary storage by triggering MAEs.
+   * @param urn The urn identified the entity for which the metadata is associated with.
+   * @param aspectNames The metadata aspect serialized as string in JSON format.
+   */
+  @Action(name = ACTION_BACKFILL_WITH_URNS)
+  @Nonnull
+  public Task<BackfillResult> backfill(
+      @ActionParam(PARAM_URNS) @Nonnull String urn,
+      @ActionParam(PARAM_ASPECTS) @Nonnull String[] aspectNames) {
+    Set<Class<? extends RecordTemplate>> aspects = Arrays.stream(aspectNames).map(ModelUtils::getAspectClass).collect(Collectors.toSet());
+
+    try {
+      BackfillResult backfillResult = RestliUtils.buildBackfillResult(genericLocalDAO().backfill(
+          BackfillMode.BACKFILL_ALL, Collections.singletonMap(Urn.createFromCharSequence(urn), aspects)));
+
+      return RestliUtils.toTask(() -> backfillResult);
     } catch (URISyntaxException e) {
       throw new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST, String.format("Urn %s is malformed.", urn));
     }

@@ -4,10 +4,15 @@ import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.DataTemplateUtil;
 import com.linkedin.data.template.RecordTemplate;
+import com.linkedin.metadata.backfill.BackfillMode;
 import com.linkedin.metadata.dao.equality.GenericEqualityTester;
 import com.linkedin.metadata.dao.exception.RetryLimitReached;
+import com.linkedin.metadata.dao.tracking.TrackingUtils;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
+import com.linkedin.metadata.dao.producer.GenericMetadataProducer;
+import com.linkedin.metadata.events.IngestionMode;
+import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.ExtraInfo;
 import io.ebean.DuplicateKeyException;
 import io.ebean.EbeanServer;
@@ -20,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Supplier;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -31,6 +37,7 @@ import static com.linkedin.metadata.dao.EbeanLocalDAO.*;
 import static com.linkedin.metadata.dao.EbeanMetadataAspect.*;
 import static com.linkedin.metadata.dao.utils.EBeanDAOUtils.*;
 import static com.linkedin.metadata.dao.utils.EbeanServerUtils.*;
+import static com.linkedin.metadata.dao.utils.IngestionUtils.*;
 import static com.linkedin.metadata.dao.utils.RecordUtils.toRecordTemplate;
 import static com.linkedin.metadata.dao.utils.SQLStatementUtils.*;
 
@@ -44,10 +51,15 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
 
   private final EbeanServer _server;
 
+  private final GenericMetadataProducer _producer;
+
   private Map<Class, GenericEqualityTester> _equalityTesters = new HashMap<>();
 
-  public EbeanGenericLocalDAO(@Nonnull ServerConfig serverConfig) {
+  private static final String BACKFILL_EMITTER = "dao_backfill_endpoint";
+
+  public EbeanGenericLocalDAO(@Nonnull ServerConfig serverConfig, @Nonnull GenericMetadataProducer producer) {
     _server = createServer(serverConfig);
+    _producer = producer;
   }
 
   /**
@@ -70,19 +82,24 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
    * @param metadata The metadata serialized as JSON string.
    * @param auditStamp audit stamp containing information on who and when the metadata is saved.
    */
-  public void save(@Nonnull Urn urn, @Nonnull Class aspectClass, @Nonnull String metadata, @Nonnull AuditStamp auditStamp) {
+  public void save(@Nonnull Urn urn, @Nonnull Class aspectClass, @Nonnull String metadata, @Nonnull AuditStamp auditStamp,
+      @Nullable IngestionTrackingContext ingestionTrackingContext, @Nullable IngestionMode ingestionMode) {
     runInTransactionWithRetry(() -> {
       final Optional<GenericLocalDAO.MetadataWithExtraInfo> latest = queryLatest(urn, aspectClass);
       RecordTemplate newValue = toRecordTemplate(aspectClass, metadata);
 
       if (!latest.isPresent()) {
         saveLatest(urn, aspectClass, newValue, null, auditStamp, null);
+        _producer.produceAspectSpecificMetadataAuditEvent(urn, null, newValue, auditStamp,
+            ingestionTrackingContext, ingestionMode);
       } else {
         RecordTemplate currentValue = toRecordTemplate(aspectClass, latest.get().getAspect());
 
         // Skip update if current value and new value are equal.
         if (!areEqual(currentValue, newValue, _equalityTesters.get(aspectClass))) {
           saveLatest(urn, aspectClass, newValue, currentValue, auditStamp, latest.get().getExtraInfo().getAudit());
+          _producer.produceAspectSpecificMetadataAuditEvent(urn, currentValue, newValue, auditStamp,
+              ingestionTrackingContext, ingestionMode);
         }
       }
       return null;
@@ -107,6 +124,62 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
 
     final ExtraInfo extraInfo = toExtraInfo(metadata);
     return Optional.of(new GenericLocalDAO.MetadataWithExtraInfo(metadata.getMetadata(), extraInfo));
+  }
+
+  /**
+   * Trigger MAE events to backfill secondary stores.
+   * @return The aspects being backfilled.
+   */
+  @Nonnull
+  public Map<Urn, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfill(
+      @Nonnull BackfillMode mode, @Nonnull Map<Urn, Set<Class<? extends RecordTemplate>>> aspectClasses) {
+
+    if (aspectClasses.isEmpty()) {
+      return new HashMap<>();
+    }
+
+    Map<Urn, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> urnToAspects = new HashMap<>();
+
+    for (Urn urn : aspectClasses.keySet()) {
+      Set<Class<? extends RecordTemplate>> aspects = aspectClasses.get(urn);
+      Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> aspectVals = new HashMap<>();
+
+      for (Class<? extends RecordTemplate> aspect : aspects) {
+        Optional<GenericLocalDAO.MetadataWithExtraInfo> metadata = queryLatest(urn, aspect);
+
+        metadata.ifPresent(metadataWithExtraInfo -> aspectVals.put(aspect,
+            Optional.of(RecordUtils.toRecordTemplate(aspect, metadataWithExtraInfo.getAspect()))));
+      }
+
+      urnToAspects.put(urn, aspectVals);
+    }
+
+    urnToAspects.forEach((urn, aspects) -> {
+      aspects.forEach((aspectClass, aspect) -> backfill(mode, aspect.get(), urn));
+    });
+    return urnToAspects;
+  }
+
+  /**
+   * Emits backfill MAE for an aspect of an entity depending on the backfill mode.
+   *
+   * @param mode backfill mode
+   * @param aspect aspect to backfill
+   * @param urn {@link Urn} for the entity
+   */
+  private void backfill(@Nonnull BackfillMode mode, @Nonnull RecordTemplate aspect, @Nonnull Urn urn) {
+
+    if (mode == BackfillMode.MAE_ONLY
+        || mode == BackfillMode.BACKFILL_ALL
+        || mode == BackfillMode.BACKFILL_INCLUDING_LIVE_INDEX) {
+
+      IngestionMode ingestionMode = ALLOWED_INGESTION_BACKFILL_BIMAP.inverse().get(mode);
+
+      IngestionTrackingContext trackingContext = buildIngestionTrackingContext(
+            TrackingUtils.getRandomUUID(), BACKFILL_EMITTER, System.currentTimeMillis());
+
+      _producer.produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, null, trackingContext, ingestionMode);
+    }
   }
 
   /**

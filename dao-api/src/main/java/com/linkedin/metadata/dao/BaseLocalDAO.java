@@ -1265,7 +1265,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * Emits backfill MAE for an aspect of an entity and/or backfills SCSI depending on the backfill mode.
+   * Emits backfill MAE for an aspect of an entity depending on the backfill mode.
    *
    * @param mode backfill mode
    * @param aspect aspect to backfill
