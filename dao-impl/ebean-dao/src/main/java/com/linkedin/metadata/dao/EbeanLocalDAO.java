@@ -941,7 +941,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   /**
-   * Sets the max keys allowed for each single query
+   * Sets the max keys allowed for each single query.
    */
   public void setQueryKeysCount(int keysCount) {
     if (keysCount < 0) {

@@ -59,7 +59,10 @@ public class SQLStatementUtils {
           + "WHERE urn = :urn and (JSON_EXTRACT(%s, '$.lastmodifiedon') = :oldTimestamp OR JSON_EXTRACT(%s, '$.gma_deleted') IS NOT NULL);";
 
   private static final String SQL_READ_ASPECT_TEMPLATE =
-      String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby FROM %%s WHERE urn = '%%s' AND %s", SOFT_DELETED_CHECK);
+      String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby FROM %%s WHERE %s AND urn IN (", SOFT_DELETED_CHECK);
+
+  private static final String SQL_READ_ASPECT_WITH_SOFT_DELETED_TEMPLATE =
+      "SELECT urn, %s, lastmodifiedon, lastmodifiedby FROM %s WHERE urn IN (";
 
   private static final String SQL_LIST_ASPECT_BY_URN_TEMPLATE =
       String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby, createdfor FROM %%s WHERE urn = '%%s' AND %s AND %s", NONNULL_CHECK, SOFT_DELETED_CHECK);
@@ -74,9 +77,6 @@ public class SQLStatementUtils {
   private static final String SQL_LIST_ASPECT_WITH_PAGINATION_WITH_SOFT_DELETED_TEMPLATE =
       String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby, createdfor, (SELECT COUNT(urn) FROM %%s WHERE %s) "
           + "as _total_count FROM %%s WHERE %s LIMIT %%s OFFSET %%s", NONNULL_CHECK,  NONNULL_CHECK);
-
-  private static final String SQL_READ_ASPECT_WITH_SOFT_DELETED_TEMPLATE =
-      "SELECT urn, %s, lastmodifiedon, lastmodifiedby FROM %s WHERE urn = '%s'";
 
   private static final String INDEX_GROUP_BY_CRITERION = "SELECT count(*) as COUNT, %s FROM %s";
 
@@ -94,6 +94,8 @@ public class SQLStatementUtils {
 
   private static final String DELETE_BY_SOURCE_AND_DESTINATION = "UPDATE %s SET deleted_ts=NOW() WHERE destination = :destination"
       + " AND source = :source AND deleted_ts IS NULL";
+
+  private static final String RIGHT_PARENTHESIS = ")";
 
   /**
    *  Filter query has pagination params in the existing APIs. To accommodate this, we use subquery to include total result counts in the query response.
@@ -127,11 +129,10 @@ public class SQLStatementUtils {
    * single aspect column in the metadata entity tables. The query includes a filter for filtering out soft-deleted aspects.
    *
    * <p>Example:
-   * SELECT urn, aspect1, lastmodifiedon, lastmodifiedby FROM metadata_entity_foo WHERE urn = 'urn:1' AND aspect1 != '{"gma_deleted":true}'
-   * UNION ALL
-   * SELECT urn, aspect1, lastmodifiedon, lastmodifiedby FROM metadata_entity_foo WHERE urn = 'urn:2' AND aspect1 != '{"gma_deleted":true}'
-   * UNION ALL
-   * SELECT urn, aspect1, lastmodifiedon, lastmodifiedby FROM metadata_entity_bar WHERE urn = 'urn:1' AND aspect1 != '{"gma_deleted":true}'
+   * SELECT urn, aspect1, lastmodifiedon, lastmodifiedby
+   * FROM metadata_entity_foo
+   * WHERE JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL
+   * AND urn IN ('urn:1', 'urn:2', 'urn:3')
    * </p>
    * @param aspectClass aspect class to query for
    * @param urns a Set of Urns to query for
@@ -144,15 +145,18 @@ public class SQLStatementUtils {
     if (urns.size() == 0) {
       throw new IllegalArgumentException("Need at least 1 urn to query.");
     }
+    final String tableName = getTableName(urns.iterator().next());
     final String columnName = getAspectColumnName(aspectClass);
+    // build the SQL query
     StringBuilder stringBuilder = new StringBuilder();
-    List<String> selectStatements = urns.stream().map(urn -> {
-      final String tableName = getTableName(urn);
-      final String sqlTemplate =
-          includeSoftDeleted ? SQL_READ_ASPECT_WITH_SOFT_DELETED_TEMPLATE : SQL_READ_ASPECT_TEMPLATE;
-      return String.format(sqlTemplate, columnName, tableName, escapeReservedCharInUrn(urn.toString()), columnName);
-    }).collect(Collectors.toList());
-    stringBuilder.append(String.join(" UNION ALL ", selectStatements));
+    final String sqlTemplate =
+        includeSoftDeleted ? SQL_READ_ASPECT_WITH_SOFT_DELETED_TEMPLATE : SQL_READ_ASPECT_TEMPLATE;
+    stringBuilder.append(String.format(sqlTemplate, columnName, tableName, columnName));
+    String urnsString = urns.stream()
+        .map(urn -> "'" + escapeReservedCharInUrn(urn.toString()) + "'")
+        .collect(Collectors.joining(", "));
+    stringBuilder.append(urnsString);
+    stringBuilder.append(RIGHT_PARENTHESIS);
     return stringBuilder.toString();
   }
 
