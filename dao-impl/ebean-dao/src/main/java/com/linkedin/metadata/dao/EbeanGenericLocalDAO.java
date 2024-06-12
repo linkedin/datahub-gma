@@ -20,7 +20,6 @@ import io.ebean.EbeanServer;
 import io.ebean.SqlUpdate;
 import io.ebean.Transaction;
 import io.ebean.config.ServerConfig;
-import java.net.URISyntaxException;
 import java.sql.Timestamp;
 import java.util.Collections;
 import java.util.HashMap;
