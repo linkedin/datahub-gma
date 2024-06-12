@@ -1,5 +1,6 @@
 package com.linkedin.metadata.dao;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.DataTemplateUtil;
@@ -21,6 +22,7 @@ import io.ebean.Transaction;
 import io.ebean.config.ServerConfig;
 import java.net.URISyntaxException;
 import java.sql.Timestamp;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -97,12 +99,8 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
         RecordTemplate currentValue = toRecordTemplate(aspectClass, latest.get().getAspect());
         final AuditStamp oldAuditStamp = latest.get().getExtraInfo() == null ? null : latest.get().getExtraInfo().getAudit();
 
-        final boolean isBackfillEvent = trackingContext != null && trackingContext.hasBackfill() && trackingContext.isBackfill();
-        final boolean shouldBackfill = trackingContext != null && trackingContext.hasEmitTime() && oldAuditStamp != null && oldAuditStamp.hasTime()
-            && trackingContext.getEmitTime() > oldAuditStamp.getTime();
-
-        // Skip update if metadata is sent by backfill event but should not be backfilled.
-        if (isBackfillEvent && !shouldBackfill) {
+        // Skip update if metadata is sent by an "expired" backfill event so that we don't overwrite the latest metadata.
+        if (isExpiredBackfill(trackingContext, oldAuditStamp)) {
           return null;
         }
 
@@ -145,7 +143,7 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
       @Nonnull BackfillMode mode, @Nonnull Map<Urn, Set<Class<? extends RecordTemplate>>> aspectClasses) {
 
     if (aspectClasses.isEmpty()) {
-      return new HashMap<>();
+      return Collections.emptyMap();
     }
 
     Map<Urn, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> urnToAspects = new HashMap<>();
@@ -289,21 +287,24 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
     return update;
   }
 
-  // TODO: This validation is still weak. It can only make sure urn is in "urn:li:entity:foo" format.
-  private void validateUrn(String urn) {
-    try {
-      Urn.createFromCharSequence(urn);
-    } catch (URISyntaxException e) {
-      throw new IllegalArgumentException("Invalid Urn format");
-    }
-  }
-
   private boolean areEqual(@Nonnull RecordTemplate r1, @Nonnull RecordTemplate r2, @Nullable GenericEqualityTester equalityTester) {
     if (equalityTester != null) {
       return equalityTester.equals(r1, r2);
     }
 
     return DataTemplateUtil.areEqual(r1, r2);
+  }
+
+  @VisibleForTesting
+  protected boolean isExpiredBackfill(@Nullable IngestionTrackingContext trackingContext, @Nullable AuditStamp currentAuditStamp) {
+    // Check ingestion tracking context to determine if the metadata is being backfilled.
+    final boolean isBackfillEvent = trackingContext != null && trackingContext.hasBackfill() && trackingContext.isBackfill();
+
+    // If trackingContext.getEmitTime() > currentAuditStamp.getTime(), then backfill event has the latest metadata. Hence, we should backfill.
+    final boolean shouldBackfill = trackingContext != null && trackingContext.hasEmitTime() && currentAuditStamp != null && currentAuditStamp.hasTime()
+        && trackingContext.getEmitTime() > currentAuditStamp.getTime();
+
+    return isBackfillEvent && !shouldBackfill;
   }
 
   @Nonnull
