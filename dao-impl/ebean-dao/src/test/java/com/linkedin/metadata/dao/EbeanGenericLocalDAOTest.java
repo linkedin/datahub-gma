@@ -54,14 +54,14 @@ public class EbeanGenericLocalDAOTest {
 
   @BeforeClass
   public void init() {
-    _producer = mock(GenericMetadataProducer.class);
-    _server = EmbeddedMariaInstance.getServer(EbeanLocalAccessTest.class.getSimpleName());
+    _server = EmbeddedMariaInstance.getServer(EbeanGenericLocalDAO.class.getSimpleName());
     _serverConfig = EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName());
-    _genericLocalDAO = new EbeanGenericLocalDAO(_serverConfig, _producer);
   }
 
   @BeforeMethod
   public void setupTest() {
+    _producer = mock(GenericMetadataProducer.class);
+    _genericLocalDAO = new EbeanGenericLocalDAO(_serverConfig, _producer);
     _server.execute(Ebean.createSqlUpdate(readSQLfromFile("ebean-generic-local-dao-create-all.sql")));
   }
 
@@ -221,20 +221,15 @@ public class EbeanGenericLocalDAOTest {
         eq(aspectFoo1), eq(aspectFoo2), eq(makeAuditStamp("tester")), eq(null), eq(null));
 
     verifyNoMoreInteractions(_producer);
-
-    Map<Urn, Set<Class<? extends RecordTemplate>>> aspects = Collections.singletonMap(fooUrn, Collections.singleton(AspectFoo.class));
-
-    Map<Urn, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfillResults
-        = _genericLocalDAO.backfill(BackfillMode.BACKFILL_ALL, aspects);
-
-    assertEquals(backfillResults.size(), 1);
-    assertEquals(backfillResults.get(fooUrn).get(AspectFoo.class).get(), aspectFoo2);
   }
 
   @Test
   public void testBackfill() throws URISyntaxException {
     FooUrn fooUrn = FooUrn.createFromString("urn:li:foo:1");
     AspectFoo aspectFoo = new AspectFoo().setValue("foo");
+
+    _genericLocalDAO.save(fooUrn, AspectFoo.class, RecordUtils.toJsonString(aspectFoo),
+        makeAuditStamp("tester"), null, null);
 
     Map<Urn, Set<Class<? extends RecordTemplate>>> aspects = Collections.singletonMap(fooUrn, Collections.singleton(AspectFoo.class));
 

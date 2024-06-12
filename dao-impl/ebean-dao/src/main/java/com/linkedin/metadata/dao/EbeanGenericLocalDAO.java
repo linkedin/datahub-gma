@@ -98,8 +98,11 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
         RecordTemplate currentValue = toRecordTemplate(aspectClass, latest.get().getAspect());
         final AuditStamp oldAuditStamp = latest.get().getExtraInfo() == null ? null : latest.get().getExtraInfo().getAudit();
 
+        // Check ingestion tracking context to determine if the metadata is being backfilled.
+        final boolean isBackfillEvent = trackingContext != null && trackingContext.hasBackfill() && trackingContext.isBackfill();
+
         // Skip update if metadata is sent by an "expired" backfill event so that we don't overwrite the latest metadata.
-        if (isExpiredBackfill(trackingContext, oldAuditStamp)) {
+        if (isBackfillEvent && isExpiredBackfill(trackingContext, oldAuditStamp)) {
           return null;
         }
 
@@ -296,14 +299,10 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
 
   @VisibleForTesting
   protected boolean isExpiredBackfill(@Nullable IngestionTrackingContext trackingContext, @Nullable AuditStamp currentAuditStamp) {
-    // Check ingestion tracking context to determine if the metadata is being backfilled.
-    final boolean isBackfillEvent = trackingContext != null && trackingContext.hasBackfill() && trackingContext.isBackfill();
 
     // If trackingContext.getEmitTime() > currentAuditStamp.getTime(), then backfill event has the latest metadata. Hence, we should backfill.
-    final boolean shouldBackfill = trackingContext != null && trackingContext.hasEmitTime() && currentAuditStamp != null && currentAuditStamp.hasTime()
-        && trackingContext.getEmitTime() > currentAuditStamp.getTime();
-
-    return isBackfillEvent && !shouldBackfill;
+    return !(trackingContext != null && trackingContext.hasEmitTime() && currentAuditStamp != null && currentAuditStamp.hasTime()
+        && trackingContext.getEmitTime() > currentAuditStamp.getTime());
   }
 
   @Nonnull
