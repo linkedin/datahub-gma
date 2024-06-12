@@ -1,6 +1,7 @@
 package com.linkedin.metadata.restli;
 
 import com.linkedin.common.AuditStamp;
+import com.linkedin.metadata.backfill.BackfillMode;
 import com.linkedin.metadata.dao.GenericLocalDAO;
 import com.linkedin.parseq.BaseEngineTest;
 import com.linkedin.restli.server.ResourceContext;
@@ -8,6 +9,7 @@ import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.urn.FooUrn;
 import java.net.URISyntaxException;
 import java.time.Clock;
+import java.util.Collections;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -69,9 +71,19 @@ public class BaseEntityAgnosticAspectResourceTest extends BaseEngineTest {
   @Test
   public void testIngest() {
     AspectFoo foo = new AspectFoo().setValue("foo");
-    runAndWait(_resource.ingest(ENTITY_URN.toString(), foo.toString(), AspectFoo.class.getCanonicalName()));
+    runAndWait(_resource.ingest(ENTITY_URN.toString(), foo.toString(), AspectFoo.class.getCanonicalName(), null, null));
     verify(_mockLocalDAO, times(1)).save(eq(ENTITY_URN),
-        eq(AspectFoo.class), eq(foo.toString()), any(AuditStamp.class));
+        eq(AspectFoo.class), eq(foo.toString()), any(AuditStamp.class), any(), any());
+    verifyNoMoreInteractions(_mockLocalDAO);
+  }
+
+  @Test
+  public void testBackfill() {
+    runAndWait(_resource.backfill(ENTITY_URN.toString(), new String[] {AspectFoo.class.getCanonicalName()}));
+
+    verify(_mockLocalDAO, times(1)).backfill(eq(BackfillMode.BACKFILL_ALL),
+        eq(Collections.singletonMap(ENTITY_URN, Collections.singleton(AspectFoo.class))));
+
     verifyNoMoreInteractions(_mockLocalDAO);
   }
 }
