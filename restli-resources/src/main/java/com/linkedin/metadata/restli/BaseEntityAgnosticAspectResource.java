@@ -88,7 +88,6 @@ public abstract class BaseEntityAgnosticAspectResource extends ResourceContextHo
    * @param aspectClass The canonical class name of the aspect.
    * @param trackingContext Nullable tracking context contains information passed from metadata events.
    * @param ingestionParams Different options for ingestion.
-   * @return CreateResponse if metadata is ingested successfully.
    */
   @Action(name = ACTION_INGEST)
   @Nonnull
