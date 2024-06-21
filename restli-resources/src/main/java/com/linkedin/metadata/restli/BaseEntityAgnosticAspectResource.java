@@ -92,7 +92,7 @@ public abstract class BaseEntityAgnosticAspectResource extends ResourceContextHo
    */
   @Action(name = ACTION_INGEST)
   @Nonnull
-  public Task<CreateResponse> ingest(
+  public Task<Void> ingest(
       @ActionParam(PARAM_URN) @Nonnull String urn,
       @ActionParam(PARAM_ASPECT) @Nonnull String aspect,
       @ActionParam(PARAM_ASPECT_CLASS) @Nonnull String aspectClass,
@@ -104,7 +104,7 @@ public abstract class BaseEntityAgnosticAspectResource extends ResourceContextHo
       Class clazz = this.getClass().getClassLoader().loadClass(aspectClass);
       IngestionMode ingestionMode = ingestionParams == null ? null : ingestionParams.getIngestionMode();
       genericLocalDAO().save(Urn.createFromCharSequence(urn), clazz, aspect, auditStamp, trackingContext, ingestionMode);
-      return RestliUtils.toTask(() -> new CreateResponse(HttpStatus.S_201_CREATED));
+      return Task.value(null);
     } catch (ClassNotFoundException e) {
       throw new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST, String.format("No such class %s.", aspectClass));
     } catch (URISyntaxException e) {
