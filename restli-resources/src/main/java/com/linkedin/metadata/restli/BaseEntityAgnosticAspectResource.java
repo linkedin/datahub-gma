@@ -113,12 +113,12 @@ public abstract class BaseEntityAgnosticAspectResource extends ResourceContextHo
   /**
    * Backfill secondary storage by triggering MAEs.
    * @param urn The urn identified the entity for which the metadata is associated with.
-   * @param aspectNames The metadata aspect serialized as string in JSON format.
+   * @param aspectNames A list of aspect's canonical names.
    */
-  @Action(name = ACTION_BACKFILL_WITH_URNS)
+  @Action(name = ACTION_BACKFILL_WITH_URN)
   @Nonnull
   public Task<BackfillResult> backfill(
-      @ActionParam(PARAM_URNS) @Nonnull String urn,
+      @ActionParam(PARAM_URN) @Nonnull String urn,
       @ActionParam(PARAM_ASPECTS) @Nonnull String[] aspectNames) {
     Set<Class<? extends RecordTemplate>> aspects = Arrays.stream(aspectNames).map(ModelUtils::getAspectClass).collect(Collectors.toSet());
 
