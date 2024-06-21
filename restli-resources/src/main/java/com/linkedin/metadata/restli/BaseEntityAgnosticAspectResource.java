@@ -11,7 +11,6 @@ import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.internal.IngestionParams;
 import com.linkedin.parseq.Task;
 import com.linkedin.restli.common.HttpStatus;
-import com.linkedin.restli.server.CreateResponse;
 import com.linkedin.restli.server.RestLiServiceException;
 import com.linkedin.restli.server.annotations.Action;
 import com.linkedin.restli.server.annotations.ActionParam;
@@ -88,11 +87,10 @@ public abstract class BaseEntityAgnosticAspectResource extends ResourceContextHo
    * @param aspectClass The canonical class name of the aspect.
    * @param trackingContext Nullable tracking context contains information passed from metadata events.
    * @param ingestionParams Different options for ingestion.
-   * @return CreateResponse if metadata is ingested successfully.
    */
   @Action(name = ACTION_INGEST)
   @Nonnull
-  public Task<CreateResponse> ingest(
+  public Task<Void> ingest(
       @ActionParam(PARAM_URN) @Nonnull String urn,
       @ActionParam(PARAM_ASPECT) @Nonnull String aspect,
       @ActionParam(PARAM_ASPECT_CLASS) @Nonnull String aspectClass,
@@ -104,7 +102,7 @@ public abstract class BaseEntityAgnosticAspectResource extends ResourceContextHo
       Class clazz = this.getClass().getClassLoader().loadClass(aspectClass);
       IngestionMode ingestionMode = ingestionParams == null ? null : ingestionParams.getIngestionMode();
       genericLocalDAO().save(Urn.createFromCharSequence(urn), clazz, aspect, auditStamp, trackingContext, ingestionMode);
-      return RestliUtils.toTask(() -> new CreateResponse(HttpStatus.S_201_CREATED));
+      return Task.value(null);
     } catch (ClassNotFoundException e) {
       throw new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST, String.format("No such class %s.", aspectClass));
     } catch (URISyntaxException e) {
@@ -115,12 +113,12 @@ public abstract class BaseEntityAgnosticAspectResource extends ResourceContextHo
   /**
    * Backfill secondary storage by triggering MAEs.
    * @param urn The urn identified the entity for which the metadata is associated with.
-   * @param aspectNames The metadata aspect serialized as string in JSON format.
+   * @param aspectNames A list of aspect's canonical names.
    */
-  @Action(name = ACTION_BACKFILL_WITH_URNS)
+  @Action(name = ACTION_BACKFILL_WITH_URN)
   @Nonnull
   public Task<BackfillResult> backfill(
-      @ActionParam(PARAM_URNS) @Nonnull String urn,
+      @ActionParam(PARAM_URN) @Nonnull String urn,
       @ActionParam(PARAM_ASPECTS) @Nonnull String[] aspectNames) {
     Set<Class<? extends RecordTemplate>> aspects = Arrays.stream(aspectNames).map(ModelUtils::getAspectClass).collect(Collectors.toSet());
 
