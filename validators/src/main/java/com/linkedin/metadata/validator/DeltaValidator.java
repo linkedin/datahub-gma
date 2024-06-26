@@ -52,7 +52,6 @@ public final class DeltaValidator {
   }
 
   private static boolean isValidDeltaField(@Nonnull RecordDataSchema.Field field) {
-    return field.getName().equals("delta") && !field.getOptional()
-        && field.getType().getType() == DataSchema.Type.UNION;
+    return field.getName().equals("delta") && field.getType().getType() == DataSchema.Type.UNION;
   }
 }
