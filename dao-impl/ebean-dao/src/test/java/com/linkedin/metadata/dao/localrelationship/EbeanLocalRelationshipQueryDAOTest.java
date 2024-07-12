@@ -272,6 +272,16 @@ public class EbeanLocalRelationshipQueryDAOTest {
   }
 
   @Test
+  public void testFindOneRelationshipWithEntityTypeName() {
+    // TODO: implement
+  }
+
+  @Test
+  public void testFindOneRelationshipWithFilterWithEntityTypeName() {
+    // TODO: implement
+  }
+
+  @Test
   public void testFindEntitiesOneHopAwayIncomingDirection() throws Exception {
     FooUrn alice = new FooUrn(1);
     FooUrn bob = new FooUrn(2);
