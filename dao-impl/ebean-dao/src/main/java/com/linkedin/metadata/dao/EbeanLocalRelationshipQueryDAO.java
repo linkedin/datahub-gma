@@ -165,23 +165,25 @@ public class EbeanLocalRelationshipQueryDAO {
   }
 
   /**
-   * Finds a list of relationships of a specific type based on the given filters.
-   * Source and destination entities must have tables registered under metadata_entity_sourceEntityType/destinationEntityType in db.
+   * Finds a list of relationships of a specific type based on the given filters if applicable.
    *
-   * @param sourceEntityType type name of the source entity to query
-   * @param sourceEntityFilter the filter to apply to the source entity when querying
-   * @param destinationEntityType type name of the destination entity to query
-   * @param destinationEntityFilter the filter to apply to the destination entity when querying
+   * @param sourceEntityUrn urn of the source entity to query
+   * @param sourceEntityFilter the filter to apply to the source entity when querying (not applicable to non-MG entities)
+   * @param destinationEntityUrn urn of the destination entity to query. If relationship is OwnedBy, this is crew/ldap.
+   * @param destinationEntityFilter the filter to apply to the destination entity when querying (not applicable to non-MG entities)
    * @param relationshipType the type of relationship to query
    * @param relationshipFilter the filter to apply to relationship when querying
-   * @return A list of relationship records.
+   * @param offset the offset query should start at. Ignored if set to a negative value.
+   * @param count the maximum number of entities to return. Ignored if set to a non-positive value.   * @return A list of relationship records.
    */
   @Nonnull
   public <RELATIONSHIP extends RecordTemplate> List<RELATIONSHIP> findRelationships(
-      @Nullable String sourceEntityType, @Nonnull LocalRelationshipFilter sourceEntityFilter,
-      @Nullable String destinationEntityType, @Nonnull LocalRelationshipFilter destinationEntityFilter,
-      @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter) {
-    // NOTE: additional validation for  sourceEntityType and destinationEntityType first.
+      @Nullable String sourceEntityUrn, @Nullable LocalRelationshipFilter sourceEntityFilter,
+      @Nullable String destinationEntityUrn, @Nullable LocalRelationshipFilter destinationEntityFilter,
+      @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter,
+      int offset, int count) {
+    // NOTE: additional validation for sourceEntityUrn and sourceEntityUrn first.
+    // for non-MG entities, filters need to be null or ignored.
     throw new RuntimeException("findRelationships is not implemented.");
   }
 
