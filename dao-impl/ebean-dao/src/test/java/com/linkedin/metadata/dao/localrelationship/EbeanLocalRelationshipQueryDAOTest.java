@@ -272,6 +272,27 @@ public class EbeanLocalRelationshipQueryDAOTest {
   }
 
   @Test
+  public void testFindOneRelationshipWithEntityUrn() {
+    // TODO: implement
+  }
+
+  @Test
+  public void testFindOneRelationshipWithFilterWithEntityUrn() {
+    // TODO: implement
+  }
+
+  @Test
+  public void testFindOneRelationshipWithNonMgEntityUrn() {
+    // TODO: implement
+  }
+
+  @Test
+  public void testFindOneRelationshipWithFilterWithNonMgEntityUrn() {
+    // TODO: implement
+    // non-MG entities should not support filter
+  }
+
+  @Test
   public void testFindEntitiesOneHopAwayIncomingDirection() throws Exception {
     FooUrn alice = new FooUrn(1);
     FooUrn bob = new FooUrn(2);
