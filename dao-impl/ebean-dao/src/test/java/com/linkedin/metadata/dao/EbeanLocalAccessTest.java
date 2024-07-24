@@ -2,9 +2,7 @@ package com.linkedin.metadata.dao;
 
 import com.google.common.io.Resources;
 import com.linkedin.common.AuditStamp;
-import com.linkedin.metadata.dao.localrelationship.SampleLocalRelationshipRegistryImpl;
 import com.linkedin.metadata.dao.urnpath.EmptyPathExtractor;
-import com.linkedin.metadata.dao.utils.BarUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
 import com.linkedin.metadata.dao.utils.FooUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.RecordUtils;
@@ -21,12 +19,6 @@ import com.linkedin.metadata.query.LocalRelationshipFilter;
 import com.linkedin.metadata.query.RelationshipDirection;
 import com.linkedin.metadata.query.SortOrder;
 import com.linkedin.testing.AspectFoo;
-import com.linkedin.testing.BarSnapshot;
-import com.linkedin.testing.BarUrnArray;
-import com.linkedin.testing.FooSnapshot;
-import com.linkedin.testing.localrelationship.AspectFooBar;
-import com.linkedin.testing.localrelationship.BelongsTo;
-import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.BurgerUrn;
 import com.linkedin.testing.urn.FooUrn;
 import io.ebean.Ebean;
@@ -56,12 +48,9 @@ import static org.testng.AssertJUnit.assertTrue;
 public class EbeanLocalAccessTest {
   private static EbeanServer _server;
   private static EbeanLocalAccess<FooUrn> _ebeanLocalAccessFoo;
-  private static IEbeanLocalAccess<BarUrn> _ebeanLocalAccessBar;
   private static IEbeanLocalAccess<BurgerUrn> _ebeanLocalAccessBurger;
   private static long _now;
   private final EBeanDAOConfig _ebeanConfig = new EBeanDAOConfig();
-  private static final LocalRelationshipFilter EMPTY_FILTER = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray())
-      .setDirection(RelationshipDirection.UNDIRECTED);
 
   @Factory(dataProvider = "inputList")
   public EbeanLocalAccessTest(boolean nonDollarVirtualColumnsEnabled) {
@@ -82,11 +71,8 @@ public class EbeanLocalAccessTest {
     _server = EmbeddedMariaInstance.getServer(EbeanLocalAccessTest.class.getSimpleName());
     _ebeanLocalAccessFoo = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()),
         FooUrn.class, new FooUrnPathExtractor(), _ebeanConfig.isNonDollarVirtualColumnsEnabled());
-    _ebeanLocalAccessBar = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()),
-        BarUrn.class, new BarUrnPathExtractor(), _ebeanConfig.isNonDollarVirtualColumnsEnabled());
     _ebeanLocalAccessBurger = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()),
         BurgerUrn.class, new EmptyPathExtractor<>(), _ebeanConfig.isNonDollarVirtualColumnsEnabled());
-    _ebeanLocalAccessFoo.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
     _now = System.currentTimeMillis();
   }
 
@@ -349,53 +335,6 @@ public class EbeanLocalAccessTest {
   }
 
   @Test
-  public void testAddWithLocalRelationshipBuilder() throws URISyntaxException {
-    FooUrn fooUrn = makeFooUrn(1);
-    BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
-    BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:2");
-    BarUrn barUrn3 = BarUrn.createFromString("urn:li:bar:3");
-    AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(barUrn1, barUrn2, barUrn3));
-    AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
-
-    _ebeanLocalAccessFoo.add(fooUrn, aspectFooBar, AspectFooBar.class, auditStamp, null);
-    _ebeanLocalAccessBar.add(barUrn1, new AspectFoo().setValue("1"), AspectFoo.class, auditStamp, null);
-    _ebeanLocalAccessBar.add(barUrn2, new AspectFoo().setValue("2"), AspectFoo.class, auditStamp, null);
-    _ebeanLocalAccessBar.add(barUrn3, new AspectFoo().setValue("3"), AspectFoo.class, auditStamp, null);
-
-    // Verify local relationships and entity are added.
-    EbeanLocalRelationshipQueryDAO ebeanLocalRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server, _ebeanConfig);
-    List<BelongsTo> relationships = ebeanLocalRelationshipQueryDAO.findRelationships(
-        BarSnapshot.class, EMPTY_FILTER, FooSnapshot.class, EMPTY_FILTER, BelongsTo.class, EMPTY_FILTER, 0, 10);
-
-    AspectKey<FooUrn, AspectFooBar> key = new AspectKey<>(AspectFooBar.class, fooUrn, 0L);
-    List<EbeanMetadataAspect> aspects = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(key), 10, 0, false);
-
-    assertEquals(3, relationships.size());
-    assertEquals(1, aspects.size());
-  }
-
-  @Test
-  public void testAtomicityWithLocalRelationshipBuilder() throws URISyntaxException {
-    // Drop the entity table should fail add operation.
-    _server.createSqlUpdate("DROP TABLE metadata_entity_foo").execute();
-
-    AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(
-        BarUrn.createFromString("urn:li:bar:123"),
-        BarUrn.createFromString("urn:li:bar:456"),
-        BarUrn.createFromString("urn:li:bar:789")));
-
-    AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
-
-    try {
-      _ebeanLocalAccessFoo.add(makeFooUrn(1), aspectFooBar, AspectFooBar.class, auditStamp, null);
-    } catch (Exception exception) {
-      // Verify no relationship is added.
-      List<SqlRow> relationships = _server.createSqlQuery("SELECT * FROM metadata_relationship_belongsto").findList();
-      assertEquals(0, relationships.size());
-    }
-  }
-
-  @Test
   public void testUrnExtraction() {
     FooUrn urn1 = makeFooUrn(1);
     AspectFoo foo1 = new AspectFoo().setValue("foo");
@@ -413,41 +352,6 @@ public class EbeanLocalAccessTest {
     // ensure content is as expected
     SqlRow firstResult = results.get(0);
     assertEquals("0", firstResult.getString("id"));
-  }
-
-  @Test
-  public void testAddRelationships() throws URISyntaxException {
-    FooUrn fooUrn = makeFooUrn(1);
-    BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
-    BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:2");
-    BarUrn barUrn3 = BarUrn.createFromString("urn:li:bar:3");
-    AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(barUrn1, barUrn2, barUrn3));
-    AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
-
-    // Turn off local relationship ingestion first, to fill only the entity tables.
-    _ebeanLocalAccessFoo.setLocalRelationshipBuilderRegistry(null);
-    _ebeanLocalAccessFoo.add(fooUrn, aspectFooBar, AspectFooBar.class, auditStamp, null);
-    _ebeanLocalAccessBar.add(barUrn1, new AspectFoo().setValue("1"), AspectFoo.class, auditStamp, null);
-    _ebeanLocalAccessBar.add(barUrn2, new AspectFoo().setValue("2"), AspectFoo.class, auditStamp, null);
-    _ebeanLocalAccessBar.add(barUrn3, new AspectFoo().setValue("3"), AspectFoo.class, auditStamp, null);
-
-    // Verify that NO local relationships were added
-    EbeanLocalRelationshipQueryDAO ebeanLocalRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server, _ebeanConfig);
-    List<BelongsTo> relationships = ebeanLocalRelationshipQueryDAO.findRelationships(
-        BarSnapshot.class, EMPTY_FILTER, FooSnapshot.class, EMPTY_FILTER, BelongsTo.class, EMPTY_FILTER, 0, 10);
-    assertEquals(0, relationships.size());
-
-    // Turn on local relationship ingestion now
-    _ebeanLocalAccessFoo.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
-
-    // Add only the local relationships
-    _ebeanLocalAccessFoo.addRelationships(fooUrn, aspectFooBar, AspectFooBar.class);
-
-    // Verify that the local relationships were added
-    relationships = ebeanLocalRelationshipQueryDAO.findRelationships(
-        BarSnapshot.class, EMPTY_FILTER, FooSnapshot.class, EMPTY_FILTER, BelongsTo.class, EMPTY_FILTER, 0, 10);
-
-    assertEquals(3, relationships.size());
   }
 
   @Test

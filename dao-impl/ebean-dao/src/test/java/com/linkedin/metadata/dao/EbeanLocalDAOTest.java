@@ -48,23 +48,28 @@ import com.linkedin.metadata.query.IndexPathParams;
 import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.query.IndexValue;
 import com.linkedin.metadata.query.ListResultMetadata;
+import com.linkedin.metadata.query.LocalRelationshipCriterionArray;
+import com.linkedin.metadata.query.LocalRelationshipFilter;
+import com.linkedin.metadata.query.RelationshipDirection;
 import com.linkedin.metadata.query.SortOrder;
 import com.linkedin.testing.AspectAttributes;
 import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectBaz;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.AspectInvalid;
+import com.linkedin.testing.BarSnapshot;
 import com.linkedin.testing.BarUrnArray;
 import com.linkedin.testing.EntityAspectUnion;
+import com.linkedin.testing.FooSnapshot;
 import com.linkedin.testing.MixedRecord;
 import com.linkedin.testing.localrelationship.AspectFooBar;
+import com.linkedin.testing.localrelationship.BelongsTo;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.BurgerUrn;
 import com.linkedin.testing.urn.FooUrn;
 
 import io.ebean.Ebean;
 import io.ebean.EbeanServer;
-import io.ebean.EbeanServerFactory;
 import io.ebean.ExpressionList;
 import io.ebean.OrderBy;
 import io.ebean.PagedList;
@@ -139,6 +144,11 @@ public class EbeanLocalDAOTest {
 
   private static final String CREATE_ALL_WITH_NON_DOLLAR_VIRTUAL_COLUMN_SQL = "ebean-local-dao-create-all-with-non-dollar-virtual-column-names.sql";
   private final EBeanDAOConfig _eBeanDAOConfig = new EBeanDAOConfig();
+  private static final LocalRelationshipFilter
+      EMPTY_FILTER = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray());
+
+  private static final LocalRelationshipFilter OUTGOING_FILTER = new LocalRelationshipFilter()
+      .setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.OUTGOING);
 
   @Factory(dataProvider = "inputList")
   public EbeanLocalDAOTest(SchemaConfig schemaConfig, FindMethodology findMethodology, boolean enableChangeLog,
@@ -202,11 +212,7 @@ public class EbeanLocalDAOTest {
 
   @BeforeClass
   public void setupServer() {
-    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
-      _server = EbeanServerFactory.create(EbeanServerUtils.createTestingH2ServerConfig());
-    } else {
-      _server = EmbeddedMariaInstance.getServer(EbeanLocalDAOTest.class.getSimpleName());
-    }
+    _server = EmbeddedMariaInstance.getServer(EbeanLocalDAOTest.class.getSimpleName());
   }
 
   @Nonnull
@@ -2906,44 +2912,115 @@ public class EbeanLocalDAOTest {
 
   @Test
   public void testBackfillLocalRelationshipsFromEntityTables() throws URISyntaxException {
-    if (_schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
-      EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
-      dao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
-      FooUrn fooUrn = makeFooUrn(1);
-      BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
-      BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:2");
-      BarUrn barUrn3 = BarUrn.createFromString("urn:li:bar:3");
-      BarUrnArray barUrns = new BarUrnArray(barUrn1, barUrn2, barUrn3);
-      AspectFooBar aspectFooBar = new AspectFooBar().setBars(barUrns);
-      dao.add(fooUrn, aspectFooBar, _dummyAuditStamp);
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    dao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
+    FooUrn fooUrn = makeFooUrn(1);
+    BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
+    BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:2");
+    BarUrn barUrn3 = BarUrn.createFromString("urn:li:bar:3");
+    BarUrnArray barUrns = new BarUrnArray(barUrn1, barUrn2, barUrn3);
+    AspectFooBar aspectFooBar = new AspectFooBar().setBars(barUrns);
+    dao.add(fooUrn, aspectFooBar, _dummyAuditStamp);
 
-      // clear local relationship table
-      _server.createSqlUpdate("delete from metadata_relationship_belongsto").execute();
+    // clear local relationship table
+    _server.createSqlUpdate("delete from metadata_relationship_belongsto").execute();
 
-      List<BaseLocalRelationshipBuilder.LocalRelationshipUpdates> relationshipUpdates =
-      dao.backfillLocalRelationshipsFromEntityTables(fooUrn, AspectFooBar.class);
+    List<BaseLocalRelationshipBuilder.LocalRelationshipUpdates> relationshipUpdates =
+    dao.backfillLocalRelationships(fooUrn, AspectFooBar.class);
 
-      List<SqlRow> results = _server.createSqlQuery("select * from metadata_relationship_belongsto").findList();
-      assertEquals(results.size(), 3);
-      assertEquals(relationshipUpdates.size(), 1);
-      assertEquals(relationshipUpdates.get(0).getRemovalOption(), REMOVE_ALL_EDGES_TO_DESTINATION);
+    List<SqlRow> results = _server.createSqlQuery("select * from metadata_relationship_belongsto").findList();
+    assertEquals(results.size(), 3);
+    assertEquals(relationshipUpdates.size(), 1);
+    assertEquals(relationshipUpdates.get(0).getRemovalOption(), REMOVE_ALL_EDGES_TO_DESTINATION);
 
-      BarUrnArray sources = new BarUrnArray();
-      for (int i = 0; i < results.size(); i++) {
-        try {
-          RecordTemplate relationship = (RecordTemplate) relationshipUpdates.get(0).getRelationships().get(i);
-          Urn source = (Urn) relationship.getClass().getMethod("getSource").invoke(relationship);
-          Urn dest = (Urn) relationship.getClass().getMethod("getDestination").invoke(relationship);
-          assertEquals(dest.toString(), "urn:li:foo:1");
-          sources.add(BarUrn.createFromString(source.toString()));
-          assertEquals(relationshipUpdates.get(0).getRelationships().get(i).getClass().getSimpleName(), "BelongsTo");
-        } catch (Exception e) {
-          throw new RuntimeException(e);
-        }
+    BarUrnArray sources = new BarUrnArray();
+    for (int i = 0; i < results.size(); i++) {
+      try {
+        RecordTemplate relationship = (RecordTemplate) relationshipUpdates.get(0).getRelationships().get(i);
+        Urn source = (Urn) relationship.getClass().getMethod("getSource").invoke(relationship);
+        Urn dest = (Urn) relationship.getClass().getMethod("getDestination").invoke(relationship);
+        assertEquals(dest.toString(), "urn:li:foo:1");
+        sources.add(BarUrn.createFromString(source.toString()));
+        assertEquals(relationshipUpdates.get(0).getRelationships().get(i).getClass().getSimpleName(), "BelongsTo");
+      } catch (Exception e) {
+        throw new RuntimeException(e);
       }
-
-      assertEquals(sources, barUrns);
     }
+
+    assertEquals(sources, barUrns);
+  }
+
+  @Test
+  public void testAddRelationships() throws URISyntaxException {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> fooDao = createDao(FooUrn.class);
+    EbeanLocalDAO<EntityAspectUnion, BarUrn> barDao = createDao(BarUrn.class);
+    FooUrn fooUrn = makeFooUrn(1);
+    BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
+    BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:2");
+    BarUrn barUrn3 = BarUrn.createFromString("urn:li:bar:3");
+    AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(barUrn1, barUrn2, barUrn3));
+    AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
+
+    // Turn off local relationship ingestion first, to fill only the entity tables.
+    fooDao.setLocalRelationshipBuilderRegistry(null);
+    barDao.setLocalRelationshipBuilderRegistry(null);
+
+    fooDao.add(fooUrn, aspectFooBar, auditStamp);
+    barDao.add(barUrn1, new AspectFoo().setValue("1"), auditStamp);
+    barDao.add(barUrn2, new AspectFoo().setValue("2"), auditStamp);
+    barDao.add(barUrn3, new AspectFoo().setValue("3"), auditStamp);
+
+    // Verify that NO local relationships were added
+    EbeanLocalRelationshipQueryDAO ebeanLocalRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server);
+    ebeanLocalRelationshipQueryDAO.setSchemaConfig(_schemaConfig);
+    List<BelongsTo> relationships = ebeanLocalRelationshipQueryDAO.findRelationships(
+        BarSnapshot.class, EMPTY_FILTER, FooSnapshot.class, EMPTY_FILTER, BelongsTo.class, OUTGOING_FILTER, 0, 10);
+    assertEquals(relationships.size(), 0);
+
+    // Turn on local relationship ingestion now
+    fooDao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
+
+    // Add only the local relationships
+    fooDao.addRelationshipsIfAny(fooUrn, aspectFooBar, AspectFooBar.class);
+
+    // Verify that the local relationships were added
+    relationships = ebeanLocalRelationshipQueryDAO.findRelationships(
+        BarSnapshot.class, EMPTY_FILTER, FooSnapshot.class, EMPTY_FILTER, BelongsTo.class, OUTGOING_FILTER, 0, 10);
+
+    assertEquals(relationships.size(), 3);
+  }
+
+  @Test
+  public void testAddWithLocalRelationshipBuilder() throws URISyntaxException {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> fooDao = createDao(FooUrn.class);
+    EbeanLocalDAO<EntityAspectUnion, BarUrn> barDao = createDao(BarUrn.class);
+    fooDao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
+    barDao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
+
+    FooUrn fooUrn = makeFooUrn(1);
+    BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
+    BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:2");
+    BarUrn barUrn3 = BarUrn.createFromString("urn:li:bar:3");
+    AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(barUrn1, barUrn2, barUrn3));
+    AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
+
+    fooDao.add(fooUrn, aspectFooBar, auditStamp);
+    barDao.add(barUrn1, new AspectFoo().setValue("1"), auditStamp);
+    barDao.add(barUrn2, new AspectFoo().setValue("2"), auditStamp);
+    barDao.add(barUrn3, new AspectFoo().setValue("3"), auditStamp);
+
+    // Verify local relationships and entity are added.
+    EbeanLocalRelationshipQueryDAO ebeanLocalRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server);
+    ebeanLocalRelationshipQueryDAO.setSchemaConfig(_schemaConfig);
+
+    List<BelongsTo> relationships = ebeanLocalRelationshipQueryDAO.findRelationships(
+        BarSnapshot.class, EMPTY_FILTER, FooSnapshot.class, EMPTY_FILTER, BelongsTo.class, OUTGOING_FILTER, 0, 10);
+
+    AspectKey<FooUrn, AspectFooBar> key = new AspectKey<>(AspectFooBar.class, fooUrn, 0L);
+    List<EbeanMetadataAspect> aspects = fooDao.batchGetHelper(Collections.singletonList(key), 1, 0);
+
+    assertEquals(relationships.size(), 3);
+    assertEquals(aspects.size(), 1);
   }
 
   @Test

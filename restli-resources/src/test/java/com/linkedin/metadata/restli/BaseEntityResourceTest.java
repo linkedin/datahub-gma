@@ -787,7 +787,7 @@ public class BaseEntityResourceTest extends BaseEngineTest {
         BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE);
     List<LocalRelationshipUpdates> relationships = Collections.singletonList(updates);
 
-    when(_mockLocalDAO.backfillLocalRelationshipsFromEntityTables(fooUrn, AspectFoo.class)).thenReturn(relationships);
+    when(_mockLocalDAO.backfillLocalRelationships(fooUrn, AspectFoo.class)).thenReturn(relationships);
     BackfillResult backfillResult = runAndWait(_resource.backfillRelationshipTables(new String[]{fooUrn.toString()}, aspects));
 
     assertTrue(backfillResult.hasRelationships());
