@@ -36,6 +36,10 @@ public class EbeanLocalRelationshipQueryDAO {
 
   private final EBeanDAOConfig _eBeanDAOConfig;
 
+  private EbeanLocalDAO.SchemaConfig _schemaConfig = EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY;
+
+  private static final int MAX_ALLOWED_FILTERS_OLD_SCHEMA = 1;
+
   public EbeanLocalRelationshipQueryDAO(EbeanServer server, EBeanDAOConfig eBeanDAOConfig) {
     _server = server;
     _eBeanDAOConfig = eBeanDAOConfig;
@@ -60,6 +64,10 @@ public class EbeanLocalRelationshipQueryDAO {
         }
       });
 
+  public void setSchemaConfig(EbeanLocalDAO.SchemaConfig schemaConfig) {
+    _schemaConfig = schemaConfig;
+  }
+
   /**
    * Finds a list of entities of a specific type based on the given filter on the entity.
    * The SNAPSHOT class must be defined within com.linkedin.metadata.snapshot package in metadata-models.
@@ -72,6 +80,9 @@ public class EbeanLocalRelationshipQueryDAO {
   @Nonnull
   public <SNAPSHOT extends RecordTemplate> List<SNAPSHOT> findEntities(@Nonnull Class<SNAPSHOT> snapshotClass,
       @Nonnull LocalRelationshipFilter filter, int offset, int count) {
+    if (_schemaConfig == EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY) {
+      throw new UnsupportedOperationException("findEntities is not supported in OLD_SCHEMA_MODE");
+    }
     validateEntityFilter(filter, snapshotClass);
 
     // Build SQL
@@ -96,6 +107,9 @@ public class EbeanLocalRelationshipQueryDAO {
       @Nonnull Class<DEST_SNAPSHOT> destinationEntityClass, @Nonnull LocalRelationshipFilter destinationEntityFilter,
       @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter, int minHops,
       int maxHops, int offset, int count) {
+    if (_schemaConfig == EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY) {
+      throw new UnsupportedOperationException("findEntities is not supported in OLD_SCHEMA_MODE");
+    }
 
     validateRelationshipFilter(relationshipFilter);
     validateEntityFilter(sourceEntityFilter, sourceEntityClass);
@@ -137,7 +151,7 @@ public class EbeanLocalRelationshipQueryDAO {
       @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter, int offset, int count) {
     validateEntityFilter(sourceEntityFilter, sourceEntityClass);
     validateEntityFilter(destinationEntityFilter, destinationEntityClass);
-    validateEntityFilter(relationshipFilter, relationshipType);
+    validateRelationshipFilter(relationshipFilter);
 
     String destTableName = null;
     if (destinationEntityClass != null) {
@@ -198,7 +212,7 @@ public class EbeanLocalRelationshipQueryDAO {
       throw new IllegalArgumentException("Entity class is null but filter is not empty.");
     }
 
-    validateFilterCriteria(filter.getCriteria().stream().map(LocalRelationshipCriterion::getCondition).collect(Collectors.toList()));
+    validateFilterCriteria(filter);
   }
 
   /**
@@ -213,19 +227,21 @@ public class EbeanLocalRelationshipQueryDAO {
     }
 
     if (filter.hasCriteria()) {
-      validateFilterCriteria(filter.getCriteria().stream().map(LocalRelationshipCriterion::getCondition).collect(Collectors.toList()));
+      validateFilterCriteria(filter);
     }
   }
 
   /**
    * Validate whether filter criteria contains unsupported condition.
-   * @param criterionConditions An array of conditions.
+   * @param filter the local relationship filter.
    */
-  private void validateFilterCriteria(@Nonnull List<Condition> criterionConditions) {
-    criterionConditions.forEach(condition -> {
+  private void validateFilterCriteria(@Nonnull LocalRelationshipFilter filter) {
+    filter.getCriteria().stream().map(criterion -> {
+      Condition condition = criterion.getCondition();
       if (!SUPPORTED_CONDITIONS.containsKey(condition)) {
         throw new IllegalArgumentException(String.format("Condition %s is not supported by local relationship DAO.", condition));
       }
+      return null; // unused
     });
   }
 
@@ -267,28 +283,67 @@ public class EbeanLocalRelationshipQueryDAO {
   private String buildFindRelationshipSQL(@Nullable final String destTableName, @Nullable final String sourceTableName,
       @Nonnull final String relationshipTableName, @Nonnull final LocalRelationshipFilter sourceEntityFilter,
       @Nonnull final LocalRelationshipFilter destinationEntityFilter, @Nonnull final LocalRelationshipFilter relationshipFilter) {
-
     StringBuilder sqlBuilder = new StringBuilder();
     sqlBuilder.append("SELECT rt.* FROM ").append(relationshipTableName).append(" rt ");
 
-    if (destTableName != null) {
-      sqlBuilder.append("INNER JOIN ").append(destTableName).append(" dt ON dt.urn=rt.destination ");
-    }
+    if (_schemaConfig == EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY || _schemaConfig == EbeanLocalDAO.SchemaConfig.DUAL_SCHEMA) {
+      if (destTableName != null) {
+        sqlBuilder.append("INNER JOIN ").append(destTableName).append(" dt ON dt.urn=rt.destination ");
+      }
 
-    if (sourceTableName != null) {
-      sqlBuilder.append("INNER JOIN ").append(sourceTableName).append(" st ON st.urn=rt.source ");
-    }
+      if (sourceTableName != null) {
+        sqlBuilder.append("INNER JOIN ").append(sourceTableName).append(" st ON st.urn=rt.source ");
+      }
 
-    sqlBuilder.append("WHERE deleted_ts is NULL");
-    String whereClause = SQLStatementUtils.whereClause(SUPPORTED_CONDITIONS,
-        _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled(),
-        new Pair<>(sourceEntityFilter, "st"),
-        new Pair<>(destinationEntityFilter, "dt"),
-        new Pair<>(relationshipFilter, "rt"));
+      sqlBuilder.append("WHERE deleted_ts is NULL");
+      String whereClause = SQLStatementUtils.whereClause(SUPPORTED_CONDITIONS,
+          _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled(),
+          new Pair<>(sourceEntityFilter, "st"),
+          new Pair<>(destinationEntityFilter, "dt"),
+          new Pair<>(relationshipFilter, "rt"));
 
-    if (whereClause != null) {
-      sqlBuilder.append(" AND ").append(whereClause);
+      if (whereClause != null) {
+        sqlBuilder.append(" AND ").append(whereClause);
+      }
+    } else if (_schemaConfig == EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY) {
+      validateEntityFilterOldSchema(sourceEntityFilter);
+      validateEntityFilterOldSchema(destinationEntityFilter);
+      sqlBuilder.append("WHERE deleted_ts IS NULL");
+      if (sourceEntityFilter.hasCriteria() && sourceEntityFilter.getCriteria().size() > 0) {
+        sqlBuilder.append(
+            SQLStatementUtils.whereClauseOldSchema(SUPPORTED_CONDITIONS, sourceEntityFilter.getCriteria(), SQLStatementUtils.SOURCE));
+      }
+      if (destinationEntityFilter.hasCriteria() && destinationEntityFilter.getCriteria().size() > 0) {
+        sqlBuilder.append(
+            SQLStatementUtils.whereClauseOldSchema(SUPPORTED_CONDITIONS, destinationEntityFilter.getCriteria(), SQLStatementUtils.DESTINATION));
+      }
+    } else {
+      throw new RuntimeException("The schema config must be set to OLD_SCHEMA_ONLY, DUAL_SCHEMA, or NEW_SCHEMA_ONLY.");
     }
     return sqlBuilder.toString();
+  }
+
+  /**
+   * Ensure that the source and destination entity filters when running in OLD_SCHEMA_ONLY mode follow these restrictions.
+   * 1) include no more than 1 criterion
+   * 2) that 1 criterion must be on the urn field
+   * 3) the passed in condition is supported by this DAO
+   */
+  private void validateEntityFilterOldSchema(LocalRelationshipFilter filter) {
+    if (filter.hasCriteria() && filter.getCriteria().size() > 0) {
+      if (filter.getCriteria().size() > MAX_ALLOWED_FILTERS_OLD_SCHEMA) {
+        throw new IllegalArgumentException(String.format("Only %s filter is allowed in old schema mode.", MAX_ALLOWED_FILTERS_OLD_SCHEMA));
+      }
+      LocalRelationshipCriterion criterion = filter.getCriteria().get(0);
+
+      if (!criterion.hasField() || !criterion.getField().isUrnField()) {
+        throw new IllegalArgumentException("EbeanLocalRelationshipQueryDAO running in OLD_SCHEMA_ONLY mode only supports"
+            + " local relationship filters on the 'urn' field");
+      }
+      Condition condition = filter.getCriteria().get(0).getCondition();
+      if (!SUPPORTED_CONDITIONS.containsKey(condition)) {
+        throw new IllegalArgumentException(String.format("Condition %s is not supported by local relationship DAO.", condition));
+      }
+    }
   }
 }

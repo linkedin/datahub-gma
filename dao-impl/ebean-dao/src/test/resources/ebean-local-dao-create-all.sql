@@ -4,6 +4,7 @@ DROP TABLE IF EXISTS metadata_entity_burger;
 DROP TABLE IF EXISTS metadata_aspect;
 DROP TABLE IF EXISTS metadata_id;
 DROP TABLE IF EXISTS metadata_index;
+DROP TABLE IF EXISTS metadata_relationship_belongsto;
 
 -- initialize foo entity table
 CREATE TABLE IF NOT EXISTS metadata_entity_foo (
@@ -83,6 +84,9 @@ ALTER TABLE metadata_entity_foo ADD COLUMN i_aspectattributes$attributes VARCHAR
 
 -- add baz aspect to foo entity
 ALTER TABLE metadata_entity_foo ADD a_aspectbaz JSON;
+
+-- add foo aspect to bar entity
+ALTER TABLE metadata_entity_bar ADD a_aspectfoo JSON;
 
 -- add baz aspect to burger entity
 ALTER TABLE metadata_entity_burger ADD a_aspectfoo JSON;

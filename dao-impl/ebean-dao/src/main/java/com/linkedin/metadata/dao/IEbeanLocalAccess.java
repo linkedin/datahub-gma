@@ -3,8 +3,6 @@ package com.linkedin.metadata.dao;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
-import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
-import com.linkedin.metadata.dao.builder.LocalRelationshipBuilderRegistry;
 import com.linkedin.metadata.dao.urnpath.UrnPathExtractor;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.IndexFilter;
@@ -51,17 +49,6 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    */
   <ASPECT extends RecordTemplate> int addWithOptimisticLocking(@Nonnull URN urn, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull AuditStamp auditStamp, @Nullable Timestamp oldTimestamp, @Nullable IngestionTrackingContext ingestionTrackingContext);
-
-  /**
-   * Upsert relationships to the local relationship table(s).
-   * @param urn urn associated with the relationships
-   * @param relationship aspect from which the relationships are derived from
-   * @param aspectClass class of the aspect
-   * @return relationship updates applied on relationship table
-   */
-  @Nonnull
-  <ASPECT extends RecordTemplate> List<LocalRelationshipUpdates> addRelationships(@Nonnull URN urn,
-      @Nonnull ASPECT relationship, @Nonnull Class<ASPECT> aspectClass);
 
   /**
    * Get read aspects from entity table. This a new schema implementation for batchGetUnion() in {@link EbeanLocalDAO}
@@ -160,14 +147,6 @@ public interface IEbeanLocalAccess<URN extends Urn> {
   @Nonnull
   <ASPECT extends RecordTemplate> ListResult<ASPECT> list(@Nonnull Class<ASPECT> aspectClass,
      int start, int pageSize);
-
-
-  /**
-   * Provide a local relationship builder registry. Local relationships will be built based on the builders during data ingestion.
-   * @param localRelationshipBuilderRegistry All local relationship builders should be registered in this registry.
-   *                                         Can be set to null to turn off local relationship ingestion.
-   */
-  void setLocalRelationshipBuilderRegistry(@Nullable LocalRelationshipBuilderRegistry localRelationshipBuilderRegistry);
 
   /**
    * Ensure table schemas are up-to-date according to db evolution scripts.
