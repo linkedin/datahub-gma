@@ -87,11 +87,11 @@ public class EbeanLocalRelationshipQueryDAOTest {
   public void init() {
     _server = EmbeddedMariaInstance.getServer(EbeanLocalRelationshipQueryDAOTest.class.getSimpleName());
     _localRelationshipWriterDAO = new EbeanLocalRelationshipWriterDAO(_server);
-    _localRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server, _eBeanDAOConfig);
     _fooUrnEBeanLocalAccess = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()),
         FooUrn.class, new EmptyPathExtractor<>(), _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled());
     _barUrnEBeanLocalAccess = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()),
         BarUrn.class, new EmptyPathExtractor<>(), _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled());
+    _localRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server, _eBeanDAOConfig);
   }
 
   @BeforeMethod
@@ -602,8 +602,8 @@ public class EbeanLocalRelationshipQueryDAOTest {
     // assert foo is an MG entity (has metadata_entity_foo table in db)
     assertTrue((Boolean) isMgEntityUrnMethod.invoke(_localRelationshipQueryDAO, FOO_ENTITY_URN));
 
-    // assert bar is not an MG entity (does not have metadata_entity_bar table in db)
-    assertFalse((Boolean) isMgEntityUrnMethod.invoke(_localRelationshipQueryDAO, BAR_ENTITY_URN));
+    // assert crew is not an MG entity (does not have metadata_entity_crew table in db)
+    assertFalse((Boolean) isMgEntityUrnMethod.invoke(_localRelationshipQueryDAO, CREW_ENTITY_URN));
   }
 
   @Test
