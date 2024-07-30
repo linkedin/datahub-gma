@@ -146,7 +146,7 @@ public class EbeanLocalRelationshipQueryDAO {
       @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter, int offset, int count) {
     validateEntityFilter(sourceEntityFilter, sourceEntityClass);
     validateEntityFilter(destinationEntityFilter, destinationEntityClass);
-    validateEntityFilter(relationshipFilter, relationshipType);
+    validateRelationshipFilter(relationshipFilter);
 
     String destTableName = null;
     if (destinationEntityClass != null) {
@@ -192,13 +192,9 @@ public class EbeanLocalRelationshipQueryDAO {
       @Nullable String destinationEntityUrn, @Nullable LocalRelationshipFilter destinationEntityFilter,
       @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter,
       int offset, int count) {
-
-    // there is some race condition, the local relationship db might not be ready when EbeanLocalRelationshipQueryDAO inits.
-    initMgEntityTypeNameSetOnce();
-
     validateEntityUrnAndFilter(sourceEntityFilter, sourceEntityUrn);
     validateEntityUrnAndFilter(destinationEntityFilter, destinationEntityUrn);
-    validateEntityFilter(relationshipFilter, relationshipType);
+    validateRelationshipFilter(relationshipFilter);
 
     // the assumption is we have the table for every MG entity. For non-MG entities, sourceTableName will be null.
     final String sourceTableName = extractTableNameFromUrnForMgEntityIfPossible(sourceEntityUrn);
@@ -228,6 +224,10 @@ public class EbeanLocalRelationshipQueryDAO {
    */
   @VisibleForTesting
   protected boolean isMgEntityUrn(@Nonnull String entityUrn) {
+    // there is some race condition, the local relationship db might not be ready when EbeanLocalRelationshipQueryDAO inits.
+    // so we can't init the _mgEntityTypeNameSet in constructor.
+    initMgEntityTypeNameSetOnce();
+
     return _mgEntityTypeNameSet.contains(getEntityTypeName(entityUrn));
   }
 

@@ -18,6 +18,7 @@ import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.query.IndexValue;
 import com.linkedin.metadata.query.LocalRelationshipCriterionArray;
 import com.linkedin.metadata.query.LocalRelationshipFilter;
+import com.linkedin.metadata.query.RelationshipDirection;
 import com.linkedin.metadata.query.SortOrder;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.BarSnapshot;
@@ -59,7 +60,8 @@ public class EbeanLocalAccessTest {
   private static IEbeanLocalAccess<BurgerUrn> _ebeanLocalAccessBurger;
   private static long _now;
   private final EBeanDAOConfig _ebeanConfig = new EBeanDAOConfig();
-  private static final LocalRelationshipFilter EMPTY_FILTER = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray());
+  private static final LocalRelationshipFilter EMPTY_FILTER = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray())
+      .setDirection(RelationshipDirection.UNDIRECTED);
 
   @Factory(dataProvider = "inputList")
   public EbeanLocalAccessTest(boolean nonDollarVirtualColumnsEnabled) {

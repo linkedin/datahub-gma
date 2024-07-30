@@ -177,7 +177,8 @@ public class EbeanLocalRelationshipQueryDAOTest {
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
     List<ReportsTo> reportsToAlice = _localRelationshipQueryDAO.findRelationships(FooSnapshot.class,
         new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()), FooSnapshot.class, filter,
-        ReportsTo.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()), 0, 10);
+        ReportsTo.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray())
+            .setDirection(RelationshipDirection.UNDIRECTED), 0, 10);
 
     // Asserts
     assertEquals(reportsToAlice.size(), 2);
@@ -194,7 +195,8 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     reportsToAlice = _localRelationshipQueryDAO.findRelationships(FooSnapshot.class,
         new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()), FooSnapshot.class, filter,
-        ReportsTo.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()), 0, 10);
+        ReportsTo.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray())
+            .setDirection(RelationshipDirection.UNDIRECTED), 0, 10);
 
     // Expect: only bob reports to Alice
     assertEquals(reportsToAlice.size(), 1);
@@ -249,7 +251,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
         FooSnapshot.class,
         new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()),
         ConsumeFrom.class,
-        new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()),
+        new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
         0, 10);
 
     // Assert
@@ -261,7 +263,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
         new RelationshipField().setPath("/environment"));
 
     LocalRelationshipFilter filterRelationship = new LocalRelationshipFilter().setCriteria(
-        new LocalRelationshipCriterionArray(filterRelationshipCriterion));
+        new LocalRelationshipCriterionArray(filterRelationshipCriterion)).setDirection(RelationshipDirection.UNDIRECTED);
 
     List<ConsumeFrom> consumeFromSamzaInNearline = _localRelationshipQueryDAO.findRelationships(
         BarSnapshot.class,
@@ -304,7 +306,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
     List<ReportsTo> reportsToAlice = _localRelationshipQueryDAO.findRelationships(
         null, null,
         FOO_ENTITY_URN, destFilter,
-        ReportsTo.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()),
+        ReportsTo.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
         -1, -1);
 
     // Asserts
@@ -323,7 +325,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
     reportsToAlice = _localRelationshipQueryDAO.findRelationships(
         null, null,
         FOO_ENTITY_URN, destFilter,
-        ReportsTo.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()),
+        ReportsTo.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
         -1, -1);
 
     // Expect: only bob reports to Alice
@@ -377,7 +379,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
         BAR_ENTITY_URN, filterUrn,
         FOO_ENTITY_URN, null,
         ConsumeFrom.class,
-        new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()),
+        new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
         -1, -1);
 
     assertEquals(consumeFromSamza.size(), 2); // Because Samza consumes from 1. kafka and 2. restli
@@ -388,7 +390,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
         new RelationshipField().setPath("/environment"));
 
     LocalRelationshipFilter filterRelationship = new LocalRelationshipFilter().setCriteria(
-        new LocalRelationshipCriterionArray(filterRelationshipCriterion));
+        new LocalRelationshipCriterionArray(filterRelationshipCriterion)).setDirection(RelationshipDirection.UNDIRECTED);
 
     List<ConsumeFrom> consumeFromSamzaInNearline = _localRelationshipQueryDAO.findRelationships(
         BAR_ENTITY_URN, filterUrn,
@@ -454,7 +456,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
     // test owned by of crew1 can be found
     List<OwnedBy> ownedByCrew1 = _localRelationshipQueryDAO.findRelationships(null, null,
         CREW_ENTITY_URN, filterUrn,
-        OwnedBy.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()),
+        OwnedBy.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
         -1, -1);
 
     assertEquals(ownedByCrew1.size(), 3);
@@ -469,7 +471,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
     // test owned by of crew2 can be found
     List<OwnedBy> ownedByCrew2 = _localRelationshipQueryDAO.findRelationships(null, null,
         CREW_ENTITY_URN, filterUrn2,
-        OwnedBy.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()),
+        OwnedBy.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
         -1, -1);
 
     assertEquals(ownedByCrew2.size(), 2);
@@ -515,12 +517,11 @@ public class EbeanLocalRelationshipQueryDAOTest {
         new UrnField());
     LocalRelationshipFilter filterUrn1 = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterUrnCriterion1));
 
-
     // test owned by of crew can be filtered by source entity, e.g. only include kafka
     List<OwnedBy> ownedByCrew1 = _localRelationshipQueryDAO.findRelationships(
         FOO_ENTITY_URN, filterUrn1,
         CREW_ENTITY_URN, filterUrn,
-        OwnedBy.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()),
+        OwnedBy.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
         -1, -1);
 
     assertEquals(ownedByCrew1.size(), 1);
@@ -571,7 +572,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     List<ReportsTo> reportsToAlice = _localRelationshipQueryDAO.findRelationships(
         null, null, FOO_ENTITY_URN, filter,
-        ReportsTo.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()),
+        ReportsTo.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
         -1, 3);
 
     // Asserts only 3 reports-to relationships are returned
@@ -579,7 +580,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     reportsToAlice = _localRelationshipQueryDAO.findRelationships(
         null, null, FOO_ENTITY_URN, filter,
-        ReportsTo.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()),
+        ReportsTo.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
         2, -1);
 
     // Asserts 3 returns, and the content starts from the 3rd report (Lisa)
