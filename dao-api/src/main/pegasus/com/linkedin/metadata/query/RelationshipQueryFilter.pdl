@@ -1,6 +1,4 @@
-namespace pegasus.com.linkedin.metadata.query
-
-import com.linkedin.metadata.query.LocalRelationshipFilter
+namespace com.linkedin.metadata.query
 
 /**
  * filter for relationship in query
