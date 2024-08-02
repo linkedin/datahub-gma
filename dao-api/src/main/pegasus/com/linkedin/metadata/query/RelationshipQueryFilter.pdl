@@ -1,17 +1,17 @@
 namespace com.linkedin.metadata.query
 
 /**
- * filter for relationship in query
+ * Filter for relationship in query
  */
 record RelationshipQueryFilter {
 
   /**
-   * ownedBy/downStreamOf/etc.
+   * ownedBy/downstreamOf/etc.
    */
   relationshipType: optional string = ""
 
   /**
-   * filter for finding an record or a collection of records
+   * Filter for finding an record or a collection of records
    */
   filter: optional LocalRelationshipFilter
 }

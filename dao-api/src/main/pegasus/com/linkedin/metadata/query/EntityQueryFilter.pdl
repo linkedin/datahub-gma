@@ -1,7 +1,7 @@
 namespace com.linkedin.metadata.query
 
 /**
- * filter for finding source/destination entity(s)
+ * Filter for finding source/destination entity(s)
  */
 record EntityQueryFilter {
 
@@ -11,7 +11,7 @@ record EntityQueryFilter {
   entityType: optional string = ""
 
   /**
-   * filter for finding an record or a collection of records
+   * Filter for finding an record or a collection of records
    */
   filter: optional LocalRelationshipFilter
 }
