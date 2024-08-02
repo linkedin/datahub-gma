@@ -524,6 +524,29 @@ public class EbeanLocalRelationshipQueryDAOTest {
   }
 
   @Test
+  public void testFindOneRelationshipWithNonUrnFilterOnSourceEntityForCrewUsage() throws Exception {
+    // Find all owned-by relationship for crew.
+    LocalRelationshipCriterion filterUrnCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(
+        LocalRelationshipValue.create("urn:li:foo:4"), // 4 is crew as defined at very beginning.
+        Condition.EQUAL,
+        new AspectField());
+    LocalRelationshipFilter filterUrn = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterUrnCriterion));
+
+    LocalRelationshipCriterion filterUrnCriterion1 = EBeanDAOUtils.buildRelationshipFieldCriterion(
+        LocalRelationshipValue.create("urn:li:foo:1"), // 1 is kafka as defined at very beginning.
+        Condition.EQUAL,
+        new UrnField());
+    LocalRelationshipFilter filterUrn1 = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterUrnCriterion1));
+
+    // non-mg entity cannot be filtered by non-urn filter. This will throw an exception.
+    assertThrows(IllegalArgumentException.class, () -> {
+      _localRelationshipQueryDAO.findRelationships(fooEntityUrn, filterUrn1, crewEntityUrn, filterUrn,
+          OwnedBy.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
+          -1, -1);
+    });
+  }
+
+  @Test
   void testFindRelationshipsWithEntityUrnOffsetAndCount() throws Exception {
     FooUrn alice = new FooUrn(1);
     FooUrn bob = new FooUrn(2);

@@ -228,8 +228,7 @@ public class EbeanLocalRelationshipQueryDAO {
       initMgEntityTypeNameSet();
     }
 
-    assert _mgEntityTypeNameSet != null;
-    return _mgEntityTypeNameSet.contains(entityUrn.getEntityType());
+    return _mgEntityTypeNameSet.contains(StringUtils.lowerCase(entityUrn.getEntityType()));
   }
 
   /**
