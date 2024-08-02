@@ -1,0 +1,19 @@
+namespace pegasus.com.linkedin.metadata.query
+
+import com.linkedin.metadata.query.LocalRelationshipFilter
+
+/**
+ * filter for finding source/destination entity(s)
+ */
+record EntityQueryFilter {
+
+  /**
+   * dataset/azkabanJob/corpUser/etc.
+   */
+  entityType: optional string = ""
+
+  /**
+   * filter for finding an record or a collection of records
+   */
+  filter: optional LocalRelationshipFilter
+}

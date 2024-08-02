@@ -1,0 +1,19 @@
+namespace pegasus.com.linkedin.metadata.query
+
+import com.linkedin.metadata.query.LocalRelationshipFilter
+
+/**
+ * filter for relationship in query
+ */
+record RelationshipQueryFilter {
+
+  /**
+   * ownedBy/downStreamOf/etc.
+   */
+  relationshipType: optional string = ""
+
+  /**
+   * filter for finding an record or a collection of records
+   */
+  filter: optional LocalRelationshipFilter
+}
