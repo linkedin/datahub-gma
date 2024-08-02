@@ -283,6 +283,29 @@ public class EbeanLocalRelationshipQueryDAO {
   }
 
   /**
+   * Ensure that the source and destination entity filters.
+   * 1) include no more than 1 criterion
+   * 2) that 1 criterion must be on the urn field
+   * 3) the passed in condition is supported by this DAO
+   */
+  private void validateEntityFilterOnlyOneUrn(@Nonnull LocalRelationshipFilter filter) {
+    if (filter.hasCriteria() && !filter.getCriteria().isEmpty()) {
+      if (filter.getCriteria().size() > 1) {
+        throw new IllegalArgumentException("Only 1 filter is allowed in non-mg entity filter.");
+      }
+      LocalRelationshipCriterion criterion = filter.getCriteria().get(0);
+
+      if (!criterion.hasField() || !criterion.getField().isUrnField()) {
+        throw new IllegalArgumentException("Only urn filter is allowed in non-mg entity filter.");
+      }
+      Condition condition = filter.getCriteria().get(0).getCondition();
+      if (!SUPPORTED_CONDITIONS.containsKey(condition)) {
+        throw new IllegalArgumentException(String.format("Condition %s is not supported by local relationship DAO.", condition));
+      }
+    }
+  }
+
+  /**
    * Validate:
    * 1. The relationship filter only contains supported condition.
    * 2. Relationship direction cannot be unknown.
@@ -373,6 +396,7 @@ public class EbeanLocalRelationshipQueryDAO {
         filters.add(new Pair<>(destinationEntityFilter, "dt"));
       }
     } else if (destinationEntityFilter != null) {
+      validateEntityFilterOnlyOneUrn(destinationEntityFilter);
       // non-mg entity case, applying dest filter on relationship table
       filters.add(new Pair<>(destinationEntityFilter, "rt"));
     }
