@@ -1,6 +1,7 @@
 package com.linkedin.metadata.dao;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.utils.ClassUtils;
@@ -29,15 +30,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringUtils;
 import org.javatuples.Pair;
 
-import static com.linkedin.metadata.dao.utils.SQLSchemaUtils.*;
-
 
 /**
  * An Ebean implementation of {@link BaseQueryDAO} backed by local relationship tables.
  */
 @Slf4j
 public class EbeanLocalRelationshipQueryDAO {
-  public static final String URN_PATTERN = "urn:li:[a-zA-Z0-9]+:?\\(?[a-zA-Z0-9]*\\)?";
+  public static final String URN_PATTERN = "urn:li:[a-zA-Z]+:?.*";
   private final EbeanServer _server;
   private final MultiHopsTraversalSqlGenerator _sqlGenerator;
 
@@ -166,7 +165,9 @@ public class EbeanLocalRelationshipQueryDAO {
         sourceTableName,
         sourceEntityFilter,
         destTableName,
-        destinationEntityFilter);
+        destinationEntityFilter,
+        count,
+        offset);
 
     return _server.createSqlQuery(sql).findList().stream()
         .map(row -> RecordUtils.toRecordTemplate(relationshipType, row.getString("metadata")))
@@ -188,8 +189,8 @@ public class EbeanLocalRelationshipQueryDAO {
    */
   @Nonnull
   public <RELATIONSHIP extends RecordTemplate> List<RELATIONSHIP> findRelationships(
-      @Nullable String sourceEntityUrn, @Nullable LocalRelationshipFilter sourceEntityFilter,
-      @Nullable String destinationEntityUrn, @Nullable LocalRelationshipFilter destinationEntityFilter,
+      @Nullable Urn sourceEntityUrn, @Nullable LocalRelationshipFilter sourceEntityFilter,
+      @Nullable Urn destinationEntityUrn, @Nullable LocalRelationshipFilter destinationEntityFilter,
       @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter,
       int offset, int count) {
     validateEntityUrnAndFilter(sourceEntityFilter, sourceEntityUrn);
@@ -197,48 +198,38 @@ public class EbeanLocalRelationshipQueryDAO {
     validateRelationshipFilter(relationshipFilter);
 
     // the assumption is we have the table for every MG entity. For non-MG entities, sourceTableName will be null.
-    final String sourceTableName = extractTableNameFromUrnForMgEntityIfPossible(sourceEntityUrn);
-    final String destTableName = extractTableNameFromUrnForMgEntityIfPossible(destinationEntityUrn);
+    final String sourceTableName = getMgEntityTableName(sourceEntityUrn);
+    final String destTableName = getMgEntityTableName(destinationEntityUrn);
     final String relationshipTableName = SQLSchemaUtils.getRelationshipTableName(relationshipType);
 
     final String sql = buildFindRelationshipSQL(
         relationshipTableName, relationshipFilter,
         sourceTableName, sourceEntityFilter,
-        destTableName, destinationEntityFilter);
+        destTableName, destinationEntityFilter,
+        count, offset);
 
-    List<RELATIONSHIP> relationships = _server.createSqlQuery(sql).findList().stream()
+    return _server.createSqlQuery(sql).findList().stream()
         .map(row -> RecordUtils.toRecordTemplate(relationshipType, row.getString("metadata")))
         .collect(Collectors.toList());
-
-    // return sublist based on offset and count
-    // if offset < 0, start from 0. if count < 0, return all.
-    return relationships.subList(Math.max(0, offset), count < 0 ? relationships.size() : Math.min(count, relationships.size()));
   }
 
-  private boolean isValidUrn(@Nonnull String entityUrn) {
-    return entityUrn.matches(URN_PATTERN);
+  private boolean isValidUrn(@Nonnull Urn entityUrn) {
+    return entityUrn.toString().matches(URN_PATTERN);
   }
 
   /**
    * Checks if entity type name can be extracted from urn, and that entity type has a table in db.
    */
   @VisibleForTesting
-  protected boolean isMgEntityUrn(@Nonnull String entityUrn) {
+  protected boolean isMgEntityUrn(@Nonnull Urn entityUrn) {
     // there is some race condition, the local relationship db might not be ready when EbeanLocalRelationshipQueryDAO inits.
     // so we can't init the _mgEntityTypeNameSet in constructor.
-    initMgEntityTypeNameSetOnce();
+    if (_mgEntityTypeNameSet == null) {
+      initMgEntityTypeNameSet();
+    }
 
-    return _mgEntityTypeNameSet.contains(getEntityTypeName(entityUrn));
-  }
-
-  /**
-   * Extracts the entity type name from an entity urn.
-   * @param entityUrn should match pattern "urn:li:[a-zA-Z0-9]+:?\(?[a-zA-Z0-9]*\)?"
-   * @return the 3rd segment of urn
-   */
-  @Nonnull
-  private static String getEntityTypeName(@Nonnull String entityUrn) {
-    return entityUrn.split(":")[2];
+    assert _mgEntityTypeNameSet != null;
+    return _mgEntityTypeNameSet.contains(entityUrn.getEntityType());
   }
 
   /**
@@ -247,11 +238,11 @@ public class EbeanLocalRelationshipQueryDAO {
    * @return metadata_entity_entity_type_name or null
    */
   @Nullable
-  private String extractTableNameFromUrnForMgEntityIfPossible(@Nullable String entityUrn) {
+  private String getMgEntityTableName(@Nullable Urn entityUrn) {
     if (entityUrn == null || !isMgEntityUrn(entityUrn)) {
       return null;
     }
-    return ENTITY_TABLE_PREFIX + getEntityTypeName(entityUrn);
+    return SQLSchemaUtils.getTableName(entityUrn);
   }
 
   /**
@@ -275,8 +266,9 @@ public class EbeanLocalRelationshipQueryDAO {
    * 3. the entity filter only contains supported condition.
    * If any of above is violated, throw IllegalArgumentException.
    */
-  private void validateEntityUrnAndFilter(@Nullable LocalRelationshipFilter filter, @Nullable String entityUrn) {
-    if (StringUtils.isBlank(entityUrn) && filter != null && filter.hasCriteria() && filter.getCriteria().size() > 0) {
+  private void validateEntityUrnAndFilter(@Nullable LocalRelationshipFilter filter, @Nullable Urn entityUrn) {
+    if ((entityUrn == null || StringUtils.isBlank(entityUrn.getEntityType())) && filter != null && filter.hasCriteria() && !filter.getCriteria()
+        .isEmpty()) {
       throw new IllegalArgumentException("Entity urn is null or empty but filter is not empty.");
     }
 
@@ -359,12 +351,15 @@ public class EbeanLocalRelationshipQueryDAO {
    * @param destTableName           destination entity table name. Always null if building relationship with non-mg
    *                                entity.
    * @param destinationEntityFilter filter on destination entity.
+   * @param limit                   max number of records to return. If < 0, will return all records.
+   * @param offset                  offset to start from. If < 0, will start from 0.
    */
   @Nonnull
   private String buildFindRelationshipSQL(
       @Nonnull final String relationshipTableName, @Nonnull final LocalRelationshipFilter relationshipFilter,
       @Nullable final String sourceTableName, @Nullable final LocalRelationshipFilter sourceEntityFilter,
-      @Nullable final String destTableName, @Nullable final LocalRelationshipFilter destinationEntityFilter) {
+      @Nullable final String destTableName, @Nullable final LocalRelationshipFilter destinationEntityFilter,
+      int limit, int offset) {
 
     StringBuilder sqlBuilder = new StringBuilder();
     sqlBuilder.append("SELECT rt.* FROM ").append(relationshipTableName).append(" rt ");
@@ -401,17 +396,22 @@ public class EbeanLocalRelationshipQueryDAO {
     if (whereClause != null) {
       sqlBuilder.append(" AND ").append(whereClause);
     }
+
+    if (limit > 0) {
+      sqlBuilder.append(" LIMIT ").append(limit);
+
+      if (offset > 0) {
+        sqlBuilder.append(" OFFSET ").append(offset);
+      }
+    }
+
     return sqlBuilder.toString();
   }
 
   /**
-   * Creates a set of MG entity type names by querying the database once.
+   * Creates a set of MG entity type names by querying the database.
    */
-  private void initMgEntityTypeNameSetOnce() {
-    if (_mgEntityTypeNameSet != null) {
-      return;
-    }
-
+  private void initMgEntityTypeNameSet() {
     final String sql = "SELECT table_name FROM information_schema.tables"
         + " WHERE table_type = 'BASE TABLE' AND TABLE_SCHEMA=DATABASE() AND table_name LIKE 'metadata_entity_%'";
     _mgEntityTypeNameSet = _server.createSqlQuery(sql).findList().stream()

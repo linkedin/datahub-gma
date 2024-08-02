@@ -3,6 +3,7 @@ package com.linkedin.metadata.dao.localrelationship;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.io.Resources;
 import com.linkedin.common.AuditStamp;
+import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.StringArray;
 import com.linkedin.metadata.dao.EBeanDAOConfig;
@@ -60,9 +61,10 @@ import static org.testng.Assert.*;
 
 
 public class EbeanLocalRelationshipQueryDAOTest {
-  public static final String FOO_ENTITY_URN = "urn:li:foo";
-  public static final String BAR_ENTITY_URN = "urn:li:bar";
-  public static final String CREW_ENTITY_URN = "urn:li:crew";
+  public Urn fooEntityUrn;
+  public Urn barEntityUrn;
+  public Urn crewEntityUrn;
+
   private EbeanServer _server;
   private EbeanLocalRelationshipWriterDAO _localRelationshipWriterDAO;
   private EbeanLocalRelationshipQueryDAO _localRelationshipQueryDAO;
@@ -84,7 +86,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
   }
 
   @BeforeClass
-  public void init() {
+  public void init() throws URISyntaxException {
     _server = EmbeddedMariaInstance.getServer(EbeanLocalRelationshipQueryDAOTest.class.getSimpleName());
     _localRelationshipWriterDAO = new EbeanLocalRelationshipWriterDAO(_server);
     _fooUrnEBeanLocalAccess = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()),
@@ -92,6 +94,10 @@ public class EbeanLocalRelationshipQueryDAOTest {
     _barUrnEBeanLocalAccess = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()),
         BarUrn.class, new EmptyPathExtractor<>(), _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled());
     _localRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server, _eBeanDAOConfig);
+
+    fooEntityUrn = new Urn("urn:li:foo");
+    barEntityUrn = new Urn("urn:li:bar");
+    crewEntityUrn = new Urn("urn:li:crew");
   }
 
   @BeforeMethod
@@ -304,8 +310,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
     LocalRelationshipFilter destFilter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
 
     List<ReportsTo> reportsToAlice = _localRelationshipQueryDAO.findRelationships(
-        null, null,
-        FOO_ENTITY_URN, destFilter,
+        null, null, fooEntityUrn, destFilter,
         ReportsTo.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
         -1, -1);
 
@@ -323,8 +328,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
     deletionSQL.execute();
 
     reportsToAlice = _localRelationshipQueryDAO.findRelationships(
-        null, null,
-        FOO_ENTITY_URN, destFilter,
+        null, null, fooEntityUrn, destFilter,
         ReportsTo.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
         -1, -1);
 
@@ -375,9 +379,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
         new UrnField());
     LocalRelationshipFilter filterUrn = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterUrnCriterion));
 
-    List<ConsumeFrom> consumeFromSamza = _localRelationshipQueryDAO.findRelationships(
-        BAR_ENTITY_URN, filterUrn,
-        FOO_ENTITY_URN, null,
+    List<ConsumeFrom> consumeFromSamza = _localRelationshipQueryDAO.findRelationships(barEntityUrn, filterUrn, fooEntityUrn, null,
         ConsumeFrom.class,
         new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
         -1, -1);
@@ -392,9 +394,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
     LocalRelationshipFilter filterRelationship = new LocalRelationshipFilter().setCriteria(
         new LocalRelationshipCriterionArray(filterRelationshipCriterion)).setDirection(RelationshipDirection.UNDIRECTED);
 
-    List<ConsumeFrom> consumeFromSamzaInNearline = _localRelationshipQueryDAO.findRelationships(
-        BAR_ENTITY_URN, filterUrn,
-        FOO_ENTITY_URN, null,
+    List<ConsumeFrom> consumeFromSamzaInNearline = _localRelationshipQueryDAO.findRelationships(barEntityUrn, filterUrn, fooEntityUrn, null,
         ConsumeFrom.class,
         filterRelationship,
         -1, -1);
@@ -454,8 +454,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
     LocalRelationshipFilter filterUrn = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterUrnCriterion));
 
     // test owned by of crew1 can be found
-    List<OwnedBy> ownedByCrew1 = _localRelationshipQueryDAO.findRelationships(null, null,
-        CREW_ENTITY_URN, filterUrn,
+    List<OwnedBy> ownedByCrew1 = _localRelationshipQueryDAO.findRelationships(null, null, crewEntityUrn, filterUrn,
         OwnedBy.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
         -1, -1);
 
@@ -469,8 +468,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
     LocalRelationshipFilter filterUrn2 = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterUrnCriterion2));
 
     // test owned by of crew2 can be found
-    List<OwnedBy> ownedByCrew2 = _localRelationshipQueryDAO.findRelationships(null, null,
-        CREW_ENTITY_URN, filterUrn2,
+    List<OwnedBy> ownedByCrew2 = _localRelationshipQueryDAO.findRelationships(null, null, crewEntityUrn, filterUrn2,
         OwnedBy.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
         -1, -1);
 
@@ -518,9 +516,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
     LocalRelationshipFilter filterUrn1 = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterUrnCriterion1));
 
     // test owned by of crew can be filtered by source entity, e.g. only include kafka
-    List<OwnedBy> ownedByCrew1 = _localRelationshipQueryDAO.findRelationships(
-        FOO_ENTITY_URN, filterUrn1,
-        CREW_ENTITY_URN, filterUrn,
+    List<OwnedBy> ownedByCrew1 = _localRelationshipQueryDAO.findRelationships(fooEntityUrn, filterUrn1, crewEntityUrn, filterUrn,
         OwnedBy.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
         -1, -1);
 
@@ -571,7 +567,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
 
     List<ReportsTo> reportsToAlice = _localRelationshipQueryDAO.findRelationships(
-        null, null, FOO_ENTITY_URN, filter,
+        null, null, fooEntityUrn, filter,
         ReportsTo.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
         -1, 3);
 
@@ -579,14 +575,25 @@ public class EbeanLocalRelationshipQueryDAOTest {
     assertEquals(reportsToAlice.size(), 3);
 
     reportsToAlice = _localRelationshipQueryDAO.findRelationships(
-        null, null, FOO_ENTITY_URN, filter,
+        null, null, fooEntityUrn, filter,
         ReportsTo.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
-        2, -1);
+        2, 10);
 
     // Asserts 3 returns, and the content starts from the 3rd report (Lisa)
     assertEquals(reportsToAlice.size(), 3);
     Set<FooUrn> actual = reportsToAlice.stream().map(reportsTo -> makeFooUrn(reportsTo.getSource().toString())).collect(Collectors.toSet());
     Set<FooUrn> expected = ImmutableSet.of(lisa, rose, jenny);
+    assertEquals(actual, expected);
+
+    reportsToAlice = _localRelationshipQueryDAO.findRelationships(
+        null, null, fooEntityUrn, filter,
+        ReportsTo.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
+        2, -1);
+
+    // Asserts 5 returns, because offset cannot be applied when count isn't specified.
+    assertEquals(reportsToAlice.size(), 5);
+    actual = reportsToAlice.stream().map(reportsTo -> makeFooUrn(reportsTo.getSource().toString())).collect(Collectors.toSet());
+    expected = ImmutableSet.of(bob, jack, lisa, rose, jenny);
     assertEquals(actual, expected);
   }
 
@@ -597,14 +604,14 @@ public class EbeanLocalRelationshipQueryDAOTest {
     _fooUrnEBeanLocalAccess.add(fooUrn, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp(), null);
 
     // EbeanLocalRelationshipQueryDAOTest does not have the same package as EbeanLocalRelationshipQueryDAO (cant access protected method directly).
-    Method isMgEntityUrnMethod = EbeanLocalRelationshipQueryDAO.class.getDeclaredMethod("isMgEntityUrn", String.class);
+    Method isMgEntityUrnMethod = EbeanLocalRelationshipQueryDAO.class.getDeclaredMethod("isMgEntityUrn", Urn.class);
     isMgEntityUrnMethod.setAccessible(true);
 
     // assert foo is an MG entity (has metadata_entity_foo table in db)
-    assertTrue((Boolean) isMgEntityUrnMethod.invoke(_localRelationshipQueryDAO, FOO_ENTITY_URN));
+    assertTrue((Boolean) isMgEntityUrnMethod.invoke(_localRelationshipQueryDAO, fooEntityUrn));
 
     // assert crew is not an MG entity (does not have metadata_entity_crew table in db)
-    assertFalse((Boolean) isMgEntityUrnMethod.invoke(_localRelationshipQueryDAO, CREW_ENTITY_URN));
+    assertFalse((Boolean) isMgEntityUrnMethod.invoke(_localRelationshipQueryDAO, crewEntityUrn));
   }
 
   @Test
