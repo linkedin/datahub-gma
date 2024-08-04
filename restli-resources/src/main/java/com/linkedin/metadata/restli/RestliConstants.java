@@ -23,14 +23,16 @@ public final class RestliConstants {
   public static final String ACTION_GET_BROWSE_PATHS = "getBrowsePaths";
   public static final String ACTION_GET_SNAPSHOT = "getSnapshot";
   public static final String ACTION_INGEST = "ingest";
-  public static final String ACTION_QUERY = "query";
+  public static final String ACTION_INGEST_ASSET = "ingestAsset";
   public static final String ACTION_INGEST_WITH_TRACKING = "ingestWithTracking";
+  public static final String ACTION_QUERY = "query";
   public static final String ACTION_LIST_URNS_FROM_INDEX = "listUrnsFromIndex";
   public static final String ACTION_LIST_URNS = "listUrns";
   public static final String PARAM_INPUT = "input";
   public static final String PARAM_ASPECTS = "aspects";
   public static final String PARAM_ASPECT = "aspect";
   public static final String PARAM_ASPECT_CLASS = "aspectClass";
+  public static final String PARAM_ASSET = "asset";
   public static final String PARAM_FILTER = "filter";
   public static final String PARAM_GROUP = "group";
   public static final String PARAM_SORT = "sort";

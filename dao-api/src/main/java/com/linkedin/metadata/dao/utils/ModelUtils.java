@@ -14,6 +14,7 @@ import com.linkedin.data.template.WrappingArrayTemplate;
 import com.linkedin.metadata.aspect.AspectVersion;
 import com.linkedin.metadata.dummy.DummySnapshot;
 import com.linkedin.metadata.validator.AspectValidator;
+import com.linkedin.metadata.validator.AssetValidator;
 import com.linkedin.metadata.validator.DeltaValidator;
 import com.linkedin.metadata.validator.DocumentValidator;
 import com.linkedin.metadata.validator.EntityValidator;
@@ -21,6 +22,7 @@ import com.linkedin.metadata.validator.InvalidSchemaException;
 import com.linkedin.metadata.validator.RelationshipValidator;
 import com.linkedin.metadata.validator.SnapshotValidator;
 import com.linkedin.metadata.validator.ValidationUtils;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -37,9 +39,11 @@ import org.reflections.Reflections;
 public class ModelUtils {
 
   private static final ClassLoader CLASS_LOADER = DummySnapshot.class.getClassLoader();
+  private static final String ASPECTS_FIELD = "aspects";
+  private static final String FIELD_FIELD_PREFIX = "FIELD_";
+  private static final String MEMBER_FIELD_PREFIX = "MEMBER_";
   private static final String METADATA_AUDIT_EVENT_PREFIX = "METADATA_AUDIT_EVENT";
   private static final String URN_FIELD = "urn";
-  private static final String ASPECTS_FIELD = "aspects";
 
   private ModelUtils() {
     // Util class
@@ -138,6 +142,23 @@ public class ModelUtils {
   public static <SNAPSHOT extends RecordTemplate> Urn getUrnFromSnapshot(@Nonnull SNAPSHOT snapshot) {
     SnapshotValidator.validateSnapshotSchema(snapshot.getClass());
     final Urn urn = RecordUtils.getRecordTemplateField(snapshot, URN_FIELD, urnClassForSnapshot(snapshot.getClass()));
+    if (urn == null) {
+      ValidationUtils.throwNullFieldException(URN_FIELD);
+    }
+    return urn;
+  }
+
+  /**
+   * Extracts the "urn" field from an asset.
+   *
+   * @param asset the asset to extract urn from
+   * @param <ASSET> must be a valid asset model defined in com.linkedin.metadata.asset
+   * @return the extracted {@link Urn}
+   */
+  @Nonnull
+  public static <ASSET extends RecordTemplate> Urn getUrnFromAsset(@Nonnull ASSET asset) {
+    AssetValidator.validateAssetSchema(asset.getClass());
+    final Urn urn = RecordUtils.getRecordTemplateField(asset, URN_FIELD, urnClassForAsset(asset.getClass()));
     if (urn == null) {
       ValidationUtils.throwNullFieldException(URN_FIELD);
     }
@@ -294,6 +315,38 @@ public class ModelUtils {
   }
 
   /**
+   * Extracts the list of aspects in an asset.
+   *
+   * @param asset the asset to extract aspects from
+   * @param <ASSET> must be a valid asset model defined in com.linkedin.metadata.asset
+   * @return the extracted list of aspects
+   */
+  @Nonnull
+  public static <ASSET extends RecordTemplate> List<RecordTemplate> getAspectsFromAsset(@Nonnull ASSET asset) {
+    AssetValidator.validateAssetSchema(asset.getClass());
+    try {
+      final List<RecordTemplate> aspects = new ArrayList<>();
+      final Field[] assetFields = asset.getClass().getDeclaredFields();
+      for (final Field assetField : assetFields) {
+        if (assetField.getName().startsWith(FIELD_FIELD_PREFIX)) {
+          final String assetFieldName = assetField.getName().substring(FIELD_FIELD_PREFIX.length());
+          if (assetFieldName.equalsIgnoreCase(URN_FIELD)) {
+            continue;
+          }
+          final RecordTemplate aspect =
+              (RecordTemplate) asset.getClass().getMethod("get" + assetFieldName).invoke(asset);
+          if (aspect != null) {
+            aspects.add(aspect);
+          }
+        }
+      }
+      return aspects;
+    } catch (IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  /**
    * Extracts given aspect from a snapshot.
    *
    * @param snapshot the snapshot to extract the aspect from
@@ -399,6 +452,77 @@ public class ModelUtils {
   }
 
   /**
+   * Creates an asset with its urn field set.
+   *
+   * @param assetClass the type of asset to create
+   * @param urn value for the urn field
+   * @param aspects value for the aspects field
+   * @param <ASSET> must be a valid asset model defined in com.linkedin.metadata.asset
+   * @param <ASPECT_UNION> must be a valid aspect union defined in com.linkedin.metadata.aspect
+   * @param <URN> must be a valid URN type
+   * @return the created asset
+   */
+  @Nonnull
+  public static <ASSET extends RecordTemplate, ASPECT_UNION extends UnionTemplate, URN extends Urn> ASSET newAsset(
+      @Nonnull Class<ASSET> assetClass, @Nonnull URN urn, @Nonnull List<ASPECT_UNION> aspects) {
+    return newAsset(assetClass, urn.toString(), aspects);
+  }
+
+  /**
+   * Creates an asset with its urn field set.
+   *
+   * @param assetClass the type of asset to create
+   * @param urn value for the urn field as a string
+   * @param aspects value for the aspects field
+   * @param <ASSET> must be a valid asset model defined in com.linkedin.metadata.asset
+   * @param <ASPECT_UNION> must be a valid aspect union defined in com.linkedin.metadata.aspect
+   * @return the created asset
+   */
+  @Nonnull
+  public static <ASSET extends RecordTemplate, ASPECT_UNION extends UnionTemplate> ASSET newAsset(
+      @Nonnull Class<ASSET> assetClass, @Nonnull String urn, @Nonnull List<ASPECT_UNION> aspects) {
+
+    AssetValidator.validateAssetSchema(assetClass);
+
+    try {
+      final ASSET asset = assetClass.newInstance();
+      if (urn == null) {
+        ValidationUtils.throwNullFieldException(URN_FIELD);
+      }
+      if (aspects == null) {
+        ValidationUtils.throwNullFieldException(ASPECTS_FIELD);
+      }
+      RecordUtils.setRecordTemplatePrimitiveField(asset, URN_FIELD, urn);
+
+      for (final ASPECT_UNION aspect : aspects) {
+        final Field[] aspectUnionFields = aspect.getClass().getDeclaredFields();
+        final Field[] assetFields = asset.getClass().getDeclaredFields();
+        for (final Field aspectUnionField : aspectUnionFields) {
+          if (aspectUnionField.getName().startsWith(MEMBER_FIELD_PREFIX)) {
+            final String aspectFieldName = aspectUnionField.getName().substring(MEMBER_FIELD_PREFIX.length());
+            for (final Field assetField : assetFields) {
+              if (assetField.getName().startsWith(FIELD_FIELD_PREFIX) && assetField.getName()
+                  .substring(FIELD_FIELD_PREFIX.length())
+                  .equals(aspectFieldName)) {
+                final Object aspectValue = aspect.getClass().getMethod("get" + aspectFieldName).invoke(aspect);
+                if (aspectValue != null) {
+                  asset.getClass()
+                      .getMethod("set" + aspectFieldName, aspectValue.getClass())
+                      .invoke(asset, aspectValue);
+                }
+              }
+            }
+          }
+        }
+      }
+      return asset;
+    } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+
+  /**
    * Creates an aspect union with a specific aspect set.
    *
    * @param aspectUnionClass the type of aspect union to create
@@ -465,6 +589,15 @@ public class ModelUtils {
   public static Class<? extends Urn> urnClassForSnapshot(@Nonnull Class<? extends RecordTemplate> snapshotClass) {
     SnapshotValidator.validateSnapshotSchema(snapshotClass);
     return urnClassForField(snapshotClass, URN_FIELD);
+  }
+
+  /**
+   * Gets the expected {@link Urn} class for a specific kind of asset.
+   */
+  @Nonnull
+  public static Class<? extends Urn> urnClassForAsset(@Nonnull Class<? extends RecordTemplate> assetClass) {
+    AssetValidator.validateAssetSchema(assetClass);
+    return urnClassForField(assetClass, URN_FIELD);
   }
 
   /**
@@ -670,5 +803,45 @@ public class ModelUtils {
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
+  }
+
+  /**
+   * Convert an entity snapshot to an asset.
+   * @param assetClass the type of asset to create
+   * @param snapshot the snapshot to convert to asset from
+   * @param <ASSET> must be a valid asset model defined in com.linkedin.metadata.asset
+   * @param <SNAPSHOT> must be a valid snapshot model defined in com.linkedin.metadata.snapshot
+   * @param <ASPECT_UNION> must be a valid aspect union defined in com.linkedin.metadata.aspect
+   * @return the created asset
+   */
+  @Nonnull
+  public static <ASSET extends RecordTemplate, SNAPSHOT extends RecordTemplate, ASPECT_UNION extends UnionTemplate> ASSET convertSnapshotToAsset(
+      @Nonnull Class<ASSET> assetClass, @Nonnull SNAPSHOT snapshot) {
+    final List<ASPECT_UNION> aspectUnion = new ArrayList<>();
+    final List<RecordTemplate> aspects = getAspectsFromSnapshot(snapshot);
+    for (RecordTemplate aspect : aspects) {
+      aspectUnion.add(newAspectUnion(getUnionClassFromSnapshot(snapshot.getClass()), aspect));
+    }
+    return newAsset(assetClass, getUrnFromSnapshot(snapshot), aspectUnion);
+  }
+
+  /**
+   * Convert an entity snapshot to an asset.
+   * @param snapshotClass the type of snapshot to create
+   * @param asset the asset to convert to snapshot from
+   * @param <ASSET> must be a valid asset model defined in com.linkedin.metadata.asset
+   * @param <SNAPSHOT> must be a valid snapshot model defined in com.linkedin.metadata.snapshot
+   * @param <ASPECT_UNION> must be a valid aspect union defined in com.linkedin.metadata.aspect
+   * @return the created asset
+   */
+  @Nonnull
+  public static <ASSET extends RecordTemplate, SNAPSHOT extends RecordTemplate, ASPECT_UNION extends UnionTemplate> SNAPSHOT convertAssetToSnapshot(
+      @Nonnull Class<SNAPSHOT> snapshotClass, @Nonnull ASSET asset) {
+    final List<ASPECT_UNION> aspectUnion = new ArrayList<>();
+    final List<RecordTemplate> aspects = getAspectsFromAsset(asset);
+    for (RecordTemplate aspect : aspects) {
+      aspectUnion.add(newAspectUnion(getUnionClassFromSnapshot(snapshotClass), aspect));
+    }
+    return newSnapshot(snapshotClass, getUrnFromAsset(asset), aspectUnion);
   }
 }
