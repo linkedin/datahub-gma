@@ -235,6 +235,10 @@ public class EbeanLocalRelationshipQueryDAO {
    */
   @VisibleForTesting
   protected boolean isMgEntityUrn(@Nonnull Urn entityUrn) {
+    if (_schemaConfig == EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY) {
+      // there's no concept of MG entity or non-entity in old schema mode. always return false.
+      return false;
+    }
     // there is some race condition, the local relationship db might not be ready when EbeanLocalRelationshipQueryDAO inits.
     // so we can't init the _mgEntityTypeNameSet in constructor.
     if (_mgEntityTypeNameSet == null) {
@@ -302,12 +306,12 @@ public class EbeanLocalRelationshipQueryDAO {
   private void validateEntityFilterOnlyOneUrn(@Nonnull LocalRelationshipFilter filter) {
     if (filter.hasCriteria() && !filter.getCriteria().isEmpty()) {
       if (filter.getCriteria().size() > 1) {
-        throw new IllegalArgumentException("Only 1 filter is allowed in non-mg entity filter.");
+        throw new IllegalArgumentException("Only 1 filter is allowed in non-mg entity filter or in old schema mode.");
       }
       LocalRelationshipCriterion criterion = filter.getCriteria().get(0);
 
       if (!criterion.hasField() || !criterion.getField().isUrnField()) {
-        throw new IllegalArgumentException("Only urn filter is allowed in non-mg entity filter.");
+        throw new IllegalArgumentException("Only urn filter is allowed in non-mg entity filter or in old schema mode.");
       }
       Condition condition = filter.getCriteria().get(0).getCondition();
       if (!SUPPORTED_CONDITIONS.containsKey(condition)) {
@@ -401,7 +405,6 @@ public class EbeanLocalRelationshipQueryDAO {
     sqlBuilder.append("SELECT rt.* FROM ").append(relationshipTableName).append(" rt ");
 
     if (_schemaConfig == EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY || _schemaConfig == EbeanLocalDAO.SchemaConfig.DUAL_SCHEMA) {
-
       List<Pair<LocalRelationshipFilter, String>> filters = new ArrayList<>();
 
       if (destTableName != null) {
@@ -436,16 +439,20 @@ public class EbeanLocalRelationshipQueryDAO {
         sqlBuilder.append(" AND ").append(whereClause);
       }
     } else if (_schemaConfig == EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY) {
-      validateEntityFilterOldSchema(sourceEntityFilter);
-      validateEntityFilterOldSchema(destinationEntityFilter);
       sqlBuilder.append("WHERE deleted_ts IS NULL");
-      if (sourceEntityFilter.hasCriteria() && sourceEntityFilter.getCriteria().size() > 0) {
-        sqlBuilder.append(
-            SQLStatementUtils.whereClauseOldSchema(SUPPORTED_CONDITIONS, sourceEntityFilter.getCriteria(), SQLStatementUtils.SOURCE));
+      if (sourceEntityFilter != null) {
+        validateEntityFilterOnlyOneUrn(sourceEntityFilter);
+        if (sourceEntityFilter.hasCriteria() && sourceEntityFilter.getCriteria().size() > 0) {
+          sqlBuilder.append(
+              SQLStatementUtils.whereClauseOldSchema(SUPPORTED_CONDITIONS, sourceEntityFilter.getCriteria(), SQLStatementUtils.SOURCE));
+        }
       }
-      if (destinationEntityFilter.hasCriteria() && destinationEntityFilter.getCriteria().size() > 0) {
-        sqlBuilder.append(
-            SQLStatementUtils.whereClauseOldSchema(SUPPORTED_CONDITIONS, destinationEntityFilter.getCriteria(), SQLStatementUtils.DESTINATION));
+      if (destinationEntityFilter != null) {
+        validateEntityFilterOnlyOneUrn(destinationEntityFilter);
+        if (destinationEntityFilter.hasCriteria() && destinationEntityFilter.getCriteria().size() > 0) {
+          sqlBuilder.append(
+              SQLStatementUtils.whereClauseOldSchema(SUPPORTED_CONDITIONS, destinationEntityFilter.getCriteria(), SQLStatementUtils.DESTINATION));
+        }
       }
     } else {
       throw new RuntimeException("The schema config must be set to OLD_SCHEMA_ONLY, DUAL_SCHEMA, or NEW_SCHEMA_ONLY.");
@@ -460,30 +467,6 @@ public class EbeanLocalRelationshipQueryDAO {
     }
 
     return sqlBuilder.toString();
-  }
-
-  /**
-   * Ensure that the source and destination entity filters when running in OLD_SCHEMA_ONLY mode follow these restrictions.
-   * 1) include no more than 1 criterion
-   * 2) that 1 criterion must be on the urn field
-   * 3) the passed in condition is supported by this DAO
-   */
-  private void validateEntityFilterOldSchema(LocalRelationshipFilter filter) {
-    if (filter.hasCriteria() && filter.getCriteria().size() > 0) {
-      if (filter.getCriteria().size() > MAX_ALLOWED_FILTERS_OLD_SCHEMA) {
-        throw new IllegalArgumentException(String.format("Only %s filter is allowed in old schema mode.", MAX_ALLOWED_FILTERS_OLD_SCHEMA));
-      }
-      LocalRelationshipCriterion criterion = filter.getCriteria().get(0);
-
-      if (!criterion.hasField() || !criterion.getField().isUrnField()) {
-        throw new IllegalArgumentException("EbeanLocalRelationshipQueryDAO running in OLD_SCHEMA_ONLY mode only supports"
-            + " local relationship filters on the 'urn' field");
-      }
-      Condition condition = filter.getCriteria().get(0).getCondition();
-      if (!SUPPORTED_CONDITIONS.containsKey(condition)) {
-        throw new IllegalArgumentException(String.format("Condition %s is not supported by local relationship DAO.", condition));
-      }
-    }
   }
 
   /**
