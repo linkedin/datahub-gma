@@ -235,6 +235,10 @@ public class EbeanLocalRelationshipQueryDAO {
    */
   @VisibleForTesting
   protected boolean isMgEntityUrn(@Nonnull Urn entityUrn) {
+    if (_schemaConfig == EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY) {
+      // there's no concept of MG entity or non-entity in old schema mode. always return false.
+      return false;
+    }
     // there is some race condition, the local relationship db might not be ready when EbeanLocalRelationshipQueryDAO inits.
     // so we can't init the _mgEntityTypeNameSet in constructor.
     if (_mgEntityTypeNameSet == null) {
@@ -435,16 +439,20 @@ public class EbeanLocalRelationshipQueryDAO {
         sqlBuilder.append(" AND ").append(whereClause);
       }
     } else if (_schemaConfig == EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY) {
-      validateEntityFilterOnlyOneUrn(sourceEntityFilter);
-      validateEntityFilterOnlyOneUrn(destinationEntityFilter);
       sqlBuilder.append("WHERE deleted_ts IS NULL");
-      if (sourceEntityFilter.hasCriteria() && sourceEntityFilter.getCriteria().size() > 0) {
-        sqlBuilder.append(
-            SQLStatementUtils.whereClauseOldSchema(SUPPORTED_CONDITIONS, sourceEntityFilter.getCriteria(), SQLStatementUtils.SOURCE));
+      if (sourceEntityFilter != null) {
+        validateEntityFilterOnlyOneUrn(sourceEntityFilter);
+        if (sourceEntityFilter.hasCriteria() && sourceEntityFilter.getCriteria().size() > 0) {
+          sqlBuilder.append(
+              SQLStatementUtils.whereClauseOldSchema(SUPPORTED_CONDITIONS, sourceEntityFilter.getCriteria(), SQLStatementUtils.SOURCE));
+        }
       }
-      if (destinationEntityFilter.hasCriteria() && destinationEntityFilter.getCriteria().size() > 0) {
-        sqlBuilder.append(
-            SQLStatementUtils.whereClauseOldSchema(SUPPORTED_CONDITIONS, destinationEntityFilter.getCriteria(), SQLStatementUtils.DESTINATION));
+      if (destinationEntityFilter != null) {
+        validateEntityFilterOnlyOneUrn(destinationEntityFilter);
+        if (destinationEntityFilter.hasCriteria() && destinationEntityFilter.getCriteria().size() > 0) {
+          sqlBuilder.append(
+              SQLStatementUtils.whereClauseOldSchema(SUPPORTED_CONDITIONS, destinationEntityFilter.getCriteria(), SQLStatementUtils.DESTINATION));
+        }
       }
     } else {
       throw new RuntimeException("The schema config must be set to OLD_SCHEMA_ONLY, DUAL_SCHEMA, or NEW_SCHEMA_ONLY.");
