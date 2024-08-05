@@ -1,0 +1,17 @@
+namespace com.linkedin.metadata.query
+
+/**
+ * Filter for finding source/destination entity(s)
+ */
+record EntityQueryFilter {
+
+  /**
+   * dataset/azkabanJob/corpUser/etc.
+   */
+  entityType: optional string = ""
+
+  /**
+   * Filter for finding an record or a collection of records
+   */
+  filter: optional LocalRelationshipFilter
+}
