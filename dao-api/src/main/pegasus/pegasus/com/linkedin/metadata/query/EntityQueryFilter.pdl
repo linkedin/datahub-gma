@@ -1,4 +1,6 @@
-namespace com.linkedin.metadata.query
+namespace pegasus.com.linkedin.metadata.query
+
+import com.linkedin.metadata.query.LocalRelationshipFilter
 
 /**
  * Filter for finding source/destination entity(s)
