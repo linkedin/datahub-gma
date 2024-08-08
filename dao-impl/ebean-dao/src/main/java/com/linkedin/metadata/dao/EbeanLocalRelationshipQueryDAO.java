@@ -145,7 +145,7 @@ public class EbeanLocalRelationshipQueryDAO {
       @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter, int offset, int count) {
     validateEntityFilter(sourceEntityFilter, sourceEntityClass);
     validateEntityFilter(destinationEntityFilter, destinationEntityClass);
-    validateRelationshipFilter(relationshipFilter);
+    validateEntityFilter(relationshipFilter, relationshipType);
 
     String destTableName = null;
     if (destinationEntityClass != null) {
