@@ -1,0 +1,8 @@
+namespace com.linkedin.testing
+
+import com.linkedin.testing.localrelationship.AspectFooBar
+
+/**
+ * For unit tests
+ */
+typeref InternalEntityAspectUnion = union[AspectFoo, AspectFooBar]

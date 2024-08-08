@@ -8,6 +8,7 @@ import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.validator.NullFieldException;
 import com.linkedin.testing.AspectAttributes;
 import com.linkedin.testing.AspectUnionWithSoftDeletedAspect;
+import com.linkedin.testing.BarUrnArray;
 import com.linkedin.testing.DeltaUnionAlias;
 import com.linkedin.testing.EntityAspectUnionAliasArray;
 import com.linkedin.testing.EntityAsset;
@@ -19,6 +20,9 @@ import com.linkedin.testing.EntitySnapshotAlias;
 import com.linkedin.testing.EntitySnapshotAliasOptionalFields;
 import com.linkedin.testing.EntityUnion;
 import com.linkedin.testing.EntityUnionAlias;
+import com.linkedin.testing.InternalEntityAspectUnion;
+import com.linkedin.testing.InternalEntityAspectUnionArray;
+import com.linkedin.testing.InternalEntitySnapshot;
 import com.linkedin.testing.PizzaInfo;
 import com.linkedin.testing.PizzaOrder;
 import com.linkedin.testing.SnapshotUnionAlias;
@@ -92,7 +96,8 @@ public class ModelUtilsTest {
   public void testGetValidAspectTypes() {
     Set<Class<? extends RecordTemplate>> validTypes = ModelUtils.getValidAspectTypes(EntityAspectUnion.class);
 
-    assertEquals(validTypes, ImmutableSet.of(AspectFoo.class, AspectBar.class, AspectFooBar.class, AspectAttributes.class));
+    assertEquals(validTypes,
+        ImmutableSet.of(AspectFoo.class, AspectBar.class, AspectFooBar.class, AspectAttributes.class));
   }
 
   @Test
@@ -247,9 +252,9 @@ public class ModelUtilsTest {
 
   @Test
   public void testGetNullUrnFromRelationship() {
-    RelationshipFooOptionalFields relationship = new RelationshipFooOptionalFields()
-        .setSource(null, SetMode.IGNORE_NULL)
-        .setDestination(null, SetMode.IGNORE_NULL);
+    RelationshipFooOptionalFields relationship =
+        new RelationshipFooOptionalFields().setSource(null, SetMode.IGNORE_NULL)
+            .setDestination(null, SetMode.IGNORE_NULL);
     assertThrows(NullFieldException.class, () -> ModelUtils.getSourceUrnFromRelationship(relationship));
     assertThrows(NullFieldException.class, () -> ModelUtils.getDestinationUrnFromRelationship(relationship));
   }
@@ -384,7 +389,8 @@ public class ModelUtilsTest {
   public void testGetNullAspectsFromSnapshotUnionAlias() {
     EntitySnapshotAliasOptionalFields snapshot = new EntitySnapshotAliasOptionalFields();
     snapshot.setAspects(null, SetMode.IGNORE_NULL);
-    SnapshotUnionAliasWithEntitySnapshotAliasOptionalFields snapshotUnion = new SnapshotUnionAliasWithEntitySnapshotAliasOptionalFields();
+    SnapshotUnionAliasWithEntitySnapshotAliasOptionalFields snapshotUnion =
+        new SnapshotUnionAliasWithEntitySnapshotAliasOptionalFields();
     snapshotUnion.setEntity(snapshot);
 
     assertThrows(NullFieldException.class, () -> ModelUtils.getAspectsFromSnapshotUnion(snapshotUnion));
@@ -411,7 +417,8 @@ public class ModelUtilsTest {
     EntityAspectUnion aspectUnion = new EntityAspectUnion();
     aspectUnion.setAspectFoo(foo);
 
-    assertThrows(InvalidSchemaException.class, () -> ModelUtils.newSnapshot(EntitySnapshotInvalid.class, urn, Lists.newArrayList(aspectUnion)));
+    assertThrows(InvalidSchemaException.class,
+        () -> ModelUtils.newSnapshot(EntitySnapshotInvalid.class, urn, Lists.newArrayList(aspectUnion)));
   }
 
   @Test
@@ -620,6 +627,30 @@ public class ModelUtilsTest {
   }
 
   @Test
+  public void testConvertInternalSnapshotToAsset() {
+    Urn expectedUrn = makeUrn(1);
+    InternalEntitySnapshot internalEntitySnapshot = new InternalEntitySnapshot().setUrn(expectedUrn);
+    InternalEntityAspectUnion internalAspectUnion1 = new InternalEntityAspectUnion();
+    InternalEntityAspectUnion internalAspectUnion2 = new InternalEntityAspectUnion();
+    InternalEntityAspectUnionArray internalEntityAspectUnionArray = new InternalEntityAspectUnionArray();
+    AspectFoo expectedFoo = new AspectFoo().setValue("foo");
+    AspectFooBar expectedFooBar = new AspectFooBar().setBars(new BarUrnArray(new BarUrn(2)));
+    internalAspectUnion1.setAspectFoo(expectedFoo);
+    internalAspectUnion2.setAspectFooBar(expectedFooBar);
+    internalEntityAspectUnionArray.add(internalAspectUnion1);
+    internalEntityAspectUnionArray.add(internalAspectUnion2);
+    internalEntitySnapshot.setAspects(internalEntityAspectUnionArray);
+
+    EntityAsset entityAsset = ModelUtils.convertSnapshotToAsset(EntityAsset.class, internalEntitySnapshot);
+
+    assertEquals(entityAsset.getUrn(), expectedUrn);
+    assertEquals(entityAsset.getAspectFoo(), expectedFoo);
+    assertEquals(entityAsset.getAspectFooBar(), expectedFooBar);
+    assertFalse(entityAsset.hasAspectBar());
+    assertFalse(entityAsset.hasAspectAttributes());
+  }
+
+  @Test
   public void testConvertAssetToSnapshot() {
     Urn expectedUrn = makeUrn(1);
     EntityAsset asset = new EntityAsset();
@@ -635,5 +666,26 @@ public class ModelUtilsTest {
     assertEquals(entitySnapshot.getAspects().size(), 2);
     assertEquals(entitySnapshot.getAspects().get(0).getAspectFoo(), expectedFoo);
     assertEquals(entitySnapshot.getAspects().get(1).getAspectBar(), expectedBar);
+  }
+
+  @Test
+  public void testConvertAssetToInternalSnapshot() {
+    Urn expectedUrn = makeUrn(1);
+    EntityAsset asset = new EntityAsset();
+    AspectFoo expectedFoo = new AspectFoo().setValue("foo");
+    AspectBar expectedBar = new AspectBar().setValue("bar");
+    AspectFooBar expectedFooBar = new AspectFooBar().setBars(new BarUrnArray(new BarUrn(2)));
+    asset.setUrn(expectedUrn);
+    asset.setAspectFoo(expectedFoo);
+    asset.setAspectBar(expectedBar);
+    asset.setAspectFooBar(expectedFooBar);
+
+    InternalEntitySnapshot internalEntitySnapshot =
+        ModelUtils.convertAssetToSnapshot(InternalEntitySnapshot.class, asset);
+
+    assertEquals(internalEntitySnapshot.getUrn(), expectedUrn);
+    assertEquals(internalEntitySnapshot.getAspects().size(), 2);
+    assertEquals(internalEntitySnapshot.getAspects().get(0).getAspectFoo(), expectedFoo);
+    assertEquals(internalEntitySnapshot.getAspects().get(1).getAspectFooBar(), expectedFooBar);
   }
 }

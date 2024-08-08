@@ -324,6 +324,7 @@ public class ModelUtils {
   @Nonnull
   public static <ASSET extends RecordTemplate> List<RecordTemplate> getAspectsFromAsset(@Nonnull ASSET asset) {
     AssetValidator.validateAssetSchema(asset.getClass());
+    // TODO: cache the asset methods loading
     try {
       final List<RecordTemplate> aspects = new ArrayList<>();
       final Field[] assetFields = asset.getClass().getDeclaredFields();
@@ -838,9 +839,11 @@ public class ModelUtils {
   public static <ASSET extends RecordTemplate, SNAPSHOT extends RecordTemplate, ASPECT_UNION extends UnionTemplate> SNAPSHOT convertAssetToSnapshot(
       @Nonnull Class<SNAPSHOT> snapshotClass, @Nonnull ASSET asset) {
     final List<ASPECT_UNION> aspectUnion = new ArrayList<>();
-    final List<RecordTemplate> aspects = getAspectsFromAsset(asset);
-    for (RecordTemplate aspect : aspects) {
-      aspectUnion.add(newAspectUnion(getUnionClassFromSnapshot(snapshotClass), aspect));
+    final Class<ASPECT_UNION> aspectUnionClass = getUnionClassFromSnapshot(snapshotClass);
+    for (final RecordTemplate aspect : getAspectsFromAsset(asset)) {
+      if (getValidAspectTypes(aspectUnionClass).contains(aspect.getClass())) {
+        aspectUnion.add(newAspectUnion(aspectUnionClass, aspect));
+      }
     }
     return newSnapshot(snapshotClass, getUrnFromAsset(asset), aspectUnion);
   }
