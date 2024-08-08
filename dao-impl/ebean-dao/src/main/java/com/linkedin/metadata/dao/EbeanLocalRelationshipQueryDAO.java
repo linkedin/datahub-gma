@@ -145,7 +145,7 @@ public class EbeanLocalRelationshipQueryDAO {
       @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter, int offset, int count) {
     validateEntityFilter(sourceEntityFilter, sourceEntityClass);
     validateEntityFilter(destinationEntityFilter, destinationEntityClass);
-    validateRelationshipFilter(relationshipFilter);
+    validateEntityFilter(relationshipFilter, relationshipType);
 
     String destTableName = null;
     if (destinationEntityClass != null) {
@@ -175,7 +175,7 @@ public class EbeanLocalRelationshipQueryDAO {
   }
 
   /**
-   * Finds a list of relationships of a specific type based on the given filters if applicable.
+   * Finds a list of relationships of a specific type (Urn) based on the given filters if applicable.
    *
    * @param sourceEntityUrn urn of the source entity to query
    * @param sourceEntityFilter the filter to apply to the source entity when querying (not applicable to non-MG entities)
@@ -188,7 +188,7 @@ public class EbeanLocalRelationshipQueryDAO {
    * @return A list of relationship records.
    */
   @Nonnull
-  public <RELATIONSHIP extends RecordTemplate> List<RELATIONSHIP> findRelationships(
+  public <RELATIONSHIP extends RecordTemplate> List<RELATIONSHIP> findRelationshipsV2(
       @Nullable Urn sourceEntityUrn, @Nullable LocalRelationshipFilter sourceEntityFilter,
       @Nullable Urn destinationEntityUrn, @Nullable LocalRelationshipFilter destinationEntityFilter,
       @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter,
