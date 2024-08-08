@@ -1,0 +1,31 @@
+namespace com.linkedin.testing
+
+import com.linkedin.common.Urn
+import com.linkedin.testing.localrelationship.AspectFooBar
+
+/**
+ * For unit tests
+ */
+record EntityAsset {
+  /**
+   * For unit tests
+   */
+  urn: optional Urn
+
+  /**
+   * For unit tests
+   */
+  aspectFoo: optional AspectFoo,
+  /**
+   * For unit tests
+   */
+  aspectBar: optional AspectBar,
+  /**
+   * For unit tests
+   */
+  aspectFooBar: optional AspectFooBar,
+  /**
+   * For unit tests
+   */
+  aspectAttributes: optional AspectAttributes
+}
