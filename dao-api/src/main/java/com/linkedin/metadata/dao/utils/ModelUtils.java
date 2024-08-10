@@ -827,24 +827,75 @@ public class ModelUtils {
   }
 
   /**
-   * Convert an entity snapshot to an asset.
-   * @param snapshotClass the type of snapshot to create
+   * Convert an entity asset to an entity internal snapshot.
+   * @param internalSnapshotClass the type of snapshot to create
    * @param asset the asset to convert to snapshot from
    * @param <ASSET> must be a valid asset model defined in com.linkedin.metadata.asset
-   * @param <SNAPSHOT> must be a valid snapshot model defined in com.linkedin.metadata.snapshot
+   * @param <INTERNAL_SNAPSHOT> must be a valid internal snapshot model defined in com.linkedin.metadata.snapshot
    * @param <ASPECT_UNION> must be a valid aspect union defined in com.linkedin.metadata.aspect
-   * @return the created asset
+   * @return the created internal snapshot
    */
   @Nonnull
-  public static <ASSET extends RecordTemplate, SNAPSHOT extends RecordTemplate, ASPECT_UNION extends UnionTemplate> SNAPSHOT convertAssetToSnapshot(
-      @Nonnull Class<SNAPSHOT> snapshotClass, @Nonnull ASSET asset) {
+  public static <ASSET extends RecordTemplate, INTERNAL_SNAPSHOT extends RecordTemplate, ASPECT_UNION extends UnionTemplate>
+  INTERNAL_SNAPSHOT convertAssetToInternalSnapshot(
+      @Nonnull Class<INTERNAL_SNAPSHOT> internalSnapshotClass, @Nonnull ASSET asset) {
     final List<ASPECT_UNION> aspectUnion = new ArrayList<>();
-    final Class<ASPECT_UNION> aspectUnionClass = getUnionClassFromSnapshot(snapshotClass);
     for (final RecordTemplate aspect : getAspectsFromAsset(asset)) {
-      if (getValidAspectTypes(aspectUnionClass).contains(aspect.getClass())) {
-        aspectUnion.add(newAspectUnion(aspectUnionClass, aspect));
-      }
+      addAspectUnion(getUnionClassFromSnapshot(internalSnapshotClass), aspect, aspectUnion);
     }
-    return newSnapshot(snapshotClass, getUrnFromAsset(asset), aspectUnion);
+    return newSnapshot(internalSnapshotClass, getUrnFromAsset(asset), aspectUnion);
+  }
+
+  /**
+   * Convert an entity snapshot to an entity internal snapshot.
+   * @param internalSnapshotClass the type of snapshot to create
+   * @param snapshot the snapshot to convert
+   * @param <INTERNAL_SNAPSHOT> must be a valid internal snapshot model defined in com.linkedin.metadata.snapshot
+   * @param <SNAPSHOT> must be a valid snapshot model defined in com.linkedin.metadata.snapshot
+   * @param <ASPECT_UNION> must be a valid aspect union defined in com.linkedin.metadata.aspect
+   * @return the created internal snapshot
+   */
+  @Nonnull
+  public static <INTERNAL_SNAPSHOT extends RecordTemplate, SNAPSHOT extends RecordTemplate, ASPECT_UNION extends UnionTemplate>
+  INTERNAL_SNAPSHOT convertSnapshotToInternalSnapshot(
+      @Nonnull Class<INTERNAL_SNAPSHOT> internalSnapshotClass, @Nonnull SNAPSHOT snapshot) {
+    final List<ASPECT_UNION> aspectUnion = new ArrayList<>();
+    for (final RecordTemplate aspect : getAspectsFromSnapshot(snapshot)) {
+      addAspectUnion(getUnionClassFromSnapshot(internalSnapshotClass), aspect, aspectUnion);
+    }
+    return newSnapshot(internalSnapshotClass, getUrnFromSnapshot(snapshot), aspectUnion);
+  }
+
+  /**
+   * Convert an internal aspect union to an aspect union.
+   * @param aspectUnionClass the type of aspect union to create
+   * @param internalAspectUnions the internal aspect union to convert
+   * @param <INTERNAL_ASPECT_UNION> must be a valid internal aspect union model defined in com.linkedin.metadata.aspect
+   * @param <ASPECT_UNION> must be a valid aspect union model defined in com.linkedin.metadata.aspect
+   * @return the created aspect union
+   */
+  @Nonnull
+  public static <INTERNAL_ASPECT_UNION extends UnionTemplate, ASPECT_UNION extends UnionTemplate>
+  List<ASPECT_UNION> convertInternalAspectUnionToAspectUnion(
+      @Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull List<INTERNAL_ASPECT_UNION> internalAspectUnions) {
+    final List<ASPECT_UNION> aspectUnions = new ArrayList<>();
+    for (final INTERNAL_ASPECT_UNION internalAspectUnion : internalAspectUnions) {
+      addAspectUnion(aspectUnionClass, RecordUtils.getSelectedRecordTemplateFromUnion(internalAspectUnion), aspectUnions);
+    }
+    return aspectUnions;
+  }
+
+  /**
+   * Add an aspect union to aspect union list if it is a validated aspect type.
+   * @param aspectUnionClass the type of aspect union to add
+   * @param aspect the type of aspect to be added
+   * @param aspectUnions the aspect union to add
+   * @param <ASPECT_UNION> must be a valid aspect union model defined in com.linkedin.metadata.aspect
+   */
+  private static <ASPECT_UNION extends UnionTemplate> void addAspectUnion(@Nonnull Class<ASPECT_UNION> aspectUnionClass,
+      @Nonnull RecordTemplate aspect, @Nonnull List<ASPECT_UNION> aspectUnions) {
+    if (getValidAspectTypes(aspectUnionClass).contains(aspect.getClass())) {
+      aspectUnions.add(newAspectUnion(aspectUnionClass, aspect));
+    }
   }
 }

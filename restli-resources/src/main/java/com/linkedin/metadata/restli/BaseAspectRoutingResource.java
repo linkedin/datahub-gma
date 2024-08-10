@@ -55,21 +55,32 @@ public abstract class BaseAspectRoutingResource<
     URN extends Urn,
     SNAPSHOT extends RecordTemplate,
     ASPECT_UNION extends UnionTemplate,
-    DOCUMENT extends RecordTemplate>
+    DOCUMENT extends RecordTemplate,
+    INTERNAL_SNAPSHOT extends RecordTemplate,
+    INTERNAL_ASPECT_UNION extends UnionTemplate,
+    ASSET extends RecordTemplate>
     // @formatter:on
-    extends BaseBrowsableEntityResource<KEY, VALUE, URN, SNAPSHOT, ASPECT_UNION, DOCUMENT> {
+    extends
+    BaseBrowsableEntityResource<KEY, VALUE, URN, SNAPSHOT, ASPECT_UNION, DOCUMENT, INTERNAL_SNAPSHOT, INTERNAL_ASPECT_UNION, ASSET> {
 
   private final Class<VALUE> _valueClass;
   private final Class<ASPECT_UNION> _aspectUnionClass;
   private final Class<SNAPSHOT> _snapshotClass;
+  private final Class<INTERNAL_SNAPSHOT> _internalSnapshotClass;
+  private final Class<INTERNAL_ASPECT_UNION> _internalAspectUnionClass;
+  private final Class<ASSET> _assetClass;
 
-  public BaseAspectRoutingResource(@Nonnull Class<SNAPSHOT> snapshotClass,
-      @Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull Class<URN> urnClass,
-      @Nonnull Class<VALUE> valueClass) {
-    super(snapshotClass, aspectUnionClass, urnClass);
+  public BaseAspectRoutingResource(@Nullable Class<SNAPSHOT> snapshotClass,
+      @Nullable Class<ASPECT_UNION> aspectUnionClass, @Nonnull Class<URN> urnClass, @Nonnull Class<VALUE> valueClass,
+      @Nonnull Class<INTERNAL_SNAPSHOT> internalSnapshotClass,
+      @Nonnull Class<INTERNAL_ASPECT_UNION> internalAspectUnionClass, @Nonnull Class<ASSET> assetClass) {
+    super(snapshotClass, aspectUnionClass, urnClass, internalSnapshotClass, internalAspectUnionClass, assetClass);
     _valueClass = valueClass;
     _aspectUnionClass = aspectUnionClass;
     _snapshotClass = snapshotClass;
+    _internalSnapshotClass = internalSnapshotClass;
+    _internalAspectUnionClass = internalAspectUnionClass;
+    _assetClass = assetClass;
   }
 
   /**
@@ -107,8 +118,10 @@ public abstract class BaseAspectRoutingResource<
   }
 
   /**
+   * Deprecated to use {@link #ingestAsset(RecordTemplate, IngestionTrackingContext, IngestionParams)} .
    * An action method for getting a snapshot of aspects for an entity.
    */
+  @Deprecated
   @Action(name = ACTION_GET_SNAPSHOT)
   @Nonnull
   @Override
@@ -121,17 +134,49 @@ public abstract class BaseAspectRoutingResource<
 
       if (!containsRoutingAspect(aspectClasses)) {
         // Get snapshot from Local DAO.
-        final List<ASPECT_UNION> aspectUnions = getAspectsFromLocalDao(urn, aspectClasses);
-        return ModelUtils.newSnapshot(_snapshotClass, urn, aspectUnions);
+        final List<INTERNAL_ASPECT_UNION> aspectUnions = getAspectsFromLocalDao(urn, aspectClasses);
+        return ModelUtils.newSnapshot(_snapshotClass, urn,
+            convertInternalAspectUnionToAspectUnion(_aspectUnionClass, aspectUnions));
       } else {
         final Set<Class<? extends RecordTemplate>> nonRoutingAspects = getNonRoutingAspects(aspectClasses);
-        final List<ASPECT_UNION> aspectsFromLocalDao = getAspectsFromLocalDao(urn, nonRoutingAspects);
+        final List<INTERNAL_ASPECT_UNION> aspectsFromLocalDao = getAspectsFromLocalDao(urn, nonRoutingAspects);
         final Set<Class<? extends RecordTemplate>> routingAspects = getRoutingAspects(aspectClasses);
-        final List<ASPECT_UNION> aspectsFromGms = routingAspects.stream()
+        final List<INTERNAL_ASPECT_UNION> aspectsFromGms = routingAspects.stream()
             .map(routingAspect -> getAspectsFromGms(urn, routingAspect))
             .flatMap(List::stream)
             .collect(Collectors.toList());
-        return ModelUtils.newSnapshot(_snapshotClass, urn,
+        return ModelUtils.newSnapshot(_snapshotClass, urn, convertInternalAspectUnionToAspectUnion(_aspectUnionClass,
+            Stream.concat(aspectsFromGms.stream(), aspectsFromLocalDao.stream()).collect(Collectors.toList())));
+      }
+    });
+  }
+
+  /**
+   * An action method for getting an asset of aspects for an entity.
+   */
+  @Action(name = ACTION_GET_ASSET)
+  @Nonnull
+  @Override
+  public Task<ASSET> getAsset(@ActionParam(PARAM_URN) @Nonnull String urnString,
+      @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
+
+    return RestliUtils.toTask(() -> {
+      final URN urn = parseUrnParam(urnString);
+      final Set<Class<? extends RecordTemplate>> aspectClasses = parseAspectsParam(aspectNames);
+
+      if (!containsRoutingAspect(aspectClasses)) {
+        // Get snapshot from Local DAO.
+        final List<INTERNAL_ASPECT_UNION> aspectUnions = getAspectsFromLocalDao(urn, aspectClasses);
+        return ModelUtils.newAsset(_assetClass, urn, aspectUnions);
+      } else {
+        final Set<Class<? extends RecordTemplate>> nonRoutingAspects = getNonRoutingAspects(aspectClasses);
+        final List<INTERNAL_ASPECT_UNION> aspectsFromLocalDao = getAspectsFromLocalDao(urn, nonRoutingAspects);
+        final Set<Class<? extends RecordTemplate>> routingAspects = getRoutingAspects(aspectClasses);
+        final List<INTERNAL_ASPECT_UNION> aspectsFromGms = routingAspects.stream()
+            .map(routingAspect -> getAspectsFromGms(urn, routingAspect))
+            .flatMap(List::stream)
+            .collect(Collectors.toList());
+        return ModelUtils.newAsset(_assetClass, urn,
             Stream.concat(aspectsFromGms.stream(), aspectsFromLocalDao.stream()).collect(Collectors.toList()));
       }
     });
@@ -195,14 +240,14 @@ public abstract class BaseAspectRoutingResource<
 
   @Nonnull
   @Override
-  protected Task<Void> ingestInternal(@Nonnull SNAPSHOT snapshot,
+  protected Task<Void> ingestInternal(@Nonnull INTERNAL_SNAPSHOT internalSnapshot,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore,
       @Nullable IngestionTrackingContext trackingContext, @Nullable IngestionParams ingestionParams) {
     // TODO: META-18950: add trackingContext to BaseAspectRoutingResource. currently the param is unused.
     return RestliUtils.toTask(() -> {
-      final URN urn = (URN) ModelUtils.getUrnFromSnapshot(snapshot);
+      final URN urn = (URN) ModelUtils.getUrnFromSnapshot(internalSnapshot);
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
-      ModelUtils.getAspectsFromSnapshot(snapshot).forEach(aspect -> {
+      ModelUtils.getAspectsFromSnapshot(internalSnapshot).forEach(aspect -> {
         if (!aspectsToIgnore.contains(aspect.getClass())) {
           if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
             try {
@@ -282,7 +327,7 @@ public abstract class BaseAspectRoutingResource<
    */
   @Nonnull
   @ParametersAreNonnullByDefault
-  private List<ASPECT_UNION> getAspectsFromLocalDao(URN urn, Set<Class<? extends RecordTemplate>> aspectClasses) {
+  private List<INTERNAL_ASPECT_UNION> getAspectsFromLocalDao(URN urn, Set<Class<? extends RecordTemplate>> aspectClasses) {
 
     if (aspectClasses == null || aspectClasses.isEmpty()) {
       return Collections.emptyList();
@@ -296,7 +341,7 @@ public abstract class BaseAspectRoutingResource<
         .values()
         .stream()
         .filter(java.util.Optional::isPresent)
-        .map(aspect -> ModelUtils.newAspectUnion(_aspectUnionClass, aspect.get()))
+        .map(aspect -> ModelUtils.newAspectUnion(_internalAspectUnionClass, aspect.get()))
         .collect(Collectors.toList());
   }
 
@@ -305,13 +350,13 @@ public abstract class BaseAspectRoutingResource<
    */
   @Nonnull
   @ParametersAreNonnullByDefault
-  private List<ASPECT_UNION> getAspectsFromGms(URN urn, Class aspectClass) {
+  private List<INTERNAL_ASPECT_UNION> getAspectsFromGms(URN urn, Class aspectClass) {
     final List<? extends RecordTemplate> routingAspects =
         getValueFromRoutingGms(urn, Collections.singletonList(aspectClass));
     if (routingAspects.isEmpty()) {
       return new ArrayList<>();
     }
-    return Collections.singletonList(ModelUtils.newAspectUnion(_aspectUnionClass, routingAspects.get(0)));
+    return Collections.singletonList(ModelUtils.newAspectUnion(_internalAspectUnionClass, routingAspects.get(0)));
   }
 
   /**

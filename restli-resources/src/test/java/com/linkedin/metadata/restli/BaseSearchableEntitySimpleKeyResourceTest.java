@@ -27,10 +27,13 @@ import com.linkedin.restli.server.ResourceContext;
 import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.EntityAspectUnion;
-import com.linkedin.testing.EntityAspectUnionArray;
+import com.linkedin.testing.EntityAsset;
 import com.linkedin.testing.EntityDocument;
 import com.linkedin.testing.EntitySnapshot;
 import com.linkedin.testing.EntityValue;
+import com.linkedin.testing.InternalEntityAspectUnion;
+import com.linkedin.testing.InternalEntityAspectUnionArray;
+import com.linkedin.testing.InternalEntitySnapshot;
 import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.List;
@@ -46,7 +49,7 @@ import static org.testng.Assert.*;
 
 public class BaseSearchableEntitySimpleKeyResourceTest extends BaseEngineTest {
 
-  private BaseLocalDAO<EntityAspectUnion, Urn> _mockLocalDAO;
+  private BaseLocalDAO<InternalEntityAspectUnion, Urn> _mockLocalDAO;
   private BaseSearchDAO<EntityDocument> _mockSearchDAO;
   private TestResource _resource = new TestResource();
 
@@ -178,16 +181,18 @@ public class BaseSearchableEntitySimpleKeyResourceTest extends BaseEngineTest {
   /**
    * Test resource class for {@link BaseSearchableEntityResource}.
    * */
-  private class TestResource extends BaseSearchableEntityResource<
-      Long, EntityValue, Urn, EntitySnapshot, EntityAspectUnion, EntityDocument> {
+  private class TestResource extends
+                             BaseSearchableEntityResource<Long, EntityValue, Urn, EntitySnapshot, EntityAspectUnion,
+                                 EntityDocument, InternalEntitySnapshot, InternalEntityAspectUnion, EntityAsset> {
 
     TestResource() {
-      super(EntitySnapshot.class, EntityAspectUnion.class);
+      super(EntitySnapshot.class, EntityAspectUnion.class, InternalEntitySnapshot.class,
+          InternalEntityAspectUnion.class, EntityAsset.class);
     }
 
     @Override
     @Nonnull
-    protected BaseLocalDAO<EntityAspectUnion, Urn> getLocalDAO() {
+    protected BaseLocalDAO<InternalEntityAspectUnion, Urn> getLocalDAO() {
       return _mockLocalDAO;
     }
 
@@ -221,7 +226,7 @@ public class BaseSearchableEntitySimpleKeyResourceTest extends BaseEngineTest {
 
     @Override
     @Nonnull
-    protected EntityValue toValue(@Nonnull EntitySnapshot snapshot) {
+    protected EntityValue toValue(@Nonnull InternalEntitySnapshot snapshot) {
       EntityValue value = new EntityValue();
       ModelUtils.getAspectsFromSnapshot(snapshot).forEach(a -> {
         if (a instanceof AspectFoo) {
@@ -235,17 +240,17 @@ public class BaseSearchableEntitySimpleKeyResourceTest extends BaseEngineTest {
 
     @Override
     @Nonnull
-    protected EntitySnapshot toSnapshot(@Nonnull EntityValue value, @Nonnull Urn urn) {
-      EntitySnapshot snapshot = new EntitySnapshot().setUrn(urn);
-      EntityAspectUnionArray aspects = new EntityAspectUnionArray();
+    protected InternalEntitySnapshot toSnapshot(@Nonnull EntityValue value, @Nonnull Urn urn) {
+      InternalEntitySnapshot internalEntitySnapshot = new InternalEntitySnapshot().setUrn(urn);
+      InternalEntityAspectUnionArray aspects = new InternalEntityAspectUnionArray();
       if (value.hasFoo()) {
-        aspects.add(ModelUtils.newAspectUnion(EntityAspectUnion.class, value.getFoo()));
+        aspects.add(ModelUtils.newAspectUnion(InternalEntityAspectUnion.class, value.getFoo()));
       }
       if (value.hasBar()) {
-        aspects.add(ModelUtils.newAspectUnion(EntityAspectUnion.class, value.getBar()));
+        aspects.add(ModelUtils.newAspectUnion(InternalEntityAspectUnion.class, value.getBar()));
       }
-      snapshot.setAspects(aspects);
-      return snapshot;
+      internalEntitySnapshot.setAspects(aspects);
+      return internalEntitySnapshot;
     }
 
     @Override

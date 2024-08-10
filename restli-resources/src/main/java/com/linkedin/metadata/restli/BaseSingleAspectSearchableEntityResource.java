@@ -12,6 +12,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import static com.linkedin.metadata.dao.BaseReadDAO.*;
 
@@ -27,6 +28,9 @@ import static com.linkedin.metadata.dao.BaseReadDAO.*;
  * @param <ASPECT_UNION> must be a valid aspect union type supported by the snapshot
  * @param <SNAPSHOT> must be a valid snapshot type defined in com.linkedin.metadata.snapshot
  * @param <DOCUMENT> must be a valid search document type defined in com.linkedin.metadata.search
+ * @param <INTERNAL_SNAPSHOT> must be a valid internal snapshot type defined in com.linkedin.metadata.snapshot
+ * @param <INTERNAL_ASPECT_UNION> must be a valid internal aspect union type supported by the internal snapshot
+ * @param <ASSET> must be a valid asset type defined in com.linkedin.metadata.asset
  */
 public abstract class BaseSingleAspectSearchableEntityResource<
     // @formatter:off
@@ -36,9 +40,13 @@ public abstract class BaseSingleAspectSearchableEntityResource<
     ASPECT extends RecordTemplate,
     ASPECT_UNION extends UnionTemplate,
     SNAPSHOT extends RecordTemplate,
-    DOCUMENT extends RecordTemplate>
+    DOCUMENT extends RecordTemplate,
+    ASSET extends RecordTemplate,
+    INTERNAL_SNAPSHOT extends RecordTemplate,
+    INTERNAL_ASPECT_UNION extends UnionTemplate>
     // @formatter:on
-    extends BaseSearchableEntityResource<KEY, VALUE, URN, SNAPSHOT, ASPECT_UNION, DOCUMENT> {
+    extends
+    BaseSearchableEntityResource<KEY, VALUE, URN, SNAPSHOT, ASPECT_UNION, DOCUMENT, INTERNAL_SNAPSHOT, INTERNAL_ASPECT_UNION, ASSET> {
 
   private final Class<ASPECT> _aspectClass;
   private final Class<VALUE> _valueClass;
@@ -46,13 +54,12 @@ public abstract class BaseSingleAspectSearchableEntityResource<
   /**
    * Constructor.
    * */
-  public BaseSingleAspectSearchableEntityResource(
-      @Nonnull Class<ASPECT> aspectClass,
-      @Nonnull Class<ASPECT_UNION> aspectUnionClass,
-      @Nonnull Class<VALUE> valueClass,
-      @Nonnull Class<SNAPSHOT> snapshotClass) {
+  public BaseSingleAspectSearchableEntityResource(@Nonnull Class<ASPECT> aspectClass,
+      @Nullable Class<ASPECT_UNION> aspectUnionClass, @Nonnull Class<VALUE> valueClass,
+      @Nullable Class<SNAPSHOT> snapshotClass, @Nonnull Class<INTERNAL_SNAPSHOT> internalSnapshotClass,
+      @Nonnull Class<INTERNAL_ASPECT_UNION> internalAspectUnionClass, @Nonnull Class<ASSET> assetClass) {
 
-    super(snapshotClass, aspectUnionClass);
+    super(snapshotClass, aspectUnionClass, internalSnapshotClass, internalAspectUnionClass, assetClass);
     _aspectClass = aspectClass;
     _valueClass = valueClass;
   }
@@ -138,7 +145,7 @@ public abstract class BaseSingleAspectSearchableEntityResource<
    * */
   @Override
   @Nonnull
-  protected VALUE toValue(@Nonnull SNAPSHOT snapshot) {
+  protected VALUE toValue(@Nonnull INTERNAL_SNAPSHOT snapshot) {
     throw new RuntimeException("Not implemented.");
   }
 
@@ -149,7 +156,7 @@ public abstract class BaseSingleAspectSearchableEntityResource<
    * */
   @Override
   @Nonnull
-  protected SNAPSHOT toSnapshot(@Nonnull VALUE value, @Nonnull URN urn) {
+  protected INTERNAL_SNAPSHOT toSnapshot(@Nonnull VALUE value, @Nonnull URN urn) {
     throw new RuntimeException("Not implemented.");
   }
 }

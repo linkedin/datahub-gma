@@ -38,10 +38,13 @@ import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.BarUrnArray;
 import com.linkedin.testing.EntityAspectUnion;
-import com.linkedin.testing.EntityAspectUnionArray;
+import com.linkedin.testing.EntityAsset;
 import com.linkedin.testing.EntityKey;
 import com.linkedin.testing.EntitySnapshot;
 import com.linkedin.testing.EntityValue;
+import com.linkedin.testing.InternalEntityAspectUnion;
+import com.linkedin.testing.InternalEntityAspectUnionArray;
+import com.linkedin.testing.InternalEntitySnapshot;
 import com.linkedin.testing.localrelationship.AspectFooBar;
 import com.linkedin.testing.localrelationship.BelongsTo;
 import com.linkedin.testing.urn.BarUrn;
@@ -68,18 +71,21 @@ import static org.testng.Assert.*;
 
 public class BaseEntityResourceTest extends BaseEngineTest {
 
-  private BaseLocalDAO<EntityAspectUnion, FooUrn> _mockLocalDAO;
+  private BaseLocalDAO<InternalEntityAspectUnion, FooUrn> _mockLocalDAO;
   private TestResource _resource = new TestResource();
 
-  class TestResource extends BaseEntityResource<ComplexResourceKey<EntityKey, EmptyRecord>, EntityValue, FooUrn, EntitySnapshot, EntityAspectUnion> {
+  class TestResource extends
+                     BaseEntityResource<ComplexResourceKey<EntityKey, EmptyRecord>, EntityValue, FooUrn, EntitySnapshot,
+                         EntityAspectUnion, InternalEntitySnapshot, InternalEntityAspectUnion, EntityAsset> {
 
     public TestResource() {
-      super(EntitySnapshot.class, EntityAspectUnion.class, FooUrn.class);
+      super(EntitySnapshot.class, EntityAspectUnion.class, FooUrn.class, InternalEntitySnapshot.class,
+          InternalEntityAspectUnion.class, EntityAsset.class);
     }
 
     @Nonnull
     @Override
-    protected BaseLocalDAO<EntityAspectUnion, FooUrn> getLocalDAO() {
+    protected BaseLocalDAO<InternalEntityAspectUnion, FooUrn> getLocalDAO() {
       return _mockLocalDAO;
     }
 
@@ -107,7 +113,7 @@ public class BaseEntityResourceTest extends BaseEngineTest {
 
     @Nonnull
     @Override
-    protected EntityValue toValue(@Nonnull EntitySnapshot snapshot) {
+    protected EntityValue toValue(@Nonnull InternalEntitySnapshot snapshot) {
       EntityValue value = new EntityValue();
       ModelUtils.getAspectsFromSnapshot(snapshot).forEach(a -> {
         if (a instanceof AspectFoo) {
@@ -123,21 +129,21 @@ public class BaseEntityResourceTest extends BaseEngineTest {
 
     @Nonnull
     @Override
-    protected EntitySnapshot toSnapshot(@Nonnull EntityValue value, @Nonnull FooUrn urn) {
-      EntitySnapshot snapshot = new EntitySnapshot().setUrn(urn);
-      EntityAspectUnionArray aspects = new EntityAspectUnionArray();
+    protected InternalEntitySnapshot toSnapshot(@Nonnull EntityValue value, @Nonnull FooUrn urn) {
+      InternalEntitySnapshot internalEntitySnapshot = new InternalEntitySnapshot().setUrn(urn);
+      InternalEntityAspectUnionArray aspects = new InternalEntityAspectUnionArray();
       if (value.hasFoo()) {
-        aspects.add(ModelUtils.newAspectUnion(EntityAspectUnion.class, value.getFoo()));
+        aspects.add(ModelUtils.newAspectUnion(InternalEntityAspectUnion.class, value.getFoo()));
       }
       if (value.hasBar()) {
-        aspects.add(ModelUtils.newAspectUnion(EntityAspectUnion.class, value.getBar()));
+        aspects.add(ModelUtils.newAspectUnion(InternalEntityAspectUnion.class, value.getBar()));
       }
       if (value.hasAttributes()) {
-        aspects.add(ModelUtils.newAspectUnion(EntityAspectUnion.class, value.getAttributes()));
+        aspects.add(ModelUtils.newAspectUnion(InternalEntityAspectUnion.class, value.getAttributes()));
       }
 
-      snapshot.setAspects(aspects);
-      return snapshot;
+      internalEntitySnapshot.setAspects(aspects);
+      return internalEntitySnapshot;
     }
 
     @Override
@@ -491,7 +497,9 @@ public class BaseEntityResourceTest extends BaseEngineTest {
         ModelUtils.newAspectUnion(EntityAspectUnion.class, bar));
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
 
-    runAndWait(_resource.ingestInternal(snapshot, Collections.singleton(AspectBar.class), null, null));
+    runAndWait(
+        _resource.ingestInternal(ModelUtils.convertSnapshotToInternalSnapshot(InternalEntitySnapshot.class, snapshot),
+            Collections.singleton(AspectBar.class), null, null));
 
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(foo), any(), eq(null), eq(null));
     verifyNoMoreInteractions(_mockLocalDAO);

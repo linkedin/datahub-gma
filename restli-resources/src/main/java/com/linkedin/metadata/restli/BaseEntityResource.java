@@ -66,6 +66,9 @@ import static com.linkedin.metadata.restli.RestliConstants.*;
  * @param <URN> must be a valid {@link Urn} type for the snapshot
  * @param <SNAPSHOT> must be a valid snapshot type defined in com.linkedin.metadata.snapshot
  * @param <ASPECT_UNION> must be a valid aspect union type supported by the snapshot
+ * @param <INTERNAL_SNAPSHOT> must be a valid internal snapshot type defined in com.linkedin.metadata.snapshot
+ * @param <INTERNAL_ASPECT_UNION> must be a valid internal aspect union type supported by the internal snapshot
+ * @param <ASSET> must be a valid asset type defined in com.linkedin.metadata.asset
  */
 public abstract class BaseEntityResource<
     // @formatter:off
@@ -73,7 +76,10 @@ public abstract class BaseEntityResource<
     VALUE extends RecordTemplate,
     URN extends Urn,
     SNAPSHOT extends RecordTemplate,
-    ASPECT_UNION extends UnionTemplate>
+    ASPECT_UNION extends UnionTemplate,
+    INTERNAL_SNAPSHOT extends RecordTemplate,
+    INTERNAL_ASPECT_UNION extends UnionTemplate,
+    ASSET extends RecordTemplate>
     // @formatter:on
     extends CollectionResourceTaskTemplate<KEY, VALUE> {
 
@@ -82,27 +88,38 @@ public abstract class BaseEntityResource<
   private final Class<SNAPSHOT> _snapshotClass;
   private final Class<ASPECT_UNION> _aspectUnionClass;
   private final Set<Class<? extends RecordTemplate>> _supportedAspectClasses;
+  private final Class<INTERNAL_SNAPSHOT> _internalSnapshotClass;
+  private final Class<INTERNAL_ASPECT_UNION> _internalAspectUnionClass;
+  private final Class<ASSET> _assetClass;
   protected final Class<URN> _urnClass;
 
   protected BaseTrackingManager _trackingManager = null;
 
-  public BaseEntityResource(@Nonnull Class<SNAPSHOT> snapshotClass, @Nonnull Class<ASPECT_UNION> aspectUnionClass) {
-    this(snapshotClass, aspectUnionClass, null);
+  public BaseEntityResource(@Nullable Class<SNAPSHOT> snapshotClass, @Nullable Class<ASPECT_UNION> aspectUnionClass,
+      @Nonnull Class<INTERNAL_SNAPSHOT> internalSnapshotClass,
+      @Nonnull Class<INTERNAL_ASPECT_UNION> internalAspectUnionClass, @Nonnull Class<ASSET> assetClass) {
+    this(snapshotClass, aspectUnionClass, null, internalSnapshotClass, internalAspectUnionClass, assetClass);
   }
 
-  public BaseEntityResource(@Nonnull Class<SNAPSHOT> snapshotClass, @Nonnull Class<ASPECT_UNION> aspectUnionClass,
-      @Nullable Class<URN> urnClass) {
+  public BaseEntityResource(@Nullable Class<SNAPSHOT> snapshotClass, @Nullable Class<ASPECT_UNION> aspectUnionClass,
+      @Nullable Class<URN> urnClass, @Nonnull Class<INTERNAL_SNAPSHOT> internalSnapshotClass,
+      @Nonnull Class<INTERNAL_ASPECT_UNION> internalAspectUnionClass, @Nonnull Class<ASSET> assetClass) {
     super();
-    ModelUtils.validateSnapshotAspect(snapshotClass, aspectUnionClass);
+    ModelUtils.validateSnapshotAspect(internalSnapshotClass, internalAspectUnionClass);
     _snapshotClass = snapshotClass;
     _aspectUnionClass = aspectUnionClass;
-    _supportedAspectClasses = ModelUtils.getValidAspectTypes(_aspectUnionClass);
     _urnClass = urnClass;
+    _internalSnapshotClass = internalSnapshotClass;
+    _internalAspectUnionClass = internalAspectUnionClass;
+    _supportedAspectClasses = ModelUtils.getValidAspectTypes(_internalAspectUnionClass);
+    _assetClass = assetClass;
   }
 
-  public BaseEntityResource(@Nonnull Class<SNAPSHOT> snapshotClass, @Nonnull Class<ASPECT_UNION> aspectUnionClass,
-      @Nullable Class<URN> urnClass, @Nullable BaseTrackingManager trackingManager) {
-    this(snapshotClass, aspectUnionClass, urnClass);
+  public BaseEntityResource(@Nullable Class<SNAPSHOT> snapshotClass, @Nullable Class<ASPECT_UNION> aspectUnionClass,
+      @Nullable Class<URN> urnClass, @Nullable BaseTrackingManager trackingManager,
+      @Nonnull Class<INTERNAL_SNAPSHOT> internalSnapshotClass,
+      @Nonnull Class<INTERNAL_ASPECT_UNION> internalAspectUnionClass, @Nonnull Class<ASSET> assetClass) {
+    this(snapshotClass, aspectUnionClass, urnClass, internalSnapshotClass, internalAspectUnionClass, assetClass);
     _trackingManager = trackingManager;
   }
 
@@ -118,7 +135,7 @@ public abstract class BaseEntityResource<
    * Returns an aspect-specific {@link BaseLocalDAO}.
    */
   @Nonnull
-  protected abstract BaseLocalDAO<ASPECT_UNION, URN> getLocalDAO();
+  protected abstract BaseLocalDAO<INTERNAL_ASPECT_UNION, URN> getLocalDAO();
 
   /**
    * Creates an URN from its string representation.
@@ -139,16 +156,16 @@ public abstract class BaseEntityResource<
   protected abstract KEY toKey(@Nonnull URN urn);
 
   /**
-   * Converts a snapshot to resource's value.
+   * Converts an internal snapshot to resource's value.
    */
   @Nonnull
-  protected abstract VALUE toValue(@Nonnull SNAPSHOT snapshot);
+  protected abstract VALUE toValue(@Nonnull INTERNAL_SNAPSHOT snapshot);
 
   /**
-   * Converts a resource's value to a snapshot.
+   * Converts a resource's value to an internal snapshot.
    */
   @Nonnull
-  protected abstract SNAPSHOT toSnapshot(@Nonnull VALUE value, @Nonnull URN urn);
+  protected abstract INTERNAL_SNAPSHOT toSnapshot(@Nonnull VALUE value, @Nonnull URN urn);
 
   /**
    * Retrieves the value for an entity that is made up of latest versions of specified aspects.
@@ -228,36 +245,57 @@ public abstract class BaseEntityResource<
   }
 
   /**
+   * Deprecated to use {@link #ingestAsset(RecordTemplate, IngestionTrackingContext, IngestionParams)} instead.
    * An action method for automated ingestion pipeline.
    */
+  @Deprecated
   @Action(name = ACTION_INGEST)
   @Nonnull
   public Task<Void> ingest(@ActionParam(PARAM_SNAPSHOT) @Nonnull SNAPSHOT snapshot) {
-    return ingestInternal(snapshot, Collections.emptySet(), null, null);
+    return ingestInternal(ModelUtils.convertSnapshotToInternalSnapshot(_internalSnapshotClass, snapshot),
+        Collections.emptySet(), null, null);
   }
 
   /**
+   * Deprecated to use {@link #ingestAsset(RecordTemplate, IngestionTrackingContext, IngestionParams)} instead.
    * Same as {@link #ingest(RecordTemplate)} but with tracking context attached.
    * @param snapshot Snapshot of the metadata change to be ingested
    * @param trackingContext {@link IngestionTrackingContext} to 1) track DAO-level metrics and 2) to pass on to MAE emission
    * @return ingest task
    */
+  @Deprecated
   @Action(name = ACTION_INGEST_WITH_TRACKING)
   @Nonnull
   public Task<Void> ingestWithTracking(@ActionParam(PARAM_SNAPSHOT) @Nonnull SNAPSHOT snapshot,
       @ActionParam(PARAM_TRACKING_CONTEXT) @Nonnull IngestionTrackingContext trackingContext,
       @Optional @ActionParam(PARAM_INGESTION_PARAMS) IngestionParams ingestionParams) {
-    return ingestInternal(snapshot, Collections.emptySet(), trackingContext, ingestionParams);
+    return ingestInternal(ModelUtils.convertSnapshotToInternalSnapshot(_internalSnapshotClass, snapshot),
+        Collections.emptySet(), trackingContext, ingestionParams);
+  }
+
+  /**
+   * An action method for automated ingestion pipeline.
+   * @param asset Asset of the metadata change to be ingested
+   * @param trackingContext {@link IngestionTrackingContext} to 1) track DAO-level metrics and 2) to pass on to MAE emission
+   * @return ingest task
+   */
+  @Action(name = ACTION_INGEST_ASSET)
+  @Nonnull
+  public Task<Void> ingestAsset(@ActionParam(PARAM_ASSET) @Nonnull ASSET asset,
+      @ActionParam(PARAM_TRACKING_CONTEXT) @Nonnull IngestionTrackingContext trackingContext,
+      @Optional @ActionParam(PARAM_INGESTION_PARAMS) IngestionParams ingestionParams) {
+    return ingestInternal(ModelUtils.convertAssetToInternalSnapshot(_internalSnapshotClass, asset),
+        Collections.emptySet(), trackingContext, ingestionParams);
   }
 
   @Nonnull
-  protected Task<Void> ingestInternal(@Nonnull SNAPSHOT snapshot,
+  protected Task<Void> ingestInternal(@Nonnull INTERNAL_SNAPSHOT internalSnapshot,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore,
       @Nullable IngestionTrackingContext trackingContext, @Nullable IngestionParams ingestionParams) {
     return RestliUtils.toTask(() -> {
-      final URN urn = (URN) ModelUtils.getUrnFromSnapshot(snapshot);
+      final URN urn = (URN) ModelUtils.getUrnFromSnapshot(internalSnapshot);
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
-      ModelUtils.getAspectsFromSnapshot(snapshot).stream().forEach(aspect -> {
+      ModelUtils.getAspectsFromSnapshot(internalSnapshot).stream().forEach(aspect -> {
         if (!aspectsToIgnore.contains(aspect.getClass())) {
           getLocalDAO().add(urn, aspect, auditStamp, trackingContext, ingestionParams);
         }
@@ -267,8 +305,10 @@ public abstract class BaseEntityResource<
   }
 
   /**
+   * Deprecated to use {@link #getAsset(String, String[])} instead.
    * An action method for getting a snapshot of aspects for an entity.
    */
+  @Deprecated
   @Action(name = ACTION_GET_SNAPSHOT)
   @Nonnull
   public Task<SNAPSHOT> getSnapshot(@ActionParam(PARAM_URN) @Nonnull String urnString,
@@ -284,10 +324,36 @@ public abstract class BaseEntityResource<
           .values()
           .stream()
           .filter(java.util.Optional::isPresent)
-          .map(aspect -> ModelUtils.newAspectUnion(_aspectUnionClass, aspect.get()))
+          .map(aspect -> ModelUtils.newAspectUnion(_internalAspectUnionClass, aspect.get()))
           .collect(Collectors.toList());
 
-      return ModelUtils.newSnapshot(_snapshotClass, urn, aspects);
+      return ModelUtils.newSnapshot(_snapshotClass, urn,
+          ModelUtils.convertInternalAspectUnionToAspectUnion(_aspectUnionClass, aspects));
+    });
+  }
+
+  /**
+   * An action method for getting an asset of aspects for an entity.
+   */
+  @Action(name = ACTION_GET_ASSET)
+  @Nonnull
+  public Task<ASSET> getAsset(@ActionParam(PARAM_URN) @Nonnull String urnString,
+      @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
+
+    return RestliUtils.toTask(() -> {
+      final URN urn = parseUrnParam(urnString);
+      final Set<AspectKey<URN, ? extends RecordTemplate>> keys = parseAspectsParam(aspectNames).stream()
+          .map(aspectClass -> new AspectKey<>(aspectClass, urn, LATEST_VERSION))
+          .collect(Collectors.toSet());
+
+      final List<UnionTemplate> aspects = getLocalDAO().get(keys)
+          .values()
+          .stream()
+          .filter(java.util.Optional::isPresent)
+          .map(aspect -> ModelUtils.newAspectUnion(_internalAspectUnionClass, aspect.get()))
+          .collect(Collectors.toList());
+
+      return ModelUtils.newAsset(_assetClass, urn, aspects);
     });
   }
 
@@ -474,7 +540,7 @@ public abstract class BaseEntityResource<
         }
         v.addAll(entry.getAspects()
             .stream()
-            .map(recordTemplate -> ModelUtils.newAspectUnion(_aspectUnionClass, recordTemplate))
+            .map(recordTemplate -> ModelUtils.newAspectUnion(_internalAspectUnionClass, recordTemplate))
             .collect(Collectors.toList()));
         return v;
       });
@@ -758,22 +824,22 @@ public abstract class BaseEntityResource<
 
     getLocalDAO().get(keys)
         .forEach((key, aspect) -> aspect.ifPresent(
-            metadata -> urnAspectsMap.get(key.getUrn()).add(ModelUtils.newAspectUnion(_aspectUnionClass, metadata))));
+            metadata -> urnAspectsMap.get(key.getUrn()).add(ModelUtils.newAspectUnion(_internalAspectUnionClass, metadata))));
 
     return urnAspectsMap;
   }
 
   @Nonnull
-  private SNAPSHOT newSnapshot(@Nonnull URN urn, @Nonnull List<UnionTemplate> aspects) {
-    return ModelUtils.newSnapshot(_snapshotClass, urn, aspects);
+  private INTERNAL_SNAPSHOT newSnapshot(@Nonnull URN urn, @Nonnull List<UnionTemplate> aspects) {
+    return ModelUtils.newSnapshot(_internalSnapshotClass, urn, aspects);
   }
 
   /**
    * Creates a snapshot of the entity with no aspects set, just the URN.
    */
   @Nonnull
-  protected SNAPSHOT newSnapshot(@Nonnull URN urn) {
-    return ModelUtils.newSnapshot(_snapshotClass, urn, Collections.emptyList());
+  protected INTERNAL_SNAPSHOT newSnapshot(@Nonnull URN urn) {
+    return ModelUtils.newSnapshot(_internalSnapshotClass, urn, Collections.emptyList());
   }
 
   @Nullable

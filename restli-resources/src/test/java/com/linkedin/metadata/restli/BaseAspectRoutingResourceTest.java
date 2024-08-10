@@ -20,11 +20,14 @@ import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectBaz;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.EntityAspectUnion;
-import com.linkedin.testing.EntityAspectUnionArray;
+import com.linkedin.testing.EntityAsset;
 import com.linkedin.testing.EntityDocument;
 import com.linkedin.testing.EntityKey;
 import com.linkedin.testing.EntitySnapshot;
 import com.linkedin.testing.EntityValue;
+import com.linkedin.testing.InternalEntityAspectUnion;
+import com.linkedin.testing.InternalEntityAspectUnionArray;
+import com.linkedin.testing.InternalEntitySnapshot;
 import com.linkedin.testing.urn.BazUrn;
 import com.linkedin.testing.urn.FooUrn;
 import java.net.URISyntaxException;
@@ -59,15 +62,17 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
   class TestResource extends BaseAspectRoutingResource<
       // format
-      ComplexResourceKey<EntityKey, EmptyRecord>, EntityValue, FooUrn, EntitySnapshot, EntityAspectUnion, EntityDocument> {
+      ComplexResourceKey<EntityKey, EmptyRecord>, EntityValue, FooUrn, EntitySnapshot, EntityAspectUnion, EntityDocument,
+      InternalEntitySnapshot, InternalEntityAspectUnion, EntityAsset> {
 
     public TestResource() {
-      super(EntitySnapshot.class, EntityAspectUnion.class, FooUrn.class, EntityValue.class);
+      super(EntitySnapshot.class, EntityAspectUnion.class, FooUrn.class, EntityValue.class, InternalEntitySnapshot.class,
+          InternalEntityAspectUnion.class, EntityAsset.class);
     }
 
     @Nonnull
     @Override
-    protected BaseLocalDAO<EntityAspectUnion, FooUrn> getLocalDAO() {
+    protected BaseLocalDAO<InternalEntityAspectUnion, FooUrn> getLocalDAO() {
       return _mockLocalDAO;
     }
 
@@ -107,7 +112,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     @Nonnull
     @Override
-    protected EntityValue toValue(@Nonnull EntitySnapshot snapshot) {
+    protected EntityValue toValue(@Nonnull InternalEntitySnapshot snapshot) {
       EntityValue value = new EntityValue();
       ModelUtils.getAspectsFromSnapshot(snapshot).forEach(a -> {
         if (a instanceof AspectFoo) {
@@ -124,18 +129,18 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     @Nonnull
     @Override
-    protected EntitySnapshot toSnapshot(@Nonnull EntityValue value, @Nonnull FooUrn urn) {
-      EntitySnapshot snapshot = new EntitySnapshot().setUrn(urn);
-      EntityAspectUnionArray aspects = new EntityAspectUnionArray();
+    protected InternalEntitySnapshot toSnapshot(@Nonnull EntityValue value, @Nonnull FooUrn urn) {
+      InternalEntitySnapshot internalEntitySnapshot = new InternalEntitySnapshot().setUrn(urn);
+      InternalEntityAspectUnionArray aspects = new InternalEntityAspectUnionArray();
       if (value.hasFoo()) {
-        aspects.add(ModelUtils.newAspectUnion(EntityAspectUnion.class, value.getFoo()));
+        aspects.add(ModelUtils.newAspectUnion(InternalEntityAspectUnion.class, value.getFoo()));
       }
       if (value.hasBar()) {
-        aspects.add(ModelUtils.newAspectUnion(EntityAspectUnion.class, value.getBar()));
+        aspects.add(ModelUtils.newAspectUnion(InternalEntityAspectUnion.class, value.getBar()));
       }
 
-      snapshot.setAspects(aspects);
-      return snapshot;
+      internalEntitySnapshot.setAspects(aspects);
+      return internalEntitySnapshot;
     }
 
     @Override
