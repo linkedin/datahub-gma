@@ -45,8 +45,6 @@ public class EbeanLocalRelationshipQueryDAO {
   private Set<String> _mgEntityTypeNameSet;
   private EbeanLocalDAO.SchemaConfig _schemaConfig = EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY;
 
-  private static final int MAX_ALLOWED_FILTERS_OLD_SCHEMA = 1;
-
   public EbeanLocalRelationshipQueryDAO(EbeanServer server, EBeanDAOConfig eBeanDAOConfig) {
     _server = server;
     _eBeanDAOConfig = eBeanDAOConfig;
