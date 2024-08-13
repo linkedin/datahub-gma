@@ -58,6 +58,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.naming.OperationNotSupportedException;
 import javax.persistence.OptimisticLockException;
 import javax.persistence.RollbackException;
 import javax.persistence.Table;
@@ -135,13 +136,12 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   /**
    * Set where the relationships should be derived from during ingestion. Either from aspect models or from relationship
-   * builders. The default is relationship builders.
+   * builders. The default is relationship builders. This should only be used during DAO instantiation i.e. in the DAO factory.
    * @param relationshipSource {@link RelationshipSource ASPECT_METADATA or RELATIONSHIP_BUILDERS}
    */
   public void setRelationshipSource(RelationshipSource relationshipSource) {
     _relationshipSource = relationshipSource;
   }
-
 
   public void setOverwriteLatestVersionEnabled(boolean overwriteLatestVersionEnabled) {
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
@@ -609,7 +609,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       }
 
       if (_relationshipSource == RelationshipSource.ASPECT_METADATA) {
-        // not yet implemented
+        // TODO: not yet implemented
+        throw new UnsupportedOperationException("This method has not been implemented yet to support the "
+            + "ASPECT_METADATA RelationshipSource type yet.");
       }
     }
 
@@ -864,11 +866,20 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
   }
 
+  /**
+   * If the aspect is associated with at least one relationship, upsert the relationship into the corresponding local
+   * relationship table. Associated means that the aspect has a registered relationship build or it includes a relationship field.
+   * @param urn Urn of the metadata update
+   * @param aspect Aspect of the metadata update
+   * @param aspectClass Aspect class of the metadata update
+   * @return List of LocalRelationshipUpdates that were executed
+   */
   public <ASPECT extends RecordTemplate> List<LocalRelationshipUpdates> addRelationshipsIfAny(@Nonnull URN urn, @Nullable ASPECT aspect,
       @Nonnull Class<ASPECT> aspectClass) {
-    // 1. extract relationships to insert
     if (_relationshipSource == RelationshipSource.ASPECT_METADATA) {
-      // not yet implemented
+      // TODO: not yet implemented
+      throw new UnsupportedOperationException("This method has not been implemented yet to support the "
+          + "ASPECT_METADATA RelationshipSource type yet.");
     } else if (_relationshipSource == RelationshipSource.RELATIONSHIP_BUILDERS) {
       if (_localRelationshipBuilderRegistry != null && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
         List<LocalRelationshipUpdates> localRelationshipUpdates =
@@ -876,6 +887,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         _localRelationshipWriterDAO.processLocalRelationshipUpdates(urn, localRelationshipUpdates);
         return localRelationshipUpdates;
       }
+    } else {
+      throw new UnsupportedOperationException("Please ensure that the RelationshipSource enum is properly set using "
+          + "setRelationshipSource method.");
     }
     return Collections.emptyList();
   }

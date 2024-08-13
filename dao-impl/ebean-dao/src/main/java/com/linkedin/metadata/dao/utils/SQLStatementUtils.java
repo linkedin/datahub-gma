@@ -424,7 +424,8 @@ public class SQLStatementUtils {
 
   /**
    * Construct the where clause SQL from a filter when running in old schema mode. Assumes that all filters are applied on
-   * urn fields, thus only the relationship table needs to be queried.
+   * urn fields, thus only the relationship table needs to be queried. Urn fields refers to the source or destination urn
+   * in a relationship query.
    * Ex.
    * AND rt.source = "urn:li:dataset:abc" AND rt.destination = "urn:li:corpuser:def"
    * @param supportedConditions map of supported conditions, such as EQUAL
