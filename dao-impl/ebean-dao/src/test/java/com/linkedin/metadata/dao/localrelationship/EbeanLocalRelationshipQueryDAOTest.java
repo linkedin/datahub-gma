@@ -51,6 +51,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import javax.naming.OperationNotSupportedException;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
@@ -116,7 +117,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
   }
 
   @Test
-  public void testFindOneEntity() throws URISyntaxException {
+  public void testFindOneEntity() throws URISyntaxException, OperationNotSupportedException {
     // Ingest data
     _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null);
 
@@ -134,7 +135,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
   }
 
   @Test
-  public void testFindOneEntityTwoAspects() throws URISyntaxException {
+  public void testFindOneEntityTwoAspects() throws URISyntaxException, OperationNotSupportedException {
     // Ingest data
     _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null);
     _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectBar().setValue("bar"), AspectBar.class, new AuditStamp(), null);
@@ -889,7 +890,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
   }
 
   @Test
-  public void testFindOneEntityWithInCondition() throws URISyntaxException {
+  public void testFindOneEntityWithInCondition() throws URISyntaxException, OperationNotSupportedException {
     // Ingest data
     _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null);
 
@@ -907,7 +908,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
   }
 
   @Test
-  public void testFindNoEntityWithInCondition() throws URISyntaxException {
+  public void testFindNoEntityWithInCondition() throws URISyntaxException, OperationNotSupportedException {
     // Ingest data
     _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null);
 
