@@ -84,7 +84,7 @@ public class EbeanLocalRelationshipQueryDAO {
    */
   @Nonnull
   public <SNAPSHOT extends RecordTemplate> List<SNAPSHOT> findEntities(@Nonnull Class<SNAPSHOT> snapshotClass,
-      @Nonnull LocalRelationshipFilter filter, int offset, int count) {
+      @Nonnull LocalRelationshipFilter filter, int offset, int count) throws UnsupportedOperationException {
     if (_schemaConfig == EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY) {
       throw new UnsupportedOperationException("findEntities is not supported in OLD_SCHEMA_MODE");
     }
@@ -111,7 +111,7 @@ public class EbeanLocalRelationshipQueryDAO {
       @Nonnull Class<SRC_SNAPSHOT> sourceEntityClass, @Nonnull LocalRelationshipFilter sourceEntityFilter,
       @Nonnull Class<DEST_SNAPSHOT> destinationEntityClass, @Nonnull LocalRelationshipFilter destinationEntityFilter,
       @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter, int minHops,
-      int maxHops, int offset, int count) {
+      int maxHops, int offset, int count) throws UnsupportedOperationException {
     if (_schemaConfig == EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY) {
       throw new UnsupportedOperationException("findEntities is not supported in OLD_SCHEMA_MODE");
     }

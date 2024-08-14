@@ -1038,6 +1038,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   /**
    * Provide a local relationship builder registry. Local relationships will be built based on the builders during data ingestion.
+   * If set to null, local relationship ingestion will be turned off for this particular DAO instance. This is beneficial
+   * in situations where some relationships are still in the process of onboarding (i.e. tables have not been created yet).
    * @param localRelationshipBuilderRegistry All local relationship builders should be registered in this registry.
    *                                         Can be set to null to turn off local relationship ingestion.
    */
