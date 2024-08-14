@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.naming.OperationNotSupportedException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringUtils;
 import org.javatuples.Pair;
@@ -76,17 +77,19 @@ public class EbeanLocalRelationshipQueryDAO {
   /**
    * Finds a list of entities of a specific type based on the given filter on the entity.
    * The SNAPSHOT class must be defined within com.linkedin.metadata.snapshot package in metadata-models.
+   * This method is not supported in OLD_SCHEMA_ONLY mode.
    * @param snapshotClass the snapshot class to query.
    * @param filter the filter to apply when querying.
-   * @param offset the offset query should start at. Ignored if set to a negative value.
+   * @param offset the offset the query should start at. Ignored if set to a negative value.
    * @param count the maximum number of entities to return. Ignored if set to a non-positive value.
    * @return A list of entity records of class SNAPSHOT.
+   * @throws OperationNotSupportedException when called in OLD_SCHEMA_ONLY mode. This exception must be explicitly handled by the caller.
    */
   @Nonnull
   public <SNAPSHOT extends RecordTemplate> List<SNAPSHOT> findEntities(@Nonnull Class<SNAPSHOT> snapshotClass,
-      @Nonnull LocalRelationshipFilter filter, int offset, int count) throws UnsupportedOperationException {
+      @Nonnull LocalRelationshipFilter filter, int offset, int count) throws OperationNotSupportedException {
     if (_schemaConfig == EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY) {
-      throw new UnsupportedOperationException("findEntities is not supported in OLD_SCHEMA_MODE");
+      throw new OperationNotSupportedException("findEntities is not supported in OLD_SCHEMA_MODE");
     }
     validateEntityFilter(filter, snapshotClass);
 
@@ -106,14 +109,31 @@ public class EbeanLocalRelationshipQueryDAO {
         .collect(Collectors.toList());
   }
 
+  /**
+   * Finds a list of entities of a specific type based on the given source, destination, and relationship filters.
+   * Every SNAPSHOT class must be defined within com.linkedin.metadata.snapshot package in metadata-models.
+   * This method is not supported in OLD_SCHEMA_ONLY mode.
+   * @param sourceEntityClass the snapshot class of the source entity to query.
+   * @param sourceEntityFilter the filter to apply to the source entity when querying.
+   * @param destinationEntityClass the snapshot class of the destination entity to query.
+   * @param destinationEntityFilter the filter to apply to the destination entity when querying.
+   * @param relationshipType the snapshot class of the relationship to query.
+   * @param relationshipFilter the filter to apply to the relationship when querying.
+   * @param minHops minimum number of hops to query.
+   * @param maxHops maximum number of hops to query.
+   * @param offset the offset the query should start at. Ignored if set to a non-positive value.
+   * @param count the maximum number of entities to return. Ignored if set to a non-positive value.
+   * @return A list of entity records that satisfy the query.
+   * @throws OperationNotSupportedException when called in OLD_SCHEMA_ONLY mode. This exception must be explicitly handled by the caller.
+   **/
   @Nonnull
   public <SRC_SNAPSHOT extends RecordTemplate, DEST_SNAPSHOT extends RecordTemplate, RELATIONSHIP extends RecordTemplate> List<RecordTemplate> findEntities(
       @Nonnull Class<SRC_SNAPSHOT> sourceEntityClass, @Nonnull LocalRelationshipFilter sourceEntityFilter,
       @Nonnull Class<DEST_SNAPSHOT> destinationEntityClass, @Nonnull LocalRelationshipFilter destinationEntityFilter,
       @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter, int minHops,
-      int maxHops, int offset, int count) throws UnsupportedOperationException {
+      int maxHops, int offset, int count) throws OperationNotSupportedException {
     if (_schemaConfig == EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY) {
-      throw new UnsupportedOperationException("findEntities is not supported in OLD_SCHEMA_MODE");
+      throw new OperationNotSupportedException("findEntities is not supported in OLD_SCHEMA_MODE");
     }
 
     validateRelationshipFilter(relationshipFilter);
