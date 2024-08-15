@@ -20,13 +20,13 @@ import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectBaz;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.EntityAspectUnion;
+import com.linkedin.testing.EntityAspectUnionArray;
 import com.linkedin.testing.EntityAsset;
 import com.linkedin.testing.EntityDocument;
 import com.linkedin.testing.EntityKey;
 import com.linkedin.testing.EntitySnapshot;
 import com.linkedin.testing.EntityValue;
 import com.linkedin.testing.InternalEntityAspectUnion;
-import com.linkedin.testing.InternalEntityAspectUnionArray;
 import com.linkedin.testing.InternalEntitySnapshot;
 import com.linkedin.testing.urn.BazUrn;
 import com.linkedin.testing.urn.FooUrn;
@@ -112,7 +112,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     @Nonnull
     @Override
-    protected EntityValue toValue(@Nonnull InternalEntitySnapshot snapshot) {
+    protected EntityValue toValue(@Nonnull EntitySnapshot snapshot) {
       EntityValue value = new EntityValue();
       ModelUtils.getAspectsFromSnapshot(snapshot).forEach(a -> {
         if (a instanceof AspectFoo) {
@@ -129,18 +129,18 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     @Nonnull
     @Override
-    protected InternalEntitySnapshot toSnapshot(@Nonnull EntityValue value, @Nonnull FooUrn urn) {
-      InternalEntitySnapshot internalEntitySnapshot = new InternalEntitySnapshot().setUrn(urn);
-      InternalEntityAspectUnionArray aspects = new InternalEntityAspectUnionArray();
+    protected EntitySnapshot toSnapshot(@Nonnull EntityValue value, @Nonnull FooUrn urn) {
+      EntitySnapshot snapshot = new EntitySnapshot().setUrn(urn);
+      EntityAspectUnionArray aspects = new EntityAspectUnionArray();
       if (value.hasFoo()) {
-        aspects.add(ModelUtils.newAspectUnion(InternalEntityAspectUnion.class, value.getFoo()));
+        aspects.add(ModelUtils.newAspectUnion(EntityAspectUnion.class, value.getFoo()));
       }
       if (value.hasBar()) {
-        aspects.add(ModelUtils.newAspectUnion(InternalEntityAspectUnion.class, value.getBar()));
+        aspects.add(ModelUtils.newAspectUnion(EntityAspectUnion.class, value.getBar()));
       }
 
-      internalEntitySnapshot.setAspects(aspects);
-      return internalEntitySnapshot;
+      snapshot.setAspects(aspects);
+      return snapshot;
     }
 
     @Override

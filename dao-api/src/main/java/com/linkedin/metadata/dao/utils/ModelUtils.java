@@ -26,8 +26,11 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -840,30 +843,34 @@ public class ModelUtils {
   INTERNAL_SNAPSHOT convertAssetToInternalSnapshot(
       @Nonnull Class<INTERNAL_SNAPSHOT> internalSnapshotClass, @Nonnull ASSET asset) {
     final List<ASPECT_UNION> aspectUnion = new ArrayList<>();
+    final Class<ASPECT_UNION> aspectUnionClass = getUnionClassFromSnapshot(internalSnapshotClass);
+    final Set<Class<? extends RecordTemplate>> validAspectTypes = getValidAspectTypes(aspectUnionClass);
     for (final RecordTemplate aspect : getAspectsFromAsset(asset)) {
-      addAspectUnion(getUnionClassFromSnapshot(internalSnapshotClass), aspect, aspectUnion);
+      addAspectUnion(validAspectTypes, aspectUnionClass, aspect, aspectUnion);
     }
     return newSnapshot(internalSnapshotClass, getUrnFromAsset(asset), aspectUnion);
   }
 
   /**
    * Convert an entity snapshot to an entity internal snapshot.
-   * @param internalSnapshotClass the type of snapshot to create
-   * @param snapshot the snapshot to convert
-   * @param <INTERNAL_SNAPSHOT> must be a valid internal snapshot model defined in com.linkedin.metadata.snapshot
-   * @param <SNAPSHOT> must be a valid snapshot model defined in com.linkedin.metadata.snapshot
+   * @param toSnapshotClass the type of snapshot to create
+   * @param fromSnapshot the snapshot to convert
+   * @param <TO_SNAPSHOT> must be a valid snapshot model defined in com.linkedin.metadata.snapshot
+   * @param <FROM_SNAPSHOT> must be a valid snapshot model defined in com.linkedin.metadata.snapshot
    * @param <ASPECT_UNION> must be a valid aspect union defined in com.linkedin.metadata.aspect
    * @return the created internal snapshot
    */
   @Nonnull
-  public static <INTERNAL_SNAPSHOT extends RecordTemplate, SNAPSHOT extends RecordTemplate, ASPECT_UNION extends UnionTemplate>
-  INTERNAL_SNAPSHOT convertSnapshotToInternalSnapshot(
-      @Nonnull Class<INTERNAL_SNAPSHOT> internalSnapshotClass, @Nonnull SNAPSHOT snapshot) {
+  public static <TO_SNAPSHOT extends RecordTemplate, FROM_SNAPSHOT extends RecordTemplate, ASPECT_UNION extends UnionTemplate>
+  TO_SNAPSHOT convertSnapshots(
+      @Nonnull Class<TO_SNAPSHOT> toSnapshotClass, @Nonnull FROM_SNAPSHOT fromSnapshot) {
     final List<ASPECT_UNION> aspectUnion = new ArrayList<>();
-    for (final RecordTemplate aspect : getAspectsFromSnapshot(snapshot)) {
-      addAspectUnion(getUnionClassFromSnapshot(internalSnapshotClass), aspect, aspectUnion);
+    final Class<ASPECT_UNION> aspectUnionClass = getUnionClassFromSnapshot(toSnapshotClass);
+    final Set<Class<? extends RecordTemplate>> validAspectTypes = getValidAspectTypes(aspectUnionClass);
+    for (final RecordTemplate aspect : getAspectsFromSnapshot(fromSnapshot)) {
+      addAspectUnion(validAspectTypes, aspectUnionClass, aspect, aspectUnion);
     }
-    return newSnapshot(internalSnapshotClass, getUrnFromSnapshot(snapshot), aspectUnion);
+    return newSnapshot(toSnapshotClass, getUrnFromSnapshot(fromSnapshot), aspectUnion);
   }
 
   /**
@@ -879,8 +886,10 @@ public class ModelUtils {
   List<ASPECT_UNION> convertInternalAspectUnionToAspectUnion(
       @Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull List<INTERNAL_ASPECT_UNION> internalAspectUnions) {
     final List<ASPECT_UNION> aspectUnions = new ArrayList<>();
+    final Set<Class<? extends RecordTemplate>> validAspectTypes = getValidAspectTypes(aspectUnionClass);
     for (final INTERNAL_ASPECT_UNION internalAspectUnion : internalAspectUnions) {
-      addAspectUnion(aspectUnionClass, RecordUtils.getSelectedRecordTemplateFromUnion(internalAspectUnion), aspectUnions);
+      addAspectUnion(validAspectTypes, aspectUnionClass,
+          RecordUtils.getSelectedRecordTemplateFromUnion(internalAspectUnion), aspectUnions);
     }
     return aspectUnions;
   }
@@ -892,10 +901,45 @@ public class ModelUtils {
    * @param aspectUnions the aspect union to add
    * @param <ASPECT_UNION> must be a valid aspect union model defined in com.linkedin.metadata.aspect
    */
-  private static <ASPECT_UNION extends UnionTemplate> void addAspectUnion(@Nonnull Class<ASPECT_UNION> aspectUnionClass,
+  private static <ASPECT_UNION extends UnionTemplate> void addAspectUnion(
+      @Nonnull Set<Class<? extends RecordTemplate>> validAspectTypes, @Nonnull Class<ASPECT_UNION> aspectUnionClass,
       @Nonnull RecordTemplate aspect, @Nonnull List<ASPECT_UNION> aspectUnions) {
-    if (getValidAspectTypes(aspectUnionClass).contains(aspect.getClass())) {
+    if (validAspectTypes.contains(aspect.getClass())) {
       aspectUnions.add(newAspectUnion(aspectUnionClass, aspect));
+    }
+  }
+
+  /**
+   * Decorate extra value fields from internal snapshot.
+   * @param internalSnapshot internal snapshot to decorate
+   * @param value value to be decorated
+   * @param <INTERNAL_SNAPSHOT> must be a valid internal snapshot model defined in com.linkedin.metadata.snapshot
+   * @param <VALUE> resource's value
+   * @return decorated resource's value
+   */
+  @Nonnull
+  public static <INTERNAL_SNAPSHOT extends RecordTemplate, VALUE extends RecordTemplate> VALUE decorateValue(
+      @Nonnull INTERNAL_SNAPSHOT internalSnapshot, @Nonnull VALUE value) {
+    try {
+      final Map<Class<?>, RecordTemplate> aspectClasses = new HashMap<>();
+      for (final RecordTemplate aspect : getAspectsFromSnapshot(internalSnapshot)) {
+        aspectClasses.put(aspect.getClass(), aspect);
+      }
+      for (final Method valueMethod : value.getClass().getMethods()) {
+        final String valueMethodName = valueMethod.getName();
+        if (valueMethodName.startsWith("set")) {
+          final Optional<Class<?>> valueAspectClass = Arrays.stream(valueMethod.getParameterTypes()).findFirst();
+          if (valueAspectClass.isPresent() && aspectClasses.containsKey(valueAspectClass.get())
+              && !(boolean) value.getClass().getMethod(valueMethodName.replace("set", "has")).invoke(value)) {
+            value.getClass()
+                .getMethod(valueMethodName, valueAspectClass.get())
+                .invoke(value, aspectClasses.get(valueAspectClass.get()));
+          }
+        }
+      }
+      return value;
+    } catch (IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
+      throw new RuntimeException(e);
     }
   }
 }

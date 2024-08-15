@@ -88,6 +88,7 @@ public abstract class BaseEntityResource<
   private final Class<SNAPSHOT> _snapshotClass;
   private final Class<ASPECT_UNION> _aspectUnionClass;
   private final Set<Class<? extends RecordTemplate>> _supportedAspectClasses;
+  private final Set<Class<? extends RecordTemplate>> _supportedInternalAspectClasses;
   private final Class<INTERNAL_SNAPSHOT> _internalSnapshotClass;
   private final Class<INTERNAL_ASPECT_UNION> _internalAspectUnionClass;
   private final Class<ASSET> _assetClass;
@@ -111,7 +112,8 @@ public abstract class BaseEntityResource<
     _urnClass = urnClass;
     _internalSnapshotClass = internalSnapshotClass;
     _internalAspectUnionClass = internalAspectUnionClass;
-    _supportedAspectClasses = ModelUtils.getValidAspectTypes(_internalAspectUnionClass);
+    _supportedAspectClasses = ModelUtils.getValidAspectTypes(_aspectUnionClass);
+    _supportedInternalAspectClasses = ModelUtils.getValidAspectTypes(_internalAspectUnionClass);
     _assetClass = assetClass;
   }
 
@@ -156,31 +158,46 @@ public abstract class BaseEntityResource<
   protected abstract KEY toKey(@Nonnull URN urn);
 
   /**
+   * Converts a snapshot to resource's value.
+   */
+  @Nonnull
+  protected abstract VALUE toValue(@Nonnull SNAPSHOT snapshot);
+
+  /**
    * Converts an internal snapshot to resource's value.
    */
   @Nonnull
-  protected abstract VALUE toValue(@Nonnull INTERNAL_SNAPSHOT snapshot);
+  protected VALUE toInternalValue(@Nonnull INTERNAL_SNAPSHOT internalSnapshot) {
+    final SNAPSHOT snapshot = ModelUtils.convertSnapshots(_snapshotClass, internalSnapshot);
+    return ModelUtils.decorateValue(internalSnapshot, toValue(snapshot));
+  }
 
   /**
-   * Converts a resource's value to an internal snapshot.
+   * Converts a resource's value to a snapshot.
    */
   @Nonnull
-  protected abstract INTERNAL_SNAPSHOT toSnapshot(@Nonnull VALUE value, @Nonnull URN urn);
+  protected abstract SNAPSHOT toSnapshot(@Nonnull VALUE value, @Nonnull URN urn);
 
   /**
    * Retrieves the value for an entity that is made up of latest versions of specified aspects.
    */
   @RestMethod.Get
   @Nonnull
-  public Task<VALUE> get(@Nonnull KEY id,
-      @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
+  public Task<VALUE> get(@Nonnull KEY id, @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
+    return get(id, aspectNames, false);
+  }
+
+  protected Task<VALUE> get(@Nonnull KEY id, @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
+      boolean isInternalModelsEnabled) {
 
     return RestliUtils.toTask(() -> {
       final URN urn = toUrn(id);
       if (!getLocalDAO().exists(urn)) {
         throw RestliUtils.resourceNotFoundException();
       }
-      final VALUE value = getInternal(Collections.singleton(urn), parseAspectsParam(aspectNames)).get(urn);
+      final VALUE value =
+          getInternal(Collections.singleton(urn), parseAspectsParam(aspectNames, isInternalModelsEnabled),
+              isInternalModelsEnabled).get(urn);
       if (value == null) {
         throw RestliUtils.resourceNotFoundException();
       }
@@ -197,16 +214,21 @@ public abstract class BaseEntityResource<
   @RestMethod.BatchGet
   @Deprecated
   @Nonnull
-  public Task<Map<KEY, VALUE>> batchGet(
-      @Nonnull Set<KEY> ids,
+  public Task<Map<KEY, VALUE>> batchGet(@Nonnull Set<KEY> ids,
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
+    return batchGet(ids, aspectNames, false);
+  }
+
+  @Deprecated
+  @Nonnull
+  protected Task<Map<KEY, VALUE>> batchGet(@Nonnull Set<KEY> ids,
+      @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames, boolean isInternalModelsEnabled) {
     return RestliUtils.toTask(() -> {
-      final Map<URN, KEY> urnMap =
-          ids.stream().collect(Collectors.toMap(this::toUrn, Function.identity()));
-      return getInternal(urnMap.keySet(), parseAspectsParam(aspectNames)).entrySet()
+      final Map<URN, KEY> urnMap = ids.stream().collect(Collectors.toMap(this::toUrn, Function.identity()));
+      return getInternal(urnMap.keySet(), parseAspectsParam(aspectNames, isInternalModelsEnabled),
+          isInternalModelsEnabled).entrySet()
           .stream()
-          .collect(
-              Collectors.toMap(e -> urnMap.get(e.getKey()), Map.Entry::getValue));
+          .collect(Collectors.toMap(e -> urnMap.get(e.getKey()), Map.Entry::getValue));
     });
   }
 
@@ -217,15 +239,21 @@ public abstract class BaseEntityResource<
    */
   @RestMethod.BatchGet
   @Nonnull
-  public Task<BatchResult<KEY, VALUE>> batchGetWithErrors(
-      @Nonnull Set<KEY> ids,
+  public Task<BatchResult<KEY, VALUE>> batchGetWithErrors(@Nonnull Set<KEY> ids,
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
+    return batchGetWithErrors(ids, aspectNames, false);
+  }
+
+  @Nonnull
+  protected Task<BatchResult<KEY, VALUE>> batchGetWithErrors(@Nonnull Set<KEY> ids,
+      @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames, boolean isInternalModelsEnabled) {
     return RestliUtils.toTask(() -> {
       final Map<KEY, RestLiServiceException> errors = new HashMap<>();
       final Map<KEY, HttpStatus> statuses = new HashMap<>();
-      final Map<URN, KEY> urnMap =
-          ids.stream().collect(Collectors.toMap(this::toUrn, Function.identity()));
-      final Map<URN, VALUE> batchResult = getInternal(urnMap.keySet(), parseAspectsParam(aspectNames));
+      final Map<URN, KEY> urnMap = ids.stream().collect(Collectors.toMap(this::toUrn, Function.identity()));
+      final Map<URN, VALUE> batchResult =
+          getInternal(urnMap.keySet(), parseAspectsParam(aspectNames, isInternalModelsEnabled),
+              isInternalModelsEnabled);
       batchResult.entrySet().removeIf(entry -> {
         if (!entry.getValue().data().isEmpty()) {
           // don't remove if there is a non-empty value associated with the key
@@ -252,8 +280,14 @@ public abstract class BaseEntityResource<
   @Action(name = ACTION_INGEST)
   @Nonnull
   public Task<Void> ingest(@ActionParam(PARAM_SNAPSHOT) @Nonnull SNAPSHOT snapshot) {
-    return ingestInternal(ModelUtils.convertSnapshotToInternalSnapshot(_internalSnapshotClass, snapshot),
-        Collections.emptySet(), null, null);
+    return ingest(snapshot, false);
+  }
+
+  @Deprecated
+  @Nonnull
+  protected Task<Void> ingest(@ActionParam(PARAM_SNAPSHOT) @Nonnull SNAPSHOT snapshot,
+      boolean isInternalModelsEnabled) {
+    return ingestInternal(snapshot, Collections.emptySet(), null, null, isInternalModelsEnabled);
   }
 
   /**
@@ -269,8 +303,13 @@ public abstract class BaseEntityResource<
   public Task<Void> ingestWithTracking(@ActionParam(PARAM_SNAPSHOT) @Nonnull SNAPSHOT snapshot,
       @ActionParam(PARAM_TRACKING_CONTEXT) @Nonnull IngestionTrackingContext trackingContext,
       @Optional @ActionParam(PARAM_INGESTION_PARAMS) IngestionParams ingestionParams) {
-    return ingestInternal(ModelUtils.convertSnapshotToInternalSnapshot(_internalSnapshotClass, snapshot),
-        Collections.emptySet(), trackingContext, ingestionParams);
+    return ingestWithTracking(snapshot, trackingContext, ingestionParams, false);
+  }
+
+  protected Task<Void> ingestWithTracking(@ActionParam(PARAM_SNAPSHOT) @Nonnull SNAPSHOT snapshot,
+      @ActionParam(PARAM_TRACKING_CONTEXT) @Nonnull IngestionTrackingContext trackingContext,
+      @Optional @ActionParam(PARAM_INGESTION_PARAMS) IngestionParams ingestionParams, boolean isInternalModelsEnabled) {
+    return ingestInternal(snapshot, Collections.emptySet(), trackingContext, ingestionParams, isInternalModelsEnabled);
   }
 
   /**
@@ -284,14 +323,34 @@ public abstract class BaseEntityResource<
   public Task<Void> ingestAsset(@ActionParam(PARAM_ASSET) @Nonnull ASSET asset,
       @ActionParam(PARAM_TRACKING_CONTEXT) @Nonnull IngestionTrackingContext trackingContext,
       @Optional @ActionParam(PARAM_INGESTION_PARAMS) IngestionParams ingestionParams) {
-    return ingestInternal(ModelUtils.convertAssetToInternalSnapshot(_internalSnapshotClass, asset),
+    return ingestInternalSnapshot(ModelUtils.convertAssetToInternalSnapshot(_internalSnapshotClass, asset),
         Collections.emptySet(), trackingContext, ingestionParams);
   }
 
   @Nonnull
-  protected Task<Void> ingestInternal(@Nonnull INTERNAL_SNAPSHOT internalSnapshot,
-      @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore,
-      @Nullable IngestionTrackingContext trackingContext, @Nullable IngestionParams ingestionParams) {
+  protected Task<Void> ingestInternal(@Nonnull SNAPSHOT snapshot,
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore, @Nullable IngestionTrackingContext trackingContext,
+      @Nullable IngestionParams ingestionParams, boolean isInternalModelsEnabled) {
+    if (isInternalModelsEnabled) {
+      ingestInternalSnapshot(ModelUtils.convertSnapshots(_internalSnapshotClass, snapshot), aspectsToIgnore,
+          trackingContext, ingestionParams);
+    }
+    return RestliUtils.toTask(() -> {
+      final URN urn = (URN) ModelUtils.getUrnFromSnapshot(snapshot);
+      final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
+      ModelUtils.getAspectsFromSnapshot(snapshot).stream().forEach(aspect -> {
+        if (!aspectsToIgnore.contains(aspect.getClass())) {
+          getLocalDAO().add(urn, aspect, auditStamp, trackingContext, ingestionParams);
+        }
+      });
+      return null;
+    });
+  }
+
+  @Nonnull
+  protected Task<Void> ingestInternalSnapshot(@Nonnull INTERNAL_SNAPSHOT internalSnapshot,
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore, @Nullable IngestionTrackingContext trackingContext,
+      @Nullable IngestionParams ingestionParams) {
     return RestliUtils.toTask(() -> {
       final URN urn = (URN) ModelUtils.getUrnFromSnapshot(internalSnapshot);
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
@@ -313,22 +372,40 @@ public abstract class BaseEntityResource<
   @Nonnull
   public Task<SNAPSHOT> getSnapshot(@ActionParam(PARAM_URN) @Nonnull String urnString,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
+    return getSnapshot(urnString, aspectNames, false);
+  }
 
+  @Deprecated
+  @Nonnull
+  protected Task<SNAPSHOT> getSnapshot(@ActionParam(PARAM_URN) @Nonnull String urnString,
+      @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames, boolean isInternalModelsEnabled) {
+    final URN urn = parseUrnParam(urnString);
+    final Set<AspectKey<URN, ? extends RecordTemplate>> keys = parseAspectsParam(aspectNames, isInternalModelsEnabled).stream()
+        .map(aspectClass -> new AspectKey<>(aspectClass, urn, LATEST_VERSION))
+        .collect(Collectors.toSet());
+    if (isInternalModelsEnabled) {
+      return RestliUtils.toTask(() -> {
+        final List<UnionTemplate> aspects = getLocalDAO().get(keys)
+            .values()
+            .stream()
+            .filter(java.util.Optional::isPresent)
+            .map(aspect -> ModelUtils.newAspectUnion(_internalAspectUnionClass, aspect.get()))
+            .collect(Collectors.toList());
+
+        return ModelUtils.newSnapshot(_snapshotClass, urn,
+            ModelUtils.convertInternalAspectUnionToAspectUnion(_aspectUnionClass, aspects));
+      });
+    }
     return RestliUtils.toTask(() -> {
-      final URN urn = parseUrnParam(urnString);
-      final Set<AspectKey<URN, ? extends RecordTemplate>> keys = parseAspectsParam(aspectNames).stream()
-          .map(aspectClass -> new AspectKey<>(aspectClass, urn, LATEST_VERSION))
-          .collect(Collectors.toSet());
-
       final List<UnionTemplate> aspects = getLocalDAO().get(keys)
           .values()
           .stream()
           .filter(java.util.Optional::isPresent)
-          .map(aspect -> ModelUtils.newAspectUnion(_internalAspectUnionClass, aspect.get()))
+          .filter(aspect -> _supportedAspectClasses.contains(aspect.get().getClass()))
+          .map(aspect -> ModelUtils.newAspectUnion(_aspectUnionClass, aspect.get()))
           .collect(Collectors.toList());
 
-      return ModelUtils.newSnapshot(_snapshotClass, urn,
-          ModelUtils.convertInternalAspectUnionToAspectUnion(_aspectUnionClass, aspects));
+      return ModelUtils.newSnapshot(_snapshotClass, urn, aspects);
     });
   }
 
@@ -342,7 +419,7 @@ public abstract class BaseEntityResource<
 
     return RestliUtils.toTask(() -> {
       final URN urn = parseUrnParam(urnString);
-      final Set<AspectKey<URN, ? extends RecordTemplate>> keys = parseAspectsParam(aspectNames).stream()
+      final Set<AspectKey<URN, ? extends RecordTemplate>> keys = parseAspectsParam(aspectNames, true).stream()
           .map(aspectClass -> new AspectKey<>(aspectClass, urn, LATEST_VERSION))
           .collect(Collectors.toSet());
 
@@ -366,10 +443,16 @@ public abstract class BaseEntityResource<
   @Nonnull
   public Task<BackfillResult> backfill(@ActionParam(PARAM_URN) @Nonnull String urnString,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
+    return backfill(urnString, aspectNames, false);
+  }
+
+  @Nonnull
+  protected Task<BackfillResult> backfill(@ActionParam(PARAM_URN) @Nonnull String urnString,
+      @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames, boolean isInternalModelsEnabled) {
 
     return RestliUtils.toTask(() -> {
       final URN urn = parseUrnParam(urnString);
-      final List<String> backfilledAspects = parseAspectsParam(aspectNames).stream()
+      final List<String> backfilledAspects = parseAspectsParam(aspectNames, isInternalModelsEnabled).stream()
           .map(aspectClass -> getLocalDAO().backfill(aspectClass, urn))
           .filter(optionalAspect -> optionalAspect.isPresent())
           .map(optionalAspect -> ModelUtils.getAspectName(optionalAspect.get().getClass()))
@@ -386,11 +469,16 @@ public abstract class BaseEntityResource<
   @Action(name = ACTION_BACKFILL_WITH_URNS)
   @Nonnull
   public Task<BackfillResult> backfill(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
-                                       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
+      @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
+    return backfill(urns, aspectNames, false);
+  }
+    protected Task<BackfillResult> backfill(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
+      @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames, boolean isInternalModelsEnabled) {
 
     return RestliUtils.toTask(() -> {
       final Set<URN> urnSet = Arrays.stream(urns).map(urnString -> parseUrnParam(urnString)).collect(Collectors.toSet());
-      return RestliUtils.buildBackfillResult(getLocalDAO().backfill(parseAspectsParam(aspectNames), urnSet));
+      return RestliUtils.buildBackfillResult(
+          getLocalDAO().backfill(parseAspectsParam(aspectNames, isInternalModelsEnabled), urnSet));
     });
   }
 
@@ -405,13 +493,21 @@ public abstract class BaseEntityResource<
   public Task<BackfillResult> emitNoChangeMetadataAuditEvent(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
       @ActionParam(PARAM_INGESTION_MODE) @Nonnull IngestionMode ingestionMode) {
+    return emitNoChangeMetadataAuditEvent(urns, aspectNames, ingestionMode, false);
+  }
+
+  @Nonnull
+  protected Task<BackfillResult> emitNoChangeMetadataAuditEvent(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
+      @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
+      @ActionParam(PARAM_INGESTION_MODE) @Nonnull IngestionMode ingestionMode, boolean isInternalModelsEnabled) {
     BackfillMode backfillMode = ALLOWED_INGESTION_BACKFILL_BIMAP.get(ingestionMode);
     if (backfillMode == null) {
       return RestliUtils.toTask(BackfillResult::new);
     }
     return RestliUtils.toTask(() -> {
       final Set<URN> urnSet = Arrays.stream(urns).map(urnString -> parseUrnParam(urnString)).collect(Collectors.toSet());
-      return RestliUtils.buildBackfillResult(getLocalDAO().backfill(backfillMode, parseAspectsParam(aspectNames), urnSet));
+      return RestliUtils.buildBackfillResult(
+          getLocalDAO().backfill(backfillMode, parseAspectsParam(aspectNames, isInternalModelsEnabled), urnSet));
     });
   }
 
@@ -425,10 +521,16 @@ public abstract class BaseEntityResource<
   @Nonnull
   public Task<BackfillResult> backfillWithNewValue(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
+    return backfillWithNewValue(urns, aspectNames, false);
+  }
 
-    return RestliUtils.toTask(() -> {
+  protected Task<BackfillResult> backfillWithNewValue(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
+      @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames, boolean isInternalModelsEnabled) {
+
+      return RestliUtils.toTask(() -> {
       final Set<URN> urnSet = Arrays.stream(urns).map(urnString -> parseUrnParam(urnString)).collect(Collectors.toSet());
-      return RestliUtils.buildBackfillResult(getLocalDAO().backfillWithNewValue(parseAspectsParam(aspectNames), urnSet));
+      return RestliUtils.buildBackfillResult(
+          getLocalDAO().backfillWithNewValue(parseAspectsParam(aspectNames, isInternalModelsEnabled), urnSet));
     });
   }
 
@@ -439,10 +541,16 @@ public abstract class BaseEntityResource<
   @Nonnull
   public Task<BackfillResult> backfillEntityTables(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
+    return backfillEntityTables(urns, aspectNames, false);
+  }
+
+  protected Task<BackfillResult> backfillEntityTables(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
+      @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames, boolean isInternalModelsEnabled) {
 
     return RestliUtils.toTask(() -> {
       final Set<URN> urnSet = Arrays.stream(urns).map(urnString -> parseUrnParam(urnString)).collect(Collectors.toSet());
-      return RestliUtils.buildBackfillResult(getLocalDAO().backfillEntityTables(parseAspectsParam(aspectNames), urnSet));
+      return RestliUtils.buildBackfillResult(
+          getLocalDAO().backfillEntityTables(parseAspectsParam(aspectNames, isInternalModelsEnabled), urnSet));
     });
   }
 
@@ -453,12 +561,17 @@ public abstract class BaseEntityResource<
   @Nonnull
   public Task<BackfillResult> backfillRelationshipTables(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
       @ActionParam(PARAM_ASPECTS) @Nonnull String[] aspectNames) {
+    return backfillRelationshipTables(urns, aspectNames, false);
+  }
+
+  protected Task<BackfillResult> backfillRelationshipTables(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
+      @ActionParam(PARAM_ASPECTS) @Nonnull String[] aspectNames, boolean isInternalModelsEnabled) {
     final BackfillResult backfillResult = new BackfillResult()
         .setEntities(new BackfillResultEntityArray())
         .setRelationships(new BackfillResultRelationshipArray());
 
     for (String urn : urns) {
-      for (Class<? extends RecordTemplate> aspect : parseAspectsParam(aspectNames)) {
+      for (Class<? extends RecordTemplate> aspect : parseAspectsParam(aspectNames, isInternalModelsEnabled)) {
         getLocalDAO().backfillLocalRelationshipsFromEntityTables(parseUrnParam(urn), aspect).forEach(relationshipUpdates -> {
           relationshipUpdates.getRelationships().forEach(relationship -> {
             try {
@@ -491,12 +604,20 @@ public abstract class BaseEntityResource<
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
       @ActionParam(PARAM_URN) @Optional @Nullable String lastUrn,
       @ActionParam(PARAM_LIMIT) int limit) {
+    return backfill(mode, aspectNames, lastUrn, limit, false);
+  }
 
-    return RestliUtils.toTask(() ->
-            RestliUtils.buildBackfillResult(getLocalDAO().backfill(mode, parseAspectsParam(aspectNames),
-                    _urnClass,
-                    parseUrnParam(lastUrn),
-                    limit)));
+  @Nonnull
+  protected Task<BackfillResult> backfill(@ActionParam(PARAM_MODE) @Nonnull BackfillMode mode,
+      @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
+      @ActionParam(PARAM_URN) @Optional @Nullable String lastUrn,
+      @ActionParam(PARAM_LIMIT) int limit, boolean isInternalModelsEnabled) {
+
+    return RestliUtils.toTask(() -> RestliUtils.buildBackfillResult(
+        getLocalDAO().backfill(mode, parseAspectsParam(aspectNames, isInternalModelsEnabled),
+            _urnClass,
+            parseUrnParam(lastUrn),
+            limit)));
   }
 
   /**
@@ -531,7 +652,7 @@ public abstract class BaseEntityResource<
    * @return ordered list of values of multiple entities
    */
   @Nonnull
-  private List<VALUE> getUrnAspectValues(List<UrnAspectEntry<URN>> urnAspectEntries) {
+  private List<VALUE> getUrnAspectValues(List<UrnAspectEntry<URN>> urnAspectEntries, boolean isInternalModelsEnabled) {
     final Map<URN, List<UnionTemplate>> urnAspectsMap = new LinkedHashMap<>();
     for (UrnAspectEntry<URN> entry : urnAspectEntries) {
       urnAspectsMap.compute(entry.getUrn(), (k, v) -> {
@@ -540,7 +661,8 @@ public abstract class BaseEntityResource<
         }
         v.addAll(entry.getAspects()
             .stream()
-            .map(recordTemplate -> ModelUtils.newAspectUnion(_internalAspectUnionClass, recordTemplate))
+            .map(recordTemplate -> isInternalModelsEnabled ? ModelUtils.newAspectUnion(_internalAspectUnionClass,
+                recordTemplate) : ModelUtils.newAspectUnion(_aspectUnionClass, recordTemplate))
             .collect(Collectors.toList()));
         return v;
       });
@@ -548,7 +670,8 @@ public abstract class BaseEntityResource<
 
     return urnAspectsMap.entrySet()
         .stream()
-        .map(e -> toValue(newSnapshot(e.getKey(), e.getValue())))
+        .map(e -> isInternalModelsEnabled ? toInternalValue(newInternalSnapshot(e.getKey(), e.getValue()))
+            : toValue(newSnapshot(e.getKey(), e.getValue())))
         .collect(Collectors.toList());
   }
 
@@ -566,18 +689,18 @@ public abstract class BaseEntityResource<
    * @return ordered list of values of multiple entities
    */
   @Nonnull
-  private List<VALUE> filterAspects(
-      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nullable IndexFilter filter,
-      @Nullable IndexSortCriterion indexSortCriterion, @Nullable String lastUrn, int count) {
+  private List<VALUE> filterAspects(@Nonnull Set<Class<? extends RecordTemplate>> aspectClasses,
+      @Nullable IndexFilter filter, @Nullable IndexSortCriterion indexSortCriterion, @Nullable String lastUrn,
+      int count, boolean isInternalModelsEnabled) {
 
     final List<UrnAspectEntry<URN>> urnAspectEntries =
         getLocalDAO().getAspects(aspectClasses, filter, indexSortCriterion, parseUrnParam(lastUrn), count);
 
-    return getUrnAspectValues(urnAspectEntries);
+    return getUrnAspectValues(urnAspectEntries, isInternalModelsEnabled);
   }
 
   /**
-   * Similar to {@link #filterAspects(Set, IndexFilter, IndexSortCriterion, String, int)} but
+   * Similar to {@link #filterAspects(Set, IndexFilter, IndexSortCriterion, String, int, boolean)} but
    * takes in a start offset and returns a list result with pagination information.
    *
    * @param start defining the paging start
@@ -585,14 +708,14 @@ public abstract class BaseEntityResource<
    * @return a {@link ListResult} containing a list of version numbers and other pagination information
    */
   @Nonnull
-  private ListResult<VALUE> filterAspects(
-      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nullable IndexFilter filter,
-      @Nullable IndexSortCriterion indexSortCriterion, int start, int count) {
+  private ListResult<VALUE> filterAspects(@Nonnull Set<Class<? extends RecordTemplate>> aspectClasses,
+      @Nullable IndexFilter filter, @Nullable IndexSortCriterion indexSortCriterion, int start, int count,
+      boolean isInternalModelsEnabled) {
 
     final ListResult<UrnAspectEntry<URN>> listResult =
         getLocalDAO().getAspects(aspectClasses, filter, indexSortCriterion, start, count);
     final List<UrnAspectEntry<URN>> urnAspectEntries = listResult.getValues();
-    final List<VALUE> values = getUrnAspectValues(urnAspectEntries);
+    final List<VALUE> values = getUrnAspectValues(urnAspectEntries, isInternalModelsEnabled);
 
     return ListResult.<VALUE>builder()
         .values(values)
@@ -671,19 +794,27 @@ public abstract class BaseEntityResource<
    */
   @Finder(FINDER_FILTER)
   @Nonnull
-  public Task<List<VALUE>> filter(
-      @QueryParam(PARAM_FILTER) @Optional @Nullable IndexFilter indexFilter,
+  public Task<List<VALUE>> filter(@QueryParam(PARAM_FILTER) @Optional @Nullable IndexFilter indexFilter,
       @QueryParam(PARAM_SORT) @Optional @Nullable IndexSortCriterion indexSortCriterion,
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
-      @QueryParam(PARAM_URN) @Optional @Nullable String lastUrn,
-      @QueryParam(PARAM_COUNT) @Optional("10") int count) {
+      @QueryParam(PARAM_URN) @Optional @Nullable String lastUrn, @QueryParam(PARAM_COUNT) @Optional("10") int count) {
+
+    return filter(indexFilter, indexSortCriterion, aspectNames, lastUrn, count, false);
+  }
+
+  @Nonnull
+  protected Task<List<VALUE>> filter(@QueryParam(PARAM_FILTER) @Optional @Nullable IndexFilter indexFilter,
+      @QueryParam(PARAM_SORT) @Optional @Nullable IndexSortCriterion indexSortCriterion,
+      @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
+      @QueryParam(PARAM_URN) @Optional @Nullable String lastUrn, @QueryParam(PARAM_COUNT) @Optional("10") int count,
+      boolean isInternalModelsEnabled) {
 
     return RestliUtils.toTask(() -> {
-      final Set<Class<? extends RecordTemplate>> aspectClasses = parseAspectsParam(aspectNames);
+      final Set<Class<? extends RecordTemplate>> aspectClasses = parseAspectsParam(aspectNames, isInternalModelsEnabled);
       if (aspectClasses.isEmpty()) {
         return filterUrns(indexFilter, indexSortCriterion, lastUrn, count);
       } else {
-        return filterAspects(aspectClasses, indexFilter, indexSortCriterion, lastUrn, count);
+        return filterAspects(aspectClasses, indexFilter, indexSortCriterion, lastUrn, count, isInternalModelsEnabled);
       }
     });
   }
@@ -718,18 +849,27 @@ public abstract class BaseEntityResource<
    */
   @Finder(FINDER_FILTER)
   @Nonnull
-  public Task<ListResult<VALUE>> filter(
-      @QueryParam(PARAM_FILTER) @Optional @Nullable IndexFilter indexFilter,
+  public Task<ListResult<VALUE>> filter(@QueryParam(PARAM_FILTER) @Optional @Nullable IndexFilter indexFilter,
       @QueryParam(PARAM_SORT) @Optional @Nullable IndexSortCriterion indexSortCriterion,
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
       @PagingContextParam @Nonnull PagingContext pagingContext) {
+    return filter(indexFilter, indexSortCriterion, aspectNames, pagingContext, false);
+  }
+
+  @Nonnull
+  protected Task<ListResult<VALUE>> filter(@QueryParam(PARAM_FILTER) @Optional @Nullable IndexFilter indexFilter,
+      @QueryParam(PARAM_SORT) @Optional @Nullable IndexSortCriterion indexSortCriterion,
+      @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
+      @PagingContextParam @Nonnull PagingContext pagingContext, boolean isInternalModelsEnabled) {
 
     return RestliUtils.toTask(() -> {
-      final Set<Class<? extends RecordTemplate>> aspectClasses = parseAspectsParam(aspectNames);
+      final Set<Class<? extends RecordTemplate>> aspectClasses =
+          parseAspectsParam(aspectNames, isInternalModelsEnabled);
       if (aspectClasses.isEmpty()) {
         return filterUrns(indexFilter, indexSortCriterion, pagingContext.getStart(), pagingContext.getCount());
       } else {
-        return filterAspects(aspectClasses, indexFilter, indexSortCriterion, pagingContext.getStart(), pagingContext.getCount());
+        return filterAspects(aspectClasses, indexFilter, indexSortCriterion, pagingContext.getStart(),
+            pagingContext.getCount(), isInternalModelsEnabled);
       }
     });
   }
@@ -774,9 +914,10 @@ public abstract class BaseEntityResource<
   }
 
   @Nonnull
-  protected Set<Class<? extends RecordTemplate>> parseAspectsParam(@Nullable String[] aspectNames) {
+  protected Set<Class<? extends RecordTemplate>> parseAspectsParam(@Nullable String[] aspectNames,
+      boolean isInternalModelsEnabled) {
     if (aspectNames == null) {
-      return _supportedAspectClasses;
+      return isInternalModelsEnabled ? _supportedInternalAspectClasses : _supportedAspectClasses;
     }
     return Arrays.asList(aspectNames).stream().map(ModelUtils::getAspectClass).collect(Collectors.toSet());
   }
@@ -786,31 +927,36 @@ public abstract class BaseEntityResource<
    *
    * @param urns collection of urns
    * @param aspectClasses set of aspect classes
+   * @param isInternalModelsEnabled flag to switch the internal models
    * @return All {@link VALUE} objects keyed by {@link URN} obtained from DB
    */
   @Nonnull
   protected Map<URN, VALUE> getInternal(@Nonnull Collection<URN> urns,
-      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses) {
-    return getUrnAspectMap(urns, aspectClasses).entrySet()
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, boolean isInternalModelsEnabled) {
+    return getUrnAspectMap(urns, aspectClasses, isInternalModelsEnabled).entrySet()
         .stream()
-        .collect(Collectors.toMap(Map.Entry::getKey, e -> toValue(newSnapshot(e.getKey(), e.getValue()))));
+        .collect(Collectors.toMap(Map.Entry::getKey,
+            e -> isInternalModelsEnabled ? toInternalValue(newInternalSnapshot(e.getKey(), e.getValue()))
+                : toValue(newSnapshot(e.getKey(), e.getValue()))));
   }
 
   /**
-   * Similar to {@link #getInternal(Collection, Set)} but filter out {@link URN}s which are not in the DB.
+   * Similar to {@link #getInternal(Collection, Set, boolean)}  but filter out {@link URN}s which are not in the DB.
    */
   @Nonnull
   protected Map<URN, VALUE> getInternalNonEmpty(@Nonnull Collection<URN> urns,
-      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses) {
-    return getUrnAspectMap(urns, aspectClasses).entrySet()
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, boolean isInternalModelsEnabled) {
+    return getUrnAspectMap(urns, aspectClasses, isInternalModelsEnabled).entrySet()
         .stream()
         .filter(e -> !e.getValue().isEmpty())
-        .collect(Collectors.toMap(Map.Entry::getKey, e -> toValue(newSnapshot(e.getKey(), e.getValue()))));
+        .collect(Collectors.toMap(Map.Entry::getKey,
+            e -> isInternalModelsEnabled ? toInternalValue(newInternalSnapshot(e.getKey(), e.getValue()))
+                : toValue(newSnapshot(e.getKey(), e.getValue()))));
   }
 
   @Nonnull
   private Map<URN, List<UnionTemplate>> getUrnAspectMap(@Nonnull Collection<URN> urns,
-      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses) {
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, boolean isInternalModelsEnabled) {
     // Construct the keys to retrieve latest version of all supported aspects for all URNs.
     final Set<AspectKey<URN, ? extends RecordTemplate>> keys = urns.stream()
         .map(urn -> aspectClasses.stream()
@@ -822,23 +968,41 @@ public abstract class BaseEntityResource<
     final Map<URN, List<UnionTemplate>> urnAspectsMap =
         urns.stream().collect(Collectors.toMap(Function.identity(), urn -> new ArrayList<>()));
 
-    getLocalDAO().get(keys)
-        .forEach((key, aspect) -> aspect.ifPresent(
-            metadata -> urnAspectsMap.get(key.getUrn()).add(ModelUtils.newAspectUnion(_internalAspectUnionClass, metadata))));
-
+    if (isInternalModelsEnabled) {
+      getLocalDAO().get(keys)
+          .forEach((key, aspect) -> aspect.ifPresent(metadata -> urnAspectsMap.get(key.getUrn())
+              .add(ModelUtils.newAspectUnion(_internalAspectUnionClass, metadata))));
+    } else {
+      getLocalDAO().get(keys)
+          .forEach((key, aspect) -> aspect.ifPresent(
+              metadata -> urnAspectsMap.get(key.getUrn()).add(ModelUtils.newAspectUnion(_aspectUnionClass, metadata))));
+    }
     return urnAspectsMap;
   }
 
   @Nonnull
-  private INTERNAL_SNAPSHOT newSnapshot(@Nonnull URN urn, @Nonnull List<UnionTemplate> aspects) {
-    return ModelUtils.newSnapshot(_internalSnapshotClass, urn, aspects);
+  private SNAPSHOT newSnapshot(@Nonnull URN urn, @Nonnull List<UnionTemplate> aspects) {
+    return ModelUtils.newSnapshot(_snapshotClass, urn, aspects);
   }
 
   /**
    * Creates a snapshot of the entity with no aspects set, just the URN.
    */
   @Nonnull
-  protected INTERNAL_SNAPSHOT newSnapshot(@Nonnull URN urn) {
+  protected SNAPSHOT newSnapshot(@Nonnull URN urn) {
+    return ModelUtils.newSnapshot(_snapshotClass, urn, Collections.emptyList());
+  }
+
+  @Nonnull
+  private INTERNAL_SNAPSHOT newInternalSnapshot(@Nonnull URN urn, @Nonnull List<UnionTemplate> aspects) {
+    return ModelUtils.newSnapshot(_internalSnapshotClass, urn, aspects);
+  }
+
+  /**
+   * Creates an Internal snapshot of the entity with no aspects set, just the URN.
+   */
+  @Nonnull
+  protected INTERNAL_SNAPSHOT newInternalSnapshot(@Nonnull URN urn) {
     return ModelUtils.newSnapshot(_internalSnapshotClass, urn, Collections.emptyList());
   }
 

@@ -90,13 +90,13 @@ public class BaseBrowsableEntityResourceTest extends BaseEngineTest {
 
     @Nonnull
     @Override
-    protected EntityValue toValue(@Nonnull InternalEntitySnapshot snapshot) {
+    protected EntityValue toValue(@Nonnull EntitySnapshot snapshot) {
       throw new RuntimeException("Not implemented");
     }
 
     @Nonnull
     @Override
-    protected InternalEntitySnapshot toSnapshot(@Nonnull EntityValue value, @Nonnull Urn urn) {
+    protected EntitySnapshot toSnapshot(@Nonnull EntityValue value, @Nonnull Urn urn) {
       throw new RuntimeException("Not implemented");
     }
   }

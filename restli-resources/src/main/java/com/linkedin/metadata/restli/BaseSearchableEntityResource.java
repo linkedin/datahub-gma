@@ -23,8 +23,10 @@ import com.linkedin.restli.server.annotations.Optional;
 import com.linkedin.restli.server.annotations.PagingContextParam;
 import com.linkedin.restli.server.annotations.QueryParam;
 import com.linkedin.restli.server.annotations.RestMethod;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -99,6 +101,14 @@ public abstract class BaseSearchableEntityResource<
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
       @QueryParam(PARAM_FILTER) @Optional @Nullable Filter filter,
       @QueryParam(PARAM_SORT) @Optional @Nullable SortCriterion sortCriterion) {
+    return getAll(pagingContext, aspectNames, filter, sortCriterion, false);
+  }
+
+  @Nonnull
+  protected Task<List<VALUE>> getAll(@Nonnull PagingContext pagingContext,
+      @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
+      @QueryParam(PARAM_FILTER) @Optional @Nullable Filter filter,
+      @QueryParam(PARAM_SORT) @Optional @Nullable SortCriterion sortCriterion, boolean isInternalModelsEnabled) {
 
     final Filter searchFilter = filter != null ? filter : QueryUtils.EMPTY_FILTER;
     final SortCriterion searchSortCriterion = sortCriterion != null ? sortCriterion
@@ -106,7 +116,7 @@ public abstract class BaseSearchableEntityResource<
     final SearchResult<DOCUMENT> filterResult =
         getSearchDAO().filter(searchFilter, searchSortCriterion, pagingContext.getStart(), pagingContext.getCount());
     return RestliUtils.toTask(
-        () -> getSearchQueryCollectionResult(filterResult, aspectNames).getElements());
+        () -> getSearchQueryCollectionResult(filterResult, aspectNames, isInternalModelsEnabled).getElements());
   }
 
   @Finder(FINDER_SEARCH)
@@ -117,11 +127,21 @@ public abstract class BaseSearchableEntityResource<
       @QueryParam(PARAM_SORT) @Optional @Nullable SortCriterion sortCriterion,
       @PagingContextParam @Nonnull PagingContext pagingContext) {
 
+    return search(input, aspectNames, filter, sortCriterion, pagingContext, false);
+  }
+
+  @Nonnull
+  protected Task<CollectionResult<VALUE, SearchResultMetadata>> search(@QueryParam(PARAM_INPUT) @Nonnull String input,
+      @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
+      @QueryParam(PARAM_FILTER) @Optional @Nullable Filter filter,
+      @QueryParam(PARAM_SORT) @Optional @Nullable SortCriterion sortCriterion,
+      @PagingContextParam @Nonnull PagingContext pagingContext, boolean isInternalModelsEnabled) {
+
     final Filter searchFilter = filter != null ? filter : QueryUtils.EMPTY_FILTER;
     final SearchResult<DOCUMENT> searchResult =
         getSearchDAO().search(input, searchFilter, sortCriterion, pagingContext.getStart(), pagingContext.getCount());
     return RestliUtils.toTask(
-        () -> getSearchQueryCollectionResult(searchResult, aspectNames));
+        () -> getSearchQueryCollectionResult(searchResult, aspectNames, isInternalModelsEnabled));
   }
 
   /**
@@ -144,11 +164,22 @@ public abstract class BaseSearchableEntityResource<
       @QueryParam(PARAM_PREFERENCE) @Optional @Nullable String preference,
       @PagingContextParam @Nonnull PagingContext pagingContext) {
 
+    return searchV2(input, aspectNames, filter, sortCriterion, preference, pagingContext, false);
+  }
+
+  @Nonnull
+  protected Task<CollectionResult<VALUE, SearchResultMetadata>> searchV2(@QueryParam(PARAM_INPUT) @Nonnull String input,
+      @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
+      @QueryParam(PARAM_FILTER) @Optional @Nullable Filter filter,
+      @QueryParam(PARAM_SORT) @Optional @Nullable SortCriterion sortCriterion,
+      @QueryParam(PARAM_PREFERENCE) @Optional @Nullable String preference,
+      @PagingContextParam @Nonnull PagingContext pagingContext, boolean isInternalModelsEnabled) {
+
     final Filter searchFilter = filter != null ? filter : QueryUtils.EMPTY_FILTER;
     final SearchResult<DOCUMENT> searchResult =
         getSearchDAO().searchV2(input, searchFilter, sortCriterion, preference, pagingContext.getStart(), pagingContext.getCount());
     return RestliUtils.toTask(
-        () -> getSearchQueryCollectionResult(searchResult, aspectNames));
+        () -> getSearchQueryCollectionResult(searchResult, aspectNames, isInternalModelsEnabled));
   }
 
   @Action(name = ACTION_AUTOCOMPLETE)
@@ -167,13 +198,15 @@ public abstract class BaseSearchableEntityResource<
    */
   @Nonnull
   public CollectionResult<VALUE, SearchResultMetadata> getSearchQueryCollectionResult(@Nonnull SearchResult<DOCUMENT> searchResult,
-      @Nullable String[] aspectNames) {
+      @Nullable String[] aspectNames, boolean isInternalModelsEnabled) {
 
     final List<URN> matchedUrns = searchResult.getDocumentList()
         .stream()
         .map(d -> (URN) ModelUtils.getUrnFromDocument(d))
         .collect(Collectors.toList());
-    final Map<URN, VALUE> urnValueMap = getInternalNonEmpty(matchedUrns, parseAspectsParam(aspectNames));
+    final Map<URN, VALUE> urnValueMap =
+        getInternalNonEmpty(matchedUrns, parseAspectsParam(aspectNames, isInternalModelsEnabled),
+            isInternalModelsEnabled);
     final List<URN> existingUrns = matchedUrns.stream().filter(urn -> urnValueMap.containsKey(urn)).collect(Collectors.toList());
     return new CollectionResult<>(
         existingUrns.stream().map(urn -> urnValueMap.get(urn)).collect(Collectors.toList()),

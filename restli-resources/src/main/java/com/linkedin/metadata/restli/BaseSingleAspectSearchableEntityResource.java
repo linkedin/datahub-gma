@@ -82,9 +82,8 @@ public abstract class BaseSingleAspectSearchableEntityResource<
    * */
   @Override
   @Nonnull
-  protected Map<URN, VALUE> getInternal(
-      @Nonnull Collection<URN> urns,
-      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses) {
+  protected Map<URN, VALUE> getInternal(@Nonnull Collection<URN> urns,
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, boolean isInternalModelsEnabled) {
     // ignore the second parameter as it is not required for single aspect entities
     return getUrnEntityMapInternal(urns);
   }
@@ -96,9 +95,8 @@ public abstract class BaseSingleAspectSearchableEntityResource<
    * */
   @Override
   @Nonnull
-  protected Map<URN, VALUE> getInternalNonEmpty(
-      @Nonnull Collection<URN> urns,
-      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses) {
+  protected Map<URN, VALUE> getInternalNonEmpty(@Nonnull Collection<URN> urns,
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, boolean isInternalModelsEnabled) {
     // ignore the second parameter as it is not required for single aspect entities
     return getUrnEntityMapInternal(urns);
   }
@@ -140,23 +138,23 @@ public abstract class BaseSingleAspectSearchableEntityResource<
 
   /**
    * Throwing an exception with a `not implemented` error message as this method is only required
-   * by parent class {@link BaseEntityResource} method- {@link #getInternalNonEmpty(Collection, Set)},
+   * by parent class {@link BaseEntityResource} method- {@link #getInternalNonEmpty(Collection, Set, boolean)},
    * which has been overridden here.
    * */
   @Override
   @Nonnull
-  protected VALUE toValue(@Nonnull INTERNAL_SNAPSHOT snapshot) {
+  protected VALUE toValue(@Nonnull SNAPSHOT snapshot) {
     throw new RuntimeException("Not implemented.");
   }
 
   /**
    * Throwing an exception with a `not implemented` error message as this method is only required
-   * by parent class {@link BaseEntityResource} method- {@link #getInternalNonEmpty(Collection, Set)},
+   * by parent class {@link BaseEntityResource} method- {@link #getInternalNonEmpty(Collection, Set, boolean)} (Collection, Set)},
    * which has been overridden here.
    * */
   @Override
   @Nonnull
-  protected INTERNAL_SNAPSHOT toSnapshot(@Nonnull VALUE value, @Nonnull URN urn) {
+  protected SNAPSHOT toSnapshot(@Nonnull VALUE value, @Nonnull URN urn) {
     throw new RuntimeException("Not implemented.");
   }
 }
