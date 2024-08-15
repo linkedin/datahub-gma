@@ -89,7 +89,7 @@ public class BaseLocalDAOTest {
     }
 
     @Override
-    public <ASPECT extends RecordTemplate> List<LocalRelationshipUpdates> backfillLocalRelationshipsFromEntityTables(
+    public <ASPECT extends RecordTemplate> List<LocalRelationshipUpdates> backfillLocalRelationships(
         @Nonnull FooUrn urn, @Nonnull Class<ASPECT> aspectClass) {
       return null;
     }

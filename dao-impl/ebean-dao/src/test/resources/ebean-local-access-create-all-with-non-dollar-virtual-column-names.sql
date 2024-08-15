@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS metadata_entity_foo (
     lastmodifiedby VARCHAR(255) NOT NULL,
     createdfor VARCHAR(255),
     CONSTRAINT pk_metadata_entity_foo PRIMARY KEY (urn)
-    );
+);
 
 -- initialize bar entity table
 CREATE TABLE IF NOT EXISTS metadata_entity_bar (
@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS metadata_entity_bar (
     lastmodifiedby VARCHAR(255) NOT NULL,
     createdfor VARCHAR(255),
     CONSTRAINT pk_metadata_entity_bar PRIMARY KEY (urn)
-    );
+);
 
 -- initialize burger entity table
 CREATE TABLE IF NOT EXISTS metadata_entity_burger (
@@ -34,26 +34,26 @@ CREATE TABLE IF NOT EXISTS metadata_entity_burger (
     );
 
 CREATE TABLE metadata_id (
-                             namespace VARCHAR(255) NOT NULL,
-                             id BIGINT NOT NULL,
-                             CONSTRAINT uq_metadata_id_namespace_id UNIQUE (namespace,id)
+    namespace VARCHAR(255) NOT NULL,
+    id BIGINT NOT NULL,
+    CONSTRAINT uq_metadata_id_namespace_id UNIQUE (namespace,id)
 );
 
 CREATE TABLE metadata_aspect (
-                                 urn VARCHAR(100) NOT NULL,
-                                 aspect VARCHAR(200) NOT NULL,
-                                 version BIGINT NOT NULL,
-                                 metadata VARCHAR(500) NOT NULL,
-                                 createdon DATETIME(6) NOT NULL,
-                                 createdby VARCHAR(255) NOT NULL,
-                                 createdfor VARCHAR(255),
-                                 CONSTRAINT pk_metadata_aspect PRIMARY KEY (urn,aspect,version)
+    urn VARCHAR(100) NOT NULL,
+    aspect VARCHAR(200) NOT NULL,
+    version BIGINT NOT NULL,
+    metadata VARCHAR(500) NOT NULL,
+    createdon DATETIME(6) NOT NULL,
+    createdby VARCHAR(255) NOT NULL,
+    createdfor VARCHAR(255),
+    CONSTRAINT pk_metadata_aspect PRIMARY KEY (urn,aspect,version)
 );
 
 CREATE TABLE IF NOT EXISTS metadata_relationship_belongsto (
-                                                               id BIGINT NOT NULL AUTO_INCREMENT,
-                                                               metadata JSON NOT NULL,
-                                                               source VARCHAR(1000) NOT NULL,
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    metadata JSON NOT NULL,
+    source VARCHAR(1000) NOT NULL,
     source_type VARCHAR(100) NOT NULL,
     destination VARCHAR(1000) NOT NULL,
     destination_type VARCHAR(100) NOT NULL,
@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS metadata_relationship_belongsto (
     lastmodifiedby VARCHAR(255) NOT NULL,
     deleted_ts DATETIME(6) DEFAULT NULL,
     PRIMARY KEY (id)
-    );
+);
 
 ALTER TABLE metadata_entity_foo ADD a_urn JSON;
 ALTER TABLE metadata_entity_bar ADD a_urn JSON;

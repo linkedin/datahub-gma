@@ -9,6 +9,7 @@ import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.LocalRelationshipCriterion;
+import com.linkedin.metadata.query.LocalRelationshipCriterionArray;
 import com.linkedin.metadata.query.LocalRelationshipFilter;
 import com.linkedin.metadata.query.LocalRelationshipValue;
 import java.util.ArrayList;
@@ -119,6 +120,9 @@ public class SQLStatementUtils {
   private static final String SQL_BROWSE_ASPECT_TEMPLATE =
       String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby, (SELECT COUNT(urn) FROM %%s) as _total_count "
           + "FROM %%s WHERE %s LIMIT %%d OFFSET %%d", SOFT_DELETED_CHECK);
+
+  public static final String SOURCE = "source";
+  public static final String DESTINATION = "destination";
 
   private SQLStatementUtils() {
     // Util class
@@ -338,19 +342,19 @@ public class SQLStatementUtils {
 
   /**
    * Construct where clause SQL from multiple filters. Return null if all filters are empty.
-   * @param supportedCondition contains supported conditions such as EQUAL.
+   * @param supportedConditions contains supported conditions such as EQUAL.
    * @param nonDollarVirtualColumnsEnabled  true if virtual column does not contain $, false otherwise
    * @param filters An array of pairs which are filter and table prefix.
    * @return sql that can be appended after where clause.
    */
   @SafeVarargs
   @Nullable
-  public static String whereClause(@Nonnull Map<Condition, String> supportedCondition, boolean nonDollarVirtualColumnsEnabled,
+  public static String whereClause(@Nonnull Map<Condition, String> supportedConditions, boolean nonDollarVirtualColumnsEnabled,
       @Nonnull Pair<LocalRelationshipFilter, String>... filters) {
     List<String> andClauses = new ArrayList<>();
     for (Pair<LocalRelationshipFilter, String> filter : filters) {
       if (filter.getValue0().hasCriteria() && filter.getValue0().getCriteria().size() > 0) {
-        andClauses.add("(" + whereClause(filter.getValue0(), supportedCondition, filter.getValue1(), nonDollarVirtualColumnsEnabled) + ")");
+        andClauses.add("(" + whereClause(filter.getValue0(), supportedConditions, filter.getValue1(), nonDollarVirtualColumnsEnabled) + ")");
       }
     }
     if (andClauses.isEmpty()) {
@@ -365,14 +369,14 @@ public class SQLStatementUtils {
   /**
    * Construct where clause SQL from a filter. Throw IllegalArgumentException if filter is empty.
    * @param filter contains field, condition and value
-   * @param supportedCondition contains supported conditions such as EQUAL.
+   * @param supportedConditions contains supported conditions such as EQUAL.
    * @param tablePrefix Table prefix append to the field name. Useful during SQL joining across multiple tables.
    * @param nonDollarVirtualColumnsEnabled whether to use dollar sign in virtual column names.
    * @return sql that can be appended after where clause.
    */
   @Nonnull
   public static String whereClause(@Nonnull LocalRelationshipFilter filter,
-      @Nonnull Map<Condition, String> supportedCondition, @Nullable String tablePrefix,
+      @Nonnull Map<Condition, String> supportedConditions, @Nullable String tablePrefix,
       boolean nonDollarVirtualColumnsEnabled) {
     if (!filter.hasCriteria() || filter.getCriteria().size() == 0) {
       throw new IllegalArgumentException("Empty filter cannot construct where clause.");
@@ -397,7 +401,7 @@ public class SQLStatementUtils {
           }
           orClauses.add(entry.getKey() + " IN " +  parseLocalRelationshipValue(pair.getValue1()));
         } else {
-          orClauses.add(entry.getKey() + supportedCondition.get(pair.getValue0()) + "'" + parseLocalRelationshipValue(pair.getValue1()) + "'");
+          orClauses.add(entry.getKey() + supportedConditions.get(pair.getValue0()) + "'" + parseLocalRelationshipValue(pair.getValue1()) + "'");
         }
       }
 
@@ -416,6 +420,35 @@ public class SQLStatementUtils {
     }
 
     return String.join(" AND ", andClauses);
+  }
+
+  /**
+   * Construct the where clause SQL from a filter when running in old schema mode. Assumes that all filters are applied on
+   * urn fields, thus only the relationship table needs to be queried. Urn fields refers to the source or destination urn
+   * in a relationship query.
+   * Ex.
+   * AND rt.source = "urn:li:dataset:abc" AND rt.destination = "urn:li:corpuser:def"
+   * @param supportedConditions map of supported conditions, such as EQUAL
+   * @param criteria singleton array of criteria; old schema is limited to at most 1 criteria, and it must be on the urn field
+   * @param whichNode which node of the edge the filter is applied on, either "source" or "destination"
+   * @return SQL string starting with AND to denote the conditions of a relationship query in old schema mode.
+   */
+  public static String whereClauseOldSchema(@Nonnull Map<Condition, String> supportedConditions,
+      @Nonnull LocalRelationshipCriterionArray criteria, @Nonnull String whichNode) {
+    if (!SOURCE.equals(whichNode) && !DESTINATION.equals(whichNode)) {
+      throw new IllegalArgumentException("Must specify either 'source' or 'destination' node when parsing local relationship fields"
+          + "in the old schema");
+    }
+    StringBuilder sb = new StringBuilder();
+    for (LocalRelationshipCriterion criterion : criteria) {
+      String field = "rt." + whichNode;
+      String condition = supportedConditions.get(criterion.getCondition());
+      String value = criterion.getCondition() == Condition.IN
+          ? parseLocalRelationshipValue(criterion.getValue())
+          : "'" + parseLocalRelationshipValue(criterion.getValue()) + "'";
+      sb.append(String.format(" AND %s %s %s", field, condition, value));
+    }
+    return sb.toString();
   }
 
   private static String parseLocalRelationshipField(
