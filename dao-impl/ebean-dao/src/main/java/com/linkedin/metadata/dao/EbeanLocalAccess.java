@@ -5,8 +5,6 @@ import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.SetMode;
 import com.linkedin.metadata.aspect.AuditedAspect;
-import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
-import com.linkedin.metadata.dao.builder.LocalRelationshipBuilderRegistry;
 import com.linkedin.metadata.dao.urnpath.EmptyPathExtractor;
 import com.linkedin.metadata.dao.urnpath.UrnPathExtractor;
 import com.linkedin.metadata.dao.utils.EBeanDAOUtils;
@@ -33,7 +31,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -64,8 +61,6 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   private final Class<URN> _urnClass;
   private final String _entityType;
   private UrnPathExtractor<URN> _urnPathExtractor;
-  private final EbeanLocalRelationshipWriterDAO _localRelationshipWriterDAO;
-  private LocalRelationshipBuilderRegistry _localRelationshipBuilderRegistry;
   private final SchemaEvolutionManager _schemaEvolutionManager;
   private final boolean _nonDollarVirtualColumnsEnabled;
 
@@ -84,7 +79,6 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     _urnClass = urnClass;
     _urnPathExtractor = urnPathExtractor;
     _entityType = ModelUtils.getEntityTypeFromUrnClass(_urnClass);
-    _localRelationshipWriterDAO = new EbeanLocalRelationshipWriterDAO(_server);
     _schemaEvolutionManager = createSchemaEvolutionManager(serverConfig);
     _nonDollarVirtualColumnsEnabled = nonDollarVirtualColumnsEnabled;
   }
@@ -138,24 +132,8 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
     // newValue is null if aspect is to be soft-deleted.
     if (newValue == null) {
-      /*
-      TODO:
-      Local relationship is derived from an aspect. If an aspect metadata is deleted, then the local relationships derived from it
-      should also be invalidated. But how this invalidation process should work is still unclear. We can re-visited this part
-      once we see clear use case. For now, to prevent inconsistency between entity table and local relationship table, we do not allow
-      an aspect to be deleted if there's local relationship being derived from it.
-       */
-      if (_localRelationshipBuilderRegistry != null && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
-        throw new UnsupportedOperationException(
-            String.format("Aspect %s cannot be soft-deleted because it has a local relationship builder registered.",
-                aspectClass.getCanonicalName()));
-      }
-
       return sqlUpdate.setParameter("metadata", DELETED_VALUE).execute();
     }
-
-    // Add local relationships if builder is provided.
-    addRelationships(urn, newValue, aspectClass);
 
     AuditedAspect auditedAspect = new AuditedAspect()
         .setAspect(RecordUtils.toJsonString(newValue))
@@ -170,18 +148,6 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
       final String metadata = toJsonString(auditedAspect);
       return sqlUpdate.setParameter("metadata", metadata).execute();
-  }
-
-  @Override
-  public <ASPECT extends RecordTemplate> List<LocalRelationshipUpdates> addRelationships(@Nonnull URN urn,
-      @Nonnull ASPECT aspect, @Nonnull Class<ASPECT> aspectClass) {
-    if (_localRelationshipBuilderRegistry != null && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
-      List<LocalRelationshipUpdates> localRelationshipUpdates =
-          _localRelationshipBuilderRegistry.getLocalRelationshipBuilder(aspect).buildRelationships(urn, aspect);
-      _localRelationshipWriterDAO.processLocalRelationshipUpdates(urn, localRelationshipUpdates);
-      return localRelationshipUpdates;
-    }
-    return new ArrayList<>();
   }
 
   /**
@@ -521,13 +487,6 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   private String toJsonString(@Nonnull URN urn) {
     final Map<String, Object> pathValueMap = _urnPathExtractor.extractPaths(urn);
     return JSONObject.toJSONString(pathValueMap);
-  }
-
-  /**
-   * Set local relationship builder registry.
-   */
-  public void setLocalRelationshipBuilderRegistry(@Nullable LocalRelationshipBuilderRegistry localRelationshipBuilderRegistry) {
-    _localRelationshipBuilderRegistry = localRelationshipBuilderRegistry;
   }
 
   @Nonnull

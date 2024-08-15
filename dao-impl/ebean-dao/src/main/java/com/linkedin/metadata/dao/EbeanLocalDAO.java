@@ -83,6 +83,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   private final static int DEFAULT_BATCH_SIZE = 50;
   private int _queryKeysCount = DEFAULT_BATCH_SIZE;
   private IEbeanLocalAccess<URN> _localAccess;
+  private EbeanLocalRelationshipWriterDAO _localRelationshipWriterDAO;
+  private LocalRelationshipBuilderRegistry _localRelationshipBuilderRegistry = null;
+
+  private RelationshipSource _relationshipSource = RelationshipSource.RELATIONSHIP_BUILDERS;
   private SchemaConfig _schemaConfig = SchemaConfig.OLD_SCHEMA_ONLY;
   private final EBeanDAOConfig _eBeanDAOConfig = new EBeanDAOConfig();
 
@@ -90,6 +94,15 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     OLD_SCHEMA_ONLY, // Default: read from and write to the old schema table
     NEW_SCHEMA_ONLY, // Read from and write to the new schema tables
     DUAL_SCHEMA // Write to both the old and new tables and perform a comparison between values when reading
+  }
+
+  /**
+   * Where to look for the relationship(s) for ingestion. Either extract the relationships from the aspect metadata or
+   * from the local relationship registry (legacy), which uses relationship builders.
+   */
+  public enum RelationshipSource {
+    ASPECT_METADATA, // Look at the aspect model and extract any relationship from its fields
+    RELATIONSHIP_BUILDERS // Use the relationship registry, which relies on relationship builders
   }
 
   // Which approach to be used for record retrieval when inserting a new record
@@ -118,6 +131,15 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   public boolean isChangeLogEnabled() {
     return _changeLogEnabled;
+  }
+
+  /**
+   * Set where the relationships should be derived from during ingestion. Either from aspect models or from relationship
+   * builders. The default is relationship builders. This should only be used during DAO instantiation i.e. in the DAO factory.
+   * @param relationshipSource {@link RelationshipSource ASPECT_METADATA or RELATIONSHIP_BUILDERS}
+   */
+  public void setRelationshipSource(RelationshipSource relationshipSource) {
+    _relationshipSource = relationshipSource;
   }
 
   public void setOverwriteLatestVersionEnabled(boolean overwriteLatestVersionEnabled) {
@@ -382,6 +404,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     super(aspectUnionClass, producer, urnClass, new EmptyPathExtractor<>());
     _server = server;
     _urnClass = urnClass;
+    _localRelationshipWriterDAO = new EbeanLocalRelationshipWriterDAO(_server);
   }
 
   private EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseTrackingMetadataEventProducer producer,
@@ -389,6 +412,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     super(aspectUnionClass, producer, trackingManager, urnClass, new EmptyPathExtractor<>());
     _server = server;
     _urnClass = urnClass;
+    _localRelationshipWriterDAO = new EbeanLocalRelationshipWriterDAO(_server);
   }
   private EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
       @Nonnull EbeanServer server, @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass, @Nonnull SchemaConfig schemaConfig) {
@@ -453,6 +477,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     super(producer, storageConfig, urnClass, urnPathExtractor);
     _server = server;
     _urnClass = urnClass;
+    _localRelationshipWriterDAO = new EbeanLocalRelationshipWriterDAO(_server);
   }
 
   private EbeanLocalDAO(@Nonnull BaseTrackingMetadataEventProducer producer, @Nonnull EbeanServer server,
@@ -461,6 +486,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     super(producer, storageConfig, trackingManager, urnClass, urnPathExtractor);
     _server = server;
     _urnClass = urnClass;
+    _localRelationshipWriterDAO = new EbeanLocalRelationshipWriterDAO(_server);
   }
 
   private EbeanLocalDAO(@Nonnull BaseMetadataEventProducer producer, @Nonnull EbeanServer server,
@@ -570,6 +596,24 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   protected <ASPECT extends RecordTemplate> long saveLatest(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
       @Nullable ASPECT oldValue, @Nullable AuditStamp oldAuditStamp, @Nullable ASPECT newValue,
       @Nonnull AuditStamp newAuditStamp, boolean isSoftDeleted, @Nullable IngestionTrackingContext trackingContext) {
+    // First, check that if the aspect is going to be soft-deleted that it does not have any relationships derived from it.
+    // We currently don't support soft-deleting aspects from which local relationships are derived from.
+    if (newValue == null) {
+      if (_relationshipSource == RelationshipSource.RELATIONSHIP_BUILDERS
+          && _localRelationshipBuilderRegistry != null
+          && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
+        throw new UnsupportedOperationException(
+            String.format("Aspect %s cannot be soft-deleted because it has a local relationship builder registered.",
+                aspectClass.getCanonicalName()));
+      }
+
+      if (_relationshipSource == RelationshipSource.ASPECT_METADATA) {
+        // TODO: not yet implemented
+        throw new UnsupportedOperationException("This method has not been implemented yet to support the "
+            + "ASPECT_METADATA RelationshipSource type yet.");
+      }
+    }
+
     // Save oldValue as the largest version + 1
     long largestVersion = 0;
     if ((isSoftDeleted || oldValue != null) && oldAuditStamp != null && _changeLogEnabled) {
@@ -608,6 +652,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       insert(urn, newValue, aspectClass, newAuditStamp, LATEST_VERSION, trackingContext);
     }
 
+    // Add any local relationships that are derived from the aspect.
+    addRelationshipsIfAny(urn, newValue, aspectClass);
+
     return largestVersion;
   }
 
@@ -629,19 +676,19 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }, 1);
   }
 
-  public <ASPECT extends RecordTemplate> List<LocalRelationshipUpdates> backfillLocalRelationshipsFromEntityTables(
+  public <ASPECT extends RecordTemplate> List<LocalRelationshipUpdates> backfillLocalRelationships(
       @Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass) {
-    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
-      throw new UnsupportedOperationException("Local relationship tables cannot be used in OLD_SCHEMA_ONLY mode, so they cannot be backfilled.");
-    }
     AspectKey<URN, ASPECT> key = new AspectKey<>(aspectClass, urn, LATEST_VERSION);
     return runInTransactionWithRetry(() -> {
-          List<EbeanMetadataAspect> results = _localAccess.batchGetUnion(Collections.singletonList(key), 1, 0, false);
+          List<EbeanMetadataAspect> results = batchGet(Collections.singleton(key), 1);
       if (results.size() == 0) {
         return new ArrayList<>();
       }
       Optional<ASPECT> aspect = toRecordTemplate(aspectClass, results.get(0));
-      return aspect.map(value -> _localAccess.addRelationships(urn, value, aspectClass)).orElse(new ArrayList<>());
+      if (aspect.isPresent()) {
+        return addRelationshipsIfAny(urn, aspect.get(), aspectClass);
+      }
+      return Collections.emptyList();
     }, 1);
   }
 
@@ -804,6 +851,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   protected <ASPECT extends RecordTemplate> void insert(@Nonnull URN urn, @Nullable RecordTemplate value,
       @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, long version, @Nullable IngestionTrackingContext trackingContext) {
 
+
     final EbeanMetadataAspect aspect = buildMetadataAspectBean(urn, value, aspectClass, auditStamp, version);
     if (_schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY && version == LATEST_VERSION) {
       // insert() could be called when updating log table (moving current versions into new history version)
@@ -815,6 +863,34 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       // skip appending change log table (metadata_aspect) if not enabled
       _server.insert(aspect);
     }
+  }
+
+  /**
+   * If the aspect is associated with at least one relationship, upsert the relationship into the corresponding local
+   * relationship table. Associated means that the aspect has a registered relationship build or it includes a relationship field.
+   * @param urn Urn of the metadata update
+   * @param aspect Aspect of the metadata update
+   * @param aspectClass Aspect class of the metadata update
+   * @return List of LocalRelationshipUpdates that were executed
+   */
+  public <ASPECT extends RecordTemplate> List<LocalRelationshipUpdates> addRelationshipsIfAny(@Nonnull URN urn, @Nullable ASPECT aspect,
+      @Nonnull Class<ASPECT> aspectClass) {
+    if (_relationshipSource == RelationshipSource.ASPECT_METADATA) {
+      // TODO: not yet implemented
+      throw new UnsupportedOperationException("This method has not been implemented yet to support the "
+          + "ASPECT_METADATA RelationshipSource type yet.");
+    } else if (_relationshipSource == RelationshipSource.RELATIONSHIP_BUILDERS) {
+      if (_localRelationshipBuilderRegistry != null && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
+        List<LocalRelationshipUpdates> localRelationshipUpdates =
+            _localRelationshipBuilderRegistry.getLocalRelationshipBuilder(aspect).buildRelationships(urn, aspect);
+        _localRelationshipWriterDAO.processLocalRelationshipUpdates(urn, localRelationshipUpdates);
+        return localRelationshipUpdates;
+      }
+    } else {
+      throw new UnsupportedOperationException("Please ensure that the RelationshipSource enum is properly set using "
+          + "setRelationshipSource method.");
+    }
+    return Collections.emptyList();
   }
 
   @Nonnull
@@ -961,10 +1037,14 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   /**
-   * Set a local relationship builder registry.
+   * Provide a local relationship builder registry. Local relationships will be built based on the builders during data ingestion.
+   * If set to null, local relationship ingestion will be turned off for this particular DAO instance. This is beneficial
+   * in situations where some relationships are still in the process of onboarding (i.e. tables have not been created yet).
+   * @param localRelationshipBuilderRegistry All local relationship builders should be registered in this registry.
+   *                                         Can be set to null to turn off local relationship ingestion.
    */
-  public void setLocalRelationshipBuilderRegistry(@Nonnull LocalRelationshipBuilderRegistry localRelationshipBuilderRegistry) {
-    _localAccess.setLocalRelationshipBuilderRegistry(localRelationshipBuilderRegistry);
+  public void setLocalRelationshipBuilderRegistry(@Nullable LocalRelationshipBuilderRegistry localRelationshipBuilderRegistry) {
+    _localRelationshipBuilderRegistry = localRelationshipBuilderRegistry;
   }
 
   /**

@@ -58,7 +58,6 @@ import com.linkedin.testing.SnapshotUnionWithEntitySnapshotOptionalFields;
 import com.linkedin.testing.urn.FooUrn;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;

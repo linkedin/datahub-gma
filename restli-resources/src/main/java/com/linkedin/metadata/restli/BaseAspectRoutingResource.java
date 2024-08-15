@@ -100,7 +100,7 @@ public abstract class BaseAspectRoutingResource<
   }
 
   @Nonnull
-//  @Override
+  @Override
   protected Task<VALUE> get(@Nonnull KEY id, @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
       boolean isInternalModelsEnabled) {
 

@@ -296,6 +296,32 @@ public class SQLStatementUtilsTest {
         );
   }
 
+  @Test
+  public void testWhereClauseOldSchemaSimple() {
+    LocalRelationshipCriterion.Field field = new LocalRelationshipCriterion.Field();
+    field.setUrnField(new UrnField());
+    LocalRelationshipCriterion criterion = new LocalRelationshipCriterion()
+        .setField(field)
+        .setCondition(Condition.EQUAL)
+        .setValue(LocalRelationshipValue.create("value1"));
+    LocalRelationshipCriterionArray sourceCriteria = new LocalRelationshipCriterionArray(criterion);
+    String expected = " AND rt.source = 'value1'";
+    assertEquals(SQLStatementUtils.whereClauseOldSchema(Collections.singletonMap(Condition.EQUAL, "="), sourceCriteria, "source"), expected);
+  }
+
+  @Test
+  public void testWhereClauseOldSchemaConditionIn() {
+    LocalRelationshipCriterion.Field field = new LocalRelationshipCriterion.Field();
+    field.setUrnField(new UrnField());
+    LocalRelationshipCriterion criterion = new LocalRelationshipCriterion()
+        .setField(field)
+        .setCondition(Condition.IN)
+        .setValue(LocalRelationshipValue.create("(value1, value2)"));
+    LocalRelationshipCriterionArray sourceCriteria = new LocalRelationshipCriterionArray(criterion);
+    String expected = " AND rt.source IN (value1, value2)";
+    assertEquals(SQLStatementUtils.whereClauseOldSchema(Collections.singletonMap(Condition.IN, "IN"), sourceCriteria, "source"), expected);
+  }
+
   private void assertConditionsEqual(String actualWhereClause, String expectedWhereClause) {
     List<String> expectedConditions = splitAndSortConditions(expectedWhereClause);
     List<String> actualConditions = splitAndSortConditions(actualWhereClause);

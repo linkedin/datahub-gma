@@ -572,7 +572,7 @@ public abstract class BaseEntityResource<
 
     for (String urn : urns) {
       for (Class<? extends RecordTemplate> aspect : parseAspectsParam(aspectNames, isInternalModelsEnabled)) {
-        getLocalDAO().backfillLocalRelationshipsFromEntityTables(parseUrnParam(urn), aspect).forEach(relationshipUpdates -> {
+        getLocalDAO().backfillLocalRelationships(parseUrnParam(urn), aspect).forEach(relationshipUpdates -> {
           relationshipUpdates.getRelationships().forEach(relationship -> {
             try {
               Urn source = (Urn) relationship.getClass().getMethod("getSource").invoke(relationship);
