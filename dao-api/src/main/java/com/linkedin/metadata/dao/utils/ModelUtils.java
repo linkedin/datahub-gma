@@ -830,7 +830,8 @@ public class ModelUtils {
   }
 
   /**
-   * Convert an entity asset to an entity internal snapshot.
+   * Convert an entity asset to an entity internal snapshot, the created internal snapshot,
+   * which has "equal number of" aspects in asset.
    * @param internalSnapshotClass the type of snapshot to create
    * @param asset the asset to convert to snapshot from
    * @param <ASSET> must be a valid asset model defined in com.linkedin.metadata.asset
@@ -852,7 +853,8 @@ public class ModelUtils {
   }
 
   /**
-   * Convert an entity snapshot to an entity internal snapshot.
+   * Convert an entity snapshot to an entity internal snapshot, and vice versa,
+   * the created snapshot, which has "less or equal" aspects in internal snapshot.
    * @param toSnapshotClass the type of snapshot to create
    * @param fromSnapshot the snapshot to convert
    * @param <TO_SNAPSHOT> must be a valid snapshot model defined in com.linkedin.metadata.snapshot
@@ -896,6 +898,7 @@ public class ModelUtils {
 
   /**
    * Add an aspect union to aspect union list if it is a validated aspect type.
+   * @param validAspectTypes a set of supported aspects
    * @param aspectUnionClass the type of aspect union to add
    * @param aspect the type of aspect to be added
    * @param aspectUnions the aspect union to add

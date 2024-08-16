@@ -1,5 +1,6 @@
 package com.linkedin.metadata.restli;
 
+import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.linkedin.common.urn.Urn;
@@ -228,7 +229,9 @@ public class BaseEntitySimpleKeyResourceTest extends BaseEngineTest {
             aspectFooEvolvedKey2, aspectBarKey2, aspectAttKey2, aspectFooBarKey1, aspectFooBarKey2))).thenReturn(
         ImmutableMap.of(aspectFooKey1, Optional.of(foo), aspectFooKey2, Optional.of(bar)));
 
-    Map<Long, EntityValue> keyValueMap = runAndWait(_resource.batchGet(ImmutableSet.of(id1, id2), null, true))
+    _resource.setLixFunctions(Predicates.alwaysTrue(), Predicates.alwaysTrue(), Predicates.alwaysTrue(),
+        Predicates.alwaysTrue());
+    Map<Long, EntityValue> keyValueMap = runAndWait(_resource.batchGet(ImmutableSet.of(id1, id2), null))
         .entrySet()
         .stream()
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));

@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -93,6 +94,11 @@ public abstract class BaseEntityResource<
   private final Class<INTERNAL_ASPECT_UNION> _internalAspectUnionClass;
   private final Class<ASSET> _assetClass;
   protected final Class<URN> _urnClass;
+  protected Predicate<String[]> _lixAspectsFunction = (aspects) -> false;
+  protected Predicate<SNAPSHOT> _lixSnapshotFunction = (snapshot) -> false;
+  protected Predicate<URN> _lixUrnFunction = (urn) -> false;
+  protected Predicate<Set<URN>> _lixUrnsFunction = (urns) -> false;
+
 
   protected BaseTrackingManager _trackingManager = null;
 
@@ -184,7 +190,7 @@ public abstract class BaseEntityResource<
   @RestMethod.Get
   @Nonnull
   public Task<VALUE> get(@Nonnull KEY id, @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
-    return get(id, aspectNames, false);
+    return get(id, aspectNames, _lixUrnFunction.test(toUrn(id)));
   }
 
   protected Task<VALUE> get(@Nonnull KEY id, @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
@@ -216,12 +222,13 @@ public abstract class BaseEntityResource<
   @Nonnull
   public Task<Map<KEY, VALUE>> batchGet(@Nonnull Set<KEY> ids,
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
-    return batchGet(ids, aspectNames, false);
+    return batchGet(ids, aspectNames,
+        _lixUrnsFunction.test(ids.stream().map(this::toUrn).collect(Collectors.toSet())));
   }
 
   @Deprecated
   @Nonnull
-  protected Task<Map<KEY, VALUE>> batchGet(@Nonnull Set<KEY> ids,
+  private Task<Map<KEY, VALUE>> batchGet(@Nonnull Set<KEY> ids,
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames, boolean isInternalModelsEnabled) {
     return RestliUtils.toTask(() -> {
       final Map<URN, KEY> urnMap = ids.stream().collect(Collectors.toMap(this::toUrn, Function.identity()));
@@ -241,11 +248,12 @@ public abstract class BaseEntityResource<
   @Nonnull
   public Task<BatchResult<KEY, VALUE>> batchGetWithErrors(@Nonnull Set<KEY> ids,
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
-    return batchGetWithErrors(ids, aspectNames, false);
+    return batchGetWithErrors(ids, aspectNames,
+        _lixUrnsFunction.test(ids.stream().collect(Collectors.toMap(this::toUrn, Function.identity())).keySet()));
   }
 
   @Nonnull
-  protected Task<BatchResult<KEY, VALUE>> batchGetWithErrors(@Nonnull Set<KEY> ids,
+  private Task<BatchResult<KEY, VALUE>> batchGetWithErrors(@Nonnull Set<KEY> ids,
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames, boolean isInternalModelsEnabled) {
     return RestliUtils.toTask(() -> {
       final Map<KEY, RestLiServiceException> errors = new HashMap<>();
@@ -280,12 +288,12 @@ public abstract class BaseEntityResource<
   @Action(name = ACTION_INGEST)
   @Nonnull
   public Task<Void> ingest(@ActionParam(PARAM_SNAPSHOT) @Nonnull SNAPSHOT snapshot) {
-    return ingest(snapshot, false);
+    return ingest(snapshot, _lixSnapshotFunction.test(snapshot));
   }
 
   @Deprecated
   @Nonnull
-  protected Task<Void> ingest(@ActionParam(PARAM_SNAPSHOT) @Nonnull SNAPSHOT snapshot,
+  private Task<Void> ingest(@ActionParam(PARAM_SNAPSHOT) @Nonnull SNAPSHOT snapshot,
       boolean isInternalModelsEnabled) {
     return ingestInternal(snapshot, Collections.emptySet(), null, null, isInternalModelsEnabled);
   }
@@ -303,10 +311,11 @@ public abstract class BaseEntityResource<
   public Task<Void> ingestWithTracking(@ActionParam(PARAM_SNAPSHOT) @Nonnull SNAPSHOT snapshot,
       @ActionParam(PARAM_TRACKING_CONTEXT) @Nonnull IngestionTrackingContext trackingContext,
       @Optional @ActionParam(PARAM_INGESTION_PARAMS) IngestionParams ingestionParams) {
-    return ingestWithTracking(snapshot, trackingContext, ingestionParams, false);
+    return ingestWithTracking(snapshot, trackingContext, ingestionParams,
+        _lixSnapshotFunction.test(snapshot));
   }
 
-  protected Task<Void> ingestWithTracking(@ActionParam(PARAM_SNAPSHOT) @Nonnull SNAPSHOT snapshot,
+  private Task<Void> ingestWithTracking(@ActionParam(PARAM_SNAPSHOT) @Nonnull SNAPSHOT snapshot,
       @ActionParam(PARAM_TRACKING_CONTEXT) @Nonnull IngestionTrackingContext trackingContext,
       @Optional @ActionParam(PARAM_INGESTION_PARAMS) IngestionParams ingestionParams, boolean isInternalModelsEnabled) {
     return ingestInternal(snapshot, Collections.emptySet(), trackingContext, ingestionParams, isInternalModelsEnabled);
@@ -348,7 +357,7 @@ public abstract class BaseEntityResource<
   }
 
   @Nonnull
-  protected Task<Void> ingestInternalSnapshot(@Nonnull INTERNAL_SNAPSHOT internalSnapshot,
+  private Task<Void> ingestInternalSnapshot(@Nonnull INTERNAL_SNAPSHOT internalSnapshot,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore, @Nullable IngestionTrackingContext trackingContext,
       @Nullable IngestionParams ingestionParams) {
     return RestliUtils.toTask(() -> {
@@ -372,7 +381,7 @@ public abstract class BaseEntityResource<
   @Nonnull
   public Task<SNAPSHOT> getSnapshot(@ActionParam(PARAM_URN) @Nonnull String urnString,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
-    return getSnapshot(urnString, aspectNames, false);
+    return getSnapshot(urnString, aspectNames, _lixUrnFunction.test(parseUrnParam(urnString)));
   }
 
   @Deprecated
@@ -443,11 +452,11 @@ public abstract class BaseEntityResource<
   @Nonnull
   public Task<BackfillResult> backfill(@ActionParam(PARAM_URN) @Nonnull String urnString,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
-    return backfill(urnString, aspectNames, false);
+    return backfill(urnString, aspectNames, _lixUrnFunction.test(parseUrnParam(urnString)));
   }
 
   @Nonnull
-  protected Task<BackfillResult> backfill(@ActionParam(PARAM_URN) @Nonnull String urnString,
+  private Task<BackfillResult> backfill(@ActionParam(PARAM_URN) @Nonnull String urnString,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames, boolean isInternalModelsEnabled) {
 
     return RestliUtils.toTask(() -> {
@@ -470,9 +479,10 @@ public abstract class BaseEntityResource<
   @Nonnull
   public Task<BackfillResult> backfill(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
-    return backfill(urns, aspectNames, false);
+    return backfill(urns, aspectNames, _lixUrnsFunction.test(
+        Arrays.stream(urns).map(this::parseUrnParam).collect(Collectors.toSet())));
   }
-    protected Task<BackfillResult> backfill(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
+    private Task<BackfillResult> backfill(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames, boolean isInternalModelsEnabled) {
 
     return RestliUtils.toTask(() -> {
@@ -493,11 +503,12 @@ public abstract class BaseEntityResource<
   public Task<BackfillResult> emitNoChangeMetadataAuditEvent(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
       @ActionParam(PARAM_INGESTION_MODE) @Nonnull IngestionMode ingestionMode) {
-    return emitNoChangeMetadataAuditEvent(urns, aspectNames, ingestionMode, false);
+    return emitNoChangeMetadataAuditEvent(urns, aspectNames, ingestionMode, _lixUrnsFunction.test(
+        Arrays.stream(urns).map(urnString -> parseUrnParam(urnString)).collect(Collectors.toSet())));
   }
 
   @Nonnull
-  protected Task<BackfillResult> emitNoChangeMetadataAuditEvent(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
+  private Task<BackfillResult> emitNoChangeMetadataAuditEvent(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
       @ActionParam(PARAM_INGESTION_MODE) @Nonnull IngestionMode ingestionMode, boolean isInternalModelsEnabled) {
     BackfillMode backfillMode = ALLOWED_INGESTION_BACKFILL_BIMAP.get(ingestionMode);
@@ -521,10 +532,11 @@ public abstract class BaseEntityResource<
   @Nonnull
   public Task<BackfillResult> backfillWithNewValue(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
-    return backfillWithNewValue(urns, aspectNames, false);
+    return backfillWithNewValue(urns, aspectNames, _lixUrnsFunction.test(
+        Arrays.stream(urns).map(urnString -> parseUrnParam(urnString)).collect(Collectors.toSet())));
   }
 
-  protected Task<BackfillResult> backfillWithNewValue(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
+  private Task<BackfillResult> backfillWithNewValue(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames, boolean isInternalModelsEnabled) {
 
       return RestliUtils.toTask(() -> {
@@ -541,10 +553,11 @@ public abstract class BaseEntityResource<
   @Nonnull
   public Task<BackfillResult> backfillEntityTables(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
-    return backfillEntityTables(urns, aspectNames, false);
+    return backfillEntityTables(urns, aspectNames, _lixUrnsFunction.test(
+        Arrays.stream(urns).map(urnString -> parseUrnParam(urnString)).collect(Collectors.toSet())));
   }
 
-  protected Task<BackfillResult> backfillEntityTables(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
+  private Task<BackfillResult> backfillEntityTables(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames, boolean isInternalModelsEnabled) {
 
     return RestliUtils.toTask(() -> {
@@ -561,10 +574,11 @@ public abstract class BaseEntityResource<
   @Nonnull
   public Task<BackfillResult> backfillRelationshipTables(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
       @ActionParam(PARAM_ASPECTS) @Nonnull String[] aspectNames) {
-    return backfillRelationshipTables(urns, aspectNames, false);
+    return backfillRelationshipTables(urns, aspectNames, _lixUrnsFunction.test(
+        Arrays.stream(urns).map(urnString -> parseUrnParam(urnString)).collect(Collectors.toSet())));
   }
 
-  protected Task<BackfillResult> backfillRelationshipTables(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
+  private Task<BackfillResult> backfillRelationshipTables(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
       @ActionParam(PARAM_ASPECTS) @Nonnull String[] aspectNames, boolean isInternalModelsEnabled) {
     final BackfillResult backfillResult = new BackfillResult()
         .setEntities(new BackfillResultEntityArray())
@@ -604,11 +618,11 @@ public abstract class BaseEntityResource<
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
       @ActionParam(PARAM_URN) @Optional @Nullable String lastUrn,
       @ActionParam(PARAM_LIMIT) int limit) {
-    return backfill(mode, aspectNames, lastUrn, limit, false);
+    return backfill(mode, aspectNames, lastUrn, limit, _lixAspectsFunction.test(aspectNames));
   }
 
   @Nonnull
-  protected Task<BackfillResult> backfill(@ActionParam(PARAM_MODE) @Nonnull BackfillMode mode,
+  private Task<BackfillResult> backfill(@ActionParam(PARAM_MODE) @Nonnull BackfillMode mode,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
       @ActionParam(PARAM_URN) @Optional @Nullable String lastUrn,
       @ActionParam(PARAM_LIMIT) int limit, boolean isInternalModelsEnabled) {
@@ -743,14 +757,16 @@ public abstract class BaseEntityResource<
    */
   @Nonnull
   private List<VALUE> filterUrns(@Nullable IndexFilter filter, @Nullable IndexSortCriterion indexSortCriterion,
-      @Nullable String lastUrn, int count) {
+      @Nullable String lastUrn, int count, boolean isInternalModelsEnabled) {
 
     final List<URN> urns = getLocalDAO().listUrns(filter, indexSortCriterion, parseUrnParam(lastUrn), count);
-    return urns.stream().map(urn -> toValue(newSnapshot(urn))).collect(Collectors.toList());
+    return urns.stream()
+        .map(urn -> isInternalModelsEnabled ? toInternalValue(newInternalSnapshot(urn)) : toValue(newSnapshot(urn)))
+        .collect(Collectors.toList());
   }
 
   /**
-   * Similar to {@link #filterUrns(IndexFilter, IndexSortCriterion, String, int)} but
+   * Similar to {@link #filterUrns(IndexFilter, IndexSortCriterion, String, int, boolean)} but
    * takes in a start offset and returns a list result with pagination information.
    *
    * @param start defining the paging start
@@ -759,11 +775,13 @@ public abstract class BaseEntityResource<
    */
   @Nonnull
   private ListResult<VALUE> filterUrns(@Nullable IndexFilter filter, @Nullable IndexSortCriterion indexSortCriterion,
-      int start, int count) {
+      int start, int count, boolean isInternalModelsEnabled) {
 
     final ListResult<URN> listResult = getLocalDAO().listUrns(filter, indexSortCriterion, start, count);
     final List<URN> urns = listResult.getValues();
-    final List<VALUE> urnValues = urns.stream().map(urn -> toValue(newSnapshot(urn))).collect(Collectors.toList());
+    final List<VALUE> urnValues = urns.stream()
+        .map(urn -> isInternalModelsEnabled ? toInternalValue(newInternalSnapshot(urn)) : toValue(newSnapshot(urn)))
+        .collect(Collectors.toList());
 
     return ListResult.<VALUE>builder()
         .values(urnValues)
@@ -799,11 +817,12 @@ public abstract class BaseEntityResource<
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
       @QueryParam(PARAM_URN) @Optional @Nullable String lastUrn, @QueryParam(PARAM_COUNT) @Optional("10") int count) {
 
-    return filter(indexFilter, indexSortCriterion, aspectNames, lastUrn, count, false);
+    return filter(indexFilter, indexSortCriterion, aspectNames, lastUrn, count,
+        _lixAspectsFunction.test(aspectNames));
   }
 
   @Nonnull
-  protected Task<List<VALUE>> filter(@QueryParam(PARAM_FILTER) @Optional @Nullable IndexFilter indexFilter,
+  private Task<List<VALUE>> filter(@QueryParam(PARAM_FILTER) @Optional @Nullable IndexFilter indexFilter,
       @QueryParam(PARAM_SORT) @Optional @Nullable IndexSortCriterion indexSortCriterion,
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
       @QueryParam(PARAM_URN) @Optional @Nullable String lastUrn, @QueryParam(PARAM_COUNT) @Optional("10") int count,
@@ -812,7 +831,7 @@ public abstract class BaseEntityResource<
     return RestliUtils.toTask(() -> {
       final Set<Class<? extends RecordTemplate>> aspectClasses = parseAspectsParam(aspectNames, isInternalModelsEnabled);
       if (aspectClasses.isEmpty()) {
-        return filterUrns(indexFilter, indexSortCriterion, lastUrn, count);
+        return filterUrns(indexFilter, indexSortCriterion, lastUrn, count, isInternalModelsEnabled);
       } else {
         return filterAspects(aspectClasses, indexFilter, indexSortCriterion, lastUrn, count, isInternalModelsEnabled);
       }
@@ -853,11 +872,11 @@ public abstract class BaseEntityResource<
       @QueryParam(PARAM_SORT) @Optional @Nullable IndexSortCriterion indexSortCriterion,
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
       @PagingContextParam @Nonnull PagingContext pagingContext) {
-    return filter(indexFilter, indexSortCriterion, aspectNames, pagingContext, false);
+    return filter(indexFilter, indexSortCriterion, aspectNames, pagingContext, _lixAspectsFunction.test(aspectNames));
   }
 
   @Nonnull
-  protected Task<ListResult<VALUE>> filter(@QueryParam(PARAM_FILTER) @Optional @Nullable IndexFilter indexFilter,
+  private Task<ListResult<VALUE>> filter(@QueryParam(PARAM_FILTER) @Optional @Nullable IndexFilter indexFilter,
       @QueryParam(PARAM_SORT) @Optional @Nullable IndexSortCriterion indexSortCriterion,
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
       @PagingContextParam @Nonnull PagingContext pagingContext, boolean isInternalModelsEnabled) {
@@ -866,7 +885,8 @@ public abstract class BaseEntityResource<
       final Set<Class<? extends RecordTemplate>> aspectClasses =
           parseAspectsParam(aspectNames, isInternalModelsEnabled);
       if (aspectClasses.isEmpty()) {
-        return filterUrns(indexFilter, indexSortCriterion, pagingContext.getStart(), pagingContext.getCount());
+        return filterUrns(indexFilter, indexSortCriterion, pagingContext.getStart(), pagingContext.getCount(),
+            isInternalModelsEnabled);
       } else {
         return filterAspects(aspectClasses, indexFilter, indexSortCriterion, pagingContext.getStart(),
             pagingContext.getCount(), isInternalModelsEnabled);
@@ -911,6 +931,21 @@ public abstract class BaseEntityResource<
       @ActionParam(PARAM_GROUP) IndexGroupByCriterion indexGroupByCriterion
   ) {
     return RestliUtils.toTask(() -> getLocalDAO().countAggregate(indexFilter, indexGroupByCriterion));
+  }
+
+  /**
+   * Set experimental functions.
+   * @param lixUrnFunction urn function to be experimented
+   * @param lixUrnsFunction urns function to be experimented
+   * @param lixAspectsFunction aspects function to be experimented
+   */
+  public void setLixFunctions(@Nullable Predicate<String[]> lixAspectsFunction,
+      @Nullable Predicate<SNAPSHOT> lixSnapshotFunction, @Nullable Predicate<URN> lixUrnFunction,
+      @Nullable Predicate<Set<URN>> lixUrnsFunction) {
+    this._lixAspectsFunction = lixAspectsFunction;
+    this._lixSnapshotFunction = lixSnapshotFunction;
+    this._lixUrnFunction = lixUrnFunction;
+    this._lixUrnsFunction = lixUrnsFunction;
   }
 
   @Nonnull

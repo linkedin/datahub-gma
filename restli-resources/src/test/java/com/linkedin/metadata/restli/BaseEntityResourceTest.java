@@ -1,5 +1,6 @@
 package com.linkedin.metadata.restli;
 
+import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.linkedin.data.template.LongMap;
@@ -318,8 +319,10 @@ public class BaseEntityResourceTest extends BaseEngineTest {
             aspectAttKey1, aspectAttKey2, aspectFooEvolvedKey1, aspectFooEvolvedKey2))).thenReturn(
         ImmutableMap.of(aspectFooKey1, Optional.of(foo), aspectFooKey2, Optional.of(bar)));
 
+    _resource.setLixFunctions(Predicates.alwaysTrue(), Predicates.alwaysTrue(), Predicates.alwaysTrue(),
+        Predicates.alwaysTrue());
     Map<EntityKey, EntityValue> keyValueMap = runAndWait(
-        _resource.batchGet(ImmutableSet.of(makeResourceKey(urn1), makeResourceKey(urn2)), null, true)).entrySet()
+        _resource.batchGet(ImmutableSet.of(makeResourceKey(urn1), makeResourceKey(urn2)), null)).entrySet()
         .stream()
         .collect(Collectors.toMap(e -> e.getKey().getKey(), e -> e.getValue()));
 
@@ -1107,8 +1110,10 @@ public class BaseEntityResourceTest extends BaseEngineTest {
         ImmutableSet.of(AspectFoo.class, AspectBar.class, AspectFooEvolved.class, AspectFooBar.class,
             AspectAttributes.class), indexFilter, null, urn1, 2)).thenReturn(listResult2);
 
+    _resource.setLixFunctions(Predicates.alwaysTrue(), Predicates.alwaysTrue(), Predicates.alwaysTrue(),
+        Predicates.alwaysTrue());
     List<EntityValue> actual2 = runAndWait(
-        _resource.filter(indexFilter, null, null, urn1.toString(), new PagingContext(0, 2).getCount(), true));
+        _resource.filter(indexFilter, null, null, urn1.toString(), new PagingContext(0, 2).getCount()));
     assertEquals(actual2.size(), 1);
     assertEquals(actual2.get(0), new EntityValue().setFoo(foo2).setBar(bar2));
 
@@ -1250,5 +1255,61 @@ public class BaseEntityResourceTest extends BaseEngineTest {
         runAndWait(_resource.countAggregateFilter(indexFilter, indexGroupByCriterion));
 
     assertEquals(actual.getMetadata().getLongMap(), new LongMap(mapResult));
+  }
+
+  @Test
+  public void testIngestAsset() {
+    FooUrn urn = makeFooUrn(1);
+    EntityAsset asset = new EntityAsset();
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectBar bar = new AspectBar().setValue("bar");
+    asset.setUrn(urn);
+    asset.setAspectFoo(foo);
+    asset.setAspectBar(bar);
+    IngestionTrackingContext trackingContext = new IngestionTrackingContext();
+
+    runAndWait(_resource.ingestAsset(asset, trackingContext, null));
+
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(foo), any(), eq(trackingContext), eq(null));
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(trackingContext), eq(null));
+
+    IngestionParams ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
+    runAndWait(_resource.ingestAsset(asset, trackingContext, ingestionParams));
+
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(foo), any(), eq(trackingContext), eq(ingestionParams));
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(trackingContext), eq(ingestionParams));
+    verifyNoMoreInteractions(_mockLocalDAO);
+  }
+
+  @Test
+  public void testGetAsset() {
+    FooUrn urn = makeFooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectBar bar = new AspectBar().setValue("bar");
+    AspectFooEvolved fooEvolved = new AspectFooEvolved().setValue("fooEvolved");
+    AspectFooBar fooBar = new AspectFooBar().setBars(new BarUrnArray(new BarUrn(1)));
+    AspectAttributes attributes = new AspectAttributes().setAttributes(new StringArray("a"));
+
+    AspectKey<FooUrn, ? extends RecordTemplate> fooKey = new AspectKey<>(AspectFoo.class, urn, LATEST_VERSION);
+    AspectKey<FooUrn, ? extends RecordTemplate> fooEvolvedKey = new AspectKey<>(AspectFooEvolved.class, urn, LATEST_VERSION);
+    AspectKey<FooUrn, ? extends RecordTemplate> barKey = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
+    AspectKey<FooUrn, ? extends RecordTemplate> fooBarKey = new AspectKey<>(AspectFooBar.class, urn, LATEST_VERSION);
+    AspectKey<FooUrn, ? extends RecordTemplate> attKey = new AspectKey<>(AspectAttributes.class, urn, LATEST_VERSION);
+
+    Set<AspectKey<FooUrn, ? extends RecordTemplate>> aspectKeys =
+        ImmutableSet.of(fooKey, fooEvolvedKey, barKey, fooBarKey, attKey);
+    when(_mockLocalDAO.get(aspectKeys)).thenReturn(
+        ImmutableMap.of(fooKey, Optional.of(foo), fooEvolvedKey, Optional.of(fooEvolved), barKey, Optional.of(bar),
+            fooBarKey, Optional.of(fooBar), attKey, Optional.of(attributes)));
+
+    EntityAsset asset = runAndWait(_resource.getAsset(urn.toString(), null));
+
+    assertEquals(asset.getUrn(), urn);
+
+    assertEquals(asset.getAspectFoo(), foo);
+    assertEquals(asset.getAspectFooEvolved(), fooEvolved);
+    assertEquals(asset.getAspectBar(), bar);
+    assertEquals(asset.getAspectFooBar(), fooBar);
+    assertEquals(asset.getAspectAttributes(), attributes);
   }
 }

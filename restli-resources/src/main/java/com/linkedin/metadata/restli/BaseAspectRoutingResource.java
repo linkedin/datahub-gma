@@ -96,7 +96,7 @@ public abstract class BaseAspectRoutingResource<
   @Nonnull
   @Override
   public Task<VALUE> get(@Nonnull KEY id, @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
-    return get(id, aspectNames, false);
+    return get(id, aspectNames, _lixUrnFunction.test(toUrn(id)));
   }
 
   @Nonnull
@@ -135,7 +135,7 @@ public abstract class BaseAspectRoutingResource<
   @Override
   public Task<SNAPSHOT> getSnapshot(@ActionParam(PARAM_URN) @Nonnull String urnString,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
-    return getSnapshot(urnString, aspectNames, false);
+    return getSnapshot(urnString, aspectNames, _lixUrnFunction.test(parseUrnParam(urnString)));
   }
 
   @Nonnull
@@ -164,24 +164,25 @@ public abstract class BaseAspectRoutingResource<
               Stream.concat(aspectsFromGms.stream(), aspectsFromLocalDao.stream()).collect(Collectors.toList())));
         }
       });
+    } else {
+      return RestliUtils.toTask(() -> {
+        if (!containsRoutingAspect(aspectClasses)) {
+          // Get snapshot from Local DAO.
+          final List<ASPECT_UNION> aspectUnions = getAspectsFromLocalDao(urn, aspectClasses);
+          return ModelUtils.newSnapshot(_snapshotClass, urn, aspectUnions);
+        } else {
+          final Set<Class<? extends RecordTemplate>> nonRoutingAspects = getNonRoutingAspects(aspectClasses);
+          final List<ASPECT_UNION> aspectsFromLocalDao = getAspectsFromLocalDao(urn, nonRoutingAspects);
+          final Set<Class<? extends RecordTemplate>> routingAspects = getRoutingAspects(aspectClasses);
+          final List<ASPECT_UNION> aspectsFromGms = routingAspects.stream()
+              .map(routingAspect -> getAspectsFromGms(urn, routingAspect))
+              .flatMap(List::stream)
+              .collect(Collectors.toList());
+          return ModelUtils.newSnapshot(_snapshotClass, urn,
+              Stream.concat(aspectsFromGms.stream(), aspectsFromLocalDao.stream()).collect(Collectors.toList()));
+        }
+      });
     }
-    return RestliUtils.toTask(() -> {
-      if (!containsRoutingAspect(aspectClasses)) {
-        // Get snapshot from Local DAO.
-        final List<ASPECT_UNION> aspectUnions = getAspectsFromLocalDao(urn, aspectClasses);
-        return ModelUtils.newSnapshot(_snapshotClass, urn, aspectUnions);
-      } else {
-        final Set<Class<? extends RecordTemplate>> nonRoutingAspects = getNonRoutingAspects(aspectClasses);
-        final List<ASPECT_UNION> aspectsFromLocalDao = getAspectsFromLocalDao(urn, nonRoutingAspects);
-        final Set<Class<? extends RecordTemplate>> routingAspects = getRoutingAspects(aspectClasses);
-        final List<ASPECT_UNION> aspectsFromGms = routingAspects.stream()
-            .map(routingAspect -> getAspectsFromGms(urn, routingAspect))
-            .flatMap(List::stream)
-            .collect(Collectors.toList());
-        return ModelUtils.newSnapshot(_snapshotClass, urn,
-            Stream.concat(aspectsFromGms.stream(), aspectsFromLocalDao.stream()).collect(Collectors.toList()));
-      }
-    });
   }
 
   /**
@@ -222,7 +223,8 @@ public abstract class BaseAspectRoutingResource<
   @Nonnull
   public Task<BackfillResult> backfill(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
-    return backfill(urns, aspectNames, false);
+    return backfill(urns, aspectNames,
+        _lixUrnsFunction.test(Arrays.stream(urns).map(this::parseUrnParam).collect(Collectors.toSet())));
   }
 
   @Nonnull
@@ -271,7 +273,8 @@ public abstract class BaseAspectRoutingResource<
   public Task<BackfillResult> backfillWithNewValue(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
 
-    return backfillWithNewValue(urns, aspectNames, false);
+    return backfillWithNewValue(urns, aspectNames,
+        _lixUrnsFunction.test(Arrays.stream(urns).map(this::parseUrnParam).collect(Collectors.toSet())));
   }
 
   protected Task<BackfillResult> backfillWithNewValue(@ActionParam(PARAM_URNS) @Nonnull String[] urns,

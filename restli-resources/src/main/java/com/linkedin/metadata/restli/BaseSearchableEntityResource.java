@@ -99,7 +99,7 @@ public abstract class BaseSearchableEntityResource<
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
       @QueryParam(PARAM_FILTER) @Optional @Nullable Filter filter,
       @QueryParam(PARAM_SORT) @Optional @Nullable SortCriterion sortCriterion) {
-    return getAll(pagingContext, aspectNames, filter, sortCriterion, false);
+    return getAll(pagingContext, aspectNames, filter, sortCriterion, _lixAspectsFunction.test(aspectNames));
   }
 
   @Nonnull
@@ -125,11 +125,11 @@ public abstract class BaseSearchableEntityResource<
       @QueryParam(PARAM_SORT) @Optional @Nullable SortCriterion sortCriterion,
       @PagingContextParam @Nonnull PagingContext pagingContext) {
 
-    return search(input, aspectNames, filter, sortCriterion, pagingContext, false);
+    return search(input, aspectNames, filter, sortCriterion, pagingContext, _lixAspectsFunction.test(aspectNames));
   }
 
   @Nonnull
-  protected Task<CollectionResult<VALUE, SearchResultMetadata>> search(@QueryParam(PARAM_INPUT) @Nonnull String input,
+  private Task<CollectionResult<VALUE, SearchResultMetadata>> search(@QueryParam(PARAM_INPUT) @Nonnull String input,
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
       @QueryParam(PARAM_FILTER) @Optional @Nullable Filter filter,
       @QueryParam(PARAM_SORT) @Optional @Nullable SortCriterion sortCriterion,
@@ -162,11 +162,12 @@ public abstract class BaseSearchableEntityResource<
       @QueryParam(PARAM_PREFERENCE) @Optional @Nullable String preference,
       @PagingContextParam @Nonnull PagingContext pagingContext) {
 
-    return searchV2(input, aspectNames, filter, sortCriterion, preference, pagingContext, false);
+    return searchV2(input, aspectNames, filter, sortCriterion, preference, pagingContext,
+        _lixAspectsFunction.test(aspectNames));
   }
 
   @Nonnull
-  protected Task<CollectionResult<VALUE, SearchResultMetadata>> searchV2(@QueryParam(PARAM_INPUT) @Nonnull String input,
+  private Task<CollectionResult<VALUE, SearchResultMetadata>> searchV2(@QueryParam(PARAM_INPUT) @Nonnull String input,
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
       @QueryParam(PARAM_FILTER) @Optional @Nullable Filter filter,
       @QueryParam(PARAM_SORT) @Optional @Nullable SortCriterion sortCriterion,
@@ -195,7 +196,7 @@ public abstract class BaseSearchableEntityResource<
    * @return CollectionResult which contains: 1. aspect values fetched from MySQL DB, 2. Total count 3. Search result metadata.
    */
   @Nonnull
-  public CollectionResult<VALUE, SearchResultMetadata> getSearchQueryCollectionResult(@Nonnull SearchResult<DOCUMENT> searchResult,
+  private CollectionResult<VALUE, SearchResultMetadata> getSearchQueryCollectionResult(@Nonnull SearchResult<DOCUMENT> searchResult,
       @Nullable String[] aspectNames, boolean isInternalModelsEnabled) {
 
     final List<URN> matchedUrns = searchResult.getDocumentList()
