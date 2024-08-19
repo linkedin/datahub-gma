@@ -9,6 +9,7 @@ dependencies {
   compile externalDependency.javatuples
   compile externalDependency.reflections
   compile externalDependency.commonsLang
+  implementation 'com.google.protobuf:protobuf-java:3.21.1'
 
   dataModel project(':core-models')
   dataModel project(':validators')

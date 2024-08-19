@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+import "google/protobuf/any.proto";
+
+// Define the Status enum
+enum Status {
+    PROCEED = 0;
+    SKIP = 1;
+}
+
+// Define the Result message
+message Result {
+    google.protobuf.Any asset = 1;
+    Status status = 2;
+}
