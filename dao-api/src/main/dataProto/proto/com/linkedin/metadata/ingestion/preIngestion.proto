@@ -2,6 +2,7 @@ syntax = "proto3";
 
 import "google/protobuf/any.proto";
 
+package proto.com.linkedin.metadata.ingestion;
 // Define the Status enum
 enum Status {
     PROCEED = 0;
