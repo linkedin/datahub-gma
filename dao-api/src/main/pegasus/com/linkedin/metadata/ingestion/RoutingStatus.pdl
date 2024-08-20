@@ -1,10 +1,10 @@
 namespace com.linkedin.metadata.ingestion
 
 /**
-The status of ingestion process
+The status of routing process
 */
 
-enum IngestionStatus {
+enum RoutingStatus {
     PROCEED,
     SKIP
 }

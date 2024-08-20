@@ -5,5 +5,5 @@ record PreIngestionResult {
     /**
     * Returns the status of ingestion
     */
-    ingestionStatus: IngestionStatus
+    routingStatus: RoutingStatus
 }
