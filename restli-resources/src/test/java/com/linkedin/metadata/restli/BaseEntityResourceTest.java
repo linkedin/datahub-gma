@@ -1,6 +1,5 @@
 package com.linkedin.metadata.restli;
 
-import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.linkedin.data.template.LongMap;
@@ -25,6 +24,7 @@ import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.query.MapMetadata;
 import com.linkedin.metadata.query.SortOrder;
+import com.linkedin.metadata.restli.lix.ResourceLix;
 import com.linkedin.parseq.BaseEngineTest;
 import com.linkedin.restli.common.ComplexResourceKey;
 import com.linkedin.restli.common.EmptyRecord;
@@ -62,6 +62,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
@@ -75,6 +76,7 @@ public class BaseEntityResourceTest extends BaseEngineTest {
 
   private BaseLocalDAO<InternalEntityAspectUnion, FooUrn> _mockLocalDAO;
   private TestResource _resource = new TestResource();
+  private TestInternalResource _internalResource = new TestInternalResource();
 
   class TestResource extends
                      BaseEntityResource<ComplexResourceKey<EntityKey, EmptyRecord>, EntityValue, FooUrn, EntitySnapshot,
@@ -83,6 +85,170 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     public TestResource() {
       super(EntitySnapshot.class, EntityAspectUnion.class, FooUrn.class, InternalEntitySnapshot.class,
           InternalEntityAspectUnion.class, EntityAsset.class);
+    }
+
+    @Nonnull
+    @Override
+    protected BaseLocalDAO<InternalEntityAspectUnion, FooUrn> getLocalDAO() {
+      return _mockLocalDAO;
+    }
+
+    @Nonnull
+    @Override
+    protected FooUrn createUrnFromString(@Nonnull String urnString) {
+      try {
+        return FooUrn.createFromString(urnString);
+      } catch (URISyntaxException e) {
+        throw RestliUtils.badRequestException("Invalid URN: " + urnString);
+      }
+    }
+
+    @Nonnull
+    @Override
+    protected FooUrn toUrn(@Nonnull ComplexResourceKey<EntityKey, EmptyRecord> key) {
+      return makeFooUrn(key.getKey().getId().intValue());
+    }
+
+    @Nonnull
+    @Override
+    protected ComplexResourceKey<EntityKey, EmptyRecord> toKey(@Nonnull FooUrn urn) {
+      return new ComplexResourceKey<>(new EntityKey().setId(urn.getIdAsLong()), new EmptyRecord());
+    }
+
+    @Nonnull
+    @Override
+    protected EntityValue toValue(@Nonnull EntitySnapshot snapshot) {
+      EntityValue value = new EntityValue();
+      ModelUtils.getAspectsFromSnapshot(snapshot).forEach(a -> {
+        if (a instanceof AspectFoo) {
+          value.setFoo(AspectFoo.class.cast(a));
+        } else if (a instanceof AspectBar) {
+          value.setBar(AspectBar.class.cast(a));
+        } else if (a instanceof AspectAttributes) {
+          value.setAttributes(AspectAttributes.class.cast(a));
+        }
+      });
+      return value;
+    }
+
+    @Nonnull
+    @Override
+    protected EntitySnapshot toSnapshot(@Nonnull EntityValue value, @Nonnull FooUrn urn) {
+      EntitySnapshot snapshot = new EntitySnapshot().setUrn(urn);
+      EntityAspectUnionArray aspects = new EntityAspectUnionArray();
+      if (value.hasFoo()) {
+        aspects.add(ModelUtils.newAspectUnion(EntityAspectUnion.class, value.getFoo()));
+      }
+      if (value.hasBar()) {
+        aspects.add(ModelUtils.newAspectUnion(EntityAspectUnion.class, value.getBar()));
+      }
+      if (value.hasAttributes()) {
+        aspects.add(ModelUtils.newAspectUnion(EntityAspectUnion.class, value.getAttributes()));
+      }
+
+      snapshot.setAspects(aspects);
+      return snapshot;
+    }
+
+    @Override
+    public ResourceContext getContext() {
+      return mock(ResourceContext.class);
+    }
+  }
+
+  class TestInternalResource extends
+                     BaseEntityResource<ComplexResourceKey<EntityKey, EmptyRecord>, EntityValue, FooUrn, EntitySnapshot,
+                         EntityAspectUnion, InternalEntitySnapshot, InternalEntityAspectUnion, EntityAsset> {
+
+    public TestInternalResource() {
+      super(EntitySnapshot.class, EntityAspectUnion.class, FooUrn.class, InternalEntitySnapshot.class,
+          InternalEntityAspectUnion.class, EntityAsset.class, new ResourceLix() {
+            @Override
+            public boolean testGet(@Nonnull String urn, @Nonnull String type) {
+              return true;
+            }
+
+            @Override
+            public boolean testBatchGet(@Nullable String urn, @Nullable String type) {
+              return true;
+            }
+
+            @Override
+            public boolean testBatchGetWithErrors(@Nullable String urn, @Nullable String type) {
+              return false;
+            }
+
+            @Override
+            public boolean testIngest(@Nonnull String urn, @Nonnull String type, @Nullable String aspectName) {
+              return false;
+            }
+
+            @Override
+            public boolean testIngestWithTracking(@Nonnull String urn, @Nonnull String type,
+                @Nullable String aspectName) {
+              return false;
+            }
+
+            @Override
+            public boolean testGetSnapshot(@Nullable String urn, @Nullable String type) {
+              return true;
+            }
+
+            @Override
+            public boolean testBackfillLegacy(@Nullable String urn, @Nullable String type) {
+              return false;
+            }
+
+            @Override
+            public boolean testBackfillWithUrns(@Nullable String urn, @Nullable String type) {
+              return false;
+            }
+
+            @Override
+            public boolean testEmitNoChangeMetadataAuditEvent(String urn, String type) {
+              return false;
+            }
+
+            @Override
+            public boolean testBackfillWithNewValue(@Nullable String urn, @Nullable String type) {
+              return false;
+            }
+
+            @Override
+            public boolean testBackfillEntityTables(@Nullable String urn, @Nullable String type) {
+              return false;
+            }
+
+            @Override
+            public boolean testBackfillRelationshipTables(@Nullable String urn, @Nullable String type) {
+              return false;
+            }
+
+            @Override
+            public boolean testBackfill(@Nonnull String assetName, @Nonnull String mode) {
+              return false;
+            }
+
+            @Override
+            public boolean testFilter(@Nonnull String assetName) {
+              return true;
+            }
+
+            @Override
+            public boolean testGetAll(@Nullable String urnClassName) {
+              return false;
+            }
+
+            @Override
+            public boolean testSearch(@Nullable String urnClassName) {
+              return false;
+            }
+
+            @Override
+            public boolean testSearchV2(@Nullable String urnClassName) {
+              return false;
+            }
+          });
     }
 
     @Nonnull
@@ -191,7 +357,7 @@ public class BaseEntityResourceTest extends BaseEngineTest {
         new HashSet<>(Arrays.asList(aspect1Key, aspect2Key, aspect3Key, aspect4Key, aspect5Key)))).thenReturn(
         Collections.singletonMap(aspect1Key, Optional.of(foo)));
 
-    EntityValue value = runAndWait(_resource.get(makeResourceKey(urn), null, true));
+    EntityValue value = runAndWait(_internalResource.get(makeResourceKey(urn), null, true));
 
     assertEquals(value.getFoo(), foo);
     assertFalse(value.hasBar());
@@ -319,10 +485,8 @@ public class BaseEntityResourceTest extends BaseEngineTest {
             aspectAttKey1, aspectAttKey2, aspectFooEvolvedKey1, aspectFooEvolvedKey2))).thenReturn(
         ImmutableMap.of(aspectFooKey1, Optional.of(foo), aspectFooKey2, Optional.of(bar)));
 
-    _resource.setLixFunctions(Predicates.alwaysTrue(), Predicates.alwaysTrue(), Predicates.alwaysTrue(),
-        Predicates.alwaysTrue());
     Map<EntityKey, EntityValue> keyValueMap = runAndWait(
-        _resource.batchGet(ImmutableSet.of(makeResourceKey(urn1), makeResourceKey(urn2)), null)).entrySet()
+        _internalResource.batchGet(ImmutableSet.of(makeResourceKey(urn1), makeResourceKey(urn2)), null)).entrySet()
         .stream()
         .collect(Collectors.toMap(e -> e.getKey().getKey(), e -> e.getValue()));
 
@@ -628,7 +792,7 @@ public class BaseEntityResourceTest extends BaseEngineTest {
         ImmutableMap.of(fooKey, Optional.of(foo), fooEvolvedKey, Optional.of(fooEvolved), barKey, Optional.of(bar),
             fooBarKey, Optional.of(fooBar), attKey, Optional.of(attributes)));
 
-    EntitySnapshot snapshot = runAndWait(_resource.getSnapshot(urn.toString(), null, true));
+    EntitySnapshot snapshot = runAndWait(_internalResource.getSnapshot(urn.toString(), null, true));
 
     assertEquals(snapshot.getUrn(), urn);
 
@@ -1110,10 +1274,8 @@ public class BaseEntityResourceTest extends BaseEngineTest {
         ImmutableSet.of(AspectFoo.class, AspectBar.class, AspectFooEvolved.class, AspectFooBar.class,
             AspectAttributes.class), indexFilter, null, urn1, 2)).thenReturn(listResult2);
 
-    _resource.setLixFunctions(Predicates.alwaysTrue(), Predicates.alwaysTrue(), Predicates.alwaysTrue(),
-        Predicates.alwaysTrue());
     List<EntityValue> actual2 = runAndWait(
-        _resource.filter(indexFilter, null, null, urn1.toString(), new PagingContext(0, 2).getCount()));
+        _internalResource.filter(indexFilter, null, null, urn1.toString(), new PagingContext(0, 2).getCount()));
     assertEquals(actual2.size(), 1);
     assertEquals(actual2.get(0), new EntityValue().setFoo(foo2).setBar(bar2));
 

@@ -10,6 +10,7 @@ import com.linkedin.metadata.dao.AspectKey;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.internal.IngestionParams;
+import com.linkedin.metadata.restli.lix.ResourceLix;
 import com.linkedin.parseq.Task;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.RestLiServiceException;
@@ -83,6 +84,21 @@ public abstract class BaseAspectRoutingResource<
     _assetClass = assetClass;
   }
 
+  public BaseAspectRoutingResource(@Nullable Class<SNAPSHOT> snapshotClass,
+      @Nullable Class<ASPECT_UNION> aspectUnionClass, @Nonnull Class<URN> urnClass, @Nonnull Class<VALUE> valueClass,
+      @Nonnull Class<INTERNAL_SNAPSHOT> internalSnapshotClass,
+      @Nonnull Class<INTERNAL_ASPECT_UNION> internalAspectUnionClass, @Nonnull Class<ASSET> assetClass,
+      @Nonnull ResourceLix resourceLix) {
+    super(snapshotClass, aspectUnionClass, urnClass, internalSnapshotClass, internalAspectUnionClass, assetClass,
+        resourceLix);
+    _valueClass = valueClass;
+    _aspectUnionClass = aspectUnionClass;
+    _snapshotClass = snapshotClass;
+    _internalSnapshotClass = internalSnapshotClass;
+    _internalAspectUnionClass = internalAspectUnionClass;
+    _assetClass = assetClass;
+  }
+
   /**
    * Get the aspect routing client manager which provides multiple aspect routing support.
    * @return {@link AspectRoutingGmsClientManager}
@@ -96,7 +112,8 @@ public abstract class BaseAspectRoutingResource<
   @Nonnull
   @Override
   public Task<VALUE> get(@Nonnull KEY id, @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
-    return get(id, aspectNames, _lixUrnFunction.test(toUrn(id)));
+    final URN urn = toUrn(id);
+    return get(id, aspectNames, _resourceLix.testGet(String.valueOf(urn), urn.getEntityType()));
   }
 
   @Nonnull
@@ -135,7 +152,9 @@ public abstract class BaseAspectRoutingResource<
   @Override
   public Task<SNAPSHOT> getSnapshot(@ActionParam(PARAM_URN) @Nonnull String urnString,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
-    return getSnapshot(urnString, aspectNames, _lixUrnFunction.test(parseUrnParam(urnString)));
+    final URN urn = parseUrnParam(urnString);
+    final String entityType = urn == null ? null : urn.getEntityType();
+    return getSnapshot(urnString, aspectNames, _resourceLix.testGetSnapshot(String.valueOf(urn), entityType));
   }
 
   @Nonnull
@@ -223,12 +242,14 @@ public abstract class BaseAspectRoutingResource<
   @Nonnull
   public Task<BackfillResult> backfill(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
-    return backfill(urns, aspectNames,
-        _lixUrnsFunction.test(Arrays.stream(urns).map(this::parseUrnParam).collect(Collectors.toSet())));
+    final String urnString = urns[0];
+    final URN urn = parseUrnParam(urnString);
+    final String entityType = urn == null ? null : urn.getEntityType();
+    return backfill(urns, aspectNames, _resourceLix.testBackfillWithUrns(urnString, entityType));
   }
 
   @Nonnull
-  protected Task<BackfillResult> backfill(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
+  private Task<BackfillResult> backfill(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames, boolean isInternalModelsEnabled) {
     if (this._urnClass == null) {
       throw new IllegalStateException("URN class is not set for this resource");
@@ -272,12 +293,13 @@ public abstract class BaseAspectRoutingResource<
   @Override
   public Task<BackfillResult> backfillWithNewValue(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
-
-    return backfillWithNewValue(urns, aspectNames,
-        _lixUrnsFunction.test(Arrays.stream(urns).map(this::parseUrnParam).collect(Collectors.toSet())));
+    final String urnString = urns[0];
+    final URN urn = parseUrnParam(urnString);
+    final String entityType = urn == null ? null : urn.getEntityType();
+    return backfillWithNewValue(urns, aspectNames, _resourceLix.testBackfillWithNewValue(urnString, entityType));
   }
 
-  protected Task<BackfillResult> backfillWithNewValue(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
+  private Task<BackfillResult> backfillWithNewValue(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames, boolean isInternalModelsEnabled) {
 
     return RestliUtils.toTask(() -> {
