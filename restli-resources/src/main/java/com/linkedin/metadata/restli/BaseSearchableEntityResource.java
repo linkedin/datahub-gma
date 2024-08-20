@@ -112,8 +112,8 @@ public abstract class BaseSearchableEntityResource<
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
       @QueryParam(PARAM_FILTER) @Optional @Nullable Filter filter,
       @QueryParam(PARAM_SORT) @Optional @Nullable SortCriterion sortCriterion) {
-    final String urnClassName = _urnClass == null ? null : _urnClass.getCanonicalName();
-    return getAll(pagingContext, aspectNames, filter, sortCriterion, _resourceLix.testGetAll(urnClassName));
+    final String urnType = _urnClass == null ? null : _urnClass.getSimpleName();
+    return getAll(pagingContext, aspectNames, filter, sortCriterion, _resourceLix.testGetAll(urnType));
   }
 
   @Nonnull
@@ -138,8 +138,8 @@ public abstract class BaseSearchableEntityResource<
       @QueryParam(PARAM_FILTER) @Optional @Nullable Filter filter,
       @QueryParam(PARAM_SORT) @Optional @Nullable SortCriterion sortCriterion,
       @PagingContextParam @Nonnull PagingContext pagingContext) {
-    final String urnClassName = _urnClass == null ? null : _urnClass.getCanonicalName();
-    return search(input, aspectNames, filter, sortCriterion, pagingContext, _resourceLix.testSearch(urnClassName));
+    final String urnType = _urnClass == null ? null : _urnClass.getSimpleName();
+    return search(input, aspectNames, filter, sortCriterion, pagingContext, _resourceLix.testSearch(urnType));
   }
 
   @Nonnull
@@ -175,9 +175,9 @@ public abstract class BaseSearchableEntityResource<
       @QueryParam(PARAM_SORT) @Optional @Nullable SortCriterion sortCriterion,
       @QueryParam(PARAM_PREFERENCE) @Optional @Nullable String preference,
       @PagingContextParam @Nonnull PagingContext pagingContext) {
-    final String urnClassName = _urnClass == null ? null : _urnClass.getCanonicalName();
+    final String urnType = _urnClass == null ? null : _urnClass.getSimpleName();
     return searchV2(input, aspectNames, filter, sortCriterion, preference, pagingContext,
-        _resourceLix.testSearchV2(urnClassName));
+        _resourceLix.testSearchV2(urnType));
   }
 
   @Nonnull

@@ -163,13 +163,14 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     public TestInternalResource() {
       super(EntitySnapshot.class, EntityAspectUnion.class, FooUrn.class, InternalEntitySnapshot.class,
           InternalEntityAspectUnion.class, EntityAsset.class, new ResourceLix() {
+
             @Override
-            public boolean testGet(@Nonnull String urn, @Nonnull String type) {
+            public boolean testGet(@Nonnull String urn, @Nonnull String entityType) {
               return true;
             }
 
             @Override
-            public boolean testBatchGet(@Nullable String urn, @Nullable String type) {
+            public boolean testBatchGet(@Nullable String urn, @Nullable String entityType) {
               return true;
             }
 
@@ -179,73 +180,73 @@ public class BaseEntityResourceTest extends BaseEngineTest {
             }
 
             @Override
-            public boolean testIngest(@Nonnull String urn, @Nonnull String type, @Nullable String aspectName) {
-              return false;
+            public boolean testIngest(@Nonnull String urn, @Nonnull String entityType, @Nullable String aspectName) {
+              return true;
             }
 
             @Override
-            public boolean testIngestWithTracking(@Nonnull String urn, @Nonnull String type,
+            public boolean testIngestWithTracking(@Nonnull String urn, @Nonnull String entityType,
                 @Nullable String aspectName) {
-              return false;
-            }
-
-            @Override
-            public boolean testGetSnapshot(@Nullable String urn, @Nullable String type) {
               return true;
             }
 
             @Override
-            public boolean testBackfillLegacy(@Nullable String urn, @Nullable String type) {
-              return false;
-            }
-
-            @Override
-            public boolean testBackfillWithUrns(@Nullable String urn, @Nullable String type) {
-              return false;
-            }
-
-            @Override
-            public boolean testEmitNoChangeMetadataAuditEvent(String urn, String type) {
-              return false;
-            }
-
-            @Override
-            public boolean testBackfillWithNewValue(@Nullable String urn, @Nullable String type) {
-              return false;
-            }
-
-            @Override
-            public boolean testBackfillEntityTables(@Nullable String urn, @Nullable String type) {
-              return false;
-            }
-
-            @Override
-            public boolean testBackfillRelationshipTables(@Nullable String urn, @Nullable String type) {
-              return false;
-            }
-
-            @Override
-            public boolean testBackfill(@Nonnull String assetName, @Nonnull String mode) {
-              return false;
-            }
-
-            @Override
-            public boolean testFilter(@Nonnull String assetName) {
+            public boolean testGetSnapshot(@Nullable String urn, @Nullable String entityType) {
               return true;
             }
 
             @Override
-            public boolean testGetAll(@Nullable String urnClassName) {
+            public boolean testBackfillLegacy(@Nullable String urn, @Nullable String entityType) {
               return false;
             }
 
             @Override
-            public boolean testSearch(@Nullable String urnClassName) {
+            public boolean testBackfillWithUrns(@Nullable String urn, @Nullable String entityType) {
               return false;
             }
 
             @Override
-            public boolean testSearchV2(@Nullable String urnClassName) {
+            public boolean testEmitNoChangeMetadataAuditEvent(@Nullable String urn, @Nullable String entityType) {
+              return false;
+            }
+
+            @Override
+            public boolean testBackfillWithNewValue(@Nullable String urn, @Nullable String entityType) {
+              return false;
+            }
+
+            @Override
+            public boolean testBackfillEntityTables(@Nullable String urn, @Nullable String entityType) {
+              return false;
+            }
+
+            @Override
+            public boolean testBackfillRelationshipTables(@Nullable String urn, @Nullable String entityType) {
+              return false;
+            }
+
+            @Override
+            public boolean testBackfill(@Nonnull String assetType, @Nonnull String mode) {
+              return false;
+            }
+
+            @Override
+            public boolean testFilter(@Nonnull String assetType) {
+              return true;
+            }
+
+            @Override
+            public boolean testGetAll(@Nullable String urnType) {
+              return false;
+            }
+
+            @Override
+            public boolean testSearch(@Nullable String urnType) {
+              return false;
+            }
+
+            @Override
+            public boolean testSearchV2(@Nullable String urnType) {
               return false;
             }
           });
@@ -707,6 +708,45 @@ public class BaseEntityResourceTest extends BaseEngineTest {
 
     IngestionParams ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
     runAndWait(_resource.ingestWithTracking(snapshot, trackingContext, ingestionParams));
+
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(foo), any(), eq(trackingContext), eq(ingestionParams));
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(trackingContext), eq(ingestionParams));
+    verifyNoMoreInteractions(_mockLocalDAO);
+  }
+
+  @Test
+  public void testInternalModelIngest() {
+    FooUrn urn = makeFooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectBar bar = new AspectBar().setValue("bar");
+    List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, foo),
+        ModelUtils.newAspectUnion(EntityAspectUnion.class, bar));
+    EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
+
+    runAndWait(_internalResource.ingest(snapshot));
+
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(foo), any(), eq(null), eq(null));
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(null), eq(null));
+    verifyNoMoreInteractions(_mockLocalDAO);
+  }
+
+  @Test
+  public void testInternalModelIngestWithTracking() {
+    FooUrn urn = makeFooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectBar bar = new AspectBar().setValue("bar");
+    List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, foo),
+        ModelUtils.newAspectUnion(EntityAspectUnion.class, bar));
+    EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
+    IngestionTrackingContext trackingContext = new IngestionTrackingContext();
+
+    runAndWait(_internalResource.ingestWithTracking(snapshot, trackingContext, null));
+
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(foo), any(), eq(trackingContext), eq(null));
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(trackingContext), eq(null));
+
+    IngestionParams ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
+    runAndWait(_internalResource.ingestWithTracking(snapshot, trackingContext, ingestionParams));
 
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(foo), any(), eq(trackingContext), eq(ingestionParams));
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(trackingContext), eq(ingestionParams));

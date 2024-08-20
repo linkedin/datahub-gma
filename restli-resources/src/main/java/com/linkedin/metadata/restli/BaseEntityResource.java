@@ -382,19 +382,20 @@ public abstract class BaseEntityResource<
       @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore, @Nullable IngestionTrackingContext trackingContext,
       @Nullable IngestionParams ingestionParams, boolean isInternalModelsEnabled) {
     if (isInternalModelsEnabled) {
-      ingestInternalSnapshot(ModelUtils.convertSnapshots(_internalSnapshotClass, snapshot), aspectsToIgnore,
+      return ingestInternalSnapshot(ModelUtils.convertSnapshots(_internalSnapshotClass, snapshot), aspectsToIgnore,
           trackingContext, ingestionParams);
-    }
-    return RestliUtils.toTask(() -> {
-      final URN urn = (URN) ModelUtils.getUrnFromSnapshot(snapshot);
-      final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
-      ModelUtils.getAspectsFromSnapshot(snapshot).stream().forEach(aspect -> {
-        if (!aspectsToIgnore.contains(aspect.getClass())) {
-          getLocalDAO().add(urn, aspect, auditStamp, trackingContext, ingestionParams);
-        }
+    } else {
+      return RestliUtils.toTask(() -> {
+        final URN urn = (URN) ModelUtils.getUrnFromSnapshot(snapshot);
+        final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
+        ModelUtils.getAspectsFromSnapshot(snapshot).stream().forEach(aspect -> {
+          if (!aspectsToIgnore.contains(aspect.getClass())) {
+            getLocalDAO().add(urn, aspect, auditStamp, trackingContext, ingestionParams);
+          }
+        });
+        return null;
       });
-      return null;
-    });
+    }
   }
 
   @Nonnull
@@ -680,7 +681,7 @@ public abstract class BaseEntityResource<
       @ActionParam(PARAM_URN) @Optional @Nullable String lastUrn,
       @ActionParam(PARAM_LIMIT) int limit) {
     return backfill(mode, aspectNames, lastUrn, limit,
-        _resourceLix.testBackfill(_assetClass.getName(), mode.name()));
+        _resourceLix.testBackfill(_assetClass.getSimpleName(), mode.name()));
   }
 
   @Nonnull
@@ -880,7 +881,7 @@ public abstract class BaseEntityResource<
       @QueryParam(PARAM_URN) @Optional @Nullable String lastUrn, @QueryParam(PARAM_COUNT) @Optional("10") int count) {
 
     return filter(indexFilter, indexSortCriterion, aspectNames, lastUrn, count,
-        _resourceLix.testFilter(_assetClass.getCanonicalName()));
+        _resourceLix.testFilter(_assetClass.getSimpleName()));
   }
 
   @Nonnull
@@ -935,7 +936,7 @@ public abstract class BaseEntityResource<
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
       @PagingContextParam @Nonnull PagingContext pagingContext) {
     return filter(indexFilter, indexSortCriterion, aspectNames, pagingContext,
-        _resourceLix.testFilter(_assetClass.getCanonicalName()));
+        _resourceLix.testFilter(_assetClass.getSimpleName()));
   }
 
   @Nonnull
