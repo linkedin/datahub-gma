@@ -1,0 +1,10 @@
+namespace com.linkedin.metadata.ingestion
+
+/**
+The status of ingestion process
+*/
+
+enum IngestionStatus {
+    PROCEED,
+    SKIP
+}
