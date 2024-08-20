@@ -1,9 +1,0 @@
-namespace com.linkedin.metadata.ingestion
-
-record PreIngestionResult {
-
-    /**
-    * Returns the status of ingestion
-    */
-    routingStatus: RoutingStatus
-}
