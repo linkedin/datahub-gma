@@ -1,7 +1,6 @@
 package com.linkedin.metadata.dao.ingestion;
 
 import com.google.protobuf.Message;
-import com.linkedin.common.urn.Urn;
 
 
 /**
