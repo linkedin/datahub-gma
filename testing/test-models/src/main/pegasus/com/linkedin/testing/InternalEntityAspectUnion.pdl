@@ -5,4 +5,4 @@ import com.linkedin.testing.localrelationship.AspectFooBar
 /**
  * For unit tests
  */
-typeref InternalEntityAspectUnion = union[AspectFoo, AspectFooBar]
+typeref InternalEntityAspectUnion = union[AspectFoo, AspectFooEvolved, AspectBar, AspectFooBar, AspectAttributes]

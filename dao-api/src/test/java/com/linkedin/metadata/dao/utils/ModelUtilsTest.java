@@ -20,6 +20,7 @@ import com.linkedin.testing.EntitySnapshotAlias;
 import com.linkedin.testing.EntitySnapshotAliasOptionalFields;
 import com.linkedin.testing.EntityUnion;
 import com.linkedin.testing.EntityUnionAlias;
+import com.linkedin.testing.EntityValue;
 import com.linkedin.testing.InternalEntityAspectUnion;
 import com.linkedin.testing.InternalEntityAspectUnionArray;
 import com.linkedin.testing.InternalEntitySnapshot;
@@ -56,6 +57,7 @@ import com.linkedin.testing.SnapshotUnion;
 import com.linkedin.testing.SnapshotUnionWithEntitySnapshotOptionalFields;
 import com.linkedin.testing.urn.FooUrn;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -651,24 +653,6 @@ public class ModelUtilsTest {
   }
 
   @Test
-  public void testConvertAssetToSnapshot() {
-    Urn expectedUrn = makeUrn(1);
-    EntityAsset asset = new EntityAsset();
-    AspectFoo expectedFoo = new AspectFoo().setValue("foo");
-    AspectBar expectedBar = new AspectBar().setValue("bar");
-    asset.setUrn(expectedUrn);
-    asset.setAspectFoo(expectedFoo);
-    asset.setAspectBar(expectedBar);
-
-    EntitySnapshot entitySnapshot = ModelUtils.convertAssetToSnapshot(EntitySnapshot.class, asset);
-
-    assertEquals(entitySnapshot.getUrn(), expectedUrn);
-    assertEquals(entitySnapshot.getAspects().size(), 2);
-    assertEquals(entitySnapshot.getAspects().get(0).getAspectFoo(), expectedFoo);
-    assertEquals(entitySnapshot.getAspects().get(1).getAspectBar(), expectedBar);
-  }
-
-  @Test
   public void testConvertAssetToInternalSnapshot() {
     Urn expectedUrn = makeUrn(1);
     EntityAsset asset = new EntityAsset();
@@ -681,11 +665,90 @@ public class ModelUtilsTest {
     asset.setAspectFooBar(expectedFooBar);
 
     InternalEntitySnapshot internalEntitySnapshot =
-        ModelUtils.convertAssetToSnapshot(InternalEntitySnapshot.class, asset);
+        ModelUtils.convertAssetToInternalSnapshot(InternalEntitySnapshot.class, asset);
+
+    assertEquals(internalEntitySnapshot.getUrn(), expectedUrn);
+    assertEquals(internalEntitySnapshot.getAspects().size(), 3);
+    assertEquals(internalEntitySnapshot.getAspects().get(0).getAspectFoo(), expectedFoo);
+    assertEquals(internalEntitySnapshot.getAspects().get(1).getAspectBar(), expectedBar);
+    assertEquals(internalEntitySnapshot.getAspects().get(2).getAspectFooBar(), expectedFooBar);
+  }
+
+  @Test
+  public void testConvertSnapshotToInternalSnapshot() {
+    Urn expectedUrn = makeUrn(1);
+    EntitySnapshot snapshot = new EntitySnapshot().setUrn(expectedUrn);
+    EntityAspectUnion aspectUnion1 = new EntityAspectUnion();
+    EntityAspectUnion aspectUnion2 = new EntityAspectUnion();
+    EntityAspectUnionArray aspectUnionArray = new EntityAspectUnionArray();
+    AspectFoo expectedFoo = new AspectFoo().setValue("foo");
+    AspectBar expectedBar = new AspectBar().setValue("bar");
+    aspectUnion1.setAspectFoo(expectedFoo);
+    aspectUnion2.setAspectBar(expectedBar);
+    aspectUnionArray.add(aspectUnion1);
+    aspectUnionArray.add(aspectUnion2);
+    snapshot.setAspects(aspectUnionArray);
+
+    InternalEntitySnapshot internalEntitySnapshot =
+        ModelUtils.convertSnapshots(InternalEntitySnapshot.class, snapshot);
 
     assertEquals(internalEntitySnapshot.getUrn(), expectedUrn);
     assertEquals(internalEntitySnapshot.getAspects().size(), 2);
     assertEquals(internalEntitySnapshot.getAspects().get(0).getAspectFoo(), expectedFoo);
-    assertEquals(internalEntitySnapshot.getAspects().get(1).getAspectFooBar(), expectedFooBar);
+    assertEquals(internalEntitySnapshot.getAspects().get(1).getAspectBar(), expectedBar);
+  }
+
+  @Test
+  public void testConvertInternalAspectUnionToAspectUnion() {
+    InternalEntityAspectUnion internalEntityAspectUnion1 = new InternalEntityAspectUnion();
+    InternalEntityAspectUnion internalEntityAspectUnion2 = new InternalEntityAspectUnion();
+    List<InternalEntityAspectUnion> internalEntityAspectUnions = new ArrayList<>();
+    AspectFoo expectedFoo = new AspectFoo().setValue("foo");
+    AspectBar expectedBar = new AspectBar().setValue("bar");
+    internalEntityAspectUnion1.setAspectFoo(expectedFoo);
+    internalEntityAspectUnion2.setAspectBar(expectedBar);
+    internalEntityAspectUnions.add(internalEntityAspectUnion1);
+    internalEntityAspectUnions.add(internalEntityAspectUnion2);
+
+
+    List<EntityAspectUnion> entityAspectUnions =
+        ModelUtils.convertInternalAspectUnionToAspectUnion(EntityAspectUnion.class, internalEntityAspectUnions);
+
+    assertEquals(entityAspectUnions.size(), 2);
+    assertEquals(entityAspectUnions.get(0).getAspectFoo(), expectedFoo);
+    assertEquals(entityAspectUnions.get(1).getAspectBar(), expectedBar);
+  }
+
+  @Test
+  public void testDecorateValue() {
+    Urn expectedUrn = makeUrn(1);
+    InternalEntitySnapshot internalEntitySnapshot = new InternalEntitySnapshot().setUrn(expectedUrn);
+    InternalEntityAspectUnion internalAspectUnion1 = new InternalEntityAspectUnion();
+    InternalEntityAspectUnion internalAspectUnion2 = new InternalEntityAspectUnion();
+    InternalEntityAspectUnion internalAspectUnion3 = new InternalEntityAspectUnion();
+    InternalEntityAspectUnionArray internalEntityAspectUnionArray = new InternalEntityAspectUnionArray();
+    AspectFoo expectedFoo = new AspectFoo().setValue("foo");
+    AspectBar expectedBar = new AspectBar().setValue("bar");
+    AspectFooBar expectedFooBar = new AspectFooBar().setBars(new BarUrnArray(new BarUrn(2)));
+    internalAspectUnion1.setAspectFoo(expectedFoo);
+    internalAspectUnion2.setAspectBar(expectedBar);
+    internalAspectUnion3.setAspectFooBar(expectedFooBar);
+    internalEntityAspectUnionArray.add(internalAspectUnion1);
+    internalEntityAspectUnionArray.add(internalAspectUnion2);
+    internalEntityAspectUnionArray.add(internalAspectUnion3);
+    internalEntitySnapshot.setAspects(internalEntityAspectUnionArray);
+
+    EntityValue entityValue = new EntityValue();
+    AspectFoo entityFoo = new AspectFoo().setValue("fooEntity");
+    entityValue.setFoo(entityFoo);
+
+
+    EntityValue decoratedValue = ModelUtils.decorateValue(internalEntitySnapshot, entityValue);
+
+    assertTrue(decoratedValue.hasFoo());
+    assertTrue(decoratedValue.hasBar());
+    assertFalse(decoratedValue.hasAttributes());
+    assertEquals(decoratedValue.getFoo(), entityFoo);
+    assertEquals(decoratedValue.getBar(), expectedBar);
   }
 }
