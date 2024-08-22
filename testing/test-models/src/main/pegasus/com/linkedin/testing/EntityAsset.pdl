@@ -20,6 +20,11 @@ record EntityAsset {
    * For unit tests
    */
   aspectBar: optional AspectBar,
+
+  /**
+   * For unit tests
+   */
+  aspectFooEvolved: optional AspectFooEvolved,
   /**
    * For unit tests
    */
