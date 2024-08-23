@@ -22,6 +22,11 @@ public class DummyResourceLix implements ResourceLix {
   }
 
   @Override
+  public boolean testIngestAsset(@Nonnull String urn, @Nonnull String entityType, @Nullable String aspectName) {
+    return false;
+  }
+
+  @Override
   public boolean testIngest(@Nonnull String urn, @Nonnull String entityType, @Nullable String aspectName) {
     return false;
   }

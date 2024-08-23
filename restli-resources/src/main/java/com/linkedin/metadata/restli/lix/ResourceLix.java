@@ -53,6 +53,15 @@ public interface ResourceLix {
   boolean testIngestWithTracking(@Nonnull String urn, @Nonnull String entityType, @Nullable String aspectName);
 
   /**
+   * Experiment on the IngestAsset.
+   * @param urn urnString of the entity
+   * @param entityType type of the entity
+   * @param aspectName aspect FQCN of the urn
+   * @return enabling/not
+   */
+  boolean testIngestAsset(@Nonnull String urn, @Nonnull String entityType, @Nullable String aspectName);
+
+  /**
    * Experiment on the GetSnapshot.
    * @param urn urnString of the entity
    * @param entityType type of the entity

@@ -143,7 +143,7 @@ public abstract class BaseAspectRoutingResource<
   }
 
   /**
-   * Deprecated to use {@link #ingestAsset(RecordTemplate, IngestionTrackingContext, IngestionParams)} .
+   * Deprecated to use {@link #getAsset(String, String[])} .
    * An action method for getting a snapshot of aspects for an entity.
    */
   @Deprecated
@@ -315,7 +315,7 @@ public abstract class BaseAspectRoutingResource<
   @Override
   protected Task<Void> ingestInternal(@Nonnull SNAPSHOT snapshot,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore, @Nullable IngestionTrackingContext trackingContext,
-      @Nullable IngestionParams ingestionParams, boolean isInternalModelsEnabled) {
+      @Nullable IngestionParams ingestionParams) {
     // TODO: META-18950: add trackingContext to BaseAspectRoutingResource. currently the param is unused.
     return RestliUtils.toTask(() -> {
       final URN urn = (URN) ModelUtils.getUrnFromSnapshot(snapshot);
@@ -326,6 +326,39 @@ public abstract class BaseAspectRoutingResource<
             try {
               if (trackingContext != null) {
                 getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingestWithTracking(urn, aspect, trackingContext, ingestionParams);
+              } else {
+                getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingest(urn, aspect);
+              }
+            } catch (Exception exception) {
+              log.error(
+                  String.format("Couldn't ingest routing aspect %s for %s", aspect.getClass().getSimpleName(), urn),
+                  exception);
+            }
+          } else {
+            getLocalDAO().add(urn, aspect, auditStamp, trackingContext, ingestionParams);
+          }
+        }
+      });
+      return null;
+    });
+  }
+
+  @Nonnull
+  @Override
+  protected Task<Void> ingestInternalAsset(@Nonnull ASSET asset,
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore, @Nullable IngestionTrackingContext trackingContext,
+      @Nullable IngestionParams ingestionParams, boolean isTestTableEnabled) {
+    // TODO: META-18950: add trackingContext to BaseAspectRoutingResource. currently the param is unused.
+    return RestliUtils.toTask(() -> {
+      final URN urn = (URN) ModelUtils.getUrnFromAsset(asset);
+      final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
+      ModelUtils.getAspectsFromAsset(asset).forEach(aspect -> {
+        if (!aspectsToIgnore.contains(aspect.getClass())) {
+          if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
+            try {
+              if (trackingContext != null) {
+                getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass())
+                    .ingestWithTracking(urn, aspect, trackingContext, ingestionParams);
               } else {
                 getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingest(urn, aspect);
               }

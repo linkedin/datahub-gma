@@ -511,6 +511,12 @@ public class BaseEntitySimpleKeyResourceTest extends BaseEngineTest {
             }
 
             @Override
+            public boolean testIngestAsset(@Nonnull String urn, @Nonnull String entityType,
+                @Nullable String aspectName) {
+              return false;
+            }
+
+            @Override
             public boolean testGetSnapshot(@Nullable String urn, @Nullable String entityType) {
               return false;
             }

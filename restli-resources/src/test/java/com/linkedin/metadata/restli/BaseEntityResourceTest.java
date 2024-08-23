@@ -181,11 +181,17 @@ public class BaseEntityResourceTest extends BaseEngineTest {
 
             @Override
             public boolean testIngest(@Nonnull String urn, @Nonnull String entityType, @Nullable String aspectName) {
-              return true;
+              return false;
             }
 
             @Override
             public boolean testIngestWithTracking(@Nonnull String urn, @Nonnull String entityType,
+                @Nullable String aspectName) {
+              return false;
+            }
+
+            @Override
+            public boolean testIngestAsset(@Nonnull String urn, @Nonnull String entityType,
                 @Nullable String aspectName) {
               return true;
             }
@@ -762,8 +768,7 @@ public class BaseEntityResourceTest extends BaseEngineTest {
         ModelUtils.newAspectUnion(EntityAspectUnion.class, bar));
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
 
-    runAndWait(_resource.ingestInternal(snapshot, Collections.singleton(AspectBar.class),
-        null, null, false));
+    runAndWait(_resource.ingestInternal(snapshot, Collections.singleton(AspectBar.class), null, null));
 
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(foo), any(), eq(null), eq(null));
     verifyNoMoreInteractions(_mockLocalDAO);
@@ -1470,13 +1475,13 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     asset.setAspectBar(bar);
     IngestionTrackingContext trackingContext = new IngestionTrackingContext();
 
-    runAndWait(_resource.ingestAsset(asset, trackingContext, null));
+    runAndWait(_internalResource.ingestAsset(asset, trackingContext, null));
 
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(foo), any(), eq(trackingContext), eq(null));
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(trackingContext), eq(null));
 
     IngestionParams ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
-    runAndWait(_resource.ingestAsset(asset, trackingContext, ingestionParams));
+    runAndWait(_internalResource.ingestAsset(asset, trackingContext, ingestionParams));
 
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(foo), any(), eq(trackingContext), eq(ingestionParams));
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(trackingContext), eq(ingestionParams));

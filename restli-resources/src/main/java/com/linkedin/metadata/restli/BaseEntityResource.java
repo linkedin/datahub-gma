@@ -317,20 +317,7 @@ public abstract class BaseEntityResource<
   @Action(name = ACTION_INGEST)
   @Nonnull
   public Task<Void> ingest(@ActionParam(PARAM_SNAPSHOT) @Nonnull SNAPSHOT snapshot) {
-    final URN urn = (URN) ModelUtils.getUrnFromSnapshot(snapshot);
-    final String aspectName = ModelUtils.getAspectsFromSnapshot(snapshot)
-        .stream()
-        .findFirst()
-        .map(aspect -> aspect.getClass().getCanonicalName())
-        .orElse(null);
-    return ingest(snapshot, _resourceLix.testIngest(String.valueOf(urn), urn.getEntityType(), aspectName));
-  }
-
-  @Deprecated
-  @Nonnull
-  private Task<Void> ingest(@ActionParam(PARAM_SNAPSHOT) @Nonnull SNAPSHOT snapshot,
-      boolean isInternalModelsEnabled) {
-    return ingestInternal(snapshot, Collections.emptySet(), null, null, isInternalModelsEnabled);
+    return ingestInternal(snapshot, Collections.emptySet(), null, null);
   }
 
   /**
@@ -346,20 +333,7 @@ public abstract class BaseEntityResource<
   public Task<Void> ingestWithTracking(@ActionParam(PARAM_SNAPSHOT) @Nonnull SNAPSHOT snapshot,
       @ActionParam(PARAM_TRACKING_CONTEXT) @Nonnull IngestionTrackingContext trackingContext,
       @Optional @ActionParam(PARAM_INGESTION_PARAMS) IngestionParams ingestionParams) {
-    final URN urn = (URN) ModelUtils.getUrnFromSnapshot(snapshot);
-    final String aspectName = ModelUtils.getAspectsFromSnapshot(snapshot)
-        .stream()
-        .findFirst()
-        .map(aspect -> aspect.getClass().getCanonicalName())
-        .orElse(null);
-    return ingestWithTracking(snapshot, trackingContext, ingestionParams,
-        _resourceLix.testIngestWithTracking(String.valueOf(urn), urn.getEntityType(), aspectName));
-  }
-
-  private Task<Void> ingestWithTracking(@ActionParam(PARAM_SNAPSHOT) @Nonnull SNAPSHOT snapshot,
-      @ActionParam(PARAM_TRACKING_CONTEXT) @Nonnull IngestionTrackingContext trackingContext,
-      @Optional @ActionParam(PARAM_INGESTION_PARAMS) IngestionParams ingestionParams, boolean isInternalModelsEnabled) {
-    return ingestInternal(snapshot, Collections.emptySet(), trackingContext, ingestionParams, isInternalModelsEnabled);
+    return ingestInternal(snapshot, Collections.emptySet(), trackingContext, ingestionParams);
   }
 
   /**
@@ -373,39 +347,44 @@ public abstract class BaseEntityResource<
   public Task<Void> ingestAsset(@ActionParam(PARAM_ASSET) @Nonnull ASSET asset,
       @ActionParam(PARAM_TRACKING_CONTEXT) @Nonnull IngestionTrackingContext trackingContext,
       @Optional @ActionParam(PARAM_INGESTION_PARAMS) IngestionParams ingestionParams) {
-    return ingestInternalSnapshot(ModelUtils.convertAssetToInternalSnapshot(_internalSnapshotClass, asset),
-        Collections.emptySet(), trackingContext, ingestionParams);
+    final URN urn = (URN) ModelUtils.getUrnFromAsset(asset);
+    final String aspectName = ModelUtils.getAspectsFromAsset(asset)
+        .stream()
+        .findFirst().map(aspect -> aspect.getClass().getCanonicalName()).orElse(null);
+    return ingestAsset(asset, trackingContext, ingestionParams,
+        _resourceLix.testIngestAsset(String.valueOf(urn), urn.getEntityType(), aspectName));
+  }
+
+  private Task<Void> ingestAsset(@ActionParam(PARAM_ASSET) @Nonnull ASSET asset,
+      @ActionParam(PARAM_TRACKING_CONTEXT) @Nonnull IngestionTrackingContext trackingContext,
+      @Optional @ActionParam(PARAM_INGESTION_PARAMS) IngestionParams ingestionParams, boolean isTestTableEnabled) {
+    return ingestInternalAsset(asset, Collections.emptySet(), trackingContext, ingestionParams, isTestTableEnabled);
   }
 
   @Nonnull
   protected Task<Void> ingestInternal(@Nonnull SNAPSHOT snapshot,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore, @Nullable IngestionTrackingContext trackingContext,
-      @Nullable IngestionParams ingestionParams, boolean isInternalModelsEnabled) {
-    if (isInternalModelsEnabled) {
-      return ingestInternalSnapshot(ModelUtils.convertSnapshots(_internalSnapshotClass, snapshot), aspectsToIgnore,
-          trackingContext, ingestionParams);
-    } else {
-      return RestliUtils.toTask(() -> {
-        final URN urn = (URN) ModelUtils.getUrnFromSnapshot(snapshot);
-        final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
-        ModelUtils.getAspectsFromSnapshot(snapshot).stream().forEach(aspect -> {
-          if (!aspectsToIgnore.contains(aspect.getClass())) {
-            getLocalDAO().add(urn, aspect, auditStamp, trackingContext, ingestionParams);
-          }
-        });
-        return null;
+      @Nullable IngestionParams ingestionParams) {
+    return RestliUtils.toTask(() -> {
+      final URN urn = (URN) ModelUtils.getUrnFromSnapshot(snapshot);
+      final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
+      ModelUtils.getAspectsFromSnapshot(snapshot).stream().forEach(aspect -> {
+        if (!aspectsToIgnore.contains(aspect.getClass())) {
+          getLocalDAO().add(urn, aspect, auditStamp, trackingContext, ingestionParams);
+        }
       });
-    }
+      return null;
+    });
   }
 
   @Nonnull
-  private Task<Void> ingestInternalSnapshot(@Nonnull INTERNAL_SNAPSHOT internalSnapshot,
+  protected Task<Void> ingestInternalAsset(@Nonnull ASSET asset,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore, @Nullable IngestionTrackingContext trackingContext,
-      @Nullable IngestionParams ingestionParams) {
+      @Nullable IngestionParams ingestionParams, boolean isTestTableEnabled) {
     return RestliUtils.toTask(() -> {
-      final URN urn = (URN) ModelUtils.getUrnFromSnapshot(internalSnapshot);
+      final URN urn = (URN) ModelUtils.getUrnFromAsset(asset);
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
-      ModelUtils.getAspectsFromSnapshot(internalSnapshot).stream().forEach(aspect -> {
+      ModelUtils.getAspectsFromAsset(asset).stream().forEach(aspect -> {
         if (!aspectsToIgnore.contains(aspect.getClass())) {
           getLocalDAO().add(urn, aspect, auditStamp, trackingContext, ingestionParams);
         }
