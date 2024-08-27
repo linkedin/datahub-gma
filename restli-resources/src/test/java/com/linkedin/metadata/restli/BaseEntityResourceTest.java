@@ -1475,16 +1475,17 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     asset.setAspectBar(bar);
     IngestionTrackingContext trackingContext = new IngestionTrackingContext();
 
-    runAndWait(_internalResource.ingestAsset(asset, trackingContext, null));
+    IngestionParams ingestionParams1 = new IngestionParams().setTestMode(true);
+    runAndWait(_internalResource.ingestAsset(asset, trackingContext, ingestionParams1));
 
-    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(foo), any(), eq(trackingContext), eq(null));
-    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(trackingContext), eq(null));
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(foo), any(), eq(trackingContext), eq(ingestionParams1));
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(trackingContext), eq(ingestionParams1));
 
-    IngestionParams ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
-    runAndWait(_internalResource.ingestAsset(asset, trackingContext, ingestionParams));
+    IngestionParams ingestionParams2 = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
+    runAndWait(_internalResource.ingestAsset(asset, trackingContext, ingestionParams2));
 
-    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(foo), any(), eq(trackingContext), eq(ingestionParams));
-    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(trackingContext), eq(ingestionParams));
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(foo), any(), eq(trackingContext), eq(ingestionParams2));
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(trackingContext), eq(ingestionParams2));
     verifyNoMoreInteractions(_mockLocalDAO);
   }
 

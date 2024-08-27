@@ -22,7 +22,6 @@ public final class RestliConstants {
   public static final String ACTION_EMIT_NO_CHANGE_METADATA_AUDIT_EVENT = "emitNoChangeMetadataAuditEvent";
   public static final String ACTION_GET_ASSET = "getAsset";
   public static final String ACTION_GET_BROWSE_PATHS = "getBrowsePaths";
-  public static final String ACTION_GET_ASSET = "getAsset";
   public static final String ACTION_GET_SNAPSHOT = "getSnapshot";
   public static final String ACTION_INGEST = "ingest";
   public static final String ACTION_INGEST_ASSET = "ingestAsset";

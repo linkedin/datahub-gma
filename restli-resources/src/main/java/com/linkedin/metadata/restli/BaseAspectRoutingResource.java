@@ -347,7 +347,7 @@ public abstract class BaseAspectRoutingResource<
   @Override
   protected Task<Void> ingestInternalAsset(@Nonnull ASSET asset,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore, @Nullable IngestionTrackingContext trackingContext,
-      @Nullable IngestionParams ingestionParams, boolean isTestTableEnabled) {
+      @Nullable IngestionParams ingestionParams) {
     // TODO: META-18950: add trackingContext to BaseAspectRoutingResource. currently the param is unused.
     return RestliUtils.toTask(() -> {
       final URN urn = (URN) ModelUtils.getUrnFromAsset(asset);

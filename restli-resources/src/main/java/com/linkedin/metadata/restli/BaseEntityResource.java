@@ -350,15 +350,12 @@ public abstract class BaseEntityResource<
     final URN urn = (URN) ModelUtils.getUrnFromAsset(asset);
     final String aspectName = ModelUtils.getAspectsFromAsset(asset)
         .stream()
-        .findFirst().map(aspect -> aspect.getClass().getCanonicalName()).orElse(null);
-    return ingestAsset(asset, trackingContext, ingestionParams,
-        _resourceLix.testIngestAsset(String.valueOf(urn), urn.getEntityType(), aspectName));
-  }
+        .findFirst()
+        .map(aspect -> aspect.getClass().getCanonicalName())
+        .orElse(null);
 
-  private Task<Void> ingestAsset(@ActionParam(PARAM_ASSET) @Nonnull ASSET asset,
-      @ActionParam(PARAM_TRACKING_CONTEXT) @Nonnull IngestionTrackingContext trackingContext,
-      @Optional @ActionParam(PARAM_INGESTION_PARAMS) IngestionParams ingestionParams, boolean isTestTableEnabled) {
-    return ingestInternalAsset(asset, Collections.emptySet(), trackingContext, ingestionParams, isTestTableEnabled);
+    return ingestInternalAsset(asset, Collections.emptySet(), trackingContext, ingestionParams.setTestMode(
+        _resourceLix.testIngestAsset(String.valueOf(urn), urn.getEntityType(), aspectName)));
   }
 
   @Nonnull
@@ -380,7 +377,7 @@ public abstract class BaseEntityResource<
   @Nonnull
   protected Task<Void> ingestInternalAsset(@Nonnull ASSET asset,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore, @Nullable IngestionTrackingContext trackingContext,
-      @Nullable IngestionParams ingestionParams, boolean isTestTableEnabled) {
+      @Nullable IngestionParams ingestionParams) {
     return RestliUtils.toTask(() -> {
       final URN urn = (URN) ModelUtils.getUrnFromAsset(asset);
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
