@@ -10,4 +10,10 @@ record IngestionParams {
    * Ingestion mode
    */
   ingestionMode: optional IngestionMode
+
+  /*
+   * When testMode is true, the data will be persisted into {entity}_test and {relationship}_test table.
+   * For validation purposes. And no MAE will be emitted during the persistance
+   */
+  testMode: boolean = false
 }
