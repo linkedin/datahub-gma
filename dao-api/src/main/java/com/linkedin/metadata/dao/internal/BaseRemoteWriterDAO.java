@@ -35,4 +35,16 @@ public abstract class BaseRemoteWriterDAO {
    */
   abstract public <URN extends Urn> void createWithTracking(@Nonnull URN urn, @Nonnull RecordTemplate snapshot,
       @Nonnull IngestionTrackingContext trackingContext, @Nullable IngestionParams ingestionParams);
+
+
+  /**
+   * Same as {@link #createWithTracking(Urn, RecordTemplate, IngestionTrackingContext, IngestionParams)} but create Assets instead.
+   * @param urn the {@link Urn} for the asset
+   * @param asset the asset containing updated metadata aspects
+   * @param trackingContext {@link IngestionTrackingContext} to use for DAO tracking probes and to pass on to the MAE
+   * @param ingestionParams {@link IngestionParams} which indicates how the aspect should be ingested
+   * @param <URN> must be the entity URN type in {@code ASSET}
+   */
+  abstract public <URN extends Urn> void createAsset(@Nonnull URN urn, @Nonnull RecordTemplate asset,
+      @Nonnull IngestionTrackingContext trackingContext, @Nullable IngestionParams ingestionParams);
 }
