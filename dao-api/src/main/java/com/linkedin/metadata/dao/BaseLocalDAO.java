@@ -500,7 +500,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     }
 
     // Save the newValue as the latest version
-    long largestVersion = saveLatest(urn, aspectClass, oldValue, oldAuditStamp, newValue, auditStamp, latest.isSoftDeleted, trackingContext);
+    long largestVersion =
+        saveLatest(urn, aspectClass, oldValue, oldAuditStamp, newValue, auditStamp, latest.isSoftDeleted,
+            trackingContext, ingestionParams.isTestMode());
 
     // Apply retention policy
     applyRetention(urn, aspectClass, getRetention(aspectClass), largestVersion);
@@ -588,7 +590,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   private <ASPECT extends RecordTemplate> AddResult<ASPECT> aspectUpdateHelper(URN urn, AspectUpdateLambda<ASPECT> updateTuple,
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext) {
-    AspectEntry<ASPECT> latest = getLatest(urn, updateTuple.getAspectClass());
+    AspectEntry<ASPECT> latest = getLatest(urn, updateTuple.getAspectClass(), updateTuple.getIngestionParams().isTestMode());
 
     // TODO(yanyang) added for job-gms duplicity debug, throwaway afterwards
     if (log.isDebugEnabled()) {
@@ -744,10 +746,14 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, AspectUpdateLambda<ASPECT> updateLambda,
       @Nonnull AuditStamp auditStamp, int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext) {
     checkValidAspect(updateLambda.getAspectClass());
-
-    final AddResult<ASPECT> result = runInTransactionWithRetry(() -> aspectUpdateHelper(urn, updateLambda, auditStamp, trackingContext),
-        maxTransactionRetry);
-
+    // dual-write to test table while test mode is enabled.
+    if (updateLambda.getIngestionParams().isTestMode()) {
+      runInTransactionWithRetry(() -> aspectUpdateHelper(urn, updateLambda, auditStamp, trackingContext),
+          maxTransactionRetry);
+    }
+    final AddResult<ASPECT> result =
+        runInTransactionWithRetry(() -> aspectUpdateHelper(urn, updateLambda, auditStamp, trackingContext),
+            maxTransactionRetry);
     return unwrapAddResult(urn, result, auditStamp, trackingContext);
   }
 
@@ -779,7 +785,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     checkValidAspect(aspectClass);
 
     runInTransactionWithRetry(() -> {
-      final AspectEntry<ASPECT> latest = getLatest(urn, aspectClass);
+      final AspectEntry<ASPECT> latest = getLatest(urn, aspectClass, false);
       final IngestionParams ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
       return addCommon(urn, latest, null, aspectClass, auditStamp, new DefaultEqualityTester<>(), trackingContext, ingestionParams);
     }, maxTransactionRetry);
@@ -871,12 +877,13 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param newEntry {@link RecordTemplate} of the new latest value of aspect
    * @param newAuditStamp the audit stamp for the operation
    * @param isSoftDeleted flag to indicate if the previous latest value of aspect was soft deleted
+   * @param isTestMode whether the test mode is enabled or not
    * @return the largest version
    */
   protected abstract <ASPECT extends RecordTemplate> long saveLatest(@Nonnull URN urn,
       @Nonnull Class<ASPECT> aspectClass, @Nullable ASPECT oldEntry, @Nullable AuditStamp oldAuditStamp,
       @Nullable ASPECT newEntry, @Nonnull AuditStamp newAuditStamp, boolean isSoftDeleted,
-      @Nullable IngestionTrackingContext trackingContext);
+      @Nullable IngestionTrackingContext trackingContext, boolean isTestMode);
 
   /**
    * Saves the new value of an aspect to entity tables. This is used when backfilling metadata from the old schema to
@@ -1057,11 +1064,12 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    *
    * @param urn {@link Urn} for the entity
    * @param aspectClass the type of aspect to get
+   * @param isTestMode whether the test mode is enabled or not
    * @return {@link AspectEntry} corresponding to the latest version of specific aspect, if it exists
    */
   @Nonnull
   protected abstract <ASPECT extends RecordTemplate> AspectEntry<ASPECT> getLatest(@Nonnull URN urn,
-      @Nonnull Class<ASPECT> aspectClass);
+      @Nonnull Class<ASPECT> aspectClass, boolean isTestMode);
 
   /**
    * Gets the next version to use for an entity's specific aspect type.
@@ -1081,10 +1089,11 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param aspectClass the type of aspect to insert
    * @param auditStamp the {@link AuditStamp} for the aspect
    * @param version the version for the aspect
+   * @param isTestMode whether the test mode is enabled or not
    */
   protected abstract <ASPECT extends RecordTemplate> void insert(@Nonnull URN urn, @Nullable RecordTemplate value,
       @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, long version,
-      @Nullable IngestionTrackingContext trackingContext);
+      @Nullable IngestionTrackingContext trackingContext, boolean isTestMode);
 
   /**
    * Update an aspect for an entity with specific version and {@link AuditStamp} with optimistic locking.
@@ -1095,10 +1104,12 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param newAuditStamp the {@link AuditStamp} for the new aspect
    * @param version the version for the aspect
    * @param oldTimestamp the timestamp for the old aspect
+   * @param isTestMode whether the test mode is enabled or not
    */
   protected abstract <ASPECT extends RecordTemplate> void updateWithOptimisticLocking(@Nonnull URN urn,
       @Nullable RecordTemplate value, @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp newAuditStamp,
-      long version, @Nonnull Timestamp oldTimestamp, @Nullable IngestionTrackingContext trackingContext);
+      long version, @Nonnull Timestamp oldTimestamp, @Nullable IngestionTrackingContext trackingContext,
+      boolean isTestMode);
 
   /**
    * Returns a boolean representing if an Urn has any Aspects associated with it (i.e. if it exists in the DB).

@@ -2802,7 +2802,7 @@ public class EbeanLocalDAOTest {
       // call save method with timestamp (_now - 100) but timestamp is already changed to _now
       // expect OptimisticLockException if optimistic locking is enabled
       dao.updateWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now + 100),
-          0, new Timestamp(_now - 100), null);
+          0, new Timestamp(_now - 100), null, false);
 
     } else if (_enableChangeLog) {
       // either NEW or DUAL schema, whereas entity table is the SOT and aspect table is the log table
@@ -2812,7 +2812,7 @@ public class EbeanLocalDAOTest {
       //  2. (foo:1, lastmodified(_now + 1), version=0) in aspect table (discrepancy)
       //  3. (foo:1, lastmodified(_now)) in entity table
 
-      dao.insert(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now), 0, null);
+      dao.insert(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now), 0, null, false);
       // make inconsistent timestamp on aspect table
       aspect.setCreatedOn(new Timestamp(_now + 1));
       _server.update(aspect);
@@ -2821,25 +2821,25 @@ public class EbeanLocalDAOTest {
       try {
         fooAspect.setValue("bar");
         dao.updateWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now + 200), 0,
-            new Timestamp(_now), null);
+            new Timestamp(_now), null, false);
       } catch (OptimisticLockException e) {
         fail("Expect the update pass since the old timestamp matches the lastmodified in entity table");
       }
       // Expect: update succeed and the values are updated
-      assertEquals(dao.getLatest(fooUrn, AspectFoo.class).getAspect().getValue(), "bar");
-      assertEquals(dao.getLatest(fooUrn, AspectFoo.class).getExtraInfo().getAudit().getTime(), Long.valueOf(_now + 200L));
+      assertEquals(dao.getLatest(fooUrn, AspectFoo.class, false).getAspect().getValue(), "bar");
+      assertEquals(dao.getLatest(fooUrn, AspectFoo.class, false).getExtraInfo().getAudit().getTime(), Long.valueOf(_now + 200L));
 
       // When: update with old timestamp does not match the lastmodified in the entity table
       // Expect: OptimisticLockException.
       dao.updateWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now + 400), 0,
-          new Timestamp(_now + 100), null);
+          new Timestamp(_now + 100), null, false);
     } else {
       // Given: changeLog is disabled
       assertFalse(_enableChangeLog);
       // When: updateWithOptimisticLocking is called
       try {
         dao.updateWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now + 400), 0,
-            new Timestamp(_now + 100), null);
+            new Timestamp(_now + 100), null, false);
         fail("UnsupportedOperationException should be thrown");
       } catch (UnsupportedOperationException uoe) {
         // Expect: UnsupportedOperationException is thrown
@@ -2981,7 +2981,7 @@ public class EbeanLocalDAOTest {
     fooDao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
 
     // Add only the local relationships
-    fooDao.addRelationshipsIfAny(fooUrn, aspectFooBar, AspectFooBar.class);
+    fooDao.addRelationshipsIfAny(fooUrn, aspectFooBar, AspectFooBar.class, false);
 
     // Verify that the local relationships were added
     relationships = ebeanLocalRelationshipQueryDAO.findRelationships(

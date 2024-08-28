@@ -18,6 +18,7 @@ public class SQLSchemaUtils {
   private static final String GMA = "gma";
   public static final String ENTITY_TABLE_PREFIX = "metadata_entity_";
   public static final String RELATIONSHIP_TABLE_PREFIX = "metadata_relationship_";
+  public static final String TEST_TABLE_SUFFIX = "_test";
   public static final String ASPECT_PREFIX = "a_";
   public static final String INDEX_PREFIX = "i_";
 
@@ -47,6 +48,26 @@ public class SQLSchemaUtils {
   }
 
   /**
+   * Get MySQL test table name from entity type string.
+   * @param entityType entity type as string, such as "dataset", "chart" ..etc
+   * @return entity table name
+   */
+  @Nonnull
+  public static String getTestTableName(@Nonnull String entityType) {
+    return ENTITY_TABLE_PREFIX + entityType.toLowerCase() + TEST_TABLE_SUFFIX;
+  }
+
+  /**
+   * Get MySQL test table name from entity urn, e.g. urn:li:dataset to metadata_entity_dataset_test.
+   * @param urn {@link Urn} of the entity
+   * @return entity table name
+   */
+  @Nonnull
+  public static String getTestTableName(@Nonnull Urn urn) {
+    return getTestTableName(urn.getEntityType());
+  }
+
+  /**
    * Derive the local relationship table name from RELATIONSHIP record.
    * @param relationship The RELATIONSHIP record.
    * @return Local relationship table name as a string.
@@ -64,6 +85,28 @@ public class SQLSchemaUtils {
   @Nonnull
   public static <RELATIONSHIP extends RecordTemplate> String getRelationshipTableName(@Nonnull final Class<RELATIONSHIP> relationship) {
     return RELATIONSHIP_TABLE_PREFIX + relationship.getSimpleName().toLowerCase();
+  }
+
+  /**
+   * Derive the test local relationship table name from RELATIONSHIP record.
+   * @param relationship The RELATIONSHIP record.
+   * @return Local relationship table name as a string.
+   */
+  @Nonnull
+  public static <RELATIONSHIP extends RecordTemplate> String getTestRelationshipTableName(
+      @Nonnull final RELATIONSHIP relationship) {
+    return RELATIONSHIP_TABLE_PREFIX + relationship.getClass().getSimpleName().toLowerCase() + TEST_TABLE_SUFFIX;
+  }
+
+  /**
+   * Derive the test local relationship table name from RELATIONSHIP record class.
+   * @param relationship The RELATIONSHIP record.
+   * @return Local relationship table name as a string.
+   */
+  @Nonnull
+  public static <RELATIONSHIP extends RecordTemplate> String getTestRelationshipTableName(
+      @Nonnull final Class<RELATIONSHIP> relationship) {
+    return RELATIONSHIP_TABLE_PREFIX + relationship.getSimpleName().toLowerCase() + TEST_TABLE_SUFFIX;
   }
 
   /**

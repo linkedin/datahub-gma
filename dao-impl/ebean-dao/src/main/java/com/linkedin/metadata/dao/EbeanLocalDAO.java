@@ -595,7 +595,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Override
   protected <ASPECT extends RecordTemplate> long saveLatest(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
       @Nullable ASPECT oldValue, @Nullable AuditStamp oldAuditStamp, @Nullable ASPECT newValue,
-      @Nonnull AuditStamp newAuditStamp, boolean isSoftDeleted, @Nullable IngestionTrackingContext trackingContext) {
+      @Nonnull AuditStamp newAuditStamp, boolean isSoftDeleted, @Nullable IngestionTrackingContext trackingContext,
+      boolean isTestMode) {
     // First, check that if the aspect is going to be soft-deleted that it does not have any relationships derived from it.
     // We currently don't support soft-deleting aspects from which local relationships are derived from.
     if (newValue == null) {
@@ -634,11 +635,11 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       }
       // Move latest version to historical version by insert a new record only if we are not overwriting the latest version.
       if (!_overwriteLatestVersionEnabled) {
-        insert(urn, oldValue, aspectClass, oldAuditStamp, largestVersion, trackingContext);
+        insert(urn, oldValue, aspectClass, oldAuditStamp, largestVersion, trackingContext, isTestMode);
       }
       // update latest version
       updateWithOptimisticLocking(urn, newValue, aspectClass, newAuditStamp, LATEST_VERSION,
-          new Timestamp(oldAuditStamp.getTime()), trackingContext);
+          new Timestamp(oldAuditStamp.getTime()), trackingContext, isTestMode);
     } else {
       // When for fresh ingestion or with changeLog disabled
 
@@ -649,11 +650,11 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         }
       }
 
-      insert(urn, newValue, aspectClass, newAuditStamp, LATEST_VERSION, trackingContext);
+      insert(urn, newValue, aspectClass, newAuditStamp, LATEST_VERSION, trackingContext, isTestMode);
     }
 
     // Add any local relationships that are derived from the aspect.
-    addRelationshipsIfAny(urn, newValue, aspectClass);
+    addRelationshipsIfAny(urn, newValue, aspectClass, isTestMode);
 
     return largestVersion;
   }
@@ -671,7 +672,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         return null; // unused
       }
       AuditStamp auditStamp = makeAuditStamp(result);
-      _localAccess.add(urn, toRecordTemplate(aspectClass, result).orElse(null), aspectClass, auditStamp, null);
+      _localAccess.add(urn, toRecordTemplate(aspectClass, result).orElse(null), aspectClass, auditStamp, null, false);
       return null; // unused
     }, 1);
   }
@@ -686,7 +687,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       }
       Optional<ASPECT> aspect = toRecordTemplate(aspectClass, results.get(0));
       if (aspect.isPresent()) {
-        return addRelationshipsIfAny(urn, aspect.get(), aspectClass);
+        return addRelationshipsIfAny(urn, aspect.get(), aspectClass, false);
       }
       return Collections.emptyList();
     }, 1);
@@ -700,7 +701,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * @return metadata aspect ebean model {@link EbeanMetadataAspect}
    */
   private @Nullable <ASPECT extends RecordTemplate> EbeanMetadataAspect queryLatest(@Nonnull URN urn,
-      @Nonnull Class<ASPECT> aspectClass) {
+      @Nonnull Class<ASPECT> aspectClass, boolean isTestMode) {
 
     EbeanMetadataAspect result;
     if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
@@ -720,8 +721,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       }
     } else {
       // for new schema or dual-schema, get latest data from new schema. (Resolving the read de-coupling issue)
-      final List<EbeanMetadataAspect> results = _localAccess.batchGetUnion(
-          Collections.singletonList(new AspectKey<>(aspectClass, urn, LATEST_VERSION)), 1, 0, true);
+      final List<EbeanMetadataAspect> results =
+          _localAccess.batchGetUnion(Collections.singletonList(new AspectKey<>(aspectClass, urn, LATEST_VERSION)), 1, 0,
+              true, isTestMode);
       result = results.isEmpty() ? null : results.get(0);
     }
     return result;
@@ -730,8 +732,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Override
   @Nonnull
   protected <ASPECT extends RecordTemplate> AspectEntry<ASPECT> getLatest(@Nonnull URN urn,
-      @Nonnull Class<ASPECT> aspectClass) {
-    EbeanMetadataAspect latest = queryLatest(urn, aspectClass);
+      @Nonnull Class<ASPECT> aspectClass, boolean isTestMode) {
+    EbeanMetadataAspect latest = queryLatest(urn, aspectClass, isTestMode);
     if (latest == null) {
       return new AspectEntry<>(null, null);
     }
@@ -809,7 +811,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Override
   protected <ASPECT extends RecordTemplate> void updateWithOptimisticLocking(@Nonnull URN urn,
       @Nullable RecordTemplate value, @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp newAuditStamp,
-      long version, @Nonnull Timestamp oldTimestamp, @Nullable IngestionTrackingContext trackingContext) {
+      long version, @Nonnull Timestamp oldTimestamp, @Nullable IngestionTrackingContext trackingContext,
+      boolean isTestMode) {
 
     final EbeanMetadataAspect aspect = buildMetadataAspectBean(urn, value, aspectClass, newAuditStamp, version);
 
@@ -832,7 +835,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         // Note: when cold-archive is enabled, this method: updateWithOptimisticLocking will not be called.
         _server.execute(oldSchemaSqlUpdate);
         return _localAccess.addWithOptimisticLocking(urn, (ASPECT) value, aspectClass, newAuditStamp, oldTimestamp,
-            trackingContext);
+            trackingContext, isTestMode);
       }, 1);
     } else {
       // In OLD_SCHEMA mode since aspect table is the SOT and the getLatest (oldTimestamp) is from the aspect table
@@ -849,14 +852,15 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   @Override
   protected <ASPECT extends RecordTemplate> void insert(@Nonnull URN urn, @Nullable RecordTemplate value,
-      @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, long version, @Nullable IngestionTrackingContext trackingContext) {
+      @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, long version,
+      @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
 
 
     final EbeanMetadataAspect aspect = buildMetadataAspectBean(urn, value, aspectClass, auditStamp, version);
     if (_schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY && version == LATEST_VERSION) {
       // insert() could be called when updating log table (moving current versions into new history version)
       // the metadata entity tables shouldn't been updated.
-      _localAccess.add(urn, (ASPECT) value, aspectClass, auditStamp, trackingContext);
+      _localAccess.add(urn, (ASPECT) value, aspectClass, auditStamp, trackingContext, isTestMode);
     }
 
     if (_changeLogEnabled) {
@@ -871,10 +875,11 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * @param urn Urn of the metadata update
    * @param aspect Aspect of the metadata update
    * @param aspectClass Aspect class of the metadata update
+   * @param isTestMode Whether the test mode is enabled or not
    * @return List of LocalRelationshipUpdates that were executed
    */
   public <ASPECT extends RecordTemplate> List<LocalRelationshipUpdates> addRelationshipsIfAny(@Nonnull URN urn, @Nullable ASPECT aspect,
-      @Nonnull Class<ASPECT> aspectClass) {
+      @Nonnull Class<ASPECT> aspectClass, boolean isTestMode) {
     if (_relationshipSource == RelationshipSource.ASPECT_METADATA) {
       // TODO: not yet implemented
       throw new UnsupportedOperationException("This method has not been implemented yet to support the "
@@ -883,7 +888,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       if (_localRelationshipBuilderRegistry != null && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
         List<LocalRelationshipUpdates> localRelationshipUpdates =
             _localRelationshipBuilderRegistry.getLocalRelationshipBuilder(aspect).buildRelationships(urn, aspect);
-        _localRelationshipWriterDAO.processLocalRelationshipUpdates(urn, localRelationshipUpdates);
+        _localRelationshipWriterDAO.processLocalRelationshipUpdates(urn, localRelationshipUpdates, isTestMode);
         return localRelationshipUpdates;
       }
     } else {
@@ -1131,13 +1136,14 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
 
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
-      return _localAccess.batchGetUnion(keys, keysCount, position, false);
+      return _localAccess.batchGetUnion(keys, keysCount, position, false, false);
     }
 
     if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
       // Compare results from both new and old schemas
       final List<EbeanMetadataAspect> resultsOldSchema = batchGetUnion(keys, keysCount, position);
-      final List<EbeanMetadataAspect> resultsNewSchema = _localAccess.batchGetUnion(keys, keysCount, position, false);
+      final List<EbeanMetadataAspect> resultsNewSchema =
+          _localAccess.batchGetUnion(keys, keysCount, position, false, false);
       EBeanDAOUtils.compareResults(resultsOldSchema, resultsNewSchema, "batchGet");
       return resultsOldSchema;
     }
