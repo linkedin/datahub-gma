@@ -822,7 +822,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull ASPECT newValue,
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext, @Nullable IngestionParams ingestionParams) {
-    final IngestionParams nonNullIngestionParams = ingestionParams == null ? new IngestionParams().setIngestionMode(IngestionMode.LIVE) : ingestionParams;
+    final IngestionParams nonNullIngestionParams =
+        ingestionParams == null ? new IngestionParams().setIngestionMode(IngestionMode.LIVE).setTestMode(false)
+            : ingestionParams;
     return add(urn, (Class<ASPECT>) newValue.getClass(), ignored -> newValue, auditStamp, trackingContext, nonNullIngestionParams);
   }
 

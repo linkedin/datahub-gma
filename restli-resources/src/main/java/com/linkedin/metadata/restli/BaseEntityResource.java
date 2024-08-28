@@ -347,15 +347,7 @@ public abstract class BaseEntityResource<
   public Task<Void> ingestAsset(@ActionParam(PARAM_ASSET) @Nonnull ASSET asset,
       @ActionParam(PARAM_TRACKING_CONTEXT) @Nonnull IngestionTrackingContext trackingContext,
       @Optional @ActionParam(PARAM_INGESTION_PARAMS) IngestionParams ingestionParams) {
-    final URN urn = (URN) ModelUtils.getUrnFromAsset(asset);
-    final String aspectName = ModelUtils.getAspectsFromAsset(asset)
-        .stream()
-        .findFirst()
-        .map(aspect -> aspect.getClass().getCanonicalName())
-        .orElse(null);
-
-    return ingestInternalAsset(asset, Collections.emptySet(), trackingContext, ingestionParams.setTestMode(
-        _resourceLix.testIngestAsset(String.valueOf(urn), urn.getEntityType(), aspectName)));
+    return ingestInternalAsset(asset, Collections.emptySet(), trackingContext, ingestionParams);
   }
 
   @Nonnull
