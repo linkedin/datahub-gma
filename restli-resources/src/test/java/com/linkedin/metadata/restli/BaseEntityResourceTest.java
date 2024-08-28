@@ -180,23 +180,6 @@ public class BaseEntityResourceTest extends BaseEngineTest {
             }
 
             @Override
-            public boolean testIngest(@Nonnull String urn, @Nonnull String entityType, @Nullable String aspectName) {
-              return false;
-            }
-
-            @Override
-            public boolean testIngestWithTracking(@Nonnull String urn, @Nonnull String entityType,
-                @Nullable String aspectName) {
-              return false;
-            }
-
-            @Override
-            public boolean testIngestAsset(@Nonnull String urn, @Nonnull String entityType,
-                @Nullable String aspectName) {
-              return true;
-            }
-
-            @Override
             public boolean testGetSnapshot(@Nullable String urn, @Nullable String entityType) {
               return true;
             }

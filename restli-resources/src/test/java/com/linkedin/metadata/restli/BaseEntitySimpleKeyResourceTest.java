@@ -500,23 +500,6 @@ public class BaseEntitySimpleKeyResourceTest extends BaseEngineTest {
             }
 
             @Override
-            public boolean testIngest(@Nonnull String urn, @Nonnull String entityType, @Nullable String aspectName) {
-              return false;
-            }
-
-            @Override
-            public boolean testIngestWithTracking(@Nonnull String urn, @Nonnull String entityType,
-                @Nullable String aspectName) {
-              return false;
-            }
-
-            @Override
-            public boolean testIngestAsset(@Nonnull String urn, @Nonnull String entityType,
-                @Nullable String aspectName) {
-              return false;
-            }
-
-            @Override
             public boolean testGetSnapshot(@Nullable String urn, @Nullable String entityType) {
               return false;
             }

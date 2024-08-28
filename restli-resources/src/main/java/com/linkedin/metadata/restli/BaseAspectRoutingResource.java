@@ -153,8 +153,8 @@ public abstract class BaseAspectRoutingResource<
   public Task<SNAPSHOT> getSnapshot(@ActionParam(PARAM_URN) @Nonnull String urnString,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
     final URN urn = parseUrnParam(urnString);
-    final String entityType = urn == null ? null : urn.getEntityType();
-    return getSnapshot(urnString, aspectNames, _resourceLix.testGetSnapshot(String.valueOf(urn), entityType));
+    return getSnapshot(urnString, aspectNames,
+        _resourceLix.testGetSnapshot(String.valueOf(urn), ModelUtils.getEntityType(urn)));
   }
 
   @Nonnull
@@ -244,8 +244,7 @@ public abstract class BaseAspectRoutingResource<
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
     final String urnString = urns[0];
     final URN urn = parseUrnParam(urnString);
-    final String entityType = urn == null ? null : urn.getEntityType();
-    return backfill(urns, aspectNames, _resourceLix.testBackfillWithUrns(urnString, entityType));
+    return backfill(urns, aspectNames, _resourceLix.testBackfillWithUrns(urnString, ModelUtils.getEntityType(urn)));
   }
 
   @Nonnull
@@ -295,8 +294,8 @@ public abstract class BaseAspectRoutingResource<
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
     final String urnString = urns[0];
     final URN urn = parseUrnParam(urnString);
-    final String entityType = urn == null ? null : urn.getEntityType();
-    return backfillWithNewValue(urns, aspectNames, _resourceLix.testBackfillWithNewValue(urnString, entityType));
+    return backfillWithNewValue(urns, aspectNames,
+        _resourceLix.testBackfillWithNewValue(urnString, ModelUtils.getEntityType(urn)));
   }
 
   private Task<BackfillResult> backfillWithNewValue(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
@@ -363,9 +362,7 @@ public abstract class BaseAspectRoutingResource<
                 getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingest(urn, aspect);
               }
             } catch (Exception exception) {
-              log.error(
-                  String.format("Couldn't ingest routing aspect %s for %s", aspect.getClass().getSimpleName(), urn),
-                  exception);
+              log.error("Couldn't ingest routing aspect {} for {}", aspect.getClass().getSimpleName(), urn, exception);
             }
           } else {
             getLocalDAO().add(urn, aspect, auditStamp, trackingContext, ingestionParams);

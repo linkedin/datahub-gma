@@ -751,4 +751,14 @@ public class ModelUtilsTest {
     assertEquals(decoratedValue.getFoo(), entityFoo);
     assertEquals(decoratedValue.getBar(), expectedBar);
   }
+
+  @Test
+  public void testGetEntityType() {
+    Urn expectedUrn = makeUrn(1);
+
+    String entityType = ModelUtils.getEntityType(expectedUrn);
+
+    assertEquals(entityType, expectedUrn.getEntityType());
+    assertNull(ModelUtils.getEntityType(null));
+  }
 }

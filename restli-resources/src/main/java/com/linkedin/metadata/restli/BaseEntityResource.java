@@ -250,8 +250,7 @@ public abstract class BaseEntityResource<
   public Task<Map<KEY, VALUE>> batchGet(@Nonnull Set<KEY> ids,
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
     final URN urn = ids.stream().findFirst().isPresent() ? toUrn(ids.stream().findFirst().get()) : null;
-    final String entityType = urn == null ? null : urn.getEntityType();
-    return batchGet(ids, aspectNames, _resourceLix.testBatchGet(String.valueOf(urn), entityType));
+    return batchGet(ids, aspectNames, _resourceLix.testBatchGet(String.valueOf(urn), ModelUtils.getEntityType(urn)));
   }
 
   @Deprecated
@@ -277,8 +276,8 @@ public abstract class BaseEntityResource<
   public Task<BatchResult<KEY, VALUE>> batchGetWithErrors(@Nonnull Set<KEY> ids,
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
     final URN urn = ids.stream().findFirst().isPresent() ? toUrn(ids.stream().findFirst().get()) : null;
-    final String entityType = urn == null ? null : urn.getEntityType();
-    return batchGetWithErrors(ids, aspectNames, _resourceLix.testBatchGetWithErrors(String.valueOf(urn), entityType));
+    return batchGetWithErrors(ids, aspectNames,
+        _resourceLix.testBatchGetWithErrors(String.valueOf(urn), ModelUtils.getEntityType(urn)));
   }
 
   @Nonnull
@@ -392,8 +391,8 @@ public abstract class BaseEntityResource<
   public Task<SNAPSHOT> getSnapshot(@ActionParam(PARAM_URN) @Nonnull String urnString,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
     final URN urn = parseUrnParam(urnString);
-    final String entityType = urn == null ? null : urn.getEntityType();
-    return getSnapshot(urnString, aspectNames, _resourceLix.testGetSnapshot(String.valueOf(urn), entityType));
+    return getSnapshot(urnString, aspectNames,
+        _resourceLix.testGetSnapshot(String.valueOf(urn), ModelUtils.getEntityType(urn)));
   }
 
   @Deprecated
@@ -467,8 +466,8 @@ public abstract class BaseEntityResource<
   public Task<BackfillResult> backfill(@ActionParam(PARAM_URN) @Nonnull String urnString,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
     final URN urn = parseUrnParam(urnString);
-    final String entityType = urn == null ? null : urn.getEntityType();
-    return backfill(urnString, aspectNames, _resourceLix.testBackfillLegacy(String.valueOf(urn), entityType));
+    return backfill(urnString, aspectNames,
+        _resourceLix.testBackfillLegacy(String.valueOf(urn), ModelUtils.getEntityType(urn)));
   }
 
   @Nonnull
@@ -497,8 +496,7 @@ public abstract class BaseEntityResource<
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
     final String urnString = urns[0];
     final URN urn = parseUrnParam(urnString);
-    final String entityType = urn == null ? null : urn.getEntityType();
-    return backfill(urns, aspectNames, _resourceLix.testBackfillWithUrns(urnString, entityType));
+    return backfill(urns, aspectNames, _resourceLix.testBackfillWithUrns(urnString, ModelUtils.getEntityType(urn)));
   }
 
   private Task<BackfillResult> backfill(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
@@ -525,9 +523,8 @@ public abstract class BaseEntityResource<
       @ActionParam(PARAM_INGESTION_MODE) @Nonnull IngestionMode ingestionMode) {
     final String urnString = urns[0];
     final URN urn = parseUrnParam(urnString);
-    final String entityType = urn == null ? null : urn.getEntityType();
     return emitNoChangeMetadataAuditEvent(urns, aspectNames, ingestionMode,
-        _resourceLix.testEmitNoChangeMetadataAuditEvent(urnString, entityType));
+        _resourceLix.testEmitNoChangeMetadataAuditEvent(urnString, ModelUtils.getEntityType(urn)));
   }
 
   @Nonnull
@@ -557,8 +554,8 @@ public abstract class BaseEntityResource<
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
     final String urnString = urns[0];
     final URN urn = parseUrnParam(urnString);
-    final String entityType = urn == null ? null : urn.getEntityType();
-    return backfillWithNewValue(urns, aspectNames, _resourceLix.testBackfillWithNewValue(urnString, entityType));
+    return backfillWithNewValue(urns, aspectNames,
+        _resourceLix.testBackfillWithNewValue(urnString, ModelUtils.getEntityType(urn)));
   }
 
   private Task<BackfillResult> backfillWithNewValue(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
@@ -580,8 +577,8 @@ public abstract class BaseEntityResource<
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
     final String urnString = urns[0];
     final URN urn = parseUrnParam(urnString);
-    final String entityType = urn == null ? null : urn.getEntityType();
-    return backfillEntityTables(urns, aspectNames, _resourceLix.testBackfillEntityTables(urnString, entityType));
+    return backfillEntityTables(urns, aspectNames,
+        _resourceLix.testBackfillEntityTables(urnString, ModelUtils.getEntityType(urn)));
   }
 
   private Task<BackfillResult> backfillEntityTables(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
@@ -603,9 +600,8 @@ public abstract class BaseEntityResource<
       @ActionParam(PARAM_ASPECTS) @Nonnull String[] aspectNames) {
     final String urnString = urns[0];
     final URN urn = parseUrnParam(urnString);
-    final String entityType = urn == null ? null : urn.getEntityType();
     return backfillRelationshipTables(urns, aspectNames,
-        _resourceLix.testBackfillRelationshipTables(urnString, entityType));
+        _resourceLix.testBackfillRelationshipTables(urnString, ModelUtils.getEntityType(urn)));
   }
 
   private Task<BackfillResult> backfillRelationshipTables(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
