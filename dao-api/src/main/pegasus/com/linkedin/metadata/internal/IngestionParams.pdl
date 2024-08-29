@@ -1,6 +1,7 @@
 namespace com.linkedin.metadata.internal
 
 import com.linkedin.metadata.events.IngestionMode
+import com.linkedin.metadata.events.IngestionTrackingContext
 
 /**
  * Record defining ingestion-related parameters that can be passed into DAO API calls.
@@ -10,6 +11,11 @@ record IngestionParams {
    * Ingestion mode
    */
   ingestionMode: optional IngestionMode
+
+  /**
+   * Ingestion tracking context
+   */
+  ingestionTrackingContext: optional IngestionTrackingContext
 
   /*
    * When testMode is true, the data will be persisted into {entity}_test and {relationship}_test table.
