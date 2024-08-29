@@ -1459,13 +1459,15 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     IngestionTrackingContext trackingContext = new IngestionTrackingContext();
 
     IngestionParams ingestionParams1 = new IngestionParams().setTestMode(true);
-    runAndWait(_internalResource.ingestAsset(asset, trackingContext, ingestionParams1));
+    ingestionParams1.setIngestionTrackingContext(trackingContext);
+    runAndWait(_internalResource.ingestAsset(asset, ingestionParams1));
 
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(foo), any(), eq(trackingContext), eq(ingestionParams1));
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(trackingContext), eq(ingestionParams1));
 
     IngestionParams ingestionParams2 = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
-    runAndWait(_internalResource.ingestAsset(asset, trackingContext, ingestionParams2));
+    ingestionParams2.setIngestionTrackingContext(trackingContext);
+    runAndWait(_internalResource.ingestAsset(asset, ingestionParams2));
 
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(foo), any(), eq(trackingContext), eq(ingestionParams2));
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(trackingContext), eq(ingestionParams2));

@@ -345,12 +345,14 @@ public abstract class BaseAspectRoutingResource<
   @Nonnull
   @Override
   protected Task<Void> ingestInternalAsset(@Nonnull ASSET asset,
-      @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore, @Nullable IngestionTrackingContext trackingContext,
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore,
       @Nullable IngestionParams ingestionParams) {
     // TODO: META-18950: add trackingContext to BaseAspectRoutingResource. currently the param is unused.
     return RestliUtils.toTask(() -> {
       final URN urn = (URN) ModelUtils.getUrnFromAsset(asset);
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
+      IngestionTrackingContext trackingContext =
+          ingestionParams != null ? ingestionParams.getIngestionTrackingContext() : null;
       ModelUtils.getAspectsFromAsset(asset).forEach(aspect -> {
         if (!aspectsToIgnore.contains(aspect.getClass())) {
           if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
