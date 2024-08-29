@@ -89,20 +89,10 @@ import static com.linkedin.metadata.dao.utils.ModelUtils.*;
 public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     extends BaseReadDAO<ASPECT_UNION, URN> {
 
-  private static final String DEFAULT_ID_NAMESPACE = "global";
-  private static final String BACKFILL_EMITTER = "dao_backfill_endpoint";
-  private static final String BASE_SEMANTIC_VERSION = "baseSemanticVersion";
-  private static final String MAJOR = "major";
-  private static final String MINOR = "minor";
-  private static final String PATCH = "patch";
-  private static final IndefiniteRetention INDEFINITE_RETENTION = new IndefiniteRetention();
-  private static final int DEFAULT_MAX_TRANSACTION_RETRY = 3;
-  protected final BaseMetadataEventProducer _producer;
-  protected final BaseTrackingMetadataEventProducer _trackingProducer;
-  protected final LocalDAOStorageConfig _storageConfig;
-  protected final BaseTrackingManager _trackingManager;
   private final Class<ASPECT_UNION> _aspectUnionClass;
+
   private final Class<URN> _urnClass;
+
   /**
    * Immutable class that corresponds to the metadata aspect along with {@link ExtraInfo} for the same metadata. It also
    * has a flag to indicate if this metadata is soft deleted.
@@ -146,11 +136,14 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   @AllArgsConstructor
   @Value
   public static class AspectUpdateLambda<ASPECT extends RecordTemplate> {
-    @NonNull Class<ASPECT> aspectClass;
+    @NonNull
+    Class<ASPECT> aspectClass;
 
-    @NonNull Function<Optional<ASPECT>, ASPECT> updateLambda;
+    @NonNull
+    Function<Optional<ASPECT>, ASPECT> updateLambda;
 
-    @NonNull IngestionParams ingestionParams;
+    @NonNull
+    IngestionParams ingestionParams;
 
     AspectUpdateLambda(ASPECT value) {
       this.aspectClass = (Class<ASPECT>) value.getClass();
@@ -164,28 +157,62 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       this.ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
     }
   }
+
+  private static final String DEFAULT_ID_NAMESPACE = "global";
+
+  private static final String BACKFILL_EMITTER = "dao_backfill_endpoint";
+
+  private static final String BASE_SEMANTIC_VERSION = "baseSemanticVersion";
+
+  private static final String MAJOR = "major";
+
+  private static final String MINOR = "minor";
+
+  private static final String PATCH = "patch";
+
+  private static final IndefiniteRetention INDEFINITE_RETENTION = new IndefiniteRetention();
+
+  private static final int DEFAULT_MAX_TRANSACTION_RETRY = 3;
+
+  protected final BaseMetadataEventProducer _producer;
+  protected final BaseTrackingMetadataEventProducer _trackingProducer;
+  protected final LocalDAOStorageConfig _storageConfig;
+  protected final BaseTrackingManager _trackingManager;
+  protected UrnPathExtractor<URN> _urnPathExtractor;
+
+  private LambdaFunctionRegistry _lambdaFunctionRegistry;
+
   // Maps an aspect class to the corresponding retention policy
   private final Map<Class<? extends RecordTemplate>, Retention> _aspectRetentionMap = new HashMap<>();
+
   // Maps an aspect class to a list of pre-update hooks
   private final Map<Class<? extends RecordTemplate>, List<BiConsumer<Urn, RecordTemplate>>> _aspectPreUpdateHooksMap =
       new HashMap<>();
+
   // Maps an aspect class to a list of post-update hooks
   private final Map<Class<? extends RecordTemplate>, List<BiConsumer<Urn, RecordTemplate>>> _aspectPostUpdateHooksMap =
       new HashMap<>();
+
   // Maps an aspect class to the corresponding equality tester
   private final Map<Class<? extends RecordTemplate>, EqualityTester<? extends RecordTemplate>>
       _aspectEqualityTesterMap = new ConcurrentHashMap<>();
-  protected UrnPathExtractor<URN> _urnPathExtractor;
-  private LambdaFunctionRegistry _lambdaFunctionRegistry;
+
   private boolean _modelValidationOnWrite = true;
+
   // Always emit MAE on every update regardless if there's any actual change in value
   private boolean _alwaysEmitAuditEvent = false;
+
   private boolean _emitAspectSpecificAuditEvent = false;
+
   private boolean _alwaysEmitAspectSpecificAuditEvent = false;
+
   // Enable updating multiple aspects within a single transaction
   private boolean _enableAtomicMultipleUpdate = false;
+
   private boolean _emitAuditEvent = false;
+
   private Clock _clock = Clock.systemUTC();
+
   private PreUpdateRoutingClient<Message> _preUpdateRoutingClient;
 
   /**
@@ -217,9 +244,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param trackingManager {@link BaseTrackingManager} for managing tracking requests
    * @param urnClass class of the URN type
    */
-  public BaseLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass,
-      @Nonnull BaseTrackingMetadataEventProducer trackingProducer, @Nonnull BaseTrackingManager trackingManager,
-      @Nonnull Class<URN> urnClass, @Nonnull UrnPathExtractor<URN> urnPathExtractor) {
+  public BaseLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseTrackingMetadataEventProducer trackingProducer,
+      @Nonnull BaseTrackingManager trackingManager, @Nonnull Class<URN> urnClass, @Nonnull UrnPathExtractor<URN> urnPathExtractor) {
     super(aspectUnionClass);
     _producer = null;
     _storageConfig = LocalDAOStorageConfig.builder().build();
@@ -258,23 +284,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param urnClass class of the URN type
    *
    */
-  public BaseLocalDAO(@Nonnull BaseTrackingMetadataEventProducer trackingProducer,
-      @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull BaseTrackingManager trackingManager,
-      @Nonnull Class<URN> urnClass, @Nonnull UrnPathExtractor<URN> urnPathExtractor) {
-    super(storageConfig.getAspectStorageConfigMap().keySet());
-    _producer = null;
-    _storageConfig = storageConfig;
-    _aspectUnionClass = trackingProducer.getAspectUnionClass();
-    _trackingManager = trackingManager;
-    _trackingProducer = trackingProducer;
-    _urnClass = urnClass;
-    _urnPathExtractor = urnPathExtractor;
-  }
-
-  public BaseLocalDAO(@Nonnull BaseTrackingMetadataEventProducer trackingProducer,
-      @Nonnull LocalDAOStorageConfig storageConfig, @Nonnull BaseTrackingManager trackingManager,
-      @Nonnull Class<URN> urnClass, @Nonnull UrnPathExtractor<URN> urnPathExtractor,
-      PreUpdateRoutingClient<Message> preUpdateRoutingClient) {
+  public BaseLocalDAO(@Nonnull BaseTrackingMetadataEventProducer trackingProducer, @Nonnull LocalDAOStorageConfig storageConfig,
+      @Nonnull BaseTrackingManager trackingManager, @Nonnull Class<URN> urnClass, @Nonnull UrnPathExtractor<URN> urnPathExtractor) {
     super(storageConfig.getAspectStorageConfigMap().keySet());
     _producer = null;
     _storageConfig = storageConfig;
@@ -334,7 +345,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     checkValidAspect(aspectClass);
     // TODO: Also validate Urn once we convert all aspect models to PDL with proper annotation
 
-    final List<BiConsumer<Urn, RecordTemplate>> hooks = hooksMap.getOrDefault(aspectClass, new LinkedList<>());
+    final List<BiConsumer<Urn, RecordTemplate>> hooks =
+        hooksMap.getOrDefault(aspectClass, new LinkedList<>());
 
     if (hooks.contains(hook)) {
       throw new IllegalArgumentException("Adding an already-registered hook");
@@ -387,6 +399,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     _lambdaFunctionRegistry = lambdaFunctionRegistry;
   }
 
+  /**
+   * Set Pre Update Routing Client
+   */
   public void setPreUpdateRoutingClient(@Nullable PreUpdateRoutingClient<Message> preUpdateRoutingClient) {
     _preUpdateRoutingClient = preUpdateRoutingClient;
   }
@@ -430,6 +445,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     _emitAuditEvent = emitAuditEvent;
   }
 
+
   /**
    * Logic common to both {@link #add(Urn, Class, Function, AuditStamp)} and {@link #delete(Urn, Class, AuditStamp, int)} methods.
    *
@@ -453,26 +469,27 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     final AuditStamp oldAuditStamp = latest.getExtraInfo() == null ? null : latest.getExtraInfo().getAudit();
     final Long oldEmitTime = latest.getExtraInfo() == null ? null : latest.getExtraInfo().getEmitTime();
 
-    final boolean isBackfillEvent =
-        trackingContext != null && trackingContext.hasBackfill() && trackingContext.isBackfill();
+    final boolean isBackfillEvent = trackingContext != null
+        && trackingContext.hasBackfill() && trackingContext.isBackfill();
     if (isBackfillEvent) {
       boolean shouldBackfill =
           // new value is being inserted. We should backfill
-          oldValue == null || (
+          oldValue == null
+              || (
               // tracking context should ideally always have emitTime. If it's not present, we will skip backfilling
-              trackingContext.hasEmitTime() && (
+              trackingContext.hasEmitTime()
+                  && (
                   // old emit time is available so we'll use it for comparison
                   // if new event emit time > old event emit time, we'll backfill
                   (oldEmitTime != null && trackingContext.getEmitTime() > oldEmitTime)
                       // old emit time is not available, so we'll fall back to comparing new emit time against old audit time
                       // old audit time represents the last modified time of the aspect
-                      || (oldEmitTime == null && oldAuditStamp != null && oldAuditStamp.hasTime()
-                      && trackingContext.getEmitTime() > oldAuditStamp.getTime())));
+                      || (oldEmitTime == null && oldAuditStamp != null && oldAuditStamp.hasTime() && trackingContext.getEmitTime() > oldAuditStamp.getTime())));
 
-      log.info(
-          "Encounter backfill event. Old value = null: {}. Tracking context: {}. Urn: {}. Aspect class: {}. Old audit stamp: {}. "
-              + "Old emit time: {}. " + "Based on this information, shouldBackfill = {}.", oldValue == null,
-          trackingContext, urn, aspectClass, oldAuditStamp, oldEmitTime, shouldBackfill);
+      log.info("Encounter backfill event. Old value = null: {}. Tracking context: {}. Urn: {}. Aspect class: {}. Old audit stamp: {}. "
+              + "Old emit time: {}. "
+              + "Based on this information, shouldBackfill = {}.",
+          oldValue == null, trackingContext, urn, aspectClass, oldAuditStamp, oldEmitTime, shouldBackfill);
 
       if (!shouldBackfill) {
         return new AddResult<>(oldValue, oldValue, aspectClass);
@@ -489,15 +506,12 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     }
 
     // Logic determines whether an update to aspect should be persisted.
-    if (!shouldUpdateAspect(ingestionParams.getIngestionMode(), urn, oldValue, newValue, aspectClass, auditStamp,
-        equalityTester)) {
+    if (!shouldUpdateAspect(ingestionParams.getIngestionMode(), urn, oldValue, newValue, aspectClass, auditStamp, equalityTester)) {
       return new AddResult<>(oldValue, oldValue, aspectClass);
     }
 
     // Save the newValue as the latest version
-    long largestVersion =
-        saveLatest(urn, aspectClass, oldValue, oldAuditStamp, newValue, auditStamp, latest.isSoftDeleted,
-            trackingContext);
+    long largestVersion = saveLatest(urn, aspectClass, oldValue, oldAuditStamp, newValue, auditStamp, latest.isSoftDeleted, trackingContext);
 
     // Apply retention policy
     applyRetention(urn, aspectClass, getRetention(aspectClass), largestVersion);
@@ -523,7 +537,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @return a list of the updated aspects, each wrapped in an instance of {@link ASPECT_UNION}
    */
   public List<ASPECT_UNION> addMany(@Nonnull URN urn,
-      @Nonnull List<AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas, @Nonnull AuditStamp auditStamp,
+      @Nonnull List<AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas,
+      @Nonnull AuditStamp auditStamp,
       int maxTransactionRetry) {
     return addMany(urn, aspectUpdateLambdas, auditStamp, maxTransactionRetry, null);
   }
@@ -546,7 +561,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @return a list of the updated aspects, each wrapped in an instance of {@link ASPECT_UNION}
    */
   public List<ASPECT_UNION> addMany(@Nonnull URN urn,
-      @Nonnull List<AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas, @Nonnull AuditStamp auditStamp,
+      @Nonnull List<AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas,
+      @Nonnull AuditStamp auditStamp,
       int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext) {
 
     // first check that all the aspects are valid
@@ -555,39 +571,34 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     final List<AddResult<? extends RecordTemplate>> results;
     if (_enableAtomicMultipleUpdate) {
       // atomic multiple update enabled: run in a single transaction
-      results = runInTransactionWithRetry(() -> aspectUpdateLambdas.stream()
-          .map(x -> aspectUpdateHelper(urn, x, auditStamp, trackingContext))
-          .collect(Collectors.toList()), maxTransactionRetry);
+      results = runInTransactionWithRetry(() ->
+              aspectUpdateLambdas.stream().map(x -> aspectUpdateHelper(urn, x, auditStamp, trackingContext)).collect(Collectors.toList()),
+          maxTransactionRetry);
     } else {
       // no atomic multiple updates: run each in its own transaction. This is the same as repeated calls to add
-      results = aspectUpdateLambdas.stream()
-          .map(x -> runInTransactionWithRetry(() -> aspectUpdateHelper(urn, x, auditStamp, trackingContext),
-              maxTransactionRetry))
-          .collect(Collectors.toList());
+      results = aspectUpdateLambdas.stream().map(x -> runInTransactionWithRetry(() ->
+          aspectUpdateHelper(urn, x, auditStamp, trackingContext), maxTransactionRetry)).collect(Collectors.toList());
     }
 
     // send the audit events etc
-    return results.stream()
-        .map(x -> unwrapAddResultToUnion(urn, x, auditStamp, trackingContext))
-        .collect(Collectors.toList());
+    return results.stream().map(x -> unwrapAddResultToUnion(urn, x, auditStamp, trackingContext)).collect(Collectors.toList());
   }
 
-  public List<ASPECT_UNION> addMany(@Nonnull URN urn, @Nonnull List<? extends RecordTemplate> aspectValues,
-      @Nonnull AuditStamp auditStamp) {
+  public List<ASPECT_UNION> addMany(@Nonnull URN urn, @Nonnull List<? extends RecordTemplate> aspectValues, @Nonnull AuditStamp auditStamp) {
     return addMany(urn, aspectValues, auditStamp, null);
   }
 
-  public List<ASPECT_UNION> addMany(@Nonnull URN urn, @Nonnull List<? extends RecordTemplate> aspectValues,
-      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext) {
-    List<AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas =
-        aspectValues.stream().map(AspectUpdateLambda::new).collect(Collectors.toList());
+  public List<ASPECT_UNION> addMany(@Nonnull URN urn, @Nonnull List<? extends RecordTemplate> aspectValues, @Nonnull AuditStamp auditStamp,
+      @Nullable IngestionTrackingContext trackingContext) {
+    List<AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas = aspectValues.stream()
+        .map(AspectUpdateLambda::new)
+        .collect(Collectors.toList());
 
     return addMany(urn, aspectUpdateLambdas, auditStamp, DEFAULT_MAX_TRANSACTION_RETRY, trackingContext);
   }
 
-  private <ASPECT extends RecordTemplate> AddResult<ASPECT> aspectUpdateHelper(URN urn,
-      AspectUpdateLambda<ASPECT> updateTuple, @Nonnull AuditStamp auditStamp,
-      @Nullable IngestionTrackingContext trackingContext) {
+  private <ASPECT extends RecordTemplate> AddResult<ASPECT> aspectUpdateHelper(URN urn, AspectUpdateLambda<ASPECT> updateTuple,
+      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext) {
     AspectEntry<ASPECT> latest = getLatest(urn, updateTuple.getAspectClass());
 
     // TODO(yanyang) added for job-gms duplicity debug, throwaway afterwards
@@ -600,8 +611,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     Optional<ASPECT> oldValue = Optional.ofNullable(latest.getAspect());
     ASPECT newValue = updateTuple.getUpdateLambda().apply(oldValue);
     if (newValue == null) {
-      throw new UnsupportedOperationException(
-          String.format("Attempted to update %s with null aspect %s", urn, updateTuple.getAspectClass().getName()));
+      throw new UnsupportedOperationException(String.format("Attempted to update %s with null aspect %s", urn, updateTuple.getAspectClass().getName()));
     }
 
     if (_lambdaFunctionRegistry != null && _lambdaFunctionRegistry.isRegistered(updateTuple.getAspectClass())) {
@@ -621,8 +631,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       }
     }
 
-    return addCommon(urn, latest, newValue, updateTuple.getAspectClass(), auditStamp,
-        getEqualityTester(updateTuple.getAspectClass()), trackingContext, updateTuple.getIngestionParams());
+    return addCommon(urn, latest, newValue, updateTuple.getAspectClass(), auditStamp, getEqualityTester(updateTuple.getAspectClass()),
+        trackingContext, updateTuple.getIngestionParams());
   }
 
   private <ASPECT extends RecordTemplate> ASPECT_UNION unwrapAddResultToUnion(URN urn, AddResult<ASPECT> result,
@@ -631,8 +641,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     return ModelUtils.newEntityUnion(_aspectUnionClass, rawResult);
   }
 
-  private <ASPECT extends RecordTemplate> ASPECT unwrapAddResult(URN urn, AddResult<ASPECT> result,
-      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext) {
+  private <ASPECT extends RecordTemplate> ASPECT unwrapAddResult(URN urn, AddResult<ASPECT> result, @Nonnull AuditStamp auditStamp,
+      @Nullable IngestionTrackingContext trackingContext) {
     if (trackingContext != null) {
       trackingContext.setBackfill(false); // reset backfill since MAE won't be a backfill event
     }
@@ -641,9 +651,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     final ASPECT oldValue = result.getOldValue();
     final ASPECT newValue = result.getNewValue();
     final EqualityTester<ASPECT> equalityTester = getEqualityTester(aspectClass);
-    final boolean oldAndNewEqual =
-        (oldValue == null && newValue == null) || (oldValue != null && newValue != null && equalityTester.equals(
-            oldValue, newValue));
+    final boolean oldAndNewEqual = (oldValue == null && newValue == null)
+        || (oldValue != null && newValue != null && equalityTester.equals(oldValue, newValue));
 
     // Invoke post-update hooks if there's any
     if (_aspectPostUpdateHooksMap.containsKey(aspectClass)) {
@@ -667,8 +676,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     if (_emitAspectSpecificAuditEvent) {
       if (_alwaysEmitAspectSpecificAuditEvent || !oldAndNewEqual) {
         if (_trackingProducer != null) {
-          _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, auditStamp,
-              trackingContext, IngestionMode.LIVE);
+          _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, auditStamp, trackingContext,
+              IngestionMode.LIVE);
         } else {
           _producer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, auditStamp, IngestionMode.LIVE);
         }
@@ -692,8 +701,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    */
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
-      @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp, int maxTransactionRetry)
-      throws Exception {
+      @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp,
+      int maxTransactionRetry) {
     return add(urn, aspectClass, updateLambda, auditStamp, maxTransactionRetry, null);
   }
 
@@ -702,10 +711,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    */
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
-      @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp, int maxTransactionRetry,
-      @Nullable IngestionTrackingContext trackingContext) throws Exception {
-    return add(urn, new AspectUpdateLambda<>(aspectClass, updateLambda), auditStamp, maxTransactionRetry,
-        trackingContext, false);
+      @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp,
+      int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext) {
+    return add(urn, new AspectUpdateLambda<>(aspectClass, updateLambda), auditStamp, maxTransactionRetry, trackingContext, false);
   }
 
   /**
@@ -713,11 +721,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    */
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
-      @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp, int maxTransactionRetry,
-      @Nullable IngestionTrackingContext trackingContext, @Nonnull IngestionParams ingestionParams,
-      boolean preIngestionRouting) throws Exception {
-    return add(urn, new AspectUpdateLambda<>(aspectClass, updateLambda, ingestionParams), auditStamp,
-        maxTransactionRetry, trackingContext, preIngestionRouting);
+      @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp,
+      int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext, @Nonnull IngestionParams ingestionParams) {
+    return add(urn, new AspectUpdateLambda<>(aspectClass, updateLambda, ingestionParams), auditStamp, maxTransactionRetry, trackingContext, false);
   }
 
   /**
@@ -738,7 +744,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    */
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, AspectUpdateLambda<ASPECT> updateLambda,
-      @Nonnull AuditStamp auditStamp, int maxTransactionRetry) throws Exception {
+      @Nonnull AuditStamp auditStamp, int maxTransactionRetry) {
     return add(urn, updateLambda, auditStamp, maxTransactionRetry, null, false);
   }
 
@@ -748,7 +754,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, AspectUpdateLambda<ASPECT> updateLambda,
       @Nonnull AuditStamp auditStamp, int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext,
-      boolean preIngestionRouting) throws Exception {
+      boolean preIngestionRouting) {
     checkValidAspect(updateLambda.getAspectClass());
     Message updatedAspect = null;
     if (preIngestionRouting) {
@@ -759,10 +765,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     //AspectUpdateLambda<ASPECT> finalUpdateLambda = updatedAspect != null ? new
     // AspectUpdateLambda<>(updateLambda.getAspectClass(),
     // _preUpdateRoutingClient.convertAspectFromMessage(updatedAspect)) : updateLambda;
-
-    final AddResult<ASPECT> result =
-        runInTransactionWithRetry(() -> aspectUpdateHelper(urn, updateLambda, auditStamp, trackingContext),
-            maxTransactionRetry);
+    final AddResult<ASPECT> result = runInTransactionWithRetry(() -> aspectUpdateHelper(urn, updateLambda, auditStamp, trackingContext),
+        maxTransactionRetry);
 
     return unwrapAddResult(urn, result, auditStamp, trackingContext);
   }
@@ -797,8 +801,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     runInTransactionWithRetry(() -> {
       final AspectEntry<ASPECT> latest = getLatest(urn, aspectClass);
       final IngestionParams ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
-      return addCommon(urn, latest, null, aspectClass, auditStamp, new DefaultEqualityTester<>(), trackingContext,
-          ingestionParams);
+      return addCommon(urn, latest, null, aspectClass, auditStamp, new DefaultEqualityTester<>(), trackingContext, ingestionParams);
     }, maxTransactionRetry);
 
     // TODO: add support for sending MAE for soft deleted aspects
@@ -809,7 +812,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    */
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
-      @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp) throws Exception {
+      @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp) {
     return add(urn, aspectClass, updateLambda, auditStamp, DEFAULT_MAX_TRANSACTION_RETRY, null);
   }
 
@@ -819,10 +822,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp,
-      @Nullable IngestionTrackingContext trackingContext, @Nonnull IngestionParams ingestionParams,
-      boolean preIngestionRouting) throws Exception {
-    return add(urn, aspectClass, updateLambda, auditStamp, DEFAULT_MAX_TRANSACTION_RETRY, trackingContext,
-        ingestionParams, preIngestionRouting);
+      @Nullable IngestionTrackingContext trackingContext, @Nonnull IngestionParams ingestionParams) {
+    return add(urn, aspectClass, updateLambda, auditStamp, DEFAULT_MAX_TRANSACTION_RETRY, trackingContext, ingestionParams);
   }
 
   /**
@@ -831,8 +832,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   @VisibleForTesting
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull ASPECT newValue,
-      @Nonnull AuditStamp auditStamp) throws Exception {
-    return add(urn, newValue, auditStamp, null, null, false);
+      @Nonnull AuditStamp auditStamp) {
+    return add(urn, newValue, auditStamp, null, null);
   }
 
   /**
@@ -840,12 +841,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    */
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull ASPECT newValue,
-      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext,
-      @Nullable IngestionParams ingestionParams, boolean preIngestionRouting) throws Exception {
-    final IngestionParams nonNullIngestionParams =
-        ingestionParams == null ? new IngestionParams().setIngestionMode(IngestionMode.LIVE) : ingestionParams;
-    return add(urn, (Class<ASPECT>) newValue.getClass(), ignored -> newValue, auditStamp, trackingContext,
-        nonNullIngestionParams, preIngestionRouting);
+      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext, @Nullable IngestionParams ingestionParams) {
+    final IngestionParams nonNullIngestionParams = ingestionParams == null ? new IngestionParams().setIngestionMode(IngestionMode.LIVE) : ingestionParams;
+    return add(urn, (Class<ASPECT>) newValue.getClass(), ignored -> newValue, auditStamp, trackingContext, nonNullIngestionParams);
   }
 
   /**
@@ -907,8 +905,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param urn the URN for the entity the aspect is attached to
    * @param aspectClass class of the aspect to backfill
    */
-  public abstract <ASPECT extends RecordTemplate> void updateEntityTables(@Nonnull URN urn,
-      @Nonnull Class<ASPECT> aspectClass);
+  public abstract <ASPECT extends RecordTemplate> void updateEntityTables(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass);
 
   /**
    * Backfill local relationships from the new schema entity tables. This method is new/dual schema only. It should NOT
@@ -938,8 +935,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   public abstract List<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       @Nullable URN lastUrn, int pageSize);
 
-  public List<URN> listUrns(@Nullable String lastUrn, int pageSize, @Nullable IndexFilter indexFilter,
-      @Nullable IndexSortCriterion indexSortCriterion) {
+  public List<URN> listUrns(@Nullable String lastUrn, int pageSize, @Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion) {
     return listUrns(indexFilter, indexSortCriterion, getUrnFromString(lastUrn, _urnClass), pageSize);
   }
 
@@ -1055,8 +1051,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     final List<UrnAspectEntry<URN>> urnAspectEntries = getUrnAspectEntries(aspectClasses, urns);
 
-    return ListResult.<UrnAspectEntry<URN>>builder()
-        .values(urnAspectEntries)
+    return ListResult.<UrnAspectEntry<URN>>builder().values(urnAspectEntries)
         .metadata(listResult.getMetadata())
         .nextStart(listResult.getNextStart())
         .havingMore(listResult.isHavingMore())
@@ -1221,8 +1216,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    */
   @Nonnull
   public Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfill(
-      @Nonnull BackfillMode mode, @Nullable Set<Class<? extends RecordTemplate>> aspectClasses,
-      @Nonnull Set<URN> urns) {
+      @Nonnull BackfillMode mode, @Nullable Set<Class<? extends RecordTemplate>> aspectClasses, @Nonnull Set<URN> urns) {
     Set<Class<? extends RecordTemplate>> aspectToBackfill =
         aspectClasses == null ? getValidAspectTypes(_aspectUnionClass) : aspectClasses;
     checkValidAspects(aspectToBackfill);
@@ -1300,15 +1294,15 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   private <ASPECT extends RecordTemplate> void backfill(@Nonnull BackfillMode mode, @Nonnull ASPECT aspect,
       @Nonnull URN urn) {
 
-    if (mode == BackfillMode.MAE_ONLY || mode == BackfillMode.BACKFILL_ALL
+    if (mode == BackfillMode.MAE_ONLY
+        || mode == BackfillMode.BACKFILL_ALL
         || mode == BackfillMode.BACKFILL_INCLUDING_LIVE_INDEX) {
       IngestionMode ingestionMode = ALLOWED_INGESTION_BACKFILL_BIMAP.inverse().get(mode);
       if (_trackingProducer != null) {
-        IngestionTrackingContext trackingContext =
-            buildIngestionTrackingContext(TrackingUtils.getRandomUUID(), BACKFILL_EMITTER, System.currentTimeMillis());
+        IngestionTrackingContext trackingContext = buildIngestionTrackingContext(
+            TrackingUtils.getRandomUUID(), BACKFILL_EMITTER, System.currentTimeMillis());
 
-        _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, null, trackingContext,
-            ingestionMode);
+        _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, null, trackingContext, ingestionMode);
       } else {
         _producer.produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, null, ingestionMode);
       }
@@ -1484,12 +1478,11 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   protected Map<String, Set<String>> transformBackfillResultsToStringMap(
       @Nonnull Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfillResults) {
     Map<String, Set<String>> mapToReturn = new HashMap<>();
-    for (URN urn : backfillResults.keySet()) {
+    for (URN urn: backfillResults.keySet()) {
       Set<String> aspectFqcnSetToReturn = new HashSet<>();
-      Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> aspectClassToMetadataMap =
-          backfillResults.get(urn);
+      Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> aspectClassToMetadataMap = backfillResults.get(urn);
 
-      for (Class<? extends RecordTemplate> aspectClass : aspectClassToMetadataMap.keySet()) {
+      for (Class<? extends RecordTemplate> aspectClass: aspectClassToMetadataMap.keySet()) {
         if (aspectClassToMetadataMap.get(aspectClass).isPresent()) {
           aspectFqcnSetToReturn.add(getAspectName(aspectClass));
         }
@@ -1522,9 +1515,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       return 1;
     } else { //newVerMap != null && oldVerMap != null
       // Translate baseSemanticVersion into array [major, minor, patch]
-      final int[] newVerArr = {newVerMap.getInteger(MAJOR).intValue(), newVerMap.getInteger(MINOR).intValue(),
+      final int[] newVerArr = { newVerMap.getInteger(MAJOR).intValue(), newVerMap.getInteger(MINOR).intValue(),
           newVerMap.getInteger(PATCH).intValue()};
-      final int[] oldVerArr = {oldVerMap.getInteger(MAJOR).intValue(), oldVerMap.getInteger(MINOR).intValue(),
+      final int[] oldVerArr = { oldVerMap.getInteger(MAJOR).intValue(), oldVerMap.getInteger(MINOR).intValue(),
           oldVerMap.getInteger(PATCH).intValue()};
 
       // Iterate through version numbers from highest to lowest priority (major->minor->patch)
@@ -1540,6 +1533,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
       // newValue version == oldValue version
       return 0;
+
     }
   }
 
@@ -1562,23 +1556,20 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   /**
    * The logic determines if we will update the aspect.
    */
-  private <ASPECT extends RecordTemplate> boolean shouldUpdateAspect(IngestionMode ingestionMode, URN urn,
-      ASPECT oldValue, ASPECT newValue, Class<ASPECT> aspectClass, AuditStamp auditStamp,
-      EqualityTester<ASPECT> equalityTester) {
+  private <ASPECT extends RecordTemplate> boolean shouldUpdateAspect(IngestionMode ingestionMode, URN urn, ASPECT oldValue,
+      ASPECT newValue, Class<ASPECT> aspectClass, AuditStamp auditStamp, EqualityTester<ASPECT> equalityTester) {
 
-    final boolean oldAndNewEqual =
-        (oldValue == null && newValue == null) || (oldValue != null && newValue != null && equalityTester.equals(
-            oldValue, newValue));
+    final boolean oldAndNewEqual = (oldValue == null && newValue == null) || (oldValue != null && newValue != null && equalityTester.equals(
+        oldValue, newValue));
 
     AspectIngestionAnnotationArray ingestionAnnotations = parseIngestionModeFromAnnotation(aspectClass);
     AspectIngestionAnnotation annotation = findIngestionAnnotationForEntity(ingestionAnnotations, urn);
     Mode mode = annotation == null || !annotation.hasMode() ? Mode.DEFAULT : annotation.getMode();
 
     // Skip saving for the following scenarios
-    if (mode != Mode.FORCE_UPDATE && ingestionMode != IngestionMode.LIVE_OVERRIDE
-        // ensure that the new metadata received is skippable (i.e. not marked as a forced write).
-        && (oldAndNewEqual || aspectVersionSkipWrite(newValue,
-        oldValue))) { // values are equal or newValue ver < oldValue ver
+    if (mode != Mode.FORCE_UPDATE
+        && ingestionMode != IngestionMode.LIVE_OVERRIDE // ensure that the new metadata received is skippable (i.e. not marked as a forced write).
+        && (oldAndNewEqual || aspectVersionSkipWrite(newValue, oldValue))) { // values are equal or newValue ver < oldValue ver
       return false;
     }
 
@@ -1604,9 +1595,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       // If there are filters in annotation, at least one filter conditions has to be met.
       boolean atLeastOneFilterPass = false;
       for (UrnFilter filter : filters) {
-        if (urnPaths.containsKey(filter.getPath()) && urnPaths.get(filter.getPath())
-            .toString()
-            .equals(filter.getValue())) {
+        if (urnPaths.containsKey(filter.getPath())
+            && urnPaths.get(filter.getPath()).toString().equals(filter.getValue())) {
           atLeastOneFilterPass = true;
           break;
         }
