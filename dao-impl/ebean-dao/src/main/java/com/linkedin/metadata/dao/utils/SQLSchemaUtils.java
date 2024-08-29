@@ -38,6 +38,16 @@ public class SQLSchemaUtils {
   }
 
   /**
+   * Get MySQL test table name from entity urn, e.g. urn:li:dataset to metadata_entity_dataset_test.
+   * @param urn {@link Urn} of the entity
+   * @return entity table name
+   */
+  @Nonnull
+  public static String getTestTableName(@Nonnull Urn urn) {
+    return getTableName(urn) + TEST_TABLE_SUFFIX;
+  }
+
+  /**
    * Get MySQL table name from entity type string.
    * @param entityType entity type as string, such as "dataset", "chart" ..etc
    * @return entity table name
@@ -54,17 +64,7 @@ public class SQLSchemaUtils {
    */
   @Nonnull
   public static String getTestTableName(@Nonnull String entityType) {
-    return ENTITY_TABLE_PREFIX + entityType.toLowerCase() + TEST_TABLE_SUFFIX;
-  }
-
-  /**
-   * Get MySQL test table name from entity urn, e.g. urn:li:dataset to metadata_entity_dataset_test.
-   * @param urn {@link Urn} of the entity
-   * @return entity table name
-   */
-  @Nonnull
-  public static String getTestTableName(@Nonnull Urn urn) {
-    return getTestTableName(urn.getEntityType());
+    return getTableName(entityType) + TEST_TABLE_SUFFIX;
   }
 
   /**
@@ -95,7 +95,7 @@ public class SQLSchemaUtils {
   @Nonnull
   public static <RELATIONSHIP extends RecordTemplate> String getTestRelationshipTableName(
       @Nonnull final RELATIONSHIP relationship) {
-    return RELATIONSHIP_TABLE_PREFIX + relationship.getClass().getSimpleName().toLowerCase() + TEST_TABLE_SUFFIX;
+    return getRelationshipTableName(relationship) + TEST_TABLE_SUFFIX;
   }
 
   /**
@@ -106,7 +106,7 @@ public class SQLSchemaUtils {
   @Nonnull
   public static <RELATIONSHIP extends RecordTemplate> String getTestRelationshipTableName(
       @Nonnull final Class<RELATIONSHIP> relationship) {
-    return RELATIONSHIP_TABLE_PREFIX + relationship.getSimpleName().toLowerCase() + TEST_TABLE_SUFFIX;
+    return getRelationshipTableName(relationship) + TEST_TABLE_SUFFIX;
   }
 
   /**

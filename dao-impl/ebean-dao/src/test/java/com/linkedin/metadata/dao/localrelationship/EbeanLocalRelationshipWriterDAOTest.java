@@ -104,6 +104,43 @@ public class EbeanLocalRelationshipWriterDAOTest {
   }
 
   @Test
+  public void testAddRelationshipWithRemoveNoneInTestMode() throws URISyntaxException {
+    _server.execute(Ebean.createSqlUpdate(insertRelationships("metadata_relationship_reportsto", "urn:li:bar:000",
+        "bar", "urn:li:foo:123", "foo")));
+    _server.execute(Ebean.createSqlUpdate(insertRelationships("metadata_relationship_reportsto_test", "urn:li:bar:000",
+        "bar", "urn:li:foo:123", "foo")));
+
+    AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(
+        BarUrn.createFromString("urn:li:bar:123"),
+        BarUrn.createFromString("urn:li:bar:456"),
+        BarUrn.createFromString("urn:li:bar:789")));
+
+    List<LocalRelationshipUpdates> updates = new ReportsToLocalRelationshipBuilder(AspectFooBar.class)
+        .buildRelationships(FooUrn.createFromString("urn:li:foo:123"), aspectFooBar);
+
+    // Before processing
+    List<SqlRow> before = _server.createSqlQuery("select * from metadata_relationship_reportsto_test where source='urn:li:bar:000'").findList();
+    assertEquals(before.size(), 1);
+    List<SqlRow> before = _server.createSqlQuery("select * from metadata_relationship_reportsto where source='urn:li:bar:000'").findList();
+    assertEquals(before.size(), 1);
+
+    _localRelationshipWriterDAO.processLocalRelationshipUpdates(FooUrn.createFromString("urn:li:foo:123"), updates, true);
+
+    // After processing verification
+    List<SqlRow> after = _server.createSqlQuery("select * from metadata_relationship_reportsto_test where destination='urn:li:foo:123'").findList();
+    assertEquals(after.size(), 4);
+    List<SqlRow> edges = _server.createSqlQuery("select * from metadata_relationship_reportsto_test where source='urn:li:bar:000'").findList();
+    assertEquals(edges.size(), 1);
+    List<SqlRow> after = _server.createSqlQuery("select * from metadata_relationship_reportsto where destination='urn:li:foo:123'").findList();
+    assertEquals(after.size(), 4);
+    List<SqlRow> edges = _server.createSqlQuery("select * from metadata_relationship_reportsto where source='urn:li:bar:000'").findList();
+    assertEquals(edges.size(), 1);
+
+    // Clean up
+    _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_reportsto_test"));
+  }
+
+  @Test
   public void testAddRelationshipWithRemoveAllEdgesFromSourceToDestination() throws URISyntaxException {
     _server.execute(Ebean.createSqlUpdate(insertRelationships("metadata_relationship_pairswith", "urn:li:bar:123",
         "bar", "urn:li:foo:123", "foo")));
