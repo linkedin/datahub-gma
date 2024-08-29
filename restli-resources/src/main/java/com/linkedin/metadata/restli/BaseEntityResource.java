@@ -233,7 +233,7 @@ public abstract class BaseEntityResource<
   @Action(name = ACTION_INGEST)
   @Nonnull
   public Task<Void> ingest(@ActionParam(PARAM_SNAPSHOT) @Nonnull SNAPSHOT snapshot) {
-    return ingestInternal(snapshot, Collections.emptySet(), null, null);
+    return ingestInternal(snapshot, Collections.emptySet(), null, null, false);
   }
 
   /**
@@ -247,19 +247,31 @@ public abstract class BaseEntityResource<
   public Task<Void> ingestWithTracking(@ActionParam(PARAM_SNAPSHOT) @Nonnull SNAPSHOT snapshot,
       @ActionParam(PARAM_TRACKING_CONTEXT) @Nonnull IngestionTrackingContext trackingContext,
       @Optional @ActionParam(PARAM_INGESTION_PARAMS) IngestionParams ingestionParams) {
-    return ingestInternal(snapshot, Collections.emptySet(), trackingContext, ingestionParams);
+    return ingestInternal(snapshot, Collections.emptySet(), trackingContext, ingestionParams, false);
   }
 
+  @Action(name = ACTION_INGEST_WITH_PRE_INGESTION_ROUTING)
   @Nonnull
+  public Task<Void> ingestWithPreIngestionRouting(@ActionParam(PARAM_SNAPSHOT) @Nonnull SNAPSHOT snapshot,
+      @ActionParam(PARAM_TRACKING_CONTEXT) @Nonnull IngestionTrackingContext trackingContext,
+      @Optional @ActionParam(PARAM_INGESTION_PARAMS) IngestionParams ingestionParams,
+      @Optional @ActionParam(PARAM_PRE_INGESTION_ROUTING) boolean preIngestionRouting) {
+    return ingestInternal(snapshot, Collections.emptySet(), trackingContext, ingestionParams, preIngestionRouting);
+  }
+
   protected Task<Void> ingestInternal(@Nonnull SNAPSHOT snapshot,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore,
-      @Nullable IngestionTrackingContext trackingContext, @Nullable IngestionParams ingestionParams) {
+      @Nullable IngestionTrackingContext trackingContext, @Nullable IngestionParams ingestionParams, boolean preIngestionRouting) {
     return RestliUtils.toTask(() -> {
       final URN urn = (URN) ModelUtils.getUrnFromSnapshot(snapshot);
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
       ModelUtils.getAspectsFromSnapshot(snapshot).stream().forEach(aspect -> {
         if (!aspectsToIgnore.contains(aspect.getClass())) {
-          getLocalDAO().add(urn, aspect, auditStamp, trackingContext, ingestionParams);
+          try {
+            getLocalDAO().add(urn, aspect, auditStamp, trackingContext, ingestionParams, preIngestionRouting);
+          } catch (Exception e) {
+            throw new RuntimeException(e);
+          }
         }
       });
       return null;

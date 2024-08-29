@@ -25,6 +25,7 @@ public final class RestliConstants {
   public static final String ACTION_INGEST = "ingest";
   public static final String ACTION_INGEST_ASSET = "ingestAsset";
   public static final String ACTION_INGEST_WITH_TRACKING = "ingestWithTracking";
+  public static final String ACTION_INGEST_WITH_PRE_INGESTION_ROUTING = "ingestWithPreIngestionRouting";
   public static final String ACTION_QUERY = "query";
   public static final String ACTION_LIST_URNS_FROM_INDEX = "listUrnsFromIndex";
   public static final String ACTION_LIST_URNS = "listUrns";
@@ -52,4 +53,5 @@ public final class RestliConstants {
   public static final String PARAM_METADATA = "metadata";
   public static final String PARAM_ENTITY_TYPE = "entityType";
   public static final String PARAM_PREFERENCE = "preference";
+  public static final String PARAM_PRE_INGESTION_ROUTING = "preIngestionRouting";
 }
