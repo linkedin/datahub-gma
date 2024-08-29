@@ -157,7 +157,7 @@ public final class ValidationUtils {
       @Nonnull Set<DataSchema.Type> allowedTypes) {
     return schema.getFields()
         .stream()
-        .filter(field -> !allowedTypes.contains(getFieldOrArrayItemType(field)))
+        .filter(field -> !allowedTypes.contains(getFieldOrArrayItemType(field)) && !field.getName().equals("hostedSearchEventMetadata"))
         .collect(Collectors.toList());
   }
 
