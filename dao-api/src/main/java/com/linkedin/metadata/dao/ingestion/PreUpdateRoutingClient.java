@@ -13,7 +13,6 @@ public interface PreUpdateRoutingClient<ASPECT extends Message> {
    * @param urn the urn of the asset
    * @param aspect the aspect to be updated
    * @return the updated aspect
-   * @throws Exception if the routing fails
    */
-  ASPECT routingLambda(Message urn, ASPECT aspect) throws Exception;
+  ASPECT routingLambda(Message urn, ASPECT aspect);
 }

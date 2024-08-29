@@ -1,6 +1,7 @@
 package com.linkedin.metadata.dao;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.protobuf.Message;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.DataMap;
@@ -24,6 +25,8 @@ import com.linkedin.metadata.dao.equality.EqualityTester;
 import com.linkedin.metadata.dao.exception.ModelValidationException;
 import com.linkedin.metadata.dao.ingestion.BaseLambdaFunction;
 import com.linkedin.metadata.dao.ingestion.LambdaFunctionRegistry;
+import com.linkedin.metadata.dao.ingestion.PreIngestionAspectRegistry;
+import com.linkedin.metadata.dao.ingestion.RestliCompliantPreUpdateRoutingClient;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.IndefiniteRetention;
@@ -179,6 +182,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   protected UrnPathExtractor<URN> _urnPathExtractor;
 
   private LambdaFunctionRegistry _lambdaFunctionRegistry;
+  private PreIngestionAspectRegistry _preIngestionAspectRegistry;
 
   // Maps an aspect class to the corresponding retention policy
   private final Map<Class<? extends RecordTemplate>, Retention> _aspectRetentionMap = new HashMap<>();
@@ -210,6 +214,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   private boolean _emitAuditEvent = false;
 
   private Clock _clock = Clock.systemUTC();
+
+  private RestliCompliantPreUpdateRoutingClient _restliCompliantPreUpdateRoutingClient;
 
   /**
    * Constructor for BaseLocalDAO.
@@ -395,6 +401,20 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     _lambdaFunctionRegistry = lambdaFunctionRegistry;
   }
 
+  /**
+   * Set Pre Update Routing Client.
+   */
+  public void setPreUpdateRoutingClient(
+      @Nullable RestliCompliantPreUpdateRoutingClient<Message> restliCompliantPreUpdateRoutingClient) {
+    _restliCompliantPreUpdateRoutingClient = restliCompliantPreUpdateRoutingClient;
+  }
+
+  /**
+   * Set Pre Ingestion Aspect Registry.
+   */
+  public void setPreIngestionAspectRegistry(@Nullable PreIngestionAspectRegistry preIngestionAspectRegistry) {
+    _preIngestionAspectRegistry = preIngestionAspectRegistry;
+  }
   /**
    * Enables or disables atomic updates of multiple aspects.
    */
@@ -744,8 +764,21 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, AspectUpdateLambda<ASPECT> updateLambda,
       @Nonnull AuditStamp auditStamp, int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext) {
     checkValidAspect(updateLambda.getAspectClass());
-
-    final AddResult<ASPECT> result = runInTransactionWithRetry(() -> aspectUpdateHelper(urn, updateLambda, auditStamp, trackingContext),
+    AspectUpdateLambda<ASPECT> effectiveUpdateLambda;
+    if (_preIngestionAspectRegistry != null
+        && _preIngestionAspectRegistry.isRegistered(updateLambda.getAspectClass())) {
+      Message updatedAspect = _restliCompliantPreUpdateRoutingClient.routingLambda(
+          _restliCompliantPreUpdateRoutingClient.convertUrnToMessage(urn),
+          _restliCompliantPreUpdateRoutingClient.convertAspectToMessage(
+              updateLambda.getUpdateLambda().apply(Optional.empty())));
+      ASPECT convertedAspect = (ASPECT) _restliCompliantPreUpdateRoutingClient.convertAspectFromMessage(updatedAspect);
+      effectiveUpdateLambda = new AspectUpdateLambda<>((Class<ASPECT>) convertedAspect.getClass(), // Aspect class
+          ignored -> convertedAspect // Lambda that returns the converted aspect
+      );
+    } else {
+      effectiveUpdateLambda = updateLambda;
+    }
+    final AddResult<ASPECT> result = runInTransactionWithRetry(() -> aspectUpdateHelper(urn, effectiveUpdateLambda, auditStamp, trackingContext),
         maxTransactionRetry);
 
     return unwrapAddResult(urn, result, auditStamp, trackingContext);
