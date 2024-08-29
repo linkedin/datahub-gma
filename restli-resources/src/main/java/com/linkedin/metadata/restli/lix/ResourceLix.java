@@ -35,24 +35,6 @@ public interface ResourceLix {
   boolean testBatchGetWithErrors(@Nullable String urn, @Nullable String type);
 
   /**
-   * Experiment on the Ingest.
-   * @param urn urnString of the entity
-   * @param entityType type of the entity
-   * @param aspectName aspect FQCN of the urn
-   * @return enabling/not
-   */
-  boolean testIngest(@Nonnull String urn, @Nonnull String entityType, @Nullable String aspectName);
-
-  /**
-   * Experiment on the IngestWithTracking.
-   * @param urn urnString of the entity
-   * @param entityType type of the entity
-   * @param aspectName aspect FQCN of the urn
-   * @return enabling/not enabling/not
-   */
-  boolean testIngestWithTracking(@Nonnull String urn, @Nonnull String entityType, @Nullable String aspectName);
-
-  /**
    * Experiment on the GetSnapshot.
    * @param urn urnString of the entity
    * @param entityType type of the entity

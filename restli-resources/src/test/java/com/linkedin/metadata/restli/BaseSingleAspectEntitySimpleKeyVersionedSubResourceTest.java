@@ -12,6 +12,9 @@ import com.linkedin.restli.server.ResourceContext;
 import com.linkedin.restli.server.RestLiServiceException;
 import com.linkedin.restli.server.annotations.RestLiCollection;
 import com.linkedin.testing.AspectBar;
+import com.linkedin.testing.EntityAsset;
+import com.linkedin.testing.InternalEntityAspectUnion;
+import com.linkedin.testing.InternalEntitySnapshot;
 import com.linkedin.testing.singleaspectentity.EntityAspectUnion;
 import com.linkedin.testing.singleaspectentity.EntitySnapshot;
 import com.linkedin.testing.singleaspectentity.EntityValue;
@@ -30,7 +33,7 @@ import static org.testng.Assert.*;
 
 public class BaseSingleAspectEntitySimpleKeyVersionedSubResourceTest extends BaseEngineTest {
 
-  private BaseLocalDAO<EntityAspectUnion, SingleAspectEntityUrn> _mockLocalDao;
+  private BaseLocalDAO<InternalEntityAspectUnion, SingleAspectEntityUrn> _mockLocalDao;
   private TestVersionedSubResource _resource = new TestVersionedSubResource();
 
   @SuppressWarnings("unchecked")
@@ -108,7 +111,7 @@ public class BaseSingleAspectEntitySimpleKeyVersionedSubResourceTest extends Bas
    * */
   @RestLiCollection(name = "versions", namespace = "com.linkedin.testing", parent = TestResource.class, keyName = "versionId")
   private class TestVersionedSubResource extends BaseSingleAspectEntityVersionedSubResource<
-              EntityValue, SingleAspectEntityUrn, AspectBar, EntityAspectUnion> {
+              EntityValue, SingleAspectEntityUrn, AspectBar, InternalEntityAspectUnion> {
 
     TestVersionedSubResource() {
       super(AspectBar.class, EntityValue.class);
@@ -116,7 +119,7 @@ public class BaseSingleAspectEntitySimpleKeyVersionedSubResourceTest extends Bas
 
     @Override
     @Nonnull
-    protected BaseLocalDAO<EntityAspectUnion, SingleAspectEntityUrn> getLocalDAO() {
+    protected BaseLocalDAO<InternalEntityAspectUnion, SingleAspectEntityUrn> getLocalDAO() {
       return _mockLocalDao;
     }
 
@@ -151,16 +154,18 @@ public class BaseSingleAspectEntitySimpleKeyVersionedSubResourceTest extends Bas
    * Test resource class for BaseSingleAspectEntitySimpleKeyResource.
    * */
   @RestLiCollection(name = "SingleAspectEntity", namespace = "com.linkedin.testing", keyName = "testId")
-  private class TestResource extends BaseSingleAspectEntityResource<
-          Long, EntityValue, SingleAspectEntityUrn, AspectBar, EntityAspectUnion, EntitySnapshot> {
+  private class TestResource extends
+                             BaseSingleAspectEntityResource<Long, EntityValue, SingleAspectEntityUrn, AspectBar,
+                                 EntityAspectUnion, EntitySnapshot, InternalEntitySnapshot, InternalEntityAspectUnion, EntityAsset> {
 
     TestResource() {
-      super(AspectBar.class, EntityAspectUnion.class, EntityValue.class, EntitySnapshot.class);
+      super(AspectBar.class, EntityAspectUnion.class, EntityValue.class, EntitySnapshot.class,
+          InternalEntitySnapshot.class, InternalEntityAspectUnion.class, EntityAsset.class);
     }
 
     @Override
     @Nonnull
-    protected BaseLocalDAO<EntityAspectUnion, SingleAspectEntityUrn> getLocalDAO() {
+    protected BaseLocalDAO<InternalEntityAspectUnion, SingleAspectEntityUrn> getLocalDAO() {
       return _mockLocalDao;
     }
 

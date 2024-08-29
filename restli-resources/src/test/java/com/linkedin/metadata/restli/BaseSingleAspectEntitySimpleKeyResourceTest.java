@@ -18,6 +18,9 @@ import com.linkedin.restli.server.PagingContext;
 import com.linkedin.restli.server.ResourceContext;
 import com.linkedin.restli.server.RestLiServiceException;
 import com.linkedin.testing.AspectBar;
+import com.linkedin.testing.EntityAsset;
+import com.linkedin.testing.singleaspectentity.InternalEntityAspectUnion;
+import com.linkedin.testing.singleaspectentity.InternalEntitySnapshot;
 import com.linkedin.testing.singleaspectentity.EntityAspectUnion;
 import com.linkedin.testing.singleaspectentity.EntitySnapshot;
 import com.linkedin.testing.singleaspectentity.EntityValue;
@@ -44,7 +47,7 @@ import static org.testng.Assert.*;
 
 public class BaseSingleAspectEntitySimpleKeyResourceTest extends BaseEngineTest {
 
-  private BaseLocalDAO<EntityAspectUnion, SingleAspectEntityUrn> _mockLocalDao;
+  private BaseLocalDAO<InternalEntityAspectUnion, SingleAspectEntityUrn> _mockLocalDao;
   private TestResource _resource = new TestResource();
 
   @SuppressWarnings("unchecked")
@@ -218,15 +221,17 @@ public class BaseSingleAspectEntitySimpleKeyResourceTest extends BaseEngineTest 
    * Test implementation of BaseSingleAspectEntitySimpleKeyResource.
    * */
   private class TestResource extends
-                             BaseSingleAspectEntityResource<Long, EntityValue, SingleAspectEntityUrn, AspectBar, EntityAspectUnion, EntitySnapshot> {
+                             BaseSingleAspectEntityResource<Long, EntityValue, SingleAspectEntityUrn, AspectBar,
+                                 EntityAspectUnion, EntitySnapshot, InternalEntitySnapshot, InternalEntityAspectUnion, EntityAsset> {
 
     TestResource() {
-      super(AspectBar.class, EntityAspectUnion.class, EntityValue.class, EntitySnapshot.class);
+      super(AspectBar.class, EntityAspectUnion.class, EntityValue.class, EntitySnapshot.class,
+          InternalEntitySnapshot.class, InternalEntityAspectUnion.class, EntityAsset.class);
     }
 
     @Override
     @Nonnull
-    protected BaseLocalDAO<EntityAspectUnion, SingleAspectEntityUrn> getLocalDAO() {
+    protected BaseLocalDAO<InternalEntityAspectUnion, SingleAspectEntityUrn> getLocalDAO() {
       return _mockLocalDao;
     }
 

@@ -28,10 +28,13 @@ import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.EntityAspectUnion;
 import com.linkedin.testing.EntityAspectUnionArray;
+import com.linkedin.testing.EntityAsset;
 import com.linkedin.testing.EntityDocument;
 import com.linkedin.testing.EntityKey;
 import com.linkedin.testing.EntitySnapshot;
 import com.linkedin.testing.EntityValue;
+import com.linkedin.testing.InternalEntityAspectUnion;
+import com.linkedin.testing.InternalEntitySnapshot;
 import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.List;
@@ -48,21 +51,23 @@ import static org.testng.Assert.*;
 
 public class BaseSearchableEntityResourceTest extends BaseEngineTest {
 
-  private BaseLocalDAO<EntityAspectUnion, Urn> _mockLocalDAO;
+  private BaseLocalDAO<InternalEntityAspectUnion, Urn> _mockLocalDAO;
   private BaseSearchDAO<EntityDocument> _mockSearchDAO;
   private TestResource _resource = new TestResource();
 
   class TestResource extends BaseSearchableEntityResource<
       // format
-      ComplexResourceKey<EntityKey, EmptyRecord>, EntityValue, Urn, EntitySnapshot, EntityAspectUnion, EntityDocument> {
+      ComplexResourceKey<EntityKey, EmptyRecord>, EntityValue, Urn, EntitySnapshot, EntityAspectUnion, EntityDocument,
+      InternalEntitySnapshot, InternalEntityAspectUnion, EntityAsset> {
 
     public TestResource() {
-      super(EntitySnapshot.class, EntityAspectUnion.class);
+      super(EntitySnapshot.class, EntityAspectUnion.class, InternalEntitySnapshot.class,
+          InternalEntityAspectUnion.class, EntityAsset.class);
     }
 
     @Nonnull
     @Override
-    protected BaseLocalDAO<EntityAspectUnion, Urn> getLocalDAO() {
+    protected BaseLocalDAO<InternalEntityAspectUnion, Urn> getLocalDAO() {
       return _mockLocalDAO;
     }
 

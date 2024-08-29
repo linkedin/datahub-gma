@@ -10,6 +10,7 @@ import com.linkedin.metadata.dao.AspectKey;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.internal.IngestionParams;
+import com.linkedin.metadata.restli.lix.ResourceLix;
 import com.linkedin.parseq.Task;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.RestLiServiceException;
@@ -55,21 +56,47 @@ public abstract class BaseAspectRoutingResource<
     URN extends Urn,
     SNAPSHOT extends RecordTemplate,
     ASPECT_UNION extends UnionTemplate,
-    DOCUMENT extends RecordTemplate>
+    DOCUMENT extends RecordTemplate,
+    INTERNAL_SNAPSHOT extends RecordTemplate,
+    INTERNAL_ASPECT_UNION extends UnionTemplate,
+    ASSET extends RecordTemplate>
     // @formatter:on
-    extends BaseBrowsableEntityResource<KEY, VALUE, URN, SNAPSHOT, ASPECT_UNION, DOCUMENT> {
+    extends
+    BaseBrowsableEntityResource<KEY, VALUE, URN, SNAPSHOT, ASPECT_UNION, DOCUMENT, INTERNAL_SNAPSHOT, INTERNAL_ASPECT_UNION, ASSET> {
 
   private final Class<VALUE> _valueClass;
   private final Class<ASPECT_UNION> _aspectUnionClass;
   private final Class<SNAPSHOT> _snapshotClass;
+  private final Class<INTERNAL_SNAPSHOT> _internalSnapshotClass;
+  private final Class<INTERNAL_ASPECT_UNION> _internalAspectUnionClass;
+  private final Class<ASSET> _assetClass;
 
-  public BaseAspectRoutingResource(@Nonnull Class<SNAPSHOT> snapshotClass,
-      @Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull Class<URN> urnClass,
-      @Nonnull Class<VALUE> valueClass) {
-    super(snapshotClass, aspectUnionClass, urnClass);
+  public BaseAspectRoutingResource(@Nullable Class<SNAPSHOT> snapshotClass,
+      @Nullable Class<ASPECT_UNION> aspectUnionClass, @Nonnull Class<URN> urnClass, @Nonnull Class<VALUE> valueClass,
+      @Nonnull Class<INTERNAL_SNAPSHOT> internalSnapshotClass,
+      @Nonnull Class<INTERNAL_ASPECT_UNION> internalAspectUnionClass, @Nonnull Class<ASSET> assetClass) {
+    super(snapshotClass, aspectUnionClass, urnClass, internalSnapshotClass, internalAspectUnionClass, assetClass);
     _valueClass = valueClass;
     _aspectUnionClass = aspectUnionClass;
     _snapshotClass = snapshotClass;
+    _internalSnapshotClass = internalSnapshotClass;
+    _internalAspectUnionClass = internalAspectUnionClass;
+    _assetClass = assetClass;
+  }
+
+  public BaseAspectRoutingResource(@Nullable Class<SNAPSHOT> snapshotClass,
+      @Nullable Class<ASPECT_UNION> aspectUnionClass, @Nonnull Class<URN> urnClass, @Nonnull Class<VALUE> valueClass,
+      @Nonnull Class<INTERNAL_SNAPSHOT> internalSnapshotClass,
+      @Nonnull Class<INTERNAL_ASPECT_UNION> internalAspectUnionClass, @Nonnull Class<ASSET> assetClass,
+      @Nonnull ResourceLix resourceLix) {
+    super(snapshotClass, aspectUnionClass, urnClass, internalSnapshotClass, internalAspectUnionClass, assetClass,
+        resourceLix);
+    _valueClass = valueClass;
+    _aspectUnionClass = aspectUnionClass;
+    _snapshotClass = snapshotClass;
+    _internalSnapshotClass = internalSnapshotClass;
+    _internalAspectUnionClass = internalAspectUnionClass;
+    _assetClass = assetClass;
   }
 
   /**
@@ -85,9 +112,17 @@ public abstract class BaseAspectRoutingResource<
   @Nonnull
   @Override
   public Task<VALUE> get(@Nonnull KEY id, @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
+    final URN urn = toUrn(id);
+    return get(id, aspectNames, _resourceLix.testGet(String.valueOf(urn), urn.getEntityType()));
+  }
+
+  @Nonnull
+  @Override
+  protected Task<VALUE> get(@Nonnull KEY id, @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
+      boolean isInternalModelsEnabled) {
 
     return RestliUtils.toTask(() -> {
-      final Set<Class<? extends RecordTemplate>> aspectClasses = parseAspectsParam(aspectNames);
+      final Set<Class<? extends RecordTemplate>> aspectClasses = parseAspectsParam(aspectNames, isInternalModelsEnabled);
 
       // The assumption is main GMS must have this entity.
       // If entity only has routing aspect, resourceNotFoundException will be thrown.
@@ -98,40 +133,103 @@ public abstract class BaseAspectRoutingResource<
       final Set<Class<? extends RecordTemplate>> nonRoutingAspects = getNonRoutingAspects(aspectClasses);
       final VALUE valueFromLocalDao;
       if (nonRoutingAspects.isEmpty()) {
-        valueFromLocalDao = toValue(newSnapshot(urn));
+        valueFromLocalDao =
+            isInternalModelsEnabled ? toInternalValue(newInternalSnapshot(urn)) : toValue(newSnapshot(urn));
       } else {
-        valueFromLocalDao = getValueFromLocalDao(id, nonRoutingAspects);
+        valueFromLocalDao = getValueFromLocalDao(id, nonRoutingAspects, isInternalModelsEnabled);
       }
       return merge(valueFromLocalDao, getValueFromRoutingGms(toUrn(id), getRoutingAspects(aspectClasses)));
     });
   }
 
   /**
+   * Deprecated to use {@link #getAsset(String, String[])} .
    * An action method for getting a snapshot of aspects for an entity.
    */
+  @Deprecated
   @Action(name = ACTION_GET_SNAPSHOT)
   @Nonnull
   @Override
   public Task<SNAPSHOT> getSnapshot(@ActionParam(PARAM_URN) @Nonnull String urnString,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
+    final URN urn = parseUrnParam(urnString);
+    return getSnapshot(urnString, aspectNames,
+        _resourceLix.testGetSnapshot(String.valueOf(urn), ModelUtils.getEntityType(urn)));
+  }
+
+  @Nonnull
+  @Override
+  protected Task<SNAPSHOT> getSnapshot(@ActionParam(PARAM_URN) @Nonnull String urnString,
+      @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames, boolean isInternalModelsEnabled) {
+    final URN urn = parseUrnParam(urnString);
+    final Set<Class<? extends RecordTemplate>> aspectClasses = parseAspectsParam(aspectNames, isInternalModelsEnabled);
+    if (isInternalModelsEnabled) {
+      return RestliUtils.toTask(() -> {
+        if (!containsRoutingAspect(aspectClasses)) {
+          // Get snapshot from Local DAO.
+          final List<INTERNAL_ASPECT_UNION> aspectUnions = getInternalAspectsFromLocalDao(urn, aspectClasses);
+          return ModelUtils.newSnapshot(_snapshotClass, urn,
+              convertInternalAspectUnionToAspectUnion(_aspectUnionClass, aspectUnions));
+        } else {
+          final Set<Class<? extends RecordTemplate>> nonRoutingAspects = getNonRoutingAspects(aspectClasses);
+          final List<INTERNAL_ASPECT_UNION> aspectsFromLocalDao =
+              getInternalAspectsFromLocalDao(urn, nonRoutingAspects);
+          final Set<Class<? extends RecordTemplate>> routingAspects = getRoutingAspects(aspectClasses);
+          final List<INTERNAL_ASPECT_UNION> aspectsFromGms = routingAspects.stream()
+              .map(routingAspect -> getInternalAspectsFromGms(urn, routingAspect))
+              .flatMap(List::stream)
+              .collect(Collectors.toList());
+          return ModelUtils.newSnapshot(_snapshotClass, urn, convertInternalAspectUnionToAspectUnion(_aspectUnionClass,
+              Stream.concat(aspectsFromGms.stream(), aspectsFromLocalDao.stream()).collect(Collectors.toList())));
+        }
+      });
+    } else {
+      return RestliUtils.toTask(() -> {
+        if (!containsRoutingAspect(aspectClasses)) {
+          // Get snapshot from Local DAO.
+          final List<ASPECT_UNION> aspectUnions = getAspectsFromLocalDao(urn, aspectClasses);
+          return ModelUtils.newSnapshot(_snapshotClass, urn, aspectUnions);
+        } else {
+          final Set<Class<? extends RecordTemplate>> nonRoutingAspects = getNonRoutingAspects(aspectClasses);
+          final List<ASPECT_UNION> aspectsFromLocalDao = getAspectsFromLocalDao(urn, nonRoutingAspects);
+          final Set<Class<? extends RecordTemplate>> routingAspects = getRoutingAspects(aspectClasses);
+          final List<ASPECT_UNION> aspectsFromGms = routingAspects.stream()
+              .map(routingAspect -> getAspectsFromGms(urn, routingAspect))
+              .flatMap(List::stream)
+              .collect(Collectors.toList());
+          return ModelUtils.newSnapshot(_snapshotClass, urn,
+              Stream.concat(aspectsFromGms.stream(), aspectsFromLocalDao.stream()).collect(Collectors.toList()));
+        }
+      });
+    }
+  }
+
+  /**
+   * An action method for getting an asset of aspects for an entity.
+   */
+  @Action(name = ACTION_GET_ASSET)
+  @Nonnull
+  @Override
+  public Task<ASSET> getAsset(@ActionParam(PARAM_URN) @Nonnull String urnString,
+      @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
 
     return RestliUtils.toTask(() -> {
       final URN urn = parseUrnParam(urnString);
-      final Set<Class<? extends RecordTemplate>> aspectClasses = parseAspectsParam(aspectNames);
+      final Set<Class<? extends RecordTemplate>> aspectClasses = parseAspectsParam(aspectNames, true);
 
       if (!containsRoutingAspect(aspectClasses)) {
         // Get snapshot from Local DAO.
-        final List<ASPECT_UNION> aspectUnions = getAspectsFromLocalDao(urn, aspectClasses);
-        return ModelUtils.newSnapshot(_snapshotClass, urn, aspectUnions);
+        final List<INTERNAL_ASPECT_UNION> aspectUnions = getInternalAspectsFromLocalDao(urn, aspectClasses);
+        return ModelUtils.newAsset(_assetClass, urn, aspectUnions);
       } else {
         final Set<Class<? extends RecordTemplate>> nonRoutingAspects = getNonRoutingAspects(aspectClasses);
-        final List<ASPECT_UNION> aspectsFromLocalDao = getAspectsFromLocalDao(urn, nonRoutingAspects);
+        final List<INTERNAL_ASPECT_UNION> aspectsFromLocalDao = getInternalAspectsFromLocalDao(urn, nonRoutingAspects);
         final Set<Class<? extends RecordTemplate>> routingAspects = getRoutingAspects(aspectClasses);
-        final List<ASPECT_UNION> aspectsFromGms = routingAspects.stream()
-            .map(routingAspect -> getAspectsFromGms(urn, routingAspect))
+        final List<INTERNAL_ASPECT_UNION> aspectsFromGms = routingAspects.stream()
+            .map(routingAspect -> getInternalAspectsFromGms(urn, routingAspect))
             .flatMap(List::stream)
             .collect(Collectors.toList());
-        return ModelUtils.newSnapshot(_snapshotClass, urn,
+        return ModelUtils.newAsset(_assetClass, urn,
             Stream.concat(aspectsFromGms.stream(), aspectsFromLocalDao.stream()).collect(Collectors.toList()));
       }
     });
@@ -144,6 +242,14 @@ public abstract class BaseAspectRoutingResource<
   @Nonnull
   public Task<BackfillResult> backfill(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
+    final String urnString = urns[0];
+    final URN urn = parseUrnParam(urnString);
+    return backfill(urns, aspectNames, _resourceLix.testBackfillWithUrns(urnString, ModelUtils.getEntityType(urn)));
+  }
+
+  @Nonnull
+  private Task<BackfillResult> backfill(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
+      @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames, boolean isInternalModelsEnabled) {
     if (this._urnClass == null) {
       throw new IllegalStateException("URN class is not set for this resource");
     }
@@ -151,7 +257,8 @@ public abstract class BaseAspectRoutingResource<
 
     return RestliUtils.toTask(() -> {
       final Set<URN> urnSet = Arrays.stream(urns).map(this::parseUrnParam).collect(Collectors.toSet());
-      final Set<Class<? extends RecordTemplate>> aspectClasses = parseAspectsParam(aspectNames);
+      final Set<Class<? extends RecordTemplate>> aspectClasses =
+          parseAspectsParam(aspectNames, isInternalModelsEnabled);
       Map<URN, Map<Class<? extends RecordTemplate>, java.util.Optional<? extends RecordTemplate>>> urnToAspect =
           new HashMap<>();
 
@@ -185,19 +292,29 @@ public abstract class BaseAspectRoutingResource<
   @Override
   public Task<BackfillResult> backfillWithNewValue(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
+    final String urnString = urns[0];
+    final URN urn = parseUrnParam(urnString);
+    return backfillWithNewValue(urns, aspectNames,
+        _resourceLix.testBackfillWithNewValue(urnString, ModelUtils.getEntityType(urn)));
+  }
+
+  private Task<BackfillResult> backfillWithNewValue(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
+      @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames, boolean isInternalModelsEnabled) {
 
     return RestliUtils.toTask(() -> {
       final Set<URN> urnSet = Arrays.stream(urns).map(this::parseUrnParam).collect(Collectors.toSet());
-      final Set<Class<? extends RecordTemplate>> aspectClasses = parseAspectsParam(aspectNames);
-      return RestliUtils.buildBackfillResult(getLocalDAO().backfillWithNewValue(getNonRoutingAspects(aspectClasses), urnSet));
+      final Set<Class<? extends RecordTemplate>> aspectClasses =
+          parseAspectsParam(aspectNames, isInternalModelsEnabled);
+      return RestliUtils.buildBackfillResult(
+          getLocalDAO().backfillWithNewValue(getNonRoutingAspects(aspectClasses), urnSet));
     });
   }
 
   @Nonnull
   @Override
   protected Task<Void> ingestInternal(@Nonnull SNAPSHOT snapshot,
-      @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore,
-      @Nullable IngestionTrackingContext trackingContext, @Nullable IngestionParams ingestionParams) {
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore, @Nullable IngestionTrackingContext trackingContext,
+      @Nullable IngestionParams ingestionParams) {
     // TODO: META-18950: add trackingContext to BaseAspectRoutingResource. currently the param is unused.
     return RestliUtils.toTask(() -> {
       final URN urn = (URN) ModelUtils.getUrnFromSnapshot(snapshot);
@@ -215,6 +332,37 @@ public abstract class BaseAspectRoutingResource<
               log.error(
                   String.format("Couldn't ingest routing aspect %s for %s", aspect.getClass().getSimpleName(), urn),
                   exception);
+            }
+          } else {
+            getLocalDAO().add(urn, aspect, auditStamp, trackingContext, ingestionParams);
+          }
+        }
+      });
+      return null;
+    });
+  }
+
+  @Nonnull
+  @Override
+  protected Task<Void> ingestInternalAsset(@Nonnull ASSET asset,
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore, @Nullable IngestionTrackingContext trackingContext,
+      @Nullable IngestionParams ingestionParams) {
+    // TODO: META-18950: add trackingContext to BaseAspectRoutingResource. currently the param is unused.
+    return RestliUtils.toTask(() -> {
+      final URN urn = (URN) ModelUtils.getUrnFromAsset(asset);
+      final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
+      ModelUtils.getAspectsFromAsset(asset).forEach(aspect -> {
+        if (!aspectsToIgnore.contains(aspect.getClass())) {
+          if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
+            try {
+              if (trackingContext != null) {
+                getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass())
+                    .ingestWithTracking(urn, aspect, trackingContext, ingestionParams);
+              } else {
+                getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingest(urn, aspect);
+              }
+            } catch (Exception exception) {
+              log.error("Couldn't ingest routing aspect {} for {}", aspect.getClass().getSimpleName(), urn, exception);
             }
           } else {
             getLocalDAO().add(urn, aspect, auditStamp, trackingContext, ingestionParams);
@@ -265,9 +413,10 @@ public abstract class BaseAspectRoutingResource<
    */
   @Nonnull
   @ParametersAreNonnullByDefault
-  private VALUE getValueFromLocalDao(KEY id, Set<Class<? extends RecordTemplate>> aspectClasses) {
+  private VALUE getValueFromLocalDao(KEY id, Set<Class<? extends RecordTemplate>> aspectClasses,
+      boolean isInternalModelsEnabled) {
     final URN urn = toUrn(id);
-    final VALUE value = getInternal(Collections.singleton(urn), aspectClasses).get(urn);
+    final VALUE value = getInternal(Collections.singleton(urn), aspectClasses, isInternalModelsEnabled).get(urn);
     if (value == null) {
       throw RestliUtils.resourceNotFoundException();
     }
@@ -287,6 +436,30 @@ public abstract class BaseAspectRoutingResource<
     if (aspectClasses == null || aspectClasses.isEmpty()) {
       return Collections.emptyList();
     }
+    final Set<AspectKey<URN, ? extends RecordTemplate>> keys = aspectClasses.stream()
+        .map(aspectClass -> new AspectKey<>(aspectClass, urn, LATEST_VERSION))
+        .collect(Collectors.toSet());
+    return getLocalDAO().get(keys)
+        .values()
+        .stream()
+        .filter(java.util.Optional::isPresent)
+        .map(aspect -> ModelUtils.newAspectUnion(_aspectUnionClass, aspect.get()))
+        .collect(Collectors.toList());
+  }
+
+  /**
+   * Get internal aspect values from local DAO for specified aspect classes.
+   * @param urn identifier of the entity.
+   * @param aspectClasses Aspects to be decorated on the entity
+   * @return A list of aspects.
+   */
+  @Nonnull
+  @ParametersAreNonnullByDefault
+  private List<INTERNAL_ASPECT_UNION> getInternalAspectsFromLocalDao(URN urn, Set<Class<? extends RecordTemplate>> aspectClasses) {
+
+    if (aspectClasses == null || aspectClasses.isEmpty()) {
+      return Collections.emptyList();
+    }
 
     final Set<AspectKey<URN, ? extends RecordTemplate>> keys = aspectClasses.stream()
         .map(aspectClass -> new AspectKey<>(aspectClass, urn, LATEST_VERSION))
@@ -296,7 +469,7 @@ public abstract class BaseAspectRoutingResource<
         .values()
         .stream()
         .filter(java.util.Optional::isPresent)
-        .map(aspect -> ModelUtils.newAspectUnion(_aspectUnionClass, aspect.get()))
+        .map(aspect -> ModelUtils.newAspectUnion(_internalAspectUnionClass, aspect.get()))
         .collect(Collectors.toList());
   }
 
@@ -312,6 +485,20 @@ public abstract class BaseAspectRoutingResource<
       return new ArrayList<>();
     }
     return Collections.singletonList(ModelUtils.newAspectUnion(_aspectUnionClass, routingAspects.get(0)));
+  }
+
+  /**
+   * Get internal aspect value from routing aspect GMS.
+   */
+  @Nonnull
+  @ParametersAreNonnullByDefault
+  private List<INTERNAL_ASPECT_UNION> getInternalAspectsFromGms(URN urn, Class aspectClass) {
+    final List<? extends RecordTemplate> routingAspects =
+        getValueFromRoutingGms(urn, Collections.singletonList(aspectClass));
+    if (routingAspects.isEmpty()) {
+      return new ArrayList<>();
+    }
+    return Collections.singletonList(ModelUtils.newAspectUnion(_internalAspectUnionClass, routingAspects.get(0)));
   }
 
   /**

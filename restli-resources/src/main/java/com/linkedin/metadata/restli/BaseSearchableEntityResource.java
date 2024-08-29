@@ -13,6 +13,8 @@ import com.linkedin.metadata.query.Filter;
 import com.linkedin.metadata.query.SearchResultMetadata;
 import com.linkedin.metadata.query.SortCriterion;
 import com.linkedin.metadata.query.SortOrder;
+import com.linkedin.metadata.restli.lix.DummyResourceLix;
+import com.linkedin.metadata.restli.lix.ResourceLix;
 import com.linkedin.parseq.Task;
 import com.linkedin.restli.server.CollectionResult;
 import com.linkedin.restli.server.PagingContext;
@@ -43,6 +45,9 @@ import static com.linkedin.metadata.restli.RestliConstants.*;
  * @param <SNAPSHOT> must be a valid snapshot type defined in com.linkedin.metadata.snapshot
  * @param <ASPECT_UNION> must be a valid aspect union type supported by the snapshot
  * @param <DOCUMENT> must be a valid search document type defined in com.linkedin.metadata.search
+ * @param <INTERNAL_SNAPSHOT> must be a valid internal snapshot type defined in com.linkedin.metadata.snapshot
+ * @param <INTERNAL_ASPECT_UNION> must be a valid internal aspect union type supported by the internal snapshot
+ * @param <ASSET> must be a valid asset type defined in com.linkedin.metadata.asset
  */
 public abstract class BaseSearchableEntityResource<
     // @formatter:off
@@ -51,21 +56,39 @@ public abstract class BaseSearchableEntityResource<
     URN extends Urn,
     SNAPSHOT extends RecordTemplate,
     ASPECT_UNION extends UnionTemplate,
-    DOCUMENT extends RecordTemplate>
+    DOCUMENT extends RecordTemplate,
+    INTERNAL_SNAPSHOT extends RecordTemplate,
+    INTERNAL_ASPECT_UNION extends UnionTemplate,
+    ASSET extends RecordTemplate>
     // @formatter:on
-    extends BaseEntityResource<KEY, VALUE, URN, SNAPSHOT, ASPECT_UNION> {
+    extends
+    BaseEntityResource<KEY, VALUE, URN, SNAPSHOT, ASPECT_UNION, INTERNAL_SNAPSHOT, INTERNAL_ASPECT_UNION, ASSET> {
 
   private static final String DEFAULT_SORT_CRITERION_FIELD = "urn";
 
-  public BaseSearchableEntityResource(@Nonnull Class<SNAPSHOT> snapshotClass,
-      @Nonnull Class<ASPECT_UNION> aspectUnionClass) {
-    super(snapshotClass, aspectUnionClass);
+  public BaseSearchableEntityResource(@Nullable Class<SNAPSHOT> snapshotClass,
+      @Nullable Class<ASPECT_UNION> aspectUnionClass, @Nonnull Class<INTERNAL_SNAPSHOT> internalSnapshotClass,
+      @Nonnull Class<INTERNAL_ASPECT_UNION> internalAspectUnionClass, @Nonnull Class<ASSET> assetClass) {
+    super(snapshotClass, aspectUnionClass, internalSnapshotClass, internalAspectUnionClass, assetClass);
   }
 
-  public BaseSearchableEntityResource(@Nonnull Class<SNAPSHOT> snapshotClass,
-      @Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull Class<URN> urnClass) {
-    super(snapshotClass, aspectUnionClass, urnClass);
+  public BaseSearchableEntityResource(@Nullable Class<SNAPSHOT> snapshotClass,
+      @Nullable Class<ASPECT_UNION> aspectUnionClass, @Nonnull Class<URN> urnClass,
+      @Nonnull Class<INTERNAL_SNAPSHOT> internalSnapshotClass,
+      @Nonnull Class<INTERNAL_ASPECT_UNION> internalAspectUnionClass, @Nonnull Class<ASSET> assetClass) {
+    super(snapshotClass, aspectUnionClass, urnClass, internalSnapshotClass, internalAspectUnionClass, assetClass,
+        new DummyResourceLix());
   }
+
+  public BaseSearchableEntityResource(@Nullable Class<SNAPSHOT> snapshotClass,
+      @Nullable Class<ASPECT_UNION> aspectUnionClass, @Nonnull Class<URN> urnClass,
+      @Nonnull Class<INTERNAL_SNAPSHOT> internalSnapshotClass,
+      @Nonnull Class<INTERNAL_ASPECT_UNION> internalAspectUnionClass, @Nonnull Class<ASSET> assetClass,
+      @Nonnull ResourceLix resourceLix) {
+    super(snapshotClass, aspectUnionClass, urnClass, internalSnapshotClass, internalAspectUnionClass, assetClass,
+        resourceLix);
+  }
+
 
   /**
    * Returns a document-specific {@link BaseSearchDAO}.
@@ -89,6 +112,15 @@ public abstract class BaseSearchableEntityResource<
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
       @QueryParam(PARAM_FILTER) @Optional @Nullable Filter filter,
       @QueryParam(PARAM_SORT) @Optional @Nullable SortCriterion sortCriterion) {
+    final String urnType = _urnClass == null ? null : _urnClass.getSimpleName();
+    return getAll(pagingContext, aspectNames, filter, sortCriterion, _resourceLix.testGetAll(urnType));
+  }
+
+  @Nonnull
+  protected Task<List<VALUE>> getAll(@Nonnull PagingContext pagingContext,
+      @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
+      @QueryParam(PARAM_FILTER) @Optional @Nullable Filter filter,
+      @QueryParam(PARAM_SORT) @Optional @Nullable SortCriterion sortCriterion, boolean isInternalModelsEnabled) {
 
     final Filter searchFilter = filter != null ? filter : QueryUtils.EMPTY_FILTER;
     final SortCriterion searchSortCriterion = sortCriterion != null ? sortCriterion
@@ -96,7 +128,7 @@ public abstract class BaseSearchableEntityResource<
     final SearchResult<DOCUMENT> filterResult =
         getSearchDAO().filter(searchFilter, searchSortCriterion, pagingContext.getStart(), pagingContext.getCount());
     return RestliUtils.toTask(
-        () -> getSearchQueryCollectionResult(filterResult, aspectNames).getElements());
+        () -> getSearchQueryCollectionResult(filterResult, aspectNames, isInternalModelsEnabled).getElements());
   }
 
   @Finder(FINDER_SEARCH)
@@ -106,12 +138,22 @@ public abstract class BaseSearchableEntityResource<
       @QueryParam(PARAM_FILTER) @Optional @Nullable Filter filter,
       @QueryParam(PARAM_SORT) @Optional @Nullable SortCriterion sortCriterion,
       @PagingContextParam @Nonnull PagingContext pagingContext) {
+    final String urnType = _urnClass == null ? null : _urnClass.getSimpleName();
+    return search(input, aspectNames, filter, sortCriterion, pagingContext, _resourceLix.testSearch(urnType));
+  }
+
+  @Nonnull
+  private Task<CollectionResult<VALUE, SearchResultMetadata>> search(@QueryParam(PARAM_INPUT) @Nonnull String input,
+      @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
+      @QueryParam(PARAM_FILTER) @Optional @Nullable Filter filter,
+      @QueryParam(PARAM_SORT) @Optional @Nullable SortCriterion sortCriterion,
+      @PagingContextParam @Nonnull PagingContext pagingContext, boolean isInternalModelsEnabled) {
 
     final Filter searchFilter = filter != null ? filter : QueryUtils.EMPTY_FILTER;
     final SearchResult<DOCUMENT> searchResult =
         getSearchDAO().search(input, searchFilter, sortCriterion, pagingContext.getStart(), pagingContext.getCount());
     return RestliUtils.toTask(
-        () -> getSearchQueryCollectionResult(searchResult, aspectNames));
+        () -> getSearchQueryCollectionResult(searchResult, aspectNames, isInternalModelsEnabled));
   }
 
   /**
@@ -133,12 +175,24 @@ public abstract class BaseSearchableEntityResource<
       @QueryParam(PARAM_SORT) @Optional @Nullable SortCriterion sortCriterion,
       @QueryParam(PARAM_PREFERENCE) @Optional @Nullable String preference,
       @PagingContextParam @Nonnull PagingContext pagingContext) {
+    final String urnType = _urnClass == null ? null : _urnClass.getSimpleName();
+    return searchV2(input, aspectNames, filter, sortCriterion, preference, pagingContext,
+        _resourceLix.testSearchV2(urnType));
+  }
+
+  @Nonnull
+  private Task<CollectionResult<VALUE, SearchResultMetadata>> searchV2(@QueryParam(PARAM_INPUT) @Nonnull String input,
+      @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
+      @QueryParam(PARAM_FILTER) @Optional @Nullable Filter filter,
+      @QueryParam(PARAM_SORT) @Optional @Nullable SortCriterion sortCriterion,
+      @QueryParam(PARAM_PREFERENCE) @Optional @Nullable String preference,
+      @PagingContextParam @Nonnull PagingContext pagingContext, boolean isInternalModelsEnabled) {
 
     final Filter searchFilter = filter != null ? filter : QueryUtils.EMPTY_FILTER;
     final SearchResult<DOCUMENT> searchResult =
         getSearchDAO().searchV2(input, searchFilter, sortCriterion, preference, pagingContext.getStart(), pagingContext.getCount());
     return RestliUtils.toTask(
-        () -> getSearchQueryCollectionResult(searchResult, aspectNames));
+        () -> getSearchQueryCollectionResult(searchResult, aspectNames, isInternalModelsEnabled));
   }
 
   @Action(name = ACTION_AUTOCOMPLETE)
@@ -156,14 +210,16 @@ public abstract class BaseSearchableEntityResource<
    * @return CollectionResult which contains: 1. aspect values fetched from MySQL DB, 2. Total count 3. Search result metadata.
    */
   @Nonnull
-  public CollectionResult<VALUE, SearchResultMetadata> getSearchQueryCollectionResult(@Nonnull SearchResult<DOCUMENT> searchResult,
-      @Nullable String[] aspectNames) {
+  private CollectionResult<VALUE, SearchResultMetadata> getSearchQueryCollectionResult(@Nonnull SearchResult<DOCUMENT> searchResult,
+      @Nullable String[] aspectNames, boolean isInternalModelsEnabled) {
 
     final List<URN> matchedUrns = searchResult.getDocumentList()
         .stream()
         .map(d -> (URN) ModelUtils.getUrnFromDocument(d))
         .collect(Collectors.toList());
-    final Map<URN, VALUE> urnValueMap = getInternalNonEmpty(matchedUrns, parseAspectsParam(aspectNames));
+    final Map<URN, VALUE> urnValueMap =
+        getInternalNonEmpty(matchedUrns, parseAspectsParam(aspectNames, isInternalModelsEnabled),
+            isInternalModelsEnabled);
     final List<URN> existingUrns = matchedUrns.stream().filter(urn -> urnValueMap.containsKey(urn)).collect(Collectors.toList());
     return new CollectionResult<>(
         existingUrns.stream().map(urn -> urnValueMap.get(urn)).collect(Collectors.toList()),
