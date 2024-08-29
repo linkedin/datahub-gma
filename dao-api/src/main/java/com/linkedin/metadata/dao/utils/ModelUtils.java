@@ -945,4 +945,8 @@ public class ModelUtils {
       throw new RuntimeException(e);
     }
   }
+
+  public static <URN extends Urn> String getEntityType(@Nullable URN urn) {
+    return urn == null ? null : urn.getEntityType();
+  }
 }

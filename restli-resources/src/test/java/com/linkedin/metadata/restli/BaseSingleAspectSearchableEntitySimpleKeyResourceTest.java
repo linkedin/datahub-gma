@@ -17,6 +17,9 @@ import com.linkedin.parseq.BaseEngineTest;
 import com.linkedin.restli.server.CollectionResult;
 import com.linkedin.restli.server.PagingContext;
 import com.linkedin.testing.AspectBar;
+import com.linkedin.testing.EntityAsset;
+import com.linkedin.testing.InternalEntityAspectUnion;
+import com.linkedin.testing.InternalEntitySnapshot;
 import com.linkedin.testing.singleaspectentity.EntityAspectUnion;
 import com.linkedin.testing.singleaspectentity.EntityDocument;
 import com.linkedin.testing.singleaspectentity.EntitySnapshot;
@@ -37,7 +40,7 @@ import static org.testng.Assert.*;
 
 
 public class BaseSingleAspectSearchableEntitySimpleKeyResourceTest extends BaseEngineTest {
-  private BaseLocalDAO<EntityAspectUnion, SingleAspectEntityUrn> _mockLocalDao;
+  private BaseLocalDAO<InternalEntityAspectUnion, SingleAspectEntityUrn> _mockLocalDao;
   private BaseSearchDAO<EntityDocument> _mockSearchDao;
   private TestResource _resource = new TestResource();
 
@@ -143,11 +146,13 @@ public class BaseSingleAspectSearchableEntitySimpleKeyResourceTest extends BaseE
   /**
    * Test class for BaseSingleAspectSearchableEntitySimpleKeyResource.
    * */
-  private class TestResource extends BaseSingleAspectSearchableEntityResource<Long, EntityValue,
-        SingleAspectEntityUrn, AspectBar, EntityAspectUnion, EntitySnapshot, EntityDocument> {
+  private class TestResource extends
+                             BaseSingleAspectSearchableEntityResource<Long, EntityValue, SingleAspectEntityUrn, AspectBar,
+                                 EntityAspectUnion, EntitySnapshot, EntityDocument, EntityAsset, InternalEntitySnapshot, InternalEntityAspectUnion> {
 
     TestResource() {
-      super(AspectBar.class, EntityAspectUnion.class, EntityValue.class, EntitySnapshot.class);
+      super(AspectBar.class, EntityAspectUnion.class, EntityValue.class, EntitySnapshot.class,
+          InternalEntitySnapshot.class, InternalEntityAspectUnion.class, EntityAsset.class);
     }
 
     @Override
@@ -158,7 +163,7 @@ public class BaseSingleAspectSearchableEntitySimpleKeyResourceTest extends BaseE
 
     @Override
     @Nonnull
-    protected BaseLocalDAO<EntityAspectUnion, SingleAspectEntityUrn> getLocalDAO() {
+    protected BaseLocalDAO<InternalEntityAspectUnion, SingleAspectEntityUrn> getLocalDAO() {
       return _mockLocalDao;
     }
 

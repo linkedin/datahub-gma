@@ -22,6 +22,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import static com.linkedin.metadata.dao.BaseReadDAO.*;
 
@@ -36,6 +37,9 @@ import static com.linkedin.metadata.dao.BaseReadDAO.*;
  * @param <ASPECT> must be a valid aspect of the resource
  * @param <ASPECT_UNION> must be a valid aspect union type
  * @param <SNAPSHOT> must be a valid snapshot type defined in com.linkedin.metadata.snapshot
+ * @param <INTERNAL_SNAPSHOT> must be a valid internal snapshot type defined in com.linkedin.metadata.snapshot
+ * @param <INTERNAL_ASPECT_UNION> must be a valid internal aspect union type supported by the internal snapshot
+ * @param <ASSET> must be a valid asset type defined in com.linkedin.metadata.asset
  */
 public abstract class BaseSingleAspectEntityResource<
     // @formatter:off
@@ -44,9 +48,13 @@ public abstract class BaseSingleAspectEntityResource<
     URN extends Urn,
     ASPECT extends RecordTemplate,
     ASPECT_UNION extends UnionTemplate,
-    SNAPSHOT extends RecordTemplate>
+    SNAPSHOT extends RecordTemplate,
+    INTERNAL_SNAPSHOT extends RecordTemplate,
+    INTERNAL_ASPECT_UNION extends UnionTemplate,
+    ASSET extends RecordTemplate>
     // @formatter:on
-    extends BaseEntityResource<KEY, VALUE, URN, SNAPSHOT, ASPECT_UNION> {
+    extends
+    BaseEntityResource<KEY, VALUE, URN, SNAPSHOT, ASPECT_UNION, INTERNAL_SNAPSHOT, INTERNAL_ASPECT_UNION, ASSET> {
 
   private final Class<VALUE> _valueClass;
   private final Class<ASPECT> _aspectClass;
@@ -55,10 +63,11 @@ public abstract class BaseSingleAspectEntityResource<
    * Constructor.
    */
   public BaseSingleAspectEntityResource(@Nonnull Class<ASPECT> aspectClass,
-      @Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull Class<VALUE> valueClass,
-      @Nonnull Class<SNAPSHOT> snapshotClass) {
+      @Nullable Class<ASPECT_UNION> aspectUnionClass, @Nonnull Class<VALUE> valueClass,
+      @Nullable Class<SNAPSHOT> snapshotClass, @Nonnull Class<INTERNAL_SNAPSHOT> internalSnapshotClass,
+      @Nonnull Class<INTERNAL_ASPECT_UNION> internalAspectUnionClass, @Nonnull Class<ASSET> assetClass) {
 
-    super(snapshotClass, aspectUnionClass);
+    super(snapshotClass, aspectUnionClass, internalSnapshotClass, internalAspectUnionClass, assetClass);
     this._aspectClass = aspectClass;
     this._valueClass = valueClass;
   }
@@ -82,7 +91,7 @@ public abstract class BaseSingleAspectEntityResource<
   @Override
   @Nonnull
   protected Map<URN, VALUE> getInternal(@Nonnull Collection<URN> urns,
-      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses) {
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, boolean isInternalModelsEnabled) {
     return getUrnEntityMapInternal(urns);
   }
 
@@ -94,7 +103,7 @@ public abstract class BaseSingleAspectEntityResource<
   @Override
   @Nonnull
   protected Map<URN, VALUE> getInternalNonEmpty(@Nonnull Collection<URN> urns,
-      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses) {
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, boolean isInternalModelsEnabled) {
     return getUrnEntityMapInternal(urns);
   }
 
@@ -135,7 +144,7 @@ public abstract class BaseSingleAspectEntityResource<
 
   /**
    * Throwing an exception with a `not implemented` error message as this method is only required
-   * by parent class {@link BaseEntityResource} method- {@link #getInternalNonEmpty(Collection, Set)},
+   * by parent class {@link BaseEntityResource} method- {@link #getInternalNonEmpty(Collection, Set, boolean)} (Collection, Set)},
    * which has been overridden here.
    */
   @Override
@@ -146,7 +155,7 @@ public abstract class BaseSingleAspectEntityResource<
 
   /**
    * Throwing an exception with a `not implemented` error message as this method is only required
-   * by parent class {@link BaseEntityResource} method- {@link #getInternalNonEmpty(Collection, Set)},
+   * by parent class {@link BaseEntityResource} method- {@link #getInternalNonEmpty(Collection, Set, boolean)} (Collection, Set)},
    * which has been overridden here.
    */
   @Override

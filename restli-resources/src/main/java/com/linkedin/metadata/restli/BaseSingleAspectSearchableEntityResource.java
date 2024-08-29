@@ -12,6 +12,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import static com.linkedin.metadata.dao.BaseReadDAO.*;
 
@@ -27,6 +28,9 @@ import static com.linkedin.metadata.dao.BaseReadDAO.*;
  * @param <ASPECT_UNION> must be a valid aspect union type supported by the snapshot
  * @param <SNAPSHOT> must be a valid snapshot type defined in com.linkedin.metadata.snapshot
  * @param <DOCUMENT> must be a valid search document type defined in com.linkedin.metadata.search
+ * @param <INTERNAL_SNAPSHOT> must be a valid internal snapshot type defined in com.linkedin.metadata.snapshot
+ * @param <INTERNAL_ASPECT_UNION> must be a valid internal aspect union type supported by the internal snapshot
+ * @param <ASSET> must be a valid asset type defined in com.linkedin.metadata.asset
  */
 public abstract class BaseSingleAspectSearchableEntityResource<
     // @formatter:off
@@ -36,9 +40,13 @@ public abstract class BaseSingleAspectSearchableEntityResource<
     ASPECT extends RecordTemplate,
     ASPECT_UNION extends UnionTemplate,
     SNAPSHOT extends RecordTemplate,
-    DOCUMENT extends RecordTemplate>
+    DOCUMENT extends RecordTemplate,
+    ASSET extends RecordTemplate,
+    INTERNAL_SNAPSHOT extends RecordTemplate,
+    INTERNAL_ASPECT_UNION extends UnionTemplate>
     // @formatter:on
-    extends BaseSearchableEntityResource<KEY, VALUE, URN, SNAPSHOT, ASPECT_UNION, DOCUMENT> {
+    extends
+    BaseSearchableEntityResource<KEY, VALUE, URN, SNAPSHOT, ASPECT_UNION, DOCUMENT, INTERNAL_SNAPSHOT, INTERNAL_ASPECT_UNION, ASSET> {
 
   private final Class<ASPECT> _aspectClass;
   private final Class<VALUE> _valueClass;
@@ -46,13 +54,12 @@ public abstract class BaseSingleAspectSearchableEntityResource<
   /**
    * Constructor.
    * */
-  public BaseSingleAspectSearchableEntityResource(
-      @Nonnull Class<ASPECT> aspectClass,
-      @Nonnull Class<ASPECT_UNION> aspectUnionClass,
-      @Nonnull Class<VALUE> valueClass,
-      @Nonnull Class<SNAPSHOT> snapshotClass) {
+  public BaseSingleAspectSearchableEntityResource(@Nonnull Class<ASPECT> aspectClass,
+      @Nullable Class<ASPECT_UNION> aspectUnionClass, @Nonnull Class<VALUE> valueClass,
+      @Nullable Class<SNAPSHOT> snapshotClass, @Nonnull Class<INTERNAL_SNAPSHOT> internalSnapshotClass,
+      @Nonnull Class<INTERNAL_ASPECT_UNION> internalAspectUnionClass, @Nonnull Class<ASSET> assetClass) {
 
-    super(snapshotClass, aspectUnionClass);
+    super(snapshotClass, aspectUnionClass, internalSnapshotClass, internalAspectUnionClass, assetClass);
     _aspectClass = aspectClass;
     _valueClass = valueClass;
   }
@@ -75,9 +82,8 @@ public abstract class BaseSingleAspectSearchableEntityResource<
    * */
   @Override
   @Nonnull
-  protected Map<URN, VALUE> getInternal(
-      @Nonnull Collection<URN> urns,
-      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses) {
+  protected Map<URN, VALUE> getInternal(@Nonnull Collection<URN> urns,
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, boolean isInternalModelsEnabled) {
     // ignore the second parameter as it is not required for single aspect entities
     return getUrnEntityMapInternal(urns);
   }
@@ -89,9 +95,8 @@ public abstract class BaseSingleAspectSearchableEntityResource<
    * */
   @Override
   @Nonnull
-  protected Map<URN, VALUE> getInternalNonEmpty(
-      @Nonnull Collection<URN> urns,
-      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses) {
+  protected Map<URN, VALUE> getInternalNonEmpty(@Nonnull Collection<URN> urns,
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, boolean isInternalModelsEnabled) {
     // ignore the second parameter as it is not required for single aspect entities
     return getUrnEntityMapInternal(urns);
   }
@@ -133,7 +138,7 @@ public abstract class BaseSingleAspectSearchableEntityResource<
 
   /**
    * Throwing an exception with a `not implemented` error message as this method is only required
-   * by parent class {@link BaseEntityResource} method- {@link #getInternalNonEmpty(Collection, Set)},
+   * by parent class {@link BaseEntityResource} method- {@link #getInternalNonEmpty(Collection, Set, boolean)},
    * which has been overridden here.
    * */
   @Override
@@ -144,7 +149,7 @@ public abstract class BaseSingleAspectSearchableEntityResource<
 
   /**
    * Throwing an exception with a `not implemented` error message as this method is only required
-   * by parent class {@link BaseEntityResource} method- {@link #getInternalNonEmpty(Collection, Set)},
+   * by parent class {@link BaseEntityResource} method- {@link #getInternalNonEmpty(Collection, Set, boolean)} (Collection, Set)},
    * which has been overridden here.
    * */
   @Override
