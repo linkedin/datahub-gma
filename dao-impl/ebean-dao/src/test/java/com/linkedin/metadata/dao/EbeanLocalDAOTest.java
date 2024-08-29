@@ -337,6 +337,49 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
+  public void testAddOneInTestMode() {
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY && !_enableChangeLog) {
+      Clock mockClock = mock(Clock.class);
+      when(mockClock.millis()).thenReturn(_now);
+      EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+      dao.setClock(mockClock);
+      FooUrn urn = makeFooUrn(1);
+      String aspectName = ModelUtils.getAspectName(AspectFoo.class);
+      AspectFoo expected = new AspectFoo().setValue("foo");
+      Urn actor = Urns.createFromTypeSpecificString("test", "actor");
+      Urn impersonator = Urns.createFromTypeSpecificString("test", "impersonator");
+
+      dao.add(urn, expected, makeAuditStamp(actor, impersonator, _now), null, new IngestionParams().setTestMode(true));
+
+      EbeanMetadataAspect aspectTest = getTestMetadata(urn, aspectName, 0);
+
+      assertNotNull(aspectTest);
+      assertEquals(aspectTest.getKey().getUrn(), urn.toString());
+      assertEquals(aspectTest.getKey().getAspect(), aspectName);
+      assertEquals(aspectTest.getKey().getVersion(), 0);
+      assertEquals(aspectTest.getCreatedOn(), new Timestamp(_now));
+      assertEquals(aspectTest.getCreatedBy(), "urn:li:test:actor");
+
+      AspectFoo actualTest = RecordUtils.toRecordTemplate(AspectFoo.class, aspectTest.getMetadata());
+      assertEquals(actualTest, expected);
+
+      EbeanMetadataAspect aspect = getMetadata(urn, aspectName, 0);
+
+      assertNotNull(aspect);
+      assertEquals(aspect.getKey().getUrn(), urn.toString());
+      assertEquals(aspect.getKey().getAspect(), aspectName);
+      assertEquals(aspect.getKey().getVersion(), 0);
+      assertEquals(aspect.getCreatedOn(), new Timestamp(_now));
+      assertEquals(aspect.getCreatedBy(), "urn:li:test:actor");
+
+      AspectFoo actual = RecordUtils.toRecordTemplate(AspectFoo.class, aspect.getMetadata());
+      assertEquals(actual, expected);
+      verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, expected);
+      verifyNoMoreInteractions(_mockProducer);
+    }
+  }
+
+  @Test
   public void testAddTwo() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     FooUrn urn = makeFooUrn(1);
@@ -3330,6 +3373,31 @@ public class EbeanLocalDAOTest {
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY && version == 0) {
       String aspectColumn = getAspectColumnName(aspectName);
       String template = "select urn, lastmodifiedon, lastmodifiedby, createdfor, %s from metadata_entity_%s";
+      String query = String.format(template, aspectColumn, urn.getEntityType());
+      SqlRow result = _server.createSqlQuery(query).findOne();
+      if (result != null) {
+        EbeanMetadataAspect ema = new EbeanMetadataAspect();
+        String metadata = extractAspectJsonString(result.getString(aspectColumn));
+        if (metadata == null) {
+          metadata = DELETED_VALUE;
+        }
+        ema.setMetadata(metadata);
+        ema.setKey(new PrimaryKey(urn.toString(), aspectName, version));
+        ema.setCreatedOn(result.getTimestamp("lastmodifiedon"));
+        ema.setCreatedBy(result.getString("lastmodifiedby"));
+        ema.setCreatedFor(result.getString("creatdfor"));
+        return ema;
+      }
+      return null;
+    }
+    return _server.find(EbeanMetadataAspect.class,
+        new EbeanMetadataAspect.PrimaryKey(urn.toString(), aspectName, version));
+  }
+
+  private EbeanMetadataAspect getTestMetadata(Urn urn, String aspectName, long version) {
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY && version == 0) {
+      String aspectColumn = getAspectColumnName(aspectName);
+      String template = "select urn, lastmodifiedon, lastmodifiedby, createdfor, %s from metadata_entity_%s_test";
       String query = String.format(template, aspectColumn, urn.getEntityType());
       SqlRow result = _server.createSqlQuery(query).findOne();
       if (result != null) {

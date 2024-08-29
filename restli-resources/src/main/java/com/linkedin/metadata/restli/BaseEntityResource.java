@@ -309,7 +309,7 @@ public abstract class BaseEntityResource<
   }
 
   /**
-   * Deprecated to use {@link #ingestAsset(RecordTemplate, IngestionTrackingContext, IngestionParams)} instead.
+   * Deprecated to use {@link #ingestAsset(RecordTemplate, IngestionParams)} instead.
    * An action method for automated ingestion pipeline.
    */
   @Deprecated
@@ -320,7 +320,7 @@ public abstract class BaseEntityResource<
   }
 
   /**
-   * Deprecated to use {@link #ingestAsset(RecordTemplate, IngestionTrackingContext, IngestionParams)} instead.
+   * Deprecated to use {@link #ingestAsset(RecordTemplate, IngestionParams)} instead.
    * Same as {@link #ingest(RecordTemplate)} but with tracking context attached.
    * @param snapshot Snapshot of the metadata change to be ingested
    * @param trackingContext {@link IngestionTrackingContext} to 1) track DAO-level metrics and 2) to pass on to MAE emission
@@ -338,15 +338,13 @@ public abstract class BaseEntityResource<
   /**
    * An action method for automated ingestion pipeline.
    * @param asset Asset of the metadata change to be ingested
-   * @param trackingContext {@link IngestionTrackingContext} to 1) track DAO-level metrics and 2) to pass on to MAE emission
    * @return ingest task
    */
   @Action(name = ACTION_INGEST_ASSET)
   @Nonnull
   public Task<Void> ingestAsset(@ActionParam(PARAM_ASSET) @Nonnull ASSET asset,
-      @ActionParam(PARAM_TRACKING_CONTEXT) @Nonnull IngestionTrackingContext trackingContext,
       @Optional @ActionParam(PARAM_INGESTION_PARAMS) IngestionParams ingestionParams) {
-    return ingestInternalAsset(asset, Collections.emptySet(), trackingContext, ingestionParams);
+    return ingestInternalAsset(asset, Collections.emptySet(), ingestionParams);
   }
 
   @Nonnull
@@ -367,14 +365,16 @@ public abstract class BaseEntityResource<
 
   @Nonnull
   protected Task<Void> ingestInternalAsset(@Nonnull ASSET asset,
-      @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore, @Nullable IngestionTrackingContext trackingContext,
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore,
       @Nullable IngestionParams ingestionParams) {
     return RestliUtils.toTask(() -> {
       final URN urn = (URN) ModelUtils.getUrnFromAsset(asset);
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
+      IngestionTrackingContext ingestionTrackingContext =
+          ingestionParams != null ? ingestionParams.getIngestionTrackingContext() : null;
       ModelUtils.getAspectsFromAsset(asset).stream().forEach(aspect -> {
         if (!aspectsToIgnore.contains(aspect.getClass())) {
-          getLocalDAO().add(urn, aspect, auditStamp, trackingContext, ingestionParams);
+          getLocalDAO().add(urn, aspect, auditStamp, ingestionTrackingContext, ingestionParams);
         }
       });
       return null;
