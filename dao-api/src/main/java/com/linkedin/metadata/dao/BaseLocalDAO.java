@@ -400,13 +400,6 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * Set Pre Update Routing Client
-   */
-  public void setPreUpdateRoutingClient(@Nullable PreUpdateRoutingClient<Message> preUpdateRoutingClient) {
-    _preUpdateRoutingClient = preUpdateRoutingClient;
-  }
-
-  /**
    * Enables or disables atomic updates of multiple aspects.
    */
   public void enableAtomicMultipleUpdate(boolean enabled) {
@@ -443,6 +436,13 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   public void setEmitAuditEvent(boolean emitAuditEvent) {
     _emitAuditEvent = emitAuditEvent;
+  }
+
+  /**
+   * Set Pre Update Routing Client.
+   */
+  public void setPreUpdateRoutingClient(@Nullable PreUpdateRoutingClient<Message> preUpdateRoutingClient) {
+    _preUpdateRoutingClient = preUpdateRoutingClient;
   }
 
 
@@ -722,8 +722,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp,
-      int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext, @Nonnull IngestionParams ingestionParams) {
-    return add(urn, new AspectUpdateLambda<>(aspectClass, updateLambda, ingestionParams), auditStamp, maxTransactionRetry, trackingContext, false);
+      int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext, @Nonnull IngestionParams ingestionParams, boolean preIngestionRouting) {
+    return add(urn, new AspectUpdateLambda<>(aspectClass, updateLambda, ingestionParams), auditStamp, maxTransactionRetry,
+        trackingContext, preIngestionRouting);
   }
 
   /**
@@ -753,8 +754,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    */
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, AspectUpdateLambda<ASPECT> updateLambda,
-      @Nonnull AuditStamp auditStamp, int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext,
-      boolean preIngestionRouting) {
+      @Nonnull AuditStamp auditStamp, int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext, boolean preIngestionRouting) {
     checkValidAspect(updateLambda.getAspectClass());
     Message updatedAspect = null;
     if (preIngestionRouting) {
@@ -765,6 +765,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     //AspectUpdateLambda<ASPECT> finalUpdateLambda = updatedAspect != null ? new
     // AspectUpdateLambda<>(updateLambda.getAspectClass(),
     // _preUpdateRoutingClient.convertAspectFromMessage(updatedAspect)) : updateLambda;
+
     final AddResult<ASPECT> result = runInTransactionWithRetry(() -> aspectUpdateHelper(urn, updateLambda, auditStamp, trackingContext),
         maxTransactionRetry);
 
@@ -822,8 +823,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp,
-      @Nullable IngestionTrackingContext trackingContext, @Nonnull IngestionParams ingestionParams) {
-    return add(urn, aspectClass, updateLambda, auditStamp, DEFAULT_MAX_TRANSACTION_RETRY, trackingContext, ingestionParams);
+      @Nullable IngestionTrackingContext trackingContext, @Nonnull IngestionParams ingestionParams, boolean preIngestionRouting) {
+    return add(urn, aspectClass, updateLambda, auditStamp, DEFAULT_MAX_TRANSACTION_RETRY, trackingContext, ingestionParams, preIngestionRouting);
   }
 
   /**
@@ -833,7 +834,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull ASPECT newValue,
       @Nonnull AuditStamp auditStamp) {
-    return add(urn, newValue, auditStamp, null, null);
+    return add(urn, newValue, auditStamp, null, null, false);
   }
 
   /**
@@ -841,9 +842,12 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    */
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull ASPECT newValue,
-      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext, @Nullable IngestionParams ingestionParams) {
-    final IngestionParams nonNullIngestionParams = ingestionParams == null ? new IngestionParams().setIngestionMode(IngestionMode.LIVE) : ingestionParams;
-    return add(urn, (Class<ASPECT>) newValue.getClass(), ignored -> newValue, auditStamp, trackingContext, nonNullIngestionParams);
+      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext,
+      @Nullable IngestionParams ingestionParams, boolean preIngestionRouting) {
+    final IngestionParams nonNullIngestionParams =
+        ingestionParams == null ? new IngestionParams().setIngestionMode(IngestionMode.LIVE) : ingestionParams;
+    return add(urn, (Class<ASPECT>) newValue.getClass(), ignored -> newValue, auditStamp, trackingContext,
+        nonNullIngestionParams, preIngestionRouting);
   }
 
   /**

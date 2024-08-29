@@ -113,7 +113,7 @@ public abstract class BaseAspectV2Resource<
       @Nonnull IngestionTrackingContext trackingContext, @Optional IngestionParams ingestionParams) {
     return RestliUtils.toTask(() -> {
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
-      getLocalDAO().add(urn, aspect, auditStamp, trackingContext, ingestionParams);
+      getLocalDAO().add(urn, aspect, auditStamp, trackingContext, ingestionParams, false);
       return new CreateResponse(HttpStatus.S_201_CREATED);
     });
   }

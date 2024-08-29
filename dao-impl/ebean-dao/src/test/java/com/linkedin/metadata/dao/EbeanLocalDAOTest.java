@@ -371,10 +371,10 @@ public class EbeanLocalDAOTest {
 
     IngestionParams ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
     long t1 = 1704067200000L; // 2024-01-01 00:00:00.0 GMT
-    dao.add(urn, foo, new AuditStamp().setTime(t1).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams);
+    dao.add(urn, foo, new AuditStamp().setTime(t1).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams, false);
 
     long t2 = 1706745600000L; // 2024-02-01 00:00:00.0 GMT
-    dao.add(urn, foo, new AuditStamp().setTime(t2).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams);
+    dao.add(urn, foo, new AuditStamp().setTime(t2).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams, false);
 
     // make sure that the update still went through by checking the aspect's lastmodifiedon
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
@@ -397,10 +397,10 @@ public class EbeanLocalDAOTest {
 
     IngestionParams ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
     long t1 = 1704067200000L; // 2024-01-01 00:00:00.0 GMT
-    dao.add(urn, foo, new AuditStamp().setTime(t1).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams);
+    dao.add(urn, foo, new AuditStamp().setTime(t1).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams, false);
 
     long t2 = 1706745600000L; // 2024-02-01 00:00:00.0 GMT
-    dao.add(urn, foo, new AuditStamp().setTime(t2).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams);
+    dao.add(urn, foo, new AuditStamp().setTime(t2).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams, false);
 
     // Even though the aspect is annotated with FORCE_UPDATE annotation, the filter does not match so the update is not persisted.
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
@@ -424,10 +424,10 @@ public class EbeanLocalDAOTest {
 
     IngestionParams ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
     long t1 = 1704067200000L; // 2024-01-01 00:00:00.0 GMT
-    dao.add(urn, foo, new AuditStamp().setTime(t1).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams);
+    dao.add(urn, foo, new AuditStamp().setTime(t1).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams, false);
 
     long t2 = 1706745600000L; // 2024-02-01 00:00:00.0 GMT
-    dao.add(urn, foo, new AuditStamp().setTime(t2).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams);
+    dao.add(urn, foo, new AuditStamp().setTime(t2).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams, false);
 
     // One filter (two filters in total) matched, we should persist into db.
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
@@ -453,10 +453,10 @@ public class EbeanLocalDAOTest {
 
     IngestionParams ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
     long t1 = 1704067200000L; // 2024-01-01 00:00:00.0 GMT
-    dao.add(urn, foo, new AuditStamp().setTime(t1).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams);
+    dao.add(urn, foo, new AuditStamp().setTime(t1).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams, false);
 
     long t2 = 1706745600000L; // 2024-02-01 00:00:00.0 GMT
-    dao.add(urn, foo, new AuditStamp().setTime(t2).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams);
+    dao.add(urn, foo, new AuditStamp().setTime(t2).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams, false);
 
     // No filter, we should not persist into db.
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
@@ -485,11 +485,11 @@ public class EbeanLocalDAOTest {
 
     long t1 = 946713600000L; // 2000-01-01 00:00:00.0
     long t2 = 949392000000L; // 2000-02-01 00:00:00.0
-    dao.add(urn, foo, new AuditStamp().setTime(t1).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams);
+    dao.add(urn, foo, new AuditStamp().setTime(t1).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams, false);
     // MAE is emitted on a fresh metadata update, even with OVERRIDE write mode
     Mockito.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
 
-    dao.add(urn, foo, new AuditStamp().setTime(t2).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams);
+    dao.add(urn, foo, new AuditStamp().setTime(t2).setActor(Urn.createFromString("urn:li:corpuser:tester")), null, ingestionParams, false);
     // MAE is not emitted on a metadata update with the same metadata value, with OVERRIDE write mode
     verifyNoMoreInteractions(_mockProducer);
 
@@ -3190,7 +3190,7 @@ public class EbeanLocalDAOTest {
 
       Urn creator1 = Urns.createFromTypeSpecificString("test", "testCreator1");
       Urn impersonator1 = Urns.createFromTypeSpecificString("test", "testImpersonator1");
-      dao.add(urn, aspectFoo, makeAuditStamp(creator1, impersonator1, _now), context, null);
+      dao.add(urn, aspectFoo, makeAuditStamp(creator1, impersonator1, _now), context, null, false);
       Optional<AspectWithExtraInfo<AspectFoo>> foo = dao.getWithExtraInfo(AspectFoo.class, urn);
 
       assertTrue(foo.isPresent());

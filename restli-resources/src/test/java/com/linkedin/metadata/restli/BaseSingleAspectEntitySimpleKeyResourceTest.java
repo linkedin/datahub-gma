@@ -135,7 +135,7 @@ public class BaseSingleAspectEntitySimpleKeyResourceTest extends BaseEngineTest 
 
     runAndWait(_resource.ingest(snapshot));
 
-    verify(_mockLocalDao, times(1)).add(eq(urn), eq(aspect), any(), eq(null), eq(null));
+    verify(_mockLocalDao, times(1)).add(eq(urn), eq(aspect), any(), eq(null), eq(null), eq(false));
     verifyNoMoreInteractions(_mockLocalDao);
   }
 

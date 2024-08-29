@@ -197,7 +197,8 @@ public abstract class BaseAspectRoutingResource<
   @Override
   protected Task<Void> ingestInternal(@Nonnull SNAPSHOT snapshot,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore,
-      @Nullable IngestionTrackingContext trackingContext, @Nullable IngestionParams ingestionParams) {
+      @Nullable IngestionTrackingContext trackingContext, @Nullable IngestionParams ingestionParams,
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectsToRoute) {
     // TODO: META-18950: add trackingContext to BaseAspectRoutingResource. currently the param is unused.
     return RestliUtils.toTask(() -> {
       final URN urn = (URN) ModelUtils.getUrnFromSnapshot(snapshot);
@@ -217,7 +218,7 @@ public abstract class BaseAspectRoutingResource<
                   exception);
             }
           } else {
-            getLocalDAO().add(urn, aspect, auditStamp, trackingContext, ingestionParams);
+            getLocalDAO().add(urn, aspect, auditStamp, trackingContext, ingestionParams, false);
           }
         }
       });

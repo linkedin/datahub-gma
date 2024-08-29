@@ -142,7 +142,7 @@ public class BaseAspectV2ResourceTest extends BaseEngineTest {
 
     runAndWait(_resource.createWithTracking(ENTITY_URN, foo, trackingContext, null));
 
-    verify(_mockLocalDAO, times(1)).add(eq(ENTITY_URN), eq(foo), any(AuditStamp.class), eq(trackingContext), eq(null));
+    verify(_mockLocalDAO, times(1)).add(eq(ENTITY_URN), eq(foo), any(AuditStamp.class), eq(trackingContext), eq(null), eq(false));
     verifyNoMoreInteractions(_mockLocalDAO);
   }
 

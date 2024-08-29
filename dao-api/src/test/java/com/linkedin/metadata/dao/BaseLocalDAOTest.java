@@ -334,8 +334,8 @@ public class BaseLocalDAOTest {
     expectGetLatest(urn, AspectFoo.class,
         Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(foo, _dummyAuditStamp)));
 
-    dummyLocalDAO.add(urn, foo, _dummyAuditStamp, mockTrackingContext, null);
-    dummyLocalDAO.add(urn, foo, _dummyAuditStamp, mockTrackingContext, null);
+    dummyLocalDAO.add(urn, foo, _dummyAuditStamp, mockTrackingContext, null, false);
+    dummyLocalDAO.add(urn, foo, _dummyAuditStamp, mockTrackingContext, null, false);
 
     verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
     verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, foo, foo);
@@ -360,7 +360,7 @@ public class BaseLocalDAOTest {
         .thenReturn(new BaseLocalDAO.AspectEntry<>(foo, null, false));
 
     // try to add foo again but with the OVERRIDE write mode
-    dummyLocalDAO.add(urn, foo, _dummyAuditStamp, mockTrackingContext, new IngestionParams().setIngestionMode(IngestionMode.LIVE_OVERRIDE));
+    dummyLocalDAO.add(urn, foo, _dummyAuditStamp, mockTrackingContext, new IngestionParams().setIngestionMode(IngestionMode.LIVE_OVERRIDE), false);
 
     // verify that there are no MAE emissions
     verifyNoMoreInteractions(_mockTrackingEventProducer);
@@ -518,7 +518,7 @@ public class BaseLocalDAOTest {
     BaseLocalDAO.AspectEntry<AspectFoo> aspectEntry = new BaseLocalDAO.AspectEntry<>(oldFoo, extraInfo);
     expectGetLatest(urn, AspectFoo.class, Collections.singletonList(aspectEntry));
 
-    dummyLocalDAO.add(urn, newFoo, _dummyAuditStamp, ingestionTrackingContext, null);
+    dummyLocalDAO.add(urn, newFoo, _dummyAuditStamp, ingestionTrackingContext, null, false);
 
     verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, oldFoo, oldFoo);
     verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(
@@ -576,7 +576,7 @@ public class BaseLocalDAOTest {
     BaseLocalDAO.AspectEntry<AspectFoo> aspectEntry = new BaseLocalDAO.AspectEntry<>(oldFoo, extraInfo);
     expectGetLatest(urn, AspectFoo.class, Collections.singletonList(aspectEntry));
 
-    dummyLocalDAO.add(urn, newFoo, _dummyAuditStamp, ingestionTrackingContext, null);
+    dummyLocalDAO.add(urn, newFoo, _dummyAuditStamp, ingestionTrackingContext, null, false);
 
     verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, oldFoo, newFoo);
     verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(
@@ -609,7 +609,7 @@ public class BaseLocalDAOTest {
     // Although this should not happen in real life
     ingestionTrackingContext.setEmitTime(4L);
 
-    dummyLocalDAO.add(urn, newFoo, _dummyAuditStamp, ingestionTrackingContext, null);
+    dummyLocalDAO.add(urn, newFoo, _dummyAuditStamp, ingestionTrackingContext, null, false);
 
     verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, null, newFoo);
     verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(
