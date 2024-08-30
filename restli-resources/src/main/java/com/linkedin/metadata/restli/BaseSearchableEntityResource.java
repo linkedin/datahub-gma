@@ -210,7 +210,7 @@ public abstract class BaseSearchableEntityResource<
    * @return CollectionResult which contains: 1. aspect values fetched from MySQL DB, 2. Total count 3. Search result metadata.
    */
   @Nonnull
-  private CollectionResult<VALUE, SearchResultMetadata> getSearchQueryCollectionResult(@Nonnull SearchResult<DOCUMENT> searchResult,
+  public CollectionResult<VALUE, SearchResultMetadata> getSearchQueryCollectionResult(@Nonnull SearchResult<DOCUMENT> searchResult,
       @Nullable String[] aspectNames, boolean isInternalModelsEnabled) {
 
     final List<URN> matchedUrns = searchResult.getDocumentList()
