@@ -25,7 +25,7 @@ import com.linkedin.metadata.dao.equality.EqualityTester;
 import com.linkedin.metadata.dao.exception.ModelValidationException;
 import com.linkedin.metadata.dao.ingestion.BaseLambdaFunction;
 import com.linkedin.metadata.dao.ingestion.LambdaFunctionRegistry;
-import com.linkedin.metadata.dao.ingestion.PreIngestionAspectRegistry;
+import com.linkedin.metadata.dao.ingestion.RestliPreIngestionAspectRegistry;
 import com.linkedin.metadata.dao.ingestion.RestliCompliantPreUpdateRoutingClient;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
@@ -182,7 +182,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   protected UrnPathExtractor<URN> _urnPathExtractor;
 
   private LambdaFunctionRegistry _lambdaFunctionRegistry;
-  private PreIngestionAspectRegistry _preIngestionAspectRegistry;
+  private RestliPreIngestionAspectRegistry _restliPreIngestionAspectRegistry;
 
   // Maps an aspect class to the corresponding retention policy
   private final Map<Class<? extends RecordTemplate>, Retention> _aspectRetentionMap = new HashMap<>();
@@ -412,8 +412,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   /**
    * Set Pre Ingestion Aspect Registry.
    */
-  public void setPreIngestionAspectRegistry(@Nullable PreIngestionAspectRegistry preIngestionAspectRegistry) {
-    _preIngestionAspectRegistry = preIngestionAspectRegistry;
+  public void setPreIngestionAspectRegistry(@Nullable RestliPreIngestionAspectRegistry restliPreIngestionAspectRegistry) {
+    _restliPreIngestionAspectRegistry = restliPreIngestionAspectRegistry;
   }
   /**
    * Enables or disables atomic updates of multiple aspects.
@@ -764,20 +764,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, AspectUpdateLambda<ASPECT> updateLambda,
       @Nonnull AuditStamp auditStamp, int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext) {
     checkValidAspect(updateLambda.getAspectClass());
-    AspectUpdateLambda<ASPECT> effectiveUpdateLambda;
-    if (_preIngestionAspectRegistry != null
-        && _preIngestionAspectRegistry.isRegistered(updateLambda.getAspectClass())) {
-      Message updatedAspect = _restliCompliantPreUpdateRoutingClient.routingLambda(
-          _restliCompliantPreUpdateRoutingClient.convertUrnToMessage(urn),
-          _restliCompliantPreUpdateRoutingClient.convertAspectToMessage(
-              updateLambda.getUpdateLambda().apply(Optional.empty())));
-      ASPECT convertedAspect = (ASPECT) _restliCompliantPreUpdateRoutingClient.convertAspectFromMessage(updatedAspect);
-      effectiveUpdateLambda = new AspectUpdateLambda<>((Class<ASPECT>) convertedAspect.getClass(), // Aspect class
-          ignored -> convertedAspect // Lambda that returns the converted aspect
-      );
-    } else {
-      effectiveUpdateLambda = updateLambda;
-    }
+    AspectUpdateLambda<ASPECT> effectiveUpdateLambda = preUpdateLambda(urn, updateLambda);
     final AddResult<ASPECT> result = runInTransactionWithRetry(() -> aspectUpdateHelper(urn, effectiveUpdateLambda, auditStamp, trackingContext),
         maxTransactionRetry);
 
@@ -1638,5 +1625,25 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       throw new UnsupportedOperationException(String.format("Attempted to update %s with null aspect.", urn));
     }
     return newValue;
+  }
+
+  /**
+   * Route the aspect update lambda to the appropriate pre-ingestion aspect service.
+   */
+  protected <ASPECT extends RecordTemplate> AspectUpdateLambda<ASPECT> preUpdateLambda(URN urn,
+      AspectUpdateLambda<ASPECT> updateLambda) {
+    if (_restliPreIngestionAspectRegistry != null && _restliPreIngestionAspectRegistry.isRegistered(
+        updateLambda.getAspectClass())) {
+      RestliCompliantPreUpdateRoutingClient client =
+          _restliPreIngestionAspectRegistry.getPreIngestionRouting(updateLambda.getUpdateLambda().apply(Optional.empty()));
+      Message updatedAspect = client.routingLambda(_restliCompliantPreUpdateRoutingClient.convertUrnToMessage(urn),
+          _restliCompliantPreUpdateRoutingClient.convertAspectToMessage(
+              updateLambda.getUpdateLambda().apply(Optional.empty())));
+      ASPECT convertedAspect = (ASPECT) _restliCompliantPreUpdateRoutingClient.convertAspectFromMessage(updatedAspect);
+      return new AspectUpdateLambda<>((Class<ASPECT>) convertedAspect.getClass(), // Aspect class
+          ignored -> convertedAspect // Lambda that returns the converted aspect
+      );
+    }
+    return updateLambda;
   }
 }
