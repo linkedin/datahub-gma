@@ -337,6 +337,49 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
+  public void testAddOneInTestMode() {
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY && !_enableChangeLog) {
+      Clock mockClock = mock(Clock.class);
+      when(mockClock.millis()).thenReturn(_now);
+      EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+      dao.setClock(mockClock);
+      FooUrn urn = makeFooUrn(1);
+      String aspectName = ModelUtils.getAspectName(AspectFoo.class);
+      AspectFoo expected = new AspectFoo().setValue("foo");
+      Urn actor = Urns.createFromTypeSpecificString("test", "actor");
+      Urn impersonator = Urns.createFromTypeSpecificString("test", "impersonator");
+
+      dao.add(urn, expected, makeAuditStamp(actor, impersonator, _now), null, new IngestionParams().setTestMode(true));
+
+      EbeanMetadataAspect aspectTest = getTestMetadata(urn, aspectName, 0);
+
+      assertNotNull(aspectTest);
+      assertEquals(aspectTest.getKey().getUrn(), urn.toString());
+      assertEquals(aspectTest.getKey().getAspect(), aspectName);
+      assertEquals(aspectTest.getKey().getVersion(), 0);
+      assertEquals(aspectTest.getCreatedOn(), new Timestamp(_now));
+      assertEquals(aspectTest.getCreatedBy(), "urn:li:test:actor");
+
+      AspectFoo actualTest = RecordUtils.toRecordTemplate(AspectFoo.class, aspectTest.getMetadata());
+      assertEquals(actualTest, expected);
+
+      EbeanMetadataAspect aspect = getMetadata(urn, aspectName, 0);
+
+      assertNotNull(aspect);
+      assertEquals(aspect.getKey().getUrn(), urn.toString());
+      assertEquals(aspect.getKey().getAspect(), aspectName);
+      assertEquals(aspect.getKey().getVersion(), 0);
+      assertEquals(aspect.getCreatedOn(), new Timestamp(_now));
+      assertEquals(aspect.getCreatedBy(), "urn:li:test:actor");
+
+      AspectFoo actual = RecordUtils.toRecordTemplate(AspectFoo.class, aspect.getMetadata());
+      assertEquals(actual, expected);
+      verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, expected);
+      verifyNoMoreInteractions(_mockProducer);
+    }
+  }
+
+  @Test
   public void testAddTwo() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     FooUrn urn = makeFooUrn(1);
@@ -2802,7 +2845,7 @@ public class EbeanLocalDAOTest {
       // call save method with timestamp (_now - 100) but timestamp is already changed to _now
       // expect OptimisticLockException if optimistic locking is enabled
       dao.updateWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now + 100),
-          0, new Timestamp(_now - 100), null);
+          0, new Timestamp(_now - 100), null, false);
 
     } else if (_enableChangeLog) {
       // either NEW or DUAL schema, whereas entity table is the SOT and aspect table is the log table
@@ -2812,7 +2855,7 @@ public class EbeanLocalDAOTest {
       //  2. (foo:1, lastmodified(_now + 1), version=0) in aspect table (discrepancy)
       //  3. (foo:1, lastmodified(_now)) in entity table
 
-      dao.insert(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now), 0, null);
+      dao.insert(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now), 0, null, false);
       // make inconsistent timestamp on aspect table
       aspect.setCreatedOn(new Timestamp(_now + 1));
       _server.update(aspect);
@@ -2821,25 +2864,25 @@ public class EbeanLocalDAOTest {
       try {
         fooAspect.setValue("bar");
         dao.updateWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now + 200), 0,
-            new Timestamp(_now), null);
+            new Timestamp(_now), null, false);
       } catch (OptimisticLockException e) {
         fail("Expect the update pass since the old timestamp matches the lastmodified in entity table");
       }
       // Expect: update succeed and the values are updated
-      assertEquals(dao.getLatest(fooUrn, AspectFoo.class).getAspect().getValue(), "bar");
-      assertEquals(dao.getLatest(fooUrn, AspectFoo.class).getExtraInfo().getAudit().getTime(), Long.valueOf(_now + 200L));
+      assertEquals(dao.getLatest(fooUrn, AspectFoo.class, false).getAspect().getValue(), "bar");
+      assertEquals(dao.getLatest(fooUrn, AspectFoo.class, false).getExtraInfo().getAudit().getTime(), Long.valueOf(_now + 200L));
 
       // When: update with old timestamp does not match the lastmodified in the entity table
       // Expect: OptimisticLockException.
       dao.updateWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now + 400), 0,
-          new Timestamp(_now + 100), null);
+          new Timestamp(_now + 100), null, false);
     } else {
       // Given: changeLog is disabled
       assertFalse(_enableChangeLog);
       // When: updateWithOptimisticLocking is called
       try {
         dao.updateWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now + 400), 0,
-            new Timestamp(_now + 100), null);
+            new Timestamp(_now + 100), null, false);
         fail("UnsupportedOperationException should be thrown");
       } catch (UnsupportedOperationException uoe) {
         // Expect: UnsupportedOperationException is thrown
@@ -2981,7 +3024,7 @@ public class EbeanLocalDAOTest {
     fooDao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
 
     // Add only the local relationships
-    fooDao.addRelationshipsIfAny(fooUrn, aspectFooBar, AspectFooBar.class);
+    fooDao.addRelationshipsIfAny(fooUrn, aspectFooBar, AspectFooBar.class, false);
 
     // Verify that the local relationships were added
     relationships = ebeanLocalRelationshipQueryDAO.findRelationships(
@@ -3330,6 +3373,31 @@ public class EbeanLocalDAOTest {
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY && version == 0) {
       String aspectColumn = getAspectColumnName(aspectName);
       String template = "select urn, lastmodifiedon, lastmodifiedby, createdfor, %s from metadata_entity_%s";
+      String query = String.format(template, aspectColumn, urn.getEntityType());
+      SqlRow result = _server.createSqlQuery(query).findOne();
+      if (result != null) {
+        EbeanMetadataAspect ema = new EbeanMetadataAspect();
+        String metadata = extractAspectJsonString(result.getString(aspectColumn));
+        if (metadata == null) {
+          metadata = DELETED_VALUE;
+        }
+        ema.setMetadata(metadata);
+        ema.setKey(new PrimaryKey(urn.toString(), aspectName, version));
+        ema.setCreatedOn(result.getTimestamp("lastmodifiedon"));
+        ema.setCreatedBy(result.getString("lastmodifiedby"));
+        ema.setCreatedFor(result.getString("creatdfor"));
+        return ema;
+      }
+      return null;
+    }
+    return _server.find(EbeanMetadataAspect.class,
+        new EbeanMetadataAspect.PrimaryKey(urn.toString(), aspectName, version));
+  }
+
+  private EbeanMetadataAspect getTestMetadata(Urn urn, String aspectName, long version) {
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY && version == 0) {
+      String aspectColumn = getAspectColumnName(aspectName);
+      String template = "select urn, lastmodifiedon, lastmodifiedby, createdfor, %s from metadata_entity_%s_test";
       String query = String.format(template, aspectColumn, urn.getEntityType());
       SqlRow result = _server.createSqlQuery(query).findOne();
       if (result != null) {

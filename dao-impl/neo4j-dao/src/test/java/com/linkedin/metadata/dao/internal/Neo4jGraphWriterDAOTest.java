@@ -161,7 +161,7 @@ public class Neo4jGraphWriterDAOTest {
     BarUrn urn2 = makeBarUrn(2);
     RelationshipFoo relationship = new RelationshipFoo().setSource(urn1).setDestination(urn2);
 
-    _dao.addRelationship(relationship, REMOVE_NONE);
+    _dao.addRelationship(relationship, REMOVE_NONE, false);
 
     assertRelationshipFoo(_helper.getEdges(relationship), 1);
     assertEntityFoo(_helper.getNode(urn1).get(), new EntityFoo().setUrn(urn1));
@@ -176,7 +176,7 @@ public class Neo4jGraphWriterDAOTest {
     FooUrn urn2 = makeFooUrn(2);
     RelationshipFoo relationship = new RelationshipFoo().setSource(urn1).setDestination(urn2);
 
-    _dao.addRelationship(relationship, REMOVE_NONE);
+    _dao.addRelationship(relationship, REMOVE_NONE, false);
 
     // Check if adding an entity with same urn and with label creates a new node
     _dao.addEntity(new EntityFoo().setUrn(urn1));
@@ -199,17 +199,17 @@ public class Neo4jGraphWriterDAOTest {
 
     // add relationship1 (urn1 -> urn2)
     RelationshipFoo relationship1 = new RelationshipFoo().setSource(urn1).setDestination(urn2);
-    _dao.addRelationship(relationship1, REMOVE_NONE);
+    _dao.addRelationship(relationship1, REMOVE_NONE, false);
     assertRelationshipFoo(_helper.getEdges(relationship1), 1);
 
     // add relationship1 again
-    _dao.addRelationship(relationship1);
+    _dao.addRelationship(relationship1, false);
     assertRelationshipFoo(_helper.getEdges(relationship1), 1);
 
     // add relationship2 (urn1 -> urn3)
     Urn urn3 = makeUrn(3);
     RelationshipFoo relationship2 = new RelationshipFoo().setSource(urn1).setDestination(urn3);
-    _dao.addRelationship(relationship2);
+    _dao.addRelationship(relationship2, false);
     assertRelationshipFoo(_helper.getEdgesFromSource(urn1, RelationshipFoo.class), 2);
 
     // remove relationship1
@@ -244,28 +244,28 @@ public class Neo4jGraphWriterDAOTest {
 
     // add relationship1 (urn1 -> urn2)
     RelationshipFoo relationship1 = new RelationshipFoo().setSource(urn1).setDestination(urn2);
-    _dao.addRelationship(relationship1, REMOVE_NONE);
+    _dao.addRelationship(relationship1, REMOVE_NONE, false);
     assertRelationshipFoo(_helper.getEdges(relationship1), 1);
 
     // add relationship2 (urn1 -> urn3), removeAll from source
     Urn urn3 = makeUrn(3);
     RelationshipFoo relationship2 = new RelationshipFoo().setSource(urn1).setDestination(urn3);
-    _dao.addRelationship(relationship2, REMOVE_ALL_EDGES_FROM_SOURCE);
+    _dao.addRelationship(relationship2, REMOVE_ALL_EDGES_FROM_SOURCE, false);
     assertRelationshipFoo(_helper.getEdgesFromSource(urn1, RelationshipFoo.class), 1);
 
     // add relationship3 (urn4 -> urn3), removeAll from destination
     Urn urn4 = makeUrn(4);
     RelationshipFoo relationship3 = new RelationshipFoo().setSource(urn4).setDestination(urn3);
-    _dao.addRelationship(relationship3, REMOVE_ALL_EDGES_TO_DESTINATION);
+    _dao.addRelationship(relationship3, REMOVE_ALL_EDGES_TO_DESTINATION, false);
     assertRelationshipFoo(_helper.getEdgesFromSource(urn1, RelationshipFoo.class), 0);
     assertRelationshipFoo(_helper.getEdgesFromSource(urn4, RelationshipFoo.class), 1);
 
     // add relationship3 again without removal
-    _dao.addRelationship(relationship3);
+    _dao.addRelationship(relationship3, false);
     assertRelationshipFoo(_helper.getEdgesFromSource(urn4, RelationshipFoo.class), 1);
 
     // add relationship3 again, removeAll from source & destination
-    _dao.addRelationship(relationship3, REMOVE_ALL_EDGES_FROM_SOURCE_TO_DESTINATION);
+    _dao.addRelationship(relationship3, REMOVE_ALL_EDGES_FROM_SOURCE_TO_DESTINATION, false);
     assertRelationshipFoo(_helper.getEdgesFromSource(urn1, RelationshipFoo.class), 0);
     assertRelationshipFoo(_helper.getEdgesFromSource(urn4, RelationshipFoo.class), 1);
   }
@@ -297,10 +297,10 @@ public class Neo4jGraphWriterDAOTest {
         new RelationshipFoo().setSource(foo.getUrn()).setDestination(bar.getUrn());
     final RelationshipFoo updatedRelationship =
         new RelationshipFoo().setSource(foo.getUrn()).setDestination(bar.getUrn()).setType("test");
-    _dao.addRelationship(initialRelationship);
+    _dao.addRelationship(initialRelationship, false);
 
     // when
-    _dao.addRelationship(updatedRelationship);
+    _dao.addRelationship(updatedRelationship, false);
 
     // then
     assertEquals(_queryDao.findRelationships(EntityFoo.class,
@@ -338,10 +338,10 @@ public class Neo4jGraphWriterDAOTest {
         new RelationshipFoo().setSource(foo.getUrn()).setDestination(bar.getUrn()).setType("before");
     final RelationshipFoo updatedRelationship =
         new RelationshipFoo().setSource(foo.getUrn()).setDestination(bar.getUrn()).setType("after");
-    _dao.addRelationship(initialRelationship);
+    _dao.addRelationship(initialRelationship, false);
 
     // when
-    _dao.addRelationship(updatedRelationship);
+    _dao.addRelationship(updatedRelationship, false);
 
     // then
     assertEquals(_queryDao.findRelationships(EntityFoo.class,
@@ -380,10 +380,10 @@ public class Neo4jGraphWriterDAOTest {
         new RelationshipFoo().setSource(foo.getUrn()).setDestination(bar.getUrn()).setType("before");
     final RelationshipFoo updatedRelationship =
         new RelationshipFoo().setSource(foo.getUrn()).setDestination(bar.getUrn());
-    _dao.addRelationship(initialRelationship);
+    _dao.addRelationship(initialRelationship, false);
 
     // when
-    _dao.addRelationship(updatedRelationship);
+    _dao.addRelationship(updatedRelationship, false);
 
     // then
     assertEquals(_queryDao.findRelationships(EntityFoo.class,

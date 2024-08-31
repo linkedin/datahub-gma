@@ -119,7 +119,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
   @Test
   public void testFindOneEntity() throws URISyntaxException, OperationNotSupportedException {
     // Ingest data
-    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null);
+    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null, false);
 
     // Prepare filter
     LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("foo"),
@@ -137,8 +137,8 @@ public class EbeanLocalRelationshipQueryDAOTest {
   @Test
   public void testFindOneEntityTwoAspects() throws URISyntaxException, OperationNotSupportedException {
     // Ingest data
-    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null);
-    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectBar().setValue("bar"), AspectBar.class, new AuditStamp(), null);
+    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null, false);
+    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectBar().setValue("bar"), AspectBar.class, new AuditStamp(), null, false);
 
     // Prepare filter
     LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("foo"),
@@ -177,18 +177,18 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     // Add Alice, Bob and Jack into entity tables.
     if (schemaConfig == EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY) {
-      _fooUrnEBeanLocalAccess.add(alice, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp(), null);
-      _fooUrnEBeanLocalAccess.add(bob, new AspectFoo().setValue("Bob"), AspectFoo.class, new AuditStamp(), null);
-      _fooUrnEBeanLocalAccess.add(jack, new AspectFoo().setValue("Jack"), AspectFoo.class, new AuditStamp(), null);
+      _fooUrnEBeanLocalAccess.add(alice, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp(), null, false);
+      _fooUrnEBeanLocalAccess.add(bob, new AspectFoo().setValue("Bob"), AspectFoo.class, new AuditStamp(), null, false);
+      _fooUrnEBeanLocalAccess.add(jack, new AspectFoo().setValue("Jack"), AspectFoo.class, new AuditStamp(), null, false);
     }
 
     // Add Bob reports-to ALice relationship
     ReportsTo bobReportsToAlice = new ReportsTo().setSource(bob).setDestination(alice);
-    _localRelationshipWriterDAO.addRelationship(bobReportsToAlice);
+    _localRelationshipWriterDAO.addRelationship(bobReportsToAlice, false);
 
     // Add Jack reports-to ALice relationship
     ReportsTo jackReportsToAlice = new ReportsTo().setSource(jack).setDestination(alice);
-    _localRelationshipWriterDAO.addRelationship(jackReportsToAlice);
+    _localRelationshipWriterDAO.addRelationship(jackReportsToAlice, false);
 
     // Find all reports-to relationship for Alice.
     LocalRelationshipFilter filter;
@@ -250,28 +250,28 @@ public class EbeanLocalRelationshipQueryDAOTest {
     // Add Kafka_Topic, HDFS_Dataset and Restli_Service into entity tables.
     if (schemaConfig == EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY) {
       _fooUrnEBeanLocalAccess.add(kafka, new AspectFoo().setValue("Kafka_Topic"), AspectFoo.class, new AuditStamp(),
-          null);
+          null, false);
       _fooUrnEBeanLocalAccess.add(hdfs, new AspectFoo().setValue("HDFS_Dataset"), AspectFoo.class, new AuditStamp(),
-          null);
+          null, false);
       _fooUrnEBeanLocalAccess.add(restli, new AspectFoo().setValue("Restli_Service"), AspectFoo.class, new AuditStamp(),
-          null);
+          null, false);
 
       // Add Spark and Samza into entity tables.
-      _barUrnEBeanLocalAccess.add(spark, new AspectFoo().setValue("Spark"), AspectFoo.class, new AuditStamp(), null);
-      _barUrnEBeanLocalAccess.add(samza, new AspectFoo().setValue("Samza"), AspectFoo.class, new AuditStamp(), null);
+      _barUrnEBeanLocalAccess.add(spark, new AspectFoo().setValue("Spark"), AspectFoo.class, new AuditStamp(), null, false);
+      _barUrnEBeanLocalAccess.add(samza, new AspectFoo().setValue("Samza"), AspectFoo.class, new AuditStamp(), null, false);
     }
 
     // Add Spark consume-from hdfs relationship
     ConsumeFrom sparkConsumeFromHdfs = new ConsumeFrom().setSource(spark).setDestination(hdfs).setEnvironment(EnvorinmentType.OFFLINE);
-    _localRelationshipWriterDAO.addRelationship(sparkConsumeFromHdfs);
+    _localRelationshipWriterDAO.addRelationship(sparkConsumeFromHdfs, false);
 
     // Add Samza consume-from kafka relationship
     ConsumeFrom samzaConsumeFromKafka = new ConsumeFrom().setSource(samza).setDestination(kafka).setEnvironment(EnvorinmentType.NEARLINE);
-    _localRelationshipWriterDAO.addRelationship(samzaConsumeFromKafka);
+    _localRelationshipWriterDAO.addRelationship(samzaConsumeFromKafka, false);
 
     // Add Samza consume-from restli relationship
     ConsumeFrom samzaConsumeFromRestli = new ConsumeFrom().setSource(samza).setDestination(restli).setEnvironment(EnvorinmentType.ONLINE);
-    _localRelationshipWriterDAO.addRelationship(samzaConsumeFromRestli);
+    _localRelationshipWriterDAO.addRelationship(samzaConsumeFromRestli, false);
 
     // Find all consume-from relationship for Samza.
     LocalRelationshipCriterion filterUrnCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(
@@ -325,18 +325,18 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     // Add Alice, Bob and Jack into entity tables.
     if (schemaConfig == EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY) {
-      _fooUrnEBeanLocalAccess.add(alice, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp(), null);
-      _fooUrnEBeanLocalAccess.add(bob, new AspectFoo().setValue("Bob"), AspectFoo.class, new AuditStamp(), null);
-      _fooUrnEBeanLocalAccess.add(jack, new AspectFoo().setValue("Jack"), AspectFoo.class, new AuditStamp(), null);
+      _fooUrnEBeanLocalAccess.add(alice, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp(), null, false);
+      _fooUrnEBeanLocalAccess.add(bob, new AspectFoo().setValue("Bob"), AspectFoo.class, new AuditStamp(), null, false);
+      _fooUrnEBeanLocalAccess.add(jack, new AspectFoo().setValue("Jack"), AspectFoo.class, new AuditStamp(), null, false);
     }
 
     // Add Bob reports-to ALice relationship
     ReportsTo bobReportsToAlice = new ReportsTo().setSource(bob).setDestination(alice);
-    _localRelationshipWriterDAO.addRelationship(bobReportsToAlice);
+    _localRelationshipWriterDAO.addRelationship(bobReportsToAlice, false);
 
     // Add Jack reports-to ALice relationship
     ReportsTo jackReportsToAlice = new ReportsTo().setSource(jack).setDestination(alice);
-    _localRelationshipWriterDAO.addRelationship(jackReportsToAlice);
+    _localRelationshipWriterDAO.addRelationship(jackReportsToAlice, false);
 
     // Find all reports-to relationship for Alice.
     LocalRelationshipFilter destFilter;
@@ -399,28 +399,28 @@ public class EbeanLocalRelationshipQueryDAOTest {
     // Add Kafka_Topic, HDFS_Dataset and Restli_Service into entity tables.
     if (schemaConfig == EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY) {
       _fooUrnEBeanLocalAccess.add(kafka, new AspectFoo().setValue("Kafka_Topic"), AspectFoo.class, new AuditStamp(),
-          null);
+          null, false);
       _fooUrnEBeanLocalAccess.add(hdfs, new AspectFoo().setValue("HDFS_Dataset"), AspectFoo.class, new AuditStamp(),
-          null);
+          null, false);
       _fooUrnEBeanLocalAccess.add(restli, new AspectFoo().setValue("Restli_Service"), AspectFoo.class, new AuditStamp(),
-          null);
+          null, false);
 
       // Add Spark and Samza into entity tables.
-      _barUrnEBeanLocalAccess.add(spark, new AspectFoo().setValue("Spark"), AspectFoo.class, new AuditStamp(), null);
-      _barUrnEBeanLocalAccess.add(samza, new AspectFoo().setValue("Samza"), AspectFoo.class, new AuditStamp(), null);
+      _barUrnEBeanLocalAccess.add(spark, new AspectFoo().setValue("Spark"), AspectFoo.class, new AuditStamp(), null, false);
+      _barUrnEBeanLocalAccess.add(samza, new AspectFoo().setValue("Samza"), AspectFoo.class, new AuditStamp(), null, false);
     }
 
     // Add Spark consume-from hdfs relationship
     ConsumeFrom sparkConsumeFromHdfs = new ConsumeFrom().setSource(spark).setDestination(hdfs).setEnvironment(EnvorinmentType.OFFLINE);
-    _localRelationshipWriterDAO.addRelationship(sparkConsumeFromHdfs);
+    _localRelationshipWriterDAO.addRelationship(sparkConsumeFromHdfs, false);
 
     // Add Samza consume-from kafka relationship
     ConsumeFrom samzaConsumeFromKafka = new ConsumeFrom().setSource(samza).setDestination(kafka).setEnvironment(EnvorinmentType.NEARLINE);
-    _localRelationshipWriterDAO.addRelationship(samzaConsumeFromKafka);
+    _localRelationshipWriterDAO.addRelationship(samzaConsumeFromKafka, false);
 
     // Add Samza consume-from restli relationship
     ConsumeFrom samzaConsumeFromRestli = new ConsumeFrom().setSource(samza).setDestination(restli).setEnvironment(EnvorinmentType.ONLINE);
-    _localRelationshipWriterDAO.addRelationship(samzaConsumeFromRestli);
+    _localRelationshipWriterDAO.addRelationship(samzaConsumeFromRestli, false);
 
     // Find all consume-from relationship for Samza.
     LocalRelationshipCriterion filterUrnCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(
@@ -467,15 +467,15 @@ public class EbeanLocalRelationshipQueryDAOTest {
     // Add Kafka_Topic, HDFS_Dataset and Restli_Service into entity tables.
     if (schemaConfig == EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY) {
       _fooUrnEBeanLocalAccess.add(kafka, new AspectFoo().setValue("Kafka_Topic"), AspectFoo.class, new AuditStamp(),
-          null);
+          null, false);
       _fooUrnEBeanLocalAccess.add(hdfs, new AspectFoo().setValue("HDFS_Dataset"), AspectFoo.class, new AuditStamp(),
-          null);
+          null, false);
       _fooUrnEBeanLocalAccess.add(restli, new AspectFoo().setValue("Restli_Service"), AspectFoo.class, new AuditStamp(),
-          null);
+          null, false);
 
       // Add Spark and Samza into entity tables.
-      _barUrnEBeanLocalAccess.add(spark, new AspectFoo().setValue("Spark"), AspectFoo.class, new AuditStamp(), null);
-      _barUrnEBeanLocalAccess.add(samza, new AspectFoo().setValue("Samza"), AspectFoo.class, new AuditStamp(), null);
+      _barUrnEBeanLocalAccess.add(spark, new AspectFoo().setValue("Spark"), AspectFoo.class, new AuditStamp(), null, false);
+      _barUrnEBeanLocalAccess.add(samza, new AspectFoo().setValue("Samza"), AspectFoo.class, new AuditStamp(), null, false);
     }
 
     // crew1 is a non-mg entity
@@ -484,23 +484,23 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     // add kafka owned by crew1
     OwnedBy kafkaOwnedByCrew1 = new OwnedBy().setSource(kafka).setDestination(crew1);
-    _localRelationshipWriterDAO.addRelationship(kafkaOwnedByCrew1);
+    _localRelationshipWriterDAO.addRelationship(kafkaOwnedByCrew1, false);
 
     // add hdfs owned by crew1
     OwnedBy hdfsOwnedByCrew1 = new OwnedBy().setSource(hdfs).setDestination(crew1);
-    _localRelationshipWriterDAO.addRelationship(hdfsOwnedByCrew1);
+    _localRelationshipWriterDAO.addRelationship(hdfsOwnedByCrew1, false);
 
     // add restli owned by crew1
     OwnedBy restliOwnedByCrew1 = new OwnedBy().setSource(restli).setDestination(crew1);
-    _localRelationshipWriterDAO.addRelationship(restliOwnedByCrew1);
+    _localRelationshipWriterDAO.addRelationship(restliOwnedByCrew1, false);
 
     // add spark owned by crew2
     OwnedBy sparkOwnedByCrew2 = new OwnedBy().setSource(spark).setDestination(crew2);
-    _localRelationshipWriterDAO.addRelationship(sparkOwnedByCrew2);
+    _localRelationshipWriterDAO.addRelationship(sparkOwnedByCrew2, false);
 
     // add samza owned by crew2
     OwnedBy samzaOwnedByCrew2 = new OwnedBy().setSource(samza).setDestination(crew2);
-    _localRelationshipWriterDAO.addRelationship(samzaOwnedByCrew2);
+    _localRelationshipWriterDAO.addRelationship(samzaOwnedByCrew2, false);
 
     // Find all owned-by relationship for crew1.
     LocalRelationshipCriterion filterUrnCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(
@@ -542,11 +542,11 @@ public class EbeanLocalRelationshipQueryDAOTest {
     // Add Kafka_Topic, HDFS_Dataset and Restli_Service into entity tables.
     if (schemaConfig == EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY) {
       _fooUrnEBeanLocalAccess.add(kafka, new AspectFoo().setValue("Kafka_Topic"), AspectFoo.class, new AuditStamp(),
-          null);
+          null, false);
       _fooUrnEBeanLocalAccess.add(hdfs, new AspectFoo().setValue("HDFS_Dataset"), AspectFoo.class, new AuditStamp(),
-          null);
+          null, false);
       _fooUrnEBeanLocalAccess.add(restli, new AspectFoo().setValue("Restli_Service"), AspectFoo.class, new AuditStamp(),
-          null);
+          null, false);
     }
 
     // crew is a non-mg entity
@@ -554,15 +554,15 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     // add kafka owned by crew
     OwnedBy kafkaOwnedByCrew = new OwnedBy().setSource(kafka).setDestination(crew);
-    _localRelationshipWriterDAO.addRelationship(kafkaOwnedByCrew);
+    _localRelationshipWriterDAO.addRelationship(kafkaOwnedByCrew, false);
 
     // add hdfs owned by crew
     OwnedBy hdfsOwnedByCrew = new OwnedBy().setSource(hdfs).setDestination(crew);
-    _localRelationshipWriterDAO.addRelationship(hdfsOwnedByCrew);
+    _localRelationshipWriterDAO.addRelationship(hdfsOwnedByCrew, false);
 
     // add restli owned by crew
     OwnedBy restliOwnedByCrew = new OwnedBy().setSource(restli).setDestination(crew);
-    _localRelationshipWriterDAO.addRelationship(restliOwnedByCrew);
+    _localRelationshipWriterDAO.addRelationship(restliOwnedByCrew, false);
 
     // Find all owned-by relationship for crew.
     LocalRelationshipCriterion filterUrnCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(
@@ -623,33 +623,33 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     // Add Alice, Bob, Jack, Lisa, Rose, and Jenny into entity tables.
     if (schemaConfig == EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY) {
-      _fooUrnEBeanLocalAccess.add(alice, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp(), null);
-      _fooUrnEBeanLocalAccess.add(bob, new AspectFoo().setValue("Bob"), AspectFoo.class, new AuditStamp(), null);
-      _fooUrnEBeanLocalAccess.add(jack, new AspectFoo().setValue("Jack"), AspectFoo.class, new AuditStamp(), null);
-      _fooUrnEBeanLocalAccess.add(lisa, new AspectFoo().setValue("Lisa"), AspectFoo.class, new AuditStamp(), null);
-      _fooUrnEBeanLocalAccess.add(rose, new AspectFoo().setValue("Rose"), AspectFoo.class, new AuditStamp(), null);
-      _fooUrnEBeanLocalAccess.add(jenny, new AspectFoo().setValue("Jenny"), AspectFoo.class, new AuditStamp(), null);
+      _fooUrnEBeanLocalAccess.add(alice, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp(), null, false);
+      _fooUrnEBeanLocalAccess.add(bob, new AspectFoo().setValue("Bob"), AspectFoo.class, new AuditStamp(), null, false);
+      _fooUrnEBeanLocalAccess.add(jack, new AspectFoo().setValue("Jack"), AspectFoo.class, new AuditStamp(), null, false);
+      _fooUrnEBeanLocalAccess.add(lisa, new AspectFoo().setValue("Lisa"), AspectFoo.class, new AuditStamp(), null, false);
+      _fooUrnEBeanLocalAccess.add(rose, new AspectFoo().setValue("Rose"), AspectFoo.class, new AuditStamp(), null, false);
+      _fooUrnEBeanLocalAccess.add(jenny, new AspectFoo().setValue("Jenny"), AspectFoo.class, new AuditStamp(), null, false);
     }
 
     // Add Bob reports-to ALice relationship
     ReportsTo bobReportsToAlice = new ReportsTo().setSource(bob).setDestination(alice);
-    _localRelationshipWriterDAO.addRelationship(bobReportsToAlice);
+    _localRelationshipWriterDAO.addRelationship(bobReportsToAlice, false);
 
     // Add Jack reports-to ALice relationship
     ReportsTo jackReportsToAlice = new ReportsTo().setSource(jack).setDestination(alice);
-    _localRelationshipWriterDAO.addRelationship(jackReportsToAlice);
+    _localRelationshipWriterDAO.addRelationship(jackReportsToAlice, false);
 
     // Add Lisa reports-to ALice relationship
     ReportsTo lisaReportsToAlice = new ReportsTo().setSource(lisa).setDestination(alice);
-    _localRelationshipWriterDAO.addRelationship(lisaReportsToAlice);
+    _localRelationshipWriterDAO.addRelationship(lisaReportsToAlice, false);
 
     // Add Rose reports-to ALice relationship
     ReportsTo roseReportsToAlice = new ReportsTo().setSource(rose).setDestination(alice);
-    _localRelationshipWriterDAO.addRelationship(roseReportsToAlice);
+    _localRelationshipWriterDAO.addRelationship(roseReportsToAlice, false);
 
     // Add Jenny reports-to ALice relationship
     ReportsTo jennyReportsToAlice = new ReportsTo().setSource(jenny).setDestination(alice);
-    _localRelationshipWriterDAO.addRelationship(jennyReportsToAlice);
+    _localRelationshipWriterDAO.addRelationship(jennyReportsToAlice, false);
 
     // Find all reports-to relationship for Alice.
     LocalRelationshipFilter filter;
@@ -703,7 +703,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
   public void testIsMgEntityUrn() throws Exception {
     // add foo to EBeanLocalAccess to create table
     FooUrn fooUrn = new FooUrn(1);
-    _fooUrnEBeanLocalAccess.add(fooUrn, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp(), null);
+    _fooUrnEBeanLocalAccess.add(fooUrn, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp(), null, false);
 
     // EbeanLocalRelationshipQueryDAOTest does not have the same package as EbeanLocalRelationshipQueryDAO (cant access protected method directly).
     Method isMgEntityUrnMethod = EbeanLocalRelationshipQueryDAO.class.getDeclaredMethod("isMgEntityUrn", Urn.class);
@@ -723,17 +723,17 @@ public class EbeanLocalRelationshipQueryDAOTest {
     FooUrn jack = new FooUrn(3);
 
     // Add Alice, Bob and Jack into entity tables.
-    _fooUrnEBeanLocalAccess.add(alice, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp(), null);
-    _fooUrnEBeanLocalAccess.add(bob, new AspectFoo().setValue("Bob"), AspectFoo.class, new AuditStamp(), null);
-    _fooUrnEBeanLocalAccess.add(jack, new AspectFoo().setValue("Jack"), AspectFoo.class, new AuditStamp(), null);
+    _fooUrnEBeanLocalAccess.add(alice, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp(), null, false);
+    _fooUrnEBeanLocalAccess.add(bob, new AspectFoo().setValue("Bob"), AspectFoo.class, new AuditStamp(), null, false);
+    _fooUrnEBeanLocalAccess.add(jack, new AspectFoo().setValue("Jack"), AspectFoo.class, new AuditStamp(), null, false);
 
     // Add Bob reports-to ALice relationship
     ReportsTo bobReportsToAlice = new ReportsTo().setSource(bob).setDestination(alice);
-    _localRelationshipWriterDAO.addRelationship(bobReportsToAlice);
+    _localRelationshipWriterDAO.addRelationship(bobReportsToAlice, false);
 
     // Add Jack reports-to ALice relationship
     ReportsTo jackReportsToAlice = new ReportsTo().setSource(jack).setDestination(alice);
-    _localRelationshipWriterDAO.addRelationship(jackReportsToAlice);
+    _localRelationshipWriterDAO.addRelationship(jackReportsToAlice, false);
 
     // Find all Alice's direct reports.
     LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Alice"),
@@ -771,22 +771,22 @@ public class EbeanLocalRelationshipQueryDAOTest {
     BarUrn mit = new BarUrn(2);
 
     // Add Alice and Bob into entity tables.
-    _fooUrnEBeanLocalAccess.add(alice, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp(), null);
-    _fooUrnEBeanLocalAccess.add(bob, new AspectFoo().setValue("Bob"), AspectFoo.class, new AuditStamp(), null);
+    _fooUrnEBeanLocalAccess.add(alice, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp(), null, false);
+    _fooUrnEBeanLocalAccess.add(bob, new AspectFoo().setValue("Bob"), AspectFoo.class, new AuditStamp(), null, false);
 
     // Add Stanford and MIT into entity tables.
-    _barUrnEBeanLocalAccess.add(stanford, new AspectFoo().setValue("Stanford"), AspectFoo.class, new AuditStamp(), null);
-    _barUrnEBeanLocalAccess.add(mit, new AspectFoo().setValue("MIT"), AspectFoo.class, new AuditStamp(), null);
+    _barUrnEBeanLocalAccess.add(stanford, new AspectFoo().setValue("Stanford"), AspectFoo.class, new AuditStamp(), null, false);
+    _barUrnEBeanLocalAccess.add(mit, new AspectFoo().setValue("MIT"), AspectFoo.class, new AuditStamp(), null, false);
 
     // Add Alice belongs to MIT and Stanford.
     BelongsTo aliceBelongsToMit = new BelongsTo().setSource(alice).setDestination(mit);
     BelongsTo aliceBelongsToStanford = new BelongsTo().setSource(alice).setDestination(stanford);
-    _localRelationshipWriterDAO.addRelationship(aliceBelongsToMit);
-    _localRelationshipWriterDAO.addRelationship(aliceBelongsToStanford);
+    _localRelationshipWriterDAO.addRelationship(aliceBelongsToMit, false);
+    _localRelationshipWriterDAO.addRelationship(aliceBelongsToStanford, false);
 
     // Add Bob belongs to Stanford.
     BelongsTo bobBelongsToStandford = new BelongsTo().setSource(bob).setDestination(stanford);
-    _localRelationshipWriterDAO.addRelationship(bobBelongsToStandford);
+    _localRelationshipWriterDAO.addRelationship(bobBelongsToStandford, false);
 
     // Alice filter
     LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Alice"),
@@ -826,30 +826,30 @@ public class EbeanLocalRelationshipQueryDAOTest {
     FooUrn john = new FooUrn(4);
 
     // Add Alice, Bob, Jack and John into entity tables.
-    _fooUrnEBeanLocalAccess.add(alice, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp(), null);
-    _fooUrnEBeanLocalAccess.add(bob, new AspectFoo().setValue("Bob"), AspectFoo.class, new AuditStamp(), null);
-    _fooUrnEBeanLocalAccess.add(jack, new AspectFoo().setValue("Jack"), AspectFoo.class, new AuditStamp(), null);
-    _fooUrnEBeanLocalAccess.add(john, new AspectFoo().setValue("John"), AspectFoo.class, new AuditStamp(), null);
+    _fooUrnEBeanLocalAccess.add(alice, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp(), null, false);
+    _fooUrnEBeanLocalAccess.add(bob, new AspectFoo().setValue("Bob"), AspectFoo.class, new AuditStamp(), null, false);
+    _fooUrnEBeanLocalAccess.add(jack, new AspectFoo().setValue("Jack"), AspectFoo.class, new AuditStamp(), null, false);
+    _fooUrnEBeanLocalAccess.add(john, new AspectFoo().setValue("John"), AspectFoo.class, new AuditStamp(), null, false);
 
-    _fooUrnEBeanLocalAccess.add(alice, new AspectBar().setValue("32"), AspectBar.class, new AuditStamp(), null); // Alice 32 years old
+    _fooUrnEBeanLocalAccess.add(alice, new AspectBar().setValue("32"), AspectBar.class, new AuditStamp(), null, false); // Alice 32 years old
 
-    _fooUrnEBeanLocalAccess.add(bob, new AspectBar().setValue("52"), AspectBar.class, new AuditStamp(), null); // Bob 52 years old
+    _fooUrnEBeanLocalAccess.add(bob, new AspectBar().setValue("52"), AspectBar.class, new AuditStamp(), null, false); // Bob 52 years old
 
-    _fooUrnEBeanLocalAccess.add(jack, new AspectBar().setValue("16"), AspectBar.class, new AuditStamp(), null); // Jack 16 years old
+    _fooUrnEBeanLocalAccess.add(jack, new AspectBar().setValue("16"), AspectBar.class, new AuditStamp(), null, false); // Jack 16 years old
 
-    _fooUrnEBeanLocalAccess.add(john, new AspectBar().setValue("42"), AspectBar.class, new AuditStamp(), null); // John 42 years old
+    _fooUrnEBeanLocalAccess.add(john, new AspectBar().setValue("42"), AspectBar.class, new AuditStamp(), null, false); // John 42 years old
 
     // Add Alice pair-with Jack relationships. Alice --> Jack.
     PairsWith alicePairsWithJack = new PairsWith().setSource(alice).setDestination(jack);
-    _localRelationshipWriterDAO.addRelationship(alicePairsWithJack);
+    _localRelationshipWriterDAO.addRelationship(alicePairsWithJack, false);
 
     // Add Bob pair-with Alice relationships. Bob --> Alice.
     PairsWith bobPairsWithAlice = new PairsWith().setSource(bob).setDestination(alice);
-    _localRelationshipWriterDAO.addRelationship(bobPairsWithAlice);
+    _localRelationshipWriterDAO.addRelationship(bobPairsWithAlice, false);
 
     // Add Alice pair-with John relationships. Alice --> John.
     PairsWith alicePairsWithJohn = new PairsWith().setSource(alice).setDestination(john);
-    _localRelationshipWriterDAO.addRelationship(alicePairsWithJohn);
+    _localRelationshipWriterDAO.addRelationship(alicePairsWithJohn, false);
 
     // Alice filter
     LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Alice"),
@@ -892,7 +892,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
   @Test
   public void testFindOneEntityWithInCondition() throws URISyntaxException, OperationNotSupportedException {
     // Ingest data
-    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null);
+    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null, false);
 
     // Prepare filter
     LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create(new StringArray("foo")),
@@ -910,7 +910,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
   @Test
   public void testFindNoEntityWithInCondition() throws URISyntaxException, OperationNotSupportedException {
     // Ingest data
-    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null);
+    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null, false);
 
     // Prepare filter
     LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create(new StringArray("bar")),
@@ -926,7 +926,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
   @Test
   public void testFindEntitiesWithEmptyRelationshipFilter() throws URISyntaxException {
     // Ingest data
-    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null);
+    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null, false);
 
     // Create empty filter
     LocalRelationshipFilter emptyFilter = new LocalRelationshipFilter();

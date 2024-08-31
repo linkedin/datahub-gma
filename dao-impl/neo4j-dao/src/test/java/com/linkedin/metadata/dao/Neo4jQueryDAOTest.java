@@ -141,16 +141,16 @@ public class Neo4jQueryDAOTest {
     // create relationship urn1 -(r:Foo)-> urn2 -(r:Foo)-> urn3 (example use case: ReportTo list)
     // also relationship urn1 -(r:Foo)-> urn4, and urn1 -(r:Bar)-> urn5
     RelationshipFoo relationshipFoo1To2 = new RelationshipFoo().setSource(urn1).setDestination(urn2);
-    _writer.addRelationship(relationshipFoo1To2);
+    _writer.addRelationship(relationshipFoo1To2, false);
 
     RelationshipFoo relationshipFoo2o3 = new RelationshipFoo().setSource(urn2).setDestination(urn3).setType("apa");
-    _writer.addRelationship(relationshipFoo2o3);
+    _writer.addRelationship(relationshipFoo2o3, false);
 
     RelationshipFoo relationshipFoo1o4 = new RelationshipFoo().setSource(urn1).setDestination(urn4);
-    _writer.addRelationship(relationshipFoo1o4);
+    _writer.addRelationship(relationshipFoo1o4, false);
 
     RelationshipBar relationshipBar1o5 = new RelationshipBar().setSource(urn1).setDestination(urn5);
-    _writer.addRelationship(relationshipBar1o5);
+    _writer.addRelationship(relationshipBar1o5, false);
 
     // test source filter with urn
     Filter sourceFilter = newFilter("urn", urn2.toString());
@@ -227,10 +227,10 @@ public class Neo4jQueryDAOTest {
 
     // create relationship urn1 -> urn2 -> urn3 (use case: ReportTo list)
     RelationshipFoo relationshipFoo1To2 = new RelationshipFoo().setSource(urn1).setDestination(urn2);
-    _writer.addRelationship(relationshipFoo1To2);
+    _writer.addRelationship(relationshipFoo1To2, false);
 
     RelationshipFoo relationshipFoo2o3 = new RelationshipFoo().setSource(urn2).setDestination(urn3);
-    _writer.addRelationship(relationshipFoo2o3);
+    _writer.addRelationship(relationshipFoo2o3, false);
 
     // From urn1, get result with one hop, such as direct manager
     Filter sourceFilter = newFilter("urn", urn1.toString());
@@ -329,11 +329,11 @@ public class Neo4jQueryDAOTest {
 
     // create relationship urn1 -> urn2 with RelationshipFoo (ex: CorpGroup1 HasMember CorpUser2)
     RelationshipFoo relationshipFoo1To2 = new RelationshipFoo().setSource(urn1).setDestination(urn2);
-    _writer.addRelationship(relationshipFoo1To2);
+    _writer.addRelationship(relationshipFoo1To2, false);
 
     // create relationship urn2 -> urn3 with RelationshipBar (ex: Dataset3 is OwnedBy CorpUser2)
     RelationshipBar relationshipFoo2o3 = new RelationshipBar().setSource(urn3).setDestination(urn2);
-    _writer.addRelationship(relationshipFoo2o3);
+    _writer.addRelationship(relationshipFoo2o3, false);
 
     // test source filter with urn
     Filter sourceFilter = newFilter("urn", urn1.toString());
@@ -372,11 +372,11 @@ public class Neo4jQueryDAOTest {
 
     // create relationship urn4 -> urn5 with RelationshipBar
     RelationshipBar relationshipFoo4o5 = new RelationshipBar().setSource(urn5).setDestination(urn4);
-    _writer.addRelationship(relationshipFoo4o5);
+    _writer.addRelationship(relationshipFoo4o5, false);
 
     // create relationship urn1 -> urn4 with RelationshipFoo
     RelationshipFoo relationshipFoo1To4 = new RelationshipFoo().setSource(urn1).setDestination(urn4);
-    _writer.addRelationship(relationshipFoo1To4);
+    _writer.addRelationship(relationshipFoo1To4, false);
 
     List paths3 = new ArrayList();
     paths3.add(
@@ -428,7 +428,7 @@ public class Neo4jQueryDAOTest {
 
     // create relationship urn1 -> urn2
     RelationshipFoo relationship = new RelationshipFoo().setSource(urn1).setDestination(urn2);
-    _writer.addRelationship(relationship);
+    _writer.addRelationship(relationship, false);
 
     // find by source
     Filter filter1 = newFilter("urn", urn1.toString());
@@ -458,7 +458,7 @@ public class Neo4jQueryDAOTest {
     _writer.addEntity(entity2);
 
     RelationshipFoo relationship = new RelationshipFoo().setSource(urn1).setDestination(urn2);
-    _writer.addRelationship(relationship);
+    _writer.addRelationship(relationship, false);
 
     // with type
     Map<String, Object> params = new HashMap<>();
@@ -501,11 +501,11 @@ public class Neo4jQueryDAOTest {
     _writer.addEntity(entity6);
 
     // Create relationships - simulate reportsto use case
-    _writer.addRelationship(new RelationshipFoo().setSource(urn6).setDestination(urn3));
-    _writer.addRelationship(new RelationshipFoo().setSource(urn5).setDestination(urn3));
-    _writer.addRelationship(new RelationshipFoo().setSource(urn4).setDestination(urn2));
-    _writer.addRelationship(new RelationshipFoo().setSource(urn3).setDestination(urn1));
-    _writer.addRelationship(new RelationshipFoo().setSource(urn2).setDestination(urn1));
+    _writer.addRelationship(new RelationshipFoo().setSource(urn6).setDestination(urn3), false);
+    _writer.addRelationship(new RelationshipFoo().setSource(urn5).setDestination(urn3), false);
+    _writer.addRelationship(new RelationshipFoo().setSource(urn4).setDestination(urn2), false);
+    _writer.addRelationship(new RelationshipFoo().setSource(urn3).setDestination(urn1), false);
+    _writer.addRelationship(new RelationshipFoo().setSource(urn2).setDestination(urn1), false);
 
     // Get reports roll-up - 2 levels
     Filter sourceFilter = newFilter("urn", urn1.toString());
@@ -614,10 +614,10 @@ public class Neo4jQueryDAOTest {
   }
 
   private void createFooRelationship(FooUrn f1, FooUrn f2) throws Exception {
-    _writer.addRelationship(new RelationshipFoo().setSource(f1).setDestination(f2));
+    _writer.addRelationship(new RelationshipFoo().setSource(f1).setDestination(f2), false);
   }
 
   private void createBarRelationship(BarUrn d1, FooUrn f1) throws Exception {
-    _writer.addRelationship(new RelationshipBar().setSource(d1).setDestination(f1));
+    _writer.addRelationship(new RelationshipBar().setSource(d1).setDestination(f1), false);
   }
 }

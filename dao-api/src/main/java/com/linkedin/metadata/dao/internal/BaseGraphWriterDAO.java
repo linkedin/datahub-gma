@@ -63,11 +63,10 @@ public abstract class BaseGraphWriterDAO {
    * @param relationship the relationship to be persisted
    * @param <RELATIONSHIP> relationship type. Must be a type defined in com.linkedin.metadata.relationship.
    */
-  public <RELATIONSHIP extends RecordTemplate> void addRelationship(@Nonnull RELATIONSHIP relationship)
+  public <RELATIONSHIP extends RecordTemplate> void addRelationship(@Nonnull RELATIONSHIP relationship, boolean isTestMode)
       throws Exception {
-    addRelationship(relationship, RemovalOption.REMOVE_NONE);
+    addRelationship(relationship, RemovalOption.REMOVE_NONE, isTestMode);
   }
-
   /**
    * Adds a relationship in the graph, with removal operations before adding.
    *
@@ -76,8 +75,8 @@ public abstract class BaseGraphWriterDAO {
    * @param <RELATIONSHIP> relationship type. Must be a type defined in com.linkedin.metadata.relationship.
    */
   public <RELATIONSHIP extends RecordTemplate> void addRelationship(@Nonnull RELATIONSHIP relationship,
-      @Nonnull RemovalOption removalOption) throws Exception {
-    addRelationships(Collections.singletonList(relationship), removalOption);
+      @Nonnull RemovalOption removalOption, boolean isTestMode) throws Exception {
+    addRelationships(Collections.singletonList(relationship), removalOption, isTestMode);
   }
 
   /**
@@ -86,9 +85,9 @@ public abstract class BaseGraphWriterDAO {
    * @param relationships the list of relationships to be persisted
    * @param <RELATIONSHIP> relationship type. Must be a type defined in com.linkedin.metadata.relationship.
    */
-  public <RELATIONSHIP extends RecordTemplate> void addRelationships(@Nonnull List<RELATIONSHIP> relationships)
-      throws Exception {
-    addRelationships(relationships, RemovalOption.REMOVE_NONE);
+  public <RELATIONSHIP extends RecordTemplate> void addRelationships(@Nonnull List<RELATIONSHIP> relationships,
+      boolean isTestMode) throws Exception {
+    addRelationships(relationships, RemovalOption.REMOVE_NONE, isTestMode);
   }
 
   /**
@@ -99,7 +98,7 @@ public abstract class BaseGraphWriterDAO {
    * @param <RELATIONSHIP> relationship type. Must be a type defined in com.linkedin.metadata.relationship.
    */
   public abstract <RELATIONSHIP extends RecordTemplate> void addRelationships(@Nonnull List<RELATIONSHIP> relationships,
-      @Nonnull RemovalOption removalOption) throws Exception;
+      @Nonnull RemovalOption removalOption, boolean isTestMode) throws Exception;
 
   /**
    * Deletes an relationship in the graph.

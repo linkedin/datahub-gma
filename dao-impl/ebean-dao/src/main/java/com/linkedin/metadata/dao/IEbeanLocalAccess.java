@@ -30,10 +30,11 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * @param aspectClass              class of the aspect
    * @param auditStamp               audit timestamp
    * @param ingestionTrackingContext the ingestionTrackingContext of the MCE responsible for this update
+   * @param isTestMode               whether the test mode is enabled or not
    * @return number of rows inserted or updated
    */
   <ASPECT extends RecordTemplate> int add(@Nonnull URN urn, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
-      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext ingestionTrackingContext);
+      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext ingestionTrackingContext, boolean isTestMode);
 
   /**
    * Update aspect on entity table with optimistic locking. (compare-and-update on oldTimestamp).
@@ -45,10 +46,12 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * @param auditStamp               audit timestamp
    * @param oldTimestamp             old time stamp for optimistic lock checking
    * @param ingestionTrackingContext the ingestionTrackingContext of the MCE responsible for calling this update
+   * @param isTestMode               whether the test mode is enabled or not
    * @return number of rows inserted or updated
    */
-  <ASPECT extends RecordTemplate> int addWithOptimisticLocking(@Nonnull URN urn, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
-      @Nonnull AuditStamp auditStamp, @Nullable Timestamp oldTimestamp, @Nullable IngestionTrackingContext ingestionTrackingContext);
+  <ASPECT extends RecordTemplate> int addWithOptimisticLocking(@Nonnull URN urn, @Nullable ASPECT newValue,
+      @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, @Nullable Timestamp oldTimestamp,
+      @Nullable IngestionTrackingContext ingestionTrackingContext, boolean isTestMode);
 
   /**
    * Get read aspects from entity table. This a new schema implementation for batchGetUnion() in {@link EbeanLocalDAO}
@@ -56,12 +59,13 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * @param keysCount pagination key count limit
    * @param position starting position of pagination
    * @param includeSoftDeleted include soft deleted aspects, default false
+   * @param isTestMode whether the operation is in test mode or not
    * @param <ASPECT> metadata aspect value
    * @return a list of {@link EbeanMetadataAspect} as get response
    */
   @Nonnull
   <ASPECT extends RecordTemplate> List<EbeanMetadataAspect> batchGetUnion(@Nonnull List<AspectKey<URN, ? extends RecordTemplate>> keys,
-      int keysCount, int position, boolean includeSoftDeleted);
+      int keysCount, int position, boolean includeSoftDeleted, boolean isTestMode);
 
   /**
    * Returns list of urns that satisfy the given filter conditions.
