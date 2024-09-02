@@ -242,9 +242,12 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
     final SearchResult<DOCUMENT> searchResult = executeAndExtract(req, from, size, id, SEARCH_QUERY_FAIL);
     _baseTrackingManager.trackRequest(id, SEARCH_QUERY_END);
 
-    List<String> uids = searchResult.getSearchResultMetadata().getUrns().stream().map(Urn::toString).collect(Collectors.toList());
-    _baseMetadataEventProducer.produceMetadataGraphSearchMetric(input, req.source().toString(),
-        _config.getIndexName(), uids, "search");
+    if (_baseMetadataEventProducer != null) {
+      List<String> uids = searchResult.getSearchResultMetadata().getUrns().stream().map(Urn::toString).collect(Collectors.toList());
+      _baseMetadataEventProducer.produceMetadataGraphSearchMetric(input, req.source().toString(),
+          _config.getIndexName(), uids, "search");
+    }
+
     return searchResult;
   }
 
@@ -258,9 +261,12 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
     final SearchResult<DOCUMENT> searchResult = executeAndExtract(searchRequest, from, size, id, FILTER_QUERY_FAIL);
     _baseTrackingManager.trackRequest(id, FILTER_QUERY_END);
 
-    List<String> uids = searchResult.getSearchResultMetadata().getUrns().stream().map(Urn::toString).collect(Collectors.toList());
-    _baseMetadataEventProducer.produceMetadataGraphSearchMetric(flattenFilter(filters), searchRequest.source().toString(),
-        _config.getIndexName(), uids, "filter");
+    if (_baseMetadataEventProducer != null) {
+      List<String> uids = searchResult.getSearchResultMetadata().getUrns().stream().map(Urn::toString).collect(Collectors.toList());
+      _baseMetadataEventProducer.produceMetadataGraphSearchMetric(flattenFilter(filters), searchRequest.source().toString(),
+          _config.getIndexName(), uids, "filter");
+    }
+
     return searchResult;
   }
 
@@ -518,9 +524,11 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
       final AutoCompleteResult autoCompleteResult = extractAutoCompleteResult(searchResponse, query, field, limit);
       _baseTrackingManager.trackRequest(id, AUTOCOMPLETE_QUERY_END);
 
-      List<String> uids = new ArrayList<>(autoCompleteResult.getSuggestions());
-      _baseMetadataEventProducer.produceMetadataGraphSearchMetric(query, req.source().toString(),
-          _config.getIndexName(), uids, "autocomplete");
+      if (_baseMetadataEventProducer != null) {
+        List<String> uids = new ArrayList<>(autoCompleteResult.getSuggestions());
+        _baseMetadataEventProducer.produceMetadataGraphSearchMetric(query, req.source().toString(),
+            _config.getIndexName(), uids, "autocomplete");
+      }
 
       return autoCompleteResult;
     } catch (Exception e) {
