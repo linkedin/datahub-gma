@@ -6,6 +6,7 @@ import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.events.IngestionMode;
+import java.util.List;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -63,4 +64,14 @@ public abstract class BaseMetadataEventProducer<SNAPSHOT extends RecordTemplate,
    */
   public abstract <ASPECT extends RecordTemplate> void produceAspectSpecificMetadataAuditEvent(@Nonnull URN urn,
       @Nullable ASPECT oldValue, @Nonnull ASPECT newValue, @Nullable AuditStamp auditStamp, @Nullable IngestionMode ingestionMode);
+
+  /**
+   * Produce Metadata Graph search metrics inside SearchDAO.
+   * TODO: (jejia) Clean this up after we fully migrate to Hosted Search.
+   */
+  public void produceMetadataGraphSearchMetric(@Nonnull String input, @Nonnull String request,
+      @Nonnull String index, @Nonnull List<String> topHits, @Nonnull String api) {
+    // Do nothing. Concrete implementation will be provided by child class.
+  }
+
 }

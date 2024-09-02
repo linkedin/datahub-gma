@@ -10,6 +10,7 @@ import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.BaseSearchDAO;
 import com.linkedin.metadata.dao.SearchResult;
 import com.linkedin.metadata.dao.exception.ESQueryException;
+import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.tracking.DummyTrackingManager;
 import com.linkedin.metadata.dao.tracking.TrackingUtils;
@@ -29,6 +30,7 @@ import com.linkedin.metadata.query.SortCriterion;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -80,6 +82,7 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
   private BaseESAutoCompleteQuery _autoCompleteQueryForLowCardFields;
   private BaseESAutoCompleteQuery _autoCompleteQueryForHighCardFields;
   private BaseTrackingManager _baseTrackingManager;
+  private BaseMetadataEventProducer _baseMetadataEventProducer;
   private int _maxTermBucketSize = DEFAULT_TERM_BUCKETS_SIZE_100;
   private int _lowerBoundHits = Integer.MAX_VALUE;
 
@@ -129,6 +132,13 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
    */
   public void setTrackTotalHits(int lowermost) {
     _lowerBoundHits = lowermost;
+  }
+
+  /**
+   * Set BaseMetadataEventProducer.
+   */
+  public void setMetadataEventProducer(BaseMetadataEventProducer baseMetadataEventProducer) {
+    _baseMetadataEventProducer = baseMetadataEventProducer;
   }
 
   @Nonnull
@@ -222,6 +232,8 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
   @Nonnull
   public SearchResult<DOCUMENT> search(@Nonnull String input, @Nullable Filter postFilters,
       @Nullable SortCriterion sortCriterion, @Nullable String preference, int from, int size, boolean multiFilters) {
+    Map<String, String> metrics = new HashMap<>();
+
     // Step 0: TODO: Add type casting if needed and  add request params validation against the model
     final byte[] id = getRandomTrackingId();
     _baseTrackingManager.trackRequest(id, SEARCH_QUERY_START);
@@ -230,6 +242,10 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
     // Step 2: execute the query and extract results, validated against document model as well
     final SearchResult<DOCUMENT> searchResult = executeAndExtract(req, from, size, id, SEARCH_QUERY_FAIL);
     _baseTrackingManager.trackRequest(id, SEARCH_QUERY_END);
+
+    List<String> uids = searchResult.getSearchResultMetadata().getUrns().stream().map(Urn::toString).collect(Collectors.toList());
+    _baseMetadataEventProducer.produceMetadataGraphSearchMetric(input, req.source().toString(),
+        _config.getIndexName(), uids, "search");
     return searchResult;
   }
 
@@ -242,7 +258,27 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
     final SearchRequest searchRequest = getFilteredSearchQuery(filters, sortCriterion, from, size);
     final SearchResult<DOCUMENT> searchResult = executeAndExtract(searchRequest, from, size, id, FILTER_QUERY_FAIL);
     _baseTrackingManager.trackRequest(id, FILTER_QUERY_END);
+
+    List<String> uids = searchResult.getSearchResultMetadata().getUrns().stream().map(Urn::toString).collect(Collectors.toList());
+    _baseMetadataEventProducer.produceMetadataGraphSearchMetric(flattenFilter(filters), searchRequest.source().toString(),
+        _config.getIndexName(), uids, "filter");
     return searchResult;
+  }
+
+  private String flattenFilter(Filter filter) {
+    if (filter == null) {
+      return "null";
+    }
+
+    List<String> fields = new ArrayList<>();
+
+    for (Criterion criterion : filter.getCriteria()) {
+      fields.add(String.join(",",criterion.getField(), criterion.getCondition().name(), criterion.getValue()));
+    }
+
+    Collections.sort(fields);
+
+    return String.join(";", fields);
   }
 
   /**
@@ -482,6 +518,11 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
       SearchResponse searchResponse = _client.search(req, RequestOptions.DEFAULT);
       final AutoCompleteResult autoCompleteResult = extractAutoCompleteResult(searchResponse, query, field, limit);
       _baseTrackingManager.trackRequest(id, AUTOCOMPLETE_QUERY_END);
+
+      List<String> uids = new ArrayList<>(autoCompleteResult.getSuggestions());
+      _baseMetadataEventProducer.produceMetadataGraphSearchMetric(query, req.source().toString(),
+          _config.getIndexName(), uids, "autocomplete");
+
       return autoCompleteResult;
     } catch (Exception e) {
       log.error("Auto complete query failed:" + e.getMessage());
