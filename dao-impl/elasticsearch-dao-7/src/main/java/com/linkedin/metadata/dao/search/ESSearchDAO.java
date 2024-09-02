@@ -43,6 +43,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang.exception.ExceptionUtils;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.RequestOptions;
@@ -243,9 +244,14 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
     _baseTrackingManager.trackRequest(id, SEARCH_QUERY_END);
 
     if (_baseMetadataEventProducer != null) {
-      List<String> uids = searchResult.getSearchResultMetadata().getUrns().stream().map(Urn::toString).collect(Collectors.toList());
-      _baseMetadataEventProducer.produceMetadataGraphSearchMetric(input, req.source().toString(),
-          _config.getIndexName(), uids, "search");
+      try {
+        List<String> uids = searchResult.getSearchResultMetadata().getUrns().stream().map(Urn::toString).collect(Collectors.toList());
+        _baseMetadataEventProducer.produceMetadataGraphSearchMetric(input, req.source().toString(),
+            _config.getIndexName(), uids, "search");
+      } catch (Exception e) {
+        log.error("Failed to emit search metrics for search api with index {}; exception {}",
+            _config.getIndexName(), ExceptionUtils.getStackTrace(e));
+      }
     }
 
     return searchResult;
@@ -262,9 +268,16 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
     _baseTrackingManager.trackRequest(id, FILTER_QUERY_END);
 
     if (_baseMetadataEventProducer != null) {
-      List<String> uids = searchResult.getSearchResultMetadata().getUrns().stream().map(Urn::toString).collect(Collectors.toList());
-      _baseMetadataEventProducer.produceMetadataGraphSearchMetric(flattenFilter(filters), searchRequest.source().toString(),
-          _config.getIndexName(), uids, "filter");
+
+      try {
+        List<String> uids = searchResult.getSearchResultMetadata().getUrns().stream().map(Urn::toString).collect(Collectors.toList());
+        _baseMetadataEventProducer.produceMetadataGraphSearchMetric(flattenFilter(filters), searchRequest.source().toString(),
+            _config.getIndexName(), uids, "filter");
+      } catch (Exception e) {
+        log.error("Failed to emit search metrics for filter api with index {}; exception {}",
+            _config.getIndexName(), ExceptionUtils.getStackTrace(e));
+      }
+
     }
 
     return searchResult;
@@ -278,7 +291,7 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
     List<String> fields = new ArrayList<>();
 
     for (Criterion criterion : filter.getCriteria()) {
-      fields.add(String.join(",",criterion.getField(), criterion.getCondition().name(), criterion.getValue()));
+      fields.add(String.join(",", criterion.getField(), criterion.getCondition().name(), criterion.getValue()));
     }
 
     Collections.sort(fields);
@@ -525,9 +538,14 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
       _baseTrackingManager.trackRequest(id, AUTOCOMPLETE_QUERY_END);
 
       if (_baseMetadataEventProducer != null) {
-        List<String> uids = new ArrayList<>(autoCompleteResult.getSuggestions());
-        _baseMetadataEventProducer.produceMetadataGraphSearchMetric(query, req.source().toString(),
-            _config.getIndexName(), uids, "autocomplete");
+        try {
+          List<String> uids = new ArrayList<>(autoCompleteResult.getSuggestions());
+          _baseMetadataEventProducer.produceMetadataGraphSearchMetric(query, req.source().toString(),
+              _config.getIndexName(), uids, "autocomplete");
+        } catch (Exception e) {
+          log.error("Failed to emit search metrics for autocomplete api with index {}; exception {}",
+              _config.getIndexName(), ExceptionUtils.getStackTrace(e));
+        }
       }
 
       return autoCompleteResult;
