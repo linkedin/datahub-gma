@@ -232,7 +232,6 @@ public class ESSearchDAO<DOCUMENT extends RecordTemplate> extends BaseSearchDAO<
   @Nonnull
   public SearchResult<DOCUMENT> search(@Nonnull String input, @Nullable Filter postFilters,
       @Nullable SortCriterion sortCriterion, @Nullable String preference, int from, int size, boolean multiFilters) {
-    Map<String, String> metrics = new HashMap<>();
 
     // Step 0: TODO: Add type casting if needed and  add request params validation against the model
     final byte[] id = getRandomTrackingId();
