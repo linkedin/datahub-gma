@@ -94,8 +94,8 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   @Override
   @Transactional
   public <ASPECT extends RecordTemplate> int add(@Nonnull URN urn, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
-      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext ingestionTrackingContext) {
-    return addWithOptimisticLocking(urn, newValue, aspectClass, auditStamp, null, ingestionTrackingContext);
+      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext ingestionTrackingContext, boolean isTestMode) {
+    return addWithOptimisticLocking(urn, newValue, aspectClass, auditStamp, null, ingestionTrackingContext, isTestMode);
   }
 
   @Override
@@ -105,7 +105,8 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       @Nonnull Class<ASPECT> aspectClass,
       @Nonnull AuditStamp auditStamp,
       @Nullable Timestamp oldTimestamp,
-      @Nullable IngestionTrackingContext ingestionTrackingContext) {
+      @Nullable IngestionTrackingContext ingestionTrackingContext,
+      boolean isTestMode) {
 
     final long timestamp = auditStamp.hasTime() ? auditStamp.getTime() : System.currentTimeMillis();
     final String actor = auditStamp.hasActor() ? auditStamp.getActor().toString() : DEFAULT_ACTOR;
@@ -115,10 +116,10 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     final SqlUpdate sqlUpdate;
     if (oldTimestamp != null) {
       sqlUpdate = _server.createSqlUpdate(
-          SQLStatementUtils.createAspectUpdateWithOptimisticLockSql(urn, aspectClass, urnExtraction));
+          SQLStatementUtils.createAspectUpdateWithOptimisticLockSql(urn, aspectClass, urnExtraction, isTestMode));
       sqlUpdate.setParameter("oldTimestamp", oldTimestamp.toString());
     } else {
-      sqlUpdate = _server.createSqlUpdate(SQLStatementUtils.createAspectUpsertSql(urn, aspectClass, urnExtraction));
+      sqlUpdate = _server.createSqlUpdate(SQLStatementUtils.createAspectUpsertSql(urn, aspectClass, urnExtraction, isTestMode));
     }
     sqlUpdate.setParameter("urn", urn.toString())
         .setParameter("lastmodifiedon", new Timestamp(timestamp).toString())
@@ -161,18 +162,20 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    * @param keysCount number of keys to query
    * @param position position of the key to start from
    * @param includeSoftDeleted whether to include soft deleted aspect in the query
+   * @param isTestMode whether the operation is in test mode or not
    */
   @Override
   public <ASPECT extends RecordTemplate> List<EbeanMetadataAspect> batchGetUnion(
       @Nonnull List<AspectKey<URN, ? extends RecordTemplate>> aspectKeys, int keysCount, int position,
-      boolean includeSoftDeleted) {
+      boolean includeSoftDeleted, boolean isTestMode) {
 
     final int end = Math.min(aspectKeys.size(), position + keysCount);
     final Map<Class<ASPECT>, Set<Urn>> keysToQueryMap = new HashMap<>();
     for (int index = position; index < end; index++) {
       final Urn entityUrn = aspectKeys.get(index).getUrn();
       final Class<ASPECT> aspectClass = (Class<ASPECT>) aspectKeys.get(index).getAspectClass();
-      if (checkColumnExists(getTableName(entityUrn), getAspectColumnName(aspectClass))) {
+      if (checkColumnExists(isTestMode ? getTestTableName(entityUrn) : getTableName(entityUrn),
+          getAspectColumnName(aspectClass))) {
         keysToQueryMap.computeIfAbsent(aspectClass, unused -> new HashSet<>()).add(entityUrn);
       }
     }
@@ -181,8 +184,8 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     Map<String, Class<ASPECT>> selectStatements = keysToQueryMap.entrySet()
         .stream()
         .collect(Collectors.toMap(
-            entry -> SQLStatementUtils.createAspectReadSql(entry.getKey(), entry.getValue(), includeSoftDeleted),
-            entry -> entry.getKey()));
+            entry -> SQLStatementUtils.createAspectReadSql(entry.getKey(), entry.getValue(), includeSoftDeleted,
+                isTestMode), entry -> entry.getKey()));
 
     // consolidate/join the results
     final Map<SqlRow, Class<ASPECT>> sqlRows = new LinkedHashMap<>();

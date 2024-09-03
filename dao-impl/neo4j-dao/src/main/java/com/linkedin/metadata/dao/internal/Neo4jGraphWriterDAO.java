@@ -169,7 +169,7 @@ public class Neo4jGraphWriterDAO extends BaseGraphWriterDAO {
 
   @Override
   public <RELATIONSHIP extends RecordTemplate> void addRelationships(@Nonnull List<RELATIONSHIP> relationships,
-      @Nonnull RemovalOption removalOption) {
+      @Nonnull RemovalOption removalOption, boolean isTestMode) {
     if (relationships.isEmpty()) {
       return;
     }

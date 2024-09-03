@@ -47,14 +47,14 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
    * @param relationshipUpdates Updates to local relationship tables.
    */
   @Transactional
-  public <ASPECT extends RecordTemplate> void processLocalRelationshipUpdates(@Nonnull Urn urn,
-      @Nonnull List<LocalRelationshipUpdates> relationshipUpdates) {
+  public void processLocalRelationshipUpdates(@Nonnull Urn urn,
+      @Nonnull List<LocalRelationshipUpdates> relationshipUpdates, boolean isTestMode) {
     for (LocalRelationshipUpdates relationshipUpdate : relationshipUpdates) {
       if (relationshipUpdate.getRelationships().isEmpty()) {
         clearRelationshipsByEntity(urn, relationshipUpdate.getRelationshipClass(),
-            relationshipUpdate.getRemovalOption());
+            relationshipUpdate.getRemovalOption(), isTestMode);
       } else {
-        addRelationships(relationshipUpdate.getRelationships(), relationshipUpdate.getRemovalOption());
+        addRelationships(relationshipUpdate.getRelationships(), relationshipUpdate.getRemovalOption(), isTestMode);
       }
     }
   }
@@ -65,7 +65,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
    * @param relationshipClass relationship that needs to be cleared
    */
   public void clearRelationshipsByEntity(@Nonnull Urn urn,
-      @Nonnull Class<? extends RecordTemplate> relationshipClass, @Nonnull RemovalOption removalOption) {
+      @Nonnull Class<? extends RecordTemplate> relationshipClass, @Nonnull RemovalOption removalOption, boolean isTestMode) {
     if (removalOption == RemovalOption.REMOVE_NONE
         || removalOption == RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE_TO_DESTINATION) {
       // this method is to handle the case of adding empty relationship list to clear relationships of an entity urn
@@ -73,9 +73,9 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
       return;
     }
     RelationshipValidator.validateRelationshipSchema(relationshipClass);
-    SqlUpdate deletionSQL = _server.createSqlUpdate(
-        SQLStatementUtils.deleteLocaRelationshipSQL(SQLSchemaUtils.getRelationshipTableName(relationshipClass),
-            removalOption));
+    SqlUpdate deletionSQL = _server.createSqlUpdate(SQLStatementUtils.deleteLocaRelationshipSQL(
+        isTestMode ? SQLSchemaUtils.getTestRelationshipTableName(relationshipClass)
+            : SQLSchemaUtils.getRelationshipTableName(relationshipClass), removalOption));
     if (removalOption == RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE) {
       deletionSQL.setParameter(CommonColumnName.SOURCE, urn.toString());
     } else if (removalOption == RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION) {
@@ -86,7 +86,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
 
   @Override
   public <RELATIONSHIP extends RecordTemplate> void addRelationships(@Nonnull List<RELATIONSHIP> relationships,
-      @Nonnull RemovalOption removalOption) {
+      @Nonnull RemovalOption removalOption, boolean isTestMode) {
     // split relationships by relationship type
     Map<String, List<RELATIONSHIP>> relationshipGroupMap = relationships.stream()
         .collect(Collectors.groupingBy(relationship -> relationship.getClass().getCanonicalName()));
@@ -96,7 +96,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
         -> GraphUtils.checkSameUrn(relationshipGroup, removalOption, CommonColumnName.SOURCE, CommonColumnName.DESTINATION));
 
     relationshipGroupMap.values().forEach(relationshipGroup -> {
-      addRelationshipGroup(relationshipGroup, removalOption);
+      addRelationshipGroup(relationshipGroup, removalOption, isTestMode);
     });
   }
 
@@ -116,7 +116,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
   }
 
   private <RELATIONSHIP extends RecordTemplate> void addRelationshipGroup(@Nonnull final List<RELATIONSHIP> relationshipGroup,
-      @Nonnull RemovalOption removalOption) {
+      @Nonnull RemovalOption removalOption, boolean isTestMode) {
     if (relationshipGroup.size() == 0) {
       return;
     }
@@ -125,7 +125,8 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
     RelationshipValidator.validateRelationshipSchema(firstRelationship.getClass());
 
     // Process remove option to delete some local relationships if needed before adding new relationships.
-    processRemovalOption(SQLSchemaUtils.getRelationshipTableName(firstRelationship), firstRelationship, removalOption);
+    processRemovalOption(isTestMode ? SQLSchemaUtils.getTestRelationshipTableName(firstRelationship)
+        : SQLSchemaUtils.getRelationshipTableName(firstRelationship), firstRelationship, removalOption);
 
     long now = Instant.now().toEpochMilli();
 
@@ -133,7 +134,9 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
       Urn source = getSourceUrnFromRelationship(relationship);
       Urn destination = getDestinationUrnFromRelationship(relationship);
 
-      _server.createSqlUpdate(SQLStatementUtils.insertLocalRelationshipSQL(SQLSchemaUtils.getRelationshipTableName(relationship)))
+      _server.createSqlUpdate(SQLStatementUtils.insertLocalRelationshipSQL(
+              isTestMode ? SQLSchemaUtils.getTestRelationshipTableName(relationship)
+                  : SQLSchemaUtils.getRelationshipTableName(relationship)))
           .setParameter(CommonColumnName.METADATA, RecordUtils.toJsonString(relationship))
           .setParameter(CommonColumnName.SOURCE_TYPE, source.getEntityType())
           .setParameter(CommonColumnName.DESTINATION_TYPE, destination.getEntityType())

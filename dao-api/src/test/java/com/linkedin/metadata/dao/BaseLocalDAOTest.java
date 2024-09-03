@@ -80,7 +80,7 @@ public class BaseLocalDAOTest {
     @Override
     protected <ASPECT extends RecordTemplate> long saveLatest(FooUrn urn, Class<ASPECT> aspectClass, ASPECT oldEntry,
         AuditStamp oldAuditStamp, ASPECT newEntry, AuditStamp newAuditStamp, boolean isSoftDeleted,
-        @Nullable IngestionTrackingContext trackingContext) {
+        @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
       return 0;
     }
 
@@ -102,7 +102,8 @@ public class BaseLocalDAOTest {
     }
 
     @Override
-    protected <ASPECT extends RecordTemplate> AspectEntry<ASPECT> getLatest(FooUrn urn, Class<ASPECT> aspectClass) {
+    protected <ASPECT extends RecordTemplate> AspectEntry<ASPECT> getLatest(FooUrn urn, Class<ASPECT> aspectClass,
+        boolean isTestMode) {
       return _getLatestFunction.apply(urn, aspectClass);
     }
 
@@ -113,14 +114,15 @@ public class BaseLocalDAOTest {
 
     @Override
     protected <ASPECT extends RecordTemplate> void insert(FooUrn urn, RecordTemplate value, Class<ASPECT> aspectClass,
-        AuditStamp auditStamp, long version, @Nullable IngestionTrackingContext trackingContext) {
+        AuditStamp auditStamp, long version, @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
 
     }
 
     @Override
     protected <ASPECT extends RecordTemplate> void updateWithOptimisticLocking(@Nonnull FooUrn urn,
         @Nullable RecordTemplate value, @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp newAuditStamp,
-        long version, @Nonnull Timestamp oldTimestamp, @Nullable IngestionTrackingContext trackingContext) {
+        long version, @Nonnull Timestamp oldTimestamp, @Nullable IngestionTrackingContext trackingContext,
+        boolean isTestMode) {
 
     }
 
@@ -356,9 +358,9 @@ public class BaseLocalDAOTest {
           _mockGetLatestFunction, _mockTrackingEventProducer, _mockTrackingManager,
           _dummyLocalDAO._transactionRunner);
 
-      // pretend there is already foo in the database
-      when(dummyLocalDAO.getLatest(urn, AspectFoo.class))
-          .thenReturn(new BaseLocalDAO.AspectEntry<>(foo, null, false));
+    // pretend there is already foo in the database
+    when(dummyLocalDAO.getLatest(urn, AspectFoo.class, false))
+        .thenReturn(new BaseLocalDAO.AspectEntry<>(foo, null, false));
 
       // try to add foo again but with the OVERRIDE write mode
       dummyLocalDAO.add(urn, foo, _dummyAuditStamp, mockTrackingContext, new IngestionParams().setIngestionMode(IngestionMode.LIVE_OVERRIDE));

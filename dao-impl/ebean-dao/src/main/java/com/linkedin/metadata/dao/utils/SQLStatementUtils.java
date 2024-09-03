@@ -156,14 +156,14 @@ public class SQLStatementUtils {
    * @return aspect read sql statement for a single aspect (across multiple tables and urns)
    */
   public static <ASPECT extends RecordTemplate> String createAspectReadSql(@Nonnull Class<ASPECT> aspectClass,
-      @Nonnull Set<Urn> urns, boolean includeSoftDeleted) {
+      @Nonnull Set<Urn> urns, boolean includeSoftDeleted, boolean isTestMode) {
     if (urns.size() == 0) {
       throw new IllegalArgumentException("Need at least 1 urn to query.");
     }
     final String columnName = getAspectColumnName(aspectClass);
     StringBuilder stringBuilder = new StringBuilder();
     List<String> selectStatements = urns.stream().map(urn -> {
-      final String tableName = getTableName(urn);
+      final String tableName = isTestMode ? getTestTableName(urn) : getTableName(urn);
       final String sqlTemplate =
           includeSoftDeleted ? SQL_READ_ASPECT_WITH_SOFT_DELETED_TEMPLATE : SQL_READ_ASPECT_TEMPLATE;
       return String.format(sqlTemplate, columnName, tableName, escapeReservedCharInUrn(urn.toString()), columnName);
@@ -220,11 +220,12 @@ public class SQLStatementUtils {
    * @param urn  entity urn
    * @param <ASPECT> aspect type
    * @param aspectClass aspect class
+   * @param isTestMode whether the test mode is enabled or not
    * @return aspect upsert sql
    */
   public static <ASPECT extends RecordTemplate> String createAspectUpsertSql(@Nonnull Urn urn,
-      @Nonnull Class<ASPECT> aspectClass, boolean urnExtraction) {
-    final String tableName = getTableName(urn);
+      @Nonnull Class<ASPECT> aspectClass, boolean urnExtraction, boolean isTestMode) {
+    final String tableName = isTestMode ? getTestTableName(urn) : getTableName(urn);
     final String columnName = getAspectColumnName(aspectClass);
     return String.format(urnExtraction ? SQL_UPSERT_ASPECT_WITH_URN_TEMPLATE : SQL_UPSERT_ASPECT_TEMPLATE, tableName, columnName, columnName);
   }
@@ -235,11 +236,12 @@ public class SQLStatementUtils {
    * @param urn  entity urn
    * @param <ASPECT> aspect type
    * @param aspectClass aspect class
+   * @param isTestMode whether the test mode is enabled or not
    * @return aspect upsert sql
    */
   public static <ASPECT extends RecordTemplate> String createAspectUpdateWithOptimisticLockSql(@Nonnull Urn urn,
-      @Nonnull Class<ASPECT> aspectClass, boolean urnExtraction) {
-    final String tableName = getTableName(urn);
+      @Nonnull Class<ASPECT> aspectClass, boolean urnExtraction, boolean isTestMode) {
+    final String tableName = isTestMode ? getTestTableName(urn) : getTableName(urn);
     final String columnName = getAspectColumnName(aspectClass);
     return String.format(urnExtraction ? SQL_UPDATE_ASPECT_WITH_URN_TEMPLATE : SQL_UPDATE_ASPECT_TEMPLATE, tableName,
         columnName, columnName, columnName);

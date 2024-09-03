@@ -90,7 +90,7 @@ public class EbeanLocalAccessTest {
       AspectFoo aspectFoo = new AspectFoo();
       aspectFoo.setValue(String.valueOf(i));
       AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
-      _ebeanLocalAccessFoo.add(fooUrn, aspectFoo, AspectFoo.class, auditStamp, null);
+      _ebeanLocalAccessFoo.add(fooUrn, aspectFoo, AspectFoo.class, auditStamp, null, false);
     }
   }
 
@@ -104,7 +104,7 @@ public class EbeanLocalAccessTest {
 
     // When get AspectFoo from urn:li:foo:0
     List<EbeanMetadataAspect> ebeanMetadataAspectList =
-        _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0, false);
+        _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0, false, false);
     assertEquals(1, ebeanMetadataAspectList.size());
 
     EbeanMetadataAspect ebeanMetadataAspect = ebeanMetadataAspectList.get(0);
@@ -121,7 +121,7 @@ public class EbeanLocalAccessTest {
     // When get AspectFoo from urn:li:foo:9999 (does not exist)
     FooUrn nonExistFooUrn = makeFooUrn(9999);
     AspectKey<FooUrn, AspectFoo> nonExistKey = new AspectKey(AspectFoo.class, nonExistFooUrn, 0L);
-    ebeanMetadataAspectList = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(nonExistKey), 1000, 0, false);
+    ebeanMetadataAspectList = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(nonExistKey), 1000, 0, false, false);
 
     // Expect: get AspectFoo from urn:li:foo:9999 returns empty result
     assertTrue(ebeanMetadataAspectList.isEmpty());
@@ -291,7 +291,7 @@ public class EbeanLocalAccessTest {
     AspectFoo aspectFoo = new AspectFoo();
     aspectFoo.setValue(String.valueOf(25));
     AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
-    _ebeanLocalAccessFoo.add(fooUrn, aspectFoo, AspectFoo.class, auditStamp, null);
+    _ebeanLocalAccessFoo.add(fooUrn, aspectFoo, AspectFoo.class, auditStamp, null, false);
     countMap = _ebeanLocalAccessFoo.countAggregate(indexFilter, indexGroupByCriterion);
 
     // Expect: there are 2 counts for value 25
@@ -305,28 +305,28 @@ public class EbeanLocalAccessTest {
 
     // Single quote is a special char in SQL.
     BurgerUrn johnsBurgerUrn1 = makeBurgerUrn("urn:li:burger:John's burger");
-    _ebeanLocalAccessBurger.add(johnsBurgerUrn1, aspectFoo, AspectFoo.class, auditStamp, null);
+    _ebeanLocalAccessBurger.add(johnsBurgerUrn1, aspectFoo, AspectFoo.class, auditStamp, null, false);
 
     AspectKey aspectKey1 = new AspectKey(AspectFoo.class, johnsBurgerUrn1, 0L);
-    List<EbeanMetadataAspect> ebeanMetadataAspectList = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey1), 1, 0, false);
+    List<EbeanMetadataAspect> ebeanMetadataAspectList = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey1), 1, 0, false, false);
     assertEquals(1, ebeanMetadataAspectList.size());
     assertEquals(ebeanMetadataAspectList.get(0).getKey().getUrn(), johnsBurgerUrn1.toString());
 
     // Double quote is a special char in SQL.
     BurgerUrn johnsBurgerUrn2 = makeBurgerUrn("urn:li:burger:John\"s burger");
-    _ebeanLocalAccessBurger.add(johnsBurgerUrn2, aspectFoo, AspectFoo.class, auditStamp, null);
+    _ebeanLocalAccessBurger.add(johnsBurgerUrn2, aspectFoo, AspectFoo.class, auditStamp, null, false);
 
     AspectKey aspectKey2 = new AspectKey(AspectFoo.class, johnsBurgerUrn2, 0L);
-    ebeanMetadataAspectList = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey2), 1, 0, false);
+    ebeanMetadataAspectList = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey2), 1, 0, false, false);
     assertEquals(1, ebeanMetadataAspectList.size());
     assertEquals(ebeanMetadataAspectList.get(0).getKey().getUrn(), johnsBurgerUrn2.toString());
 
     // Backslash is a special char in SQL.
     BurgerUrn johnsBurgerUrn3 = makeBurgerUrn("urn:li:burger:John\\s burger");
-    _ebeanLocalAccessBurger.add(johnsBurgerUrn3, aspectFoo, AspectFoo.class, auditStamp, null);
+    _ebeanLocalAccessBurger.add(johnsBurgerUrn3, aspectFoo, AspectFoo.class, auditStamp, null, false);
 
     AspectKey aspectKey3 = new AspectKey(AspectFoo.class, johnsBurgerUrn3, 0L);
-    ebeanMetadataAspectList = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey3), 1, 0, false);
+    ebeanMetadataAspectList = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey3), 1, 0, false, false);
     assertEquals(1, ebeanMetadataAspectList.size());
     assertEquals(ebeanMetadataAspectList.get(0).getKey().getUrn(), johnsBurgerUrn3.toString());
   }
@@ -335,7 +335,7 @@ public class EbeanLocalAccessTest {
   public void testUrnExtraction() {
     FooUrn urn1 = makeFooUrn(1);
     AspectFoo foo1 = new AspectFoo().setValue("foo");
-    _ebeanLocalAccessFoo.add(urn1, foo1, AspectFoo.class, makeAuditStamp("actor", _now), null);
+    _ebeanLocalAccessFoo.add(urn1, foo1, AspectFoo.class, makeAuditStamp("actor", _now), null, false);
 
     List<SqlRow> results;
     // get content of virtual column
@@ -388,14 +388,14 @@ public class EbeanLocalAccessTest {
   @Test
   public void testGetAspectNoSoftDeleteCheck() {
     FooUrn fooUrn = makeFooUrn(0);
-    _ebeanLocalAccessFoo.add(fooUrn, null, AspectFoo.class, makeAuditStamp("foo", System.currentTimeMillis()), null);
+    _ebeanLocalAccessFoo.add(fooUrn, null, AspectFoo.class, makeAuditStamp("foo", System.currentTimeMillis()), null, false);
     AspectKey<FooUrn, AspectFoo> aspectKey = new AspectKey(AspectFoo.class, fooUrn, 0L);
     List<EbeanMetadataAspect> ebeanMetadataAspectList =
-        _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0, false);
+        _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0, false, false);
     assertEquals(0, ebeanMetadataAspectList.size());
 
     ebeanMetadataAspectList =
-        _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0, true);
+        _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0, true, false);
     assertFalse(ebeanMetadataAspectList.isEmpty());
     assertEquals(fooUrn.toString(), ebeanMetadataAspectList.get(0).getKey().getUrn());
   }
