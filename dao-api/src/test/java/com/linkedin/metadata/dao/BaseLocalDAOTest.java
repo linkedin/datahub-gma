@@ -653,7 +653,7 @@ public class BaseLocalDAOTest {
     }
 
   @Test
-  public void testPreUpdateRouting() throws URISyntaxException {
+  public void testPreUpdateRoutingFromFooToBar() throws URISyntaxException {
     // Setup test data
     FooUrn urn = new FooUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");
