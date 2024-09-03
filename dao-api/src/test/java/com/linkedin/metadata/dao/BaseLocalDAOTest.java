@@ -663,4 +663,22 @@ public class BaseLocalDAOTest {
     BaseLocalDAO.AspectUpdateLambda<AspectFoo> result = _dummyLocalDAO.preUpdateRouting(urn, aspectUpdateLambda);
     assertEquals(bar, result.getUpdateLambda().apply(Optional.empty()));
   }
+
+  @Test
+  public void testMAEEmissionForPreUpdateRouting() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectFoo bar = new AspectFoo().setValue("bar");
+    _dummyLocalDAO.setAlwaysEmitAuditEvent(true);
+    _dummyLocalDAO.setRestliPreIngestionAspectRegistry(new SamplePreUpdateAspectRegistryImpl());
+    expectGetLatest(urn, AspectFoo.class,
+        Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(foo, _dummyAuditStamp)));
+
+    _dummyLocalDAO.add(urn, foo, _dummyAuditStamp);
+
+    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, bar);
+    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, bar, _dummyAuditStamp, IngestionMode.LIVE);
+    verifyNoMoreInteractions(_mockEventProducer);
+  }
+
 }
