@@ -6,6 +6,7 @@ import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dummy.DummyAspect;
 import com.linkedin.metadata.dummy.DummySnapshot;
 import com.linkedin.metadata.events.IngestionMode;
+import java.util.List;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -35,6 +36,12 @@ public class DummyMetadataEventProducer<URN extends Urn>
   @Override
   public <ASPECT extends RecordTemplate> void produceAspectSpecificMetadataAuditEvent(@Nonnull URN urn,
       @Nullable ASPECT oldValue, @Nonnull ASPECT newValue, @Nullable AuditStamp auditStamp, @Nullable IngestionMode ingestionMode) {
+    // Do nothing
+  }
+
+  @Override
+  public void produceMetadataGraphSearchMetric(@Nonnull String input, @Nonnull String request, @Nonnull String index,
+      @Nonnull List<String> topHits, @Nonnull String api) {
     // Do nothing
   }
 }
