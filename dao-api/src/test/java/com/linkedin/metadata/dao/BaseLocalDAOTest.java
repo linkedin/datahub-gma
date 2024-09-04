@@ -660,8 +660,8 @@ public class BaseLocalDAOTest {
     AspectFoo bar = new AspectFoo().setValue("bar");
     BaseLocalDAO.AspectUpdateLambda<AspectFoo> aspectUpdateLambda = new BaseLocalDAO.AspectUpdateLambda<>(AspectFoo.class, ignored -> foo);
     _dummyLocalDAO.setRestliPreIngestionAspectRegistry(new SamplePreUpdateAspectRegistryImpl());
-    BaseLocalDAO.AspectUpdateLambda<AspectFoo> result = _dummyLocalDAO.preUpdateRouting(urn, aspectUpdateLambda);
-    assertEquals(bar, result.getUpdateLambda().apply(Optional.empty()));
+    AspectFoo result = _dummyLocalDAO.preUpdateRouting(urn, foo);
+    assertEquals(result, bar);
   }
 
   @Test

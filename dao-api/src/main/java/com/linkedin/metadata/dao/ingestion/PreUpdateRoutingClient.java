@@ -4,7 +4,7 @@ import com.google.protobuf.Message;
 
 
 /**
- * An interface that defines methods to route update requests to the appropriate custom APIs.
+ * An interface that defines methods to route update requests to the appropriate custom APIs for pre-ingestion process.
  */
 
 public interface PreUpdateRoutingClient<ASPECT extends Message> {

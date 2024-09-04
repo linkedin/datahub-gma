@@ -4,6 +4,7 @@ import com.google.common.collect.ImmutableMap;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.testing.AspectFoo;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 
 public class SamplePreUpdateAspectRegistryImpl implements RestliPreUpdateAspectRegistry {
@@ -14,14 +15,14 @@ public class SamplePreUpdateAspectRegistryImpl implements RestliPreUpdateAspectR
         .put(AspectFoo.class, new SamplePreUpdateRoutingClient())
         .build();
   }
-  @Nonnull
+  @Nullable
   @Override
-  public RestliCompliantPreUpdateRoutingClient getPreIngestionRouting(Class<? extends RecordTemplate> aspectClass) {
-    return registry.get(aspectClass);
+  public  <ASPECT extends RecordTemplate> RestliCompliantPreUpdateRoutingClient getPreUpdateRoutingClient(@Nonnull ASPECT aspect) {
+    return registry.get(aspect.getClass());
   }
 
   @Override
-  public boolean isRegistered(Class<? extends RecordTemplate> aspectClass) {
+  public <ASPECT extends RecordTemplate> boolean isRegistered(@Nonnull Class<ASPECT> aspectClass) {
     return registry.containsKey(aspectClass);
   }
 }

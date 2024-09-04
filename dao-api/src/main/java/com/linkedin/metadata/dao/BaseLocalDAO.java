@@ -760,14 +760,13 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nonnull AuditStamp auditStamp, int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext) {
       final Class<ASPECT> aspectClass = updateLambda.getAspectClass();
       checkValidAspect(aspectClass);
-      AspectUpdateLambda<ASPECT> effectiveUpdateLambda = preUpdateRouting(urn, updateLambda);
       // dual-write to test table while test mode is enabled.
       if (updateLambda.getIngestionParams().isTestMode()) {
-        runInTransactionWithRetry(() -> aspectUpdateHelper(urn, effectiveUpdateLambda, auditStamp, trackingContext),
+        runInTransactionWithRetry(() -> aspectUpdateHelper(urn, updateLambda, auditStamp, trackingContext),
             maxTransactionRetry);
       }
       final AddResult<ASPECT> result = runInTransactionWithRetry(() -> aspectUpdateHelper(urn,
-          new AspectUpdateLambda<>(aspectClass, effectiveUpdateLambda.getUpdateLambda(),
+          new AspectUpdateLambda<>(aspectClass, updateLambda.getUpdateLambda(),
               updateLambda.getIngestionParams().setTestMode(false)), auditStamp, trackingContext), maxTransactionRetry);
       return unwrapAddResult(urn, result, auditStamp, trackingContext);
   }
@@ -847,7 +846,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     final IngestionParams nonNullIngestionParams =
         ingestionParams == null || !ingestionParams.hasTestMode() ? new IngestionParams().setIngestionMode(
             IngestionMode.LIVE).setTestMode(false) : ingestionParams;
-    return add(urn, (Class<ASPECT>) newValue.getClass(), ignored -> newValue, auditStamp, trackingContext, nonNullIngestionParams);
+    ASPECT effectiveUpdateLambda = preUpdateRouting(urn, newValue);
+    return add(urn, (Class<ASPECT>) newValue.getClass(), ignored -> effectiveUpdateLambda, auditStamp, trackingContext, nonNullIngestionParams);
   }
 
   /**
@@ -1637,15 +1637,15 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   /**
    * Route the aspect update lambda to the appropriate pre-ingestion aspect service.
    */
-  protected <ASPECT extends RecordTemplate> AspectUpdateLambda<ASPECT> preUpdateRouting(URN urn,
-      AspectUpdateLambda<ASPECT> updateLambda) {
-    if (_restliPreUpdateAspectRegistry != null && _restliPreUpdateAspectRegistry.isRegistered(updateLambda.getAspectClass())) {
-      RestliCompliantPreUpdateRoutingClient client = _restliPreUpdateAspectRegistry.getPreIngestionRouting(updateLambda.getAspectClass());
-      Message updatedAspect = client.routingLambda(client.convertUrnToMessage(urn),
-          client.convertAspectToMessage(
-              updateLambda.getUpdateLambda().apply(Optional.empty())));
+  protected <ASPECT extends RecordTemplate> ASPECT preUpdateRouting(URN urn, ASPECT updateLambda) {
+    if (_restliPreUpdateAspectRegistry != null && _restliPreUpdateAspectRegistry.isRegistered(
+        updateLambda.getClass())) {
+      RestliCompliantPreUpdateRoutingClient client =
+          _restliPreUpdateAspectRegistry.getPreUpdateRoutingClient(updateLambda);
+      Message updatedAspect =
+          client.routingLambda(client.convertUrnToMessage(urn), client.convertAspectToMessage(updateLambda));
       RecordTemplate convertedAspect = client.convertAspectFromMessage(updatedAspect);
-      return new AspectUpdateLambda<>((Class<ASPECT>) convertedAspect.getClass(), ignored -> (ASPECT) convertedAspect);
+      return (ASPECT) convertedAspect;
     }
     return updateLambda;
   }
