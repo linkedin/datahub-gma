@@ -4,7 +4,7 @@ import com.google.protobuf.Message;
 
 
 /**
- * An interface that defines methods to route update requests to the appropriate custom APIs.
+ * An interface that defines methods to route update requests to the appropriate custom APIs for pre-ingestion process.
  */
 
 public interface PreUpdateRoutingClient<ASPECT extends Message> {
@@ -13,7 +13,6 @@ public interface PreUpdateRoutingClient<ASPECT extends Message> {
    * @param urn the urn of the asset
    * @param aspect the aspect to be updated
    * @return the updated aspect
-   * @throws Exception if the routing fails
    */
-  ASPECT routingLambda(Message urn, ASPECT aspect) throws Exception;
+  ASPECT routingLambda(Message urn, ASPECT aspect);
 }

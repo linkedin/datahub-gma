@@ -1,6 +1,7 @@
 package com.linkedin.metadata.dao;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.protobuf.Message;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.DataMap;
@@ -24,6 +25,8 @@ import com.linkedin.metadata.dao.equality.EqualityTester;
 import com.linkedin.metadata.dao.exception.ModelValidationException;
 import com.linkedin.metadata.dao.ingestion.BaseLambdaFunction;
 import com.linkedin.metadata.dao.ingestion.LambdaFunctionRegistry;
+import com.linkedin.metadata.dao.ingestion.RestliPreUpdateAspectRegistry;
+import com.linkedin.metadata.dao.ingestion.RestliCompliantPreUpdateRoutingClient;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.IndefiniteRetention;
@@ -179,6 +182,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   protected UrnPathExtractor<URN> _urnPathExtractor;
 
   private LambdaFunctionRegistry _lambdaFunctionRegistry;
+  private RestliPreUpdateAspectRegistry _restliPreUpdateAspectRegistry;
 
   // Maps an aspect class to the corresponding retention policy
   private final Map<Class<? extends RecordTemplate>, Retention> _aspectRetentionMap = new HashMap<>();
@@ -394,6 +398,15 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   public void setLambdaFunctionRegistry(@Nullable LambdaFunctionRegistry lambdaFunctionRegistry) {
     _lambdaFunctionRegistry = lambdaFunctionRegistry;
   }
+
+  /**
+   * Set pre ingestion aspect registry.
+   */
+  public void setRestliPreIngestionAspectRegistry(
+      @Nullable RestliPreUpdateAspectRegistry restliPreUpdateAspectRegistry) {
+    _restliPreUpdateAspectRegistry = restliPreUpdateAspectRegistry;
+  }
+
 
   /**
    * Enables or disables atomic updates of multiple aspects.
@@ -825,6 +838,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   /**
    * Same as above {@link #add(Urn, RecordTemplate, AuditStamp)} but with tracking context.
+   * Note: If you update the lambda function (ignored - newValue), make sure to update {@link #preUpdateRouting(Urn, RecordTemplate)} as well
+   * to avoid any inconsistency between the lambda function and the add method.
    */
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull ASPECT newValue,
@@ -833,7 +848,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     final IngestionParams nonNullIngestionParams =
         ingestionParams == null || !ingestionParams.hasTestMode() ? new IngestionParams().setIngestionMode(
             IngestionMode.LIVE).setTestMode(false) : ingestionParams;
-    return add(urn, (Class<ASPECT>) newValue.getClass(), ignored -> newValue, auditStamp, trackingContext, nonNullIngestionParams);
+    ASPECT updatedAspect = preUpdateRouting(urn, newValue);
+    return add(urn, (Class<ASPECT>) newValue.getClass(), ignored -> updatedAspect, auditStamp, trackingContext, nonNullIngestionParams);
   }
 
   /**
@@ -1616,6 +1632,25 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     }
     if (newValue == null) {
       throw new UnsupportedOperationException(String.format("Attempted to update %s with null aspect.", urn));
+    }
+    return newValue;
+  }
+
+  /**
+   * This method routes the update request to the appropriate custom API for pre-ingestion processing.
+   * @param urn the urn of the asset
+   * @param newValue the new aspect value
+   * @return the updated aspect
+   */
+  protected <ASPECT extends RecordTemplate> ASPECT preUpdateRouting(URN urn, ASPECT newValue) {
+    if (_restliPreUpdateAspectRegistry != null && _restliPreUpdateAspectRegistry.isRegistered(
+        newValue.getClass())) {
+      RestliCompliantPreUpdateRoutingClient client =
+          _restliPreUpdateAspectRegistry.getPreUpdateRoutingClient(newValue);
+      Message updatedAspect =
+          client.routingLambda(client.convertUrnToMessage(urn), client.convertAspectToMessage(newValue));
+      RecordTemplate convertedAspect = client.convertAspectFromMessage(updatedAspect);
+      return (ASPECT) convertedAspect;
     }
     return newValue;
   }
