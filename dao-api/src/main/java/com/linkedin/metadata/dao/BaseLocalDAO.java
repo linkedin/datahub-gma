@@ -1635,18 +1635,24 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * Route the aspect update lambda to the appropriate pre-ingestion aspect service.
+   * This method routes the update request to the appropriate custom API for pre-ingestion processing.
+   * Note: If you update the lambda function (ignored -> newValue), make sure to update this method as well
+   * to avoid any inconsistency between the lambda function and the add method.
+   *
+   * @param urn the urn of the asset
+   * @param newValue the new aspect value
+   * @return the updated aspect
    */
-  protected <ASPECT extends RecordTemplate> ASPECT preUpdateRouting(URN urn, ASPECT updateLambda) {
+  protected <ASPECT extends RecordTemplate> ASPECT preUpdateRouting(URN urn, ASPECT newValue) {
     if (_restliPreUpdateAspectRegistry != null && _restliPreUpdateAspectRegistry.isRegistered(
-        updateLambda.getClass())) {
+        newValue.getClass())) {
       RestliCompliantPreUpdateRoutingClient client =
-          _restliPreUpdateAspectRegistry.getPreUpdateRoutingClient(updateLambda);
+          _restliPreUpdateAspectRegistry.getPreUpdateRoutingClient(newValue);
       Message updatedAspect =
-          client.routingLambda(client.convertUrnToMessage(urn), client.convertAspectToMessage(updateLambda));
+          client.routingLambda(client.convertUrnToMessage(urn), client.convertAspectToMessage(newValue));
       RecordTemplate convertedAspect = client.convertAspectFromMessage(updatedAspect);
       return (ASPECT) convertedAspect;
     }
-    return updateLambda;
+    return newValue;
   }
 }
