@@ -838,6 +838,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   /**
    * Same as above {@link #add(Urn, RecordTemplate, AuditStamp)} but with tracking context.
+   * Note: If you update the lambda function (ignored - newValue), make sure to update {@link #preUpdateRouting(Urn, RecordTemplate)} as well
+   * to avoid any inconsistency between the lambda function and the add method.
    */
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull ASPECT newValue,
@@ -1636,9 +1638,6 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   /**
    * This method routes the update request to the appropriate custom API for pre-ingestion processing.
-   * Note: If you update the lambda function (ignored -\> newValue), make sure to update this method as well
-   * to avoid any inconsistency between the lambda function and the add method.
-   *
    * @param urn the urn of the asset
    * @param newValue the new aspect value
    * @return the updated aspect
