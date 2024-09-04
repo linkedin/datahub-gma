@@ -8,6 +8,7 @@ import com.linkedin.metadata.dao.AspectKey;
 import com.linkedin.metadata.dao.BaseBrowseDAO;
 import com.linkedin.metadata.dao.BaseLocalDAO;
 import com.linkedin.metadata.dao.BaseSearchDAO;
+import com.linkedin.metadata.dao.ingestion.SamplePreUpdateAspectRegistryImpl;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.events.IngestionTrackingContext;
@@ -53,6 +54,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
   private BaseBrowseDAO _mockBrowseDAO;
   private BaseLocalDAO _mockLocalDAO;
   private BaseAspectRoutingGmsClient _mockAspectFooGmsClient;
+  private BaseAspectRoutingGmsClient _mockAspectBarGmsClient;
   private BaseAspectRoutingGmsClient _mockAspectBazGmsClient;
   private BaseAspectRoutingGmsClient _mockAspectAttributeGmsClient;
 
@@ -157,6 +159,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
   @BeforeMethod
   public void setup() {
     _mockAspectFooGmsClient = mock(BaseAspectRoutingGmsClient.class);
+    _mockAspectBarGmsClient = mock(BaseAspectRoutingGmsClient.class);
     _mockAspectAttributeGmsClient = mock(BaseAspectRoutingGmsClient.class);
     _mockAspectBazGmsClient = mock(BaseAspectRoutingGmsClient.class);
     when(_mockAspectFooGmsClient.getEntityType()).thenReturn(FooUrn.ENTITY_TYPE);
@@ -542,5 +545,32 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     assertEquals(backfillResult.getEntities().size(), 2);
     verifyZeroInteractions(_mockAspectFooGmsClient);
+  }
+
+  @Test
+  public void testPreUpdateRoutingWithRegisteredAspect() {
+    FooUrn urn = makeFooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectFoo bar = new AspectFoo().setValue("bar");
+    List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, foo));
+    EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
+    _resource.setRestliPreUpdateAspectRegistry(new SamplePreUpdateAspectRegistryImpl());
+    runAndWait(_resource.ingest(snapshot));
+    verify(_mockAspectFooGmsClient, times(1)).ingest(eq(urn), eq(bar));
+    verify(_mockLocalDAO, times(0)).add(eq(urn), eq(bar), any(), eq(null), eq(null));
+    verifyNoMoreInteractions(_mockLocalDAO);
+  }
+
+  @Test
+  public void testPreUpdateRoutingWithNonRegisteredPreUpdateAspect() {
+    FooUrn urn = makeFooUrn(1);
+    AspectBar bar = new AspectBar().setValue("bar");
+    List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, bar));
+    EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
+    _resource.setRestliPreUpdateAspectRegistry(new SamplePreUpdateAspectRegistryImpl());
+    runAndWait(_resource.ingest(snapshot));
+    verify(_mockAspectBarGmsClient, times(0)).ingest(eq(urn), eq(bar));
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(null), eq(null));
+    verifyNoMoreInteractions(_mockLocalDAO);
   }
 }
