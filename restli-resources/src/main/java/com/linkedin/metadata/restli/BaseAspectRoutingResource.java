@@ -328,6 +328,7 @@ public abstract class BaseAspectRoutingResource<
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
       ModelUtils.getAspectsFromSnapshot(snapshot).forEach(aspect -> {
         if (!aspectsToIgnore.contains(aspect.getClass())) {
+          // if _restliPreUpdateAspectRegistry is not initiated or the aspect is not registered for pre update routing, check if the aspect is registered for aspect routing.
           if (_restliPreUpdateAspectRegistry == null || !_restliPreUpdateAspectRegistry.isRegistered(
               aspect.getClass())) {
             if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
