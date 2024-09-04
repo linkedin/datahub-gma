@@ -6,6 +6,7 @@ import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.ingestion.SampleLambdaFunctionRegistryImpl;
+import com.linkedin.metadata.dao.ingestion.SamplePreUpdateAspectRegistryImpl;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
@@ -649,5 +650,32 @@ public class BaseLocalDAOTest {
         auditStamp2, null, IngestionMode.LIVE);
 
     verifyNoMoreInteractions(_mockTrackingEventProducer);
+  }
+  @Test
+  public void testPreUpdateRoutingFromFooToBar() throws URISyntaxException {
+    // Setup test data
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectFoo bar = new AspectFoo().setValue("bar");
+    _dummyLocalDAO.setRestliPreIngestionAspectRegistry(new SamplePreUpdateAspectRegistryImpl());
+    AspectFoo result = _dummyLocalDAO.preUpdateRouting(urn, foo);
+    assertEquals(result, bar);
+  }
+
+  @Test
+  public void testMAEEmissionForPreUpdateRouting() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectFoo bar = new AspectFoo().setValue("bar");
+    _dummyLocalDAO.setAlwaysEmitAuditEvent(true);
+    _dummyLocalDAO.setRestliPreIngestionAspectRegistry(new SamplePreUpdateAspectRegistryImpl());
+    expectGetLatest(urn, AspectFoo.class,
+        Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(foo, _dummyAuditStamp)));
+
+    _dummyLocalDAO.add(urn, foo, _dummyAuditStamp);
+
+    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, bar);
+    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, bar, _dummyAuditStamp, IngestionMode.LIVE);
+    verifyNoMoreInteractions(_mockEventProducer);
   }
 }
