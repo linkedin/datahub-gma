@@ -69,9 +69,7 @@ public abstract class BaseMetadataEventProducer<SNAPSHOT extends RecordTemplate,
    * Produce Metadata Graph search metrics inside SearchDAO.
    * TODO: (jejia) Clean this up after we fully migrate to Hosted Search.
    */
-  public void produceMetadataGraphSearchMetric(@Nonnull String input, @Nonnull String request,
-      @Nonnull String index, @Nonnull List<String> topHits, @Nonnull String api) {
-    // Do nothing. Concrete implementation will be provided by child class.
-  }
+  public abstract void produceMetadataGraphSearchMetric(@Nonnull String input, @Nonnull String request,
+      @Nonnull String index, @Nonnull List<String> topHits, @Nonnull String api);
 
 }
