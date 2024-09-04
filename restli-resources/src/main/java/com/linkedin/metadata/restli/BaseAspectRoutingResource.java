@@ -1,5 +1,6 @@
 package com.linkedin.metadata.restli;
 
+import com.google.protobuf.Message;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
@@ -7,6 +8,7 @@ import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.StringArray;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.AspectKey;
+import com.linkedin.metadata.dao.ingestion.RestliCompliantPreUpdateRoutingClient;
 import com.linkedin.metadata.dao.ingestion.RestliPreUpdateAspectRegistry;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.events.IngestionTrackingContext;
@@ -72,6 +74,7 @@ public abstract class BaseAspectRoutingResource<
   private final Class<INTERNAL_ASPECT_UNION> _internalAspectUnionClass;
   private final Class<ASSET> _assetClass;
   private RestliPreUpdateAspectRegistry _restliPreUpdateAspectRegistry = null;
+  private static final List<String> SKIP_INGESTION_FOR_ASPECTS = Collections.singletonList("datasetaccountableownership");
 
   public BaseAspectRoutingResource(@Nullable Class<SNAPSHOT> snapshotClass,
       @Nullable Class<ASPECT_UNION> aspectUnionClass, @Nonnull Class<URN> urnClass, @Nonnull Class<VALUE> valueClass,
@@ -107,8 +110,8 @@ public abstract class BaseAspectRoutingResource<
    */
   public abstract AspectRoutingGmsClientManager getAspectRoutingGmsClientManager();
 
-  public void setRestliPreIngestionAspectRegistry(
-      @Nonnull RestliPreUpdateAspectRegistry restliPreUpdateAspectRegistry) {
+  /** set the restliPreUpdateAspectRegistry */
+  public void setRestliPreUpdateAspectRegistry(RestliPreUpdateAspectRegistry restliPreUpdateAspectRegistry) {
     _restliPreUpdateAspectRegistry = restliPreUpdateAspectRegistry;
   }
 
@@ -328,22 +331,25 @@ public abstract class BaseAspectRoutingResource<
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
       ModelUtils.getAspectsFromSnapshot(snapshot).forEach(aspect -> {
         if (!aspectsToIgnore.contains(aspect.getClass())) {
-          // if _restliPreUpdateAspectRegistry is not initiated or the aspect is not registered for pre update routing, check if the aspect is registered for aspect routing.
-          if (_restliPreUpdateAspectRegistry == null || !_restliPreUpdateAspectRegistry.isRegistered(
+          if (_restliPreUpdateAspectRegistry != null && _restliPreUpdateAspectRegistry.isRegistered(
               aspect.getClass())) {
-            if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
-              try {
-                if (trackingContext != null) {
-                  getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass())
-                      .ingestWithTracking(urn, aspect, trackingContext, ingestionParams);
-                } else {
-                  getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingest(urn, aspect);
-                }
-              } catch (Exception exception) {
-                log.error(
-                    String.format("Couldn't ingest routing aspect %s for %s", aspect.getClass().getSimpleName(), urn),
-                    exception);
+            aspect = preUpdateRouting(urn, aspect);
+          }
+          //TODO: META-21112: Remove this check after adding annotations at model level; to handle SKIP/PROCEED for preUpdateRouting
+          if (SKIP_INGESTION_FOR_ASPECTS.contains(aspect.getClass().getCanonicalName())) {
+            return;
+          }
+          if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
+            try {
+              if (trackingContext != null) {
+                getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingestWithTracking(urn, aspect, trackingContext, ingestionParams);
+              } else {
+                getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingest(urn, aspect);
               }
+            } catch (Exception exception) {
+              log.error(
+                  String.format("Couldn't ingest routing aspect %s for %s", aspect.getClass().getSimpleName(), urn),
+                  exception);
             }
           } else {
             getLocalDAO().add(urn, aspect, auditStamp, trackingContext, ingestionParams);
@@ -367,6 +373,14 @@ public abstract class BaseAspectRoutingResource<
           ingestionParams != null ? ingestionParams.getIngestionTrackingContext() : null;
       ModelUtils.getAspectsFromAsset(asset).forEach(aspect -> {
         if (!aspectsToIgnore.contains(aspect.getClass())) {
+          if (_restliPreUpdateAspectRegistry != null && _restliPreUpdateAspectRegistry.isRegistered(
+              aspect.getClass())) {
+            aspect = preUpdateRouting(urn, aspect);
+          }
+          //TODO: META-21112: Remove this check after adding annotations at model level; to handle SKIP/PROCEED for preUpdateRouting
+          if (SKIP_INGESTION_FOR_ASPECTS.contains(aspect.getClass().getCanonicalName())) {
+            return;
+          }
           if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
             try {
               if (trackingContext != null) {
@@ -612,5 +626,20 @@ public abstract class BaseAspectRoutingResource<
         return null;
       }
     }).filter(Objects::nonNull).collect(Collectors.toList());
+  }
+
+  /**
+   * This method routes the update request to the appropriate custom API for pre-ingestion processing.
+   * @param urn the urn of the asset
+   * @param aspect the new aspect value
+   * @return the updated aspect
+   */
+  protected <ASPECT extends RecordTemplate> ASPECT preUpdateRouting(URN urn, ASPECT aspect) {
+    RestliCompliantPreUpdateRoutingClient client =
+        _restliPreUpdateAspectRegistry.getPreUpdateRoutingClient(aspect);
+    Message updatedAspect =
+        client.routingLambda(client.convertUrnToMessage(urn), client.convertAspectToMessage(aspect));
+    RecordTemplate convertedAspect = client.convertAspectFromMessage(updatedAspect);
+    return (ASPECT) convertedAspect;
   }
 }
