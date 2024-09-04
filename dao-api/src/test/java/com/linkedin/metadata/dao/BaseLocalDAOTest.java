@@ -651,6 +651,7 @@ public class BaseLocalDAOTest {
 
     verifyNoMoreInteractions(_mockTrackingEventProducer);
   }
+
   @Test
   public void testPreUpdateRoutingFromFooToBar() throws URISyntaxException {
     // Setup test data
@@ -677,5 +678,21 @@ public class BaseLocalDAOTest {
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, bar);
     verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, bar, _dummyAuditStamp, IngestionMode.LIVE);
     verifyNoMoreInteractions(_mockEventProducer);
+  }
+
+  @Test
+  public void testPreUpdateRoutingWithUnregisteredAspect() throws URISyntaxException {
+    // Setup test data
+    FooUrn urn = new FooUrn(1);
+    AspectBar foo = new AspectBar().setValue("foo");
+
+    // Inject RestliPreIngestionAspectRegistry with no registered aspect
+    _dummyLocalDAO.setRestliPreIngestionAspectRegistry(new SamplePreUpdateAspectRegistryImpl());
+
+    // Call the add method
+    AspectBar result = _dummyLocalDAO.preUpdateRouting(urn, foo);
+
+    // Verify that the result is the same as the input aspect since it's not registered
+    assertEquals(result, foo);
   }
 }

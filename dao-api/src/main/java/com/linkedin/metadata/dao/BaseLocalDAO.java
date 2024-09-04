@@ -848,8 +848,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     final IngestionParams nonNullIngestionParams =
         ingestionParams == null || !ingestionParams.hasTestMode() ? new IngestionParams().setIngestionMode(
             IngestionMode.LIVE).setTestMode(false) : ingestionParams;
-    ASPECT effectiveUpdateLambda = preUpdateRouting(urn, newValue);
-    return add(urn, (Class<ASPECT>) newValue.getClass(), ignored -> effectiveUpdateLambda, auditStamp, trackingContext, nonNullIngestionParams);
+    ASPECT updatedAspect = preUpdateRouting(urn, newValue);
+    return add(urn, (Class<ASPECT>) newValue.getClass(), ignored -> updatedAspect, auditStamp, trackingContext, nonNullIngestionParams);
   }
 
   /**
