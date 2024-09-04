@@ -95,9 +95,13 @@ public abstract class BaseEntityResource<
   private final Class<INTERNAL_ASPECT_UNION> _internalAspectUnionClass;
   private final Class<ASSET> _assetClass;
   protected final Class<URN> _urnClass;
-  protected final ResourceLix _resourceLix;
-
+  protected ResourceLix _resourceLix;
   protected BaseTrackingManager _trackingManager = null;
+
+  // allows resource lix to be updated by real lix impl
+  public void setResourceLix(ResourceLix resourceLix) {
+    _resourceLix = resourceLix;
+  }
 
   public BaseEntityResource(@Nullable Class<SNAPSHOT> snapshotClass, @Nullable Class<ASPECT_UNION> aspectUnionClass,
       @Nonnull Class<INTERNAL_SNAPSHOT> internalSnapshotClass,
