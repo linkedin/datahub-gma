@@ -110,7 +110,7 @@ public abstract class BaseAspectRoutingResource<
    */
   public abstract AspectRoutingGmsClientManager getAspectRoutingGmsClientManager();
 
-  /** set the restliPreUpdateAspectRegistry */
+  /** Set the restliPreUpdateAspectRegistry. */
   public void setRestliPreUpdateAspectRegistry(RestliPreUpdateAspectRegistry restliPreUpdateAspectRegistry) {
     _restliPreUpdateAspectRegistry = restliPreUpdateAspectRegistry;
   }
