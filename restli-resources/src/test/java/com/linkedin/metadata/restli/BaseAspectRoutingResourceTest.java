@@ -560,7 +560,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     _resource.setRestliPreUpdateAspectRegistry(new SamplePreUpdateAspectRegistryImpl());
     runAndWait(_resource.ingest(snapshot));
     verify(_mockAspectFooGmsClient, times(1)).ingest(eq(urn), eq(bar));
-    verify(_mockLocalDAO, times(0)).add(eq(urn), eq(bar), any(), eq(null), eq(null));
+    verify(_mockLocalDAO, times(0)).add(any(), any(), any(), any(), any());
     verifyNoMoreInteractions(_mockLocalDAO);
   }
 
@@ -572,7 +572,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
     _resource.setRestliPreUpdateAspectRegistry(new SamplePreUpdateAspectRegistryImpl());
     runAndWait(_resource.ingest(snapshot));
-    verify(_mockAspectBarGmsClient, times(0)).ingest(eq(urn), eq(bar));
+    verify(_mockAspectBarGmsClient, times(0)).ingest(any(), any());
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(null), eq(null));
     verifyNoMoreInteractions(_mockLocalDAO);
   }
@@ -596,8 +596,8 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
     _resource.setRestliPreUpdateAspectRegistry(new SamplePreUpdateAspectRegistryImpl());
     runAndWait(_resource.ingest(snapshot));
-    verify(_mockAspectFooGmsClient, times(0)).ingest(eq(urn), eq(foo));
-    verify(_mockLocalDAO, times(0)).add(eq(urn), eq(foo), any(), eq(null), eq(null));
+    verify(_mockAspectFooGmsClient, times(0)).ingest(any(), any());
+    verify(_mockLocalDAO, times(0)).add(any(), any(), any(), any(), any());
   }
 
 }
