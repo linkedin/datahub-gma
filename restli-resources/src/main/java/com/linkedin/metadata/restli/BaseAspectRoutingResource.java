@@ -1,5 +1,6 @@
 package com.linkedin.metadata.restli;
 
+import com.google.protobuf.Message;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
@@ -7,6 +8,8 @@ import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.StringArray;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.AspectKey;
+import com.linkedin.metadata.dao.ingestion.RestliCompliantPreUpdateRoutingClient;
+import com.linkedin.metadata.dao.ingestion.RestliPreUpdateAspectRegistry;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.internal.IngestionParams;
@@ -69,6 +72,8 @@ public abstract class BaseAspectRoutingResource<
   private final Class<INTERNAL_SNAPSHOT> _internalSnapshotClass;
   private final Class<INTERNAL_ASPECT_UNION> _internalAspectUnionClass;
   private final Class<ASSET> _assetClass;
+  private RestliPreUpdateAspectRegistry _restliPreUpdateAspectRegistry = null;
+  private static final List<String> SKIP_INGESTION_FOR_ASPECTS = Collections.singletonList("com.linkedin.dataset.DatasetAccountableOwnership");
 
   public BaseAspectRoutingResource(@Nullable Class<SNAPSHOT> snapshotClass,
       @Nullable Class<ASPECT_UNION> aspectUnionClass, @Nonnull Class<URN> urnClass, @Nonnull Class<VALUE> valueClass,
@@ -88,6 +93,11 @@ public abstract class BaseAspectRoutingResource<
    * @return {@link AspectRoutingGmsClientManager}
    */
   public abstract AspectRoutingGmsClientManager getAspectRoutingGmsClientManager();
+
+  /** Set the restliPreUpdateAspectRegistry. */
+  public void setRestliPreUpdateAspectRegistry(RestliPreUpdateAspectRegistry restliPreUpdateAspectRegistry) {
+    _restliPreUpdateAspectRegistry = restliPreUpdateAspectRegistry;
+  }
 
   /**
    * Retrieves the value for an entity that is made up of latest versions of specified aspects.
@@ -305,6 +315,16 @@ public abstract class BaseAspectRoutingResource<
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
       ModelUtils.getAspectsFromSnapshot(snapshot).forEach(aspect -> {
         if (!aspectsToIgnore.contains(aspect.getClass())) {
+          if (_restliPreUpdateAspectRegistry != null && _restliPreUpdateAspectRegistry.isRegistered(
+              aspect.getClass())) {
+            aspect = preUpdateRouting(urn, aspect);
+          }
+          // Get the fqcn of the aspect class
+          String aspectFQCN = aspect.getClass().getCanonicalName();
+          //TODO: META-21112: Remove this check after adding annotations at model level; to handle SKIP/PROCEED for preUpdateRouting
+          if (SKIP_INGESTION_FOR_ASPECTS.contains(aspectFQCN)) {
+            return;
+          }
           if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
             try {
               if (trackingContext != null) {
@@ -339,6 +359,16 @@ public abstract class BaseAspectRoutingResource<
           ingestionParams != null ? ingestionParams.getIngestionTrackingContext() : null;
       ModelUtils.getAspectsFromAsset(asset).forEach(aspect -> {
         if (!aspectsToIgnore.contains(aspect.getClass())) {
+          if (_restliPreUpdateAspectRegistry != null && _restliPreUpdateAspectRegistry.isRegistered(
+              aspect.getClass())) {
+            aspect = preUpdateRouting(urn, aspect);
+          }
+          // Get the fqcn of the aspect class
+          String aspectFQCN = aspect.getClass().getCanonicalName();
+          //TODO: META-21112: Remove this check after adding annotations at model level; to handle SKIP/PROCEED for preUpdateRouting
+          if (SKIP_INGESTION_FOR_ASPECTS.contains(aspectFQCN)) {
+            return;
+          }
           if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
             try {
               if (trackingContext != null) {
@@ -584,5 +614,19 @@ public abstract class BaseAspectRoutingResource<
         return null;
       }
     }).filter(Objects::nonNull).collect(Collectors.toList());
+  }
+
+  /**
+   * This method routes the update request to the appropriate custom API for pre-ingestion processing.
+   * @param urn the urn of the asset
+   * @param aspect the new aspect value
+   * @return the updated aspect
+   */
+  private RecordTemplate preUpdateRouting(URN urn, RecordTemplate aspect) {
+    RestliCompliantPreUpdateRoutingClient client =
+        _restliPreUpdateAspectRegistry.getPreUpdateRoutingClient(aspect);
+    Message updatedAspect =
+        client.routingLambda(client.convertUrnToMessage(urn), client.convertAspectToMessage(aspect));
+    return client.convertAspectFromMessage(updatedAspect);
   }
 }

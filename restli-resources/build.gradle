@@ -10,7 +10,7 @@ dependencies {
   compile project(':dao-api')
   compile spec.product.pegasus.restliServer
   compile spec.product.pegasus.restliClient
-
+  implementation 'com.google.protobuf:protobuf-java:3.21.1'
   compileOnly externalDependency.lombok
   annotationProcessor externalDependency.lombokAnnotationProcessor
   testCompile project(':core-models-utils')
