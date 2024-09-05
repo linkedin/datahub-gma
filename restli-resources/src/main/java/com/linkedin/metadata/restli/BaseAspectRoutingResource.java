@@ -379,8 +379,10 @@ public abstract class BaseAspectRoutingResource<
               aspect.getClass())) {
             aspect = preUpdateRouting(urn, aspect);
           }
+          // Get the simple class name from the fully qualified class name
+          String simpleClassName = getSimpleClassName(aspect.getClass().getCanonicalName());
           //TODO: META-21112: Remove this check after adding annotations at model level; to handle SKIP/PROCEED for preUpdateRouting
-          if (SKIP_INGESTION_FOR_ASPECTS.contains(aspect.getClass().getCanonicalName())) {
+          if (SKIP_INGESTION_FOR_ASPECTS.contains(simpleClassName)) {
             return;
           }
           if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
