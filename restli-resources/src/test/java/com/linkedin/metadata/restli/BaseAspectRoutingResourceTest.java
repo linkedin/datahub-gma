@@ -587,7 +587,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     modifiersField.setAccessible(true);
     modifiersField.setInt(skipIngestionField, skipIngestionField.getModifiers() & ~Modifier.FINAL);
     // Modify the field to contain AspectFoo
-    List<String> newSkipIngestionList = Arrays.asList("DatasetAccountableOwnership", "AspectFoo");
+    List<String> newSkipIngestionList = Arrays.asList("com.linkedin.testing.AspectFoo");
     skipIngestionField.set(null, newSkipIngestionList);
 
     FooUrn urn = makeFooUrn(1);
@@ -600,11 +600,4 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     verify(_mockLocalDAO, times(0)).add(eq(urn), eq(foo), any(), eq(null), eq(null));
   }
 
-
-  @Test
-  public void testGetSimpleClassName() {
-    AspectFoo foo = new AspectFoo().setValue("foo");
-    assertEquals(_resource.getSimpleClassName(foo.getClass().getCanonicalName()), "AspectFoo");
-    assertEquals(_resource.getSimpleClassName("com.linkedin.dataset.DatasetAccountableOwnership"), "DatasetAccountableOwnership");
-  }
 }

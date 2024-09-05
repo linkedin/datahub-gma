@@ -74,7 +74,7 @@ public abstract class BaseAspectRoutingResource<
   private final Class<INTERNAL_ASPECT_UNION> _internalAspectUnionClass;
   private final Class<ASSET> _assetClass;
   private RestliPreUpdateAspectRegistry _restliPreUpdateAspectRegistry = null;
-  private static final List<String> SKIP_INGESTION_FOR_ASPECTS = Collections.singletonList("DatasetAccountableOwnership");
+  private static final List<String> SKIP_INGESTION_FOR_ASPECTS = Collections.singletonList("com.linkedin.dataset.DatasetAccountableOwnership");
 
   public BaseAspectRoutingResource(@Nullable Class<SNAPSHOT> snapshotClass,
       @Nullable Class<ASPECT_UNION> aspectUnionClass, @Nonnull Class<URN> urnClass, @Nonnull Class<VALUE> valueClass,
@@ -335,10 +335,10 @@ public abstract class BaseAspectRoutingResource<
               aspect.getClass())) {
             aspect = preUpdateRouting(urn, aspect);
           }
-          // Get the simple class name from the fully qualified class name
-          String simpleClassName = getSimpleClassName(aspect.getClass().getCanonicalName());
+          // Get the fqcn of the aspect class
+          String aspectFQCN = aspect.getClass().getCanonicalName();
           //TODO: META-21112: Remove this check after adding annotations at model level; to handle SKIP/PROCEED for preUpdateRouting
-          if (SKIP_INGESTION_FOR_ASPECTS.contains(simpleClassName)) {
+          if (SKIP_INGESTION_FOR_ASPECTS.contains(aspectFQCN)) {
             return;
           }
           if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
@@ -379,10 +379,10 @@ public abstract class BaseAspectRoutingResource<
               aspect.getClass())) {
             aspect = preUpdateRouting(urn, aspect);
           }
-          // Get the simple class name from the fully qualified class name
-          String simpleClassName = getSimpleClassName(aspect.getClass().getCanonicalName());
+          // Get the fqcn of the aspect class
+          String aspectFQCN = aspect.getClass().getCanonicalName();
           //TODO: META-21112: Remove this check after adding annotations at model level; to handle SKIP/PROCEED for preUpdateRouting
-          if (SKIP_INGESTION_FOR_ASPECTS.contains(simpleClassName)) {
+          if (SKIP_INGESTION_FOR_ASPECTS.contains(aspectFQCN)) {
             return;
           }
           if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
@@ -644,9 +644,5 @@ public abstract class BaseAspectRoutingResource<
     Message updatedAspect =
         client.routingLambda(client.convertUrnToMessage(urn), client.convertAspectToMessage(aspect));
     return client.convertAspectFromMessage(updatedAspect);
-  }
-
-  protected String getSimpleClassName(String canonicalClassName) {
-    return canonicalClassName.substring(canonicalClassName.lastIndexOf(".") + 1);
   }
 }
