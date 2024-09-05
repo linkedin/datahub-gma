@@ -31,6 +31,8 @@ import com.linkedin.testing.InternalEntityAspectUnion;
 import com.linkedin.testing.InternalEntitySnapshot;
 import com.linkedin.testing.urn.BazUrn;
 import com.linkedin.testing.urn.FooUrn;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -552,6 +554,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     FooUrn urn = makeFooUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");
     AspectFoo bar = new AspectFoo().setValue("bar");
+
     List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, foo));
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
     _resource.setRestliPreUpdateAspectRegistry(new SamplePreUpdateAspectRegistryImpl());
@@ -572,5 +575,36 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     verify(_mockAspectBarGmsClient, times(0)).ingest(eq(urn), eq(bar));
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(null), eq(null));
     verifyNoMoreInteractions(_mockLocalDAO);
+  }
+
+  @Test
+  public void testPreUpdateRoutingWithSkipIngestion() throws NoSuchFieldException, IllegalAccessException {
+    // Access the SKIP_INGESTION_FOR_ASPECTS field
+    Field skipIngestionField = BaseAspectRoutingResource.class.getDeclaredField("SKIP_INGESTION_FOR_ASPECTS");
+    skipIngestionField.setAccessible(true);
+    // Remove the final modifier from the field
+    Field modifiersField = Field.class.getDeclaredField("modifiers");
+    modifiersField.setAccessible(true);
+    modifiersField.setInt(skipIngestionField, skipIngestionField.getModifiers() & ~Modifier.FINAL);
+    // Modify the field to contain AspectFoo
+    List<String> newSkipIngestionList = Arrays.asList("DatasetAccountableOwnership", "AspectFoo");
+    skipIngestionField.set(null, newSkipIngestionList);
+
+    FooUrn urn = makeFooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, foo));
+    EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
+    _resource.setRestliPreUpdateAspectRegistry(new SamplePreUpdateAspectRegistryImpl());
+    runAndWait(_resource.ingest(snapshot));
+    verify(_mockAspectFooGmsClient, times(0)).ingest(eq(urn), eq(foo));
+    verify(_mockLocalDAO, times(0)).add(eq(urn), eq(foo), any(), eq(null), eq(null));
+  }
+
+
+  @Test
+  public void testGetSimpleClassName() {
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    assertEquals(_resource.getSimpleClassName(foo.getClass().getCanonicalName()), "AspectFoo");
+    assertEquals(_resource.getSimpleClassName("com.linkedin.dataset.DatasetAccountableOwnership"), "DatasetAccountableOwnership");
   }
 }
