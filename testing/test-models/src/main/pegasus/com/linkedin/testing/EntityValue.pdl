@@ -19,4 +19,9 @@ record EntityValue includes EntityKey {
    * For unit tests
    */
   attributes: optional AspectAttributes
+
+  /**
+   * For unit tests
+   */
+  datasetInfo: optional DatasetInfo
 }

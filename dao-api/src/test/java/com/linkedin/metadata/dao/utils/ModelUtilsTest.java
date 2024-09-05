@@ -9,6 +9,7 @@ import com.linkedin.metadata.validator.NullFieldException;
 import com.linkedin.testing.AspectAttributes;
 import com.linkedin.testing.AspectUnionWithSoftDeletedAspect;
 import com.linkedin.testing.BarUrnArray;
+import com.linkedin.testing.DatasetInfo;
 import com.linkedin.testing.DeltaUnionAlias;
 import com.linkedin.testing.EntityAspectUnionAliasArray;
 import com.linkedin.testing.EntityAsset;
@@ -726,22 +727,28 @@ public class ModelUtilsTest {
     InternalEntityAspectUnion internalAspectUnion1 = new InternalEntityAspectUnion();
     InternalEntityAspectUnion internalAspectUnion2 = new InternalEntityAspectUnion();
     InternalEntityAspectUnion internalAspectUnion3 = new InternalEntityAspectUnion();
+    InternalEntityAspectUnion internalAspectUnion4 = new InternalEntityAspectUnion();
     InternalEntityAspectUnionArray internalEntityAspectUnionArray = new InternalEntityAspectUnionArray();
     AspectFoo expectedFoo = new AspectFoo().setValue("foo");
     AspectBar expectedBar = new AspectBar().setValue("bar");
     AspectFooBar expectedFooBar = new AspectFooBar().setBars(new BarUrnArray(new BarUrn(2)));
+    DatasetInfo expectedDatasetInfo = new DatasetInfo().setValue("datasetInfo");
     internalAspectUnion1.setAspectFoo(expectedFoo);
     internalAspectUnion2.setAspectBar(expectedBar);
     internalAspectUnion3.setAspectFooBar(expectedFooBar);
+    internalAspectUnion4.setDatasetInfo(expectedDatasetInfo);
     internalEntityAspectUnionArray.add(internalAspectUnion1);
     internalEntityAspectUnionArray.add(internalAspectUnion2);
     internalEntityAspectUnionArray.add(internalAspectUnion3);
+    internalEntityAspectUnionArray.add(internalAspectUnion4);
     internalEntitySnapshot.setAspects(internalEntityAspectUnionArray);
 
     EntityValue entityValue = new EntityValue();
     AspectFoo entityFoo = new AspectFoo().setValue("fooEntity");
     entityValue.setFoo(entityFoo);
 
+    DatasetInfo datasetInfo = new DatasetInfo().setValue("datasetInfo");
+    entityValue.setDatasetInfo(datasetInfo);
 
     EntityValue decoratedValue = ModelUtils.decorateValue(internalEntitySnapshot, entityValue);
 
