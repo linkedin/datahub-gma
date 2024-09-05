@@ -95,40 +95,34 @@ public abstract class BaseEntityResource<
   private final Class<INTERNAL_ASPECT_UNION> _internalAspectUnionClass;
   private final Class<ASSET> _assetClass;
   protected final Class<URN> _urnClass;
-  protected ResourceLix _resourceLix;
   protected BaseTrackingManager _trackingManager = null;
+  private ResourceLix _defaultResourceLix = new DummyResourceLix();
 
-  // allows resource lix to be updated by real lix impl
-  public void setResourceLix(ResourceLix resourceLix) {
-    _resourceLix = resourceLix;
+  /**
+   * This method is to be overriden by specific resource endpoint implementation with real lix impl.
+   * @return {@link ResourceLix}
+   */
+  protected ResourceLix getResourceLix() {
+    return _defaultResourceLix;
   }
+
 
   public BaseEntityResource(@Nullable Class<SNAPSHOT> snapshotClass, @Nullable Class<ASPECT_UNION> aspectUnionClass,
       @Nonnull Class<INTERNAL_SNAPSHOT> internalSnapshotClass,
       @Nonnull Class<INTERNAL_ASPECT_UNION> internalAspectUnionClass, @Nonnull Class<ASSET> assetClass) {
-    this(snapshotClass, aspectUnionClass, null, internalSnapshotClass, internalAspectUnionClass, assetClass,
-        new DummyResourceLix());
+    this(snapshotClass, aspectUnionClass, null, internalSnapshotClass, internalAspectUnionClass, assetClass);
   }
 
   public BaseEntityResource(@Nullable Class<SNAPSHOT> snapshotClass, @Nullable Class<ASPECT_UNION> aspectUnionClass,
       @Nonnull Class<INTERNAL_SNAPSHOT> internalSnapshotClass,
       @Nonnull Class<INTERNAL_ASPECT_UNION> internalAspectUnionClass, @Nonnull Class<ASSET> assetClass,
       @Nonnull ResourceLix resourceLix) {
-    this(snapshotClass, aspectUnionClass, null, internalSnapshotClass, internalAspectUnionClass, assetClass,
-        resourceLix);
+    this(snapshotClass, aspectUnionClass, null, internalSnapshotClass, internalAspectUnionClass, assetClass);
   }
 
   public BaseEntityResource(@Nullable Class<SNAPSHOT> snapshotClass, @Nullable Class<ASPECT_UNION> aspectUnionClass,
       @Nullable Class<URN> urnClass, @Nonnull Class<INTERNAL_SNAPSHOT> internalSnapshotClass,
       @Nonnull Class<INTERNAL_ASPECT_UNION> internalAspectUnionClass, @Nonnull Class<ASSET> assetClass) {
-    this(snapshotClass, aspectUnionClass, urnClass, internalSnapshotClass, internalAspectUnionClass, assetClass,
-        new DummyResourceLix());
-  }
-
-  public BaseEntityResource(@Nullable Class<SNAPSHOT> snapshotClass, @Nullable Class<ASPECT_UNION> aspectUnionClass,
-      @Nullable Class<URN> urnClass, @Nonnull Class<INTERNAL_SNAPSHOT> internalSnapshotClass,
-      @Nonnull Class<INTERNAL_ASPECT_UNION> internalAspectUnionClass, @Nonnull Class<ASSET> assetClass,
-      @Nonnull ResourceLix resourceLix) {
     super();
     ModelUtils.validateSnapshotAspect(internalSnapshotClass, internalAspectUnionClass);
     _snapshotClass = snapshotClass;
@@ -139,7 +133,6 @@ public abstract class BaseEntityResource<
     _supportedAspectClasses = ModelUtils.getValidAspectTypes(_aspectUnionClass);
     _supportedInternalAspectClasses = ModelUtils.getValidAspectTypes(_internalAspectUnionClass);
     _assetClass = assetClass;
-    _resourceLix = resourceLix;
   }
 
   public BaseEntityResource(@Nullable Class<SNAPSHOT> snapshotClass, @Nullable Class<ASPECT_UNION> aspectUnionClass,
@@ -147,8 +140,7 @@ public abstract class BaseEntityResource<
       @Nonnull Class<INTERNAL_SNAPSHOT> internalSnapshotClass,
       @Nonnull Class<INTERNAL_ASPECT_UNION> internalAspectUnionClass, @Nonnull Class<ASSET> assetClass,
       @Nonnull ResourceLix resourceLix) {
-    this(snapshotClass, aspectUnionClass, urnClass, internalSnapshotClass, internalAspectUnionClass, assetClass,
-        resourceLix);
+    this(snapshotClass, aspectUnionClass, urnClass, internalSnapshotClass, internalAspectUnionClass, assetClass);
     _trackingManager = trackingManager;
   }
 
@@ -156,8 +148,7 @@ public abstract class BaseEntityResource<
       @Nullable Class<URN> urnClass, @Nullable BaseTrackingManager trackingManager,
       @Nonnull Class<INTERNAL_SNAPSHOT> internalSnapshotClass,
       @Nonnull Class<INTERNAL_ASPECT_UNION> internalAspectUnionClass, @Nonnull Class<ASSET> assetClass) {
-    this(snapshotClass, aspectUnionClass, urnClass, internalSnapshotClass, internalAspectUnionClass, assetClass,
-        new DummyResourceLix());
+    this(snapshotClass, aspectUnionClass, urnClass, internalSnapshotClass, internalAspectUnionClass, assetClass);
     _trackingManager = trackingManager;
   }
 
@@ -221,7 +212,7 @@ public abstract class BaseEntityResource<
   @Nonnull
   public Task<VALUE> get(@Nonnull KEY id, @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
     final URN urn = toUrn(id);
-    return get(id, aspectNames, _resourceLix.testGet(String.valueOf(urn), urn.getEntityType()));
+    return get(id, aspectNames, getResourceLix().testGet(String.valueOf(urn), urn.getEntityType()));
   }
 
   protected Task<VALUE> get(@Nonnull KEY id, @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
@@ -254,7 +245,7 @@ public abstract class BaseEntityResource<
   public Task<Map<KEY, VALUE>> batchGet(@Nonnull Set<KEY> ids,
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
     final URN urn = ids.stream().findFirst().isPresent() ? toUrn(ids.stream().findFirst().get()) : null;
-    return batchGet(ids, aspectNames, _resourceLix.testBatchGet(String.valueOf(urn), ModelUtils.getEntityType(urn)));
+    return batchGet(ids, aspectNames, getResourceLix().testBatchGet(String.valueOf(urn), ModelUtils.getEntityType(urn)));
   }
 
   @Deprecated
@@ -281,7 +272,7 @@ public abstract class BaseEntityResource<
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
     final URN urn = ids.stream().findFirst().isPresent() ? toUrn(ids.stream().findFirst().get()) : null;
     return batchGetWithErrors(ids, aspectNames,
-        _resourceLix.testBatchGetWithErrors(String.valueOf(urn), ModelUtils.getEntityType(urn)));
+        getResourceLix().testBatchGetWithErrors(String.valueOf(urn), ModelUtils.getEntityType(urn)));
   }
 
   @Nonnull
@@ -396,7 +387,7 @@ public abstract class BaseEntityResource<
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
     final URN urn = parseUrnParam(urnString);
     return getSnapshot(urnString, aspectNames,
-        _resourceLix.testGetSnapshot(String.valueOf(urn), ModelUtils.getEntityType(urn)));
+        getResourceLix().testGetSnapshot(String.valueOf(urn), ModelUtils.getEntityType(urn)));
   }
 
   @Deprecated
@@ -471,7 +462,7 @@ public abstract class BaseEntityResource<
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
     final URN urn = parseUrnParam(urnString);
     return backfill(urnString, aspectNames,
-        _resourceLix.testBackfillLegacy(String.valueOf(urn), ModelUtils.getEntityType(urn)));
+        getResourceLix().testBackfillLegacy(String.valueOf(urn), ModelUtils.getEntityType(urn)));
   }
 
   @Nonnull
@@ -500,7 +491,7 @@ public abstract class BaseEntityResource<
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
     final String urnString = urns[0];
     final URN urn = parseUrnParam(urnString);
-    return backfill(urns, aspectNames, _resourceLix.testBackfillWithUrns(urnString, ModelUtils.getEntityType(urn)));
+    return backfill(urns, aspectNames, getResourceLix().testBackfillWithUrns(urnString, ModelUtils.getEntityType(urn)));
   }
 
   private Task<BackfillResult> backfill(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
@@ -528,7 +519,7 @@ public abstract class BaseEntityResource<
     final String urnString = urns[0];
     final URN urn = parseUrnParam(urnString);
     return emitNoChangeMetadataAuditEvent(urns, aspectNames, ingestionMode,
-        _resourceLix.testEmitNoChangeMetadataAuditEvent(urnString, ModelUtils.getEntityType(urn)));
+        getResourceLix().testEmitNoChangeMetadataAuditEvent(urnString, ModelUtils.getEntityType(urn)));
   }
 
   @Nonnull
@@ -559,7 +550,7 @@ public abstract class BaseEntityResource<
     final String urnString = urns[0];
     final URN urn = parseUrnParam(urnString);
     return backfillWithNewValue(urns, aspectNames,
-        _resourceLix.testBackfillWithNewValue(urnString, ModelUtils.getEntityType(urn)));
+        getResourceLix().testBackfillWithNewValue(urnString, ModelUtils.getEntityType(urn)));
   }
 
   private Task<BackfillResult> backfillWithNewValue(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
@@ -582,7 +573,7 @@ public abstract class BaseEntityResource<
     final String urnString = urns[0];
     final URN urn = parseUrnParam(urnString);
     return backfillEntityTables(urns, aspectNames,
-        _resourceLix.testBackfillEntityTables(urnString, ModelUtils.getEntityType(urn)));
+        getResourceLix().testBackfillEntityTables(urnString, ModelUtils.getEntityType(urn)));
   }
 
   private Task<BackfillResult> backfillEntityTables(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
@@ -605,7 +596,7 @@ public abstract class BaseEntityResource<
     final String urnString = urns[0];
     final URN urn = parseUrnParam(urnString);
     return backfillRelationshipTables(urns, aspectNames,
-        _resourceLix.testBackfillRelationshipTables(urnString, ModelUtils.getEntityType(urn)));
+        getResourceLix().testBackfillRelationshipTables(urnString, ModelUtils.getEntityType(urn)));
   }
 
   private Task<BackfillResult> backfillRelationshipTables(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
@@ -649,7 +640,7 @@ public abstract class BaseEntityResource<
       @ActionParam(PARAM_URN) @Optional @Nullable String lastUrn,
       @ActionParam(PARAM_LIMIT) int limit) {
     return backfill(mode, aspectNames, lastUrn, limit,
-        _resourceLix.testBackfill(_assetClass.getSimpleName(), mode.name()));
+        getResourceLix().testBackfill(_assetClass.getSimpleName(), mode.name()));
   }
 
   @Nonnull
@@ -849,7 +840,7 @@ public abstract class BaseEntityResource<
       @QueryParam(PARAM_URN) @Optional @Nullable String lastUrn, @QueryParam(PARAM_COUNT) @Optional("10") int count) {
 
     return filter(indexFilter, indexSortCriterion, aspectNames, lastUrn, count,
-        _resourceLix.testFilter(_assetClass.getSimpleName()));
+        getResourceLix().testFilter(_assetClass.getSimpleName()));
   }
 
   @Nonnull
@@ -904,7 +895,7 @@ public abstract class BaseEntityResource<
       @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames,
       @PagingContextParam @Nonnull PagingContext pagingContext) {
     return filter(indexFilter, indexSortCriterion, aspectNames, pagingContext,
-        _resourceLix.testFilter(_assetClass.getSimpleName()));
+        getResourceLix().testFilter(_assetClass.getSimpleName()));
   }
 
   @Nonnull
