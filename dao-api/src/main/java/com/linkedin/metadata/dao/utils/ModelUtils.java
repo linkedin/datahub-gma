@@ -932,8 +932,12 @@ public class ModelUtils {
         final String valueMethodName = valueMethod.getName();
         if (valueMethodName.startsWith("set")) {
           final Optional<Class<?>> valueAspectClass = Arrays.stream(valueMethod.getParameterTypes()).findFirst();
+
+          // setDatasetRecommendationsInfo() --> hasDatasetRecommendationsInfo()
+          final String hasMethodName = valueMethodName.replaceFirst("set", "has");
+
           if (valueAspectClass.isPresent() && aspectClasses.containsKey(valueAspectClass.get())
-              && !(boolean) value.getClass().getMethod(valueMethodName.replace("set", "has")).invoke(value)) {
+              && !(boolean) value.getClass().getMethod(hasMethodName).invoke(value)) {
             value.getClass()
                 .getMethod(valueMethodName, valueAspectClass.get())
                 .invoke(value, aspectClasses.get(valueAspectClass.get()));
