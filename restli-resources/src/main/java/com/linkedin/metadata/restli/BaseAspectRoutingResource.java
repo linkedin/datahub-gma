@@ -634,12 +634,11 @@ public abstract class BaseAspectRoutingResource<
    * @param aspect the new aspect value
    * @return the updated aspect
    */
-  protected <ASPECT extends RecordTemplate> ASPECT preUpdateRouting(URN urn, ASPECT aspect) {
+  private RecordTemplate preUpdateRouting(URN urn, RecordTemplate aspect) {
     RestliCompliantPreUpdateRoutingClient client =
         _restliPreUpdateAspectRegistry.getPreUpdateRoutingClient(aspect);
     Message updatedAspect =
         client.routingLambda(client.convertUrnToMessage(urn), client.convertAspectToMessage(aspect));
-    RecordTemplate convertedAspect = client.convertAspectFromMessage(updatedAspect);
-    return (ASPECT) convertedAspect;
+    return client.convertAspectFromMessage(updatedAspect);
   }
 }
