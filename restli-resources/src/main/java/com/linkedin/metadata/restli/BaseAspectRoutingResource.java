@@ -74,8 +74,7 @@ public abstract class BaseAspectRoutingResource<
   private final Class<INTERNAL_ASPECT_UNION> _internalAspectUnionClass;
   private final Class<ASSET> _assetClass;
   private RestliPreUpdateAspectRegistry _restliPreUpdateAspectRegistry = null;
-  private static final List<String> SKIP_INGESTION_FOR_ASPECTS = Arrays.asList("DatasetAccountableOwnership");
-      //Collections.singletonList("");
+  private static final List<String> SKIP_INGESTION_FOR_ASPECTS = Collections.singletonList("DatasetAccountableOwnership");
 
   public BaseAspectRoutingResource(@Nullable Class<SNAPSHOT> snapshotClass,
       @Nullable Class<ASPECT_UNION> aspectUnionClass, @Nonnull Class<URN> urnClass, @Nonnull Class<VALUE> valueClass,
