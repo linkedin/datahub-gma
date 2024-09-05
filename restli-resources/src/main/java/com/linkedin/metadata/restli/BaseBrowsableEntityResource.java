@@ -8,7 +8,6 @@ import com.linkedin.metadata.dao.BaseBrowseDAO;
 import com.linkedin.metadata.dao.utils.QueryUtils;
 import com.linkedin.metadata.query.BrowseResult;
 import com.linkedin.metadata.query.Filter;
-import com.linkedin.metadata.restli.lix.ResourceLix;
 import com.linkedin.parseq.Task;
 import com.linkedin.restli.server.annotations.Action;
 import com.linkedin.restli.server.annotations.ActionParam;
@@ -60,15 +59,6 @@ public abstract class BaseBrowsableEntityResource<
       @Nonnull Class<INTERNAL_SNAPSHOT> internalSnapshotClass,
       @Nonnull Class<INTERNAL_ASPECT_UNION> internalAspectUnionClass, @Nonnull Class<ASSET> assetClass) {
     super(snapshotClass, aspectUnionClass, urnClass, internalSnapshotClass, internalAspectUnionClass, assetClass);
-  }
-
-  public BaseBrowsableEntityResource(@Nullable Class<SNAPSHOT> snapshotClass,
-      @Nullable Class<ASPECT_UNION> aspectUnionClass, @Nonnull Class<URN> urnClass,
-      @Nonnull Class<INTERNAL_SNAPSHOT> internalSnapshotClass,
-      @Nonnull Class<INTERNAL_ASPECT_UNION> internalAspectUnionClass, @Nonnull Class<ASSET> assetClass,
-      @Nonnull ResourceLix resourceLix) {
-    super(snapshotClass, aspectUnionClass, urnClass, internalSnapshotClass, internalAspectUnionClass, assetClass,
-        resourceLix);
   }
 
   /**

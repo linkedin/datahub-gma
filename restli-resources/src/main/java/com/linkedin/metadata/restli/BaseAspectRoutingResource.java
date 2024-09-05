@@ -10,7 +10,6 @@ import com.linkedin.metadata.dao.AspectKey;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.internal.IngestionParams;
-import com.linkedin.metadata.restli.lix.ResourceLix;
 import com.linkedin.parseq.Task;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.RestLiServiceException;
@@ -84,21 +83,6 @@ public abstract class BaseAspectRoutingResource<
     _assetClass = assetClass;
   }
 
-  public BaseAspectRoutingResource(@Nullable Class<SNAPSHOT> snapshotClass,
-      @Nullable Class<ASPECT_UNION> aspectUnionClass, @Nonnull Class<URN> urnClass, @Nonnull Class<VALUE> valueClass,
-      @Nonnull Class<INTERNAL_SNAPSHOT> internalSnapshotClass,
-      @Nonnull Class<INTERNAL_ASPECT_UNION> internalAspectUnionClass, @Nonnull Class<ASSET> assetClass,
-      @Nonnull ResourceLix resourceLix) {
-    super(snapshotClass, aspectUnionClass, urnClass, internalSnapshotClass, internalAspectUnionClass, assetClass,
-        resourceLix);
-    _valueClass = valueClass;
-    _aspectUnionClass = aspectUnionClass;
-    _snapshotClass = snapshotClass;
-    _internalSnapshotClass = internalSnapshotClass;
-    _internalAspectUnionClass = internalAspectUnionClass;
-    _assetClass = assetClass;
-  }
-
   /**
    * Get the aspect routing client manager which provides multiple aspect routing support.
    * @return {@link AspectRoutingGmsClientManager}
@@ -113,7 +97,7 @@ public abstract class BaseAspectRoutingResource<
   @Override
   public Task<VALUE> get(@Nonnull KEY id, @QueryParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
     final URN urn = toUrn(id);
-    return get(id, aspectNames, _resourceLix.testGet(String.valueOf(urn), urn.getEntityType()));
+    return get(id, aspectNames, getResourceLix().testGet(String.valueOf(urn), urn.getEntityType()));
   }
 
   @Nonnull
@@ -154,7 +138,7 @@ public abstract class BaseAspectRoutingResource<
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
     final URN urn = parseUrnParam(urnString);
     return getSnapshot(urnString, aspectNames,
-        _resourceLix.testGetSnapshot(String.valueOf(urn), ModelUtils.getEntityType(urn)));
+        getResourceLix().testGetSnapshot(String.valueOf(urn), ModelUtils.getEntityType(urn)));
   }
 
   @Nonnull
@@ -244,7 +228,7 @@ public abstract class BaseAspectRoutingResource<
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
     final String urnString = urns[0];
     final URN urn = parseUrnParam(urnString);
-    return backfill(urns, aspectNames, _resourceLix.testBackfillWithUrns(urnString, ModelUtils.getEntityType(urn)));
+    return backfill(urns, aspectNames, getResourceLix().testBackfillWithUrns(urnString, ModelUtils.getEntityType(urn)));
   }
 
   @Nonnull
@@ -295,7 +279,7 @@ public abstract class BaseAspectRoutingResource<
     final String urnString = urns[0];
     final URN urn = parseUrnParam(urnString);
     return backfillWithNewValue(urns, aspectNames,
-        _resourceLix.testBackfillWithNewValue(urnString, ModelUtils.getEntityType(urn)));
+        getResourceLix().testBackfillWithNewValue(urnString, ModelUtils.getEntityType(urn)));
   }
 
   private Task<BackfillResult> backfillWithNewValue(@ActionParam(PARAM_URNS) @Nonnull String[] urns,

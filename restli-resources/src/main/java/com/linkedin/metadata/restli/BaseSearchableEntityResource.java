@@ -13,8 +13,6 @@ import com.linkedin.metadata.query.Filter;
 import com.linkedin.metadata.query.SearchResultMetadata;
 import com.linkedin.metadata.query.SortCriterion;
 import com.linkedin.metadata.query.SortOrder;
-import com.linkedin.metadata.restli.lix.DummyResourceLix;
-import com.linkedin.metadata.restli.lix.ResourceLix;
 import com.linkedin.parseq.Task;
 import com.linkedin.restli.server.CollectionResult;
 import com.linkedin.restli.server.PagingContext;
@@ -76,19 +74,8 @@ public abstract class BaseSearchableEntityResource<
       @Nullable Class<ASPECT_UNION> aspectUnionClass, @Nonnull Class<URN> urnClass,
       @Nonnull Class<INTERNAL_SNAPSHOT> internalSnapshotClass,
       @Nonnull Class<INTERNAL_ASPECT_UNION> internalAspectUnionClass, @Nonnull Class<ASSET> assetClass) {
-    super(snapshotClass, aspectUnionClass, urnClass, internalSnapshotClass, internalAspectUnionClass, assetClass,
-        new DummyResourceLix());
+    super(snapshotClass, aspectUnionClass, urnClass, internalSnapshotClass, internalAspectUnionClass, assetClass);
   }
-
-  public BaseSearchableEntityResource(@Nullable Class<SNAPSHOT> snapshotClass,
-      @Nullable Class<ASPECT_UNION> aspectUnionClass, @Nonnull Class<URN> urnClass,
-      @Nonnull Class<INTERNAL_SNAPSHOT> internalSnapshotClass,
-      @Nonnull Class<INTERNAL_ASPECT_UNION> internalAspectUnionClass, @Nonnull Class<ASSET> assetClass,
-      @Nonnull ResourceLix resourceLix) {
-    super(snapshotClass, aspectUnionClass, urnClass, internalSnapshotClass, internalAspectUnionClass, assetClass,
-        resourceLix);
-  }
-
 
   /**
    * Returns a document-specific {@link BaseSearchDAO}.
@@ -113,7 +100,7 @@ public abstract class BaseSearchableEntityResource<
       @QueryParam(PARAM_FILTER) @Optional @Nullable Filter filter,
       @QueryParam(PARAM_SORT) @Optional @Nullable SortCriterion sortCriterion) {
     final String urnType = _urnClass == null ? null : _urnClass.getSimpleName();
-    return getAll(pagingContext, aspectNames, filter, sortCriterion, _resourceLix.testGetAll(urnType));
+    return getAll(pagingContext, aspectNames, filter, sortCriterion, getResourceLix().testGetAll(urnType));
   }
 
   @Nonnull
@@ -139,7 +126,7 @@ public abstract class BaseSearchableEntityResource<
       @QueryParam(PARAM_SORT) @Optional @Nullable SortCriterion sortCriterion,
       @PagingContextParam @Nonnull PagingContext pagingContext) {
     final String urnType = _urnClass == null ? null : _urnClass.getSimpleName();
-    return search(input, aspectNames, filter, sortCriterion, pagingContext, _resourceLix.testSearch(urnType));
+    return search(input, aspectNames, filter, sortCriterion, pagingContext, getResourceLix().testSearch(urnType));
   }
 
   @Nonnull
@@ -177,7 +164,7 @@ public abstract class BaseSearchableEntityResource<
       @PagingContextParam @Nonnull PagingContext pagingContext) {
     final String urnType = _urnClass == null ? null : _urnClass.getSimpleName();
     return searchV2(input, aspectNames, filter, sortCriterion, preference, pagingContext,
-        _resourceLix.testSearchV2(urnType));
+        getResourceLix().testSearchV2(urnType));
   }
 
   @Nonnull
