@@ -1458,8 +1458,8 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     AspectFoo foo = new AspectFoo().setValue("foo");
     AspectBar bar = new AspectBar().setValue("bar");
     asset.setUrn(urn);
-    asset.setAspectFoo(foo);
-    asset.setAspectBar(bar);
+    asset.setFoo(foo);
+    asset.setBar(bar);
     IngestionTrackingContext trackingContext = new IngestionTrackingContext();
 
     IngestionParams ingestionParams1 = new IngestionParams().setTestMode(true);
@@ -1503,9 +1503,9 @@ public class BaseEntityResourceTest extends BaseEngineTest {
 
     assertEquals(asset.getUrn(), urn);
 
-    assertEquals(asset.getAspectFoo(), foo);
+    assertEquals(asset.getFoo(), foo);
     assertEquals(asset.getAspectFooEvolved(), fooEvolved);
-    assertEquals(asset.getAspectBar(), bar);
+    assertEquals(asset.getBar(), bar);
     assertEquals(asset.getAspectFooBar(), fooBar);
     assertEquals(asset.getAspectAttributes(), attributes);
   }
