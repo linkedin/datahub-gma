@@ -1,0 +1,8 @@
+namespace com.linkedin.testing.namingedgecase
+
+import com.linkedin.testing.DatasetInfo
+
+/**
+ * For unit tests
+ */
+typeref InternalEntityAspectUnionNamingEdgeCase = union[DatasetInfo]

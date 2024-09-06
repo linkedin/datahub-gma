@@ -1,0 +1,19 @@
+namespace com.linkedin.testing.namingedgecase
+
+import com.linkedin.common.Urn
+
+/**
+ * For unit tests
+ */
+record InternalEntitySnapshotNamingEdgeCase {
+
+  /**
+   * For unit tests
+   */
+  urn: Urn
+
+  /**
+   * For unit tests
+   */
+  aspects: array[InternalEntityAspectUnionNamingEdgeCase]
+}

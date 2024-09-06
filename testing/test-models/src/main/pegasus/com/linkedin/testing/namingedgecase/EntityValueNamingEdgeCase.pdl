@@ -1,0 +1,14 @@
+namespace com.linkedin.testing.namingedgecase
+
+import com.linkedin.testing.DatasetInfo
+import com.linkedin.testing.EntityKey
+
+/**
+ * For unit tests
+ */
+record EntityValueNamingEdgeCase includes EntityKey {
+  /**
+   * For unit tests
+   */
+  datasetInfo: optional DatasetInfo
+}
