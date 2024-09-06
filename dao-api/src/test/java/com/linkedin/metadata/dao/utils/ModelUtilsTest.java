@@ -31,6 +31,7 @@ import com.linkedin.testing.SnapshotUnionAlias;
 import com.linkedin.testing.SnapshotUnionAliasWithEntitySnapshotAliasOptionalFields;
 import com.linkedin.testing.TyperefPizzaAspect;
 import com.linkedin.testing.localrelationship.AspectFooBar;
+import com.linkedin.testing.namingedgecase.InternalEntitySnapshotNamingEdgeCase;
 import com.linkedin.testing.urn.PizzaUrn;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.data.template.RecordTemplate;
@@ -57,6 +58,9 @@ import com.linkedin.testing.RelationshipUnionAlias;
 import com.linkedin.testing.SnapshotUnion;
 import com.linkedin.testing.SnapshotUnionWithEntitySnapshotOptionalFields;
 import com.linkedin.testing.urn.FooUrn;
+import com.linkedin.testing.namingedgecase.EntityValueNamingEdgeCase;
+import com.linkedin.testing.namingedgecase.InternalEntityAspectUnionNamingEdgeCase;
+import com.linkedin.testing.namingedgecase.InternalEntityAspectUnionNamingEdgeCaseArray;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
@@ -727,28 +731,22 @@ public class ModelUtilsTest {
     InternalEntityAspectUnion internalAspectUnion1 = new InternalEntityAspectUnion();
     InternalEntityAspectUnion internalAspectUnion2 = new InternalEntityAspectUnion();
     InternalEntityAspectUnion internalAspectUnion3 = new InternalEntityAspectUnion();
-    InternalEntityAspectUnion internalAspectUnion4 = new InternalEntityAspectUnion();
     InternalEntityAspectUnionArray internalEntityAspectUnionArray = new InternalEntityAspectUnionArray();
     AspectFoo expectedFoo = new AspectFoo().setValue("foo");
     AspectBar expectedBar = new AspectBar().setValue("bar");
     AspectFooBar expectedFooBar = new AspectFooBar().setBars(new BarUrnArray(new BarUrn(2)));
-    DatasetInfo expectedDatasetInfo = new DatasetInfo().setValue("datasetInfo");
     internalAspectUnion1.setAspectFoo(expectedFoo);
     internalAspectUnion2.setAspectBar(expectedBar);
     internalAspectUnion3.setAspectFooBar(expectedFooBar);
-    internalAspectUnion4.setDatasetInfo(expectedDatasetInfo);
     internalEntityAspectUnionArray.add(internalAspectUnion1);
     internalEntityAspectUnionArray.add(internalAspectUnion2);
     internalEntityAspectUnionArray.add(internalAspectUnion3);
-    internalEntityAspectUnionArray.add(internalAspectUnion4);
     internalEntitySnapshot.setAspects(internalEntityAspectUnionArray);
 
     EntityValue entityValue = new EntityValue();
     AspectFoo entityFoo = new AspectFoo().setValue("fooEntity");
     entityValue.setFoo(entityFoo);
 
-    DatasetInfo datasetInfo = new DatasetInfo().setValue("datasetInfo");
-    entityValue.setDatasetInfo(datasetInfo);
 
     EntityValue decoratedValue = ModelUtils.decorateValue(internalEntitySnapshot, entityValue);
 
@@ -757,6 +755,34 @@ public class ModelUtilsTest {
     assertFalse(decoratedValue.hasAttributes());
     assertEquals(decoratedValue.getFoo(), entityFoo);
     assertEquals(decoratedValue.getBar(), expectedBar);
+  }
+
+  /**
+   * Same as the above but with an aspect that has the substring "set" -- ie. DatasetInfo -- in it.
+   * This came as the result of a bug where the code was using .replace() and not .replaceFirst(), which caused
+   * strings like "setDatasetInfo" to become "XXXDataXXXInfo" instead of "XXXDatasetInfo".
+   */
+  @Test
+  public void testDecorateValueWithStringReplacementEdgeCase() {
+    Urn expectedUrn = makeUrn(1);
+    InternalEntitySnapshotNamingEdgeCase internalEntitySnapshot =
+        new InternalEntitySnapshotNamingEdgeCase().setUrn(expectedUrn);
+    InternalEntityAspectUnionNamingEdgeCase internalAspectUnion4 = new InternalEntityAspectUnionNamingEdgeCase();
+    DatasetInfo expectedDatasetInfo = new DatasetInfo().setValue("datasetInfo");
+    internalAspectUnion4.setDatasetInfo(expectedDatasetInfo);
+    InternalEntityAspectUnionNamingEdgeCaseArray internalEntityAspectUnionArray =
+        new InternalEntityAspectUnionNamingEdgeCaseArray();
+    internalEntityAspectUnionArray.add(internalAspectUnion4);
+    internalEntitySnapshot.setAspects(internalEntityAspectUnionArray);
+
+    EntityValueNamingEdgeCase entityValue = new EntityValueNamingEdgeCase();
+    DatasetInfo datasetInfo = new DatasetInfo().setValue("datasetInfo");
+    entityValue.setDatasetInfo(datasetInfo);
+
+    EntityValueNamingEdgeCase decoratedValue = ModelUtils.decorateValue(internalEntitySnapshot, entityValue);
+
+    assertTrue(decoratedValue.hasDatasetInfo());
+    assertEquals(decoratedValue.getDatasetInfo(), expectedDatasetInfo);
   }
 
   @Test
