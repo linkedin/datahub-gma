@@ -498,26 +498,30 @@ public class ModelUtils {
       }
       RecordUtils.setRecordTemplatePrimitiveField(asset, URN_FIELD, urn);
 
-      final Map<String, String> paramToAssetMethod = new HashMap<>();
+      // TODO: cache the asset methods loading
+      final Map<String, String> aspectTypeToAssetSetterMap = new HashMap<>();
       for (final Method assetMethod : assetClass.getDeclaredMethods()) {
         if (assetMethod.getName().startsWith("set") && assetMethod.getParameterTypes().length > 0) {
-          paramToAssetMethod.put(assetMethod.getParameterTypes()[0].getName(), assetMethod.getName());
+          aspectTypeToAssetSetterMap.put(assetMethod.getParameterTypes()[0].getName(), assetMethod.getName());
         }
       }
 
       for (final ASPECT_UNION aspect : aspects) {
-        final Map<String, String> returnToUnionMethod = new HashMap<>();
+        // TODO: cache the aspect union methods loading
+        final Map<String, String> aspectTypeToAspectUnionGetterMap = new HashMap<>();
         for (final Method aspectUnionMethod : aspect.getClass().getMethods()) {
           if (aspectUnionMethod.getName().startsWith("get")) {
-            returnToUnionMethod.put(aspectUnionMethod.getReturnType().getName(), aspectUnionMethod.getName());
+            aspectTypeToAspectUnionGetterMap.put(aspectUnionMethod.getReturnType().getName(),
+                aspectUnionMethod.getName());
           }
         }
-        for (final String param : paramToAssetMethod.keySet()) {
-          if (returnToUnionMethod.containsKey(param)) {
-            Object aspectValue = aspect.getClass().getMethod(returnToUnionMethod.get(param)).invoke(aspect);
+        for (final String aspectType : aspectTypeToAssetSetterMap.keySet()) {
+          if (aspectTypeToAspectUnionGetterMap.containsKey(aspectType)) {
+            Object aspectValue =
+                aspect.getClass().getMethod(aspectTypeToAspectUnionGetterMap.get(aspectType)).invoke(aspect);
             if (aspectValue != null) {
               asset.getClass()
-                  .getMethod(paramToAssetMethod.get(param), aspectValue.getClass())
+                  .getMethod(aspectTypeToAssetSetterMap.get(aspectType), aspectValue.getClass())
                   .invoke(asset, aspectValue);
             }
           }
