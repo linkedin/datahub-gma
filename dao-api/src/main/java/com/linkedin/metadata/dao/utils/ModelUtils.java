@@ -498,23 +498,31 @@ public class ModelUtils {
       }
       RecordUtils.setRecordTemplatePrimitiveField(asset, URN_FIELD, urn);
 
+      // TODO: cache the asset methods loading
+      final Map<String, String> aspectTypeToAssetSetterMap = new HashMap<>();
+      for (final Method assetMethod : assetClass.getDeclaredMethods()) {
+        if (assetMethod.getName().startsWith("set") && assetMethod.getParameterTypes().length > 0) {
+          aspectTypeToAssetSetterMap.put(assetMethod.getParameterTypes()[0].getName(), assetMethod.getName());
+        }
+      }
+
       for (final ASPECT_UNION aspect : aspects) {
-        final Field[] aspectUnionFields = aspect.getClass().getDeclaredFields();
-        final Field[] assetFields = asset.getClass().getDeclaredFields();
-        for (final Field aspectUnionField : aspectUnionFields) {
-          if (aspectUnionField.getName().startsWith(MEMBER_FIELD_PREFIX)) {
-            final String aspectFieldName = aspectUnionField.getName().substring(MEMBER_FIELD_PREFIX.length());
-            for (final Field assetField : assetFields) {
-              if (assetField.getName().startsWith(FIELD_FIELD_PREFIX) && assetField.getName()
-                  .substring(FIELD_FIELD_PREFIX.length())
-                  .equals(aspectFieldName)) {
-                final Object aspectValue = aspect.getClass().getMethod("get" + aspectFieldName).invoke(aspect);
-                if (aspectValue != null) {
-                  asset.getClass()
-                      .getMethod("set" + aspectFieldName, aspectValue.getClass())
-                      .invoke(asset, aspectValue);
-                }
-              }
+        // TODO: cache the aspect union methods loading
+        final Map<String, String> aspectTypeToAspectUnionGetterMap = new HashMap<>();
+        for (final Method aspectUnionMethod : aspect.getClass().getMethods()) {
+          if (aspectUnionMethod.getName().startsWith("get")) {
+            aspectTypeToAspectUnionGetterMap.put(aspectUnionMethod.getReturnType().getName(),
+                aspectUnionMethod.getName());
+          }
+        }
+        for (final String aspectType : aspectTypeToAssetSetterMap.keySet()) {
+          if (aspectTypeToAspectUnionGetterMap.containsKey(aspectType)) {
+            Object aspectValue =
+                aspect.getClass().getMethod(aspectTypeToAspectUnionGetterMap.get(aspectType)).invoke(aspect);
+            if (aspectValue != null) {
+              asset.getClass()
+                  .getMethod(aspectTypeToAssetSetterMap.get(aspectType), aspectValue.getClass())
+                  .invoke(asset, aspectValue);
             }
           }
         }
