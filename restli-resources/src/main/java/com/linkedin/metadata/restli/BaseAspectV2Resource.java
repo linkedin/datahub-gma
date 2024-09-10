@@ -90,7 +90,7 @@ public abstract class BaseAspectV2Resource<
 
   @RestMethod.BatchGet
   @Nonnull
-  public Task<Map<URN, java.util.Optional<ASPECT>>> get(@Nonnull Collection<URN> urns) {
+  public Task<Map<URN, java.util.Optional<ASPECT>>> batchGet(@Nonnull Collection<URN> urns) {
     return RestliUtils.toTask(() -> getLocalDAO().get(_aspectClass, new HashSet<>(urns)));
   }
 
