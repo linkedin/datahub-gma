@@ -27,6 +27,9 @@ import com.linkedin.restli.server.annotations.RestMethod;
 import com.linkedin.restli.server.annotations.ReturnEntity;
 import com.linkedin.restli.server.resources.CollectionResourceTaskTemplate;
 import java.time.Clock;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import javax.annotation.Nonnull;
@@ -83,6 +86,12 @@ public abstract class BaseAspectV2Resource<
   public Task<ASPECT> get(@Nonnull URN urn) {
     return RestliUtils.toTask(() -> getLocalDAO().get(new AspectKey<>(_aspectClass, urn, LATEST_VERSION))
         .orElseThrow(RestliUtils::resourceNotFoundException));
+  }
+
+  @RestMethod.BatchGet
+  @Nonnull
+  public Task<Map<URN, java.util.Optional<ASPECT>>> batchGet(@Nonnull Collection<URN> urns) {
+    return RestliUtils.toTask(() -> getLocalDAO().get(_aspectClass, new HashSet<>(urns)));
   }
 
   @RestMethod.GetAll
