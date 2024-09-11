@@ -860,6 +860,21 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
+   * Same as above {@link #add(Urn, RecordTemplate, AuditStamp, IngestionTrackingContext, IngestionParams)} but
+   * skips any pre-update lambdas. DO NOT USE THIS METHOD WITHOUT EXPLICIT PERMISSION FROM THE METADATA GRAPH TEAM.
+   * Please use the regular add method linked above.
+   */
+  @Nonnull
+  public <ASPECT extends RecordTemplate> ASPECT addSimple(@Nonnull URN urn, @Nonnull ASPECT newValue,
+      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext,
+      @Nullable IngestionParams ingestionParams) {
+    final IngestionParams nonNullIngestionParams =
+        ingestionParams == null || !ingestionParams.hasTestMode() ? new IngestionParams().setIngestionMode(
+            IngestionMode.LIVE).setTestMode(false) : ingestionParams;
+    return add(urn, (Class<ASPECT>) newValue.getClass(), ignored -> newValue, auditStamp, trackingContext, nonNullIngestionParams);
+  }
+
+  /**
    * Similar to {@link #delete(Urn, Class, AuditStamp, int)} but uses the default maximum transaction retry.
    */
   @Nonnull

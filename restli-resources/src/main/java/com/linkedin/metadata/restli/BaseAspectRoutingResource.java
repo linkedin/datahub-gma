@@ -47,7 +47,8 @@ import static com.linkedin.metadata.restli.RestliConstants.*;
 
 /**
  * Extends {@link BaseBrowsableEntityResource} with aspect routing capability.
- * For certain aspect of an entity, incoming request will be routed to different GMS.
+ * For certain aspects of an entity, incoming requests will be routed to a different GMS in addition to being
+ * written locally (i.e. dual write).
  * See http://go/aspect-routing for more details
  */
 @Slf4j
@@ -321,12 +322,15 @@ public abstract class BaseAspectRoutingResource<
                 if (SKIP_INGESTION_FOR_ASPECTS.contains(aspectFQCN)) {
                   return;
                 }
-              } 
+              }
               if (trackingContext != null) {
                 getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingestWithTracking(urn, aspect, trackingContext, ingestionParams);
               } else {
                 getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingest(urn, aspect);
               }
+              // since we already called any pre-update lambdas earlier, call a simple version of BaseLocalDAO::add
+              // which skips pre-update lambdas.
+              getLocalDAO().addSimple(urn, aspect, auditStamp, trackingContext, ingestionParams);
             } catch (Exception exception) {
               log.error(
                   String.format("Couldn't ingest routing aspect %s for %s", aspect.getClass().getSimpleName(), urn),
@@ -373,6 +377,9 @@ public abstract class BaseAspectRoutingResource<
               } else {
                 getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingest(urn, aspect);
               }
+              // since we already called any pre-update lambdas earlier, call a simple version of BaseLocalDAO::add
+              // which skips pre-update lambdas.
+              getLocalDAO().addSimple(urn, aspect, auditStamp, trackingContext, ingestionParams);
             } catch (Exception exception) {
               log.error("Couldn't ingest routing aspect {} for {}", aspect.getClass().getSimpleName(), urn, exception);
             }

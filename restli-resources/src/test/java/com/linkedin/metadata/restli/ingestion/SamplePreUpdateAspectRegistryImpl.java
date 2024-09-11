@@ -4,6 +4,7 @@ import com.google.common.collect.ImmutableMap;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.ingestion.RestliCompliantPreUpdateRoutingClient;
 import com.linkedin.metadata.dao.ingestion.RestliPreUpdateAspectRegistry;
+import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectFoo;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -15,6 +16,7 @@ public class SamplePreUpdateAspectRegistryImpl implements RestliPreUpdateAspectR
   public SamplePreUpdateAspectRegistryImpl() {
     registry = new ImmutableMap.Builder<Class<? extends RecordTemplate>, RestliCompliantPreUpdateRoutingClient>()
         .put(AspectFoo.class, new SamplePreUpdateRoutingClient())
+        .put(AspectBar.class, new SamplePreUpdateRoutingClient())
         .build();
   }
   @Nullable
