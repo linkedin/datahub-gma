@@ -407,6 +407,13 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     _restliPreUpdateAspectRegistry = restliPreUpdateAspectRegistry;
   }
 
+  /**
+   * Get pre ingestion aspect registry.
+   */
+  public RestliPreUpdateAspectRegistry getRestliPreUpdateAspectRegistry() {
+    return _restliPreUpdateAspectRegistry;
+  }
+
 
   /**
    * Enables or disables atomic updates of multiple aspects.
