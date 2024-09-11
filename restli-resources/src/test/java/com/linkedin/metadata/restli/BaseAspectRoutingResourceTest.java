@@ -325,7 +325,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(trackingContext), eq(null));
     verify(_mockAspectFooGmsClient, times(1)).ingestWithTracking(eq(urn), eq(foo), eq(trackingContext), eq(null));
     verify(_mockAspectAttributeGmsClient, times(1)).ingestWithTracking(eq(urn), eq(attributes), eq(trackingContext), eq(null));
-    verify(_mockLocalDAO, times(1)).getRestliPreUpdateAspectRegistry();
+    verify(_mockLocalDAO, times(3)).getRestliPreUpdateAspectRegistry();
     verifyNoMoreInteractions(_mockLocalDAO);
   }
 

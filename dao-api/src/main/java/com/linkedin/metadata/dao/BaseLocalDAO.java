@@ -1656,7 +1656,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
           _restliPreUpdateAspectRegistry.getPreUpdateRoutingClient(newValue);
       Message updatedAspect =
           client.routingLambda(client.convertUrnToMessage(urn), client.convertAspectToMessage(newValue));
-      RecordTemplate convertedAspect = client.convertAspectFromMessage(updatedAspect);
+      RecordTemplate convertedAspect = client.convertAspectToRecordTemplate(updatedAspect);
       return (ASPECT) convertedAspect;
     }
     return newValue;

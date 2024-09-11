@@ -36,5 +36,5 @@ public interface RestliCompliantPreUpdateRoutingClient<ASPECT extends Message> e
    * @param messageAspect the Protobuf message aspect to be converted
    * @return the converted {@link RecordTemplate} aspect
    */
-  RecordTemplate convertAspectFromMessage(ASPECT messageAspect);
+  RecordTemplate convertAspectToRecordTemplate(ASPECT messageAspect);
 }

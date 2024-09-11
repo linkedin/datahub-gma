@@ -623,6 +623,6 @@ public abstract class BaseAspectRoutingResource<
       RestliCompliantPreUpdateRoutingClient client = registry.getPreUpdateRoutingClient(aspect);
       Message updatedAspect =
           client.routingLambda(client.convertUrnToMessage(urn), client.convertAspectToMessage(aspect));
-      return client.convertAspectFromMessage(updatedAspect);
+      return client.convertAspectToRecordTemplate(updatedAspect);
   }
 }
