@@ -852,11 +852,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull ASPECT newValue,
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext,
       @Nullable IngestionParams ingestionParams) {
-    final IngestionParams nonNullIngestionParams =
-        ingestionParams == null || !ingestionParams.hasTestMode() ? new IngestionParams().setIngestionMode(
-            IngestionMode.LIVE).setTestMode(false) : ingestionParams;
     ASPECT updatedAspect = preUpdateRouting(urn, newValue);
-    return add(urn, (Class<ASPECT>) newValue.getClass(), ignored -> updatedAspect, auditStamp, trackingContext, nonNullIngestionParams);
+    return addSkipPreIngestionUpdates(urn, updatedAspect, auditStamp, trackingContext, ingestionParams);
   }
 
   /**
@@ -865,7 +862,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * Please use the regular add method linked above.
    */
   @Nonnull
-  public <ASPECT extends RecordTemplate> ASPECT addSimple(@Nonnull URN urn, @Nonnull ASPECT newValue,
+  public <ASPECT extends RecordTemplate> ASPECT addSkipPreIngestionUpdates(@Nonnull URN urn, @Nonnull ASPECT newValue,
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext,
       @Nullable IngestionParams ingestionParams) {
     final IngestionParams nonNullIngestionParams =

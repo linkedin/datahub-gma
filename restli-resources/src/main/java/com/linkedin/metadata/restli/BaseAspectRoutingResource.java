@@ -323,6 +323,12 @@ public abstract class BaseAspectRoutingResource<
                   return;
                 }
               }
+              // Get the fqcn of the aspect class
+              String aspectFQCN = aspect.getClass().getCanonicalName();
+              //TODO: META-21112: Remove this check after adding annotations at model level; to handle SKIP/PROCEED for preUpdateRouting
+              if (SKIP_INGESTION_FOR_ASPECTS.contains(aspectFQCN)) {
+                return;
+              }
               if (trackingContext != null) {
                 getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingestWithTracking(urn, aspect, trackingContext, ingestionParams);
               } else {
@@ -330,7 +336,7 @@ public abstract class BaseAspectRoutingResource<
               }
               // since we already called any pre-update lambdas earlier, call a simple version of BaseLocalDAO::add
               // which skips pre-update lambdas.
-              getLocalDAO().addSimple(urn, aspect, auditStamp, trackingContext, ingestionParams);
+              getLocalDAO().addSkipPreIngestionUpdates(urn, aspect, auditStamp, trackingContext, ingestionParams);
             } catch (Exception exception) {
               log.error(
                   String.format("Couldn't ingest routing aspect %s for %s", aspect.getClass().getSimpleName(), urn),
@@ -371,6 +377,12 @@ public abstract class BaseAspectRoutingResource<
                   return;
                 }
               }
+              // Get the fqcn of the aspect class
+              String aspectFQCN = aspect.getClass().getCanonicalName();
+              //TODO: META-21112: Remove this check after adding annotations at model level; to handle SKIP/PROCEED for preUpdateRouting
+              if (SKIP_INGESTION_FOR_ASPECTS.contains(aspectFQCN)) {
+                return;
+              }
               if (trackingContext != null) {
                 getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass())
                     .ingestWithTracking(urn, aspect, trackingContext, ingestionParams);
@@ -379,7 +391,7 @@ public abstract class BaseAspectRoutingResource<
               }
               // since we already called any pre-update lambdas earlier, call a simple version of BaseLocalDAO::add
               // which skips pre-update lambdas.
-              getLocalDAO().addSimple(urn, aspect, auditStamp, trackingContext, ingestionParams);
+              getLocalDAO().addSkipPreIngestionUpdates(urn, aspect, auditStamp, trackingContext, ingestionParams);
             } catch (Exception exception) {
               log.error("Couldn't ingest routing aspect {} for {}", aspect.getClass().getSimpleName(), urn, exception);
             }
