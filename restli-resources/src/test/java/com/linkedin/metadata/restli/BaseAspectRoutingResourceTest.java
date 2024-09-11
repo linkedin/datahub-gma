@@ -168,6 +168,9 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     when(_mockAspectAttributeGmsClient.getEntityType()).thenReturn(FooUrn.ENTITY_TYPE);
     when(_mockAspectBazGmsClient.getEntityType()).thenReturn(BazUrn.ENTITY_TYPE);
     _mockLocalDAO = mock(BaseLocalDAO.class);
+    SamplePreUpdateAspectRegistryImpl registry = new SamplePreUpdateAspectRegistryImpl();
+    when(_mockLocalDAO.getRestliPreUpdateAspectRegistry()).thenReturn(registry);
+
     _aspectRoutingGmsClientManager.registerRoutingGmsClient(AspectFoo.class, "setFoo", _mockAspectFooGmsClient);
     _aspectRoutingGmsClientManager.registerRoutingGmsClient(AspectAttributes.class, "setAttributes", _mockAspectAttributeGmsClient);
     _aspectRoutingGmsClientManager.registerRoutingGmsClient(AspectBaz.class, "setBaz", _mockAspectBazGmsClient);
@@ -557,11 +560,9 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, foo));
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
-    _resource.setRestliPreUpdateAspectRegistry(new SamplePreUpdateAspectRegistryImpl());
     runAndWait(_resource.ingest(snapshot));
     verify(_mockAspectFooGmsClient, times(1)).ingest(eq(urn), eq(bar));
     verify(_mockLocalDAO, times(0)).add(any(), any(), any(), any(), any());
-    verifyNoMoreInteractions(_mockLocalDAO);
   }
 
   @Test
@@ -570,7 +571,6 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     AspectBar bar = new AspectBar().setValue("bar");
     List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, bar));
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
-    _resource.setRestliPreUpdateAspectRegistry(new SamplePreUpdateAspectRegistryImpl());
     runAndWait(_resource.ingest(snapshot));
     verify(_mockAspectBarGmsClient, times(0)).ingest(any(), any());
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(null), eq(null));
@@ -594,7 +594,6 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     AspectFoo foo = new AspectFoo().setValue("foo");
     List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, foo));
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
-    _resource.setRestliPreUpdateAspectRegistry(new SamplePreUpdateAspectRegistryImpl());
     runAndWait(_resource.ingest(snapshot));
     verify(_mockAspectFooGmsClient, times(0)).ingest(any(), any());
     verify(_mockLocalDAO, times(0)).add(any(), any(), any(), any(), any());
