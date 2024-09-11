@@ -310,19 +310,19 @@ public abstract class BaseAspectRoutingResource<
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
       ModelUtils.getAspectsFromSnapshot(snapshot).forEach(aspect -> {
         if (!aspectsToIgnore.contains(aspect.getClass())) {
-          // get the updated aspect if there is a preupdate routing lambda registered
-          RestliPreUpdateAspectRegistry registry = getLocalDAO().getRestliPreUpdateAspectRegistry();
-          if (registry != null && registry.isRegistered(aspect.getClass())) {
-            aspect = preUpdateRouting(urn, aspect, registry);
-          }
-          // Get the fqcn of the aspect class
-          String aspectFQCN = aspect.getClass().getCanonicalName();
-          //TODO: META-21112: Remove this check after adding annotations at model level; to handle SKIP/PROCEED for preUpdateRouting
-          if (SKIP_INGESTION_FOR_ASPECTS.contains(aspectFQCN)) {
-            return;
-          }
           if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
             try {
+              // get the updated aspect if there is a preupdate routing lambda registered
+              RestliPreUpdateAspectRegistry registry = getLocalDAO().getRestliPreUpdateAspectRegistry();
+              if (registry != null && registry.isRegistered(aspect.getClass())) {
+                aspect = preUpdateRouting(urn, aspect, registry);
+              }
+              // Get the fqcn of the aspect class
+              String aspectFQCN = aspect.getClass().getCanonicalName();
+              //TODO: META-21112: Remove this check after adding annotations at model level; to handle SKIP/PROCEED for preUpdateRouting
+              if (SKIP_INGESTION_FOR_ASPECTS.contains(aspectFQCN)) {
+                return;
+              }
               if (trackingContext != null) {
                 getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingestWithTracking(urn, aspect, trackingContext, ingestionParams);
               } else {
@@ -355,19 +355,19 @@ public abstract class BaseAspectRoutingResource<
           ingestionParams != null ? ingestionParams.getIngestionTrackingContext() : null;
       ModelUtils.getAspectsFromAsset(asset).forEach(aspect -> {
         if (!aspectsToIgnore.contains(aspect.getClass())) {
-          // get the updated aspect if there is a preupdate routing lambda registered
-          RestliPreUpdateAspectRegistry registry = getLocalDAO().getRestliPreUpdateAspectRegistry();
-          if (registry != null && registry.isRegistered(aspect.getClass())) {
-            aspect = preUpdateRouting(urn, aspect, registry);
-          }
-          // Get the fqcn of the aspect class
-          String aspectFQCN = aspect.getClass().getCanonicalName();
-          //TODO: META-21112: Remove this check after adding annotations at model level; to handle SKIP/PROCEED for preUpdateRouting
-          if (SKIP_INGESTION_FOR_ASPECTS.contains(aspectFQCN)) {
-            return;
-          }
           if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
             try {
+              // get the updated aspect if there is a preupdate routing lambda registered
+              RestliPreUpdateAspectRegistry registry = getLocalDAO().getRestliPreUpdateAspectRegistry();
+              if (registry != null && registry.isRegistered(aspect.getClass())) {
+                aspect = preUpdateRouting(urn, aspect, registry);
+              }
+              // Get the fqcn of the aspect class
+              String aspectFQCN = aspect.getClass().getCanonicalName();
+              //TODO: META-21112: Remove this check after adding annotations at model level; to handle SKIP/PROCEED for preUpdateRouting
+              if (SKIP_INGESTION_FOR_ASPECTS.contains(aspectFQCN)) {
+                return;
+              }
               if (trackingContext != null) {
                 getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass())
                     .ingestWithTracking(urn, aspect, trackingContext, ingestionParams);

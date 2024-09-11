@@ -305,7 +305,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(null), eq(null));
     verify(_mockAspectFooGmsClient, times(1)).ingest(eq(urn), eq(foo));
     verify(_mockAspectAttributeGmsClient, times(1)).ingest(eq(urn), eq(attributes));
-    verify(_mockLocalDAO, times(3)).getRestliPreUpdateAspectRegistry();
+    verify(_mockLocalDAO, times(2)).getRestliPreUpdateAspectRegistry();
     verifyNoMoreInteractions(_mockLocalDAO);
   }
 
@@ -325,7 +325,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(trackingContext), eq(null));
     verify(_mockAspectFooGmsClient, times(1)).ingestWithTracking(eq(urn), eq(foo), eq(trackingContext), eq(null));
     verify(_mockAspectAttributeGmsClient, times(1)).ingestWithTracking(eq(urn), eq(attributes), eq(trackingContext), eq(null));
-    verify(_mockLocalDAO, times(3)).getRestliPreUpdateAspectRegistry();
+    verify(_mockLocalDAO, times(2)).getRestliPreUpdateAspectRegistry();
     verifyNoMoreInteractions(_mockLocalDAO);
   }
 
@@ -337,7 +337,6 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
 
     runAndWait(_resource.ingest(snapshot));
-    verify(_mockLocalDAO, times(1)).getRestliPreUpdateAspectRegistry();
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(null), eq(null));
     verifyZeroInteractions(_mockAspectFooGmsClient);
     verifyNoMoreInteractions(_mockLocalDAO);
@@ -582,7 +581,6 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     runAndWait(_resource.ingest(snapshot));
     verify(_mockAspectBarGmsClient, times(0)).ingest(any(), any());
-    verify(_mockLocalDAO, times(1)).getRestliPreUpdateAspectRegistry();
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(null), eq(null));
     verifyNoMoreInteractions(_mockLocalDAO);
   }
