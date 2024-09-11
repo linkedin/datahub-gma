@@ -606,7 +606,9 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     // given: ingest a snapshot which contains a non-routed aspect which has a registered pre-update lambda.
     runAndWait(_resource.ingest(snapshot));
 
-    // expected: the aspect value is changed (bar -> foobar) and the aspect is ingested locally only (not dual written).
+    // expected: the aspect is ingested locally only (not dual written). BaseLocalDAO::add will execute any pre-ingestion
+    // lambdas which will change the aspect value from bar -> foobar. But no pre-ingestion lambdas are run from within
+    // the BaseAspectRoutingResource class.
     verify(_mockAspectBarGmsClient, times(0)).ingest(any(), any());
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(null), eq(null));
     verifyNoMoreInteractions(_mockLocalDAO);
