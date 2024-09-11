@@ -402,7 +402,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   /**
    * Set pre ingestion aspect registry.
    */
-  public void setRestliPreIngestionAspectRegistry(
+  public void setRestliPreUpdateAspectRegistry(
       @Nullable RestliPreUpdateAspectRegistry restliPreUpdateAspectRegistry) {
     _restliPreUpdateAspectRegistry = restliPreUpdateAspectRegistry;
   }
