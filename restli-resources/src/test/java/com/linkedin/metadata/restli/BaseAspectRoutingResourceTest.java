@@ -631,7 +631,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     runAndWait(_resource.ingest(snapshot));
     // Should not skip ingestion
-    verify(_mockAspectFooGmsClient, times(1)).ingest(any(), any());
+    verify(_mockAspectFooGmsClient, times(1)).ingest(eq(urn), eq(foo));
     // Should check for pre lambda
     verify(_mockLocalDAO, times(1)).getRestliPreUpdateAspectRegistry();
     // Should not add to localDAO
