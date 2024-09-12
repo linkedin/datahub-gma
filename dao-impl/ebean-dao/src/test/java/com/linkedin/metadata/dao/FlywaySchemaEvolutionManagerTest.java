@@ -91,7 +91,7 @@ public class FlywaySchemaEvolutionManagerTest {
 
     // Case 3: valid database connection URL with no options
     databaseUrl = "jdbc:mysql://example.linkedin.com:1234/my_first_db";
-    SchemaEvolutionManager.Config config3 = new SchemaEvolutionManager.Config(databaseUrl, "pw", "user","case3");
+    SchemaEvolutionManager.Config config3 = new SchemaEvolutionManager.Config(databaseUrl, "pw", "user", "case3");
     assertEquals(method.invoke(_schemaEvolutionManager, config3), "my_first_db");
 
     // Case 4: valid database connection URL with options
