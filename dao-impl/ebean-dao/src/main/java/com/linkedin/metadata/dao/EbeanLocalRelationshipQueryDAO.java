@@ -243,7 +243,7 @@ public class EbeanLocalRelationshipQueryDAO {
   }
 
   /**
-   * Checks if entity type name can be extracted from urn, and that entity type has a table in db.
+   * Checks if a given entity type has an entity table in the db.
    */
   @VisibleForTesting
   protected boolean isMgEntityType(@Nonnull String entityType) {
@@ -275,9 +275,9 @@ public class EbeanLocalRelationshipQueryDAO {
 
   /**
    * Validate:
-   * 1. The entity filter only contains supported condition.
-   * 2. if entity class is null, then filter should be emtpy.
-   * If any of above is violated, throw IllegalArgumentException.
+   * 1. The entity filter only contains supported conditions.
+   * 2. if the entity class is null, then the filter should be empty.
+   * If any of above is violated, throw an IllegalArgumentException.
    */
   private <ENTITY extends RecordTemplate> void validateEntityFilter(@Nonnull LocalRelationshipFilter filter, @Nullable Class<ENTITY> entityClass) {
     if (entityClass == null && filter.hasCriteria() && filter.getCriteria().size() > 0) {
@@ -289,10 +289,9 @@ public class EbeanLocalRelationshipQueryDAO {
 
   /**
    * Validate:
-   * 1. if entity urn is null or empty, then filter should be emtpy.
-   * 2. urn should be in valid format
-   * 3. the entity filter only contains supported condition.
-   * If any of above is violated, throw IllegalArgumentException.
+   * 1. if the entity type is null or empty, then the filter should also be emtpy.
+   * 2. the entity filter only contains supported conditions.
+   * If any of above is violated, throw an IllegalArgumentException.
    */
   private void validateEntityTypeAndFilter(@Nullable LocalRelationshipFilter filter, @Nullable String entityType) {
     if ((StringUtils.isBlank(entityType)) && filter != null && filter.hasCriteria() && !filter.getCriteria()

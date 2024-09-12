@@ -701,19 +701,15 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
   @Test
   public void testIsMgEntityUrn() throws Exception {
-    // add foo to EBeanLocalAccess to create table
-    FooUrn fooUrn = new FooUrn(1);
-    _fooUrnEBeanLocalAccess.add(fooUrn, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp(), null, false);
-
     // EbeanLocalRelationshipQueryDAOTest does not have the same package as EbeanLocalRelationshipQueryDAO (cant access protected method directly).
-    Method isMgEntityUrnMethod = EbeanLocalRelationshipQueryDAO.class.getDeclaredMethod("isMgEntityUrn", Urn.class);
-    isMgEntityUrnMethod.setAccessible(true);
+    Method isMgEntityTypeMethod = EbeanLocalRelationshipQueryDAO.class.getDeclaredMethod("isMgEntityType", String.class);
+    isMgEntityTypeMethod.setAccessible(true);
 
     // assert foo is an MG entity (has metadata_entity_foo table in db)
-    assertTrue((Boolean) isMgEntityUrnMethod.invoke(_localRelationshipQueryDAO, fooEntityUrn));
+    assertTrue((Boolean) isMgEntityTypeMethod.invoke(_localRelationshipQueryDAO, "foo"));
 
     // assert crew is not an MG entity (does not have metadata_entity_crew table in db)
-    assertFalse((Boolean) isMgEntityUrnMethod.invoke(_localRelationshipQueryDAO, crewEntityUrn));
+    assertFalse((Boolean) isMgEntityTypeMethod.invoke(_localRelationshipQueryDAO, "crew"));
   }
 
   @Test
