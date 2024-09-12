@@ -700,7 +700,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
   }
 
   @Test
-  public void testIsMgEntityUrn() throws Exception {
+  public void testIsMgEntityType() throws Exception {
     // EbeanLocalRelationshipQueryDAOTest does not have the same package as EbeanLocalRelationshipQueryDAO (cant access protected method directly).
     Method isMgEntityTypeMethod = EbeanLocalRelationshipQueryDAO.class.getDeclaredMethod("isMgEntityType", String.class);
     isMgEntityTypeMethod.setAccessible(true);
