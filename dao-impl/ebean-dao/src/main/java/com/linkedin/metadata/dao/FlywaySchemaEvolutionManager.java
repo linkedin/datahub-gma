@@ -18,6 +18,7 @@ public class FlywaySchemaEvolutionManager implements SchemaEvolutionManager {
     String serviceIdentifier = config.getServiceIdentifier();
     String configFileName = serviceIdentifier == null
         ? String.format(CONFIG_FILE_TEMPLATE, databaseName) : String.format(CONFIG_FILE_TEMPLATE2, serviceIdentifier, databaseName);
+    System.out.println("configFileName: " + configFileName);
     InputStream configFile = getClass().getClassLoader().getResourceAsStream(configFileName);
     Properties configProp = new Properties();
 

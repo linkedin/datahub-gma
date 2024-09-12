@@ -495,11 +495,14 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
   @Nonnull
   private SchemaEvolutionManager createSchemaEvolutionManager(@Nonnull ServerConfig serverConfig) {
+    String identifier = serverConfig.getDataSourceConfig().getCustomProperties() != null
+        ? serverConfig.getDataSourceConfig().getCustomProperties().getOrDefault(SERVICE_IDENTIFIER, null)
+        : null;
     SchemaEvolutionManager.Config config = new SchemaEvolutionManager.Config(
         serverConfig.getDataSourceConfig().getUrl(),
         serverConfig.getDataSourceConfig().getPassword(),
         serverConfig.getDataSourceConfig().getUsername(),
-        serverConfig.getDataSourceConfig().getCustomProperties().getOrDefault(SERVICE_IDENTIFIER, null));
+        identifier);
 
     return new FlywaySchemaEvolutionManager(config);
   }
