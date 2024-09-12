@@ -33,7 +33,7 @@ public class SamplePreUpdateRoutingClient implements RestliCompliantPreUpdateRou
   }
 
   @Override
-  public RecordTemplate convertAspectFromMessage(Message messageAspect) {
+  public RecordTemplate convertAspectToRecordTemplate(Message messageAspect) {
     // For testing, convert TestMessageProtos.AspectMessage back to AspectFoo
     // Create a new RecordTemplate (AspectFoo in this case) and set the value field
     return new AspectFoo().setValue("bar");

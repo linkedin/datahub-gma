@@ -94,11 +94,6 @@ public abstract class BaseAspectRoutingResource<
    */
   public abstract AspectRoutingGmsClientManager getAspectRoutingGmsClientManager();
 
-  /** Set the restliPreUpdateAspectRegistry. */
-  public void setRestliPreUpdateAspectRegistry(RestliPreUpdateAspectRegistry restliPreUpdateAspectRegistry) {
-    _restliPreUpdateAspectRegistry = restliPreUpdateAspectRegistry;
-  }
-
   /**
    * Retrieves the value for an entity that is made up of latest versions of specified aspects.
    */
@@ -315,18 +310,19 @@ public abstract class BaseAspectRoutingResource<
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
       ModelUtils.getAspectsFromSnapshot(snapshot).forEach(aspect -> {
         if (!aspectsToIgnore.contains(aspect.getClass())) {
-          if (_restliPreUpdateAspectRegistry != null && _restliPreUpdateAspectRegistry.isRegistered(
-              aspect.getClass())) {
-            aspect = preUpdateRouting(urn, aspect);
-          }
-          // Get the fqcn of the aspect class
-          String aspectFQCN = aspect.getClass().getCanonicalName();
-          //TODO: META-21112: Remove this check after adding annotations at model level; to handle SKIP/PROCEED for preUpdateRouting
-          if (SKIP_INGESTION_FOR_ASPECTS.contains(aspectFQCN)) {
-            return;
-          }
           if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
             try {
+              // get the updated aspect if there is a preupdate routing lambda registered
+              RestliPreUpdateAspectRegistry registry = getLocalDAO().getRestliPreUpdateAspectRegistry();
+              if (registry != null && registry.isRegistered(aspect.getClass())) {
+                aspect = preUpdateRouting(urn, aspect, registry);
+              }
+              // Get the fqcn of the aspect class
+              String aspectFQCN = aspect.getClass().getCanonicalName();
+              //TODO: META-21112: Remove this check after adding annotations at model level; to handle SKIP/PROCEED for preUpdateRouting
+              if (SKIP_INGESTION_FOR_ASPECTS.contains(aspectFQCN)) {
+                return;
+              }
               if (trackingContext != null) {
                 getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingestWithTracking(urn, aspect, trackingContext, ingestionParams);
               } else {
@@ -359,18 +355,19 @@ public abstract class BaseAspectRoutingResource<
           ingestionParams != null ? ingestionParams.getIngestionTrackingContext() : null;
       ModelUtils.getAspectsFromAsset(asset).forEach(aspect -> {
         if (!aspectsToIgnore.contains(aspect.getClass())) {
-          if (_restliPreUpdateAspectRegistry != null && _restliPreUpdateAspectRegistry.isRegistered(
-              aspect.getClass())) {
-            aspect = preUpdateRouting(urn, aspect);
-          }
-          // Get the fqcn of the aspect class
-          String aspectFQCN = aspect.getClass().getCanonicalName();
-          //TODO: META-21112: Remove this check after adding annotations at model level; to handle SKIP/PROCEED for preUpdateRouting
-          if (SKIP_INGESTION_FOR_ASPECTS.contains(aspectFQCN)) {
-            return;
-          }
           if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
             try {
+              // get the updated aspect if there is a preupdate routing lambda registered
+              RestliPreUpdateAspectRegistry registry = getLocalDAO().getRestliPreUpdateAspectRegistry();
+              if (registry != null && registry.isRegistered(aspect.getClass())) {
+                aspect = preUpdateRouting(urn, aspect, registry);
+              }
+              // Get the fqcn of the aspect class
+              String aspectFQCN = aspect.getClass().getCanonicalName();
+              //TODO: META-21112: Remove this check after adding annotations at model level; to handle SKIP/PROCEED for preUpdateRouting
+              if (SKIP_INGESTION_FOR_ASPECTS.contains(aspectFQCN)) {
+                return;
+              }
               if (trackingContext != null) {
                 getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass())
                     .ingestWithTracking(urn, aspect, trackingContext, ingestionParams);
@@ -622,11 +619,10 @@ public abstract class BaseAspectRoutingResource<
    * @param aspect the new aspect value
    * @return the updated aspect
    */
-  private RecordTemplate preUpdateRouting(URN urn, RecordTemplate aspect) {
-    RestliCompliantPreUpdateRoutingClient client =
-        _restliPreUpdateAspectRegistry.getPreUpdateRoutingClient(aspect);
-    Message updatedAspect =
-        client.routingLambda(client.convertUrnToMessage(urn), client.convertAspectToMessage(aspect));
-    return client.convertAspectFromMessage(updatedAspect);
+  private RecordTemplate preUpdateRouting(URN urn, RecordTemplate aspect, RestliPreUpdateAspectRegistry registry) {
+      RestliCompliantPreUpdateRoutingClient client = registry.getPreUpdateRoutingClient(aspect);
+      Message updatedAspect =
+          client.routingLambda(client.convertUrnToMessage(urn), client.convertAspectToMessage(aspect));
+      return client.convertAspectToRecordTemplate(updatedAspect);
   }
 }
