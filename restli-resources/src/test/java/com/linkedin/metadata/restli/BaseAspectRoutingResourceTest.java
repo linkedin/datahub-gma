@@ -612,4 +612,31 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     verifyNoMoreInteractions(_mockLocalDAO);
   }
 
+  //Testing the case when aspect has no pre lambda but skipIngestion contains the aspect, so it should not skip ingestion
+  @Test
+  public void testPreUpdateRoutingWithSkipIngestionNoPreLambda() throws NoSuchFieldException, IllegalAccessException {
+
+    Field skipIngestionField = BaseAspectRoutingResource.class.getDeclaredField("SKIP_INGESTION_FOR_ASPECTS");
+    skipIngestionField.setAccessible(true);
+    Field modifiersField = Field.class.getDeclaredField("modifiers");
+    modifiersField.setAccessible(true);
+    modifiersField.setInt(skipIngestionField, skipIngestionField.getModifiers() & ~Modifier.FINAL);
+    List<String> newSkipIngestionList = Arrays.asList("com.linkedin.testing.AspectFoo");
+    skipIngestionField.set(null, newSkipIngestionList);
+
+    FooUrn urn = makeFooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, foo));
+    EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
+
+    runAndWait(_resource.ingest(snapshot));
+    // Should not skip ingestion
+    verify(_mockAspectFooGmsClient, times(1)).ingest(eq(urn), eq(foo));
+    // Should check for pre lambda
+    verify(_mockLocalDAO, times(1)).getRestliPreUpdateAspectRegistry();
+    // Should not add to localDAO
+    verify(_mockLocalDAO, times(0)).add(any(), any(), any(), any(), any());
+    verifyNoMoreInteractions(_mockLocalDAO);
+  }
+
 }
