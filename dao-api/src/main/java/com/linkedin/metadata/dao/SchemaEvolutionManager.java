@@ -27,5 +27,6 @@ public interface SchemaEvolutionManager {
     String connectionUrl;
     String password;
     String username;
+    String serviceIdentifier;
   }
 }

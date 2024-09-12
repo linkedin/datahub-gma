@@ -26,7 +26,8 @@ public class FlywaySchemaEvolutionManagerTest {
     SchemaEvolutionManager.Config config = new SchemaEvolutionManager.Config(
         EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()).getDataSourceConfig().getUrl(),
         EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()).getDataSourceConfig().getPassword(),
-        EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()).getDataSourceConfig().getUsername()
+        EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()).getDataSourceConfig().getUsername(),
+        EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()).getDataSourceConfig().getCustomProperties().get("SERVICE_IDENTIFIER")
     );
 
     _schemaEvolutionManager = new FlywaySchemaEvolutionManager(config);
@@ -68,18 +69,18 @@ public class FlywaySchemaEvolutionManagerTest {
 
     // Case 1: invalid database connection URL - whole string
     String databaseUrl = "asdfqwerty";
-    SchemaEvolutionManager.Config config1 = new SchemaEvolutionManager.Config(databaseUrl, "pw", "user");
+    SchemaEvolutionManager.Config config1 = new SchemaEvolutionManager.Config(databaseUrl, "pw", "user", "case1");
     assertThrows(IllegalArgumentException.class, () -> {
       try {
         method.invoke(_schemaEvolutionManager, config1);
       } catch (InvocationTargetException e) {
-         throw e.getCause();
+        throw e.getCause();
       }
     });
 
     // Case 2: invalid database connection URL - missing database name
     databaseUrl = "jdbc:mysql://example.linkedin.com:1234";
-    SchemaEvolutionManager.Config config2 = new SchemaEvolutionManager.Config(databaseUrl, "pw", "user");
+    SchemaEvolutionManager.Config config2 = new SchemaEvolutionManager.Config(databaseUrl, "pw", "user", "case2");
     assertThrows(IllegalArgumentException.class, () -> {
       try {
         method.invoke(_schemaEvolutionManager, config2);
@@ -90,12 +91,12 @@ public class FlywaySchemaEvolutionManagerTest {
 
     // Case 3: valid database connection URL with no options
     databaseUrl = "jdbc:mysql://example.linkedin.com:1234/my_first_db";
-    SchemaEvolutionManager.Config config3 = new SchemaEvolutionManager.Config(databaseUrl, "pw", "user");
+    SchemaEvolutionManager.Config config3 = new SchemaEvolutionManager.Config(databaseUrl, "pw", "user","case3");
     assertEquals(method.invoke(_schemaEvolutionManager, config3), "my_first_db");
 
     // Case 4: valid database connection URL with options
     databaseUrl = "jdbc:mysql://example.linkedin.com:1234/my_first_db?autoReconnect=true&useSSL=false";
-    SchemaEvolutionManager.Config config4 = new SchemaEvolutionManager.Config(databaseUrl, "pw", "user");
+    SchemaEvolutionManager.Config config4 = new SchemaEvolutionManager.Config(databaseUrl, "pw", "user", "case4");
     assertEquals(method.invoke(_schemaEvolutionManager, config4), "my_first_db");
   }
 }
