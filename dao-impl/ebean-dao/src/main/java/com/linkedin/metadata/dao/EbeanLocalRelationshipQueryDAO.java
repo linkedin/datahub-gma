@@ -1,7 +1,6 @@
 package com.linkedin.metadata.dao;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.utils.ClassUtils;
@@ -37,7 +36,6 @@ import org.javatuples.Pair;
  */
 @Slf4j
 public class EbeanLocalRelationshipQueryDAO {
-  public static final String URN_PATTERN = "urn:li:[a-zA-Z]+:?.*";
   private final EbeanServer _server;
   private final MultiHopsTraversalSqlGenerator _sqlGenerator;
 
@@ -208,9 +206,9 @@ public class EbeanLocalRelationshipQueryDAO {
   /**
    * Finds a list of relationships of a specific type (Urn) based on the given filters if applicable.
    *
-   * @param sourceEntityUrn urn of the source entity to query
+   * @param sourceEntityType type of source entity to query (e.g. "dataset")
    * @param sourceEntityFilter the filter to apply to the source entity when querying (not applicable to non-MG entities)
-   * @param destinationEntityUrn urn of the destination entity to query. If relationship is OwnedBy, this is crew/ldap.
+   * @param destinationEntityType type of destination entity to query (e.g. "dataset")
    * @param destinationEntityFilter the filter to apply to the destination entity when querying (not applicable to non-MG entities)
    * @param relationshipType the type of relationship to query
    * @param relationshipFilter the filter to apply to relationship when querying
@@ -220,17 +218,17 @@ public class EbeanLocalRelationshipQueryDAO {
    */
   @Nonnull
   public <RELATIONSHIP extends RecordTemplate> List<RELATIONSHIP> findRelationshipsV2(
-      @Nullable Urn sourceEntityUrn, @Nullable LocalRelationshipFilter sourceEntityFilter,
-      @Nullable Urn destinationEntityUrn, @Nullable LocalRelationshipFilter destinationEntityFilter,
+      @Nullable String sourceEntityType, @Nullable LocalRelationshipFilter sourceEntityFilter,
+      @Nullable String destinationEntityType, @Nullable LocalRelationshipFilter destinationEntityFilter,
       @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter,
       int offset, int count) {
-    validateEntityUrnAndFilter(sourceEntityFilter, sourceEntityUrn);
-    validateEntityUrnAndFilter(destinationEntityFilter, destinationEntityUrn);
+    validateEntityTypeAndFilter(sourceEntityFilter, sourceEntityType);
+    validateEntityTypeAndFilter(destinationEntityFilter, destinationEntityType);
     validateRelationshipFilter(relationshipFilter);
 
     // the assumption is we have the table for every MG entity. For non-MG entities, sourceTableName will be null.
-    final String sourceTableName = getMgEntityTableName(sourceEntityUrn);
-    final String destTableName = getMgEntityTableName(destinationEntityUrn);
+    final String sourceTableName = getMgEntityTableName(sourceEntityType);
+    final String destTableName = getMgEntityTableName(destinationEntityType);
     final String relationshipTableName = SQLSchemaUtils.getRelationshipTableName(relationshipType);
 
     final String sql = buildFindRelationshipSQL(
@@ -244,15 +242,11 @@ public class EbeanLocalRelationshipQueryDAO {
         .collect(Collectors.toList());
   }
 
-  private boolean isValidUrn(@Nonnull Urn entityUrn) {
-    return entityUrn.toString().matches(URN_PATTERN);
-  }
-
   /**
    * Checks if entity type name can be extracted from urn, and that entity type has a table in db.
    */
   @VisibleForTesting
-  protected boolean isMgEntityUrn(@Nonnull Urn entityUrn) {
+  protected boolean isMgEntityType(@Nonnull String entityType) {
     if (_schemaConfig == EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY) {
       // there's no concept of MG entity or non-entity in old schema mode. always return false.
       return false;
@@ -263,20 +257,20 @@ public class EbeanLocalRelationshipQueryDAO {
       initMgEntityTypeNameSet();
     }
 
-    return _mgEntityTypeNameSet.contains(StringUtils.lowerCase(entityUrn.getEntityType()));
+    return _mgEntityTypeNameSet.contains(StringUtils.lowerCase(entityType));
   }
 
   /**
    * Extracts the table name from an entity urn for MG entities. If entityUrn is not for MG entity, return null.
-   * @param entityUrn should match pattern "urn:li:[a-zA-Z0-9]+:?\(?[a-zA-Z0-9]*\)?"
-   * @return metadata_entity_entity_type_name or null
+   * @param entityType String representing the type of entity (e.g. "dataset")
+   * @return metadata_entity_entity-type or null
    */
   @Nullable
-  private String getMgEntityTableName(@Nullable Urn entityUrn) {
-    if (entityUrn == null || !isMgEntityUrn(entityUrn)) {
+  private String getMgEntityTableName(@Nullable String entityType) {
+    if (entityType == null || !isMgEntityType(entityType)) {
       return null;
     }
-    return SQLSchemaUtils.getTableName(entityUrn);
+    return SQLSchemaUtils.getTableName(entityType);
   }
 
   /**
@@ -300,14 +294,10 @@ public class EbeanLocalRelationshipQueryDAO {
    * 3. the entity filter only contains supported condition.
    * If any of above is violated, throw IllegalArgumentException.
    */
-  private void validateEntityUrnAndFilter(@Nullable LocalRelationshipFilter filter, @Nullable Urn entityUrn) {
-    if ((entityUrn == null || StringUtils.isBlank(entityUrn.getEntityType())) && filter != null && filter.hasCriteria() && !filter.getCriteria()
+  private void validateEntityTypeAndFilter(@Nullable LocalRelationshipFilter filter, @Nullable String entityType) {
+    if ((StringUtils.isBlank(entityType)) && filter != null && filter.hasCriteria() && !filter.getCriteria()
         .isEmpty()) {
-      throw new IllegalArgumentException("Entity urn is null or empty but filter is not empty.");
-    }
-
-    if (entityUrn != null && !isValidUrn(entityUrn)) {
-      throw new IllegalArgumentException(String.format("Entity urn is not valid: %s", entityUrn));
+      throw new IllegalArgumentException("Entity type string is null or empty but filter is not empty.");
     }
 
     if (filter != null) {
@@ -316,10 +306,11 @@ public class EbeanLocalRelationshipQueryDAO {
   }
 
   /**
-   * Ensure that the source and destination entity filters. Useful for non-MG entities or when running in OLD_SCHEMA_ONLY mode.
+   * Ensure that the source and destination entity filters abide by the following requirements:
    * 1) include no more than 1 criterion
    * 2) that 1 criterion must be on the urn field
    * 3) the passed in condition is supported by this DAO
+   * This is useful for non-MG entities or when running in OLD_SCHEMA_ONLY mode.
    */
   private void validateEntityFilterOnlyOneUrn(@Nonnull LocalRelationshipFilter filter) {
     if (filter.hasCriteria() && !filter.getCriteria().isEmpty()) {
