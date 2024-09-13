@@ -48,7 +48,7 @@ import static org.testng.AssertJUnit.assertTrue;
  * It is expected to read default EbeanLocalAccessTest.conf file rather than test-EbeanLocalAccessTest.conf.
  */
 
-public class EbeanLocalAccessTest2 {
+public class EbeanLocalAccessTestWithoutServiceIdentifier {
   private static EbeanServer _server;
   private static EbeanLocalAccess<FooUrn> _ebeanLocalAccessFoo;
   private static IEbeanLocalAccess<BurgerUrn> _ebeanLocalAccessBurger;
@@ -56,7 +56,7 @@ public class EbeanLocalAccessTest2 {
   private final EBeanDAOConfig _ebeanConfig = new EBeanDAOConfig();
 
   @Factory(dataProvider = "inputList")
-  public EbeanLocalAccessTest2(boolean nonDollarVirtualColumnsEnabled) {
+  public EbeanLocalAccessTestWithoutServiceIdentifier(boolean nonDollarVirtualColumnsEnabled) {
     _ebeanConfig.setNonDollarVirtualColumnsEnabled(nonDollarVirtualColumnsEnabled);
   }
 

@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS metadata_entity_foo2 (
+CREATE TABLE IF NOT EXISTS metadata_entity_foobaz (
     urn VARCHAR(100) NOT NULL,
     lastmodifiedon DATETIME(6) NOT NULL,
     lastmodifiedby VARCHAR(255) NOT NULL,

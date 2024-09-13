@@ -17,7 +17,7 @@ import static org.testng.Assert.*;
  * This test is to ensure without service identifier, the schema evolution manager can bring the schema up-to-date from
  * the default config file.
  */
-public class FlywaySchemaEvolutionManagerTest2 {
+public class FlywaySchemaEvolutionManagerTestWithoutServiceIdentifier {
   private FlywaySchemaEvolutionManager _schemaEvolutionManager;
   private EbeanServer _server;
 
@@ -43,18 +43,18 @@ public class FlywaySchemaEvolutionManagerTest2 {
     _schemaEvolutionManager.clean();
 
     // make sure table did not exists
-    assertFalse(checkTableExists("metadata_entity_foo2"));
-    assertFalse(checkTableExists("my_version_table2"));
+    assertFalse(checkTableExists("metadata_entity_foobaz"));
+    assertFalse(checkTableExists("my_another_version_table"));
 
     // Execute the evolution scripts to bring schema up-to-date.
     _schemaEvolutionManager.ensureSchemaUpToDate();
 
-    // V1__create_foo_entity_table.sql create metadata_entity_foo2 table.
-    assertTrue(checkTableExists("metadata_entity_foo2"));
+    // V1__create_foobaz_entity_table.sql create metadata_entity_foobaz table.
+    assertTrue(checkTableExists("metadata_entity_foobaz"));
 
     // Make sure version table is created.
-    assertTrue(checkTableExists("my_version_table2"));
-    _server.createSqlUpdate("DROP TABLE my_version_table2").execute();
+    assertTrue(checkTableExists("my_another_version_table"));
+    _server.createSqlUpdate("DROP TABLE my_another_version_table").execute();
   }
 
   private boolean checkTableExists(String tableName) {
