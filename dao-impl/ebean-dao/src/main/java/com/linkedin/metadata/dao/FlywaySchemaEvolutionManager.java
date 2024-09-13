@@ -5,19 +5,23 @@ import java.io.InputStream;
 import java.util.Properties;
 import org.flywaydb.core.Flyway;
 
+
 public class FlywaySchemaEvolutionManager implements SchemaEvolutionManager {
   private static final String EVOLUTION_SCRIPTS_LOCATION = "script_directory";
   private static final String VERSION_TABLE = "version_table";
   private static final String CONFIG_FILE_TEMPLATE = "%s.conf";
+  private static final String CONFIG_FILE_TEMPLATE2 = "%s-%s.conf";
   private static final String DISABLE_CLEAN = "disable_clean";
   private final Flyway _flyway;
 
   public FlywaySchemaEvolutionManager(Config config) {
     String databaseName = getDatabaseName(config);
-    InputStream configFile = getClass().getClassLoader().getResourceAsStream(String.format(CONFIG_FILE_TEMPLATE, databaseName));
+    String serviceIdentifier = config.getServiceIdentifier();
+    String configFileName = serviceIdentifier == null
+        ? String.format(CONFIG_FILE_TEMPLATE, databaseName) : String.format(CONFIG_FILE_TEMPLATE2, serviceIdentifier, databaseName);
     Properties configProp = new Properties();
 
-    try {
+    try (InputStream configFile = getClass().getClassLoader().getResourceAsStream(configFileName)) {
       configProp.load(configFile);
 
       if (!configProp.containsKey(EVOLUTION_SCRIPTS_LOCATION) || !configProp.containsKey(VERSION_TABLE)) {
@@ -42,7 +46,7 @@ public class FlywaySchemaEvolutionManager implements SchemaEvolutionManager {
 
   @Override
   public void ensureSchemaUpToDate() {
-    _flyway.migrate();
+      _flyway.migrate();
   }
 
   @Override
