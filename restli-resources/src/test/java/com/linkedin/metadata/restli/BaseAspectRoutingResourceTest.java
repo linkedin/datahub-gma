@@ -562,10 +562,10 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     SamplePreUpdateAspectRegistryImpl registry = new SamplePreUpdateAspectRegistryImpl();
     when(_mockLocalDAO.getRestliPreUpdateAspectRegistry()).thenReturn(registry);
 
-    verify(_mockLocalDAO, times(1)).getRestliPreUpdateAspectRegistry();
     // given: ingest a snapshot containing a routed aspect which has a registered pre-update lambda.
     runAndWait(_resource.ingest(snapshot));
 
+    verify(_mockLocalDAO, times(1)).getRestliPreUpdateAspectRegistry();
     // expected: the pre-update lambda is executed first (aspect value is changed from foo to foobar) and then the aspect is dual-written.
     AspectFoo foobar = new AspectFoo().setValue("foobar");
     // dual write pt1: ensure the ingestion request is forwarded to the routed GMS.
@@ -653,14 +653,13 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     runAndWait(_resource.ingest(snapshot));
     verify(_mockAspectFooGmsClient, times(0)).ingest(any(), any());
     verify(_mockLocalDAO, times(1)).getRestliPreUpdateAspectRegistry();
-    verify(_mockLocalDAO, times(0)).add(any(), any(), any(), any(), any());
+    // Should not add to local DAO
     verifyNoMoreInteractions(_mockLocalDAO);
   }
 
   //Testing the case when aspect has no pre lambda but skipIngestion contains the aspect, so it should not skip ingestion
   @Test
   public void testPreUpdateRoutingWithSkipIngestionNoPreLambda() throws NoSuchFieldException, IllegalAccessException {
-
     Field skipIngestionField = BaseAspectRoutingResource.class.getDeclaredField("SKIP_INGESTION_FOR_ASPECTS");
     skipIngestionField.setAccessible(true);
     Field modifiersField = Field.class.getDeclaredField("modifiers");
@@ -679,9 +678,8 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     verify(_mockAspectFooGmsClient, times(1)).ingest(eq(urn), eq(foo));
     // Should check for pre lambda
     verify(_mockLocalDAO, times(1)).getRestliPreUpdateAspectRegistry();
-    // Should not add to localDAO
-    verify(_mockLocalDAO, times(0)).add(any(), any(), any(), any(), any());
+    // Should continue to dual-write into local DAO
+    verify(_mockLocalDAO, times(1)).addSkipPreIngestionUpdates(any(), any(), any(), any(), any());
     verifyNoMoreInteractions(_mockLocalDAO);
   }
-
 }

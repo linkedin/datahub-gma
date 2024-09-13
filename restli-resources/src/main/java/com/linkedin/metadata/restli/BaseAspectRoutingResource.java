@@ -315,6 +315,7 @@ public abstract class BaseAspectRoutingResource<
               // get the updated aspect if there is a preupdate routing lambda registered
               RestliPreUpdateAspectRegistry registry = getLocalDAO().getRestliPreUpdateAspectRegistry();
               if (registry != null && registry.isRegistered(aspect.getClass())) {
+                log.info(String.format("Executing registered pre-update routing lambda for aspect class %s.", aspect.getClass()));
                 aspect = preUpdateRouting(urn, aspect, registry);
                 // Get the fqcn of the aspect class
                 String aspectFQCN = aspect.getClass().getCanonicalName();
@@ -322,12 +323,6 @@ public abstract class BaseAspectRoutingResource<
                 if (SKIP_INGESTION_FOR_ASPECTS.contains(aspectFQCN)) {
                   return;
                 }
-              }
-              // Get the fqcn of the aspect class
-              String aspectFQCN = aspect.getClass().getCanonicalName();
-              //TODO: META-21112: Remove this check after adding annotations at model level; to handle SKIP/PROCEED for preUpdateRouting
-              if (SKIP_INGESTION_FOR_ASPECTS.contains(aspectFQCN)) {
-                return;
               }
               if (trackingContext != null) {
                 getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingestWithTracking(urn, aspect, trackingContext, ingestionParams);
@@ -369,6 +364,7 @@ public abstract class BaseAspectRoutingResource<
               // get the updated aspect if there is a preupdate routing lambda registered
               RestliPreUpdateAspectRegistry registry = getLocalDAO().getRestliPreUpdateAspectRegistry();
               if (registry != null && registry.isRegistered(aspect.getClass())) {
+                log.info(String.format("Executing registered pre-update routing lambda for aspect class %s.", aspect.getClass()));
                 aspect = preUpdateRouting(urn, aspect, registry);
                 // Get the fqcn of the aspect class
                 String aspectFQCN = aspect.getClass().getCanonicalName();
@@ -376,12 +372,6 @@ public abstract class BaseAspectRoutingResource<
                 if (SKIP_INGESTION_FOR_ASPECTS.contains(aspectFQCN)) {
                   return;
                 }
-              }
-              // Get the fqcn of the aspect class
-              String aspectFQCN = aspect.getClass().getCanonicalName();
-              //TODO: META-21112: Remove this check after adding annotations at model level; to handle SKIP/PROCEED for preUpdateRouting
-              if (SKIP_INGESTION_FOR_ASPECTS.contains(aspectFQCN)) {
-                return;
               }
               if (trackingContext != null) {
                 getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass())
