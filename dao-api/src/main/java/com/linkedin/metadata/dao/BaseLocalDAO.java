@@ -182,7 +182,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   protected UrnPathExtractor<URN> _urnPathExtractor;
 
   private LambdaFunctionRegistry _lambdaFunctionRegistry;
-  private RestliPreUpdateAspectRegistry _restliPreUpdateAspectRegistry;
+  private RestliPreUpdateAspectRegistry _restliPreUpdateAspectRegistry = null;
 
   // Maps an aspect class to the corresponding retention policy
   private final Map<Class<? extends RecordTemplate>, Retention> _aspectRetentionMap = new HashMap<>();
@@ -856,7 +856,6 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
         ingestionParams == null || !ingestionParams.hasTestMode() ? new IngestionParams().setIngestionMode(
             IngestionMode.LIVE).setTestMode(false) : ingestionParams;
     ASPECT updatedAspect = preUpdateRouting(urn, newValue);
-    log.info("PreUpdateRouting completed in BaseLocalDao, urn: {}, updated aspect: {}", urn, updatedAspect);
     return add(urn, (Class<ASPECT>) newValue.getClass(), ignored -> updatedAspect, auditStamp, trackingContext, nonNullIngestionParams);
   }
 
@@ -1658,6 +1657,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       Message updatedAspect =
           client.routingLambda(client.convertUrnToMessage(urn), client.convertAspectToMessage(newValue));
       RecordTemplate convertedAspect = client.convertAspectToRecordTemplate(updatedAspect);
+      log.info("PreUpdateRouting completed in BaseLocalDao, urn: {}, updated aspect: {}", urn, convertedAspect);
       return (ASPECT) convertedAspect;
     }
     return newValue;
