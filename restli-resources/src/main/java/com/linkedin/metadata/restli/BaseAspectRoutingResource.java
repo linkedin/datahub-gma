@@ -315,13 +315,15 @@ public abstract class BaseAspectRoutingResource<
               RestliPreUpdateAspectRegistry registry = getLocalDAO().getRestliPreUpdateAspectRegistry();
               if (registry != null && registry.isRegistered(aspect.getClass())) {
                 aspect = preUpdateRouting(urn, aspect, registry);
+                log.info("PreUpdateRouting completed in ingestInternal, urn: {}, updated aspect: {}", urn, aspect);
                 // Get the fqcn of the aspect class
                 String aspectFQCN = aspect.getClass().getCanonicalName();
                 //TODO: META-21112: Remove this check after adding annotations at model level; to handle SKIP/PROCEED for preUpdateRouting
                 if (SKIP_INGESTION_FOR_ASPECTS.contains(aspectFQCN)) {
+                  log.info("Skip ingestion in ingestInternal for urn: {}, aspectFQCN: {}", urn, aspectFQCN);
                   return;
                 }
-              } 
+              }
               if (trackingContext != null) {
                 getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingestWithTracking(urn, aspect, trackingContext, ingestionParams);
               } else {
@@ -360,10 +362,12 @@ public abstract class BaseAspectRoutingResource<
               RestliPreUpdateAspectRegistry registry = getLocalDAO().getRestliPreUpdateAspectRegistry();
               if (registry != null && registry.isRegistered(aspect.getClass())) {
                 aspect = preUpdateRouting(urn, aspect, registry);
+                log.info("PreUpdateRouting completed in ingestInternalAsset, urn: {}, updated aspect: {}", urn, aspect);
                 // Get the fqcn of the aspect class
                 String aspectFQCN = aspect.getClass().getCanonicalName();
                 //TODO: META-21112: Remove this check after adding annotations at model level; to handle SKIP/PROCEED for preUpdateRouting
                 if (SKIP_INGESTION_FOR_ASPECTS.contains(aspectFQCN)) {
+                  log.info("Skip ingestion in ingestInternalAsset for urn: {}, aspectFQCN: {}", urn, aspectFQCN);
                   return;
                 }
               }
