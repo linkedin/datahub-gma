@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.util.Properties;
 import org.flywaydb.core.Flyway;
 
+
 public class FlywaySchemaEvolutionManager implements SchemaEvolutionManager {
   private static final String EVOLUTION_SCRIPTS_LOCATION = "script_directory";
   private static final String VERSION_TABLE = "version_table";
@@ -47,7 +48,7 @@ public class FlywaySchemaEvolutionManager implements SchemaEvolutionManager {
 
   @Override
   public void ensureSchemaUpToDate() {
-    _flyway.migrate();
+      _flyway.migrate();
   }
 
   @Override

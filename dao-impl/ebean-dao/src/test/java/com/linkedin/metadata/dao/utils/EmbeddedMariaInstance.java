@@ -59,6 +59,30 @@ public class EmbeddedMariaInstance {
     return EbeanServerFactory.create(serverConfig);
   }
 
+  public static synchronized EbeanServer getServerWithoutServiceIdentifier(String dbSchema) {
+    initDB(); // initDB is idempotent
+
+    try {
+      db.createDB(dbSchema);
+    } catch (ManagedProcessException e) {
+      throw new RuntimeException(e);
+    }
+
+    DataSourceConfig dataSourceConfig = new DataSourceConfig();
+    dataSourceConfig.setUsername(DB_USER);
+    dataSourceConfig.setPassword(DB_PASS);
+    dataSourceConfig.setUrl(String.format("jdbc:mysql://localhost:%s/%s?allowMultiQueries=true", PORT, dbSchema));
+    dataSourceConfig.setDriver("com.mysql.cj.jdbc.Driver");
+
+    ServerConfig serverConfig = new ServerConfig();
+    serverConfig.setName(dbSchema);
+    serverConfig.setDataSourceConfig(dataSourceConfig);
+    serverConfig.setDdlGenerate(false);
+    serverConfig.setDdlRun(false);
+    SERVER_CONFIG_MAP.put(serverConfig.getName(), serverConfig);
+    return EbeanServerFactory.create(serverConfig);
+  }
+
   private static void initDB() {
     if (db == null) {
       synchronized (DB.class) {
