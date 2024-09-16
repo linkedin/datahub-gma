@@ -679,7 +679,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     // Should check for pre lambda
     verify(_mockLocalDAO, times(1)).getRestliPreUpdateAspectRegistry();
     // Should continue to dual-write into local DAO
-    verify(_mockLocalDAO, times(1)).addSkipPreIngestionUpdates(any(), any(), any(), any(), any());
+    verify(_mockLocalDAO, times(1)).addSkipPreIngestionUpdates(eq(urn), eq(foo), any(), any(), any());
     verifyNoMoreInteractions(_mockLocalDAO);
   }
 }
