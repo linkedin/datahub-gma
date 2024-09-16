@@ -47,7 +47,8 @@ import static com.linkedin.metadata.restli.RestliConstants.*;
 
 /**
  * Extends {@link BaseBrowsableEntityResource} with aspect routing capability.
- * For certain aspect of an entity, incoming request will be routed to different GMS.
+ * For certain aspects of an entity, incoming requests will be routed to a different GMS in addition to being
+ * written locally (i.e. dual write).
  * See http://go/aspect-routing for more details
  */
 @Slf4j
@@ -314,6 +315,7 @@ public abstract class BaseAspectRoutingResource<
               // get the updated aspect if there is a preupdate routing lambda registered
               RestliPreUpdateAspectRegistry registry = getLocalDAO().getRestliPreUpdateAspectRegistry();
               if (registry != null && registry.isRegistered(aspect.getClass())) {
+                log.info(String.format("Executing registered pre-update routing lambda for aspect class %s.", aspect.getClass()));
                 aspect = preUpdateRouting(urn, aspect, registry);
                 log.info("PreUpdateRouting completed in ingestInternal, urn: {}, updated aspect: {}", urn, aspect);
                 // Get the fqcn of the aspect class
@@ -329,6 +331,9 @@ public abstract class BaseAspectRoutingResource<
               } else {
                 getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingest(urn, aspect);
               }
+              // since we already called any pre-update lambdas earlier, call a simple version of BaseLocalDAO::add
+              // which skips pre-update lambdas.
+              getLocalDAO().addSkipPreIngestionUpdates(urn, aspect, auditStamp, trackingContext, ingestionParams);
             } catch (Exception exception) {
               log.error(
                   String.format("Couldn't ingest routing aspect %s for %s", aspect.getClass().getSimpleName(), urn),
@@ -361,6 +366,7 @@ public abstract class BaseAspectRoutingResource<
               // get the updated aspect if there is a preupdate routing lambda registered
               RestliPreUpdateAspectRegistry registry = getLocalDAO().getRestliPreUpdateAspectRegistry();
               if (registry != null && registry.isRegistered(aspect.getClass())) {
+                log.info(String.format("Executing registered pre-update routing lambda for aspect class %s.", aspect.getClass()));
                 aspect = preUpdateRouting(urn, aspect, registry);
                 log.info("PreUpdateRouting completed in ingestInternalAsset, urn: {}, updated aspect: {}", urn, aspect);
                 // Get the fqcn of the aspect class
@@ -377,6 +383,9 @@ public abstract class BaseAspectRoutingResource<
               } else {
                 getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingest(urn, aspect);
               }
+              // since we already called any pre-update lambdas earlier, call a simple version of BaseLocalDAO::add
+              // which skips pre-update lambdas.
+              getLocalDAO().addSkipPreIngestionUpdates(urn, aspect, auditStamp, trackingContext, ingestionParams);
             } catch (Exception exception) {
               log.error("Couldn't ingest routing aspect {} for {}", aspect.getClass().getSimpleName(), urn, exception);
             }

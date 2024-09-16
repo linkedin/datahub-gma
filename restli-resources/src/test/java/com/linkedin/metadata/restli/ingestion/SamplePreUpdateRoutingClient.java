@@ -12,8 +12,8 @@ import com.linkedin.testing.AspectFoo;
 public class SamplePreUpdateRoutingClient implements RestliCompliantPreUpdateRoutingClient {
   @Override
   public Message routingLambda(Message urn, Message aspect) {
-    // For testing, change the aspect value to "bar"
-    return Any.pack(StringValue.of("bar"));
+    // For testing, change the aspect value to "foobar"
+    return Any.pack(StringValue.of("foobar"));
   }
 
   @Override
@@ -35,7 +35,7 @@ public class SamplePreUpdateRoutingClient implements RestliCompliantPreUpdateRou
   @Override
   public RecordTemplate convertAspectToRecordTemplate(Message messageAspect) {
     // For testing, convert TestMessageProtos.AspectMessage back to AspectFoo
-    // Create a new RecordTemplate (AspectFoo in this case) and set the value field
-    return new AspectFoo().setValue("bar");
+    // Create a new RecordTemplate (AspectFoo in this case) and set the value field to foobar
+    return new AspectFoo().setValue("foobar");
   }
 }

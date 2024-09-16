@@ -306,7 +306,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     verify(_mockAspectFooGmsClient, times(1)).ingest(eq(urn), eq(foo));
     verify(_mockAspectAttributeGmsClient, times(1)).ingest(eq(urn), eq(attributes));
     verify(_mockLocalDAO, times(2)).getRestliPreUpdateAspectRegistry();
-    verifyNoMoreInteractions(_mockLocalDAO);
+    verify(_mockLocalDAO, times(1)).addSkipPreIngestionUpdates(eq(urn), eq(foo), any(), any(), any());
   }
 
   @Test
@@ -326,7 +326,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     verify(_mockAspectFooGmsClient, times(1)).ingestWithTracking(eq(urn), eq(foo), eq(trackingContext), eq(null));
     verify(_mockAspectAttributeGmsClient, times(1)).ingestWithTracking(eq(urn), eq(attributes), eq(trackingContext), eq(null));
     verify(_mockLocalDAO, times(2)).getRestliPreUpdateAspectRegistry();
-    verifyNoMoreInteractions(_mockLocalDAO);
+    verify(_mockLocalDAO, times(1)).addSkipPreIngestionUpdates(eq(urn), eq(foo), any(), any(), any());
   }
 
   @Test
@@ -354,6 +354,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     runAndWait(_resource.ingest(snapshot));
 
     verify(_mockLocalDAO, times(2)).getRestliPreUpdateAspectRegistry();
+    verify(_mockLocalDAO, times(1)).addSkipPreIngestionUpdates(eq(urn), eq(foo), any(), any(), any());
     // verify(_mockGmsClient, times(1)).ingest(eq(urn), eq(foo));
     verify(_mockAspectFooGmsClient, times(1)).ingest(eq(urn), eq(foo));
     verify(_mockAspectAttributeGmsClient, times(1)).ingest(eq(urn), eq(attributes));
@@ -554,7 +555,6 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
   public void testPreUpdateRoutingWithRegisteredAspect() {
     FooUrn urn = makeFooUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");
-    AspectFoo bar = new AspectFoo().setValue("bar");
 
     List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, foo));
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
@@ -562,24 +562,69 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     SamplePreUpdateAspectRegistryImpl registry = new SamplePreUpdateAspectRegistryImpl();
     when(_mockLocalDAO.getRestliPreUpdateAspectRegistry()).thenReturn(registry);
 
+    // given: ingest a snapshot containing a routed aspect which has a registered pre-update lambda.
     runAndWait(_resource.ingest(snapshot));
-    verify(_mockAspectFooGmsClient, times(1)).ingest(eq(urn), eq(bar));
+
     verify(_mockLocalDAO, times(1)).getRestliPreUpdateAspectRegistry();
+    // expected: the pre-update lambda is executed first (aspect value is changed from foo to foobar) and then the aspect is dual-written.
+    AspectFoo foobar = new AspectFoo().setValue("foobar");
+    // dual write pt1: ensure the ingestion request is forwarded to the routed GMS.
+    verify(_mockAspectFooGmsClient, times(1)).ingest(eq(urn), eq(foobar));
+    // dual write pt2: ensure local write using addSkipPreIngestionUpdates() and not add().
     verify(_mockLocalDAO, times(0)).add(any(), any(), any(), any(), any());
-    verifyNoMoreInteractions(_mockLocalDAO);
+    verify(_mockLocalDAO, times(1)).addSkipPreIngestionUpdates(eq(urn), eq(foobar), any(), any(), any());
   }
 
   @Test
   public void testPreUpdateRoutingWithNonRegisteredPreUpdateAspect() {
     FooUrn urn = makeFooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+
+    List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, foo));
+    EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
+
+    // given: ingest a snapshot containing a routed aspect which does not have a registered pre-update lambda.
+    runAndWait(_resource.ingest(snapshot));
+
+    // expected: the aspect value remains unchanged and the aspect is dual-written.
+    // dual write pt1: ensure the ingestion request is forwarded to the routed GMS.
+    verify(_mockAspectFooGmsClient, times(1)).ingest(eq(urn), eq(foo));
+    // dual write pt2: ensure local write using addSkipPreIngestionUpdates() and not add().
+    verify(_mockLocalDAO, times(0)).add(any(), any(), any(), any(), any());
+    verify(_mockLocalDAO, times(1)).addSkipPreIngestionUpdates(eq(urn), eq(foo), any(), any(), any());
+  }
+
+  @Test
+  public void testPreUpdateRoutingWithNonRoutedAspectAndRegisteredPreUpdate() {
+    FooUrn urn = makeFooUrn(1);
+    AspectBar bar = new AspectBar().setValue("bar");
+    List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, bar));
+    EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
+    SamplePreUpdateAspectRegistryImpl registry = new SamplePreUpdateAspectRegistryImpl();
+    when(_mockLocalDAO.getRestliPreUpdateAspectRegistry()).thenReturn(registry);
+
+    // given: ingest a snapshot which contains a non-routed aspect which has a registered pre-update lambda.
+    runAndWait(_resource.ingest(snapshot));
+
+    // expected: the aspect is ingested locally only (not dual written). BaseLocalDAO::add will execute any pre-ingestion
+    // lambdas which will change the aspect value from bar -> foobar. But no pre-ingestion lambdas are run from within
+    // the BaseAspectRoutingResource class.
+    verify(_mockAspectBarGmsClient, times(0)).ingest(any(), any());
+    verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(null), eq(null));
+    verifyNoMoreInteractions(_mockLocalDAO);
+  }
+
+  @Test
+  public void testPreUpdateRoutingWithNonRoutedAspectAndNonRegisteredPreUpdate() {
+    FooUrn urn = makeFooUrn(1);
     AspectBar bar = new AspectBar().setValue("bar");
     List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, bar));
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
 
-    SamplePreUpdateAspectRegistryImpl registry = new SamplePreUpdateAspectRegistryImpl();
-    when(_mockLocalDAO.getRestliPreUpdateAspectRegistry()).thenReturn(registry);
-
+    // given: ingest a snapshot which contains a non-routed aspect which does not have any registered pre-update lambdas.
     runAndWait(_resource.ingest(snapshot));
+
+    // expected: the aspect value remains unchanged and the aspect is ingested locally only (not dual written).
     verify(_mockAspectBarGmsClient, times(0)).ingest(any(), any());
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(null), eq(null));
     verifyNoMoreInteractions(_mockLocalDAO);
@@ -608,14 +653,13 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     runAndWait(_resource.ingest(snapshot));
     verify(_mockAspectFooGmsClient, times(0)).ingest(any(), any());
     verify(_mockLocalDAO, times(1)).getRestliPreUpdateAspectRegistry();
-    verify(_mockLocalDAO, times(0)).add(any(), any(), any(), any(), any());
+    // Should not add to local DAO
     verifyNoMoreInteractions(_mockLocalDAO);
   }
 
   //Testing the case when aspect has no pre lambda but skipIngestion contains the aspect, so it should not skip ingestion
   @Test
   public void testPreUpdateRoutingWithSkipIngestionNoPreLambda() throws NoSuchFieldException, IllegalAccessException {
-
     Field skipIngestionField = BaseAspectRoutingResource.class.getDeclaredField("SKIP_INGESTION_FOR_ASPECTS");
     skipIngestionField.setAccessible(true);
     Field modifiersField = Field.class.getDeclaredField("modifiers");
@@ -634,9 +678,8 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     verify(_mockAspectFooGmsClient, times(1)).ingest(eq(urn), eq(foo));
     // Should check for pre lambda
     verify(_mockLocalDAO, times(1)).getRestliPreUpdateAspectRegistry();
-    // Should not add to localDAO
-    verify(_mockLocalDAO, times(0)).add(any(), any(), any(), any(), any());
+    // Should continue to dual-write into local DAO
+    verify(_mockLocalDAO, times(1)).addSkipPreIngestionUpdates(eq(urn), eq(foo), any(), any(), any());
     verifyNoMoreInteractions(_mockLocalDAO);
   }
-
 }
