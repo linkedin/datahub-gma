@@ -44,7 +44,7 @@ project.ext.externalDependency = [
     'elasticSearchRest7': 'org.elasticsearch.client:elasticsearch-rest-high-level-client:7.9.3',
     'elasticSearchTransport7': 'org.elasticsearch.client:transport:7.9.3',
     'flywayCore': 'org.flywaydb:flyway-core:7.15.0',
-    'guava': 'com.google.guava:guava:27.0.1-jre',
+    'guava': 'com.google.guava:guava:32.0.0-android',
     'h2': 'com.h2database:h2:1.4.196',
     'jacksonCore': 'com.fasterxml.jackson.core:jackson-core:2.9.7',
     'jacksonDataBind': 'com.fasterxml.jackson.core:jackson-databind:2.9.7',
