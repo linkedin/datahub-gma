@@ -331,6 +331,22 @@ public abstract class BaseEntityResource<
   }
 
   /**
+   * Deprecated to use {@link #ingestAssetSkipPreIngestionUpdates(RecordTemplate, IngestionParams)} instead.
+   * Same as {@link #ingestWithTracking(RecordTemplate, IngestionTrackingContext, IngestionParams)} but skips any pre-ingestion updates.
+   * @param snapshot Snapshot of the metadata change to be ingested
+   * @param trackingContext {@link IngestionTrackingContext} to 1) track DAO-level metrics and 2) to pass on to MAE emission
+   * @return ingest task
+   */
+  @Deprecated
+  @Action(name = ACTION_INGEST_SKIP_PRE_INGESTION_UPDATES)
+  @Nonnull
+  public Task<Void> ingestSkipPreIngestionUpdates(@ActionParam(PARAM_SNAPSHOT) @Nonnull SNAPSHOT snapshot,
+      @ActionParam(PARAM_TRACKING_CONTEXT) @Nonnull IngestionTrackingContext trackingContext,
+      @Optional @ActionParam(PARAM_INGESTION_PARAMS) IngestionParams ingestionParams) {
+    return ingestInternalSkipPreIngestionUpdates(snapshot, Collections.emptySet(), trackingContext, ingestionParams);
+  }
+
+  /**
    * An action method for automated ingestion pipeline.
    * @param asset Asset of the metadata change to be ingested
    * @return ingest task
@@ -340,6 +356,18 @@ public abstract class BaseEntityResource<
   public Task<Void> ingestAsset(@ActionParam(PARAM_ASSET) @Nonnull ASSET asset,
       @Optional @ActionParam(PARAM_INGESTION_PARAMS) IngestionParams ingestionParams) {
     return ingestInternalAsset(asset, Collections.emptySet(), ingestionParams);
+  }
+
+  /**
+   * An action method for automated ingestion pipeline which skips any pre-ingestion updates.
+   * @param asset Asset of the metadata change to be ingested
+   * @return ingest task
+   */
+  @Action(name = ACTION_INGEST_ASSET_SKIP_PRE_INGESTION_UPDATES)
+  @Nonnull
+  public Task<Void> ingestAssetSkipPreIngestionUpdates(@ActionParam(PARAM_ASSET) @Nonnull ASSET asset,
+      @Optional @ActionParam(PARAM_INGESTION_PARAMS) IngestionParams ingestionParams) {
+    return ingestInternalAssetSkipPreIngestionUpdates(asset, Collections.emptySet(), ingestionParams);
   }
 
   @Nonnull
@@ -359,6 +387,22 @@ public abstract class BaseEntityResource<
   }
 
   @Nonnull
+  protected Task<Void> ingestInternalSkipPreIngestionUpdates(@Nonnull SNAPSHOT snapshot,
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore, @Nullable IngestionTrackingContext trackingContext,
+      @Nullable IngestionParams ingestionParams) {
+    return RestliUtils.toTask(() -> {
+      final URN urn = (URN) ModelUtils.getUrnFromSnapshot(snapshot);
+      final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
+      ModelUtils.getAspectsFromSnapshot(snapshot).stream().forEach(aspect -> {
+        if (!aspectsToIgnore.contains(aspect.getClass())) {
+          getLocalDAO().addSkipPreIngestionUpdates(urn, aspect, auditStamp, trackingContext, ingestionParams);
+        }
+      });
+      return null;
+    });
+  }
+
+  @Nonnull
   protected Task<Void> ingestInternalAsset(@Nonnull ASSET asset,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore,
       @Nullable IngestionParams ingestionParams) {
@@ -370,6 +414,24 @@ public abstract class BaseEntityResource<
       ModelUtils.getAspectsFromAsset(asset).stream().forEach(aspect -> {
         if (!aspectsToIgnore.contains(aspect.getClass())) {
           getLocalDAO().add(urn, aspect, auditStamp, ingestionTrackingContext, ingestionParams);
+        }
+      });
+      return null;
+    });
+  }
+
+  @Nonnull
+  protected Task<Void> ingestInternalAssetSkipPreIngestionUpdates(@Nonnull ASSET asset,
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore,
+      @Nullable IngestionParams ingestionParams) {
+    return RestliUtils.toTask(() -> {
+      final URN urn = (URN) ModelUtils.getUrnFromAsset(asset);
+      final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
+      IngestionTrackingContext ingestionTrackingContext =
+          ingestionParams != null ? ingestionParams.getIngestionTrackingContext() : null;
+      ModelUtils.getAspectsFromAsset(asset).stream().forEach(aspect -> {
+        if (!aspectsToIgnore.contains(aspect.getClass())) {
+          getLocalDAO().addSkipPreIngestionUpdates(urn, aspect, auditStamp, ingestionTrackingContext, ingestionParams);
         }
       });
       return null;

@@ -349,6 +349,40 @@ public abstract class BaseAspectRoutingResource<
   }
 
   @Nonnull
+  protected Task<Void> ingestInternalSkipPreIngestionUpdates(@Nonnull SNAPSHOT snapshot,
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore, @Nullable IngestionTrackingContext trackingContext,
+      @Nullable IngestionParams ingestionParams) {
+    // TODO: META-18950: add trackingContext to BaseAspectRoutingResource. currently the param is unused.
+    return RestliUtils.toTask(() -> {
+      final URN urn = (URN) ModelUtils.getUrnFromSnapshot(snapshot);
+      final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
+      ModelUtils.getAspectsFromSnapshot(snapshot).forEach(aspect -> {
+        if (!aspectsToIgnore.contains(aspect.getClass())) {
+          if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
+            try {
+              if (trackingContext != null) {
+                getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingestWithTracking(urn, aspect, trackingContext, ingestionParams);
+              } else {
+                getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingest(urn, aspect);
+              }
+              // call a simple version of BaseLocalDAO::add which skips pre-update lambdas.
+              getLocalDAO().addSkipPreIngestionUpdates(urn, aspect, auditStamp, trackingContext, ingestionParams);
+            } catch (Exception exception) {
+              log.error(
+                  String.format("Couldn't ingest routing aspect %s for %s", aspect.getClass().getSimpleName(), urn),
+                  exception);
+            }
+          } else {
+            // call a simple version of BaseLocalDAO::add which skips pre-update lambdas.
+            getLocalDAO().addSkipPreIngestionUpdates(urn, aspect, auditStamp, trackingContext, ingestionParams);
+          }
+        }
+      });
+      return null;
+    });
+  }
+
+  @Nonnull
   @Override
   protected Task<Void> ingestInternalAsset(@Nonnull ASSET asset,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore,
@@ -391,6 +425,41 @@ public abstract class BaseAspectRoutingResource<
             }
           } else {
             getLocalDAO().add(urn, aspect, auditStamp, trackingContext, ingestionParams);
+          }
+        }
+      });
+      return null;
+    });
+  }
+
+  @Nonnull
+  protected Task<Void> ingestInternalAssetSkipPreIngestionUpdates(@Nonnull ASSET asset,
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore,
+      @Nullable IngestionParams ingestionParams) {
+    // TODO: META-18950: add trackingContext to BaseAspectRoutingResource. currently the param is unused.
+    return RestliUtils.toTask(() -> {
+      final URN urn = (URN) ModelUtils.getUrnFromAsset(asset);
+      final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
+      IngestionTrackingContext trackingContext =
+          ingestionParams != null ? ingestionParams.getIngestionTrackingContext() : null;
+      ModelUtils.getAspectsFromAsset(asset).forEach(aspect -> {
+        if (!aspectsToIgnore.contains(aspect.getClass())) {
+          if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
+            try {
+              if (trackingContext != null) {
+                getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass())
+                    .ingestWithTracking(urn, aspect, trackingContext, ingestionParams);
+              } else {
+                getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingest(urn, aspect);
+              }
+              // call a simple version of BaseLocalDAO::add which skips pre-update lambdas.
+              getLocalDAO().addSkipPreIngestionUpdates(urn, aspect, auditStamp, trackingContext, ingestionParams);
+            } catch (Exception exception) {
+              log.error("Couldn't ingest routing aspect {} for {}", aspect.getClass().getSimpleName(), urn, exception);
+            }
+          } else {
+            // call a simple version of BaseLocalDAO::add which skips pre-update lambdas.
+            getLocalDAO().addSkipPreIngestionUpdates(urn, aspect, auditStamp, trackingContext, ingestionParams);
           }
         }
       });

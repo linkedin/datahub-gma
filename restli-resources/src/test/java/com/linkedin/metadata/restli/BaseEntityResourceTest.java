@@ -1509,4 +1509,22 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     assertEquals(asset.getAspectFooBar(), fooBar);
     assertEquals(asset.getAspectAttributes(), attributes);
   }
+
+  @Test
+  public void testIngestSkipPreIngestionUpdates() {
+    FooUrn urn = makeFooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectBar bar = new AspectBar().setValue("bar");
+    List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, foo),
+        ModelUtils.newAspectUnion(EntityAspectUnion.class, bar));
+    EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
+
+    runAndWait(_resource.ingestSkipPreIngestionUpdates(snapshot, new IngestionTrackingContext(), null));
+
+    verify(_mockLocalDAO, times(0)).add(eq(urn), eq(foo), any(), any(), eq(null));
+    verify(_mockLocalDAO, times(1)).addSkipPreIngestionUpdates(eq(urn), eq(foo), any(), any(), eq(null));
+    verify(_mockLocalDAO, times(0)).add(eq(urn), eq(bar), any(), any(), eq(null));
+    verify(_mockLocalDAO, times(1)).addSkipPreIngestionUpdates(eq(urn), eq(bar), any(), any(), eq(null));
+    verifyNoMoreInteractions(_mockLocalDAO);
+  }
 }
