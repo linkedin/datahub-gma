@@ -216,7 +216,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     EntityValue value = runAndWait(_resource.get(makeResourceKey(urn), new String[]{AspectBar.class.getCanonicalName()}));
 
     assertFalse(value.hasFoo());
-    verifyZeroInteractions(_mockAspectFooGmsClient);
+    verifyNoInteractions(_mockAspectFooGmsClient);
 
     assertTrue(value.hasBar());
     assertEquals(value.getBar(), bar);
@@ -338,7 +338,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     runAndWait(_resource.ingest(snapshot));
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(null), eq(null));
-    verifyZeroInteractions(_mockAspectFooGmsClient);
+    verifyNoInteractions(_mockAspectFooGmsClient);
     verifyNoMoreInteractions(_mockLocalDAO);
   }
 
@@ -415,7 +415,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     assertEquals(snapshot.getUrn(), urn);
     assertEquals(aspects, ImmutableSet.of(foo, attributes));
-    verifyZeroInteractions(_mockLocalDAO);
+    verifyNoInteractions(_mockLocalDAO);
   }
 
   @Test
@@ -484,9 +484,9 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
         new String[]{AspectBar.class.getCanonicalName()}));
 
     assertEquals(backfillResult.getEntities().size(), 2);
-    verifyZeroInteractions(_mockAspectFooGmsClient);
+    verifyNoInteractions(_mockAspectFooGmsClient);
 
-    verifyZeroInteractions(_mockAspectBazGmsClient);
+    verifyNoInteractions(_mockAspectBazGmsClient);
   }
 
   @Test
@@ -548,7 +548,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
         new String[]{AspectBar.class.getCanonicalName(), AspectFoo.class.getCanonicalName()}));
 
     assertEquals(backfillResult.getEntities().size(), 2);
-    verifyZeroInteractions(_mockAspectFooGmsClient);
+    verifyNoInteractions(_mockAspectFooGmsClient);
   }
 
   @Test
