@@ -1,5 +1,5 @@
 buildscript {
-  ext.pegasusVersion = '29.56.1'
+  ext.pegasusVersion = '29.6.9'
   ext.junitJupiterVersion = '5.8.2'
 
   apply from: './repositories.gradle'
