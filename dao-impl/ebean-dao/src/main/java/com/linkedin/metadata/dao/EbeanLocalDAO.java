@@ -863,8 +863,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       _localAccess.add(urn, (ASPECT) value, aspectClass, auditStamp, trackingContext, isTestMode);
     }
 
-    if (_changeLogEnabled) {
-      // skip appending change log table (metadata_aspect) if not enabled
+    if (_changeLogEnabled && !isTestMode) {
+      // skip appending change log table (metadata_aspect) if not enabled and in test mode
       _server.insert(aspect);
     }
   }
