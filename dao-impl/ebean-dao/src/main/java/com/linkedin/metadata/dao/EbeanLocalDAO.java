@@ -863,8 +863,12 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       _localAccess.add(urn, (ASPECT) value, aspectClass, auditStamp, trackingContext, isTestMode);
     }
 
-    if (_changeLogEnabled) {
-      // skip appending change log table (metadata_aspect) if not enabled
+    // DO append change log table (metadata_aspect) if:
+    //   1. explicitly enabled
+    //   AND
+    //   2. if NOT in test mode
+    //      -> which is ALWAYS a dual-write operation (meaning this insertion will already happen in the "other" write)
+    if (_changeLogEnabled && !isTestMode) {
       _server.insert(aspect);
     }
   }
