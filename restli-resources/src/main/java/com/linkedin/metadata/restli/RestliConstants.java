@@ -25,7 +25,7 @@ public final class RestliConstants {
   public static final String ACTION_GET_SNAPSHOT = "getSnapshot";
   public static final String ACTION_INGEST = "ingest";
   public static final String ACTION_INGEST_ASSET = "ingestAsset";
-  public static final String ACTION_INGEST_ASSET_SKIP_PRE_INGESTION_UPDATES = "ingestAssetSkipPreIngestionUpdates";
+  public static final String ACTION_INGEST_ASSET_SKIP_PRE_UPDATES = "ingestAssetSkipPreUpdates";
   public static final String ACTION_INGEST_WITH_TRACKING = "ingestWithTracking";
   public static final String ACTION_INGEST_SKIP_PRE_INGESTION_UPDATES = "ingestSkipPreIngestionUpdates";
   public static final String ACTION_QUERY = "query";

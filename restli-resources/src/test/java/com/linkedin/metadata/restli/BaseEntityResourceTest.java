@@ -1522,9 +1522,9 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     runAndWait(_resource.ingestSkipPreIngestionUpdates(snapshot, new IngestionTrackingContext(), null));
 
     verify(_mockLocalDAO, times(0)).add(eq(urn), eq(foo), any(), any(), eq(null));
-    verify(_mockLocalDAO, times(1)).addSkipPreIngestionUpdates(eq(urn), eq(foo), any(), any(), eq(null));
+    verify(_mockLocalDAO, times(1)).addSkipPreUpdates(eq(urn), eq(foo), any(), any(), eq(null));
     verify(_mockLocalDAO, times(0)).add(eq(urn), eq(bar), any(), any(), eq(null));
-    verify(_mockLocalDAO, times(1)).addSkipPreIngestionUpdates(eq(urn), eq(bar), any(), any(), eq(null));
+    verify(_mockLocalDAO, times(1)).addSkipPreUpdates(eq(urn), eq(bar), any(), any(), eq(null));
     verifyNoMoreInteractions(_mockLocalDAO);
   }
 }

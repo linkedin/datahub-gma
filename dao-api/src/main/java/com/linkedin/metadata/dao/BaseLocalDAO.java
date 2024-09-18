@@ -853,7 +853,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext,
       @Nullable IngestionParams ingestionParams) {
     ASPECT updatedAspect = preUpdateRouting(urn, newValue);
-    return addSkipPreIngestionUpdates(urn, updatedAspect, auditStamp, trackingContext, ingestionParams);
+    return addSkipPreUpdates(urn, updatedAspect, auditStamp, trackingContext, ingestionParams);
   }
 
   /**
@@ -862,7 +862,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * Please use the regular add method linked above.
    */
   @Nonnull
-  public <ASPECT extends RecordTemplate> ASPECT addSkipPreIngestionUpdates(@Nonnull URN urn, @Nonnull ASPECT newValue,
+  public <ASPECT extends RecordTemplate> ASPECT addSkipPreUpdates(@Nonnull URN urn, @Nonnull ASPECT newValue,
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext,
       @Nullable IngestionParams ingestionParams) {
     final IngestionParams nonNullIngestionParams =
