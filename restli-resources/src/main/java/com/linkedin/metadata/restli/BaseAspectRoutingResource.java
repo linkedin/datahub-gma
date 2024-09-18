@@ -396,7 +396,7 @@ public abstract class BaseAspectRoutingResource<
   }
 
   /**
-   * Helper function to ingest an inspect either via routing or locally (or both). There is a flag that can be toggled
+   * Helper function to ingest an aspect either via routing or locally (or both). There is a flag that can be toggled
    * to indicate whether to execute pre-ingestion updates if they exist.
    * @param aspectsToIgnore set of aspect classes to ignore, if any
    * @param urn urn associated with the aspect to ingest
