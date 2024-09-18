@@ -395,8 +395,19 @@ public abstract class BaseAspectRoutingResource<
     });
   }
 
-  private void ingestAspect(Set<Class<? extends RecordTemplate>> aspectsToIgnore,
-      Urn urn, RecordTemplate aspect, IngestionTrackingContext trackingContext, IngestionParams ingestionParams, AuditStamp auditStamp,
+  /**
+   * Helper function to ingest an inspect either via routing or locally (or both). There is a flag that can be toggled
+   * to indicate whether to execute pre-ingestion updates if they exist.
+   * @param aspectsToIgnore set of aspect classes to ignore, if any
+   * @param urn urn associated with the aspect to ingest
+   * @param aspect aspect to ingest
+   * @param trackingContext context for tracking ingestion health
+   * @param ingestionParams optional ingestion parameters
+   * @param auditStamp audit information of the update
+   * @param skipPreIngestionUpdates flag to indicate whether to execute pre-ingestion updates
+   */
+  private void ingestAspect(Set<Class<? extends RecordTemplate>> aspectsToIgnore, Urn urn, RecordTemplate aspect,
+      IngestionTrackingContext trackingContext, IngestionParams ingestionParams, AuditStamp auditStamp,
       boolean skipPreIngestionUpdates) {
     if (!aspectsToIgnore.contains(aspect.getClass())) {
       if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
