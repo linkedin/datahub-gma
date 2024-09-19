@@ -306,7 +306,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     verify(_mockAspectFooGmsClient, times(1)).ingest(eq(urn), eq(foo));
     verify(_mockAspectAttributeGmsClient, times(1)).ingest(eq(urn), eq(attributes));
     verify(_mockLocalDAO, times(2)).getRestliPreUpdateAspectRegistry();
-    verify(_mockLocalDAO, times(1)).addSkipPreIngestionUpdates(eq(urn), eq(foo), any(), any(), any());
+    verify(_mockLocalDAO, times(1)).rawAdd(eq(urn), eq(foo), any(), any(), any());
   }
 
   @Test
@@ -326,7 +326,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     verify(_mockAspectFooGmsClient, times(1)).ingestWithTracking(eq(urn), eq(foo), eq(trackingContext), eq(null));
     verify(_mockAspectAttributeGmsClient, times(1)).ingestWithTracking(eq(urn), eq(attributes), eq(trackingContext), eq(null));
     verify(_mockLocalDAO, times(2)).getRestliPreUpdateAspectRegistry();
-    verify(_mockLocalDAO, times(1)).addSkipPreIngestionUpdates(eq(urn), eq(foo), any(), any(), any());
+    verify(_mockLocalDAO, times(1)).rawAdd(eq(urn), eq(foo), any(), any(), any());
   }
 
   @Test
@@ -354,7 +354,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     runAndWait(_resource.ingest(snapshot));
 
     verify(_mockLocalDAO, times(2)).getRestliPreUpdateAspectRegistry();
-    verify(_mockLocalDAO, times(1)).addSkipPreIngestionUpdates(eq(urn), eq(foo), any(), any(), any());
+    verify(_mockLocalDAO, times(1)).rawAdd(eq(urn), eq(foo), any(), any(), any());
     // verify(_mockGmsClient, times(1)).ingest(eq(urn), eq(foo));
     verify(_mockAspectFooGmsClient, times(1)).ingest(eq(urn), eq(foo));
     verify(_mockAspectAttributeGmsClient, times(1)).ingest(eq(urn), eq(attributes));
@@ -570,9 +570,9 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     AspectFoo foobar = new AspectFoo().setValue("foobar");
     // dual write pt1: ensure the ingestion request is forwarded to the routed GMS.
     verify(_mockAspectFooGmsClient, times(1)).ingest(eq(urn), eq(foobar));
-    // dual write pt2: ensure local write using addSkipPreIngestionUpdates() and not add().
+    // dual write pt2: ensure local write using rawAdd() and not add().
     verify(_mockLocalDAO, times(0)).add(any(), any(), any(), any(), any());
-    verify(_mockLocalDAO, times(1)).addSkipPreIngestionUpdates(eq(urn), eq(foobar), any(), any(), any());
+    verify(_mockLocalDAO, times(1)).rawAdd(eq(urn), eq(foobar), any(), any(), any());
   }
 
   @Test
@@ -589,9 +589,9 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     // expected: the aspect value remains unchanged and the aspect is dual-written.
     // dual write pt1: ensure the ingestion request is forwarded to the routed GMS.
     verify(_mockAspectFooGmsClient, times(1)).ingest(eq(urn), eq(foo));
-    // dual write pt2: ensure local write using addSkipPreIngestionUpdates() and not add().
+    // dual write pt2: ensure local write using rawAdd() and not add().
     verify(_mockLocalDAO, times(0)).add(any(), any(), any(), any(), any());
-    verify(_mockLocalDAO, times(1)).addSkipPreIngestionUpdates(eq(urn), eq(foo), any(), any(), any());
+    verify(_mockLocalDAO, times(1)).rawAdd(eq(urn), eq(foo), any(), any(), any());
   }
 
   @Test
@@ -679,7 +679,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     // Should check for pre lambda
     verify(_mockLocalDAO, times(1)).getRestliPreUpdateAspectRegistry();
     // Should continue to dual-write into local DAO
-    verify(_mockLocalDAO, times(1)).addSkipPreIngestionUpdates(eq(urn), eq(foo), any(), any(), any());
+    verify(_mockLocalDAO, times(1)).rawAdd(eq(urn), eq(foo), any(), any(), any());
     verifyNoMoreInteractions(_mockLocalDAO);
   }
 }

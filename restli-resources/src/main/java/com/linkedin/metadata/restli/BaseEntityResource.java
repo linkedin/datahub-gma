@@ -331,7 +331,23 @@ public abstract class BaseEntityResource<
   }
 
   /**
-   * An action method for automated ingestion pipeline.
+   * Deprecated to use {@link #rawIngestAsset(RecordTemplate, IngestionParams)} instead.
+   * Same as {@link #ingestWithTracking(RecordTemplate, IngestionTrackingContext, IngestionParams)} but skips any pre-ingestion updates.
+   * @param snapshot Snapshot of the metadata change to be ingested
+   * @param trackingContext {@link IngestionTrackingContext} to 1) track DAO-level metrics and 2) to pass on to MAE emission
+   * @return ingest task
+   */
+  @Deprecated
+  @Action(name = ACTION_RAW_INGEST)
+  @Nonnull
+  public Task<Void> rawIngest(@ActionParam(PARAM_SNAPSHOT) @Nonnull SNAPSHOT snapshot,
+      @ActionParam(PARAM_TRACKING_CONTEXT) @Nonnull IngestionTrackingContext trackingContext,
+      @Optional @ActionParam(PARAM_INGESTION_PARAMS) IngestionParams ingestionParams) {
+    return rawIngestInternal(snapshot, Collections.emptySet(), trackingContext, ingestionParams);
+  }
+
+  /**
+   * An action method for automated ingestion pipeline, also called high-level write.
    * @param asset Asset of the metadata change to be ingested
    * @return ingest task
    */
@@ -342,6 +358,26 @@ public abstract class BaseEntityResource<
     return ingestInternalAsset(asset, Collections.emptySet(), ingestionParams);
   }
 
+  /**
+   * An action method for automated ingestion pipeline which skips any pre-ingestion updates, also called low-level write.
+   * @param asset Asset of the metadata change to be ingested
+   * @return ingest task
+   */
+  @Action(name = ACTION_RAW_INGEST_ASSET)
+  @Nonnull
+  public Task<Void> rawIngestAsset(@ActionParam(PARAM_ASSET) @Nonnull ASSET asset,
+      @Optional @ActionParam(PARAM_INGESTION_PARAMS) IngestionParams ingestionParams) {
+    return rawIngestAssetInternal(asset, Collections.emptySet(), ingestionParams);
+  }
+
+  /**
+   * Internal ingest method for snapshots. First execute any pre-ingestion updates. Then, save the aspect locally.
+   * @param snapshot snapshot to process
+   * @param aspectsToIgnore aspects to ignore
+   * @param trackingContext context for tracking ingestion health
+   * @param ingestionParams optional ingestion parameters
+   * @return Restli Task for metadata ingestion
+   */
   @Nonnull
   protected Task<Void> ingestInternal(@Nonnull SNAPSHOT snapshot,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore, @Nullable IngestionTrackingContext trackingContext,
@@ -358,6 +394,37 @@ public abstract class BaseEntityResource<
     });
   }
 
+  /**
+   * Raw internal ingest method for snapshots which skips any pre-, intra-, or post-processing. Save the aspect locally.
+   * @param snapshot snapshot to process
+   * @param aspectsToIgnore aspects to ignore
+   * @param trackingContext context for tracking ingestion health
+   * @param ingestionParams optional ingestion parameters
+   * @return Restli Task for metadata ingestion
+   */
+  @Nonnull
+  protected Task<Void> rawIngestInternal(@Nonnull SNAPSHOT snapshot,
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore, @Nullable IngestionTrackingContext trackingContext,
+      @Nullable IngestionParams ingestionParams) {
+    return RestliUtils.toTask(() -> {
+      final URN urn = (URN) ModelUtils.getUrnFromSnapshot(snapshot);
+      final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
+      ModelUtils.getAspectsFromSnapshot(snapshot).stream().forEach(aspect -> {
+        if (!aspectsToIgnore.contains(aspect.getClass())) {
+          getLocalDAO().rawAdd(urn, aspect, auditStamp, trackingContext, ingestionParams);
+        }
+      });
+      return null;
+    });
+  }
+
+  /**
+   * Internal ingest method for assets. First execute any pre-ingestion updates. Then, save the aspect locally.
+   * @param asset asset to process
+   * @param aspectsToIgnore aspects to ignore
+   * @param ingestionParams optional ingestion parameters
+   * @return Restli Task for metadata ingestion
+   */
   @Nonnull
   protected Task<Void> ingestInternalAsset(@Nonnull ASSET asset,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore,
@@ -370,6 +437,31 @@ public abstract class BaseEntityResource<
       ModelUtils.getAspectsFromAsset(asset).stream().forEach(aspect -> {
         if (!aspectsToIgnore.contains(aspect.getClass())) {
           getLocalDAO().add(urn, aspect, auditStamp, ingestionTrackingContext, ingestionParams);
+        }
+      });
+      return null;
+    });
+  }
+
+  /**
+   * Raw internal ingest method for assets which skips any pre-, intra-, or post-processing. Save the aspect locally.
+   * @param asset asset to process
+   * @param aspectsToIgnore aspects to ignore
+   * @param ingestionParams optional ingestion parameters
+   * @return Restli Task for metadata ingestion
+   */
+  @Nonnull
+  protected Task<Void> rawIngestAssetInternal(@Nonnull ASSET asset,
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore,
+      @Nullable IngestionParams ingestionParams) {
+    return RestliUtils.toTask(() -> {
+      final URN urn = (URN) ModelUtils.getUrnFromAsset(asset);
+      final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
+      IngestionTrackingContext ingestionTrackingContext =
+          ingestionParams != null ? ingestionParams.getIngestionTrackingContext() : null;
+      ModelUtils.getAspectsFromAsset(asset).stream().forEach(aspect -> {
+        if (!aspectsToIgnore.contains(aspect.getClass())) {
+          getLocalDAO().rawAdd(urn, aspect, auditStamp, ingestionTrackingContext, ingestionParams);
         }
       });
       return null;
