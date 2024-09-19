@@ -1511,7 +1511,7 @@ public class BaseEntityResourceTest extends BaseEngineTest {
   }
 
   @Test
-  public void testIngestSkipPreIngestionUpdates() {
+  public void testRawIngestSkipPreIngestionUpdates() {
     FooUrn urn = makeFooUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");
     AspectBar bar = new AspectBar().setValue("bar");

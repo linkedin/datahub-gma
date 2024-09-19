@@ -570,7 +570,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     AspectFoo foobar = new AspectFoo().setValue("foobar");
     // dual write pt1: ensure the ingestion request is forwarded to the routed GMS.
     verify(_mockAspectFooGmsClient, times(1)).ingest(eq(urn), eq(foobar));
-    // dual write pt2: ensure local write using addSkipPreIngestionUpdates() and not add().
+    // dual write pt2: ensure local write using rawAdd() and not add().
     verify(_mockLocalDAO, times(0)).add(any(), any(), any(), any(), any());
     verify(_mockLocalDAO, times(1)).rawAdd(eq(urn), eq(foobar), any(), any(), any());
   }
@@ -589,7 +589,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     // expected: the aspect value remains unchanged and the aspect is dual-written.
     // dual write pt1: ensure the ingestion request is forwarded to the routed GMS.
     verify(_mockAspectFooGmsClient, times(1)).ingest(eq(urn), eq(foo));
-    // dual write pt2: ensure local write using addSkipPreIngestionUpdates() and not add().
+    // dual write pt2: ensure local write using rawAdd() and not add().
     verify(_mockLocalDAO, times(0)).add(any(), any(), any(), any(), any());
     verify(_mockLocalDAO, times(1)).rawAdd(eq(urn), eq(foo), any(), any(), any());
   }
