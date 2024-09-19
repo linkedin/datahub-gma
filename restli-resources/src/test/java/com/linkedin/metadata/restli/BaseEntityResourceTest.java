@@ -1519,12 +1519,12 @@ public class BaseEntityResourceTest extends BaseEngineTest {
         ModelUtils.newAspectUnion(EntityAspectUnion.class, bar));
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
 
-    runAndWait(_resource.ingestSkipPreIngestionUpdates(snapshot, new IngestionTrackingContext(), null));
+    runAndWait(_resource.rawIngest(snapshot, new IngestionTrackingContext(), null));
 
     verify(_mockLocalDAO, times(0)).add(eq(urn), eq(foo), any(), any(), eq(null));
-    verify(_mockLocalDAO, times(1)).addSkipPreUpdates(eq(urn), eq(foo), any(), any(), eq(null));
+    verify(_mockLocalDAO, times(1)).rawAdd(eq(urn), eq(foo), any(), any(), eq(null));
     verify(_mockLocalDAO, times(0)).add(eq(urn), eq(bar), any(), any(), eq(null));
-    verify(_mockLocalDAO, times(1)).addSkipPreUpdates(eq(urn), eq(bar), any(), any(), eq(null));
+    verify(_mockLocalDAO, times(1)).rawAdd(eq(urn), eq(bar), any(), any(), eq(null));
     verifyNoMoreInteractions(_mockLocalDAO);
   }
 }

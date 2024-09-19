@@ -324,8 +324,9 @@ public abstract class BaseAspectRoutingResource<
   }
 
   /**
-   * Internal ingest method for snapshots which skips any pre-ingestion updates. Route any aspects which have a registered routing
-   * GMS client to the respective GMS for ingestion. Finally, continue to save the aspect locally as well (i.e. dual write)
+   * Raw internal ingest method for snapshots which skips any pre-, intra-, or post-processing. Route any aspects which
+   * have a registered routing GMS client to the respective GMS for ingestion. Finally, continue to save the aspect
+   * locally as well (i.e. dual write)
    * @param snapshot snapshot to process
    * @param aspectsToIgnore aspects to ignore
    * @param trackingContext context for tracking ingestion health
@@ -333,7 +334,7 @@ public abstract class BaseAspectRoutingResource<
    * @return Restli Task for metadata ingestion
    */
   @Nonnull
-  protected Task<Void> ingestInternalSkipPreUpdates(@Nonnull SNAPSHOT snapshot,
+  protected Task<Void> rawIngestInternal(@Nonnull SNAPSHOT snapshot,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore, @Nullable IngestionTrackingContext trackingContext,
       @Nullable IngestionParams ingestionParams) {
     // TODO: META-18950: add trackingContext to BaseAspectRoutingResource. currently the param is unused.
@@ -372,15 +373,16 @@ public abstract class BaseAspectRoutingResource<
   }
 
   /**
-   * Internal ingest method for assets which skips any pre-ingestion updates. Route any aspects which have a registered routing
-   * GMS client to the respective GMS for ingestion. Finally, continue to save the aspect locally as well (i.e. dual write)
+   * Raw internal ingest method for assets which skips any pre-, intra-, or post-processing. Route any aspects which
+   * have a registered routing GMS client to the respective GMS for ingestion. Finally, continue to save the aspect
+   * locally as well (i.e. dual write)
    * @param asset asset to process
    * @param aspectsToIgnore aspects to ignore
    * @param ingestionParams optional ingestion parameters
    * @return Restli Task for metadata ingestion
    */
   @Nonnull
-  protected Task<Void> ingestInternalAssetSkipPreUpdates(@Nonnull ASSET asset,
+  protected Task<Void> rawIngestInternalAsset(@Nonnull ASSET asset,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore,
       @Nullable IngestionParams ingestionParams) {
     // TODO: META-18950: add trackingContext to BaseAspectRoutingResource. currently the param is unused.
@@ -397,24 +399,24 @@ public abstract class BaseAspectRoutingResource<
 
   /**
    * Helper function to ingest an aspect either via routing or locally (or both). There is a flag that can be toggled
-   * to indicate whether to execute pre-ingestion updates if they exist.
+   * to indicate whether to execute pre-, intra-, or post-ingestion updates if they exist.
    * @param aspectsToIgnore set of aspect classes to ignore, if any
    * @param urn urn associated with the aspect to ingest
    * @param aspect aspect to ingest
    * @param trackingContext context for tracking ingestion health
    * @param ingestionParams optional ingestion parameters
    * @param auditStamp audit information of the update
-   * @param skipPreIngestionUpdates flag to indicate whether to execute pre-ingestion updates
+   * @param skipExtraProcessing flag to indicate whether to execute pre-, intra-, or post-ingestion updates
    */
   private void ingestAspect(Set<Class<? extends RecordTemplate>> aspectsToIgnore, Urn urn, RecordTemplate aspect,
       IngestionTrackingContext trackingContext, IngestionParams ingestionParams, AuditStamp auditStamp,
-      boolean skipPreIngestionUpdates) {
+      boolean skipExtraProcessing) {
     if (!aspectsToIgnore.contains(aspect.getClass())) {
       if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
         try {
           // get the updated aspect if there is a preupdate routing lambda registered
           RestliPreUpdateAspectRegistry registry = getLocalDAO().getRestliPreUpdateAspectRegistry();
-          if (!skipPreIngestionUpdates && registry != null && registry.isRegistered(aspect.getClass())) {
+          if (!skipExtraProcessing && registry != null && registry.isRegistered(aspect.getClass())) {
             log.info(String.format("Executing registered pre-update routing lambda for aspect class %s.", aspect.getClass()));
             aspect = preUpdateRouting((URN) urn, aspect, registry);
             log.info("PreUpdateRouting completed in ingestInternalAsset, urn: {}, updated aspect: {}", urn, aspect);
@@ -433,16 +435,16 @@ public abstract class BaseAspectRoutingResource<
             getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingest(urn, aspect);
           }
           // here, always call a simple version of BaseLocalDAO::add which skips pre-update lambdas regardless of
-          // the value of param skipPreIngestionUpdates since any pre-update lambdas would have already been executed
+          // the value of param skipExtraProcessing since any pre-update lambdas would have already been executed
           // in the code above.
-          getLocalDAO().addSkipPreUpdates((URN) urn, aspect, auditStamp, trackingContext, ingestionParams);
+          getLocalDAO().rawAdd((URN) urn, aspect, auditStamp, trackingContext, ingestionParams);
         } catch (Exception exception) {
           log.error("Couldn't ingest routing aspect {} for {}", aspect.getClass().getSimpleName(), urn, exception);
         }
       } else {
-        if (skipPreIngestionUpdates) {
+        if (skipExtraProcessing) {
           // call a simple version of BaseLocalDAO::add which skips pre-update lambdas.
-          getLocalDAO().addSkipPreUpdates((URN) urn, aspect, auditStamp, trackingContext, ingestionParams);
+          getLocalDAO().rawAdd((URN) urn, aspect, auditStamp, trackingContext, ingestionParams);
         } else {
           getLocalDAO().add((URN) urn, aspect, auditStamp, trackingContext, ingestionParams);
         }
