@@ -8,13 +8,16 @@ import com.linkedin.metadata.aspect.AspectColumnMetadata;
 import com.linkedin.metadata.dao.exception.MissingAnnotationException;
 import java.util.Map;
 import javax.annotation.Nonnull;
+import lombok.extern.slf4j.Slf4j;
+
+import static com.linkedin.metadata.dao.utils.SQLStatementUtils.*;
 
 
 /**
  * Generate schema related SQL script, such as normalized table / column names ..etc
  */
+@Slf4j
 public class SQLSchemaUtils {
-
   private static final String GMA = "gma";
   public static final String ENTITY_TABLE_PREFIX = "metadata_entity_";
   public static final String RELATIONSHIP_TABLE_PREFIX = "metadata_relationship_";
@@ -23,6 +26,17 @@ public class SQLSchemaUtils {
   public static final String INDEX_PREFIX = "i_";
 
   private static final int MYSQL_MAX_COLUMN_NAME_LENGTH = 64 - ASPECT_PREFIX.length();
+
+  /**
+   * This field is used when asset field in {@link com.linkedin.metadata.query.AspectField} is not provided in the
+   * legacy implementation. When this is field is set, the getColumnNameFromAnnotation() will retrieve
+   * "column" from the "column" annotation from the Aspect. However, the going forward way is to retrieve "column"
+   * information from aspect alias defined in the asset.
+   *
+   * <p>For more context, see: Decision - Using Proto Field Name as Aspect URI
+   * https://docs.google.com/document/d/1eqSYTf9jgUx5w0x_IBGfochF1H9A65TCiqI6fEMu1OY/edit#heading=h.932rva5dqbdh
+   */
+  protected static final String UNKNOWN_ASSET = "UNKNOWN_ASSET";
 
   private SQLSchemaUtils() {
   }
@@ -113,8 +127,8 @@ public class SQLSchemaUtils {
    * Get column name from aspect class canonical name.
    */
   @Nonnull
-  public static String getAspectColumnName(@Nonnull final String aspectCanonicalName) {
-    return ASPECT_PREFIX + getColumnNameFromAnnotation(aspectCanonicalName);
+  public static String getAspectColumnName(@Nonnull final String entityType, @Nonnull final String aspectCanonicalName) {
+    return ASPECT_PREFIX + getColumnNameFromAnnotation(entityType, aspectCanonicalName);
   }
 
   /**
@@ -123,21 +137,26 @@ public class SQLSchemaUtils {
    * @param <ASPECT> aspect that extends {@link RecordTemplate}
    * @return aspect column name
    */
-  public static <ASPECT extends RecordTemplate> String getAspectColumnName(@Nonnull Class<ASPECT> aspectClass) {
-    return getAspectColumnName(aspectClass.getCanonicalName());
+  public static <ASPECT extends RecordTemplate> String getAspectColumnName(@Nonnull final String entityType,
+      @Nonnull Class<ASPECT> aspectClass) {
+    return getAspectColumnName(entityType, aspectClass.getCanonicalName());
   }
 
   /**
    * Get generated column name from aspect and path.
    */
   @Nonnull
-  public static String getGeneratedColumnName(@Nonnull String aspect, @Nonnull String path, boolean nonDollarVirtualColumnsEnabled) {
+  public static String getGeneratedColumnName(@Nonnull String assetType, @Nonnull String aspect, @Nonnull String path,
+      boolean nonDollarVirtualColumnsEnabled) {
     char delimiter = nonDollarVirtualColumnsEnabled ? '0' : '$';
     if (isUrn(aspect)) {
       return INDEX_PREFIX + "urn" + processPath(path, delimiter);
     }
-
-    return INDEX_PREFIX + getColumnNameFromAnnotation(aspect) + processPath(path, delimiter);
+    if (UNKNOWN_ASSET.equals(assetType)) {
+      log.warn("query with unknown asset type. aspect =  {}, path ={}, delimiter = {}", aspect, path,
+          nonDollarVirtualColumnsEnabled);
+    }
+    return INDEX_PREFIX + getColumnNameFromAnnotation(assetType, aspect) + processPath(path, delimiter);
   }
 
   /**
@@ -165,11 +184,13 @@ public class SQLSchemaUtils {
   /**
    * Get Column name from aspect canonical name.
    *
+   * @param assetType entity type from Urn definition.
    * @param aspectCanonicalName aspect name in canonical form.
    * @return aspect column name
    */
   @Nonnull
-  private static String getColumnNameFromAnnotation(@Nonnull final String aspectCanonicalName) {
+  private static String getColumnNameFromAnnotation(@Nonnull final String assetType, @Nonnull final String aspectCanonicalName) {
+    // TODO(yanyang) implement a map of (assetType, aspectClass) --> aspect_alias (column)
     try {
       final RecordDataSchema schema = (RecordDataSchema) DataTemplateUtil.getSchema(ClassUtils.loadClass(aspectCanonicalName));
       final Map<String, Object> properties = schema.getProperties();

@@ -3,6 +3,11 @@ namespace com.linkedin.metadata.query
 record AspectField {
 
   /**
+   * Asset type (entityType)
+   */
+  asset: string
+
+  /**
    * FQCN of the aspect class e.g. com.linkedin.common.Status
    */
   aspect: string
