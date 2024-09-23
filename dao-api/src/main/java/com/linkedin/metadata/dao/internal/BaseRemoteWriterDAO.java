@@ -38,6 +38,18 @@ public abstract class BaseRemoteWriterDAO {
 
 
   /**
+   * Same as {@link #createWithTracking(Urn, RecordTemplate, IngestionTrackingContext, IngestionParams)}
+   * but a raw create request, which skips any pre-, intra-, and post-ingestion updates.
+   * @param urn the {@link Urn} for the entity
+   * @param snapshot the snapshot containing updated metadata aspects
+   * @param trackingContext {@link IngestionTrackingContext} to use for DAO tracking probes and to pass on to the MAE
+   * @param ingestionParams {@link IngestionParams} which indicates how the aspect should be ingested
+   * @param <URN> must be the entity URN type in {@code SNAPSHOT}
+   */
+  abstract public <URN extends Urn> void rawCreate(@Nonnull URN urn, @Nonnull RecordTemplate snapshot,
+      @Nonnull IngestionTrackingContext trackingContext, @Nullable IngestionParams ingestionParams);
+
+  /**
    * Same as {@link #createWithTracking(Urn, RecordTemplate, IngestionTrackingContext, IngestionParams)} but create Assets instead.
    * @param urn the {@link Urn} for the asset
    * @param asset the asset containing updated metadata aspects
@@ -45,5 +57,16 @@ public abstract class BaseRemoteWriterDAO {
    * @param <URN> must be the entity URN type in {@code ASSET}
    */
   abstract public <URN extends Urn> void createAsset(@Nonnull URN urn, @Nonnull RecordTemplate asset,
+      @Nullable IngestionParams ingestionParams);
+
+  /**
+   * Same as {@link #createAsset(Urn, RecordTemplate, IngestionParams)} but a raw create request,
+   * which skips any pre-, intra-, and post-ingestion updates.
+   * @param urn the {@link Urn} for the asset
+   * @param asset the asset containing updated metadata aspects
+   * @param ingestionParams {@link IngestionParams} which indicates how the aspect should be ingested
+   * @param <URN> must be the entity URN type in {@code ASSET}
+   */
+  abstract public <URN extends Urn> void rawCreateAsset(@Nonnull URN urn, @Nonnull RecordTemplate asset,
       @Nullable IngestionParams ingestionParams);
 }
