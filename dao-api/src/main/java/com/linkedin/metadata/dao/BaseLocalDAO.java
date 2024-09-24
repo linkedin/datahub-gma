@@ -687,8 +687,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     if (_emitAspectSpecificAuditEvent) {
       if (_alwaysEmitAspectSpecificAuditEvent || !oldAndNewEqual) {
         if (_trackingProducer != null) {
-          _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, auditStamp, trackingContext,
-              IngestionMode.LIVE);
+          _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, auditStamp,
+              trackingContext, IngestionMode.LIVE);
         } else {
           _producer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, auditStamp, IngestionMode.LIVE);
         }
@@ -767,15 +767,16 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nonnull AuditStamp auditStamp, int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext) {
     final Class<ASPECT> aspectClass = updateLambda.getAspectClass();
     checkValidAspect(aspectClass);
-    // dual-write to test table while test mode is enabled.
-    if (updateLambda.getIngestionParams().isTestMode()) {
-      runInTransactionWithRetry(() -> aspectUpdateHelper(urn, updateLambda, auditStamp, trackingContext),
-          maxTransactionRetry);
-    }
-    final AddResult<ASPECT> result = runInTransactionWithRetry(() -> aspectUpdateHelper(urn,
-        new AspectUpdateLambda<>(aspectClass, updateLambda.getUpdateLambda(),
-            updateLambda.getIngestionParams().setTestMode(false)), auditStamp, trackingContext), maxTransactionRetry);
-    return unwrapAddResult(urn, result, auditStamp, trackingContext);
+
+    // default test mode is false being set in
+    // {@link #rawAdd(Urn, RecordTemplate, AuditStamp, IngestionTrackingContext, IngestionParams)}}
+    final AddResult<ASPECT> result =
+        runInTransactionWithRetry(() -> aspectUpdateHelper(urn, updateLambda, auditStamp, trackingContext),
+            maxTransactionRetry);
+
+    // skip MAE producing and post update hook in test mode
+    return updateLambda.getIngestionParams().isTestMode() ? result.newValue
+        : unwrapAddResult(urn, result, auditStamp, trackingContext);
   }
 
   /**
