@@ -339,43 +339,20 @@ public class EbeanLocalDAOTest {
   @Test
   public void testAddOneInTestMode() {
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY && !_enableChangeLog) {
-      Clock mockClock = mock(Clock.class);
-      when(mockClock.millis()).thenReturn(_now);
       EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
-      dao.setClock(mockClock);
       FooUrn urn = makeFooUrn(1);
-      String aspectName = ModelUtils.getAspectName(AspectFoo.class);
-      AspectFoo expected = new AspectFoo().setValue("foo");
-      Urn actor = Urns.createFromTypeSpecificString("test", "actor");
-      Urn impersonator = Urns.createFromTypeSpecificString("test", "impersonator");
+      AspectFoo foo = new AspectFoo().setValue("foo");
+      IngestionParams ingestionParams = new IngestionParams().setTestMode(true);
+      dao.setAlwaysEmitAuditEvent(false);
+      dao.setAlwaysEmitAspectSpecificAuditEvent(false);
 
-      dao.add(urn, expected, makeAuditStamp(actor, impersonator, _now), null, new IngestionParams().setTestMode(true));
+      dao.add(urn, foo, _dummyAuditStamp, null, ingestionParams);
 
-      EbeanMetadataAspect aspectTest = getTestMetadata(urn, aspectName, 0);
-
-      assertNotNull(aspectTest);
-      assertEquals(aspectTest.getKey().getUrn(), urn.toString());
-      assertEquals(aspectTest.getKey().getAspect(), aspectName);
-      assertEquals(aspectTest.getKey().getVersion(), 0);
-      assertEquals(aspectTest.getCreatedOn(), new Timestamp(_now));
-      assertEquals(aspectTest.getCreatedBy(), "urn:li:test:actor");
-
-      AspectFoo actualTest = RecordUtils.toRecordTemplate(AspectFoo.class, aspectTest.getMetadata());
-      assertEquals(actualTest, expected);
-
-      EbeanMetadataAspect aspect = getMetadata(urn, aspectName, 0);
-
-      assertNotNull(aspect);
-      assertEquals(aspect.getKey().getUrn(), urn.toString());
-      assertEquals(aspect.getKey().getAspect(), aspectName);
-      assertEquals(aspect.getKey().getVersion(), 0);
-      assertEquals(aspect.getCreatedOn(), new Timestamp(_now));
-      assertEquals(aspect.getCreatedBy(), "urn:li:test:actor");
-
-      AspectFoo actual = RecordUtils.toRecordTemplate(AspectFoo.class, aspect.getMetadata());
-      assertEquals(actual, expected);
-      verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, expected);
+      // no MAE should be emitted in test mode
       verifyNoMoreInteractions(_mockProducer);
+
+      BaseLocalDAO.AspectEntry<AspectFoo> aspectEntry = dao.getLatest(urn, AspectFoo.class, true);
+      assertEquals(aspectEntry.getAspect().getValue(), "foo");
     }
   }
 
@@ -404,6 +381,30 @@ public class EbeanLocalDAOTest {
     inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, v1);
     inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, v1, v0);
     verifyNoMoreInteractions(_mockProducer);
+  }
+
+  @Test
+  public void testAddTwoInTestMode() throws URISyntaxException {
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY && !_enableChangeLog) {
+      EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+      FooUrn urn = makeFooUrn(1);
+      AspectFoo foo = new AspectFoo().setValue("foo");
+      AspectBar bar = new AspectBar().setValue("bar");
+      IngestionParams ingestionParams = new IngestionParams().setTestMode(true);
+      dao.setAlwaysEmitAuditEvent(false);
+      dao.setAlwaysEmitAspectSpecificAuditEvent(false);
+
+      dao.add(urn, foo, _dummyAuditStamp, null, ingestionParams);
+      dao.add(urn, bar, _dummyAuditStamp, null, ingestionParams);
+
+      // no MAE should be emitted in test mode
+      verifyNoMoreInteractions(_mockProducer);
+
+      BaseLocalDAO.AspectEntry<AspectFoo> aspectFooEntry = dao.getLatest(urn, AspectFoo.class, true);
+      assertEquals(aspectFooEntry.getAspect().getValue(), "foo");
+      BaseLocalDAO.AspectEntry<AspectBar> aspectBarEntry = dao.getLatest(urn, AspectBar.class, true);
+      assertEquals(aspectBarEntry.getAspect().getValue(), "bar");
+    }
   }
 
   @Test

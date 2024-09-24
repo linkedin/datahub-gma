@@ -648,12 +648,12 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   private <ASPECT extends RecordTemplate> ASPECT_UNION unwrapAddResultToUnion(URN urn, AddResult<ASPECT> result,
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext) {
-    ASPECT rawResult = unwrapAddResult(urn, result, auditStamp, trackingContext);
+    ASPECT rawResult = unwrapAddResult(urn, result, auditStamp, trackingContext, false);
     return ModelUtils.newEntityUnion(_aspectUnionClass, rawResult);
   }
 
   private <ASPECT extends RecordTemplate> ASPECT unwrapAddResult(URN urn, AddResult<ASPECT> result, @Nonnull AuditStamp auditStamp,
-      @Nullable IngestionTrackingContext trackingContext) {
+      @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
     if (trackingContext != null) {
       trackingContext.setBackfill(false); // reset backfill since MAE won't be a backfill event
     }
@@ -670,27 +670,30 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       _aspectPostUpdateHooksMap.get(aspectClass).forEach(hook -> hook.accept(urn, newValue));
     }
 
-    // Produce MAE after a successful update
-    if (_emitAuditEvent) {
-      // https://jira01.corp.linkedin.com:8443/browse/APA-80115
-      if (_alwaysEmitAuditEvent || !oldAndNewEqual) {
-        if (_trackingProducer != null) {
-          _trackingProducer.produceMetadataAuditEvent(urn, oldValue, newValue);
-        } else {
-          _producer.produceMetadataAuditEvent(urn, oldValue, newValue);
+    // Skip producing MAE in test mode
+    if (!isTestMode) {
+      // Produce MAE after a successful update
+      if (_emitAuditEvent) {
+        // https://jira01.corp.linkedin.com:8443/browse/APA-80115
+        if (_alwaysEmitAuditEvent || !oldAndNewEqual) {
+          if (_trackingProducer != null) {
+            _trackingProducer.produceMetadataAuditEvent(urn, oldValue, newValue);
+          } else {
+            _producer.produceMetadataAuditEvent(urn, oldValue, newValue);
+          }
         }
       }
-    }
 
-    // TODO: Replace the previous step with the step below, after pipeline is fully migrated to aspect specific events.
-    // Produce aspect specific MAE after a successful update
-    if (_emitAspectSpecificAuditEvent) {
-      if (_alwaysEmitAspectSpecificAuditEvent || !oldAndNewEqual) {
-        if (_trackingProducer != null) {
-          _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, auditStamp, trackingContext,
-              IngestionMode.LIVE);
-        } else {
-          _producer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, auditStamp, IngestionMode.LIVE);
+      // TODO: Replace the previous step with the step below, after pipeline is fully migrated to aspect specific events.
+      // Produce aspect specific MAE after a successful update
+      if (_emitAspectSpecificAuditEvent) {
+        if (_alwaysEmitAspectSpecificAuditEvent || !oldAndNewEqual) {
+          if (_trackingProducer != null) {
+            _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, auditStamp,
+                trackingContext, IngestionMode.LIVE);
+          } else {
+            _producer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, auditStamp, IngestionMode.LIVE);
+          }
         }
       }
     }
@@ -774,7 +777,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
         runInTransactionWithRetry(() -> aspectUpdateHelper(urn, updateLambda, auditStamp, trackingContext),
             maxTransactionRetry);
 
-    return unwrapAddResult(urn, result, auditStamp, trackingContext);
+    return unwrapAddResult(urn, result, auditStamp, trackingContext, updateLambda.getIngestionParams().isTestMode());
   }
 
   /**
