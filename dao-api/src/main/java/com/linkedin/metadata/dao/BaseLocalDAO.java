@@ -767,14 +767,13 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nonnull AuditStamp auditStamp, int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext) {
     final Class<ASPECT> aspectClass = updateLambda.getAspectClass();
     checkValidAspect(aspectClass);
-    // dual-write to test table while test mode is enabled.
-    if (updateLambda.getIngestionParams().isTestMode()) {
-      runInTransactionWithRetry(() -> aspectUpdateHelper(urn, updateLambda, auditStamp, trackingContext),
-          maxTransactionRetry);
-    }
-    final AddResult<ASPECT> result = runInTransactionWithRetry(() -> aspectUpdateHelper(urn,
-        new AspectUpdateLambda<>(aspectClass, updateLambda.getUpdateLambda(),
-            updateLambda.getIngestionParams().setTestMode(false)), auditStamp, trackingContext), maxTransactionRetry);
+
+    // default test mode is false being set in
+    // {@link #rawAdd(Urn, RecordTemplate, AuditStamp, IngestionTrackingContext, IngestionParams)}}
+    final AddResult<ASPECT> result =
+        runInTransactionWithRetry(() -> aspectUpdateHelper(urn, updateLambda, auditStamp, trackingContext),
+            maxTransactionRetry);
+
     return unwrapAddResult(urn, result, auditStamp, trackingContext);
   }
 
