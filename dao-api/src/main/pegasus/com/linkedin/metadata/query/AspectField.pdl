@@ -3,7 +3,10 @@ namespace com.linkedin.metadata.query
 record AspectField {
 
   /**
-   * Asset type (entityType)
+   * Asset type (entityType) this aspect belongs to. When running a query filtered by an aspect field (aspect alias),
+   * depends on which asset this aspect belongs to, the field (aspect alias) can be different. For more context, check
+   * the decision on aspect alias: go/mg/aspect-alias-decision. The underlying logic requires asset type information
+   * to query on the right target. e.g. DB column name, which is from the aspect-alias defined on Asset.
    */
   asset: string
 

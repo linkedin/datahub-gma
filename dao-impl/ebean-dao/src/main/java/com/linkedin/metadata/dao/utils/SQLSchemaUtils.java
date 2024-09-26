@@ -34,7 +34,7 @@ public class SQLSchemaUtils {
    * information from aspect alias defined in the asset.
    *
    * <p>For more context, see: Decision - Using Proto Field Name as Aspect URI
-   * https://docs.google.com/document/d/1eqSYTf9jgUx5w0x_IBGfochF1H9A65TCiqI6fEMu1OY/edit#heading=h.932rva5dqbdh
+   * go/mg/aspect-alias-decision
    */
   protected static final String UNKNOWN_ASSET = "UNKNOWN_ASSET";
 
@@ -153,8 +153,7 @@ public class SQLSchemaUtils {
       return INDEX_PREFIX + "urn" + processPath(path, delimiter);
     }
     if (UNKNOWN_ASSET.equals(assetType)) {
-      log.warn("query with unknown asset type. aspect =  {}, path ={}, delimiter = {}", aspect, path,
-          nonDollarVirtualColumnsEnabled);
+      log.warn("query with unknown asset type. aspect =  {}, path ={}, delimiter = {}", aspect, path, delimiter);
     }
     return INDEX_PREFIX + getColumnNameFromAnnotation(assetType, aspect) + processPath(path, delimiter);
   }
