@@ -1,0 +1,19 @@
+namespace com.linkedin.testing
+
+import com.linkedin.common.Urn
+import com.linkedin.testing.localrelationship.AspectFooBar
+
+/**
+ * For unit tests
+ */
+record BarAsset {
+  /**
+   * For unit tests
+   */
+  urn: optional BarUrn
+
+  /**
+   * For unit tests
+   */
+  aspectbar: optional AspectBar,
+}

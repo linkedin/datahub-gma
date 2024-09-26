@@ -65,17 +65,19 @@ public class SQLIndexFilterUtils {
 
   /**
    * Parse {@link IndexSortCriterion} into SQL syntax.
+   * @param entityType entity type from the Urn
    * @param indexSortCriterion filter sorting criterion
    * @param nonDollarVirtualColumnsEnabled  true if virtual column does not contain $, false otherwise
    * @return SQL statement of sorting, e.g. ORDER BY ... DESC ..etc.
    */
-  public static String parseSortCriteria(@Nullable IndexSortCriterion indexSortCriterion, boolean nonDollarVirtualColumnsEnabled) {
+  public static String parseSortCriteria(@Nonnull String entityType, @Nullable IndexSortCriterion indexSortCriterion,
+      boolean nonDollarVirtualColumnsEnabled) {
     if (indexSortCriterion == null) {
       // Default to order by urn if user does not provide sort criterion.
       return "ORDER BY URN";
     }
     final String indexColumn =
-        SQLSchemaUtils.getGeneratedColumnName(indexSortCriterion.getAspect(), indexSortCriterion.getPath(),
+        SQLSchemaUtils.getGeneratedColumnName(entityType, indexSortCriterion.getAspect(), indexSortCriterion.getPath(),
             nonDollarVirtualColumnsEnabled);
 
     if (!indexSortCriterion.hasOrder()) {
@@ -87,12 +89,12 @@ public class SQLIndexFilterUtils {
 
   /**
    * Parse {@link IndexFilter} into MySQL syntax.
-   *
+   * @param entityType entity type from the Urn
    * @param indexFilter                    index filter
    * @param nonDollarVirtualColumnsEnabled whether to enable non-dollar virtual columns
    * @return translated SQL condition expression, e.g. WHERE ...
    */
-  public static String parseIndexFilter(@Nullable IndexFilter indexFilter, boolean nonDollarVirtualColumnsEnabled) {
+  public static String parseIndexFilter(@Nonnull String entityType, @Nullable IndexFilter indexFilter, boolean nonDollarVirtualColumnsEnabled) {
     List<String> sqlFilters = new ArrayList<>();
 
     if (indexFilter == null || !indexFilter.hasCriteria()) {
@@ -103,7 +105,7 @@ public class SQLIndexFilterUtils {
       final String aspect = indexCriterion.getAspect();
       if (!isUrn(aspect)) {
         // if aspect is not urn, then check aspect is not soft deleted and is not null
-        final String aspectColumn = getAspectColumnName(indexCriterion.getAspect());
+        final String aspectColumn = getAspectColumnName(entityType, indexCriterion.getAspect());
         sqlFilters.add(aspectColumn + " IS NOT NULL");
         sqlFilters.add(String.format(SOFT_DELETED_CHECK, aspectColumn));
       }
@@ -112,7 +114,7 @@ public class SQLIndexFilterUtils {
       if (pathParams != null) {
         validateConditionAndValue(indexCriterion);
         final Condition condition = pathParams.getCondition();
-        final String indexColumn = getGeneratedColumnName(aspect, pathParams.getPath(), nonDollarVirtualColumnsEnabled);
+        final String indexColumn = getGeneratedColumnName(entityType, aspect, pathParams.getPath(), nonDollarVirtualColumnsEnabled);
         sqlFilters.add(parseSqlFilter(indexColumn, condition, pathParams.getValue()));
       }
     }

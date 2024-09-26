@@ -1,5 +1,6 @@
 package com.linkedin.metadata.dao.utils;
 
+import com.linkedin.common.urn.Urn;
 import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.template.DataTemplateUtil;
 import com.linkedin.data.template.RecordTemplate;
@@ -18,6 +19,7 @@ import io.ebean.EbeanServer;
 import io.ebean.SqlRow;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.URISyntaxException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -235,11 +237,16 @@ public class EBeanDAOUtils {
    */
   private static <ASPECT extends RecordTemplate> EbeanMetadataAspect readSqlRow(SqlRow sqlRow,
       Class<ASPECT> aspectClass) {
-    final String columnName = SQLSchemaUtils.getAspectColumnName(aspectClass);
+
     final EbeanMetadataAspect ebeanMetadataAspect = new EbeanMetadataAspect();
     final String urn = sqlRow.getString("urn");
     EbeanMetadataAspect.PrimaryKey primaryKey;
-
+    final String columnName;
+    try {
+      columnName = SQLSchemaUtils.getAspectColumnName(Urn.createFromString(urn).getEntityType(), aspectClass);
+    } catch (URISyntaxException e) {
+      throw new RuntimeException("Invalid urn format: " + urn, e);
+    }
     if (isSoftDeletedAspect(sqlRow, columnName)) {
       primaryKey = new EbeanMetadataAspect.PrimaryKey(urn, aspectClass.getCanonicalName(), LATEST_VERSION);
       ebeanMetadataAspect.setCreatedBy(sqlRow.getString("lastmodifiedby"));

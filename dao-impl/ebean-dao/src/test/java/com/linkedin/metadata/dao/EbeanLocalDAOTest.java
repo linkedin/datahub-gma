@@ -3277,7 +3277,7 @@ public class EbeanLocalDAOTest {
       return;
     }
     String aspectName = aspectClass.getCanonicalName();
-    String columnName = SQLSchemaUtils.getAspectColumnName(aspectName);
+    String columnName = SQLSchemaUtils.getAspectColumnName(urn.getEntityType(), aspectName);
     String template = "insert into metadata_entity_%s (urn, %s, lastmodifiedon, lastmodifiedby, createdfor) value"
         + "('%s', '%s', '%s', '%s', '%s') ON DUPLICATE KEY UPDATE %s = '%s';";
     String query = String.format(template, urn.getEntityType(), columnName, urn, createAuditedAspect(metadata, aspectClass, createdOn, createdBy, createdFor),
@@ -3334,8 +3334,8 @@ public class EbeanLocalDAOTest {
     urn:2| <some_timestamp> | "actor"        | "{..."longval":5...}                      |          5          |       <empty>
     */
 
-    String aspectColumnName = isUrn(aspectName) ? null : SQLSchemaUtils.getAspectColumnName(aspectName); // e.g. a_aspectfoo;
-    String fullIndexColumnName = SQLSchemaUtils.getGeneratedColumnName(aspectName, pathName,
+    String aspectColumnName = isUrn(aspectName) ? null : SQLSchemaUtils.getAspectColumnName(urn.getEntityType(), aspectName); // e.g. a_aspectfoo;
+    String fullIndexColumnName = SQLSchemaUtils.getGeneratedColumnName(urn.getEntityType(), aspectName, pathName,
         _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled()); // e.g. i_aspectfoo$path1$value1
 
     String checkColumnExistance = String.format("SELECT * FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '%s' AND"
@@ -3372,7 +3372,7 @@ public class EbeanLocalDAOTest {
 
   private EbeanMetadataAspect getMetadata(Urn urn, String aspectName, long version) {
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY && version == 0) {
-      String aspectColumn = getAspectColumnName(aspectName);
+      String aspectColumn = getAspectColumnName(urn.getEntityType(), aspectName);
       String template = "select urn, lastmodifiedon, lastmodifiedby, createdfor, %s from metadata_entity_%s";
       String query = String.format(template, aspectColumn, urn.getEntityType());
       SqlRow result = _server.createSqlQuery(query).findOne();
@@ -3397,7 +3397,7 @@ public class EbeanLocalDAOTest {
 
   private EbeanMetadataAspect getTestMetadata(Urn urn, String aspectName, long version) {
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY && version == 0) {
-      String aspectColumn = getAspectColumnName(aspectName);
+      String aspectColumn = getAspectColumnName(urn.getEntityType(), aspectName);
       String template = "select urn, lastmodifiedon, lastmodifiedby, createdfor, %s from metadata_entity_%s_test";
       String query = String.format(template, aspectColumn, urn.getEntityType());
       SqlRow result = _server.createSqlQuery(query).findOne();

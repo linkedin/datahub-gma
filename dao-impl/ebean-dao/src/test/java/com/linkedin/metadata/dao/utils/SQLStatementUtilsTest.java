@@ -78,7 +78,7 @@ public class SQLStatementUtilsTest {
     indexCriterionArray.add(indexCriterion2);
     indexFilter.setCriteria(indexCriterionArray);
 
-    String sql1 = SQLStatementUtils.createFilterSql("metadata_entity_foo", indexFilter, true, false);
+    String sql1 = SQLStatementUtils.createFilterSql("foo", indexFilter, true, false);
     String expectedSql1 = "SELECT *, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE a_aspectfoo IS NOT NULL\n"
         + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo$value >= 25\n"
         + "AND a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
@@ -89,7 +89,7 @@ public class SQLStatementUtilsTest {
 
     assertEquals(sql1, expectedSql1);
 
-    String sql2 = SQLStatementUtils.createFilterSql("metadata_entity_foo", indexFilter, true, true);
+    String sql2 = SQLStatementUtils.createFilterSql("foo", indexFilter, true, true);
     String expectedSql2 = "SELECT *, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE a_aspectfoo IS NOT NULL\n"
         + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo0value >= 25\n"
         + "AND a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
@@ -120,14 +120,14 @@ public class SQLStatementUtilsTest {
     indexGroupByCriterion.setAspect(AspectFoo.class.getCanonicalName());
     indexGroupByCriterion.setPath("/value");
 
-    String sql1 = SQLStatementUtils.createGroupBySql("metadata_entity_foo", indexFilter, indexGroupByCriterion, false);
+    String sql1 = SQLStatementUtils.createGroupBySql("foo", indexFilter, indexGroupByCriterion, false);
     assertEquals(sql1, "SELECT count(*) as COUNT, i_aspectfoo$value FROM metadata_entity_foo\n"
         + "WHERE a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
         + "AND i_aspectfoo$value >= 25\n" + "AND a_aspectfoo IS NOT NULL\n"
         + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo$value < 50\n"
         + "GROUP BY i_aspectfoo$value");
 
-    String sql2 = SQLStatementUtils.createGroupBySql("metadata_entity_foo", indexFilter, indexGroupByCriterion, true);
+    String sql2 = SQLStatementUtils.createGroupBySql("foo", indexFilter, indexGroupByCriterion, true);
     assertEquals(sql2, "SELECT count(*) as COUNT, i_aspectfoo0value FROM metadata_entity_foo\n"
         + "WHERE a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
         + "AND i_aspectfoo0value >= 25\n" + "AND a_aspectfoo IS NOT NULL\n"
@@ -348,14 +348,13 @@ public class SQLStatementUtilsTest {
   @Test
   public void testCreateListAspectSql() throws URISyntaxException {
     FooUrn fooUrn = new FooUrn(1);
-    String tableName = SQLSchemaUtils.getTableName(fooUrn.getEntityType());
     assertEquals(
-        SQLStatementUtils.createListAspectWithPaginationSql(AspectFoo.class, tableName, true, 0, 5),
+        SQLStatementUtils.createListAspectWithPaginationSql(AspectFoo.class, fooUrn.getEntityType(), true, 0, 5),
         "SELECT urn, a_aspectfoo, lastmodifiedon, lastmodifiedby, createdfor, (SELECT COUNT(urn) FROM "
             + "metadata_entity_foo WHERE a_aspectfoo IS NOT NULL) as _total_count FROM metadata_entity_foo "
             + "WHERE a_aspectfoo IS NOT NULL LIMIT 5 OFFSET 0");
     assertEquals(
-        SQLStatementUtils.createListAspectWithPaginationSql(AspectFoo.class, tableName, false, 0, 5),
+        SQLStatementUtils.createListAspectWithPaginationSql(AspectFoo.class, fooUrn.getEntityType(), false, 0, 5),
         "SELECT urn, a_aspectfoo, lastmodifiedon, lastmodifiedby, createdfor, (SELECT COUNT(urn) FROM "
             + "metadata_entity_foo WHERE a_aspectfoo IS NOT NULL AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL) "
             + "as _total_count FROM metadata_entity_foo WHERE a_aspectfoo IS NOT NULL AND "
