@@ -5,6 +5,7 @@ import com.google.common.escape.Escapers;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
+import com.linkedin.metadata.query.AspectField;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
@@ -476,13 +477,33 @@ public class SQLStatementUtils {
 
     if (field.isAspectField()) {
       // entity type from Urn definition.
-      String asset = field.getAspectField().hasAsset() ? field.getAspectField().getAsset() : UNKNOWN_ASSET;
-      return tablePrefix + SQLSchemaUtils.getGeneratedColumnName(asset, field.getAspectField().getAspect(),
+      String assetType = getAssetType(field.getAspectField());
+      return tablePrefix + SQLSchemaUtils.getGeneratedColumnName(assetType, field.getAspectField().getAspect(),
           field.getAspectField().getPath(), nonDollarVirtualColumnsEnabled);
     }
 
     throw new IllegalArgumentException("Unrecognized field type");
   }
+
+  /**
+   * Get asset type from an aspectField.
+   * @param aspectField {@link AspectField}
+   * @return asset type, which is equivalent to Urn's entity type
+   */
+  protected static String getAssetType(AspectField aspectField) {
+
+    String assetType = UNKNOWN_ASSET;
+    if (aspectField.hasAsset()) {
+      try {
+        assetType =
+            ModelUtils.getUrnTypeFromAsset(Class.forName(aspectField.getAsset()).asSubclass(RecordTemplate.class));
+      } catch (ClassNotFoundException | ClassCastException e) {
+        throw new IllegalArgumentException("Unrecognized asset type: " + aspectField.getAsset());
+      }
+    }
+    return assetType;
+  }
+
 
   private static String parseLocalRelationshipValue(@Nonnull final LocalRelationshipValue localRelationshipValue) {
     if (localRelationshipValue.isArray()) {

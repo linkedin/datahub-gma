@@ -8,6 +8,7 @@ import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.validator.NullFieldException;
 import com.linkedin.testing.AspectAttributes;
 import com.linkedin.testing.AspectUnionWithSoftDeletedAspect;
+import com.linkedin.testing.BarAsset;
 import com.linkedin.testing.BarUrnArray;
 import com.linkedin.testing.DatasetInfo;
 import com.linkedin.testing.DeltaUnionAlias;
@@ -793,5 +794,23 @@ public class ModelUtilsTest {
 
     assertEquals(entityType, expectedUrn.getEntityType());
     assertNull(ModelUtils.getEntityType(null));
+  }
+
+  @Test
+  public void testGetUrnTypeFromAssetType() {
+    String assetType = ModelUtils.getUrnTypeFromAsset(BarAsset.class);
+    assertEquals(BarUrn.ENTITY_TYPE, assetType);
+  }
+
+  @Test
+  public void testGetAspectAlias() {
+    assertEquals(ModelUtils.getAspectAlias(BarAsset.class, AspectBar.class.getCanonicalName()), "aspect_bar");
+    assertNull(ModelUtils.getAspectAlias(BarAsset.class, AspectFoo.class.getCanonicalName()), "aspect_foo");
+    try {
+      ModelUtils.getAspectAlias(AspectBar.class, AspectFoo.class.getCanonicalName());
+      fail("should fail on non-Asset template");
+    } catch (Exception e) {
+
+    }
   }
 }
