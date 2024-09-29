@@ -213,7 +213,7 @@ public class SQLSchemaUtils {
    * @return aspect column name
    */
   @Nonnull
-  private static String getColumnNameFromAnnotation(@Nonnull final String assetType,
+  public static String getColumnNameFromAnnotation(@Nonnull final String assetType,
       @Nonnull final String aspectCanonicalName) {
     log.warn("loading column name from legacy 'column' annotation. asset: {}, aspect: {}", assetType,
         aspectCanonicalName);
