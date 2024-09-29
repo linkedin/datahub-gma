@@ -7,6 +7,7 @@ import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.validator.NullFieldException;
 import com.linkedin.testing.AspectAttributes;
+import com.linkedin.testing.AspectFooEvolved;
 import com.linkedin.testing.AspectUnionWithSoftDeletedAspect;
 import com.linkedin.testing.BarAsset;
 import com.linkedin.testing.BarUrnArray;
@@ -328,6 +329,26 @@ public class ModelUtilsTest {
     assertEquals(aspects.size(), 2);
     assertEquals(aspects.get(0), expectedAspectFoo);
     assertEquals(aspects.get(1), expectedAspectBar);
+
+
+    BarAsset barAsset = new BarAsset();
+    aspects = ModelUtils.getAspectsFromAsset(barAsset);
+    assertTrue(aspects.isEmpty());
+  }
+
+  @Test
+  public void testGetAspectTypesFromAssetType() {
+    List<Class<? extends RecordTemplate>> assetTypes = ModelUtils.getAspectTypesFromAssetType(BarAsset.class);
+    assertEquals(assetTypes.size(), 1);
+    assertEquals(assetTypes.get(0), AspectBar.class);
+
+    assetTypes = ModelUtils.getAspectTypesFromAssetType(EntityAsset.class);
+    assertEquals(assetTypes.size(), 5);
+    assertEquals(assetTypes.get(0), AspectFoo.class);
+    assertEquals(assetTypes.get(1), AspectBar.class);
+    assertEquals(assetTypes.get(2), AspectFooEvolved.class);
+    assertEquals(assetTypes.get(3), AspectFooBar.class);
+    assertEquals(assetTypes.get(4), AspectAttributes.class);
   }
 
   @Test
