@@ -15,5 +15,5 @@ record BarAsset {
   /**
    * For unit tests
    */
-  aspectbar: optional AspectBar,
+  aspect_bar: optional AspectBar,
 }

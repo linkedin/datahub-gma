@@ -5,12 +5,12 @@ import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.template.DataTemplateUtil;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.aspect.AspectColumnMetadata;
+import com.linkedin.metadata.dao.GlobalAssetRegistry;
 import com.linkedin.metadata.dao.exception.MissingAnnotationException;
+import com.linkedin.metadata.dao.exception.ModelValidationException;
 import java.util.Map;
 import javax.annotation.Nonnull;
 import lombok.extern.slf4j.Slf4j;
-
-import static com.linkedin.metadata.dao.utils.SQLStatementUtils.*;
 
 
 /**
@@ -128,7 +128,7 @@ public class SQLSchemaUtils {
    */
   @Nonnull
   public static String getAspectColumnName(@Nonnull final String entityType, @Nonnull final String aspectCanonicalName) {
-    return ASPECT_PREFIX + getColumnNameFromAnnotation(entityType, aspectCanonicalName);
+    return ASPECT_PREFIX + getColumnName(entityType, aspectCanonicalName);
   }
 
   /**
@@ -155,7 +155,7 @@ public class SQLSchemaUtils {
     if (UNKNOWN_ASSET.equals(assetType)) {
       log.warn("query with unknown asset type. aspect =  {}, path ={}, delimiter = {}", aspect, path, delimiter);
     }
-    return INDEX_PREFIX + getColumnNameFromAnnotation(assetType, aspect) + processPath(path, delimiter);
+    return INDEX_PREFIX + getColumnName(assetType, aspect) + processPath(path, delimiter);
   }
 
   /**
@@ -188,17 +188,46 @@ public class SQLSchemaUtils {
    * @return aspect column name
    */
   @Nonnull
-  private static String getColumnNameFromAnnotation(@Nonnull final String assetType, @Nonnull final String aspectCanonicalName) {
-    // TODO(yanyang) implement a map of (assetType, aspectClass) --> aspect_alias (column)
+  private static String getColumnName(@Nonnull final String assetType,
+      @Nonnull final String aspectCanonicalName) {
+
+    Class<? extends RecordTemplate> assetClass = GlobalAssetRegistry.get(assetType);
+    if (assetClass == null) {
+      return getColumnNameFromAnnotation(assetType, aspectCanonicalName);
+    } else {
+      String aspectAlias = ModelUtils.getAspectAlias(assetClass, aspectCanonicalName);
+      if (aspectAlias == null) {
+        throw new ModelValidationException(
+            "failed to get aspect alias for: " + aspectCanonicalName + " from asset: " + assetClass);
+      } else {
+        return aspectAlias;
+      }
+    }
+  }
+
+  /**
+   * Get Column name from aspect column annotation (legacy).
+   *
+   * @param assetType entity type from Urn definition.
+   * @param aspectCanonicalName aspect name in canonical form.
+   * @return aspect column name
+   */
+  @Nonnull
+  private static String getColumnNameFromAnnotation(@Nonnull final String assetType,
+      @Nonnull final String aspectCanonicalName) {
+    log.warn("loading column name from legacy 'column' annotation. asset: {}, aspect: {}", assetType,
+        aspectCanonicalName);
+    // load column from Aspect annotation (legacy way)
     try {
-      final RecordDataSchema schema = (RecordDataSchema) DataTemplateUtil.getSchema(ClassUtils.loadClass(aspectCanonicalName));
+      final RecordDataSchema schema =
+          (RecordDataSchema) DataTemplateUtil.getSchema(ClassUtils.loadClass(aspectCanonicalName));
       final Map<String, Object> properties = schema.getProperties();
       final Object gmaObj = properties.get(GMA);
       final AspectColumnMetadata gmaAnnotation = DataTemplateUtil.wrap(gmaObj, AspectColumnMetadata.class);
       return gmaAnnotation.getAspect().getColumn().getName();
     } catch (Exception e) {
-      throw new MissingAnnotationException(String.format("Aspect %s should be annotated with @gma.aspect.column.name.",
-          aspectCanonicalName), e);
+      throw new MissingAnnotationException(
+          String.format("Aspect %s should be annotated with @gma.aspect.column.name.", aspectCanonicalName), e);
     }
   }
 }

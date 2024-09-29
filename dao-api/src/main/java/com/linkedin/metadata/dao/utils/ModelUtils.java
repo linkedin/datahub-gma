@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -204,6 +205,20 @@ public class ModelUtils {
   }
 
   /**
+   * Get the asset type of urn inside a asset class.
+   * @param asset an assset class
+   * @return entity type of urn
+   */
+  @Nonnull
+  public static <ASSET extends RecordTemplate> String getUrnTypeFromAsset(@Nonnull Class<ASSET> asset) {
+    try {
+      return (String) asset.getMethod("getUrn").getReturnType().getField("ENTITY_TYPE").get(null);
+    } catch (Exception ignored) {
+      throw new IllegalArgumentException(String.format("The snapshot class %s is not valid.", asset.getCanonicalName()));
+    }
+  }
+
+  /**
    * Similar to {@link #getUrnFromSnapshot(RecordTemplate)} but extracts from a Snapshot union instead.
    */
   @Nonnull
@@ -348,6 +363,43 @@ public class ModelUtils {
     } catch (IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
       throw new RuntimeException(e);
     }
+  }
+
+  private final static ConcurrentHashMap<Class<? extends RecordTemplate>, Map<String, String>> ASPECT_ALIAS_CACHE =
+      new ConcurrentHashMap<>();
+
+  /**
+   * Return aspect alias (in lower cases) from given asset class and aspect FQCN (Fully Qualified Class Name).
+   * @param assetClass asset class
+   * @param aspectFQCN aspect FQCN
+   * @return alias names in lower cases
+   * @param <ASSET> Asset class
+   */
+  @Nullable
+  public static <ASSET extends RecordTemplate> String getAspectAlias(@Nonnull Class<ASSET> assetClass,
+      @Nonnull String aspectFQCN) {
+    return ASPECT_ALIAS_CACHE.computeIfAbsent(assetClass, key -> {
+      AssetValidator.validateAssetSchema(assetClass);
+      final Field[] declaredFields = assetClass.getDeclaredFields();
+      Map<String, String> map = new HashMap<>();
+      for (Field declaredField : declaredFields) {
+        if (!declaredField.getName().startsWith(FIELD_FIELD_PREFIX)) {
+          continue;
+        }
+        String fieldName = declaredField.getName().substring(FIELD_FIELD_PREFIX.length());
+        if (fieldName.equalsIgnoreCase(URN_FIELD)) {
+          continue;
+        }
+        String methodName = "get" + fieldName;
+        try {
+          String aspectClass = assetClass.getMethod(methodName).getReturnType().getCanonicalName();
+          map.put(aspectClass, fieldName.toLowerCase());
+        } catch (NoSuchMethodException e) {
+          throw new RuntimeException("Method not found: " + methodName, e);
+        }
+      }
+      return map;
+    }).get(aspectFQCN);
   }
 
   /**

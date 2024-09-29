@@ -1,6 +1,7 @@
 package com.linkedin.metadata.dao.utils;
 
 import com.linkedin.common.urn.Urn;
+import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.query.AspectField;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.IndexCriterion;
@@ -14,7 +15,10 @@ import com.linkedin.metadata.query.LocalRelationshipFilter;
 import com.linkedin.metadata.query.LocalRelationshipValue;
 import com.linkedin.metadata.query.RelationshipField;
 import com.linkedin.metadata.query.UrnField;
+import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectFoo;
+import com.linkedin.testing.BarAsset;
+import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.FooUrn;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
@@ -26,6 +30,7 @@ import java.util.Set;
 import org.javatuples.Pair;
 import org.testng.annotations.Test;
 
+import static com.linkedin.metadata.dao.utils.SQLSchemaUtils.*;
 import static com.linkedin.testing.TestUtils.*;
 import static org.testng.Assert.*;
 
@@ -378,5 +383,37 @@ public class SQLStatementUtilsTest {
     assertEquals(
         SQLStatementUtils.createAspectUpdateWithOptimisticLockSql(fooUrn, AspectFoo.class, false, false),
         expectedSql);
+  }
+
+  @Test
+  public void testAspectField() {
+    AspectField aspectField = new AspectField();
+    aspectField.setAspect(AspectBar.class.getCanonicalName());
+    // unknown if asset field is not set
+    assertEquals(SQLStatementUtils.getAssetType(aspectField), UNKNOWN_ASSET);
+
+    try {
+      aspectField.setAsset("invalid_class");
+      SQLStatementUtils.getAssetType(aspectField);
+      fail("should fail because invalid asset class");
+    } catch (IllegalArgumentException e) {
+    }
+
+    try {
+      aspectField.setAsset(String.class.getCanonicalName());
+      SQLStatementUtils.getAssetType(aspectField);
+      fail("should fail because not RecordTemplate");
+    } catch (IllegalArgumentException e) {
+    }
+
+    try {
+      aspectField.setAsset(RecordTemplate.class.getCanonicalName());
+      SQLStatementUtils.getAssetType(aspectField);
+      fail("should fail because not an valid Asset");
+    } catch (IllegalArgumentException e) {
+    }
+
+    aspectField.setAsset(BarAsset.class.getCanonicalName());
+    assertEquals(SQLStatementUtils.getAssetType(aspectField), BarUrn.ENTITY_TYPE);
   }
 }
