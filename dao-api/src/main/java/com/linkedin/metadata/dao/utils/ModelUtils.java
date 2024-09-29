@@ -333,7 +333,38 @@ public class ModelUtils {
   }
 
   /**
-   * Extracts the list of aspects in an asset.
+   * Get aspect types from asset type.
+   * @param assetClass asset class
+   * @return A list of aspect classes used in the asset
+   */
+  public static <ASSET extends RecordTemplate> List<Class<? extends RecordTemplate>> getAspectTypesFromAssetType(
+      @Nonnull Class<ASSET> assetClass) {
+    try {
+      final List<Class<? extends RecordTemplate>> aspectTypes = new ArrayList<>();
+      final Field[] assetFields = assetClass.getDeclaredFields();
+      for (final Field assetField : assetFields) {
+        if (assetField.getName().startsWith(FIELD_FIELD_PREFIX)) {
+          final String assetFieldName = assetField.getName().substring(FIELD_FIELD_PREFIX.length());
+          if (assetFieldName.equalsIgnoreCase(URN_FIELD)) {
+            continue;
+          }
+          String methodName = "get" + assetFieldName;
+          Class<?> returnType = assetClass.getMethod(methodName).getReturnType();
+          if (RecordTemplate.class.isAssignableFrom(returnType)) {
+            aspectTypes.add(returnType.asSubclass(RecordTemplate.class));
+          }
+        }
+      }
+      return aspectTypes;
+    } catch (NoSuchMethodException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+
+
+  /**
+   * Extracts the list of (non-null) aspects in an asset.
    *
    * @param asset the asset to extract aspects from
    * @param <ASSET> must be a valid asset model defined in com.linkedin.metadata.asset
