@@ -188,7 +188,7 @@ public class SQLSchemaUtils {
    * @return aspect column name
    */
   @Nonnull
-  private static String getColumnName(@Nonnull final String assetType,
+  public static String getColumnName(@Nonnull final String assetType,
       @Nonnull final String aspectCanonicalName) {
 
     Class<? extends RecordTemplate> assetClass = GlobalAssetRegistry.get(assetType);
@@ -213,7 +213,7 @@ public class SQLSchemaUtils {
    * @return aspect column name
    */
   @Nonnull
-  public static String getColumnNameFromAnnotation(@Nonnull final String assetType,
+  private static String getColumnNameFromAnnotation(@Nonnull final String assetType,
       @Nonnull final String aspectCanonicalName) {
     log.warn("loading column name from legacy 'column' annotation. asset: {}, aspect: {}", assetType,
         aspectCanonicalName);
