@@ -19,7 +19,6 @@ public class GlobalAssetRegistry {
   private final Map<String, Class<? extends RecordTemplate>> registry = new ConcurrentHashMap<>();
 
   private GlobalAssetRegistry() {
-    preLoadInternalAssets();
   }
 
   // thread-safe, lazy-load singleton instance.
@@ -27,6 +26,14 @@ public class GlobalAssetRegistry {
   // Putting it in the inner class makes this inner only being loaded when getInstance() is called.
   private static class InnerHolder {
     private static final GlobalAssetRegistry INSTANCE = new GlobalAssetRegistry();
+
+    static {
+      try {
+        INSTANCE.preLoadInternalAssets();
+      } catch (Exception e) {
+        log.error("Failed to pre-load internal assets", e);
+      }
+    }
   }
 
   private static GlobalAssetRegistry getInstance() {
