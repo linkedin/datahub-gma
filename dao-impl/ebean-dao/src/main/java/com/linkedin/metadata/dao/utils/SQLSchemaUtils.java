@@ -188,7 +188,7 @@ public class SQLSchemaUtils {
    * @return aspect column name
    */
   @Nonnull
-  private static String getColumnName(@Nonnull final String assetType,
+  public static String getColumnName(@Nonnull final String assetType,
       @Nonnull final String aspectCanonicalName) {
 
     Class<? extends RecordTemplate> assetClass = GlobalAssetRegistry.get(assetType);
