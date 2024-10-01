@@ -168,7 +168,7 @@ public class SQLSchemaUtils {
   }
 
   /**
-   * Deprecated, use getGeneratedColumnName(assetType, aspect, path, nonDollarVirtualColumnsEnabled) instead
+   * DEPRECATED, use getGeneratedColumnName(assetType, aspect, path, nonDollarVirtualColumnsEnabled) instead.
    */
   @Deprecated
   @Nonnull
