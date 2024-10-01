@@ -132,7 +132,7 @@ public class SQLSchemaUtils {
   }
 
   /**
-   * @Deprecated using getAspectColumnName(String entityType, String aspectCanonicalName) instead.
+   * DEPRECATED, use getAspectColumnName(String entityType, String aspectCanonicalName) instead.
    */
   @Deprecated
   @Nonnull
@@ -168,7 +168,7 @@ public class SQLSchemaUtils {
   }
 
   /**
-   * @Deprecated using getGeneratedColumnName(assetType, aspect, path, nonDollarVirtualColumnsEnabled) instead
+   * Deprecated, use getGeneratedColumnName(assetType, aspect, path, nonDollarVirtualColumnsEnabled) instead
    */
   @Deprecated
   @Nonnull
