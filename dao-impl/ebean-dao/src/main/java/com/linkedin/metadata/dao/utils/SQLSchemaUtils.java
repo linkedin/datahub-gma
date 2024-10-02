@@ -132,6 +132,15 @@ public class SQLSchemaUtils {
   }
 
   /**
+   * DEPRECATED, use getAspectColumnName(String entityType, String aspectCanonicalName) instead.
+   */
+  @Deprecated
+  @Nonnull
+  public static String getAspectColumnName(@Nonnull final String aspectCanonicalName) {
+    return ASPECT_PREFIX + getColumnNameFromAnnotation(aspectCanonicalName);
+  }
+
+  /**
    * Get column name from aspect class.
    * @param aspectClass aspect class
    * @param <ASPECT> aspect that extends {@link RecordTemplate}
@@ -156,6 +165,20 @@ public class SQLSchemaUtils {
       log.warn("query with unknown asset type. aspect =  {}, path ={}, delimiter = {}", aspect, path, delimiter);
     }
     return INDEX_PREFIX + getColumnName(assetType, aspect) + processPath(path, delimiter);
+  }
+
+  /**
+   * DEPRECATED, use getGeneratedColumnName(assetType, aspect, path, nonDollarVirtualColumnsEnabled) instead.
+   */
+  @Deprecated
+  @Nonnull
+  public static String getGeneratedColumnName(@Nonnull String aspect, @Nonnull String path,
+      boolean nonDollarVirtualColumnsEnabled) {
+    char delimiter = nonDollarVirtualColumnsEnabled ? '0' : '$';
+    if (isUrn(aspect)) {
+      return INDEX_PREFIX + "urn" + processPath(path, delimiter);
+    }
+    return INDEX_PREFIX + getColumnNameFromAnnotation(aspect) + processPath(path, delimiter);
   }
 
   /**
@@ -193,7 +216,9 @@ public class SQLSchemaUtils {
 
     Class<? extends RecordTemplate> assetClass = GlobalAssetRegistry.get(assetType);
     if (assetClass == null) {
-      return getColumnNameFromAnnotation(assetType, aspectCanonicalName);
+      log.warn("loading column name from legacy 'column' annotation. asset: {}, aspect: {}", assetType,
+          aspectCanonicalName);
+      return getColumnNameFromAnnotation(aspectCanonicalName);
     } else {
       String aspectAlias = ModelUtils.getAspectAlias(assetClass, aspectCanonicalName);
       if (aspectAlias == null) {
@@ -208,15 +233,11 @@ public class SQLSchemaUtils {
   /**
    * Get Column name from aspect column annotation (legacy).
    *
-   * @param assetType entity type from Urn definition.
    * @param aspectCanonicalName aspect name in canonical form.
    * @return aspect column name
    */
   @Nonnull
-  private static String getColumnNameFromAnnotation(@Nonnull final String assetType,
-      @Nonnull final String aspectCanonicalName) {
-    log.warn("loading column name from legacy 'column' annotation. asset: {}, aspect: {}", assetType,
-        aspectCanonicalName);
+  private static String getColumnNameFromAnnotation(@Nonnull final String aspectCanonicalName) {
     // load column from Aspect annotation (legacy way)
     try {
       final RecordDataSchema schema =
