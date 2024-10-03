@@ -141,10 +141,10 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
       namespace com.linkedin.mxe.foo.testAspect
 
       import com.linkedin.avro2pegasus.events.KafkaAuditHeader
-      import com.linkedin.common.AuditStamp
       import com.linkedin.metadata.events.ChangeType
       import com.linkedin.metadata.events.IngestionTrackingContext
       import com.linkedin.metadata.events.IngestionMode
+      import com.linkedin.metadata.events.MetadataAuditStamp
       import com.linkedin.testing.FooUrn
       import com.linkedin.metadata.test.aspects.TestAspect
 
@@ -187,7 +187,7 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
         /**
          * Audit info (i.e. createdon, createdby, createdfor) to track the version history of metadata changes.
          */
-        auditStamp: union[null, AuditStamp] = null
+        auditStamp: union[null, MetadataAuditStamp] = null
         
         /**
          * Type of the ingestion. Allow null for backward compatibility. Downstream should treat null as live ingestion.
@@ -273,10 +273,10 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
       namespace com.linkedin.mxe.foo.testTyperefAspect
 
       import com.linkedin.avro2pegasus.events.KafkaAuditHeader
-      import com.linkedin.common.AuditStamp
       import com.linkedin.metadata.events.ChangeType
       import com.linkedin.metadata.events.IngestionTrackingContext
       import com.linkedin.metadata.events.IngestionMode
+      import com.linkedin.metadata.events.MetadataAuditStamp
       import com.linkedin.testing.FooUrn
       import com.linkedin.metadata.test.aspects.TestTyperefAspect
 
@@ -319,7 +319,7 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
         /**
          * Audit info (i.e. createdon, createdby, createdfor) to track the version history of metadata changes.
          */
-        auditStamp: union[null, AuditStamp] = null
+        auditStamp: union[null, MetadataAuditStamp] = null
         
         /**
          * Type of the ingestion. Allow null for backward compatibility. Downstream should treat null as live ingestion.
