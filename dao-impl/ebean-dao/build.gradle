@@ -12,6 +12,7 @@ dependencies {
   compile externalDependency.ebean
   compile externalDependency.flywayCore
   compile externalDependency.guava
+  implementation externalDependency.hikariCP
   compile externalDependency.jsonSimple
   compile externalDependency.log4j
 
