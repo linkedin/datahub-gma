@@ -1,6 +1,7 @@
 package com.linkedin.metadata.dao;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.protobuf.Descriptors;
 import com.google.protobuf.Message;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
@@ -47,6 +48,9 @@ import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
+import io.grpc.stub.AbstractStub;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.util.Collections;
@@ -214,6 +218,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   private boolean _emitAuditEvent = false;
 
   private Clock _clock = Clock.systemUTC();
+
+  private Map<Class<? extends RecordTemplate>, Object[]> _routingMap;
 
   /**
    * Constructor for BaseLocalDAO.
@@ -414,6 +420,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     return _restliPreUpdateAspectRegistry;
   }
 
+  public void setRoutingMap(Map<Class<? extends RecordTemplate>, Object[]> routingMap) {
+    _routingMap = routingMap;
+  }
 
   /**
    * Enables or disables atomic updates of multiple aspects.
@@ -854,6 +863,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext,
       @Nullable IngestionParams ingestionParams) {
     ASPECT updatedAspect = preUpdateRouting(urn, newValue);
+    if (_routingMap != null && _routingMap.containsKey(newValue.getClass())) {
+      updatedAspect = grpcPreUpdateRouting(urn, updatedAspect);
+    }
     return rawAdd(urn, updatedAspect, auditStamp, trackingContext, ingestionParams);
   }
 
@@ -1674,5 +1686,41 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       return (ASPECT) convertedAspect;
     }
     return newValue;
+  }
+
+  protected <ASPECT extends RecordTemplate> ASPECT grpcPreUpdateRouting(URN urn, ASPECT aspect) {
+    Object[] routingData = _routingMap.get(aspect.getClass());
+    // Extract stored information
+    AbstractStub<?> stub = (AbstractStub<?>) routingData[0];
+    Method newBuilderMethod = (Method) routingData[1];  // Method for newBuilder()
+    Method preUpdateMethod = (Method) routingData[2];   // Method for gRPC call
+
+    // Dynamically create the request using newBuilder method
+    try {
+      Message.Builder requestBuilder = (Message.Builder) newBuilderMethod.invoke(null);
+
+      // Get the descriptor for the request type
+      Descriptors.Descriptor requestDescriptor = requestBuilder.getDescriptorForType();
+
+      // Find the "urn" field descriptor and set its value
+      Descriptors.FieldDescriptor urnField = requestDescriptor.findFieldByName("urn");
+      requestBuilder.setField(urnField, urn);
+
+      // Find the "value" field descriptor and set its value (this is the aspect in your case)
+      Descriptors.FieldDescriptor valueField = requestDescriptor.findFieldByName("value");
+      requestBuilder.setField(valueField, aspect);
+
+      // Build the request object
+      Message request = requestBuilder.build();
+
+      // Invoke the gRPC preUpdate method
+      Object response = preUpdateMethod.invoke(stub, request);
+      // Extract and return the updated aspect from the response
+      Descriptors.Descriptor responseDescriptor = ((Message) response).getDescriptorForType();
+      log.info("PreUpdateRouting completed in BaseLocalDao, urn: {}, updated aspect: {}", urn, response);
+      return (ASPECT) ((Message) response).getField(responseDescriptor.findFieldByName("value"));
+    } catch (IllegalAccessException | InvocationTargetException e) {
+      throw new RuntimeException(e);
+    }
   }
 }
