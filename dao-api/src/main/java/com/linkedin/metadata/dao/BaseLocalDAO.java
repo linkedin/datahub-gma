@@ -219,7 +219,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   private Clock _clock = Clock.systemUTC();
 
-  private Map<Class<? extends RecordTemplate>, Object[]> _routingMap;
+  private Map<Class<? extends RecordTemplate>, Object[]> _grpcPreUpdateRoutingMap;
 
   /**
    * Constructor for BaseLocalDAO.
@@ -420,8 +420,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     return _restliPreUpdateAspectRegistry;
   }
 
-  public void setRoutingMap(Map<Class<? extends RecordTemplate>, Object[]> routingMap) {
-    _routingMap = routingMap;
+  public void setGrpcPreUpdateRoutingMap(Map<Class<? extends RecordTemplate>, Object[]> grpcPreUpdateRoutingMap) {
+    _grpcPreUpdateRoutingMap = grpcPreUpdateRoutingMap;
   }
 
   /**
@@ -863,7 +863,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext,
       @Nullable IngestionParams ingestionParams) {
     ASPECT updatedAspect = preUpdateRouting(urn, newValue);
-    if (_routingMap != null && _routingMap.containsKey(newValue.getClass())) {
+    if (_grpcPreUpdateRoutingMap != null && _grpcPreUpdateRoutingMap.containsKey(newValue.getClass())) {
       updatedAspect = grpcPreUpdateRouting(urn, updatedAspect);
     }
     return rawAdd(urn, updatedAspect, auditStamp, trackingContext, ingestionParams);
@@ -1689,7 +1689,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   protected <ASPECT extends RecordTemplate> ASPECT grpcPreUpdateRouting(URN urn, ASPECT aspect) {
-    Object[] routingData = _routingMap.get(aspect.getClass());
+    Object[] routingData = _grpcPreUpdateRoutingMap.get(aspect.getClass());
     // Extract stored information
     AbstractStub<?> stub = (AbstractStub<?>) routingData[0];
     Method newBuilderMethod = (Method) routingData[1];  // Method for newBuilder()
