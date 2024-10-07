@@ -671,11 +671,12 @@ public abstract class BaseAspectRoutingResource<
     return routeAspectClasses.stream().map(routeAspectClass -> {
       try {
         return getAspectRoutingGmsClientManager().getRoutingGmsClient(routeAspectClass).get(urn);
-      } catch (RestLiServiceException restLiException) {
-        if (restLiException.getStatus() == S_404_NOT_FOUND) {
-         log.warn(String.format("Couldn't find routing aspect %s for %s", routeAspectClass.getSimpleName(), urn), restLiException);
+      } catch (Exception e) {
+        String logMessage = String.format("Couldn't find routing aspect %s for %s", routeAspectClass.getSimpleName(), urn);
+        if (e instanceof RestLiServiceException && ((RestLiServiceException) e).getStatus() == S_404_NOT_FOUND) {
+         log.warn(logMessage, e);
         } else {
-          log.error(String.format("Couldn't get routing aspect %s for %s", routeAspectClass.getSimpleName(), urn), restLiException);
+          log.error(logMessage, e);
         }
         return null;
       }
