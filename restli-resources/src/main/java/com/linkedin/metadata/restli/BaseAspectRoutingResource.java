@@ -43,6 +43,7 @@ import lombok.extern.slf4j.Slf4j;
 import static com.linkedin.metadata.dao.BaseReadDAO.*;
 import static com.linkedin.metadata.dao.utils.ModelUtils.*;
 import static com.linkedin.metadata.restli.RestliConstants.*;
+import static com.linkedin.restli.common.HttpStatus.*;
 
 
 /**
@@ -668,12 +669,14 @@ public abstract class BaseAspectRoutingResource<
   private List<? extends RecordTemplate> getValueFromRoutingGms(@Nonnull URN urn,
       Collection<Class<? extends RecordTemplate>> routeAspectClasses) {
     return routeAspectClasses.stream().map(routeAspectClass -> {
-
       try {
         return getAspectRoutingGmsClientManager().getRoutingGmsClient(routeAspectClass).get(urn);
-      } catch (Exception exception) {
-        log.error(String.format("Couldn't get routing aspect %s for %s", routeAspectClass.getSimpleName(), urn),
-            exception);
+      } catch (RestLiServiceException restLiException) {
+        if (restLiException.getStatus() == S_404_NOT_FOUND) {
+         log.warn(String.format("Couldn't find routing aspect %s for %s", routeAspectClass.getSimpleName(), urn), restLiException);
+        } else {
+          log.error(String.format("Couldn't get routing aspect %s for %s", routeAspectClass.getSimpleName(), urn), restLiException);
+        }
         return null;
       }
     }).filter(Objects::nonNull).collect(Collectors.toList());
