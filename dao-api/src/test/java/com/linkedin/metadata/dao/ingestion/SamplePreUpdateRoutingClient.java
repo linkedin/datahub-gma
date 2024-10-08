@@ -5,6 +5,7 @@ import com.google.protobuf.Message;
 import com.google.protobuf.StringValue;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
+import com.linkedin.metadata.dao.ingestion.preupdate.RestliCompliantPreUpdateRoutingClient;
 import com.linkedin.testing.AspectFoo;
 
 

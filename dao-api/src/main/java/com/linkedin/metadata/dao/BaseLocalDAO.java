@@ -1,7 +1,6 @@
 package com.linkedin.metadata.dao;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.protobuf.Descriptors;
 import com.google.protobuf.Message;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
@@ -26,8 +25,10 @@ import com.linkedin.metadata.dao.equality.EqualityTester;
 import com.linkedin.metadata.dao.exception.ModelValidationException;
 import com.linkedin.metadata.dao.ingestion.BaseLambdaFunction;
 import com.linkedin.metadata.dao.ingestion.LambdaFunctionRegistry;
-import com.linkedin.metadata.dao.ingestion.RestliPreUpdateAspectRegistry;
-import com.linkedin.metadata.dao.ingestion.RestliCompliantPreUpdateRoutingClient;
+import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateResponse;
+import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateService;
+import com.linkedin.metadata.dao.ingestion.preupdate.RestliPreUpdateAspectRegistry;
+import com.linkedin.metadata.dao.ingestion.preupdate.RestliCompliantPreUpdateRoutingClient;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.IndefiniteRetention;
@@ -48,9 +49,6 @@ import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
-import io.grpc.stub.AbstractStub;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.util.Collections;
@@ -219,7 +217,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   private Clock _clock = Clock.systemUTC();
 
-  private Map<Class<? extends RecordTemplate>, Object[]> _grpcPreUpdateRoutingMap;
+  private Map<Class<? extends RecordTemplate>, PreUpdateService<? extends Message>> _grpcPreUpdateRoutingMap = new HashMap<>();
 
   /**
    * Constructor for BaseLocalDAO.
@@ -420,7 +418,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     return _restliPreUpdateAspectRegistry;
   }
 
-  public void setGrpcPreUpdateRoutingMap(Map<Class<? extends RecordTemplate>, Object[]> grpcPreUpdateRoutingMap) {
+  public void setGrpcPreUpdateRoutingMap(Map<Class<? extends RecordTemplate>, PreUpdateService<? extends Message>> grpcPreUpdateRoutingMap) {
     _grpcPreUpdateRoutingMap = grpcPreUpdateRoutingMap;
   }
 
@@ -863,9 +861,6 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext,
       @Nullable IngestionParams ingestionParams) {
     ASPECT updatedAspect = preUpdateRouting(urn, newValue);
-    if (_grpcPreUpdateRoutingMap != null && _grpcPreUpdateRoutingMap.containsKey(newValue.getClass())) {
-      updatedAspect = grpcPreUpdateRouting(urn, updatedAspect);
-    }
     return rawAdd(urn, updatedAspect, auditStamp, trackingContext, ingestionParams);
   }
 
@@ -1675,6 +1670,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @return the updated aspect
    */
   protected <ASPECT extends RecordTemplate> ASPECT preUpdateRouting(URN urn, ASPECT newValue) {
+
     if (_restliPreUpdateAspectRegistry != null && _restliPreUpdateAspectRegistry.isRegistered(
         newValue.getClass())) {
       RestliCompliantPreUpdateRoutingClient client =
@@ -1685,42 +1681,28 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       log.info("PreUpdateRouting completed in BaseLocalDao, urn: {}, updated aspect: {}", urn, convertedAspect);
       return (ASPECT) convertedAspect;
     }
-    return newValue;
-  }
 
-  protected <ASPECT extends RecordTemplate> ASPECT grpcPreUpdateRouting(URN urn, ASPECT aspect) {
-    Object[] routingData = _grpcPreUpdateRoutingMap.get(aspect.getClass());
-    // Extract stored information
-    AbstractStub<?> stub = (AbstractStub<?>) routingData[0];
-    Method newBuilderMethod = (Method) routingData[1];  // Method for newBuilder()
-    Method preUpdateMethod = (Method) routingData[2];   // Method for gRPC call
+    if (_grpcPreUpdateRoutingMap != null && _grpcPreUpdateRoutingMap.containsKey(newValue.getClass())) {
+      // Fetch routing data (PreUpdateService instance) for the given aspect
+      PreUpdateService<Message> preUpdateService = (PreUpdateService<Message>) _grpcPreUpdateRoutingMap.get(newValue.getClass());
+      try {
+        // Convert the URN and aspect to gRPC-compatible Message objects
+        Message grpcUrn = preUpdateService.convertUrnToMessage(urn);
+        Message grpcAspect = preUpdateService.convertAspectToMessage(newValue);
 
-    // Dynamically create the request using newBuilder method
-    try {
-      Message.Builder requestBuilder = (Message.Builder) newBuilderMethod.invoke(null);
+        // Invoke the grpc service pre update method
+        PreUpdateResponse preUpdateResponse = preUpdateService.preUpdate(grpcUrn, grpcAspect);
 
-      // Get the descriptor for the request type
-      Descriptors.Descriptor requestDescriptor = requestBuilder.getDescriptorForType();
+        // Convert the updated gRPC Message aspect back to RecordTemplate
+        ASPECT updatedAspect = (ASPECT) preUpdateService.convertAspectToRecordTemplate(preUpdateResponse.getUpdatedAspect());
 
-      // Find the "urn" field descriptor and set its value
-      Descriptors.FieldDescriptor urnField = requestDescriptor.findFieldByName("urn");
-      requestBuilder.setField(urnField, urn);
-
-      // Find the "value" field descriptor and set its value (this is the aspect in your case)
-      Descriptors.FieldDescriptor valueField = requestDescriptor.findFieldByName("value");
-      requestBuilder.setField(valueField, aspect);
-
-      // Build the request object
-      Message request = requestBuilder.build();
-
-      // Invoke the gRPC preUpdate method
-      Object response = preUpdateMethod.invoke(stub, request);
-      // Extract and return the updated aspect from the response
-      Descriptors.Descriptor responseDescriptor = ((Message) response).getDescriptorForType();
-      log.info("PreUpdateRouting completed in BaseLocalDao, urn: {}, updated aspect: {}", urn, response);
-      return (ASPECT) ((Message) response).getField(responseDescriptor.findFieldByName("value"));
-    } catch (IllegalAccessException | InvocationTargetException e) {
-      throw new RuntimeException(e);
+        log.info("PreUpdateRouting completed in BaseLocalDao, urn: {}, previous aspect: {}, updated aspect: {}", urn, newValue, updatedAspect);
+        return updatedAspect;
+      } catch (Exception e) {
+        log.error("Exception during gRPC pre-update routing for URN: {}, Aspect: {}. Error: {}", urn, newValue , e.getMessage(), e);
+        throw new RuntimeException("Error during gRPC preUpdateRouting", e);
+      }
     }
+    return newValue;
   }
 }
