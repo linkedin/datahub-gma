@@ -21,7 +21,7 @@ import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.query.ListResultMetadata;
 import com.linkedin.metadata.query.MapMetadata;
-import com.linkedin.metadata.restli.lix.DummyResourceLix;
+import com.linkedin.metadata.restli.lix.RampedResourceImpl;
 import com.linkedin.metadata.restli.lix.ResourceLix;
 import com.linkedin.parseq.Task;
 import com.linkedin.restli.common.EmptyRecord;
@@ -96,7 +96,7 @@ public abstract class BaseEntityResource<
   private final Class<ASSET> _assetClass;
   protected final Class<URN> _urnClass;
   protected BaseTrackingManager _trackingManager = null;
-  private ResourceLix _defaultResourceLix = new DummyResourceLix();
+  private ResourceLix _defaultResourceLix = new RampedResourceImpl();
 
   /**
    * This method is to be overriden by specific resource endpoint implementation with real lix impl.
