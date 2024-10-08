@@ -29,6 +29,7 @@ import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateResponse;
 import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateService;
 import com.linkedin.metadata.dao.ingestion.preupdate.RestliPreUpdateAspectRegistry;
 import com.linkedin.metadata.dao.ingestion.preupdate.RestliCompliantPreUpdateRoutingClient;
+import com.linkedin.metadata.dao.ingestion.preupdate.RoutingMap;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.IndefiniteRetention;
@@ -217,7 +218,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   private Clock _clock = Clock.systemUTC();
 
-  private Map<Class<? extends RecordTemplate>, PreUpdateService<? extends Message>> _grpcPreUpdateRoutingMap = new HashMap<>();
+  private Map<Class<? extends RecordTemplate>, RoutingMap> _grpcPreUpdateRoutingMap;
 
   /**
    * Constructor for BaseLocalDAO.
@@ -418,7 +419,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     return _restliPreUpdateAspectRegistry;
   }
 
-  public void setGrpcPreUpdateRoutingMap(Map<Class<? extends RecordTemplate>, PreUpdateService<? extends Message>> grpcPreUpdateRoutingMap) {
+  public void setGrpcPreUpdateRoutingMap(Map<Class<? extends RecordTemplate>, RoutingMap> grpcPreUpdateRoutingMap) {
     _grpcPreUpdateRoutingMap = grpcPreUpdateRoutingMap;
   }
 
@@ -1684,7 +1685,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     if (_grpcPreUpdateRoutingMap != null && _grpcPreUpdateRoutingMap.containsKey(newValue.getClass())) {
       // Fetch routing data (PreUpdateService instance) for the given aspect
-      PreUpdateService<Message> preUpdateService = (PreUpdateService<Message>) _grpcPreUpdateRoutingMap.get(newValue.getClass());
+      RoutingMap _routingMap =  _grpcPreUpdateRoutingMap.get(newValue.getClass());
+      PreUpdateService preUpdateService = _routingMap.getPreUpdateService();
       try {
         // Convert the URN and aspect to gRPC-compatible Message objects
         Message grpcUrn = preUpdateService.convertUrnToMessage(urn);
