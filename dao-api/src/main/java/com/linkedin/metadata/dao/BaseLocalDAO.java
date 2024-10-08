@@ -26,7 +26,7 @@ import com.linkedin.metadata.dao.exception.ModelValidationException;
 import com.linkedin.metadata.dao.ingestion.BaseLambdaFunction;
 import com.linkedin.metadata.dao.ingestion.LambdaFunctionRegistry;
 import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateResponse;
-import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateService;
+import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateClient;
 import com.linkedin.metadata.dao.ingestion.preupdate.RestliPreUpdateAspectRegistry;
 import com.linkedin.metadata.dao.ingestion.preupdate.RestliCompliantPreUpdateRoutingClient;
 import com.linkedin.metadata.dao.ingestion.preupdate.RoutingMap;
@@ -1684,19 +1684,19 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     }
 
     if (_grpcPreUpdateRoutingMap != null && _grpcPreUpdateRoutingMap.containsKey(newValue.getClass())) {
-      // Fetch routing data (PreUpdateService instance) for the given aspect
+      // Fetch routing data (PreUpdateClient instance) for the given aspect
       RoutingMap _routingMap =  _grpcPreUpdateRoutingMap.get(newValue.getClass());
-      PreUpdateService preUpdateService = _routingMap.getPreUpdateService();
+      PreUpdateClient preUpdateClient = _routingMap.getPreUpdateClient();
       try {
         // Convert the URN and aspect to gRPC-compatible Message objects
-        Message grpcUrn = preUpdateService.convertUrnToMessage(urn);
-        Message grpcAspect = preUpdateService.convertAspectToMessage(newValue);
+        Message grpcUrn = preUpdateClient.convertUrnToMessage(urn);
+        Message grpcAspect = preUpdateClient.convertAspectToMessage(newValue);
 
         // Invoke the grpc service pre update method
-        PreUpdateResponse preUpdateResponse = preUpdateService.preUpdate(grpcUrn, grpcAspect);
+        PreUpdateResponse preUpdateResponse = preUpdateClient.preUpdate(grpcUrn, grpcAspect);
 
         // Convert the updated gRPC Message aspect back to RecordTemplate
-        ASPECT updatedAspect = (ASPECT) preUpdateService.convertAspectToRecordTemplate(preUpdateResponse.getUpdatedAspect());
+        ASPECT updatedAspect = (ASPECT) preUpdateClient.convertAspectToRecordTemplate(preUpdateResponse.getUpdatedAspect());
 
         log.info("PreUpdateRouting completed in BaseLocalDao, urn: {}, previous aspect: {}, updated aspect: {}", urn, newValue, updatedAspect);
         return updatedAspect;

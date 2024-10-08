@@ -1,9 +1,7 @@
-package com.linkedin.metadata.dao.ingestion;
+package com.linkedin.metadata.dao.ingestion.preupdate;
 
 import com.google.common.collect.ImmutableMap;
 import com.linkedin.data.template.RecordTemplate;
-import com.linkedin.metadata.dao.ingestion.preupdate.RestliCompliantPreUpdateRoutingClient;
-import com.linkedin.metadata.dao.ingestion.preupdate.RestliPreUpdateAspectRegistry;
 import com.linkedin.testing.AspectFoo;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;

@@ -5,7 +5,7 @@ import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 
 
-public interface PreUpdateService<ASPECT extends Message> {
+public interface PreUpdateClient<ASPECT extends Message> {
 
   /**
    * Executes the gRPC pre-update logic, including building the request,

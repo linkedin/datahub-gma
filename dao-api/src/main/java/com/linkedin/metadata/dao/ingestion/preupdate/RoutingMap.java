@@ -11,5 +11,5 @@ public class RoutingMap {
     SKIP,
     PROCEED
   }
-  public PreUpdateService<? extends Message> preUpdateService;
+  public PreUpdateClient<? extends Message> preUpdateClient;
 }
