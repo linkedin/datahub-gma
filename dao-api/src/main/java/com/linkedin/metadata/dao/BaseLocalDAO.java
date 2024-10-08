@@ -1699,7 +1699,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
         log.info("PreUpdateRouting completed in BaseLocalDao, urn: {}, previous aspect: {}, updated aspect: {}", urn, newValue, updatedAspect);
         return updatedAspect;
       } catch (Exception e) {
-        log.error("Exception during gRPC pre-update routing for URN: {}, Aspect: {}. Error: {}", urn, newValue , e.getMessage(), e);
+        log.error("Exception during gRPC pre-update routing for URN: {}, Aspect: {}. Error: {}", urn, newValue, e.getMessage(), e);
         throw new RuntimeException("Error during gRPC preUpdateRouting", e);
       }
     }
