@@ -1669,7 +1669,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param newValue the new aspect value
    * @return the updated aspect
    */
-  protected <ASPECT extends RecordTemplate> ASPECT preUpdateRouting(URN urn, ASPECT newValue) {
+  protected <ASPECT extends RecordTemplate> ASPECT preUpdateRouting(@Nonnull URN urn, @Nonnull ASPECT newValue) {
 
     if (_restliPreUpdateAspectRegistry != null && _restliPreUpdateAspectRegistry.isRegistered(
         newValue.getClass())) {
