@@ -24,6 +24,7 @@ import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.query.MapMetadata;
 import com.linkedin.metadata.query.SortOrder;
+import com.linkedin.metadata.restli.lix.LegacyResourceImpl;
 import com.linkedin.metadata.restli.lix.ResourceLix;
 import com.linkedin.parseq.BaseEngineTest;
 import com.linkedin.restli.common.ComplexResourceKey;
@@ -62,7 +63,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
@@ -81,6 +81,11 @@ public class BaseEntityResourceTest extends BaseEngineTest {
   class TestResource extends
                      BaseEntityResource<ComplexResourceKey<EntityKey, EmptyRecord>, EntityValue, FooUrn, EntitySnapshot,
                          EntityAspectUnion, InternalEntitySnapshot, InternalEntityAspectUnion, EntityAsset> {
+
+    @Override
+    protected ResourceLix getResourceLix() {
+      return new LegacyResourceImpl();
+    }
 
     public TestResource() {
       super(EntitySnapshot.class, EntityAspectUnion.class, FooUrn.class, InternalEntitySnapshot.class,
@@ -159,86 +164,6 @@ public class BaseEntityResourceTest extends BaseEngineTest {
   class TestInternalResource extends
                      BaseEntityResource<ComplexResourceKey<EntityKey, EmptyRecord>, EntityValue, FooUrn, EntitySnapshot,
                          EntityAspectUnion, InternalEntitySnapshot, InternalEntityAspectUnion, EntityAsset> {
-
-    @Override
-    protected ResourceLix getResourceLix() {
-      return new ResourceLix() {
-        @Override
-        public boolean testGet(@Nonnull String urn, @Nonnull String entityType) {
-          return true;
-        }
-
-        @Override
-        public boolean testBatchGet(@Nullable String urn, @Nullable String entityType) {
-          return true;
-        }
-
-        @Override
-        public boolean testBatchGetWithErrors(@Nullable String urn, @Nullable String type) {
-          return false;
-        }
-
-        @Override
-        public boolean testGetSnapshot(@Nullable String urn, @Nullable String entityType) {
-          return true;
-        }
-
-        @Override
-        public boolean testBackfillLegacy(@Nullable String urn, @Nullable String entityType) {
-          return false;
-        }
-
-        @Override
-        public boolean testBackfillWithUrns(@Nullable String urn, @Nullable String entityType) {
-          return false;
-        }
-
-        @Override
-        public boolean testEmitNoChangeMetadataAuditEvent(@Nullable String urn, @Nullable String entityType) {
-          return false;
-        }
-
-        @Override
-        public boolean testBackfillWithNewValue(@Nullable String urn, @Nullable String entityType) {
-          return false;
-        }
-
-        @Override
-        public boolean testBackfillEntityTables(@Nullable String urn, @Nullable String entityType) {
-          return false;
-        }
-
-        @Override
-        public boolean testBackfillRelationshipTables(@Nullable String urn, @Nullable String entityType) {
-          return false;
-        }
-
-        @Override
-        public boolean testBackfill(@Nonnull String assetType, @Nonnull String mode) {
-          return false;
-        }
-
-        @Override
-        public boolean testFilter(@Nonnull String assetType) {
-          return true;
-        }
-
-        @Override
-        public boolean testGetAll(@Nullable String urnType) {
-          return false;
-        }
-
-        @Override
-        public boolean testSearch(@Nullable String urnType) {
-          return false;
-        }
-
-        @Override
-        public boolean testSearchV2(@Nullable String urnType) {
-          return false;
-        }
-      };
-    }
 
     public TestInternalResource() {
       super(EntitySnapshot.class, EntityAspectUnion.class, FooUrn.class, InternalEntitySnapshot.class,
@@ -518,7 +443,8 @@ public class BaseEntityResourceTest extends BaseEngineTest {
         .thenReturn(Collections.emptyMap());
 
     BatchResult<ComplexResourceKey<EntityKey, EmptyRecord>, EntityValue> result =
-        runAndWait(_resource.batchGetWithErrors(ImmutableSet.of(makeResourceKey(urn1), makeResourceKey(urn2)), aspectNames));
+        runAndWait(
+            _resource.batchGetWithErrors(ImmutableSet.of(makeResourceKey(urn1), makeResourceKey(urn2)), aspectNames));
 
     // convert BatchResult<ComplexResourceKey<EntityKey, EmptyRecord>, EntityValue> to BatchResult<EntityKey, EntityValue>
     BatchResult<EntityKey, EntityValue> batchResultMap = convertBatchResult(result);
@@ -596,7 +522,8 @@ public class BaseEntityResourceTest extends BaseEngineTest {
         .thenReturn(ImmutableMap.of(aspectFooKey1, Optional.of(foo), aspectBarKey2, Optional.of(bar)));
 
     BatchResult<ComplexResourceKey<EntityKey, EmptyRecord>, EntityValue> result =
-        runAndWait(_resource.batchGetWithErrors(ImmutableSet.of(makeResourceKey(urn1), makeResourceKey(urn2)), aspectNames));
+        runAndWait(
+            _resource.batchGetWithErrors(ImmutableSet.of(makeResourceKey(urn1), makeResourceKey(urn2)), aspectNames));
 
     // convert BatchResult<ComplexResourceKey<EntityKey, EmptyRecord>, EntityValue> to BatchResult<EntityKey, EntityValue>
     BatchResult<EntityKey, EntityValue> batchResultMap = convertBatchResult(result);
@@ -635,7 +562,8 @@ public class BaseEntityResourceTest extends BaseEngineTest {
         .thenReturn(ImmutableMap.of(aspectFooKey1, Optional.of(foo), aspectBarKey2, Optional.empty()));
 
     BatchResult<ComplexResourceKey<EntityKey, EmptyRecord>, EntityValue> result =
-        runAndWait(_resource.batchGetWithErrors(ImmutableSet.of(makeResourceKey(urn1), makeResourceKey(urn2)), aspectNames));
+        runAndWait(
+            _resource.batchGetWithErrors(ImmutableSet.of(makeResourceKey(urn1), makeResourceKey(urn2)), aspectNames));
 
     // convert BatchResult<ComplexResourceKey<EntityKey, EmptyRecord>, EntityValue> to BatchResult<EntityKey, EntityValue>
     BatchResult<EntityKey, EntityValue> batchResultMap = convertBatchResult(result);
@@ -962,7 +890,8 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     AspectBar bar1 = new AspectBar().setValue("bar1");
     AspectBar bar2 = new AspectBar().setValue("bar2");
     String[] aspects = new String[]{"com.linkedin.testing.AspectFoo", "com.linkedin.testing.AspectBar"};
-    when(_mockLocalDAO.backfillWithNewValue(_resource.parseAspectsParam(aspects, false), ImmutableSet.of(urn1, urn2)))
+    when(_mockLocalDAO.backfillWithNewValue(
+        _resource.parseAspectsParam(aspects, false), ImmutableSet.of(urn1, urn2)))
         .thenReturn(
             ImmutableMap.of(urn1, ImmutableMap.of(AspectFoo.class, Optional.of(foo1), AspectBar.class, Optional.of(bar1)),
             urn2, ImmutableMap.of(AspectBar.class, Optional.of(bar2)))
@@ -1001,7 +930,8 @@ public class BaseEntityResourceTest extends BaseEngineTest {
         );
 
     BackfillResult backfillResult =
-        runAndWait(_resource.emitNoChangeMetadataAuditEvent(new String[]{urn1.toString(), urn2.toString()}, aspects,
+        runAndWait(
+            _resource.emitNoChangeMetadataAuditEvent(new String[]{urn1.toString(), urn2.toString()}, aspects,
             IngestionMode.BACKFILL));
     assertEquals(backfillResult.getEntities().size(), 2);
 
@@ -1034,7 +964,8 @@ public class BaseEntityResourceTest extends BaseEngineTest {
         );
 
     BackfillResult backfillResult =
-        runAndWait(_resource.emitNoChangeMetadataAuditEvent(new String[]{urn1.toString(), urn2.toString()}, aspects,
+        runAndWait(
+            _resource.emitNoChangeMetadataAuditEvent(new String[]{urn1.toString(), urn2.toString()}, aspects,
             IngestionMode.BOOTSTRAP));
     assertEquals(backfillResult.getEntities().size(), 2);
 
@@ -1062,7 +993,8 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     String[] aspects = new String[]{"com.linkedin.testing.AspectFoo", "com.linkedin.testing.AspectBar"};
 
     BackfillResult backfillResult =
-        runAndWait(_resource.emitNoChangeMetadataAuditEvent(new String[]{urn1.toString(), urn2.toString()}, aspects,
+        runAndWait(
+            _resource.emitNoChangeMetadataAuditEvent(new String[]{urn1.toString(), urn2.toString()}, aspects,
             IngestionMode.LIVE));
     verify(_mockLocalDAO, times(0)).backfill(any(BackfillMode.class), any(Set.class), any(Set.class));
     assertFalse(backfillResult.hasEntities());
@@ -1082,7 +1014,8 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     List<LocalRelationshipUpdates> relationships = Collections.singletonList(updates);
 
     when(_mockLocalDAO.backfillLocalRelationships(fooUrn, AspectFoo.class)).thenReturn(relationships);
-    BackfillResult backfillResult = runAndWait(_resource.backfillRelationshipTables(new String[]{fooUrn.toString()}, aspects));
+    BackfillResult backfillResult = runAndWait(
+        _resource.backfillRelationshipTables(new String[]{fooUrn.toString()}, aspects));
 
     assertTrue(backfillResult.hasRelationships());
     assertEquals(backfillResult.getRelationships().size(), 1);
@@ -1171,7 +1104,8 @@ public class BaseEntityResourceTest extends BaseEngineTest {
         .build();
     when(_mockLocalDAO.listUrns(null, indexSortCriterion, 0, 2)).thenReturn(urnsListResult);
     ListResult<EntityValue>
-        listResultActual = runAndWait(_resource.filter(null, indexSortCriterion, new String[0], new PagingContext(0, 2)));
+        listResultActual = runAndWait(
+        _resource.filter(null, indexSortCriterion, new String[0], new PagingContext(0, 2)));
     List<EntityValue> actualValues = listResultActual.getValues();
     assertEquals(actualValues.size(), 2);
     assertEquals(actualValues.get(0), new EntityValue());
