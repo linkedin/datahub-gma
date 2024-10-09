@@ -1,9 +1,10 @@
-package com.linkedin.metadata.dao.ingestion;
+package com.linkedin.metadata.dao.ingestion.preupdate;
 
 import com.google.protobuf.Message;
 
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
+
 
 /**
  * A restli client to route update request to the appropriate to custom APIs.

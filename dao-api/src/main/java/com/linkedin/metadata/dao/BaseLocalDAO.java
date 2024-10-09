@@ -25,8 +25,12 @@ import com.linkedin.metadata.dao.equality.EqualityTester;
 import com.linkedin.metadata.dao.exception.ModelValidationException;
 import com.linkedin.metadata.dao.ingestion.BaseLambdaFunction;
 import com.linkedin.metadata.dao.ingestion.LambdaFunctionRegistry;
-import com.linkedin.metadata.dao.ingestion.RestliPreUpdateAspectRegistry;
-import com.linkedin.metadata.dao.ingestion.RestliCompliantPreUpdateRoutingClient;
+import com.linkedin.metadata.dao.ingestion.preupdate.GrpcPreUpdateRegistry;
+import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateResponse;
+import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateClient;
+import com.linkedin.metadata.dao.ingestion.preupdate.RestliPreUpdateAspectRegistry;
+import com.linkedin.metadata.dao.ingestion.preupdate.RestliCompliantPreUpdateRoutingClient;
+import com.linkedin.metadata.dao.ingestion.preupdate.PreRoutingInfo;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.IndefiniteRetention;
@@ -215,6 +219,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   private Clock _clock = Clock.systemUTC();
 
+  private GrpcPreUpdateRegistry _grpcPreUpdateRegistry = null;
+
   /**
    * Constructor for BaseLocalDAO.
    *
@@ -400,7 +406,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * Set pre ingestion aspect registry.
+   * Set pre ingestion aspect registry for restli implementation.
    */
   public void setRestliPreUpdateAspectRegistry(
       @Nullable RestliPreUpdateAspectRegistry restliPreUpdateAspectRegistry) {
@@ -414,6 +420,12 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     return _restliPreUpdateAspectRegistry;
   }
 
+  /**
+   * Set pre ingestion aspect registry for grpc implementation.
+   */
+  public void setGrpcPreUpdateRegistry(@Nullable GrpcPreUpdateRegistry grpcPreUpdateRegistry) {
+    _grpcPreUpdateRegistry = grpcPreUpdateRegistry;
+  }
 
   /**
    * Enables or disables atomic updates of multiple aspects.
@@ -1657,12 +1669,13 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * This method routes the update request to the appropriate custom API for pre-ingestion processing.
+   * This method routes the update request to the appropriate API for pre-ingestion processing.
    * @param urn the urn of the asset
    * @param newValue the new aspect value
    * @return the updated aspect
    */
-  protected <ASPECT extends RecordTemplate> ASPECT preUpdateRouting(URN urn, ASPECT newValue) {
+  protected <ASPECT extends RecordTemplate> ASPECT preUpdateRouting(@Nonnull URN urn, @Nonnull ASPECT newValue) {
+
     if (_restliPreUpdateAspectRegistry != null && _restliPreUpdateAspectRegistry.isRegistered(
         newValue.getClass())) {
       RestliCompliantPreUpdateRoutingClient client =
@@ -1672,6 +1685,24 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       RecordTemplate convertedAspect = client.convertAspectToRecordTemplate(updatedAspect);
       log.info("PreUpdateRouting completed in BaseLocalDao, urn: {}, updated aspect: {}", urn, convertedAspect);
       return (ASPECT) convertedAspect;
+    }
+
+    if (_grpcPreUpdateRegistry != null && _grpcPreUpdateRegistry.isRegistered(newValue.getClass())) {
+      // Fetch routing data (PreUpdateClient instance) for the given aspect
+      PreRoutingInfo routingMap = _grpcPreUpdateRegistry.getPreUpdateRoutingClient(newValue);
+      PreUpdateClient preUpdateClient = routingMap.getPreUpdateClient();
+      try {
+        // Invoke the grpc service pre update method
+        PreUpdateResponse preUpdateResponse = preUpdateClient.preUpdate(urn, newValue);
+        ASPECT updatedAspect = (ASPECT) preUpdateResponse.getUpdatedAspect();
+        log.info("PreUpdateRouting completed in BaseLocalDao, urn: {}, previous aspect: {}, updated aspect: {}", urn,
+            newValue, updatedAspect);
+        return updatedAspect;
+      } catch (Exception e) {
+        log.error("Exception during gRPC pre-update routing for URN: {}, Aspect: {}. Error: {}", urn, newValue,
+            e.getMessage(), e);
+        throw new RuntimeException("Error during gRPC preUpdateRouting", e);
+      }
     }
     return newValue;
   }

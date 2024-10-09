@@ -1,4 +1,4 @@
-package com.linkedin.metadata.dao.ingestion;
+package com.linkedin.metadata.dao.ingestion.preupdate;
 
 import com.google.common.collect.ImmutableMap;
 import com.linkedin.data.template.RecordTemplate;

@@ -1,4 +1,4 @@
-package com.linkedin.metadata.dao.ingestion;
+package com.linkedin.metadata.dao.ingestion.preupdate;
 
 import com.google.protobuf.Message;
 
