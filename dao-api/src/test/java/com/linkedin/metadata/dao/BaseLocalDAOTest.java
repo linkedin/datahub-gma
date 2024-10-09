@@ -6,7 +6,10 @@ import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.ingestion.SampleLambdaFunctionRegistryImpl;
+import com.linkedin.metadata.dao.ingestion.preupdate.GrpcPreUpdateRegistry;
+import com.linkedin.metadata.dao.ingestion.preupdate.PreRoutingInfo;
 import com.linkedin.metadata.dao.ingestion.preupdate.SamplePreUpdateAspectRegistryImpl;
+import com.linkedin.metadata.dao.ingestion.preupdate.SamplePreUpdateGrpcClient;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
@@ -688,6 +691,46 @@ public class BaseLocalDAOTest {
 
     // Inject RestliPreIngestionAspectRegistry with no registered aspect
     _dummyLocalDAO.setRestliPreUpdateAspectRegistry(new SamplePreUpdateAspectRegistryImpl());
+
+    // Call the add method
+    AspectBar result = _dummyLocalDAO.preUpdateRouting(urn, foo);
+
+    // Verify that the result is the same as the input aspect since it's not registered
+    assertEquals(result, foo);
+  }
+
+  @Test
+  public void testPreUpdateRoutingGrpcFromFooToBar() throws URISyntaxException {
+    // Setup test data
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectFoo bar = new AspectFoo().setValue("bar");
+
+    GrpcPreUpdateRegistry grpcPreUpdateRegistry = new GrpcPreUpdateRegistry();
+    PreRoutingInfo preRoutingInfo = new PreRoutingInfo();
+    preRoutingInfo.setPreUpdateClient(new SamplePreUpdateGrpcClient());
+
+
+    grpcPreUpdateRegistry.registerPreUpdateLambda(AspectFoo.class, preRoutingInfo);
+    _dummyLocalDAO.setGrpcPreUpdateRegistry(grpcPreUpdateRegistry);
+
+    AspectFoo result = _dummyLocalDAO.preUpdateRouting(urn, foo);
+    assertEquals(result, bar);
+  }
+
+  @Test
+  public void testPreUpdateRoutingGrpcWithUnregisteredAspect() throws URISyntaxException {
+    // Setup test data
+    FooUrn urn = new FooUrn(1);
+    AspectBar foo = new AspectBar().setValue("foo");
+
+    GrpcPreUpdateRegistry grpcPreUpdateRegistry = new GrpcPreUpdateRegistry();
+    PreRoutingInfo preRoutingInfo = new PreRoutingInfo();
+    preRoutingInfo.setPreUpdateClient(new SamplePreUpdateGrpcClient());
+
+
+    grpcPreUpdateRegistry.registerPreUpdateLambda(AspectFoo.class, preRoutingInfo);
+    _dummyLocalDAO.setGrpcPreUpdateRegistry(grpcPreUpdateRegistry);
 
     // Call the add method
     AspectBar result = _dummyLocalDAO.preUpdateRouting(urn, foo);

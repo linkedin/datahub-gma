@@ -5,7 +5,7 @@ import lombok.Data;
 
 
 @Data
-public class RoutingMap {
+public class PreRoutingInfo {
 
   public PreUpdateClient<? extends Message> preUpdateClient;
 

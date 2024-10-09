@@ -30,7 +30,7 @@ import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateResponse;
 import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateClient;
 import com.linkedin.metadata.dao.ingestion.preupdate.RestliPreUpdateAspectRegistry;
 import com.linkedin.metadata.dao.ingestion.preupdate.RestliCompliantPreUpdateRoutingClient;
-import com.linkedin.metadata.dao.ingestion.preupdate.RoutingMap;
+import com.linkedin.metadata.dao.ingestion.preupdate.PreRoutingInfo;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.IndefiniteRetention;
@@ -1689,7 +1689,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     if (_grpcPreUpdateRegistry != null && _grpcPreUpdateRegistry.isRegistered(newValue.getClass())) {
       // Fetch routing data (PreUpdateClient instance) for the given aspect
-      RoutingMap routingMap = _grpcPreUpdateRegistry.getPreUpdateRoutingClient(newValue);
+      PreRoutingInfo routingMap = _grpcPreUpdateRegistry.getPreUpdateRoutingClient(newValue);
       PreUpdateClient preUpdateClient = routingMap.getPreUpdateClient();
       try {
         // Invoke the grpc service pre update method
