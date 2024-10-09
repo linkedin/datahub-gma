@@ -25,6 +25,7 @@ import com.linkedin.metadata.dao.equality.EqualityTester;
 import com.linkedin.metadata.dao.exception.ModelValidationException;
 import com.linkedin.metadata.dao.ingestion.BaseLambdaFunction;
 import com.linkedin.metadata.dao.ingestion.LambdaFunctionRegistry;
+import com.linkedin.metadata.dao.ingestion.preupdate.GrpcPreUpdateRegistry;
 import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateResponse;
 import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateClient;
 import com.linkedin.metadata.dao.ingestion.preupdate.RestliPreUpdateAspectRegistry;
@@ -218,7 +219,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   private Clock _clock = Clock.systemUTC();
 
-  private Map<Class<? extends RecordTemplate>, RoutingMap> _grpcPreUpdateRoutingMap;
+  private GrpcPreUpdateRegistry _grpcPreUpdateRegistry = null;
 
   /**
    * Constructor for BaseLocalDAO.
@@ -405,7 +406,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * Set pre ingestion aspect registry.
+   * Set pre ingestion aspect registry for restli implementation.
    */
   public void setRestliPreUpdateAspectRegistry(
       @Nullable RestliPreUpdateAspectRegistry restliPreUpdateAspectRegistry) {
@@ -419,8 +420,11 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     return _restliPreUpdateAspectRegistry;
   }
 
-  public void setGrpcPreUpdateRoutingMap(Map<Class<? extends RecordTemplate>, RoutingMap> grpcPreUpdateRoutingMap) {
-    _grpcPreUpdateRoutingMap = grpcPreUpdateRoutingMap;
+  /**
+   * Set pre ingestion aspect registry for grpc implementation.
+   */
+  public void setGrpcPreUpdateRegistry(@Nullable GrpcPreUpdateRegistry grpcPreUpdateRegistry) {
+    _grpcPreUpdateRegistry = grpcPreUpdateRegistry;
   }
 
   /**
@@ -1683,10 +1687,10 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       return (ASPECT) convertedAspect;
     }
 
-    if (_grpcPreUpdateRoutingMap != null && _grpcPreUpdateRoutingMap.containsKey(newValue.getClass())) {
+    if (_grpcPreUpdateRegistry != null && _grpcPreUpdateRegistry.isRegistered(newValue.getClass())) {
       // Fetch routing data (PreUpdateClient instance) for the given aspect
-      RoutingMap _routingMap =  _grpcPreUpdateRoutingMap.get(newValue.getClass());
-      PreUpdateClient preUpdateClient = _routingMap.getPreUpdateClient();
+      RoutingMap routingMap =  _grpcPreUpdateRegistry.getPreUpdateRoutingClient(newValue);
+      PreUpdateClient preUpdateClient = routingMap.getPreUpdateClient();
       try {
         // Convert the URN and aspect to gRPC-compatible Message objects
         Message grpcUrn = preUpdateClient.convertUrnToMessage(urn);
