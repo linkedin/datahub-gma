@@ -17,28 +17,5 @@ public interface PreUpdateClient<ASPECT extends RecordTemplate> {
    */
   PreUpdateResponse<ASPECT> preUpdate(Urn urn, ASPECT aspect);
 
-  /**
-   * Converts a RecordTemplate URN to a gRPC-compatible Message.
-   *
-   * @param urn The RecordTemplate URN.
-   * @return The gRPC-compatible Message URN.
-   */
-  Message convertUrnToMessage(Urn urn);
-
-  /**
-   * Converts a RecordTemplate Aspect to a gRPC-compatible Message Aspect.
-   *
-   * @param aspect The RecordTemplate aspect.
-   * @return The gRPC-compatible Message aspect.
-   */
-  ASPECT convertAspectToMessage(RecordTemplate aspect);
-
-  /**
-   * Converts a gRPC-compatible Message Aspect back to a RecordTemplate Aspect.
-   *
-   * @param messageAspect The Message aspect.
-   * @return The RecordTemplate aspect.
-   */
-  RecordTemplate convertAspectToRecordTemplate(ASPECT messageAspect);
 }
 
