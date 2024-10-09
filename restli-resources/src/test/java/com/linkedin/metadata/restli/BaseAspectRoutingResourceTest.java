@@ -8,10 +8,12 @@ import com.linkedin.metadata.dao.AspectKey;
 import com.linkedin.metadata.dao.BaseBrowseDAO;
 import com.linkedin.metadata.dao.BaseLocalDAO;
 import com.linkedin.metadata.dao.BaseSearchDAO;
+import com.linkedin.metadata.dao.ingestion.SamplePreUpdateRoutingClient;
+import com.linkedin.metadata.dao.ingestion.preupdate.PreRoutingInfo;
+import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateAspectRegistry;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.events.IngestionTrackingContext;
-import com.linkedin.metadata.restli.ingestion.SamplePreUpdateAspectRegistryImpl;
 import com.linkedin.parseq.BaseEngineTest;
 import com.linkedin.restli.common.ComplexResourceKey;
 import com.linkedin.restli.common.EmptyRecord;
@@ -305,7 +307,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(null), eq(null));
     verify(_mockAspectFooGmsClient, times(1)).ingest(eq(urn), eq(foo));
     verify(_mockAspectAttributeGmsClient, times(1)).ingest(eq(urn), eq(attributes));
-    verify(_mockLocalDAO, times(2)).getRestliPreUpdateAspectRegistry();
+    verify(_mockLocalDAO, times(2)).getPreUpdateAspectRegistry();
     verify(_mockLocalDAO, times(1)).rawAdd(eq(urn), eq(foo), any(), any(), any());
   }
 
@@ -325,7 +327,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(trackingContext), eq(null));
     verify(_mockAspectFooGmsClient, times(1)).ingestWithTracking(eq(urn), eq(foo), eq(trackingContext), eq(null));
     verify(_mockAspectAttributeGmsClient, times(1)).ingestWithTracking(eq(urn), eq(attributes), eq(trackingContext), eq(null));
-    verify(_mockLocalDAO, times(2)).getRestliPreUpdateAspectRegistry();
+    verify(_mockLocalDAO, times(2)).getPreUpdateAspectRegistry();
     verify(_mockLocalDAO, times(1)).rawAdd(eq(urn), eq(foo), any(), any(), any());
   }
 
@@ -353,7 +355,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     runAndWait(_resource.ingest(snapshot));
 
-    verify(_mockLocalDAO, times(2)).getRestliPreUpdateAspectRegistry();
+    verify(_mockLocalDAO, times(2)).getPreUpdateAspectRegistry();
     verify(_mockLocalDAO, times(1)).rawAdd(eq(urn), eq(foo), any(), any(), any());
     // verify(_mockGmsClient, times(1)).ingest(eq(urn), eq(foo));
     verify(_mockAspectFooGmsClient, times(1)).ingest(eq(urn), eq(foo));
@@ -559,13 +561,16 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, foo));
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
 
-    SamplePreUpdateAspectRegistryImpl registry = new SamplePreUpdateAspectRegistryImpl();
-    when(_mockLocalDAO.getRestliPreUpdateAspectRegistry()).thenReturn(registry);
+    PreUpdateAspectRegistry registry = new PreUpdateAspectRegistry();
+    PreRoutingInfo preRoutingInfo = new PreRoutingInfo();
+    preRoutingInfo.setPreUpdateClient(new SamplePreUpdateRoutingClient());
+    registry.registerPreUpdateLambda(AspectFoo.class, preRoutingInfo);
+    when(_mockLocalDAO.getPreUpdateAspectRegistry()).thenReturn(registry);
 
     // given: ingest a snapshot containing a routed aspect which has a registered pre-update lambda.
     runAndWait(_resource.ingest(snapshot));
 
-    verify(_mockLocalDAO, times(1)).getRestliPreUpdateAspectRegistry();
+    verify(_mockLocalDAO, times(1)).getPreUpdateAspectRegistry();
     // expected: the pre-update lambda is executed first (aspect value is changed from foo to foobar) and then the aspect is dual-written.
     AspectFoo foobar = new AspectFoo().setValue("foobar");
     // dual write pt1: ensure the ingestion request is forwarded to the routed GMS.
@@ -600,8 +605,13 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     AspectBar bar = new AspectBar().setValue("bar");
     List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, bar));
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
-    SamplePreUpdateAspectRegistryImpl registry = new SamplePreUpdateAspectRegistryImpl();
-    when(_mockLocalDAO.getRestliPreUpdateAspectRegistry()).thenReturn(registry);
+
+    PreUpdateAspectRegistry registry = new PreUpdateAspectRegistry();
+    PreRoutingInfo preRoutingInfo = new PreRoutingInfo();
+    preRoutingInfo.setPreUpdateClient(new SamplePreUpdateRoutingClient());
+    registry.registerPreUpdateLambda(AspectFoo.class, preRoutingInfo);
+
+    when(_mockLocalDAO.getPreUpdateAspectRegistry()).thenReturn(registry);
 
     // given: ingest a snapshot which contains a non-routed aspect which has a registered pre-update lambda.
     runAndWait(_resource.ingest(snapshot));
@@ -647,12 +657,15 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     AspectFoo foo = new AspectFoo().setValue("foo");
     List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, foo));
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
-    SamplePreUpdateAspectRegistryImpl registry = new SamplePreUpdateAspectRegistryImpl();
-    when(_mockLocalDAO.getRestliPreUpdateAspectRegistry()).thenReturn(registry);
+    PreUpdateAspectRegistry registry = new PreUpdateAspectRegistry();
+    PreRoutingInfo preRoutingInfo = new PreRoutingInfo();
+    preRoutingInfo.setPreUpdateClient(new SamplePreUpdateRoutingClient());
+    registry.registerPreUpdateLambda(AspectFoo.class, preRoutingInfo);
+    when(_mockLocalDAO.getPreUpdateAspectRegistry()).thenReturn(registry);
 
     runAndWait(_resource.ingest(snapshot));
     verify(_mockAspectFooGmsClient, times(0)).ingest(any(), any());
-    verify(_mockLocalDAO, times(1)).getRestliPreUpdateAspectRegistry();
+    verify(_mockLocalDAO, times(1)).getPreUpdateAspectRegistry();
     // Should not add to local DAO
     verifyNoMoreInteractions(_mockLocalDAO);
   }
@@ -677,7 +690,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     // Should not skip ingestion
     verify(_mockAspectFooGmsClient, times(1)).ingest(eq(urn), eq(foo));
     // Should check for pre lambda
-    verify(_mockLocalDAO, times(1)).getRestliPreUpdateAspectRegistry();
+    verify(_mockLocalDAO, times(1)).getPreUpdateAspectRegistry();
     // Should continue to dual-write into local DAO
     verify(_mockLocalDAO, times(1)).rawAdd(eq(urn), eq(foo), any(), any(), any());
     verifyNoMoreInteractions(_mockLocalDAO);

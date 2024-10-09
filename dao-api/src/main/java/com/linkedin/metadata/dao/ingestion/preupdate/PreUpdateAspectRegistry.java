@@ -4,7 +4,6 @@ import com.linkedin.data.template.RecordTemplate;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import lombok.extern.slf4j.Slf4j;
 
 
@@ -12,7 +11,7 @@ import lombok.extern.slf4j.Slf4j;
  * A registry which maintains mapping of aspects and their PreUpdateRoutingClient.
  */
 @Slf4j
-public class PreUpdateAspectRegistry {
+public class PreUpdateAspectRegistry<ASPECT extends RecordTemplate> {
 
   private Map<Class<? extends RecordTemplate>, PreRoutingInfo> _preUpdateLambdaMap = new ConcurrentHashMap<>();
 

@@ -5,15 +5,28 @@ import com.google.protobuf.Message;
 import com.google.protobuf.StringValue;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
-import com.linkedin.metadata.dao.ingestion.RestliCompliantPreUpdateRoutingClient;
+import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateResponse;
+import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateRoutingClient;
 import com.linkedin.testing.AspectFoo;
 
 
-public class SamplePreUpdateRoutingClient implements RestliCompliantPreUpdateRoutingClient {
+public class SamplePreUpdateRoutingClient implements PreUpdateRoutingClient {
+
   @Override
-  public Message routingLambda(Message urn, Message aspect) {
-    // For testing, change the aspect value to "foobar"
-    return Any.pack(StringValue.of("foobar"));
+  public PreUpdateResponse preUpdate(Urn urn, RecordTemplate recordTemplate) {
+    // Convert URN to Protobuf message
+    Message urnMessage = convertUrnToMessage(urn);
+
+    // Convert RecordTemplate to Protobuf message
+    Message aspectMessage = convertAspectToMessage(recordTemplate);
+
+    // For testing, change the aspect value to "bar"
+    Message updatedAspectMessage = Any.pack(StringValue.of("bar"));
+
+    // Convert the updated aspect message back to RecordTemplate
+    RecordTemplate updatedAspect = convertAspectToRecordTemplate(updatedAspectMessage);
+    // Return a new PreUpdateResponse with the updated aspect
+    return new PreUpdateResponse<>(updatedAspect);
   }
 
   @Override
