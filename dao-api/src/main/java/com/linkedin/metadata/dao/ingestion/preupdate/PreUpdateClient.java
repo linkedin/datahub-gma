@@ -5,7 +5,7 @@ import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 
 
-public interface PreUpdateClient<ASPECT extends Message> {
+public interface PreUpdateClient<ASPECT extends RecordTemplate> {
 
   /**
    * Executes the gRPC pre-update logic, including building the request,
@@ -15,7 +15,7 @@ public interface PreUpdateClient<ASPECT extends Message> {
    * @param aspect The aspect to be updated.
    * @return The updated aspect.
    */
-  PreUpdateResponse<ASPECT> preUpdate(Message urn, ASPECT aspect);
+  PreUpdateResponse<ASPECT> preUpdate(Urn urn, ASPECT aspect);
 
   /**
    * Converts a RecordTemplate URN to a gRPC-compatible Message.

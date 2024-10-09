@@ -7,9 +7,9 @@ import lombok.Data;
 @Data
 public class RoutingMap {
 
-  public enum RoutingAction {
-    SKIP,
-    PROCEED
-  }
   public PreUpdateClient<? extends Message> preUpdateClient;
+
+  public enum RoutingAction {
+    PROCEED, SKIP
+  }
 }

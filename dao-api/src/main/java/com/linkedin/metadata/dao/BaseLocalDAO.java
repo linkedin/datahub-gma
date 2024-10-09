@@ -1669,7 +1669,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * This method routes the update request to the appropriate custom API for pre-ingestion processing.
+   * This method routes the update request to the appropriate API for pre-ingestion processing.
    * @param urn the urn of the asset
    * @param newValue the new aspect value
    * @return the updated aspect
@@ -1689,23 +1689,18 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     if (_grpcPreUpdateRegistry != null && _grpcPreUpdateRegistry.isRegistered(newValue.getClass())) {
       // Fetch routing data (PreUpdateClient instance) for the given aspect
-      RoutingMap routingMap =  _grpcPreUpdateRegistry.getPreUpdateRoutingClient(newValue);
+      RoutingMap routingMap = _grpcPreUpdateRegistry.getPreUpdateRoutingClient(newValue);
       PreUpdateClient preUpdateClient = routingMap.getPreUpdateClient();
       try {
-        // Convert the URN and aspect to gRPC-compatible Message objects
-        Message grpcUrn = preUpdateClient.convertUrnToMessage(urn);
-        Message grpcAspect = preUpdateClient.convertAspectToMessage(newValue);
-
         // Invoke the grpc service pre update method
-        PreUpdateResponse preUpdateResponse = preUpdateClient.preUpdate(grpcUrn, grpcAspect);
-
-        // Convert the updated gRPC Message aspect back to RecordTemplate
-        ASPECT updatedAspect = (ASPECT) preUpdateClient.convertAspectToRecordTemplate(preUpdateResponse.getUpdatedAspect());
-
-        log.info("PreUpdateRouting completed in BaseLocalDao, urn: {}, previous aspect: {}, updated aspect: {}", urn, newValue, updatedAspect);
+        PreUpdateResponse preUpdateResponse = preUpdateClient.preUpdate(urn, newValue);
+        ASPECT updatedAspect = (ASPECT) preUpdateResponse.getUpdatedAspect();
+        log.info("PreUpdateRouting completed in BaseLocalDao, urn: {}, previous aspect: {}, updated aspect: {}", urn,
+            newValue, updatedAspect);
         return updatedAspect;
       } catch (Exception e) {
-        log.error("Exception during gRPC pre-update routing for URN: {}, Aspect: {}. Error: {}", urn, newValue, e.getMessage(), e);
+        log.error("Exception during gRPC pre-update routing for URN: {}, Aspect: {}. Error: {}", urn, newValue,
+            e.getMessage(), e);
         throw new RuntimeException("Error during gRPC preUpdateRouting", e);
       }
     }
