@@ -38,6 +38,15 @@ public abstract class BaseBrowsableClient<VALUE extends RecordTemplate, URN exte
       throws RemoteInvocationException;
 
   /**
+   * Browse method that allows caller to choose the platform.
+   */
+  @Nonnull
+  public BrowseResult browse(@Nonnull String inputPath, @Nullable Map<String, String> requestFilters, @Nullable SearchPlatform searchPlatform,
+      int from, int size) throws RemoteInvocationException {
+    throw new UnsupportedOperationException("Not implemented yet.");
+  }
+
+  /**
    * Returns a list of paths for a given urn.
    *
    * @param urn Urn of the entity
@@ -49,4 +58,11 @@ public abstract class BaseBrowsableClient<VALUE extends RecordTemplate, URN exte
     throw new UnsupportedOperationException("Not implemented yet.");
   }
 
+  /**
+   * Returns a list of paths for a given urn and allows caller to choose the platform.
+   */
+  @Nonnull
+  public StringArray getBrowsePaths(@Nonnull URN urn, @Nullable SearchPlatform searchPlatform) throws RemoteInvocationException {
+    throw new UnsupportedOperationException("Not implemented yet.");
+  }
 }
