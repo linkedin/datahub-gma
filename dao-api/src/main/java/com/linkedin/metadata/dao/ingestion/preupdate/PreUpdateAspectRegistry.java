@@ -16,28 +16,28 @@ public class PreUpdateAspectRegistry {
   private Map<Class<? extends RecordTemplate>, PreUpdateRoutingAccessor> _preUpdateLambdaMap = new HashMap<>();
 
   /**
-   * Get GrpcPreUpdateRoutingClient for an aspect.
+   * Constructor to register a pre update routing accessor for the given aspect.
+   * @param aspectClass aspect class
+   * @param preUpdateRoutingAccessor pre update routing map
    */
-  public <ASPECT extends RecordTemplate> PreUpdateRoutingAccessor getPreUpdateRoutingClient(@Nonnull final ASPECT  aspect) {
+  public PreUpdateAspectRegistry(@Nonnull Class<? extends RecordTemplate> aspectClass,
+      @Nonnull PreUpdateRoutingAccessor preUpdateRoutingAccessor) {
+    log.info("Registering pre update routing accessor: {}, {}", aspectClass.getCanonicalName(), preUpdateRoutingAccessor);
+    _preUpdateLambdaMap.put(aspectClass, preUpdateRoutingAccessor);
+  }
+
+  /**
+   * Get Pre Update Routing Accessor for an aspect.
+   */
+  public <ASPECT extends RecordTemplate> PreUpdateRoutingAccessor getPreUpdateRoutingAccessor(@Nonnull final ASPECT  aspect) {
     return _preUpdateLambdaMap.get(aspect.getClass());
   }
 
   /**
-   * Check if GrpcPreUpdateRoutingClient is registered for an aspect.
+   * Check if Pre Update Routing Accessor is registered for an aspect.
    */
   public <ASPECT extends RecordTemplate> boolean isRegistered(@Nonnull final Class<ASPECT> aspectClass) {
     return _preUpdateLambdaMap.containsKey(aspectClass);
-  }
-
-  /**
-   * Register a pre update lambda for the given aspect.
-   * @param aspectClass aspect class
-   * @param preUpdateRoutingInfo pre update routing map
-   */
-  public void registerPreUpdateLambda(@Nonnull Class<? extends RecordTemplate> aspectClass,
-      @Nonnull PreUpdateRoutingAccessor preUpdateRoutingInfo) {
-    log.info("Registering pre update lambda: {}, {}", aspectClass.getCanonicalName(), preUpdateRoutingInfo);
-    _preUpdateLambdaMap.put(aspectClass, preUpdateRoutingInfo);
   }
 
 }

@@ -664,8 +664,7 @@ public class BaseLocalDAOTest {
     PreUpdateRoutingAccessor preUpdateRoutingAccessor = new PreUpdateRoutingAccessor();
     preUpdateRoutingAccessor.setPreUpdateClient(new SamplePreUpdateRoutingClient());
 
-    PreUpdateAspectRegistry preUpdateAspectRegistry = new PreUpdateAspectRegistry();
-    preUpdateAspectRegistry.registerPreUpdateLambda(AspectFoo.class, preUpdateRoutingAccessor);
+    PreUpdateAspectRegistry preUpdateAspectRegistry = new PreUpdateAspectRegistry(AspectFoo.class, preUpdateRoutingAccessor);
     _dummyLocalDAO.setPreUpdateAspectRegistry(preUpdateAspectRegistry);
 
     AspectFoo result = _dummyLocalDAO.preUpdateRouting(urn, foo);
@@ -680,8 +679,7 @@ public class BaseLocalDAOTest {
     _dummyLocalDAO.setAlwaysEmitAuditEvent(true);
     PreUpdateRoutingAccessor preUpdateRoutingAccessor = new PreUpdateRoutingAccessor();
     preUpdateRoutingAccessor.setPreUpdateClient(new SamplePreUpdateRoutingClient());
-    PreUpdateAspectRegistry preUpdateAspectRegistry = new PreUpdateAspectRegistry();
-    preUpdateAspectRegistry.registerPreUpdateLambda(AspectFoo.class, preUpdateRoutingAccessor);
+    PreUpdateAspectRegistry preUpdateAspectRegistry = new PreUpdateAspectRegistry(AspectFoo.class, preUpdateRoutingAccessor);
 
     _dummyLocalDAO.setPreUpdateAspectRegistry(preUpdateAspectRegistry);
     expectGetLatest(urn, AspectFoo.class,
@@ -703,8 +701,7 @@ public class BaseLocalDAOTest {
     // Inject RestliPreIngestionAspectRegistry with no registered aspect
     PreUpdateRoutingAccessor preUpdateRoutingAccessor = new PreUpdateRoutingAccessor();
     preUpdateRoutingAccessor.setPreUpdateClient(new SamplePreUpdateRoutingClient());
-    PreUpdateAspectRegistry preUpdateAspectRegistry = new PreUpdateAspectRegistry();
-    preUpdateAspectRegistry.registerPreUpdateLambda(AspectFoo.class, preUpdateRoutingAccessor);
+    PreUpdateAspectRegistry preUpdateAspectRegistry = new PreUpdateAspectRegistry(AspectFoo.class, preUpdateRoutingAccessor);
     _dummyLocalDAO.setPreUpdateAspectRegistry(preUpdateAspectRegistry);
 
     // Call the add method

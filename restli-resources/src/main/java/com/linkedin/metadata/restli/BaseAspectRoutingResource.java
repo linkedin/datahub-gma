@@ -687,7 +687,7 @@ public abstract class BaseAspectRoutingResource<
    * @return the updated aspect
    */
   private RecordTemplate preUpdateRouting(URN urn, RecordTemplate aspect, PreUpdateAspectRegistry registry) {
-    PreUpdateRoutingAccessor preUpdateRoutingAccessor = registry.getPreUpdateRoutingClient(aspect);
+    PreUpdateRoutingAccessor preUpdateRoutingAccessor = registry.getPreUpdateRoutingAccessor(aspect);
     PreUpdateRoutingClient preUpdateClient = preUpdateRoutingAccessor.getPreUpdateClient();
     PreUpdateResponse preUpdateResponse = preUpdateClient.preUpdate(urn, aspect);
     return preUpdateResponse.getUpdatedAspect();

@@ -561,10 +561,10 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, foo));
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
 
-    PreUpdateAspectRegistry registry = new PreUpdateAspectRegistry();
     PreUpdateRoutingAccessor preUpdateRoutingAccessor = new PreUpdateRoutingAccessor();
     preUpdateRoutingAccessor.setPreUpdateClient(new SamplePreUpdateRoutingClient());
-    registry.registerPreUpdateLambda(AspectFoo.class, preUpdateRoutingAccessor);
+    PreUpdateAspectRegistry registry = new PreUpdateAspectRegistry(AspectFoo.class, preUpdateRoutingAccessor);
+
     when(_mockLocalDAO.getPreUpdateAspectRegistry()).thenReturn(registry);
 
     // given: ingest a snapshot containing a routed aspect which has a registered pre-update lambda.
@@ -606,10 +606,10 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, bar));
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
 
-    PreUpdateAspectRegistry registry = new PreUpdateAspectRegistry();
     PreUpdateRoutingAccessor preUpdateRoutingAccessor = new PreUpdateRoutingAccessor();
     preUpdateRoutingAccessor.setPreUpdateClient(new SamplePreUpdateRoutingClient());
-    registry.registerPreUpdateLambda(AspectFoo.class, preUpdateRoutingAccessor);
+
+    PreUpdateAspectRegistry registry = new PreUpdateAspectRegistry(AspectFoo.class, preUpdateRoutingAccessor);
 
     when(_mockLocalDAO.getPreUpdateAspectRegistry()).thenReturn(registry);
 
@@ -657,10 +657,10 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     AspectFoo foo = new AspectFoo().setValue("foo");
     List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, foo));
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
-    PreUpdateAspectRegistry registry = new PreUpdateAspectRegistry();
+
     PreUpdateRoutingAccessor preUpdateRoutingAccessor = new PreUpdateRoutingAccessor();
     preUpdateRoutingAccessor.setPreUpdateClient(new SamplePreUpdateRoutingClient());
-    registry.registerPreUpdateLambda(AspectFoo.class, preUpdateRoutingAccessor);
+    PreUpdateAspectRegistry registry = new PreUpdateAspectRegistry(AspectFoo.class, preUpdateRoutingAccessor);
     when(_mockLocalDAO.getPreUpdateAspectRegistry()).thenReturn(registry);
 
     runAndWait(_resource.ingest(snapshot));

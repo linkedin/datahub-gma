@@ -1,6 +1,5 @@
 package com.linkedin.metadata.dao.ingestion.preupdate;
 
-import com.google.protobuf.Message;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 
@@ -17,29 +16,4 @@ public interface PreUpdateRoutingClient<ASPECT extends RecordTemplate> {
    * @return the updated aspect
    */
   PreUpdateResponse<ASPECT> preUpdate(Urn urn, ASPECT aspect);
-
-  /**
-   * Converts a RecordTemplate URN to a gRPC-compatible Message.
-   *
-   * @param urn The RecordTemplate URN.
-   * @return The gRPC-compatible Message URN.
-   */
-  Message convertUrnToMessage(Urn urn);
-
-  /**
-   * Converts a RecordTemplate Aspect to a gRPC-compatible Message Aspect.
-   *
-   * @param aspect The RecordTemplate aspect.
-   * @return The gRPC-compatible Message aspect.
-   */
-  Message convertAspectToMessage(RecordTemplate aspect);
-
-  /**
-   * Converts a gRPC-compatible Message Aspect back to a RecordTemplate Aspect.
-   *
-   * @param messageAspect The Message aspect.
-   * @return The RecordTemplate aspect.
-   */
-  RecordTemplate convertAspectToRecordTemplate(Message messageAspect);
-
 }
