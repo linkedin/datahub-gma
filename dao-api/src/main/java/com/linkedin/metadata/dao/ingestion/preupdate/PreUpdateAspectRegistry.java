@@ -13,12 +13,12 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class PreUpdateAspectRegistry {
 
-  private Map<Class<? extends RecordTemplate>, PreRoutingAccessor> _preUpdateLambdaMap = new HashMap<>();
+  private Map<Class<? extends RecordTemplate>, PreUpdateRoutingAccessor> _preUpdateLambdaMap = new HashMap<>();
 
   /**
    * Get GrpcPreUpdateRoutingClient for an aspect.
    */
-  public <ASPECT extends RecordTemplate> PreRoutingAccessor getPreUpdateRoutingClient(@Nonnull final ASPECT  aspect) {
+  public <ASPECT extends RecordTemplate> PreUpdateRoutingAccessor getPreUpdateRoutingClient(@Nonnull final ASPECT  aspect) {
     return _preUpdateLambdaMap.get(aspect.getClass());
   }
 
@@ -35,7 +35,7 @@ public class PreUpdateAspectRegistry {
    * @param preUpdateRoutingInfo pre update routing map
    */
   public void registerPreUpdateLambda(@Nonnull Class<? extends RecordTemplate> aspectClass,
-      @Nonnull PreRoutingAccessor preUpdateRoutingInfo) {
+      @Nonnull PreUpdateRoutingAccessor preUpdateRoutingInfo) {
     log.info("Registering pre update lambda: {}, {}", aspectClass.getCanonicalName(), preUpdateRoutingInfo);
     _preUpdateLambdaMap.put(aspectClass, preUpdateRoutingInfo);
   }

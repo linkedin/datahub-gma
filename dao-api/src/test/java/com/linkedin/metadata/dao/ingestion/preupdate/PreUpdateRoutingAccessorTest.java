@@ -8,13 +8,13 @@ import static org.testng.AssertJUnit.*;
 import static org.mockito.Mockito.*;
 
 
-public class PreRoutingAccessorTest {
-  private PreRoutingAccessor routingInfo;
+public class PreUpdateRoutingAccessorTest {
+  private PreUpdateRoutingAccessor routingInfo;
   private PreUpdateRoutingClient<? extends Message> mockPreUpdateClient;
 
   @BeforeMethod
   public void setUp() {
-    routingInfo = new PreRoutingAccessor();
+    routingInfo = new PreUpdateRoutingAccessor();
     mockPreUpdateClient = mock(PreUpdateRoutingClient.class);
   }
 
@@ -26,7 +26,7 @@ public class PreRoutingAccessorTest {
 
   @Test
   public void testRoutingActionEnum() {
-    assertEquals("PROCEED", PreRoutingAccessor.RoutingAction.PROCEED.name());
-    assertEquals("SKIP", PreRoutingAccessor.RoutingAction.SKIP.name());
+    assertEquals("PROCEED", PreUpdateRoutingAccessor.RoutingAction.PROCEED.name());
+    assertEquals("SKIP", PreUpdateRoutingAccessor.RoutingAction.SKIP.name());
   }
 }
