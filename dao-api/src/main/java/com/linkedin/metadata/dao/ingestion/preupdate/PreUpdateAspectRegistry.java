@@ -13,24 +13,25 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class PreUpdateAspectRegistry {
 
-  private Map<Class<? extends RecordTemplate>, PreUpdateRoutingAccessor> _preUpdateLambdaMap = new HashMap<>();
+  private final Map<Class<? extends RecordTemplate>, PreUpdateRoutingAccessor> _preUpdateLambdaMap;
 
   /**
-   * Constructor to register a pre update routing accessor for the given aspect.
-   * @param aspectClass aspect class
-   * @param preUpdateRoutingAccessor pre update routing map
+   * Constructor to register pre-update routing accessors for multiple aspects at once.
+   * @param preUpdateMap map containing aspect classes and their corresponding accessors
    */
-  public PreUpdateAspectRegistry(@Nonnull Class<? extends RecordTemplate> aspectClass,
-      @Nonnull PreUpdateRoutingAccessor preUpdateRoutingAccessor) {
-    log.info("Registering pre update routing accessor: {}, {}", aspectClass.getCanonicalName(), preUpdateRoutingAccessor);
-    _preUpdateLambdaMap.put(aspectClass, preUpdateRoutingAccessor);
+  public PreUpdateAspectRegistry(@Nonnull Map<Class<? extends RecordTemplate>, PreUpdateRoutingAccessor> preUpdateMap) {
+    _preUpdateLambdaMap = new HashMap<>(preUpdateMap);
+    log.info("Registered pre-update routing accessors for aspects: {}", _preUpdateLambdaMap.keySet());
   }
 
   /**
-   * Get Pre Update Routing Accessor for an aspect.
+   * Get Pre Update Routing Accessor for an aspect class.
+   * @param aspectClass the class of the aspect to retrieve the accessor for
+   * @return PreUpdateRoutingAccessor for the given aspect class, or null if not found
    */
-  public <ASPECT extends RecordTemplate> PreUpdateRoutingAccessor getPreUpdateRoutingAccessor(@Nonnull final ASPECT  aspect) {
-    return _preUpdateLambdaMap.get(aspect.getClass());
+  public <ASPECT extends RecordTemplate> PreUpdateRoutingAccessor getPreUpdateRoutingAccessor(
+      @Nonnull Class<ASPECT> aspectClass) {
+    return _preUpdateLambdaMap.get(aspectClass);
   }
 
   /**

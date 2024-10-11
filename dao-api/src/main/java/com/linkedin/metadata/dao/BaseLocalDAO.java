@@ -1666,7 +1666,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   protected <ASPECT extends RecordTemplate> ASPECT preUpdateRouting(URN urn, ASPECT newAspect) {
     if (_preUpdateAspectRegistry != null && _preUpdateAspectRegistry.isRegistered(
         newAspect.getClass())) {
-      PreUpdateRoutingAccessor preUpdateRoutingAccessor = _preUpdateAspectRegistry.getPreUpdateRoutingAccessor(newAspect);
+      PreUpdateRoutingAccessor preUpdateRoutingAccessor = _preUpdateAspectRegistry.getPreUpdateRoutingAccessor(newAspect.getClass());
       PreUpdateRoutingClient client =
           preUpdateRoutingAccessor.getPreUpdateClient();
       PreUpdateResponse preUpdateResponse = client.preUpdate(urn, newAspect);

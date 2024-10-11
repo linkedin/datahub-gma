@@ -33,6 +33,7 @@ import java.net.URISyntaxException;
 import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -664,7 +665,10 @@ public class BaseLocalDAOTest {
     PreUpdateRoutingAccessor preUpdateRoutingAccessor = new PreUpdateRoutingAccessor();
     preUpdateRoutingAccessor.setPreUpdateClient(new SamplePreUpdateRoutingClient());
 
-    PreUpdateAspectRegistry preUpdateAspectRegistry = new PreUpdateAspectRegistry(AspectFoo.class, preUpdateRoutingAccessor);
+    Map<Class<? extends RecordTemplate>, PreUpdateRoutingAccessor> preUpdateMap = new HashMap<>();
+    preUpdateMap.put(AspectFoo.class, preUpdateRoutingAccessor);
+
+    PreUpdateAspectRegistry preUpdateAspectRegistry = new PreUpdateAspectRegistry(preUpdateMap);
     _dummyLocalDAO.setPreUpdateAspectRegistry(preUpdateAspectRegistry);
 
     AspectFoo result = _dummyLocalDAO.preUpdateRouting(urn, foo);
@@ -679,7 +683,11 @@ public class BaseLocalDAOTest {
     _dummyLocalDAO.setAlwaysEmitAuditEvent(true);
     PreUpdateRoutingAccessor preUpdateRoutingAccessor = new PreUpdateRoutingAccessor();
     preUpdateRoutingAccessor.setPreUpdateClient(new SamplePreUpdateRoutingClient());
-    PreUpdateAspectRegistry preUpdateAspectRegistry = new PreUpdateAspectRegistry(AspectFoo.class, preUpdateRoutingAccessor);
+
+    Map<Class<? extends RecordTemplate>, PreUpdateRoutingAccessor> preUpdateMap = new HashMap<>();
+    preUpdateMap.put(AspectFoo.class, preUpdateRoutingAccessor);
+
+    PreUpdateAspectRegistry preUpdateAspectRegistry = new PreUpdateAspectRegistry(preUpdateMap);
 
     _dummyLocalDAO.setPreUpdateAspectRegistry(preUpdateAspectRegistry);
     expectGetLatest(urn, AspectFoo.class,
@@ -701,7 +709,11 @@ public class BaseLocalDAOTest {
     // Inject RestliPreIngestionAspectRegistry with no registered aspect
     PreUpdateRoutingAccessor preUpdateRoutingAccessor = new PreUpdateRoutingAccessor();
     preUpdateRoutingAccessor.setPreUpdateClient(new SamplePreUpdateRoutingClient());
-    PreUpdateAspectRegistry preUpdateAspectRegistry = new PreUpdateAspectRegistry(AspectFoo.class, preUpdateRoutingAccessor);
+
+    Map<Class<? extends RecordTemplate>, PreUpdateRoutingAccessor> preUpdateMap = new HashMap<>();
+    preUpdateMap.put(AspectFoo.class, preUpdateRoutingAccessor);
+
+    PreUpdateAspectRegistry preUpdateAspectRegistry = new PreUpdateAspectRegistry(preUpdateMap);
     _dummyLocalDAO.setPreUpdateAspectRegistry(preUpdateAspectRegistry);
 
     // Call the add method

@@ -38,6 +38,7 @@ import java.lang.reflect.Modifier;
 import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -563,7 +564,10 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     PreUpdateRoutingAccessor preUpdateRoutingAccessor = new PreUpdateRoutingAccessor();
     preUpdateRoutingAccessor.setPreUpdateClient(new SamplePreUpdateRoutingClient());
-    PreUpdateAspectRegistry registry = new PreUpdateAspectRegistry(AspectFoo.class, preUpdateRoutingAccessor);
+    Map<Class<? extends RecordTemplate>, PreUpdateRoutingAccessor> preUpdateMap = new HashMap<>();
+    preUpdateMap.put(AspectFoo.class, preUpdateRoutingAccessor);
+
+    PreUpdateAspectRegistry registry = new PreUpdateAspectRegistry(preUpdateMap);
 
     when(_mockLocalDAO.getPreUpdateAspectRegistry()).thenReturn(registry);
 
@@ -609,7 +613,10 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     PreUpdateRoutingAccessor preUpdateRoutingAccessor = new PreUpdateRoutingAccessor();
     preUpdateRoutingAccessor.setPreUpdateClient(new SamplePreUpdateRoutingClient());
 
-    PreUpdateAspectRegistry registry = new PreUpdateAspectRegistry(AspectFoo.class, preUpdateRoutingAccessor);
+    Map<Class<? extends RecordTemplate>, PreUpdateRoutingAccessor> preUpdateMap = new HashMap<>();
+    preUpdateMap.put(AspectFoo.class, preUpdateRoutingAccessor);
+
+    PreUpdateAspectRegistry registry = new PreUpdateAspectRegistry(preUpdateMap);
 
     when(_mockLocalDAO.getPreUpdateAspectRegistry()).thenReturn(registry);
 
@@ -660,7 +667,10 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     PreUpdateRoutingAccessor preUpdateRoutingAccessor = new PreUpdateRoutingAccessor();
     preUpdateRoutingAccessor.setPreUpdateClient(new SamplePreUpdateRoutingClient());
-    PreUpdateAspectRegistry registry = new PreUpdateAspectRegistry(AspectFoo.class, preUpdateRoutingAccessor);
+    Map<Class<? extends RecordTemplate>, PreUpdateRoutingAccessor> preUpdateMap = new HashMap<>();
+    preUpdateMap.put(AspectFoo.class, preUpdateRoutingAccessor);
+    PreUpdateAspectRegistry registry = new PreUpdateAspectRegistry(preUpdateMap);
+
     when(_mockLocalDAO.getPreUpdateAspectRegistry()).thenReturn(registry);
 
     runAndWait(_resource.ingest(snapshot));
