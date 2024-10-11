@@ -1,7 +1,6 @@
 package com.linkedin.metadata.dao;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.protobuf.Message;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.DataMap;
@@ -25,8 +24,10 @@ import com.linkedin.metadata.dao.equality.EqualityTester;
 import com.linkedin.metadata.dao.exception.ModelValidationException;
 import com.linkedin.metadata.dao.ingestion.BaseLambdaFunction;
 import com.linkedin.metadata.dao.ingestion.LambdaFunctionRegistry;
-import com.linkedin.metadata.dao.ingestion.RestliPreUpdateAspectRegistry;
-import com.linkedin.metadata.dao.ingestion.RestliCompliantPreUpdateRoutingClient;
+import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateRoutingAccessor;
+import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateAspectRegistry;
+import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateResponse;
+import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateRoutingClient;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.IndefiniteRetention;
@@ -182,7 +183,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   protected UrnPathExtractor<URN> _urnPathExtractor;
 
   private LambdaFunctionRegistry _lambdaFunctionRegistry;
-  private RestliPreUpdateAspectRegistry _restliPreUpdateAspectRegistry = null;
+  private PreUpdateAspectRegistry _preUpdateAspectRegistry = null;
 
   // Maps an aspect class to the corresponding retention policy
   private final Map<Class<? extends RecordTemplate>, Retention> _aspectRetentionMap = new HashMap<>();
@@ -402,16 +403,16 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   /**
    * Set pre ingestion aspect registry.
    */
-  public void setRestliPreUpdateAspectRegistry(
-      @Nullable RestliPreUpdateAspectRegistry restliPreUpdateAspectRegistry) {
-    _restliPreUpdateAspectRegistry = restliPreUpdateAspectRegistry;
+  public void setPreUpdateAspectRegistry(
+      @Nullable PreUpdateAspectRegistry preUpdateAspectRegistry) {
+    _preUpdateAspectRegistry = preUpdateAspectRegistry;
   }
 
   /**
    * Get pre ingestion aspect registry.
    */
-  public RestliPreUpdateAspectRegistry getRestliPreUpdateAspectRegistry() {
-    return _restliPreUpdateAspectRegistry;
+  public PreUpdateAspectRegistry getPreUpdateAspectRegistry() {
+    return _preUpdateAspectRegistry;
   }
 
 
@@ -1659,20 +1660,20 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   /**
    * This method routes the update request to the appropriate custom API for pre-ingestion processing.
    * @param urn the urn of the asset
-   * @param newValue the new aspect value
+   * @param newAspect the new aspect value
    * @return the updated aspect
    */
-  protected <ASPECT extends RecordTemplate> ASPECT preUpdateRouting(URN urn, ASPECT newValue) {
-    if (_restliPreUpdateAspectRegistry != null && _restliPreUpdateAspectRegistry.isRegistered(
-        newValue.getClass())) {
-      RestliCompliantPreUpdateRoutingClient client =
-          _restliPreUpdateAspectRegistry.getPreUpdateRoutingClient(newValue);
-      Message updatedAspect =
-          client.routingLambda(client.convertUrnToMessage(urn), client.convertAspectToMessage(newValue));
-      RecordTemplate convertedAspect = client.convertAspectToRecordTemplate(updatedAspect);
-      log.info("PreUpdateRouting completed in BaseLocalDao, urn: {}, updated aspect: {}", urn, convertedAspect);
-      return (ASPECT) convertedAspect;
+  protected <ASPECT extends RecordTemplate> ASPECT preUpdateRouting(URN urn, ASPECT newAspect) {
+    if (_preUpdateAspectRegistry != null && _preUpdateAspectRegistry.isRegistered(
+        newAspect.getClass())) {
+      PreUpdateRoutingAccessor preUpdateRoutingAccessor = _preUpdateAspectRegistry.getPreUpdateRoutingAccessor(newAspect.getClass());
+      PreUpdateRoutingClient client =
+          preUpdateRoutingAccessor.getPreUpdateClient();
+      PreUpdateResponse preUpdateResponse = client.preUpdate(urn, newAspect);
+      ASPECT updatedAspect = (ASPECT) preUpdateResponse.getUpdatedAspect();
+      log.info("PreUpdateRouting completed in BaseLocalDao, urn: {}, updated aspect: {}", urn, updatedAspect);
+      return (ASPECT) updatedAspect;
     }
-    return newValue;
+    return newAspect;
   }
 }

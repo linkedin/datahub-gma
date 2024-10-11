@@ -6,7 +6,9 @@ import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.ingestion.SampleLambdaFunctionRegistryImpl;
-import com.linkedin.metadata.dao.ingestion.SamplePreUpdateAspectRegistryImpl;
+import com.linkedin.metadata.dao.ingestion.SamplePreUpdateRoutingClient;
+import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateRoutingAccessor;
+import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateAspectRegistry;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
@@ -31,6 +33,7 @@ import java.net.URISyntaxException;
 import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -658,7 +661,16 @@ public class BaseLocalDAOTest {
     FooUrn urn = new FooUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");
     AspectFoo bar = new AspectFoo().setValue("bar");
-    _dummyLocalDAO.setRestliPreUpdateAspectRegistry(new SamplePreUpdateAspectRegistryImpl());
+
+    PreUpdateRoutingAccessor preUpdateRoutingAccessor = new PreUpdateRoutingAccessor();
+    preUpdateRoutingAccessor.setPreUpdateClient(new SamplePreUpdateRoutingClient());
+
+    Map<Class<? extends RecordTemplate>, PreUpdateRoutingAccessor> preUpdateMap = new HashMap<>();
+    preUpdateMap.put(AspectFoo.class, preUpdateRoutingAccessor);
+
+    PreUpdateAspectRegistry preUpdateAspectRegistry = new PreUpdateAspectRegistry(preUpdateMap);
+    _dummyLocalDAO.setPreUpdateAspectRegistry(preUpdateAspectRegistry);
+
     AspectFoo result = _dummyLocalDAO.preUpdateRouting(urn, foo);
     assertEquals(result, bar);
   }
@@ -669,7 +681,15 @@ public class BaseLocalDAOTest {
     AspectFoo foo = new AspectFoo().setValue("foo");
     AspectFoo bar = new AspectFoo().setValue("bar");
     _dummyLocalDAO.setAlwaysEmitAuditEvent(true);
-    _dummyLocalDAO.setRestliPreUpdateAspectRegistry(new SamplePreUpdateAspectRegistryImpl());
+    PreUpdateRoutingAccessor preUpdateRoutingAccessor = new PreUpdateRoutingAccessor();
+    preUpdateRoutingAccessor.setPreUpdateClient(new SamplePreUpdateRoutingClient());
+
+    Map<Class<? extends RecordTemplate>, PreUpdateRoutingAccessor> preUpdateMap = new HashMap<>();
+    preUpdateMap.put(AspectFoo.class, preUpdateRoutingAccessor);
+
+    PreUpdateAspectRegistry preUpdateAspectRegistry = new PreUpdateAspectRegistry(preUpdateMap);
+
+    _dummyLocalDAO.setPreUpdateAspectRegistry(preUpdateAspectRegistry);
     expectGetLatest(urn, AspectFoo.class,
         Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(foo, _dummyAuditStamp)));
 
@@ -687,7 +707,14 @@ public class BaseLocalDAOTest {
     AspectBar foo = new AspectBar().setValue("foo");
 
     // Inject RestliPreIngestionAspectRegistry with no registered aspect
-    _dummyLocalDAO.setRestliPreUpdateAspectRegistry(new SamplePreUpdateAspectRegistryImpl());
+    PreUpdateRoutingAccessor preUpdateRoutingAccessor = new PreUpdateRoutingAccessor();
+    preUpdateRoutingAccessor.setPreUpdateClient(new SamplePreUpdateRoutingClient());
+
+    Map<Class<? extends RecordTemplate>, PreUpdateRoutingAccessor> preUpdateMap = new HashMap<>();
+    preUpdateMap.put(AspectFoo.class, preUpdateRoutingAccessor);
+
+    PreUpdateAspectRegistry preUpdateAspectRegistry = new PreUpdateAspectRegistry(preUpdateMap);
+    _dummyLocalDAO.setPreUpdateAspectRegistry(preUpdateAspectRegistry);
 
     // Call the add method
     AspectBar result = _dummyLocalDAO.preUpdateRouting(urn, foo);

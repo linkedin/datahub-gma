@@ -1,6 +1,5 @@
 package com.linkedin.metadata.restli;
 
-import com.google.protobuf.Message;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
@@ -8,8 +7,10 @@ import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.StringArray;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.AspectKey;
-import com.linkedin.metadata.dao.ingestion.RestliCompliantPreUpdateRoutingClient;
-import com.linkedin.metadata.dao.ingestion.RestliPreUpdateAspectRegistry;
+import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateRoutingAccessor;
+import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateAspectRegistry;
+import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateResponse;
+import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateRoutingClient;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.internal.IngestionParams;
@@ -416,7 +417,7 @@ public abstract class BaseAspectRoutingResource<
       if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
         try {
           // get the updated aspect if there is a preupdate routing lambda registered
-          RestliPreUpdateAspectRegistry registry = getLocalDAO().getRestliPreUpdateAspectRegistry();
+          PreUpdateAspectRegistry registry = getLocalDAO().getPreUpdateAspectRegistry();
           if (!skipExtraProcessing && registry != null && registry.isRegistered(aspect.getClass())) {
             log.info(String.format("Executing registered pre-update routing lambda for aspect class %s.", aspect.getClass()));
             aspect = preUpdateRouting((URN) urn, aspect, registry);
@@ -689,10 +690,10 @@ public abstract class BaseAspectRoutingResource<
    * @param aspect the new aspect value
    * @return the updated aspect
    */
-  private RecordTemplate preUpdateRouting(URN urn, RecordTemplate aspect, RestliPreUpdateAspectRegistry registry) {
-      RestliCompliantPreUpdateRoutingClient client = registry.getPreUpdateRoutingClient(aspect);
-      Message updatedAspect =
-          client.routingLambda(client.convertUrnToMessage(urn), client.convertAspectToMessage(aspect));
-      return client.convertAspectToRecordTemplate(updatedAspect);
+  private RecordTemplate preUpdateRouting(URN urn, RecordTemplate aspect, PreUpdateAspectRegistry registry) {
+    PreUpdateRoutingAccessor preUpdateRoutingAccessor = registry.getPreUpdateRoutingAccessor(aspect.getClass());
+    PreUpdateRoutingClient preUpdateClient = preUpdateRoutingAccessor.getPreUpdateClient();
+    PreUpdateResponse preUpdateResponse = preUpdateClient.preUpdate(urn, aspect);
+    return preUpdateResponse.getUpdatedAspect();
   }
 }
