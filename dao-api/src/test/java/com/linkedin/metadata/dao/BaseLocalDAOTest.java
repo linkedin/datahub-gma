@@ -7,7 +7,7 @@ import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.ingestion.SampleLambdaFunctionRegistryImpl;
 import com.linkedin.metadata.dao.ingestion.SamplePreUpdateRoutingClient;
-import com.linkedin.metadata.dao.ingestion.preupdate.PreRoutingInfo;
+import com.linkedin.metadata.dao.ingestion.preupdate.PreRoutingAccessor;
 import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateAspectRegistry;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
@@ -661,11 +661,11 @@ public class BaseLocalDAOTest {
     AspectFoo foo = new AspectFoo().setValue("foo");
     AspectFoo bar = new AspectFoo().setValue("bar");
 
-    PreRoutingInfo preRoutingInfo = new PreRoutingInfo();
-    preRoutingInfo.setPreUpdateClient(new SamplePreUpdateRoutingClient());
+    PreRoutingAccessor preRoutingAccessor = new PreRoutingAccessor();
+    preRoutingAccessor.setPreUpdateClient(new SamplePreUpdateRoutingClient());
 
     PreUpdateAspectRegistry preUpdateAspectRegistry = new PreUpdateAspectRegistry();
-    preUpdateAspectRegistry.registerPreUpdateLambda(AspectFoo.class, preRoutingInfo);
+    preUpdateAspectRegistry.registerPreUpdateLambda(AspectFoo.class, preRoutingAccessor);
     _dummyLocalDAO.setPreUpdateAspectRegistry(preUpdateAspectRegistry);
 
     AspectFoo result = _dummyLocalDAO.preUpdateRouting(urn, foo);
@@ -678,10 +678,10 @@ public class BaseLocalDAOTest {
     AspectFoo foo = new AspectFoo().setValue("foo");
     AspectFoo bar = new AspectFoo().setValue("bar");
     _dummyLocalDAO.setAlwaysEmitAuditEvent(true);
-    PreRoutingInfo preRoutingInfo = new PreRoutingInfo();
-    preRoutingInfo.setPreUpdateClient(new SamplePreUpdateRoutingClient());
+    PreRoutingAccessor preRoutingAccessor = new PreRoutingAccessor();
+    preRoutingAccessor.setPreUpdateClient(new SamplePreUpdateRoutingClient());
     PreUpdateAspectRegistry preUpdateAspectRegistry = new PreUpdateAspectRegistry();
-    preUpdateAspectRegistry.registerPreUpdateLambda(AspectFoo.class, preRoutingInfo);
+    preUpdateAspectRegistry.registerPreUpdateLambda(AspectFoo.class, preRoutingAccessor);
 
     _dummyLocalDAO.setPreUpdateAspectRegistry(preUpdateAspectRegistry);
     expectGetLatest(urn, AspectFoo.class,
@@ -701,10 +701,10 @@ public class BaseLocalDAOTest {
     AspectBar foo = new AspectBar().setValue("foo");
 
     // Inject RestliPreIngestionAspectRegistry with no registered aspect
-    PreRoutingInfo preRoutingInfo = new PreRoutingInfo();
-    preRoutingInfo.setPreUpdateClient(new SamplePreUpdateRoutingClient());
+    PreRoutingAccessor preRoutingAccessor = new PreRoutingAccessor();
+    preRoutingAccessor.setPreUpdateClient(new SamplePreUpdateRoutingClient());
     PreUpdateAspectRegistry preUpdateAspectRegistry = new PreUpdateAspectRegistry();
-    preUpdateAspectRegistry.registerPreUpdateLambda(AspectFoo.class, preRoutingInfo);
+    preUpdateAspectRegistry.registerPreUpdateLambda(AspectFoo.class, preRoutingAccessor);
     _dummyLocalDAO.setPreUpdateAspectRegistry(preUpdateAspectRegistry);
 
     // Call the add method

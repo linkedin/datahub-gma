@@ -1,8 +1,8 @@
 package com.linkedin.metadata.dao.ingestion.preupdate;
 
 import com.linkedin.data.template.RecordTemplate;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.Nonnull;
 import lombok.extern.slf4j.Slf4j;
 
@@ -11,21 +11,21 @@ import lombok.extern.slf4j.Slf4j;
  * A registry which maintains mapping of aspects and their PreUpdateRoutingClient.
  */
 @Slf4j
-public class PreUpdateAspectRegistry<ASPECT extends RecordTemplate> {
+public class PreUpdateAspectRegistry {
 
-  private Map<Class<? extends RecordTemplate>, PreRoutingInfo> _preUpdateLambdaMap = new ConcurrentHashMap<>();
+  private Map<Class<? extends RecordTemplate>, PreRoutingAccessor> _preUpdateLambdaMap = new HashMap<>();
 
   /**
    * Get GrpcPreUpdateRoutingClient for an aspect.
    */
-  public PreRoutingInfo getPreUpdateRoutingClient(@Nonnull final ASPECT aspect) {
+  public <ASPECT extends RecordTemplate> PreRoutingAccessor getPreUpdateRoutingClient(@Nonnull final ASPECT  aspect) {
     return _preUpdateLambdaMap.get(aspect.getClass());
   }
 
   /**
    * Check if GrpcPreUpdateRoutingClient is registered for an aspect.
    */
-  public boolean isRegistered(@Nonnull final Class<ASPECT> aspectClass) {
+  public <ASPECT extends RecordTemplate> boolean isRegistered(@Nonnull final Class<ASPECT> aspectClass) {
     return _preUpdateLambdaMap.containsKey(aspectClass);
   }
 
@@ -35,7 +35,7 @@ public class PreUpdateAspectRegistry<ASPECT extends RecordTemplate> {
    * @param preUpdateRoutingInfo pre update routing map
    */
   public void registerPreUpdateLambda(@Nonnull Class<? extends RecordTemplate> aspectClass,
-      @Nonnull PreRoutingInfo preUpdateRoutingInfo) {
+      @Nonnull PreRoutingAccessor preUpdateRoutingInfo) {
     log.info("Registering pre update lambda: {}, {}", aspectClass.getCanonicalName(), preUpdateRoutingInfo);
     _preUpdateLambdaMap.put(aspectClass, preUpdateRoutingInfo);
   }

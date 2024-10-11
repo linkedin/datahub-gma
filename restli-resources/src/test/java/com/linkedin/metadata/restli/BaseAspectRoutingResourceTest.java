@@ -8,7 +8,7 @@ import com.linkedin.metadata.dao.AspectKey;
 import com.linkedin.metadata.dao.BaseBrowseDAO;
 import com.linkedin.metadata.dao.BaseLocalDAO;
 import com.linkedin.metadata.dao.BaseSearchDAO;
-import com.linkedin.metadata.dao.ingestion.preupdate.PreRoutingInfo;
+import com.linkedin.metadata.dao.ingestion.preupdate.PreRoutingAccessor;
 import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateAspectRegistry;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
@@ -562,9 +562,9 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
 
     PreUpdateAspectRegistry registry = new PreUpdateAspectRegistry();
-    PreRoutingInfo preRoutingInfo = new PreRoutingInfo();
-    preRoutingInfo.setPreUpdateClient(new SamplePreUpdateRoutingClient());
-    registry.registerPreUpdateLambda(AspectFoo.class, preRoutingInfo);
+    PreRoutingAccessor preRoutingAccessor = new PreRoutingAccessor();
+    preRoutingAccessor.setPreUpdateClient(new SamplePreUpdateRoutingClient());
+    registry.registerPreUpdateLambda(AspectFoo.class, preRoutingAccessor);
     when(_mockLocalDAO.getPreUpdateAspectRegistry()).thenReturn(registry);
 
     // given: ingest a snapshot containing a routed aspect which has a registered pre-update lambda.
@@ -607,9 +607,9 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
 
     PreUpdateAspectRegistry registry = new PreUpdateAspectRegistry();
-    PreRoutingInfo preRoutingInfo = new PreRoutingInfo();
-    preRoutingInfo.setPreUpdateClient(new SamplePreUpdateRoutingClient());
-    registry.registerPreUpdateLambda(AspectFoo.class, preRoutingInfo);
+    PreRoutingAccessor preRoutingAccessor = new PreRoutingAccessor();
+    preRoutingAccessor.setPreUpdateClient(new SamplePreUpdateRoutingClient());
+    registry.registerPreUpdateLambda(AspectFoo.class, preRoutingAccessor);
 
     when(_mockLocalDAO.getPreUpdateAspectRegistry()).thenReturn(registry);
 
@@ -658,9 +658,9 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, foo));
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
     PreUpdateAspectRegistry registry = new PreUpdateAspectRegistry();
-    PreRoutingInfo preRoutingInfo = new PreRoutingInfo();
-    preRoutingInfo.setPreUpdateClient(new SamplePreUpdateRoutingClient());
-    registry.registerPreUpdateLambda(AspectFoo.class, preRoutingInfo);
+    PreRoutingAccessor preRoutingAccessor = new PreRoutingAccessor();
+    preRoutingAccessor.setPreUpdateClient(new SamplePreUpdateRoutingClient());
+    registry.registerPreUpdateLambda(AspectFoo.class, preRoutingAccessor);
     when(_mockLocalDAO.getPreUpdateAspectRegistry()).thenReturn(registry);
 
     runAndWait(_resource.ingest(snapshot));

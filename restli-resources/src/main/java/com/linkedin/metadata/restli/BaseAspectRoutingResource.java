@@ -7,7 +7,7 @@ import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.StringArray;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.AspectKey;
-import com.linkedin.metadata.dao.ingestion.preupdate.PreRoutingInfo;
+import com.linkedin.metadata.dao.ingestion.preupdate.PreRoutingAccessor;
 import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateAspectRegistry;
 import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateResponse;
 import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateRoutingClient;
@@ -687,8 +687,8 @@ public abstract class BaseAspectRoutingResource<
    * @return the updated aspect
    */
   private RecordTemplate preUpdateRouting(URN urn, RecordTemplate aspect, PreUpdateAspectRegistry registry) {
-    PreRoutingInfo routingMap = registry.getPreUpdateRoutingClient(aspect);
-    PreUpdateRoutingClient preUpdateClient = routingMap.getPreUpdateClient();
+    PreRoutingAccessor preRoutingAccessor = registry.getPreUpdateRoutingClient(aspect);
+    PreUpdateRoutingClient preUpdateClient = preRoutingAccessor.getPreUpdateClient();
     PreUpdateResponse preUpdateResponse = preUpdateClient.preUpdate(urn, aspect);
     return preUpdateResponse.getUpdatedAspect();
   }
