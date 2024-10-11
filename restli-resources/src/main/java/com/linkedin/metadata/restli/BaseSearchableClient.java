@@ -19,6 +19,21 @@ import javax.annotation.Nullable;
  */
 public abstract class BaseSearchableClient<VALUE extends RecordTemplate> extends BaseClient {
 
+  public enum SearchPlatform {
+    ELASTICSEARCH("elasticsearch"),
+    HOSTEDSEARCH("hostedsearch");
+
+    private final String platformName;
+
+    SearchPlatform(String platform) {
+      this.platformName = platform;
+    }
+
+    public String getPlatformName() {
+      return platformName;
+    }
+  }
+
   public BaseSearchableClient(@Nonnull Client restliClient) {
     super(restliClient);
   }
@@ -42,6 +57,16 @@ public abstract class BaseSearchableClient<VALUE extends RecordTemplate> extends
       throws RemoteInvocationException;
 
   /**
+   * Similar to {@link #search(String, StringArray, Map, SortCriterion, int, int)} with platform flag to indicate the request
+   * should be served by elasticsearch or hostedsearch.
+   */
+  public CollectionResponse<VALUE> search(@Nonnull String input, @Nullable StringArray aspectNames,
+      @Nullable Map<String, String> requestFilters, @Nullable SortCriterion sortCriterion, @Nullable SearchPlatform platform,
+      int start, int count) throws RemoteInvocationException {
+    throw new UnsupportedOperationException("Not implemented in BaseSearchableClient.");
+  }
+
+  /**
    * Similar to {@link #search(String, StringArray, Map, SortCriterion, int, int)} with null for aspect names, meaning
    * all aspects will be returned.
    */
@@ -49,6 +74,15 @@ public abstract class BaseSearchableClient<VALUE extends RecordTemplate> extends
   public CollectionResponse<VALUE> search(@Nonnull String input, @Nullable Map<String, String> requestFilters,
       @Nullable SortCriterion sortCriterion, int start, int count) throws RemoteInvocationException {
     return search(input, null, requestFilters, sortCriterion, start, count);
+  }
+
+  /**
+   * Autocomplete with search platform flag.
+   */
+  @Nonnull
+  public AutoCompleteResult autocomplete(@Nonnull String query, @Nullable String field, @Nullable Map<String, String> requestFilters,
+      @Nullable SearchPlatform platform, int limit) throws RemoteInvocationException {
+    throw new UnsupportedOperationException("Not implemented in BaseSearchableClient.");
   }
 
   /**
