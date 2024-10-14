@@ -375,9 +375,9 @@ public class EBeanDAOUtils {
   }
 
   /**
-   * Extract the non-null values from all relationship fields of an aspect.
+   * Extract the non-null values from all top-level relationship fields of an aspect.
    * @param aspect aspect (possibly with relationships) to be ingested
-   * @return a list of relationship arrays, with each array representing the relationship(s) present in each relationship
+   * @return a list of relationship arrays, with each array representing the relationship(s) present in each top-level relationship
    * field in the aspect. An empty list means that there is no non-null relationship metadata attached to the given aspect.
    */
   @Nonnull
