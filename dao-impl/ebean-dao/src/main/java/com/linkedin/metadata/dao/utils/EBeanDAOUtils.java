@@ -4,7 +4,11 @@ import com.linkedin.common.urn.Urn;
 import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.template.DataTemplateUtil;
 import com.linkedin.data.template.RecordTemplate;
+import com.linkedin.metadata.annotations.AlwaysAllowList;
 import com.linkedin.metadata.annotations.DeltaEntityAnnotationArrayMap;
+import com.linkedin.metadata.annotations.GmaAnnotation;
+import com.linkedin.metadata.annotations.GmaAnnotationParser;
+import com.linkedin.metadata.annotations.ModelType;
 import com.linkedin.metadata.aspect.AuditedAspect;
 import com.linkedin.metadata.aspect.SoftDeletedAspect;
 import com.linkedin.metadata.dao.EbeanMetadataAspect;
@@ -27,10 +31,13 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang.StringUtils;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
@@ -365,5 +372,48 @@ public class EBeanDAOUtils {
         .setField(field)
         .setValue(localRelationshipValue)
         .setCondition(condition);
+  }
+
+  /**
+   * Extract the non-null values from all relationship fields of an aspect.
+   * @param aspect aspect (possibly with relationships) to be ingested
+   * @return a list of relationship arrays, with each array representing the relationship(s) present in each relationship
+   * field in the aspect. An empty list means that there is no non-null relationship metadata attached to the given aspect.
+   */
+  @Nonnull
+  public static <RELATIONSHIP extends RecordTemplate, ASPECT extends RecordTemplate> List<List<RELATIONSHIP>> extractRelationshipsFromAspect(ASPECT aspect) {
+    return aspect.schema().getFields().stream().filter(field -> !field.getType().isPrimitive()).map(field -> {
+      String fieldName = field.getName();
+      Class<RecordTemplate> clazz = (Class<RecordTemplate>) aspect.getClass();
+      try {
+        Method getMethod = clazz.getMethod("get" + StringUtils.capitalize(fieldName));
+        Object obj = getMethod.invoke(aspect);
+        if (!(obj instanceof List) || ((List) obj).isEmpty() || !(((List) obj).get(0) instanceof RecordTemplate)) {
+          return null;
+        }
+        List<RecordTemplate> relationshipsList = (List<RecordTemplate>) obj;
+        ModelType modelType = parseModelTypeFromGmaAnnotation(relationshipsList.get(0));
+        if (modelType == ModelType.RELATIONSHIP) {
+          return (List<RELATIONSHIP>) relationshipsList;
+        }
+      } catch (ReflectiveOperationException e) {
+        throw new RuntimeException(e);
+      }
+      return null;
+    }).filter(Objects::nonNull).collect(Collectors.toList());
+  }
+
+  // Using the GmaAnnotationParser, extract the model type from the @gma.model annotation on any models.
+  private static ModelType parseModelTypeFromGmaAnnotation(RecordTemplate model) {
+    try {
+      final RecordDataSchema schema = (RecordDataSchema) DataTemplateUtil.getSchema(model.getClass());
+      final Optional<GmaAnnotation> gmaAnnotation = new GmaAnnotationParser(new AlwaysAllowList()).parse(schema);
+      if (!gmaAnnotation.isPresent() || !gmaAnnotation.get().hasModel()) {
+        return null;
+      }
+      return gmaAnnotation.get().getModel();
+    } catch (Exception e) {
+      throw new RuntimeException(String.format("Failed to parse the annotations for field %s", model.getClass().getCanonicalName()), e);
+    }
   }
 }

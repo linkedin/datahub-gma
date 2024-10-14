@@ -1,0 +1,24 @@
+namespace com.linkedin.testing
+
+import com.linkedin.common.Urn
+
+/**
+ * For unit tests
+ */
+@pairings = [ {
+  "destination" : "com.linkedin.common.urn.Urn",
+  "source" : "com.linkedin.common.urn.Urn"
+} ]
+@gma.model = "RELATIONSHIP"
+record AnnotatedRelationshipFoo {
+
+  /**
+   * For unit tests
+   */
+  source: Urn
+
+  /**
+   * For unit tests
+   */
+  destination: Urn
+}
