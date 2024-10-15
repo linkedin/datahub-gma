@@ -386,14 +386,17 @@ public class EBeanDAOUtils {
       String fieldName = field.getName();
       Class<RecordTemplate> clazz = (Class<RecordTemplate>) aspect.getClass();
       try {
-        Method getMethod = clazz.getMethod("get" + StringUtils.capitalize(fieldName));
-        Object obj = getMethod.invoke(aspect);
+        Method getMethod = clazz.getMethod("get" + StringUtils.capitalize(fieldName)); // getFieldName
+        Object obj = getMethod.invoke(aspect); // invoke getFieldName
+        // all relationship fields will be represented as Arrays so filter out any non-lists, empty lists, and lists that don't contain RecordTemplates
         if (!(obj instanceof List) || ((List) obj).isEmpty() || !(((List) obj).get(0) instanceof RecordTemplate)) {
           return null;
         }
         List<RecordTemplate> relationshipsList = (List<RecordTemplate>) obj;
         ModelType modelType = parseModelTypeFromGmaAnnotation(relationshipsList.get(0));
         if (modelType == ModelType.RELATIONSHIP) {
+          log.debug(String.format("Found {%d} relationships of type {%s} for field {%s} of aspect class {%s}.",
+              relationshipsList.size(), relationshipsList.get(0).getClass(), fieldName, clazz.getName()));
           return (List<RELATIONSHIP>) relationshipsList;
         }
       } catch (ReflectiveOperationException e) {
