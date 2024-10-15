@@ -7,10 +7,10 @@ import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.StringArray;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.AspectKey;
-import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateRoutingAccessor;
-import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateAspectRegistry;
-import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateResponse;
-import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateRoutingClient;
+import com.linkedin.metadata.dao.ingestion.preupdate.InUpdateResponse;
+import com.linkedin.metadata.dao.ingestion.preupdate.InUpdateRoutingAccessor;
+import com.linkedin.metadata.dao.ingestion.preupdate.InUpdateAspectRegistry;
+import com.linkedin.metadata.dao.ingestion.preupdate.InUpdateRoutingClient;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.internal.IngestionParams;
@@ -39,6 +39,8 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
 import static com.linkedin.metadata.dao.BaseReadDAO.*;
@@ -69,13 +71,19 @@ public abstract class BaseAspectRoutingResource<
     extends
     BaseBrowsableEntityResource<KEY, VALUE, URN, SNAPSHOT, ASPECT_UNION, DOCUMENT, INTERNAL_SNAPSHOT, INTERNAL_ASPECT_UNION, ASSET> {
 
+  @Data
+  @AllArgsConstructor
+  protected static class AspectUpdateResult<ASPECT extends RecordTemplate> {
+    private ASPECT updatedAspect;
+    private boolean skipProcessing;
+  }
+
   private final Class<VALUE> _valueClass;
   private final Class<ASPECT_UNION> _aspectUnionClass;
   private final Class<SNAPSHOT> _snapshotClass;
   private final Class<INTERNAL_SNAPSHOT> _internalSnapshotClass;
   private final Class<INTERNAL_ASPECT_UNION> _internalAspectUnionClass;
   private final Class<ASSET> _assetClass;
-  private static final List<String> SKIP_INGESTION_FOR_ASPECTS = Collections.singletonList("com.linkedin.dataset.DatasetAccountableOwnership");
 
   public BaseAspectRoutingResource(@Nullable Class<SNAPSHOT> snapshotClass,
       @Nullable Class<ASPECT_UNION> aspectUnionClass, @Nonnull Class<URN> urnClass, @Nonnull Class<VALUE> valueClass,
@@ -416,17 +424,15 @@ public abstract class BaseAspectRoutingResource<
     if (!aspectsToIgnore.contains(aspect.getClass())) {
       if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
         try {
-          // get the updated aspect if there is a preupdate routing lambda registered
-          PreUpdateAspectRegistry registry = getLocalDAO().getPreUpdateAspectRegistry();
+          // get the updated aspect if there is an in-update routing lambda registered
+          InUpdateAspectRegistry registry = getLocalDAO().getInUpdateAspectRegistry();
           if (!skipExtraProcessing && registry != null && registry.isRegistered(aspect.getClass())) {
             log.info(String.format("Executing registered pre-update routing lambda for aspect class %s.", aspect.getClass()));
-            aspect = preUpdateRouting((URN) urn, aspect, registry);
+            AspectUpdateResult aspectUpdateResult = inUpdateRouting((URN) urn, aspect, registry);
+            aspect = aspectUpdateResult.getUpdatedAspect();
             log.info("PreUpdateRouting completed in ingestInternalAsset, urn: {}, updated aspect: {}", urn, aspect);
-            // Get the fqcn of the aspect class
-            String aspectFQCN = aspect.getClass().getCanonicalName();
-            //TODO: META-21112: Remove this check after adding annotations at model level; to handle SKIP/PROCEED for preUpdateRouting
-            if (SKIP_INGESTION_FOR_ASPECTS.contains(aspectFQCN)) {
-              log.info("Skip ingestion in ingestInternalAsset for urn: {}, aspectFQCN: {}", urn, aspectFQCN);
+            if (aspectUpdateResult.isSkipProcessing()) {
+              log.info("Skip ingestion in ingestInternalAsset for urn: {}, aspectFQCN: {}", urn, aspect.getClass());
               return;
             }
           }
@@ -436,20 +442,10 @@ public abstract class BaseAspectRoutingResource<
           } else {
             getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingest(urn, aspect);
           }
-          // here, always call a simple version of BaseLocalDAO::add which skips pre-update lambdas regardless of
-          // the value of param skipExtraProcessing since any pre-update lambdas would have already been executed
-          // in the code above.
-          getLocalDAO().rawAdd((URN) urn, aspect, auditStamp, trackingContext, ingestionParams);
         } catch (Exception exception) {
           log.error("Couldn't ingest routing aspect {} for {}", aspect.getClass().getSimpleName(), urn, exception);
         }
-      } else {
-        if (skipExtraProcessing) {
-          // call a simple version of BaseLocalDAO::add which skips pre-update lambdas.
-          getLocalDAO().rawAdd((URN) urn, aspect, auditStamp, trackingContext, ingestionParams);
-        } else {
-          getLocalDAO().add((URN) urn, aspect, auditStamp, trackingContext, ingestionParams);
-        }
+        getLocalDAO().add((URN) urn, aspect, auditStamp, trackingContext, ingestionParams);
       }
     }
   }
@@ -690,10 +686,11 @@ public abstract class BaseAspectRoutingResource<
    * @param aspect the new aspect value
    * @return the updated aspect
    */
-  private RecordTemplate preUpdateRouting(URN urn, RecordTemplate aspect, PreUpdateAspectRegistry registry) {
-    PreUpdateRoutingAccessor preUpdateRoutingAccessor = registry.getPreUpdateRoutingAccessor(aspect.getClass());
-    PreUpdateRoutingClient preUpdateClient = preUpdateRoutingAccessor.getPreUpdateClient();
-    PreUpdateResponse preUpdateResponse = preUpdateClient.preUpdate(urn, aspect);
-    return preUpdateResponse.getUpdatedAspect();
+  protected <ASPECT extends RecordTemplate> AspectUpdateResult<ASPECT> inUpdateRouting(URN urn, RecordTemplate aspect, InUpdateAspectRegistry registry) {
+    InUpdateRoutingAccessor inUpdateRoutingAccessor = registry.getInUpdateRoutingAccessor(aspect.getClass());
+    InUpdateRoutingClient preUpdateClient = inUpdateRoutingAccessor.getPreUpdateClient();
+    InUpdateResponse inUpdateResponse = preUpdateClient.inUpdate(urn, aspect, null);
+    ASPECT updatedAspect = (ASPECT) inUpdateResponse.getUpdatedAspect();
+    return new AspectUpdateResult<>(updatedAspect, preUpdateClient.isSkipProcessing());
   }
 }

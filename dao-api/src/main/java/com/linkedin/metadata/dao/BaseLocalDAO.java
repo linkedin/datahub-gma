@@ -24,10 +24,10 @@ import com.linkedin.metadata.dao.equality.EqualityTester;
 import com.linkedin.metadata.dao.exception.ModelValidationException;
 import com.linkedin.metadata.dao.ingestion.BaseLambdaFunction;
 import com.linkedin.metadata.dao.ingestion.LambdaFunctionRegistry;
-import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateRoutingAccessor;
-import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateAspectRegistry;
-import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateResponse;
-import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateRoutingClient;
+import com.linkedin.metadata.dao.ingestion.preupdate.InUpdateResponse;
+import com.linkedin.metadata.dao.ingestion.preupdate.InUpdateRoutingAccessor;
+import com.linkedin.metadata.dao.ingestion.preupdate.InUpdateAspectRegistry;
+import com.linkedin.metadata.dao.ingestion.preupdate.InUpdateRoutingClient;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.IndefiniteRetention;
@@ -160,6 +160,13 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     }
   }
 
+  @Data
+  @AllArgsConstructor
+  protected static class AspectUpdateResult<ASPECT extends RecordTemplate> {
+    private ASPECT updatedAspect;
+    private boolean skipProcessing;
+  }
+
   private static final String DEFAULT_ID_NAMESPACE = "global";
 
   private static final String BACKFILL_EMITTER = "dao_backfill_endpoint";
@@ -183,7 +190,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   protected UrnPathExtractor<URN> _urnPathExtractor;
 
   private LambdaFunctionRegistry _lambdaFunctionRegistry;
-  private PreUpdateAspectRegistry _preUpdateAspectRegistry = null;
+  private InUpdateAspectRegistry _inUpdateAspectRegistry = null;
 
   // Maps an aspect class to the corresponding retention policy
   private final Map<Class<? extends RecordTemplate>, Retention> _aspectRetentionMap = new HashMap<>();
@@ -404,15 +411,15 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * Set pre ingestion aspect registry.
    */
   public void setPreUpdateAspectRegistry(
-      @Nullable PreUpdateAspectRegistry preUpdateAspectRegistry) {
-    _preUpdateAspectRegistry = preUpdateAspectRegistry;
+      @Nullable InUpdateAspectRegistry inUpdateAspectRegistry) {
+    _inUpdateAspectRegistry = inUpdateAspectRegistry;
   }
 
   /**
-   * Get pre ingestion aspect registry.
+   * Get in update aspect registry.
    */
-  public PreUpdateAspectRegistry getPreUpdateAspectRegistry() {
-    return _preUpdateAspectRegistry;
+  public InUpdateAspectRegistry getInUpdateAspectRegistry() {
+    return _inUpdateAspectRegistry;
   }
 
 
@@ -628,6 +635,14 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     if (_lambdaFunctionRegistry != null && _lambdaFunctionRegistry.isRegistered(updateTuple.getAspectClass())) {
       newValue = updatePreIngestionLambdas(urn, oldValue, newValue);
+    }
+
+    if (_inUpdateAspectRegistry != null && _inUpdateAspectRegistry.isRegistered(updateTuple.getAspectClass())) {
+      AspectUpdateResult<ASPECT> result = inUpdateRouting(urn, newValue, oldValue);
+      newValue = result.getUpdatedAspect();
+      if (result.isSkipProcessing()) {
+        return null;
+      }
     }
 
     checkValidAspect(newValue.getClass());
@@ -846,25 +861,10 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * Same as above {@link #add(Urn, RecordTemplate, AuditStamp)} but with tracking context.
-   * Note: If you update the lambda function (ignored - newValue), make sure to update {@link #preUpdateRouting(Urn, RecordTemplate)} as well
-   * to avoid any inconsistency between the lambda function and the add method.
+   *  Same as above {@link #add(Urn, RecordTemplate, AuditStamp)} but with tracking context.
    */
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull ASPECT newValue,
-      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext,
-      @Nullable IngestionParams ingestionParams) {
-    ASPECT updatedAspect = preUpdateRouting(urn, newValue);
-    return rawAdd(urn, updatedAspect, auditStamp, trackingContext, ingestionParams);
-  }
-
-  /**
-   * Same as above {@link #add(Urn, RecordTemplate, AuditStamp, IngestionTrackingContext, IngestionParams)} but
-   * skips any pre-update lambdas. DO NOT USE THIS METHOD WITHOUT EXPLICIT PERMISSION FROM THE METADATA GRAPH TEAM.
-   * Please use the regular add method linked above.
-   */
-  @Nonnull
-  public <ASPECT extends RecordTemplate> ASPECT rawAdd(@Nonnull URN urn, @Nonnull ASPECT newValue,
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext,
       @Nullable IngestionParams ingestionParams) {
     final IngestionParams nonNullIngestionParams =
@@ -1658,22 +1658,18 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * This method routes the update request to the appropriate custom API for pre-ingestion processing.
+   * This method routes the update request to the appropriate custom API for in update processing.
    * @param urn the urn of the asset
    * @param newAspect the new aspect value
    * @return the updated aspect
    */
-  protected <ASPECT extends RecordTemplate> ASPECT preUpdateRouting(URN urn, ASPECT newAspect) {
-    if (_preUpdateAspectRegistry != null && _preUpdateAspectRegistry.isRegistered(
-        newAspect.getClass())) {
-      PreUpdateRoutingAccessor preUpdateRoutingAccessor = _preUpdateAspectRegistry.getPreUpdateRoutingAccessor(newAspect.getClass());
-      PreUpdateRoutingClient client =
-          preUpdateRoutingAccessor.getPreUpdateClient();
-      PreUpdateResponse preUpdateResponse = client.preUpdate(urn, newAspect);
-      ASPECT updatedAspect = (ASPECT) preUpdateResponse.getUpdatedAspect();
+  protected <ASPECT extends RecordTemplate> AspectUpdateResult<ASPECT> inUpdateRouting(URN urn, ASPECT newAspect, Optional<ASPECT> existingAspect) {
+      InUpdateRoutingAccessor inUpdateRoutingAccessor = _inUpdateAspectRegistry.getInUpdateRoutingAccessor(newAspect.getClass());
+      InUpdateRoutingClient client =
+          inUpdateRoutingAccessor.getPreUpdateClient();
+      InUpdateResponse inUpdateResponse = client.inUpdate(urn, newAspect, existingAspect);
+      ASPECT updatedAspect = (ASPECT) inUpdateResponse.getUpdatedAspect();
       log.info("PreUpdateRouting completed in BaseLocalDao, urn: {}, updated aspect: {}", urn, updatedAspect);
-      return (ASPECT) updatedAspect;
-    }
-    return newAspect;
+      return new AspectUpdateResult<>(updatedAspect, client.isSkipProcessing());
   }
 }

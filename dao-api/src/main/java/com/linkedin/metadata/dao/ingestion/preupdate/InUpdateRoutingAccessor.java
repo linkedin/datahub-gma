@@ -5,9 +5,9 @@ import lombok.Data;
 
 
 @Data
-public class PreUpdateRoutingAccessor {
+public class InUpdateRoutingAccessor {
 
-  public PreUpdateRoutingClient<? extends RecordTemplate> preUpdateClient;
+  public InUpdateRoutingClient<? extends RecordTemplate> preUpdateClient;
 
   public enum RoutingAction {
     PROCEED, SKIP
