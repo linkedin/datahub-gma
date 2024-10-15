@@ -13,29 +13,29 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class InUpdateAspectRegistry {
 
-  private final Map<Class<? extends RecordTemplate>, InUpdateRoutingAccessor> _inUpdateLambdaMap;
+  private final Map<Class<? extends RecordTemplate>, InUpdateRoutingClient> _inUpdateLambdaMap;
 
   /**
-   * Constructor to register in-update routing accessors for multiple aspects at once.
-   * @param inUpdateMap map containing aspect classes and their corresponding accessors
+   * Constructor to register in-update routing clients for multiple aspects at once.
+   * @param inUpdateMap map containing aspect classes and their corresponding clients
    */
-  public InUpdateAspectRegistry(@Nonnull Map<Class<? extends RecordTemplate>, InUpdateRoutingAccessor> inUpdateMap) {
+  public InUpdateAspectRegistry(@Nonnull Map<Class<? extends RecordTemplate>, InUpdateRoutingClient> inUpdateMap) {
     _inUpdateLambdaMap = new HashMap<>(inUpdateMap);
     log.info("Registered in-update routing accessors for aspects: {}", _inUpdateLambdaMap.keySet());
   }
 
   /**
-   * Get In Update Routing Accessor for an aspect class.
-   * @param aspectClass the class of the aspect to retrieve the accessor for
-   * @return InUpdateRoutingAccessor for the given aspect class, or null if not found
+   * Get In Update Routing Client for an aspect class.
+   * @param aspectClass the class of the aspect to retrieve the client
+   * @return InUpdateRoutingClient for the given aspect class, or null if not found
    */
-  public <ASPECT extends RecordTemplate> InUpdateRoutingAccessor getInUpdateRoutingAccessor(
+  public <ASPECT extends RecordTemplate> InUpdateRoutingClient getInUpdateRoutingClient(
       @Nonnull Class<ASPECT> aspectClass) {
     return _inUpdateLambdaMap.get(aspectClass);
   }
 
   /**
-   * Check if In Update Routing Accessor is registered for an aspect.
+   * Check if In Update Routing Client is registered for an aspect.
    */
   public <ASPECT extends RecordTemplate> boolean isRegistered(@Nonnull final Class<ASPECT> aspectClass) {
     return _inUpdateLambdaMap.containsKey(aspectClass);

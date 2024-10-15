@@ -25,7 +25,6 @@ import com.linkedin.metadata.dao.exception.ModelValidationException;
 import com.linkedin.metadata.dao.ingestion.BaseLambdaFunction;
 import com.linkedin.metadata.dao.ingestion.LambdaFunctionRegistry;
 import com.linkedin.metadata.dao.ingestion.preupdate.InUpdateResponse;
-import com.linkedin.metadata.dao.ingestion.preupdate.InUpdateRoutingAccessor;
 import com.linkedin.metadata.dao.ingestion.preupdate.InUpdateAspectRegistry;
 import com.linkedin.metadata.dao.ingestion.preupdate.InUpdateRoutingClient;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
@@ -1664,12 +1663,10 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @return the updated aspect
    */
   protected <ASPECT extends RecordTemplate> AspectUpdateResult<ASPECT> inUpdateRouting(URN urn, ASPECT newAspect, Optional<ASPECT> existingAspect) {
-      InUpdateRoutingAccessor inUpdateRoutingAccessor = _inUpdateAspectRegistry.getInUpdateRoutingAccessor(newAspect.getClass());
-      InUpdateRoutingClient client =
-          inUpdateRoutingAccessor.getPreUpdateClient();
-      InUpdateResponse inUpdateResponse = client.inUpdate(urn, newAspect, existingAspect);
+      InUpdateRoutingClient inUpdateRoutingClient = _inUpdateAspectRegistry.getInUpdateRoutingClient(newAspect.getClass());
+      InUpdateResponse inUpdateResponse = inUpdateRoutingClient.inUpdate(urn, newAspect, existingAspect);
       ASPECT updatedAspect = (ASPECT) inUpdateResponse.getUpdatedAspect();
       log.info("PreUpdateRouting completed in BaseLocalDao, urn: {}, updated aspect: {}", urn, updatedAspect);
-      return new AspectUpdateResult<>(updatedAspect, client.isSkipProcessing());
+      return new AspectUpdateResult<>(updatedAspect, inUpdateRoutingClient.isSkipProcessing());
   }
 }

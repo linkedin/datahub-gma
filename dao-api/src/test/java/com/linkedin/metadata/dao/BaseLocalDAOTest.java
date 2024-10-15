@@ -9,6 +9,7 @@ import com.linkedin.metadata.dao.ingestion.SampleLambdaFunctionRegistryImpl;
 import com.linkedin.metadata.dao.ingestion.SampleInUpdateRoutingClient;
 import com.linkedin.metadata.dao.ingestion.preupdate.InUpdateRoutingAccessor;
 import com.linkedin.metadata.dao.ingestion.preupdate.InUpdateAspectRegistry;
+import com.linkedin.metadata.dao.ingestion.preupdate.InUpdateRoutingClient;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
@@ -662,11 +663,8 @@ public class BaseLocalDAOTest {
     AspectFoo foo = new AspectFoo().setValue("foo");
     AspectFoo bar = new AspectFoo().setValue("bar");
 
-    InUpdateRoutingAccessor inUpdateRoutingAccessor = new InUpdateRoutingAccessor();
-    inUpdateRoutingAccessor.setPreUpdateClient(new SampleInUpdateRoutingClient());
-
-    Map<Class<? extends RecordTemplate>, InUpdateRoutingAccessor> preUpdateMap = new HashMap<>();
-    preUpdateMap.put(AspectFoo.class, inUpdateRoutingAccessor);
+    Map<Class<? extends RecordTemplate>, InUpdateRoutingClient> preUpdateMap = new HashMap<>();
+    preUpdateMap.put(AspectFoo.class, new SampleInUpdateRoutingClient());
 
     InUpdateAspectRegistry inUpdateAspectRegistry = new InUpdateAspectRegistry(preUpdateMap);
     _dummyLocalDAO.setPreUpdateAspectRegistry(inUpdateAspectRegistry);
@@ -681,11 +679,9 @@ public class BaseLocalDAOTest {
     AspectFoo foo = new AspectFoo().setValue("foo");
     AspectFoo bar = new AspectFoo().setValue("bar");
     _dummyLocalDAO.setAlwaysEmitAuditEvent(true);
-    InUpdateRoutingAccessor inUpdateRoutingAccessor = new InUpdateRoutingAccessor();
-    inUpdateRoutingAccessor.setPreUpdateClient(new SampleInUpdateRoutingClient());
 
-    Map<Class<? extends RecordTemplate>, InUpdateRoutingAccessor> preUpdateMap = new HashMap<>();
-    preUpdateMap.put(AspectFoo.class, inUpdateRoutingAccessor);
+    Map<Class<? extends RecordTemplate>, InUpdateRoutingClient> preUpdateMap = new HashMap<>();
+    preUpdateMap.put(AspectFoo.class, new SampleInUpdateRoutingClient());
 
     InUpdateAspectRegistry inUpdateAspectRegistry = new InUpdateAspectRegistry(preUpdateMap);
 

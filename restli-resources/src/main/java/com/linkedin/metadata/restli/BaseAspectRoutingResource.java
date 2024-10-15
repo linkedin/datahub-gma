@@ -8,7 +8,6 @@ import com.linkedin.data.template.StringArray;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.AspectKey;
 import com.linkedin.metadata.dao.ingestion.preupdate.InUpdateResponse;
-import com.linkedin.metadata.dao.ingestion.preupdate.InUpdateRoutingAccessor;
 import com.linkedin.metadata.dao.ingestion.preupdate.InUpdateAspectRegistry;
 import com.linkedin.metadata.dao.ingestion.preupdate.InUpdateRoutingClient;
 import com.linkedin.metadata.dao.utils.ModelUtils;
@@ -687,10 +686,9 @@ public abstract class BaseAspectRoutingResource<
    * @return the updated aspect
    */
   protected <ASPECT extends RecordTemplate> AspectUpdateResult<ASPECT> inUpdateRouting(URN urn, RecordTemplate aspect, InUpdateAspectRegistry registry) {
-    InUpdateRoutingAccessor inUpdateRoutingAccessor = registry.getInUpdateRoutingAccessor(aspect.getClass());
-    InUpdateRoutingClient preUpdateClient = inUpdateRoutingAccessor.getPreUpdateClient();
-    InUpdateResponse inUpdateResponse = preUpdateClient.inUpdate(urn, aspect, null);
+    InUpdateRoutingClient inUpdateRoutingClient = registry.getInUpdateRoutingClient(aspect.getClass());
+    InUpdateResponse inUpdateResponse = inUpdateRoutingClient.inUpdate(urn, aspect, null);
     ASPECT updatedAspect = (ASPECT) inUpdateResponse.getUpdatedAspect();
-    return new AspectUpdateResult<>(updatedAspect, preUpdateClient.isSkipProcessing());
+    return new AspectUpdateResult<>(updatedAspect, inUpdateRoutingClient.isSkipProcessing());
   }
 }
