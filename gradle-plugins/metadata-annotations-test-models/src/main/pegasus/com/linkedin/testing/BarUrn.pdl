@@ -9,7 +9,7 @@ namespace com.linkedin.testing
 }
 @validate.`com.linkedin.common.validator.TypedUrnValidator` = {
   "owningTeam" : "urn:li:internalTeam:metadata",
-  "entityType" : "entityBar",
+  "entityType" : "bar",
   "namespace" : "li",
   "name" : "Bar",
   "doc" : "Bar identifier.",
