@@ -656,7 +656,7 @@ public class BaseLocalDAOTest {
   }
 
   @Test
-  public void testInUpdateRoutingFromFooToBar() throws URISyntaxException {
+  public void testAspectCallbackHelperFromFooToBar() throws URISyntaxException {
     // Setup test data
     FooUrn urn = new FooUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");
@@ -667,13 +667,13 @@ public class BaseLocalDAOTest {
 
     AspectCallbackRegistry aspectCallbackRegistry = new AspectCallbackRegistry(inUpdateMap);
     _dummyLocalDAO.setAspectCallbackRegistry(aspectCallbackRegistry);
-    BaseLocalDAO.AspectUpdateResult result = _dummyLocalDAO.inUpdateRouting(urn, foo, null);
+    BaseLocalDAO.AspectUpdateResult result = _dummyLocalDAO.aspectCallbackHelper(urn, foo, null);
     AspectFoo newAspect = (AspectFoo) result.getUpdatedAspect();
     assertEquals(newAspect, bar);
   }
 
   @Test
-  public void testMAEEmissionForInUpdateRouting() throws URISyntaxException {
+  public void testMAEEmissionForAspectCallbackHelper() throws URISyntaxException {
     FooUrn urn = new FooUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");
     AspectFoo bar = new AspectFoo().setValue("bar");
@@ -693,7 +693,7 @@ public class BaseLocalDAOTest {
   }
 
   @Test
-  public void testInUpdateRoutingWithUnregisteredAspect() throws URISyntaxException {
+  public void testAspectCallbackHelperWithUnregisteredAspect() throws URISyntaxException {
     // Setup test data
     FooUrn urn = new FooUrn(1);
     AspectBar foo = new AspectBar().setValue("foo");
@@ -705,7 +705,7 @@ public class BaseLocalDAOTest {
     _dummyLocalDAO.setAspectCallbackRegistry(aspectCallbackRegistry);
 
     // Call the add method
-    BaseLocalDAO.AspectUpdateResult result = _dummyLocalDAO.inUpdateRouting(urn, foo, null);
+    BaseLocalDAO.AspectUpdateResult result = _dummyLocalDAO.aspectCallbackHelper(urn, foo, null);
 
     // Verify that the result is the same as the input aspect since it's not registered
     assertEquals(result.getUpdatedAspect(), foo);

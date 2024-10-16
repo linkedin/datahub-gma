@@ -419,7 +419,7 @@ public abstract class BaseAspectRoutingResource<
           AspectCallbackRegistry registry = getLocalDAO().getInUpdateAspectRegistry();
           if (!skipExtraProcessing && registry != null && registry.isRegistered(aspect.getClass())) {
             log.info(String.format("Executing registered pre-update routing lambda for aspect class %s.", aspect.getClass()));
-            aspect = inUpdateRouting((URN) urn, aspect, registry);
+            aspect = aspectCallbackHelper((URN) urn, aspect, registry);
             log.info("PreUpdateRouting completed in ingestInternalAsset, urn: {}, updated aspect: {}", urn, aspect);
             // Get the fqcn of the aspect class
             String aspectFQCN = aspect.getClass().getCanonicalName();
@@ -687,9 +687,10 @@ public abstract class BaseAspectRoutingResource<
    * This method routes the update request to the appropriate custom API for pre-ingestion processing.
    * @param urn the urn of the asset
    * @param aspect the new aspect value
+   * @param registry the aspect callback registry
    * @return the updated aspect
    */
-  private RecordTemplate inUpdateRouting(URN urn, RecordTemplate aspect, AspectCallbackRegistry registry) {
+  private RecordTemplate aspectCallbackHelper(URN urn, RecordTemplate aspect, AspectCallbackRegistry registry) {
     InUpdateRoutingClient preUpdateClient = registry.getInUpdateRoutingClient(aspect.getClass());
     InUpdateResponse inUpdateResponse = preUpdateClient.inUpdate(urn, aspect, null);
     return inUpdateResponse.getUpdatedAspect();

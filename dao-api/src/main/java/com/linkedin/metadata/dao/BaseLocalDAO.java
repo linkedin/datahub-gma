@@ -637,9 +637,11 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     if (_lambdaFunctionRegistry != null && _lambdaFunctionRegistry.isRegistered(updateTuple.getAspectClass())) {
       newValue = updatePreIngestionLambdas(urn, oldValue, newValue);
     }
+    // this will skip the pre/in update callbacks
     if (!inSkipUpdate) {
-      AspectUpdateResult result = inUpdateRouting(urn, newValue, oldValue);
+      AspectUpdateResult result = aspectCallbackHelper(urn, newValue, oldValue);
       newValue = (ASPECT) result.getUpdatedAspect();
+      // skip the normal ingestion to the DAO
       if (result.isSkipProcessing()) {
         return null;
       }
@@ -862,7 +864,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   /**
    * Same as above {@link #add(Urn, RecordTemplate, AuditStamp)} but with tracking context.
-   * Note: If you update the lambda function (ignored - newValue), make sure to update {@link #inUpdateRouting(Urn, RecordTemplate, Optional)} as well
+   * Note: If you update the lambda function (ignored - newValue), make sure to update {@link #aspectCallbackHelper(Urn, RecordTemplate, Optional)} as well
    * to avoid any inconsistency between the lambda function and the add method.
    */
   @Nonnull
@@ -877,7 +879,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   /**
    * Same as above {@link #add(Urn, RecordTemplate, AuditStamp, IngestionTrackingContext, IngestionParams)} but
-   * skips any pre-update lambdas. DO NOT USE THIS METHOD WITHOUT EXPLICIT PERMISSION FROM THE METADATA GRAPH TEAM.
+   * skips any aspect callbacks. DO NOT USE THIS METHOD WITHOUT EXPLICIT PERMISSION FROM THE METADATA GRAPH TEAM.
    * Please use the regular add method linked above.
    */
   @Nonnull
@@ -1675,12 +1677,13 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * This method routes the update request to the appropriate custom API for pre-ingestion processing.
+   * This method routes the aspect updates to the appropriate aspect callback clients and get the updated aspect as response.
    * @param urn the urn of the asset
    * @param newAspectValue the new aspect value
-   * @return the updated aspect
+   * @param oldAspectValue the old aspect value
+   * @return AspectUpdateResult which contains updated aspect value
    */
-  protected <ASPECT extends RecordTemplate> AspectUpdateResult inUpdateRouting(URN urn, ASPECT newAspectValue, Optional<ASPECT> oldAspectValue) {
+  protected <ASPECT extends RecordTemplate> AspectUpdateResult aspectCallbackHelper(URN urn, ASPECT newAspectValue, Optional<ASPECT> oldAspectValue) {
     if (_aspectCallbackRegistry != null && _aspectCallbackRegistry.isRegistered(
         newAspectValue.getClass())) {
       InUpdateRoutingClient client = _aspectCallbackRegistry.getInUpdateRoutingClient(newAspectValue.getClass());

@@ -555,7 +555,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
   }
 
   @Test
-  public void testInUpdateRoutingWithRegisteredAspect() {
+  public void testAspectCallbackHelperWithRegisteredAspect() {
     FooUrn urn = makeFooUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");
 
@@ -641,7 +641,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
   }
 
   @Test
-  public void testInUpdateRoutingWithSkipIngestion() throws NoSuchFieldException, IllegalAccessException {
+  public void testAspectCallbackHelperWithSkipIngestion() throws NoSuchFieldException, IllegalAccessException {
     // Access the SKIP_INGESTION_FOR_ASPECTS field
     Field skipIngestionField = BaseAspectRoutingResource.class.getDeclaredField("SKIP_INGESTION_FOR_ASPECTS");
     skipIngestionField.setAccessible(true);
