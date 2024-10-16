@@ -9,6 +9,7 @@ configurations {
 dependencies {
   compile project(':core-models-utils')
   compile project(':dao-api')
+  compile project(':gradle-plugins:metadata-annotations-lib')
   compile externalDependency.ebean
   compile externalDependency.flywayCore
   compile externalDependency.guava
@@ -20,6 +21,7 @@ dependencies {
 
   annotationProcessor externalDependency.lombok
 
+  testCompile project(':gradle-plugins:metadata-annotations-test-models')
   testCompile project(':testing:core-models-testing')
   testCompile project(':testing:test-models')
   testCompile externalDependency.mysql

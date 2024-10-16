@@ -6,7 +6,7 @@ import java.net.URISyntaxException;
 
 public final class BarUrn extends Urn {
 
-  public static final String ENTITY_TYPE = "entityBar";
+  public static final String ENTITY_TYPE = "bar";
 
   public BarUrn(int id) throws URISyntaxException {
     super(ENTITY_TYPE, Integer.toString(id));

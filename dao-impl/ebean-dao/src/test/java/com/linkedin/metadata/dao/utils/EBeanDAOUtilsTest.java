@@ -1,6 +1,8 @@
 package com.linkedin.metadata.dao.utils;
 
 import com.google.common.io.Resources;
+import com.linkedin.data.template.IntegerArray;
+import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.StringArray;
 import com.linkedin.metadata.aspect.AuditedAspect;
 import com.linkedin.metadata.dao.EbeanLocalAccess;
@@ -13,7 +15,15 @@ import com.linkedin.metadata.query.LocalRelationshipCriterion;
 import com.linkedin.metadata.query.LocalRelationshipValue;
 import com.linkedin.metadata.query.RelationshipField;
 import com.linkedin.metadata.query.UrnField;
+import com.linkedin.testing.AnnotatedAspectBarWithRelationshipFields;
+import com.linkedin.testing.AnnotatedRelationshipBar;
+import com.linkedin.testing.AnnotatedRelationshipBarArray;
+import com.linkedin.testing.AnnotatedRelationshipFoo;
+import com.linkedin.testing.AnnotatedRelationshipFooArray;
 import com.linkedin.testing.AspectFoo;
+import com.linkedin.testing.AnnotatedAspectFooWithRelationshipField;
+import com.linkedin.testing.CommonAspect;
+import com.linkedin.testing.CommonAspectArray;
 import com.linkedin.testing.urn.BurgerUrn;
 import com.linkedin.testing.urn.FooUrn;
 import io.ebean.Ebean;
@@ -567,4 +577,62 @@ public class EBeanDAOUtilsTest {
         relationshipField);
     assertEquals(relationshipField, filterCriterion.getField().getRelationshipField());
   }
+
+  @Test
+  public void testExtractRelationshipsFromAspect() {
+    // case 1: aspect model does not contain any relationship typed fields
+    // expected: return null
+    AspectFoo foo = new AspectFoo();
+    assertTrue(EBeanDAOUtils.extractRelationshipsFromAspect(foo).isEmpty());
+
+    // case 2: aspect model contains only a non-null relationship type field
+    // expected: return the non-null relationship
+    AnnotatedRelationshipFoo relationshipFoo = new AnnotatedRelationshipFoo();
+    AnnotatedRelationshipFooArray relationshipFoos = new AnnotatedRelationshipFooArray(relationshipFoo);
+    AnnotatedAspectFooWithRelationshipField fooWithRelationshipField = new AnnotatedAspectFooWithRelationshipField()
+        .setRelationshipFoo(relationshipFoos);
+
+    List<List<RecordTemplate>> results = EBeanDAOUtils.extractRelationshipsFromAspect(fooWithRelationshipField);
+    assertEquals(1, results.size());
+    assertEquals(1, results.get(0).size());
+    assertEquals(relationshipFoo, results.get(0).get(0));
+
+    // case 3: aspect model contains only a null relationship type field
+    // expected: return null
+    AnnotatedAspectFooWithRelationshipField fooWithNullRelationshipField = new AnnotatedAspectFooWithRelationshipField();
+    assertTrue(EBeanDAOUtils.extractRelationshipsFromAspect(fooWithNullRelationshipField).isEmpty());
+
+    // case 4: aspect model contains multiple relationship fields, some null and some non-null, as well as array fields
+    //         containing non-Relationship objects
+    // expected: return only the non-null relationships
+    relationshipFoos = new AnnotatedRelationshipFooArray(new AnnotatedRelationshipFoo(), new AnnotatedRelationshipFoo());
+    AnnotatedRelationshipBarArray relationshipBars = new AnnotatedRelationshipBarArray(new AnnotatedRelationshipBar());
+    // given:
+    // aspect = {
+    //     value -> "abc"
+    //     integers -> [1]
+    //     nonRelationshipStructs -> [commonAspect1]
+    //     relationshipFoos -> [foo1, foo2]
+    //     relationshipBars -> [bar1]
+    //     moreRelationshipFoos -> not present
+    // }
+    // expect:
+    // [[foo1, foo2], [bar1]]
+    AnnotatedAspectBarWithRelationshipFields barWithRelationshipFields = new AnnotatedAspectBarWithRelationshipFields()
+        .setValue("abc")
+        .setIntegers(new IntegerArray(1))
+        .setNonRelationshipStructs(new CommonAspectArray(new CommonAspect()))
+        .setRelationshipFoos(relationshipFoos)
+        .setRelationshipBars(relationshipBars); // don't set moreRelationshipFoos field
+
+    results = EBeanDAOUtils.extractRelationshipsFromAspect(barWithRelationshipFields);
+    assertEquals(2, results.size());
+    assertEquals(2, results.get(0).size());
+    assertEquals(1, results.get(1).size());
+    assertEquals(new AnnotatedRelationshipFoo(), results.get(0).get(0));
+    assertEquals(new AnnotatedRelationshipFoo(), results.get(0).get(1));
+    assertEquals(new AnnotatedRelationshipBar(), results.get(1).get(0));
+  }
+
+
 }

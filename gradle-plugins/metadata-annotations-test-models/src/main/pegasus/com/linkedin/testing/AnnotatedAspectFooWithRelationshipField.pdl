@@ -1,0 +1,18 @@
+namespace com.linkedin.testing
+
+/**
+ * For unit tests
+ */
+@gma.aspect.column.name = "annotatedaspectfoowithrelationshipfield"
+@gma.model = "ASPECT"
+record AnnotatedAspectFooWithRelationshipField {
+  /**
+   * For unit tests
+   */
+  value: string
+
+  /**
+   * For unit tests
+   */
+  relationshipFoo: optional array[AnnotatedRelationshipFoo]
+}
