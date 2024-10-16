@@ -8,12 +8,12 @@ import com.linkedin.metadata.dao.AspectKey;
 import com.linkedin.metadata.dao.BaseBrowseDAO;
 import com.linkedin.metadata.dao.BaseLocalDAO;
 import com.linkedin.metadata.dao.BaseSearchDAO;
-import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateRoutingAccessor;
-import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateAspectRegistry;
+import com.linkedin.metadata.dao.ingestion.preupdate.InUpdateAspectRegistry;
+import com.linkedin.metadata.dao.ingestion.preupdate.InUpdateRoutingClient;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.events.IngestionTrackingContext;
-import com.linkedin.metadata.restli.ingestion.SamplePreUpdateRoutingClient;
+import com.linkedin.metadata.restli.ingestion.SampleInUpdateRoutingClient;
 import com.linkedin.parseq.BaseEngineTest;
 import com.linkedin.restli.common.ComplexResourceKey;
 import com.linkedin.restli.common.EmptyRecord;
@@ -562,14 +562,11 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, foo));
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
 
-    PreUpdateRoutingAccessor preUpdateRoutingAccessor = new PreUpdateRoutingAccessor();
-    preUpdateRoutingAccessor.setPreUpdateClient(new SamplePreUpdateRoutingClient());
-    Map<Class<? extends RecordTemplate>, PreUpdateRoutingAccessor> preUpdateMap = new HashMap<>();
-    preUpdateMap.put(AspectFoo.class, preUpdateRoutingAccessor);
+    Map<Class<? extends RecordTemplate>, InUpdateRoutingClient> preUpdateMap = new HashMap<>();
+    preUpdateMap.put(AspectFoo.class, new com.linkedin.metadata.dao.ingestion.SampleInUpdateRoutingClient());
+    InUpdateAspectRegistry inUpdateAspectRegistry = new InUpdateAspectRegistry(preUpdateMap);
 
-    PreUpdateAspectRegistry registry = new PreUpdateAspectRegistry(preUpdateMap);
-
-    when(_mockLocalDAO.getPreUpdateAspectRegistry()).thenReturn(registry);
+    when(_mockLocalDAO.getPreUpdateAspectRegistry()).thenReturn(inUpdateAspectRegistry);
 
     // given: ingest a snapshot containing a routed aspect which has a registered pre-update lambda.
     runAndWait(_resource.ingest(snapshot));
@@ -610,15 +607,11 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, bar));
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
 
-    PreUpdateRoutingAccessor preUpdateRoutingAccessor = new PreUpdateRoutingAccessor();
-    preUpdateRoutingAccessor.setPreUpdateClient(new SamplePreUpdateRoutingClient());
+    Map<Class<? extends RecordTemplate>, InUpdateRoutingClient> preUpdateMap = new HashMap<>();
+    preUpdateMap.put(AspectFoo.class, new SampleInUpdateRoutingClient());
+    InUpdateAspectRegistry inUpdateAspectRegistry = new InUpdateAspectRegistry(preUpdateMap);
 
-    Map<Class<? extends RecordTemplate>, PreUpdateRoutingAccessor> preUpdateMap = new HashMap<>();
-    preUpdateMap.put(AspectFoo.class, preUpdateRoutingAccessor);
-
-    PreUpdateAspectRegistry registry = new PreUpdateAspectRegistry(preUpdateMap);
-
-    when(_mockLocalDAO.getPreUpdateAspectRegistry()).thenReturn(registry);
+    when(_mockLocalDAO.getPreUpdateAspectRegistry()).thenReturn(inUpdateAspectRegistry);
 
     // given: ingest a snapshot which contains a non-routed aspect which has a registered pre-update lambda.
     runAndWait(_resource.ingest(snapshot));
@@ -665,11 +658,9 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, foo));
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
 
-    PreUpdateRoutingAccessor preUpdateRoutingAccessor = new PreUpdateRoutingAccessor();
-    preUpdateRoutingAccessor.setPreUpdateClient(new SamplePreUpdateRoutingClient());
-    Map<Class<? extends RecordTemplate>, PreUpdateRoutingAccessor> preUpdateMap = new HashMap<>();
-    preUpdateMap.put(AspectFoo.class, preUpdateRoutingAccessor);
-    PreUpdateAspectRegistry registry = new PreUpdateAspectRegistry(preUpdateMap);
+    Map<Class<? extends RecordTemplate>, InUpdateRoutingClient> preUpdateMap = new HashMap<>();
+    preUpdateMap.put(AspectFoo.class, new SampleInUpdateRoutingClient());
+    InUpdateAspectRegistry registry = new InUpdateAspectRegistry(preUpdateMap);
 
     when(_mockLocalDAO.getPreUpdateAspectRegistry()).thenReturn(registry);
 

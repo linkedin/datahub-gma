@@ -4,9 +4,9 @@ import com.linkedin.data.template.RecordTemplate;
 import lombok.Data;
 
 /**
- * Response of pre-update process that includes the updated aspect.
+ * Response of in-update process that includes the updated aspect.
  */
 @Data
-public class PreUpdateResponse<ASPECT extends RecordTemplate> {
+public class InUpdateResponse<ASPECT extends RecordTemplate> {
   private final ASPECT updatedAspect;
 }

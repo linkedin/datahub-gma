@@ -7,10 +7,9 @@ import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.StringArray;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.AspectKey;
-import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateRoutingAccessor;
-import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateAspectRegistry;
-import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateResponse;
-import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateRoutingClient;
+import com.linkedin.metadata.dao.ingestion.preupdate.InUpdateAspectRegistry;
+import com.linkedin.metadata.dao.ingestion.preupdate.InUpdateResponse;
+import com.linkedin.metadata.dao.ingestion.preupdate.InUpdateRoutingClient;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.internal.IngestionParams;
@@ -417,7 +416,7 @@ public abstract class BaseAspectRoutingResource<
       if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
         try {
           // get the updated aspect if there is a preupdate routing lambda registered
-          PreUpdateAspectRegistry registry = getLocalDAO().getPreUpdateAspectRegistry();
+          InUpdateAspectRegistry registry = getLocalDAO().getPreUpdateAspectRegistry();
           if (!skipExtraProcessing && registry != null && registry.isRegistered(aspect.getClass())) {
             log.info(String.format("Executing registered pre-update routing lambda for aspect class %s.", aspect.getClass()));
             aspect = preUpdateRouting((URN) urn, aspect, registry);
@@ -690,10 +689,9 @@ public abstract class BaseAspectRoutingResource<
    * @param aspect the new aspect value
    * @return the updated aspect
    */
-  private RecordTemplate preUpdateRouting(URN urn, RecordTemplate aspect, PreUpdateAspectRegistry registry) {
-    PreUpdateRoutingAccessor preUpdateRoutingAccessor = registry.getPreUpdateRoutingAccessor(aspect.getClass());
-    PreUpdateRoutingClient preUpdateClient = preUpdateRoutingAccessor.getPreUpdateClient();
-    PreUpdateResponse preUpdateResponse = preUpdateClient.preUpdate(urn, aspect);
-    return preUpdateResponse.getUpdatedAspect();
+  private RecordTemplate preUpdateRouting(URN urn, RecordTemplate aspect, InUpdateAspectRegistry registry) {
+    InUpdateRoutingClient preUpdateClient = registry.getInUpdateRoutingClient(aspect.getClass());
+    InUpdateResponse inUpdateResponse = preUpdateClient.inUpdate(urn, aspect, null);
+    return inUpdateResponse.getUpdatedAspect();
   }
 }
