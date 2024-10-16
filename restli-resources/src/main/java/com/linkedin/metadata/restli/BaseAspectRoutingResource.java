@@ -419,7 +419,7 @@ public abstract class BaseAspectRoutingResource<
           InUpdateAspectRegistry registry = getLocalDAO().getPreUpdateAspectRegistry();
           if (!skipExtraProcessing && registry != null && registry.isRegistered(aspect.getClass())) {
             log.info(String.format("Executing registered pre-update routing lambda for aspect class %s.", aspect.getClass()));
-            aspect = preUpdateRouting((URN) urn, aspect, registry);
+            aspect = inUpdateRouting((URN) urn, aspect, registry);
             log.info("PreUpdateRouting completed in ingestInternalAsset, urn: {}, updated aspect: {}", urn, aspect);
             // Get the fqcn of the aspect class
             String aspectFQCN = aspect.getClass().getCanonicalName();
@@ -689,7 +689,7 @@ public abstract class BaseAspectRoutingResource<
    * @param aspect the new aspect value
    * @return the updated aspect
    */
-  private RecordTemplate preUpdateRouting(URN urn, RecordTemplate aspect, InUpdateAspectRegistry registry) {
+  private RecordTemplate inUpdateRouting(URN urn, RecordTemplate aspect, InUpdateAspectRegistry registry) {
     InUpdateRoutingClient preUpdateClient = registry.getInUpdateRoutingClient(aspect.getClass());
     InUpdateResponse inUpdateResponse = preUpdateClient.inUpdate(urn, aspect, null);
     return inUpdateResponse.getUpdatedAspect();

@@ -669,7 +669,7 @@ public class BaseLocalDAOTest {
     _dummyLocalDAO.setPreUpdateAspectRegistry(inUpdateAspectRegistry);
     BaseLocalDAO.AspectUpdateResult result = _dummyLocalDAO.inUpdateRouting(urn, foo, null);
     AspectFoo newAspect = (AspectFoo) result.getUpdatedAspect();
-    assertEquals(result, bar);
+    assertEquals(newAspect, bar);
   }
 
   @Test

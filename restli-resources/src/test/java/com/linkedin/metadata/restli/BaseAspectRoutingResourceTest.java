@@ -555,7 +555,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
   }
 
   @Test
-  public void testPreUpdateRoutingWithRegisteredAspect() {
+  public void testInUpdateRoutingWithRegisteredAspect() {
     FooUrn urn = makeFooUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");
 
@@ -563,7 +563,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
 
     Map<Class<? extends RecordTemplate>, InUpdateRoutingClient> preUpdateMap = new HashMap<>();
-    preUpdateMap.put(AspectFoo.class, new com.linkedin.metadata.dao.ingestion.SampleInUpdateRoutingClient());
+    preUpdateMap.put(AspectFoo.class, new SampleInUpdateRoutingClient());
     InUpdateAspectRegistry inUpdateAspectRegistry = new InUpdateAspectRegistry(preUpdateMap);
 
     when(_mockLocalDAO.getPreUpdateAspectRegistry()).thenReturn(inUpdateAspectRegistry);
@@ -582,7 +582,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
   }
 
   @Test
-  public void testPreUpdateRoutingWithNonRegisteredPreUpdateAspect() {
+  public void testPreUpdateRoutingWithNonRegisteredInUpdateAspect() {
     FooUrn urn = makeFooUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");
 
@@ -601,7 +601,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
   }
 
   @Test
-  public void testPreUpdateRoutingWithNonRoutedAspectAndRegisteredPreUpdate() {
+  public void testPreUpdateRoutingWithNonRoutedAspectAndRegisteredInUpdate() {
     FooUrn urn = makeFooUrn(1);
     AspectBar bar = new AspectBar().setValue("bar");
     List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, bar));
@@ -625,7 +625,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
   }
 
   @Test
-  public void testPreUpdateRoutingWithNonRoutedAspectAndNonRegisteredPreUpdate() {
+  public void testPreUpdateRoutingWithNonRoutedAspectAndNonRegisteredInUpdate() {
     FooUrn urn = makeFooUrn(1);
     AspectBar bar = new AspectBar().setValue("bar");
     List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, bar));
@@ -641,7 +641,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
   }
 
   @Test
-  public void testPreUpdateRoutingWithSkipIngestion() throws NoSuchFieldException, IllegalAccessException {
+  public void testInUpdateRoutingWithSkipIngestion() throws NoSuchFieldException, IllegalAccessException {
     // Access the SKIP_INGESTION_FOR_ASPECTS field
     Field skipIngestionField = BaseAspectRoutingResource.class.getDeclaredField("SKIP_INGESTION_FOR_ASPECTS");
     skipIngestionField.setAccessible(true);
@@ -673,7 +673,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
   //Testing the case when aspect has no pre lambda but skipIngestion contains the aspect, so it should not skip ingestion
   @Test
-  public void testPreUpdateRoutingWithSkipIngestionNoPreLambda() throws NoSuchFieldException, IllegalAccessException {
+  public void testPreUpdateRoutingWithSkipIngestionNoInLambda() throws NoSuchFieldException, IllegalAccessException {
     Field skipIngestionField = BaseAspectRoutingResource.class.getDeclaredField("SKIP_INGESTION_FOR_ASPECTS");
     skipIngestionField.setAccessible(true);
     Field modifiersField = Field.class.getDeclaredField("modifiers");
