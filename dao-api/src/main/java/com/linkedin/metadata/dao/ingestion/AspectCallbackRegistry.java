@@ -1,4 +1,4 @@
-package com.linkedin.metadata.dao.ingestion.preupdate;
+package com.linkedin.metadata.dao.ingestion;
 
 import com.linkedin.data.template.RecordTemplate;
 import java.util.HashMap;

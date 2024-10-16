@@ -2,8 +2,8 @@ package com.linkedin.metadata.restli.ingestion;
 
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
-import com.linkedin.metadata.dao.ingestion.preupdate.InUpdateResponse;
-import com.linkedin.metadata.dao.ingestion.preupdate.InUpdateRoutingClient;
+import com.linkedin.metadata.dao.ingestion.InUpdateResponse;
+import com.linkedin.metadata.dao.ingestion.InUpdateRoutingClient;
 import com.linkedin.testing.AspectFoo;
 import java.util.Optional;
 
