@@ -7,7 +7,7 @@ import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.StringArray;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.AspectKey;
-import com.linkedin.metadata.dao.ingestion.preupdate.InUpdateAspectRegistry;
+import com.linkedin.metadata.dao.ingestion.preupdate.AspectCallbackRegistry;
 import com.linkedin.metadata.dao.ingestion.preupdate.InUpdateResponse;
 import com.linkedin.metadata.dao.ingestion.preupdate.InUpdateRoutingClient;
 import com.linkedin.metadata.dao.utils.ModelUtils;
@@ -416,7 +416,7 @@ public abstract class BaseAspectRoutingResource<
       if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
         try {
           // get the updated aspect if there is a preupdate routing lambda registered
-          InUpdateAspectRegistry registry = getLocalDAO().getInUpdateAspectRegistry();
+          AspectCallbackRegistry registry = getLocalDAO().getInUpdateAspectRegistry();
           if (!skipExtraProcessing && registry != null && registry.isRegistered(aspect.getClass())) {
             log.info(String.format("Executing registered pre-update routing lambda for aspect class %s.", aspect.getClass()));
             aspect = inUpdateRouting((URN) urn, aspect, registry);
@@ -438,14 +438,12 @@ public abstract class BaseAspectRoutingResource<
           // here, always call a simple version of BaseLocalDAO::add which skips pre-update lambdas regardless of
           // the value of param skipExtraProcessing since any pre-update lambdas would have already been executed
           // in the code above.
-          getLocalDAO().setSkipInUpdate(true);
           getLocalDAO().rawAdd((URN) urn, aspect, auditStamp, trackingContext, ingestionParams);
         } catch (Exception exception) {
           log.error("Couldn't ingest routing aspect {} for {}", aspect.getClass().getSimpleName(), urn, exception);
         }
       } else {
         if (skipExtraProcessing) {
-          getLocalDAO().setSkipInUpdate(true);
           // call a simple version of BaseLocalDAO::add which skips pre-update lambdas.
           getLocalDAO().rawAdd((URN) urn, aspect, auditStamp, trackingContext, ingestionParams);
         } else {
@@ -691,7 +689,7 @@ public abstract class BaseAspectRoutingResource<
    * @param aspect the new aspect value
    * @return the updated aspect
    */
-  private RecordTemplate inUpdateRouting(URN urn, RecordTemplate aspect, InUpdateAspectRegistry registry) {
+  private RecordTemplate inUpdateRouting(URN urn, RecordTemplate aspect, AspectCallbackRegistry registry) {
     InUpdateRoutingClient preUpdateClient = registry.getInUpdateRoutingClient(aspect.getClass());
     InUpdateResponse inUpdateResponse = preUpdateClient.inUpdate(urn, aspect, null);
     return inUpdateResponse.getUpdatedAspect();

@@ -8,7 +8,7 @@ import com.linkedin.metadata.dao.AspectKey;
 import com.linkedin.metadata.dao.BaseBrowseDAO;
 import com.linkedin.metadata.dao.BaseLocalDAO;
 import com.linkedin.metadata.dao.BaseSearchDAO;
-import com.linkedin.metadata.dao.ingestion.preupdate.InUpdateAspectRegistry;
+import com.linkedin.metadata.dao.ingestion.preupdate.AspectCallbackRegistry;
 import com.linkedin.metadata.dao.ingestion.preupdate.InUpdateRoutingClient;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
@@ -564,9 +564,9 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     Map<Class<? extends RecordTemplate>, InUpdateRoutingClient> preUpdateMap = new HashMap<>();
     preUpdateMap.put(AspectFoo.class, new SampleInUpdateRoutingClient());
-    InUpdateAspectRegistry inUpdateAspectRegistry = new InUpdateAspectRegistry(preUpdateMap);
+    AspectCallbackRegistry aspectCallbackRegistry = new AspectCallbackRegistry(preUpdateMap);
 
-    when(_mockLocalDAO.getInUpdateAspectRegistry()).thenReturn(inUpdateAspectRegistry);
+    when(_mockLocalDAO.getInUpdateAspectRegistry()).thenReturn(aspectCallbackRegistry);
 
     // given: ingest a snapshot containing a routed aspect which has a registered pre-update lambda.
     runAndWait(_resource.ingest(snapshot));
@@ -609,9 +609,9 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     Map<Class<? extends RecordTemplate>, InUpdateRoutingClient> preUpdateMap = new HashMap<>();
     preUpdateMap.put(AspectFoo.class, new SampleInUpdateRoutingClient());
-    InUpdateAspectRegistry inUpdateAspectRegistry = new InUpdateAspectRegistry(preUpdateMap);
+    AspectCallbackRegistry aspectCallbackRegistry = new AspectCallbackRegistry(preUpdateMap);
 
-    when(_mockLocalDAO.getInUpdateAspectRegistry()).thenReturn(inUpdateAspectRegistry);
+    when(_mockLocalDAO.getInUpdateAspectRegistry()).thenReturn(aspectCallbackRegistry);
 
     // given: ingest a snapshot which contains a non-routed aspect which has a registered pre-update lambda.
     runAndWait(_resource.ingest(snapshot));
@@ -660,7 +660,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     Map<Class<? extends RecordTemplate>, InUpdateRoutingClient> preUpdateMap = new HashMap<>();
     preUpdateMap.put(AspectFoo.class, new SampleInUpdateRoutingClient());
-    InUpdateAspectRegistry registry = new InUpdateAspectRegistry(preUpdateMap);
+    AspectCallbackRegistry registry = new AspectCallbackRegistry(preUpdateMap);
 
     when(_mockLocalDAO.getInUpdateAspectRegistry()).thenReturn(registry);
 
@@ -692,7 +692,6 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     verify(_mockAspectFooGmsClient, times(1)).ingest(eq(urn), eq(foo));
     // Should check for pre lambda
     verify(_mockLocalDAO, times(1)).getInUpdateAspectRegistry();
-    verify(_mockLocalDAO, times(1)).setSkipInUpdate(eq(true));
     // Should continue to dual-write into local DAO
     verify(_mockLocalDAO, times(1)).rawAdd(eq(urn), eq(foo), any(), any(), any());
     verifyNoMoreInteractions(_mockLocalDAO);

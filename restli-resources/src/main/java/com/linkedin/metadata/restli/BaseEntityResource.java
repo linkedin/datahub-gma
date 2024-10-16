@@ -411,7 +411,6 @@ public abstract class BaseEntityResource<
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
       ModelUtils.getAspectsFromSnapshot(snapshot).stream().forEach(aspect -> {
         if (!aspectsToIgnore.contains(aspect.getClass())) {
-          getLocalDAO().setSkipInUpdate(true);
           getLocalDAO().rawAdd(urn, aspect, auditStamp, trackingContext, ingestionParams);
         }
       });
@@ -462,7 +461,6 @@ public abstract class BaseEntityResource<
           ingestionParams != null ? ingestionParams.getIngestionTrackingContext() : null;
       ModelUtils.getAspectsFromAsset(asset).stream().forEach(aspect -> {
         if (!aspectsToIgnore.contains(aspect.getClass())) {
-          getLocalDAO().setSkipInUpdate(true);
           getLocalDAO().rawAdd(urn, aspect, auditStamp, ingestionTrackingContext, ingestionParams);
         }
       });

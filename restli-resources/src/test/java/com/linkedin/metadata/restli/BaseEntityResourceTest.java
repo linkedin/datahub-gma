@@ -1459,7 +1459,6 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     verify(_mockLocalDAO, times(1)).rawAdd(eq(urn), eq(foo), any(), any(), eq(null));
     verify(_mockLocalDAO, times(0)).add(eq(urn), eq(bar), any(), any(), eq(null));
     verify(_mockLocalDAO, times(1)).rawAdd(eq(urn), eq(bar), any(), any(), eq(null));
-    verify(_mockLocalDAO, times(2)).setSkipInUpdate(eq(true));
     verifyNoMoreInteractions(_mockLocalDAO);
   }
 }

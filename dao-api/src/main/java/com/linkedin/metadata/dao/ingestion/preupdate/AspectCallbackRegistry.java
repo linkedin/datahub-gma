@@ -11,7 +11,7 @@ import lombok.extern.slf4j.Slf4j;
  * A registry which maintains mapping of aspects and their InUpdateRoutingClient.
  */
 @Slf4j
-public class InUpdateAspectRegistry {
+public class AspectCallbackRegistry {
 
   private final Map<Class<? extends RecordTemplate>, InUpdateRoutingClient> _inUpdateLambdaMap;
 
@@ -19,7 +19,7 @@ public class InUpdateAspectRegistry {
    * Constructor to register in-update routing accessors for multiple aspects at once.
    * @param inUpdateMap map containing aspect classes and their corresponding accessors
    */
-  public InUpdateAspectRegistry(@Nonnull Map<Class<? extends RecordTemplate>, InUpdateRoutingClient> inUpdateMap) {
+  public AspectCallbackRegistry(@Nonnull Map<Class<? extends RecordTemplate>, InUpdateRoutingClient> inUpdateMap) {
     _inUpdateLambdaMap = new HashMap<>(inUpdateMap);
     log.info("Registered pre-update routing accessors for aspects: {}", _inUpdateLambdaMap.keySet());
   }
