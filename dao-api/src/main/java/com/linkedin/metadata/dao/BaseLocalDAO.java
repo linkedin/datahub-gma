@@ -409,7 +409,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * Set pre ingestion aspect registry.
+   * Set aspect callback registry.
    */
   public void setAspectCallbackRegistry(
       @Nullable AspectCallbackRegistry aspectCallbackRegistry) {
@@ -417,12 +417,11 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * Get pre ingestion aspect registry.
+   * Get aspect callback registry.
    */
-  public AspectCallbackRegistry getInUpdateAspectRegistry() {
+  public AspectCallbackRegistry getAspectCallbackRegistry() {
     return _aspectCallbackRegistry;
   }
-
 
   /**
    * Enables or disables atomic updates of multiple aspects.

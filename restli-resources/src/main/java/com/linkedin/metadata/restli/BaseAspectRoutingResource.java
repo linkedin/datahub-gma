@@ -416,7 +416,7 @@ public abstract class BaseAspectRoutingResource<
       if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
         try {
           // get the updated aspect if there is a preupdate routing lambda registered
-          AspectCallbackRegistry registry = getLocalDAO().getInUpdateAspectRegistry();
+          AspectCallbackRegistry registry = getLocalDAO().getAspectCallbackRegistry();
           if (!skipExtraProcessing && registry != null && registry.isRegistered(aspect.getClass())) {
             log.info(String.format("Executing registered pre-update routing lambda for aspect class %s.", aspect.getClass()));
             aspect = aspectCallbackHelper((URN) urn, aspect, registry);
