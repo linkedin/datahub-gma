@@ -222,6 +222,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   private Clock _clock = Clock.systemUTC();
 
+  private boolean skipInUpdate = false;
+
   /**
    * Constructor for BaseLocalDAO.
    *
@@ -321,6 +323,14 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
+   * Set setSkipInUpdate when rawAdd() is called.
+   * @param skipInUpdate whether to skip inUpdate
+   */
+  public void setSkipInUpdate(@Nonnull boolean skipInUpdate) {
+    this.skipInUpdate = skipInUpdate;
+  }
+
+  /**
    * Sets {@link Retention} for a specific aspect type.
    */
   public <ASPECT extends RecordTemplate> void setRetention(@Nonnull Class<ASPECT> aspectClass,
@@ -417,7 +427,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   /**
    * Get pre ingestion aspect registry.
    */
-  public InUpdateAspectRegistry getPreUpdateAspectRegistry() {
+  public InUpdateAspectRegistry getInUpdateAspectRegistry() {
     return _inUpdateAspectRegistry;
   }
 
@@ -635,14 +645,13 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     if (_lambdaFunctionRegistry != null && _lambdaFunctionRegistry.isRegistered(updateTuple.getAspectClass())) {
       newValue = updatePreIngestionLambdas(urn, oldValue, newValue);
     }
-
-    AspectUpdateResult result = inUpdateRouting(urn, newValue, oldValue);
-    newValue = (ASPECT) result.getUpdatedAspect();
-
-    if (result.isSkipProcessing()) {
-      return null;
+    if (!skipInUpdate) {
+      AspectUpdateResult result = inUpdateRouting(urn, newValue, oldValue);
+      newValue = (ASPECT) result.getUpdatedAspect();
+      if (result.isSkipProcessing()) {
+        return null;
+      }
     }
-
     checkValidAspect(newValue.getClass());
 
     if (_modelValidationOnWrite) {

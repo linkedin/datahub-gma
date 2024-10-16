@@ -308,7 +308,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(null), eq(null));
     verify(_mockAspectFooGmsClient, times(1)).ingest(eq(urn), eq(foo));
     verify(_mockAspectAttributeGmsClient, times(1)).ingest(eq(urn), eq(attributes));
-    verify(_mockLocalDAO, times(2)).getPreUpdateAspectRegistry();
+    verify(_mockLocalDAO, times(2)).getInUpdateAspectRegistry();
     verify(_mockLocalDAO, times(1)).rawAdd(eq(urn), eq(foo), any(), any(), any());
   }
 
@@ -328,7 +328,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(trackingContext), eq(null));
     verify(_mockAspectFooGmsClient, times(1)).ingestWithTracking(eq(urn), eq(foo), eq(trackingContext), eq(null));
     verify(_mockAspectAttributeGmsClient, times(1)).ingestWithTracking(eq(urn), eq(attributes), eq(trackingContext), eq(null));
-    verify(_mockLocalDAO, times(2)).getPreUpdateAspectRegistry();
+    verify(_mockLocalDAO, times(2)).getInUpdateAspectRegistry();
     verify(_mockLocalDAO, times(1)).rawAdd(eq(urn), eq(foo), any(), any(), any());
   }
 
@@ -356,7 +356,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     runAndWait(_resource.ingest(snapshot));
 
-    verify(_mockLocalDAO, times(2)).getPreUpdateAspectRegistry();
+    verify(_mockLocalDAO, times(2)).getInUpdateAspectRegistry();
     verify(_mockLocalDAO, times(1)).rawAdd(eq(urn), eq(foo), any(), any(), any());
     // verify(_mockGmsClient, times(1)).ingest(eq(urn), eq(foo));
     verify(_mockAspectFooGmsClient, times(1)).ingest(eq(urn), eq(foo));
@@ -566,12 +566,12 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     preUpdateMap.put(AspectFoo.class, new SampleInUpdateRoutingClient());
     InUpdateAspectRegistry inUpdateAspectRegistry = new InUpdateAspectRegistry(preUpdateMap);
 
-    when(_mockLocalDAO.getPreUpdateAspectRegistry()).thenReturn(inUpdateAspectRegistry);
+    when(_mockLocalDAO.getInUpdateAspectRegistry()).thenReturn(inUpdateAspectRegistry);
 
     // given: ingest a snapshot containing a routed aspect which has a registered pre-update lambda.
     runAndWait(_resource.ingest(snapshot));
 
-    verify(_mockLocalDAO, times(1)).getPreUpdateAspectRegistry();
+    verify(_mockLocalDAO, times(1)).getInUpdateAspectRegistry();
     // expected: the pre-update lambda is executed first (aspect value is changed from foo to foobar) and then the aspect is dual-written.
     AspectFoo foobar = new AspectFoo().setValue("foobar");
     // dual write pt1: ensure the ingestion request is forwarded to the routed GMS.
@@ -611,7 +611,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     preUpdateMap.put(AspectFoo.class, new SampleInUpdateRoutingClient());
     InUpdateAspectRegistry inUpdateAspectRegistry = new InUpdateAspectRegistry(preUpdateMap);
 
-    when(_mockLocalDAO.getPreUpdateAspectRegistry()).thenReturn(inUpdateAspectRegistry);
+    when(_mockLocalDAO.getInUpdateAspectRegistry()).thenReturn(inUpdateAspectRegistry);
 
     // given: ingest a snapshot which contains a non-routed aspect which has a registered pre-update lambda.
     runAndWait(_resource.ingest(snapshot));
@@ -662,11 +662,11 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     preUpdateMap.put(AspectFoo.class, new SampleInUpdateRoutingClient());
     InUpdateAspectRegistry registry = new InUpdateAspectRegistry(preUpdateMap);
 
-    when(_mockLocalDAO.getPreUpdateAspectRegistry()).thenReturn(registry);
+    when(_mockLocalDAO.getInUpdateAspectRegistry()).thenReturn(registry);
 
     runAndWait(_resource.ingest(snapshot));
     verify(_mockAspectFooGmsClient, times(0)).ingest(any(), any());
-    verify(_mockLocalDAO, times(1)).getPreUpdateAspectRegistry();
+    verify(_mockLocalDAO, times(1)).getInUpdateAspectRegistry();
     // Should not add to local DAO
     verifyNoMoreInteractions(_mockLocalDAO);
   }
@@ -691,7 +691,8 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     // Should not skip ingestion
     verify(_mockAspectFooGmsClient, times(1)).ingest(eq(urn), eq(foo));
     // Should check for pre lambda
-    verify(_mockLocalDAO, times(1)).getPreUpdateAspectRegistry();
+    verify(_mockLocalDAO, times(1)).getInUpdateAspectRegistry();
+    verify(_mockLocalDAO, times(1)).setSkipInUpdate(eq(true));
     // Should continue to dual-write into local DAO
     verify(_mockLocalDAO, times(1)).rawAdd(eq(urn), eq(foo), any(), any(), any());
     verifyNoMoreInteractions(_mockLocalDAO);
