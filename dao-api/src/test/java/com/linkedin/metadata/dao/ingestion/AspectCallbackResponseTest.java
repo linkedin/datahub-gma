@@ -7,15 +7,15 @@ import static org.mockito.Mockito.*;
 import static org.testng.AssertJUnit.*;
 
 
-public class InUpdateResponseTest {
+public class AspectCallbackResponseTest {
 
   @Test
   public void testConstructorAndGetter() {
     // Create a mock instance of RecordTemplate
     RecordTemplate mockAspect = mock(RecordTemplate.class);
 
-    // Create an instance of InUpdateResponse with the mock aspect
-    InUpdateResponse<RecordTemplate> response = new InUpdateResponse<>(mockAspect);
+    // Create an instance of AspectCallbackResponse with the mock aspect
+    AspectCallbackResponse<RecordTemplate> response = new AspectCallbackResponse<>(mockAspect);
 
     // Verify that the getter returns the correct value
     assertEquals(mockAspect, response.getUpdatedAspect());

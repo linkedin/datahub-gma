@@ -7,6 +7,6 @@ import lombok.Data;
  * Response of in-update process that includes the updated aspect. It can be extended to include additional information.
  */
 @Data
-public class InUpdateResponse<ASPECT extends RecordTemplate> {
+public class AspectCallbackResponse<ASPECT extends RecordTemplate> {
   private final ASPECT updatedAspect;
 }

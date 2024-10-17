@@ -8,8 +8,8 @@ import com.linkedin.data.template.StringArray;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.AspectKey;
 import com.linkedin.metadata.dao.ingestion.AspectCallbackRegistry;
-import com.linkedin.metadata.dao.ingestion.InUpdateResponse;
-import com.linkedin.metadata.dao.ingestion.InUpdateRoutingClient;
+import com.linkedin.metadata.dao.ingestion.AspectCallbackResponse;
+import com.linkedin.metadata.dao.ingestion.AspectCallbackRoutingClient;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.internal.IngestionParams;
@@ -691,8 +691,8 @@ public abstract class BaseAspectRoutingResource<
    * @return the updated aspect
    */
   private RecordTemplate aspectCallbackHelper(URN urn, RecordTemplate aspect, AspectCallbackRegistry registry) {
-    InUpdateRoutingClient preUpdateClient = registry.getInUpdateRoutingClient(aspect.getClass());
-    InUpdateResponse inUpdateResponse = preUpdateClient.inUpdate(urn, aspect, null);
-    return inUpdateResponse.getUpdatedAspect();
+    AspectCallbackRoutingClient preUpdateClient = registry.getAspectCallbackRoutingClient(aspect.getClass());
+    AspectCallbackResponse aspectCallbackResponse = preUpdateClient.inUpdate(urn, aspect, null);
+    return aspectCallbackResponse.getUpdatedAspect();
   }
 }

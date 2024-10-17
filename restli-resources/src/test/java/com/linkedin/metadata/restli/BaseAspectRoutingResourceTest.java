@@ -9,11 +9,11 @@ import com.linkedin.metadata.dao.BaseBrowseDAO;
 import com.linkedin.metadata.dao.BaseLocalDAO;
 import com.linkedin.metadata.dao.BaseSearchDAO;
 import com.linkedin.metadata.dao.ingestion.AspectCallbackRegistry;
-import com.linkedin.metadata.dao.ingestion.InUpdateRoutingClient;
+import com.linkedin.metadata.dao.ingestion.AspectCallbackRoutingClient;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.events.IngestionTrackingContext;
-import com.linkedin.metadata.restli.ingestion.SampleInUpdateRoutingClient;
+import com.linkedin.metadata.restli.ingestion.SampleAspectCallbackRoutingClient;
 import com.linkedin.parseq.BaseEngineTest;
 import com.linkedin.restli.common.ComplexResourceKey;
 import com.linkedin.restli.common.EmptyRecord;
@@ -562,8 +562,8 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, foo));
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
 
-    Map<Class<? extends RecordTemplate>, InUpdateRoutingClient> preUpdateMap = new HashMap<>();
-    preUpdateMap.put(AspectFoo.class, new SampleInUpdateRoutingClient());
+    Map<Class<? extends RecordTemplate>, AspectCallbackRoutingClient> preUpdateMap = new HashMap<>();
+    preUpdateMap.put(AspectFoo.class, new SampleAspectCallbackRoutingClient());
     AspectCallbackRegistry aspectCallbackRegistry = new AspectCallbackRegistry(preUpdateMap);
 
     when(_mockLocalDAO.getAspectCallbackRegistry()).thenReturn(aspectCallbackRegistry);
@@ -607,8 +607,8 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, bar));
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
 
-    Map<Class<? extends RecordTemplate>, InUpdateRoutingClient> preUpdateMap = new HashMap<>();
-    preUpdateMap.put(AspectFoo.class, new SampleInUpdateRoutingClient());
+    Map<Class<? extends RecordTemplate>, AspectCallbackRoutingClient> preUpdateMap = new HashMap<>();
+    preUpdateMap.put(AspectFoo.class, new SampleAspectCallbackRoutingClient());
     AspectCallbackRegistry aspectCallbackRegistry = new AspectCallbackRegistry(preUpdateMap);
 
     when(_mockLocalDAO.getAspectCallbackRegistry()).thenReturn(aspectCallbackRegistry);
@@ -658,8 +658,8 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, foo));
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
 
-    Map<Class<? extends RecordTemplate>, InUpdateRoutingClient> preUpdateMap = new HashMap<>();
-    preUpdateMap.put(AspectFoo.class, new SampleInUpdateRoutingClient());
+    Map<Class<? extends RecordTemplate>, AspectCallbackRoutingClient> preUpdateMap = new HashMap<>();
+    preUpdateMap.put(AspectFoo.class, new SampleAspectCallbackRoutingClient());
     AspectCallbackRegistry registry = new AspectCallbackRegistry(preUpdateMap);
 
     when(_mockLocalDAO.getAspectCallbackRegistry()).thenReturn(registry);

@@ -13,32 +13,32 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class AspectCallbackRegistry {
 
-  private final Map<Class<? extends RecordTemplate>, InUpdateRoutingClient> _inUpdateLambdaMap;
+  private final Map<Class<? extends RecordTemplate>, AspectCallbackRoutingClient> aspectCallbackMap;
 
   /**
-   * Constructor to register in-update routing clients for aspects.
-   * @param inUpdateMap map containing aspect classes and their corresponding cleints
+   * Constructor to register aspect callback routing clients for aspects.
+   * @param aspectCallbackMap map containing aspect classes and their corresponding cleints
    */
-  public AspectCallbackRegistry(@Nonnull Map<Class<? extends RecordTemplate>, InUpdateRoutingClient> inUpdateMap) {
-    _inUpdateLambdaMap = new HashMap<>(inUpdateMap);
-    log.info("Registered aspect callback clients for aspects: {}", _inUpdateLambdaMap.keySet());
+  public AspectCallbackRegistry(@Nonnull Map<Class<? extends RecordTemplate>, AspectCallbackRoutingClient> aspectCallbackMap) {
+    this.aspectCallbackMap = new HashMap<>(aspectCallbackMap);
+    log.info("Registered aspect callback clients for aspects: {}", aspectCallbackMap.keySet());
   }
 
   /**
-   * Get In Update Callback Client for an aspect class.
+   * Get Aspect Callback Routing Client for an aspect class.
    * @param aspectClass the class of the aspect to retrieve the client
-   * @return InUpdateRoutingClient for the given aspect class, or null if not found
+   * @return AspectCallbackRoutingClient for the given aspect class, or null if not found
    */
-  public <ASPECT extends RecordTemplate> InUpdateRoutingClient getInUpdateRoutingClient(
+  public <ASPECT extends RecordTemplate> AspectCallbackRoutingClient getAspectCallbackRoutingClient(
       @Nonnull Class<ASPECT> aspectClass) {
-    return _inUpdateLambdaMap.get(aspectClass);
+    return aspectCallbackMap.get(aspectClass);
   }
 
   /**
-   * Check if In Update Callback Client is registered for an aspect.
+   * Check if Aspect Callback Routing Client is registered for an aspect.
    */
   public <ASPECT extends RecordTemplate> boolean isRegistered(@Nonnull final Class<ASPECT> aspectClass) {
-    return _inUpdateLambdaMap.containsKey(aspectClass);
+    return aspectCallbackMap.containsKey(aspectClass);
   }
 
 }
