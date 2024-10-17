@@ -761,6 +761,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   /**
    * Same as above {@link #add(Urn, Class, Function, AuditStamp, int, IngestionTrackingContext, IngestionParams)} but to skip aspect callback routing.
+   * DO NOT USE THIS METHOD WITHOUT EXPLICIT PERMISSION FROM THE METADATA GRAPH TEAM.
+   * Please use the regular add method linked above.
    */
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT rawAdd(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
@@ -820,8 +822,6 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
         : unwrapAddResult(urn, result, auditStamp, trackingContext);
   }
 
-
-
   /**
    * Deletes the latest version of aspect for an entity.
    *
@@ -878,7 +878,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * Same as above {@link #add(Urn, Class, Function, AuditStamp)} but with tracking context.
+   * Same as above {@link #add(Urn, Class, Function, AuditStamp, IngestionTrackingContext, IngestionParams)} but skips any aspect callbacks.
+   * DO NOT USE THIS METHOD WITHOUT EXPLICIT PERMISSION FROM THE METADATA GRAPH TEAM.
+   * Please use the regular add method linked above.
    */
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT rawAdd(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
