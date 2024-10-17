@@ -7,10 +7,9 @@ import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.StringArray;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.AspectKey;
-import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateRoutingAccessor;
-import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateAspectRegistry;
-import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateResponse;
-import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateRoutingClient;
+import com.linkedin.metadata.dao.ingestion.AspectCallbackRegistry;
+import com.linkedin.metadata.dao.ingestion.AspectCallbackResponse;
+import com.linkedin.metadata.dao.ingestion.AspectCallbackRoutingClient;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.internal.IngestionParams;
@@ -417,10 +416,10 @@ public abstract class BaseAspectRoutingResource<
       if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
         try {
           // get the updated aspect if there is a preupdate routing lambda registered
-          PreUpdateAspectRegistry registry = getLocalDAO().getPreUpdateAspectRegistry();
+          AspectCallbackRegistry registry = getLocalDAO().getAspectCallbackRegistry();
           if (!skipExtraProcessing && registry != null && registry.isRegistered(aspect.getClass())) {
             log.info(String.format("Executing registered pre-update routing lambda for aspect class %s.", aspect.getClass()));
-            aspect = preUpdateRouting((URN) urn, aspect, registry);
+            aspect = aspectCallbackHelper((URN) urn, aspect, registry);
             log.info("PreUpdateRouting completed in ingestInternalAsset, urn: {}, updated aspect: {}", urn, aspect);
             // Get the fqcn of the aspect class
             String aspectFQCN = aspect.getClass().getCanonicalName();
@@ -688,12 +687,12 @@ public abstract class BaseAspectRoutingResource<
    * This method routes the update request to the appropriate custom API for pre-ingestion processing.
    * @param urn the urn of the asset
    * @param aspect the new aspect value
+   * @param registry the aspect callback registry
    * @return the updated aspect
    */
-  private RecordTemplate preUpdateRouting(URN urn, RecordTemplate aspect, PreUpdateAspectRegistry registry) {
-    PreUpdateRoutingAccessor preUpdateRoutingAccessor = registry.getPreUpdateRoutingAccessor(aspect.getClass());
-    PreUpdateRoutingClient preUpdateClient = preUpdateRoutingAccessor.getPreUpdateClient();
-    PreUpdateResponse preUpdateResponse = preUpdateClient.preUpdate(urn, aspect);
-    return preUpdateResponse.getUpdatedAspect();
+  private RecordTemplate aspectCallbackHelper(URN urn, RecordTemplate aspect, AspectCallbackRegistry registry) {
+    AspectCallbackRoutingClient preUpdateClient = registry.getAspectCallbackRoutingClient(aspect.getClass());
+    AspectCallbackResponse aspectCallbackResponse = preUpdateClient.routeAspectCallback(urn, aspect, null);
+    return aspectCallbackResponse.getUpdatedAspect();
   }
 }

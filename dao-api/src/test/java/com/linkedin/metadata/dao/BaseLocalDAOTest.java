@@ -5,10 +5,10 @@ import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
+import com.linkedin.metadata.dao.ingestion.AspectCallbackRoutingClient;
+import com.linkedin.metadata.dao.ingestion.SampleAspectCallbackRoutingClient;
 import com.linkedin.metadata.dao.ingestion.SampleLambdaFunctionRegistryImpl;
-import com.linkedin.metadata.dao.ingestion.SamplePreUpdateRoutingClient;
-import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateRoutingAccessor;
-import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateAspectRegistry;
+import com.linkedin.metadata.dao.ingestion.AspectCallbackRegistry;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
@@ -656,40 +656,32 @@ public class BaseLocalDAOTest {
   }
 
   @Test
-  public void testPreUpdateRoutingFromFooToBar() throws URISyntaxException {
+  public void testAspectCallbackHelperFromFooToBar() throws URISyntaxException {
     // Setup test data
     FooUrn urn = new FooUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");
     AspectFoo bar = new AspectFoo().setValue("bar");
 
-    PreUpdateRoutingAccessor preUpdateRoutingAccessor = new PreUpdateRoutingAccessor();
-    preUpdateRoutingAccessor.setPreUpdateClient(new SamplePreUpdateRoutingClient());
+    Map<Class<? extends RecordTemplate>, AspectCallbackRoutingClient> aspectCallbackMap = new HashMap<>();
+    aspectCallbackMap.put(AspectFoo.class, new SampleAspectCallbackRoutingClient());
 
-    Map<Class<? extends RecordTemplate>, PreUpdateRoutingAccessor> preUpdateMap = new HashMap<>();
-    preUpdateMap.put(AspectFoo.class, preUpdateRoutingAccessor);
-
-    PreUpdateAspectRegistry preUpdateAspectRegistry = new PreUpdateAspectRegistry(preUpdateMap);
-    _dummyLocalDAO.setPreUpdateAspectRegistry(preUpdateAspectRegistry);
-
-    AspectFoo result = _dummyLocalDAO.preUpdateRouting(urn, foo);
-    assertEquals(result, bar);
+    AspectCallbackRegistry aspectCallbackRegistry = new AspectCallbackRegistry(aspectCallbackMap);
+    _dummyLocalDAO.setAspectCallbackRegistry(aspectCallbackRegistry);
+    BaseLocalDAO.AspectUpdateResult result = _dummyLocalDAO.aspectCallbackHelper(urn, foo, null);
+    AspectFoo newAspect = (AspectFoo) result.getUpdatedAspect();
+    assertEquals(newAspect, bar);
   }
 
   @Test
-  public void testMAEEmissionForPreUpdateRouting() throws URISyntaxException {
+  public void testMAEEmissionForAspectCallbackHelper() throws URISyntaxException {
     FooUrn urn = new FooUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");
     AspectFoo bar = new AspectFoo().setValue("bar");
     _dummyLocalDAO.setAlwaysEmitAuditEvent(true);
-    PreUpdateRoutingAccessor preUpdateRoutingAccessor = new PreUpdateRoutingAccessor();
-    preUpdateRoutingAccessor.setPreUpdateClient(new SamplePreUpdateRoutingClient());
-
-    Map<Class<? extends RecordTemplate>, PreUpdateRoutingAccessor> preUpdateMap = new HashMap<>();
-    preUpdateMap.put(AspectFoo.class, preUpdateRoutingAccessor);
-
-    PreUpdateAspectRegistry preUpdateAspectRegistry = new PreUpdateAspectRegistry(preUpdateMap);
-
-    _dummyLocalDAO.setPreUpdateAspectRegistry(preUpdateAspectRegistry);
+    Map<Class<? extends RecordTemplate>, AspectCallbackRoutingClient> aspectCallbackMap = new HashMap<>();
+    aspectCallbackMap.put(AspectFoo.class, new SampleAspectCallbackRoutingClient());
+    AspectCallbackRegistry aspectCallbackRegistry = new AspectCallbackRegistry(aspectCallbackMap);
+    _dummyLocalDAO.setAspectCallbackRegistry(aspectCallbackRegistry);
     expectGetLatest(urn, AspectFoo.class,
         Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(foo, _dummyAuditStamp)));
 
@@ -701,25 +693,21 @@ public class BaseLocalDAOTest {
   }
 
   @Test
-  public void testPreUpdateRoutingWithUnregisteredAspect() throws URISyntaxException {
+  public void testAspectCallbackHelperWithUnregisteredAspect() throws URISyntaxException {
     // Setup test data
     FooUrn urn = new FooUrn(1);
     AspectBar foo = new AspectBar().setValue("foo");
 
     // Inject RestliPreIngestionAspectRegistry with no registered aspect
-    PreUpdateRoutingAccessor preUpdateRoutingAccessor = new PreUpdateRoutingAccessor();
-    preUpdateRoutingAccessor.setPreUpdateClient(new SamplePreUpdateRoutingClient());
-
-    Map<Class<? extends RecordTemplate>, PreUpdateRoutingAccessor> preUpdateMap = new HashMap<>();
-    preUpdateMap.put(AspectFoo.class, preUpdateRoutingAccessor);
-
-    PreUpdateAspectRegistry preUpdateAspectRegistry = new PreUpdateAspectRegistry(preUpdateMap);
-    _dummyLocalDAO.setPreUpdateAspectRegistry(preUpdateAspectRegistry);
+    Map<Class<? extends RecordTemplate>, AspectCallbackRoutingClient> aspectCallbackMap = new HashMap<>();
+    aspectCallbackMap.put(AspectFoo.class, new SampleAspectCallbackRoutingClient());
+    AspectCallbackRegistry aspectCallbackRegistry = new AspectCallbackRegistry(aspectCallbackMap);
+    _dummyLocalDAO.setAspectCallbackRegistry(aspectCallbackRegistry);
 
     // Call the add method
-    AspectBar result = _dummyLocalDAO.preUpdateRouting(urn, foo);
+    BaseLocalDAO.AspectUpdateResult result = _dummyLocalDAO.aspectCallbackHelper(urn, foo, null);
 
     // Verify that the result is the same as the input aspect since it's not registered
-    assertEquals(result, foo);
+    assertEquals(result.getUpdatedAspect(), foo);
   }
 }

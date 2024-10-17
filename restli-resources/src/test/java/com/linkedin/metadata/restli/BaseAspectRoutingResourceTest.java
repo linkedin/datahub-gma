@@ -8,12 +8,12 @@ import com.linkedin.metadata.dao.AspectKey;
 import com.linkedin.metadata.dao.BaseBrowseDAO;
 import com.linkedin.metadata.dao.BaseLocalDAO;
 import com.linkedin.metadata.dao.BaseSearchDAO;
-import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateRoutingAccessor;
-import com.linkedin.metadata.dao.ingestion.preupdate.PreUpdateAspectRegistry;
+import com.linkedin.metadata.dao.ingestion.AspectCallbackRegistry;
+import com.linkedin.metadata.dao.ingestion.AspectCallbackRoutingClient;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.events.IngestionTrackingContext;
-import com.linkedin.metadata.restli.ingestion.SamplePreUpdateRoutingClient;
+import com.linkedin.metadata.restli.ingestion.SampleAspectCallbackRoutingClient;
 import com.linkedin.parseq.BaseEngineTest;
 import com.linkedin.restli.common.ComplexResourceKey;
 import com.linkedin.restli.common.EmptyRecord;
@@ -308,7 +308,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(null), eq(null));
     verify(_mockAspectFooGmsClient, times(1)).ingest(eq(urn), eq(foo));
     verify(_mockAspectAttributeGmsClient, times(1)).ingest(eq(urn), eq(attributes));
-    verify(_mockLocalDAO, times(2)).getPreUpdateAspectRegistry();
+    verify(_mockLocalDAO, times(2)).getAspectCallbackRegistry();
     verify(_mockLocalDAO, times(1)).rawAdd(eq(urn), eq(foo), any(), any(), any());
   }
 
@@ -328,7 +328,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     verify(_mockLocalDAO, times(1)).add(eq(urn), eq(bar), any(), eq(trackingContext), eq(null));
     verify(_mockAspectFooGmsClient, times(1)).ingestWithTracking(eq(urn), eq(foo), eq(trackingContext), eq(null));
     verify(_mockAspectAttributeGmsClient, times(1)).ingestWithTracking(eq(urn), eq(attributes), eq(trackingContext), eq(null));
-    verify(_mockLocalDAO, times(2)).getPreUpdateAspectRegistry();
+    verify(_mockLocalDAO, times(2)).getAspectCallbackRegistry();
     verify(_mockLocalDAO, times(1)).rawAdd(eq(urn), eq(foo), any(), any(), any());
   }
 
@@ -356,7 +356,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
 
     runAndWait(_resource.ingest(snapshot));
 
-    verify(_mockLocalDAO, times(2)).getPreUpdateAspectRegistry();
+    verify(_mockLocalDAO, times(2)).getAspectCallbackRegistry();
     verify(_mockLocalDAO, times(1)).rawAdd(eq(urn), eq(foo), any(), any(), any());
     // verify(_mockGmsClient, times(1)).ingest(eq(urn), eq(foo));
     verify(_mockAspectFooGmsClient, times(1)).ingest(eq(urn), eq(foo));
@@ -555,26 +555,23 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
   }
 
   @Test
-  public void testPreUpdateRoutingWithRegisteredAspect() {
+  public void testAspectCallbackHelperWithRegisteredAspect() {
     FooUrn urn = makeFooUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");
 
     List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, foo));
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
 
-    PreUpdateRoutingAccessor preUpdateRoutingAccessor = new PreUpdateRoutingAccessor();
-    preUpdateRoutingAccessor.setPreUpdateClient(new SamplePreUpdateRoutingClient());
-    Map<Class<? extends RecordTemplate>, PreUpdateRoutingAccessor> preUpdateMap = new HashMap<>();
-    preUpdateMap.put(AspectFoo.class, preUpdateRoutingAccessor);
+    Map<Class<? extends RecordTemplate>, AspectCallbackRoutingClient> preUpdateMap = new HashMap<>();
+    preUpdateMap.put(AspectFoo.class, new SampleAspectCallbackRoutingClient());
+    AspectCallbackRegistry aspectCallbackRegistry = new AspectCallbackRegistry(preUpdateMap);
 
-    PreUpdateAspectRegistry registry = new PreUpdateAspectRegistry(preUpdateMap);
-
-    when(_mockLocalDAO.getPreUpdateAspectRegistry()).thenReturn(registry);
+    when(_mockLocalDAO.getAspectCallbackRegistry()).thenReturn(aspectCallbackRegistry);
 
     // given: ingest a snapshot containing a routed aspect which has a registered pre-update lambda.
     runAndWait(_resource.ingest(snapshot));
 
-    verify(_mockLocalDAO, times(1)).getPreUpdateAspectRegistry();
+    verify(_mockLocalDAO, times(1)).getAspectCallbackRegistry();
     // expected: the pre-update lambda is executed first (aspect value is changed from foo to foobar) and then the aspect is dual-written.
     AspectFoo foobar = new AspectFoo().setValue("foobar");
     // dual write pt1: ensure the ingestion request is forwarded to the routed GMS.
@@ -585,7 +582,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
   }
 
   @Test
-  public void testPreUpdateRoutingWithNonRegisteredPreUpdateAspect() {
+  public void testPreUpdateRoutingWithNonRegisteredInUpdateAspect() {
     FooUrn urn = makeFooUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");
 
@@ -604,21 +601,17 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
   }
 
   @Test
-  public void testPreUpdateRoutingWithNonRoutedAspectAndRegisteredPreUpdate() {
+  public void testPreUpdateRoutingWithNonRoutedAspectAndRegisteredInUpdate() {
     FooUrn urn = makeFooUrn(1);
     AspectBar bar = new AspectBar().setValue("bar");
     List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, bar));
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
 
-    PreUpdateRoutingAccessor preUpdateRoutingAccessor = new PreUpdateRoutingAccessor();
-    preUpdateRoutingAccessor.setPreUpdateClient(new SamplePreUpdateRoutingClient());
+    Map<Class<? extends RecordTemplate>, AspectCallbackRoutingClient> preUpdateMap = new HashMap<>();
+    preUpdateMap.put(AspectFoo.class, new SampleAspectCallbackRoutingClient());
+    AspectCallbackRegistry aspectCallbackRegistry = new AspectCallbackRegistry(preUpdateMap);
 
-    Map<Class<? extends RecordTemplate>, PreUpdateRoutingAccessor> preUpdateMap = new HashMap<>();
-    preUpdateMap.put(AspectFoo.class, preUpdateRoutingAccessor);
-
-    PreUpdateAspectRegistry registry = new PreUpdateAspectRegistry(preUpdateMap);
-
-    when(_mockLocalDAO.getPreUpdateAspectRegistry()).thenReturn(registry);
+    when(_mockLocalDAO.getAspectCallbackRegistry()).thenReturn(aspectCallbackRegistry);
 
     // given: ingest a snapshot which contains a non-routed aspect which has a registered pre-update lambda.
     runAndWait(_resource.ingest(snapshot));
@@ -632,7 +625,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
   }
 
   @Test
-  public void testPreUpdateRoutingWithNonRoutedAspectAndNonRegisteredPreUpdate() {
+  public void testPreUpdateRoutingWithNonRoutedAspectAndNonRegisteredInUpdate() {
     FooUrn urn = makeFooUrn(1);
     AspectBar bar = new AspectBar().setValue("bar");
     List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, bar));
@@ -648,7 +641,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
   }
 
   @Test
-  public void testPreUpdateRoutingWithSkipIngestion() throws NoSuchFieldException, IllegalAccessException {
+  public void testAspectCallbackHelperWithSkipIngestion() throws NoSuchFieldException, IllegalAccessException {
     // Access the SKIP_INGESTION_FOR_ASPECTS field
     Field skipIngestionField = BaseAspectRoutingResource.class.getDeclaredField("SKIP_INGESTION_FOR_ASPECTS");
     skipIngestionField.setAccessible(true);
@@ -665,24 +658,22 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     List<EntityAspectUnion> aspects = Arrays.asList(ModelUtils.newAspectUnion(EntityAspectUnion.class, foo));
     EntitySnapshot snapshot = ModelUtils.newSnapshot(EntitySnapshot.class, urn, aspects);
 
-    PreUpdateRoutingAccessor preUpdateRoutingAccessor = new PreUpdateRoutingAccessor();
-    preUpdateRoutingAccessor.setPreUpdateClient(new SamplePreUpdateRoutingClient());
-    Map<Class<? extends RecordTemplate>, PreUpdateRoutingAccessor> preUpdateMap = new HashMap<>();
-    preUpdateMap.put(AspectFoo.class, preUpdateRoutingAccessor);
-    PreUpdateAspectRegistry registry = new PreUpdateAspectRegistry(preUpdateMap);
+    Map<Class<? extends RecordTemplate>, AspectCallbackRoutingClient> preUpdateMap = new HashMap<>();
+    preUpdateMap.put(AspectFoo.class, new SampleAspectCallbackRoutingClient());
+    AspectCallbackRegistry registry = new AspectCallbackRegistry(preUpdateMap);
 
-    when(_mockLocalDAO.getPreUpdateAspectRegistry()).thenReturn(registry);
+    when(_mockLocalDAO.getAspectCallbackRegistry()).thenReturn(registry);
 
     runAndWait(_resource.ingest(snapshot));
     verify(_mockAspectFooGmsClient, times(0)).ingest(any(), any());
-    verify(_mockLocalDAO, times(1)).getPreUpdateAspectRegistry();
+    verify(_mockLocalDAO, times(1)).getAspectCallbackRegistry();
     // Should not add to local DAO
     verifyNoMoreInteractions(_mockLocalDAO);
   }
 
   //Testing the case when aspect has no pre lambda but skipIngestion contains the aspect, so it should not skip ingestion
   @Test
-  public void testPreUpdateRoutingWithSkipIngestionNoPreLambda() throws NoSuchFieldException, IllegalAccessException {
+  public void testPreUpdateRoutingWithSkipIngestionNoInLambda() throws NoSuchFieldException, IllegalAccessException {
     Field skipIngestionField = BaseAspectRoutingResource.class.getDeclaredField("SKIP_INGESTION_FOR_ASPECTS");
     skipIngestionField.setAccessible(true);
     Field modifiersField = Field.class.getDeclaredField("modifiers");
@@ -700,7 +691,7 @@ public class BaseAspectRoutingResourceTest extends BaseEngineTest {
     // Should not skip ingestion
     verify(_mockAspectFooGmsClient, times(1)).ingest(eq(urn), eq(foo));
     // Should check for pre lambda
-    verify(_mockLocalDAO, times(1)).getPreUpdateAspectRegistry();
+    verify(_mockLocalDAO, times(1)).getAspectCallbackRegistry();
     // Should continue to dual-write into local DAO
     verify(_mockLocalDAO, times(1)).rawAdd(eq(urn), eq(foo), any(), any(), any());
     verifyNoMoreInteractions(_mockLocalDAO);
