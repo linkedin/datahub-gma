@@ -8,7 +8,7 @@ import java.util.Optional;
 
 public class SampleAspectCallbackRoutingClient implements AspectCallbackRoutingClient {
   @Override
-  public AspectCallbackResponse inUpdate(Urn urn, RecordTemplate newAspectValue, Optional existingAspectValue) {
+  public AspectCallbackResponse routeAspectCallback(Urn urn, RecordTemplate newAspectValue, Optional existingAspectValue) {
     AspectFoo aspectFoo = (AspectFoo) newAspectValue;
     aspectFoo.setValue("bar");
     return new AspectCallbackResponse(aspectFoo);

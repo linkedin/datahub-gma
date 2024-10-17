@@ -692,7 +692,7 @@ public abstract class BaseAspectRoutingResource<
    */
   private RecordTemplate aspectCallbackHelper(URN urn, RecordTemplate aspect, AspectCallbackRegistry registry) {
     AspectCallbackRoutingClient preUpdateClient = registry.getAspectCallbackRoutingClient(aspect.getClass());
-    AspectCallbackResponse aspectCallbackResponse = preUpdateClient.inUpdate(urn, aspect, null);
+    AspectCallbackResponse aspectCallbackResponse = preUpdateClient.routeAspectCallback(urn, aspect, null);
     return aspectCallbackResponse.getUpdatedAspect();
   }
 }

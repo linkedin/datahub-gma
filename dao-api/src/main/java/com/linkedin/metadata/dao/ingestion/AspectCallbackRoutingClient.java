@@ -16,7 +16,7 @@ public interface AspectCallbackRoutingClient<ASPECT extends RecordTemplate> {
    * @param existingAspectValue the existing aspect value
    * @return AspectCallbackResponse containing the updated aspect
    */
-  AspectCallbackResponse<ASPECT> inUpdate(Urn urn, ASPECT newAspectValue, Optional<ASPECT> existingAspectValue);
+  AspectCallbackResponse<ASPECT> routeAspectCallback(Urn urn, ASPECT newAspectValue, Optional<ASPECT> existingAspectValue);
 
   /**
    * A method that returns whether to skip processing further ingestion.

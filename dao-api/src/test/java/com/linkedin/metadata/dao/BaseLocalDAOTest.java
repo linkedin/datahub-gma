@@ -662,10 +662,10 @@ public class BaseLocalDAOTest {
     AspectFoo foo = new AspectFoo().setValue("foo");
     AspectFoo bar = new AspectFoo().setValue("bar");
 
-    Map<Class<? extends RecordTemplate>, AspectCallbackRoutingClient> inUpdateMap = new HashMap<>();
-    inUpdateMap.put(AspectFoo.class, new SampleAspectCallbackRoutingClient());
+    Map<Class<? extends RecordTemplate>, AspectCallbackRoutingClient> aspectCallbackMap = new HashMap<>();
+    aspectCallbackMap.put(AspectFoo.class, new SampleAspectCallbackRoutingClient());
 
-    AspectCallbackRegistry aspectCallbackRegistry = new AspectCallbackRegistry(inUpdateMap);
+    AspectCallbackRegistry aspectCallbackRegistry = new AspectCallbackRegistry(aspectCallbackMap);
     _dummyLocalDAO.setAspectCallbackRegistry(aspectCallbackRegistry);
     BaseLocalDAO.AspectUpdateResult result = _dummyLocalDAO.aspectCallbackHelper(urn, foo, null);
     AspectFoo newAspect = (AspectFoo) result.getUpdatedAspect();
@@ -678,9 +678,9 @@ public class BaseLocalDAOTest {
     AspectFoo foo = new AspectFoo().setValue("foo");
     AspectFoo bar = new AspectFoo().setValue("bar");
     _dummyLocalDAO.setAlwaysEmitAuditEvent(true);
-    Map<Class<? extends RecordTemplate>, AspectCallbackRoutingClient> inUpdateMap = new HashMap<>();
-    inUpdateMap.put(AspectFoo.class, new SampleAspectCallbackRoutingClient());
-    AspectCallbackRegistry aspectCallbackRegistry = new AspectCallbackRegistry(inUpdateMap);
+    Map<Class<? extends RecordTemplate>, AspectCallbackRoutingClient> aspectCallbackMap = new HashMap<>();
+    aspectCallbackMap.put(AspectFoo.class, new SampleAspectCallbackRoutingClient());
+    AspectCallbackRegistry aspectCallbackRegistry = new AspectCallbackRegistry(aspectCallbackMap);
     _dummyLocalDAO.setAspectCallbackRegistry(aspectCallbackRegistry);
     expectGetLatest(urn, AspectFoo.class,
         Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(foo, _dummyAuditStamp)));
@@ -699,9 +699,9 @@ public class BaseLocalDAOTest {
     AspectBar foo = new AspectBar().setValue("foo");
 
     // Inject RestliPreIngestionAspectRegistry with no registered aspect
-    Map<Class<? extends RecordTemplate>, AspectCallbackRoutingClient> inUpdateMap = new HashMap<>();
-    inUpdateMap.put(AspectFoo.class, new SampleAspectCallbackRoutingClient());
-    AspectCallbackRegistry aspectCallbackRegistry = new AspectCallbackRegistry(inUpdateMap);
+    Map<Class<? extends RecordTemplate>, AspectCallbackRoutingClient> aspectCallbackMap = new HashMap<>();
+    aspectCallbackMap.put(AspectFoo.class, new SampleAspectCallbackRoutingClient());
+    AspectCallbackRegistry aspectCallbackRegistry = new AspectCallbackRegistry(aspectCallbackMap);
     _dummyLocalDAO.setAspectCallbackRegistry(aspectCallbackRegistry);
 
     // Call the add method
