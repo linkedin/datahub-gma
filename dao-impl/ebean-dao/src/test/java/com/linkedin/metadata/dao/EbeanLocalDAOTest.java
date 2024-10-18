@@ -25,13 +25,13 @@ import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
 import com.linkedin.metadata.dao.retention.VersionBasedRetention;
-import com.linkedin.metadata.dao.urnpath.UrnPathExtractor;
 import com.linkedin.metadata.dao.storage.LocalDAOStorageConfig;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
+import com.linkedin.metadata.dao.urnpath.UrnPathExtractor;
 import com.linkedin.metadata.dao.utils.BarUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.EbeanServerUtils;
-import com.linkedin.metadata.dao.utils.FooUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
+import com.linkedin.metadata.dao.utils.FooUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
@@ -64,10 +64,10 @@ import com.linkedin.testing.FooSnapshot;
 import com.linkedin.testing.MixedRecord;
 import com.linkedin.testing.localrelationship.AspectFooBar;
 import com.linkedin.testing.localrelationship.BelongsTo;
+import com.linkedin.testing.localrelationship.BelongsToArray;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.BurgerUrn;
 import com.linkedin.testing.urn.FooUrn;
-
 import io.ebean.Ebean;
 import io.ebean.EbeanServer;
 import io.ebean.ExpressionList;
@@ -100,7 +100,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.persistence.OptimisticLockException;
 import javax.persistence.RollbackException;
-
 import org.mockito.ArgumentMatchers;
 import org.mockito.InOrder;
 import org.mockito.MockedStatic;
@@ -3059,6 +3058,44 @@ public class EbeanLocalDAOTest {
 
     List<BelongsTo> relationships = ebeanLocalRelationshipQueryDAO.findRelationships(
         BarSnapshot.class, EMPTY_FILTER, FooSnapshot.class, EMPTY_FILTER, BelongsTo.class, OUTGOING_FILTER, 0, 10);
+
+    AspectKey<FooUrn, AspectFooBar> key = new AspectKey<>(AspectFooBar.class, fooUrn, 0L);
+    List<EbeanMetadataAspect> aspects = fooDao.batchGetHelper(Collections.singletonList(key), 1, 0);
+
+    assertEquals(relationships.size(), 3);
+    assertEquals(aspects.size(), 1);
+  }
+
+  @Test
+  public void testAddRelationshipsFromAspect() throws URISyntaxException {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> fooDao = createDao(FooUrn.class);
+    EbeanLocalDAO<EntityAspectUnion, BarUrn> barDao = createDao(BarUrn.class);
+
+    fooDao.setRelationshipSource(EbeanLocalDAO.RelationshipSource.ASPECT_METADATA);
+
+    FooUrn fooUrn = makeFooUrn(1);
+    BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
+    BelongsTo belongsTo1 = new BelongsTo().setSource(barUrn1).setDestination(fooUrn);
+    BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:2");
+    BelongsTo belongsTo2 = new BelongsTo().setSource(barUrn2).setDestination(fooUrn);
+    BarUrn barUrn3 = BarUrn.createFromString("urn:li:bar:3");
+    BelongsTo belongsTo3 = new BelongsTo().setSource(barUrn3).setDestination(fooUrn);
+    BelongsToArray belongsToArray = new BelongsToArray(belongsTo1, belongsTo2, belongsTo3);
+    AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(barUrn1, barUrn2, barUrn3)).setBelongsTos(belongsToArray);
+    AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
+
+    fooDao.add(fooUrn, aspectFooBar, auditStamp);
+    barDao.add(barUrn1, new AspectFoo().setValue("1"), auditStamp);
+    barDao.add(barUrn2, new AspectFoo().setValue("2"), auditStamp);
+    barDao.add(barUrn3, new AspectFoo().setValue("3"), auditStamp);
+
+    // Verify local relationships and entity are added.
+    EbeanLocalRelationshipQueryDAO ebeanLocalRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server);
+    ebeanLocalRelationshipQueryDAO.setSchemaConfig(_schemaConfig);
+
+    List<BelongsTo> relationships =
+        ebeanLocalRelationshipQueryDAO.findRelationships(BarSnapshot.class, EMPTY_FILTER, FooSnapshot.class,
+            EMPTY_FILTER, BelongsTo.class, OUTGOING_FILTER, 0, 10);
 
     AspectKey<FooUrn, AspectFooBar> key = new AspectKey<>(AspectFooBar.class, fooUrn, 0L);
     List<EbeanMetadataAspect> aspects = fooDao.batchGetHelper(Collections.singletonList(key), 1, 0);

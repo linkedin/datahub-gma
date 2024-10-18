@@ -24,6 +24,16 @@ record AnnotatedAspectBarWithRelationshipFields {
   /**
    * For unit tests
    */
+  relationshipFoo1: optional AnnotatedRelationshipFoo
+
+  /**
+   * For unit tests
+   */
+  relationshipFoo2: optional AnnotatedRelationshipFoo
+
+  /**
+   * For unit tests
+   */
   relationshipFoos: optional array[AnnotatedRelationshipFoo]
 
   /**
