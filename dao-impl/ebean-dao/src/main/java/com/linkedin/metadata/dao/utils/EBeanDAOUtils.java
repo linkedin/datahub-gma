@@ -29,6 +29,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -42,7 +43,7 @@ import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
-import static com.linkedin.metadata.annotations.GmaAnnotationParser.parseDeltaFields;
+import static com.linkedin.metadata.annotations.GmaAnnotationParser.*;
 
 
 /**
@@ -388,8 +389,16 @@ public class EBeanDAOUtils {
       try {
         Method getMethod = clazz.getMethod("get" + StringUtils.capitalize(fieldName)); // getFieldName
         Object obj = getMethod.invoke(aspect); // invoke getFieldName
-        // all relationship fields will be represented as Arrays so filter out any non-lists, empty lists, and lists that don't contain RecordTemplates
-        if (!(obj instanceof List) || ((List) obj).isEmpty() || !(((List) obj).get(0) instanceof RecordTemplate)) {
+        // all relationship fields will be represented as either singleton fields or Arrays so filter out any non-RecordTemplates,
+        // empty lists, and lists that don't contain RecordTemplates
+        if (obj instanceof RecordTemplate) {
+          ModelType modelType = parseModelTypeFromGmaAnnotation((RecordTemplate) obj);
+          if (modelType == ModelType.RELATIONSHIP) {
+            log.debug(String.format("Found {%d} relationship(s) of type {%s} for field {%s} of aspect class {%s}.",
+                1, obj.getClass(), fieldName, clazz.getName()));
+            return Collections.singletonList((RELATIONSHIP) obj);
+          }
+        } else if (!(obj instanceof List) || ((List) obj).isEmpty() || !(((List) obj).get(0) instanceof RecordTemplate)) {
           return null;
         }
         List<RecordTemplate> relationshipsList = (List<RecordTemplate>) obj;
