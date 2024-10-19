@@ -54,4 +54,13 @@ public interface GenericLocalDAO {
    */
   Map<Urn, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfill(@Nonnull BackfillMode mode,
       @Nonnull Map<Urn, Set<Class<? extends RecordTemplate>>> urnToAspect);
+
+  /**
+   * Delete the metadata from database.
+   *
+   * @param urn The identifier of the entity which the metadata is associated with.
+   * @param aspectClass The aspect class for the metadata.
+   * @param auditStamp audit stamp containing information on who and when the metadata is deleted.
+   */
+  void delete(@Nonnull Urn urn, @Nonnull Class aspectClass, @Nonnull AuditStamp auditStamp);
 }

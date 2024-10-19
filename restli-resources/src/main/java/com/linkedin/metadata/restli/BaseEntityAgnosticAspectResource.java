@@ -131,4 +131,22 @@ public abstract class BaseEntityAgnosticAspectResource extends ResourceContextHo
       throw new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST, String.format("Urn %s is malformed.", urn));
     }
   }
+
+  @Action(name = ACTION_DELETE)
+  @Nonnull
+  public Task<Void> delete(
+      @ActionParam(PARAM_URN) @Nonnull String urn,
+      @ActionParam(PARAM_ASPECT_CLASS) @Nonnull String aspectClass) {
+    final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
+
+    try {
+      Class clazz = this.getClass().getClassLoader().loadClass(aspectClass);
+      genericLocalDAO().delete(Urn.createFromCharSequence(urn), clazz, auditStamp);
+      return Task.value(null);
+    } catch (ClassNotFoundException e) {
+      throw new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST, String.format("No such class %s.", aspectClass));
+    } catch (URISyntaxException e) {
+      throw new RestLiServiceException(HttpStatus.S_400_BAD_REQUEST, String.format("Urn %s is malformed.", urn));
+    }
+  }
 }

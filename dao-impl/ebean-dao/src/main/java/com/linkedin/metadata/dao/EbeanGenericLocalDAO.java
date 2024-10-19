@@ -87,9 +87,19 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
    */
   public void save(@Nonnull Urn urn, @Nonnull Class aspectClass, @Nonnull String metadata, @Nonnull AuditStamp auditStamp,
       @Nullable IngestionTrackingContext trackingContext, @Nullable IngestionMode ingestionMode) {
+    saveCommon(urn, aspectClass, metadata, auditStamp, trackingContext, ingestionMode);
+  }
+
+  /* a common helper method for saving metadata */
+  void saveCommon(@Nonnull Urn urn, @Nonnull Class aspectClass, @Nullable String metadata, @Nonnull AuditStamp auditStamp,
+      @Nullable IngestionTrackingContext trackingContext, @Nullable IngestionMode ingestionMode) {
     runInTransactionWithRetry(() -> {
       final Optional<GenericLocalDAO.MetadataWithExtraInfo> latest = queryLatest(urn, aspectClass);
-      RecordTemplate newValue = toRecordTemplate(aspectClass, metadata);
+
+      RecordTemplate newValue = null;
+      if (metadata != null) {
+        newValue = toRecordTemplate(aspectClass, metadata);
+      }
 
       if (!latest.isPresent()) {
         saveLatest(urn, aspectClass, newValue, null, auditStamp, null);
@@ -170,6 +180,11 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
     return urnToAspects;
   }
 
+  @Override
+  public void delete(@Nonnull Urn urn, @Nonnull Class aspectClass, @Nonnull AuditStamp auditStamp) {
+    saveCommon(urn, aspectClass, null, auditStamp, null, null);
+  }
+
   /**
    * Emits backfill MAE for an aspect of an entity depending on the backfill mode.
    *
@@ -195,7 +210,7 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
   /**
    * Save metadata into database.
    */
-  private void saveLatest(@Nonnull Urn urn, @Nonnull Class aspectClass, @Nonnull RecordTemplate newValue,
+  private void saveLatest(@Nonnull Urn urn, @Nonnull Class aspectClass, @Nullable RecordTemplate newValue,
       @Nullable RecordTemplate currentValue, @Nonnull AuditStamp newAuditStamp, @Nullable AuditStamp currentAuditStamp) {
 
     // Save oldValue as the largest version + 1
