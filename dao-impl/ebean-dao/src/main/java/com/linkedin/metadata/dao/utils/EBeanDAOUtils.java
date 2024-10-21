@@ -394,8 +394,8 @@ public class EBeanDAOUtils {
         if (obj instanceof RecordTemplate) {
           ModelType modelType = parseModelTypeFromGmaAnnotation((RecordTemplate) obj);
           if (modelType == ModelType.RELATIONSHIP) {
-            log.debug(String.format("Found {%d} relationship(s) of type {%s} for field {%s} of aspect class {%s}.",
-                1, obj.getClass(), fieldName, clazz.getName()));
+            log.debug("Found {} relationship(s) of type {} for field {} of aspect class {}.",
+                1, obj.getClass(), fieldName, clazz.getName());
             return Collections.singletonList((RELATIONSHIP) obj);
           }
         } else if (!(obj instanceof List) || ((List) obj).isEmpty() || !(((List) obj).get(0) instanceof RecordTemplate)) {
@@ -404,8 +404,8 @@ public class EBeanDAOUtils {
         List<RecordTemplate> relationshipsList = (List<RecordTemplate>) obj;
         ModelType modelType = parseModelTypeFromGmaAnnotation(relationshipsList.get(0));
         if (modelType == ModelType.RELATIONSHIP) {
-          log.debug(String.format("Found {%d} relationships of type {%s} for field {%s} of aspect class {%s}.",
-              relationshipsList.size(), relationshipsList.get(0).getClass(), fieldName, clazz.getName()));
+          log.debug("Found {} relationships of type {} for field {} of aspect class {}.",
+              relationshipsList.size(), relationshipsList.get(0).getClass(), fieldName, clazz.getName());
           return (List<RELATIONSHIP>) relationshipsList;
         }
       } catch (ReflectiveOperationException e) {
