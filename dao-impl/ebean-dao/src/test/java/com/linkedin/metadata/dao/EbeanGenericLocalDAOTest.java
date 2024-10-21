@@ -239,4 +239,45 @@ public class EbeanGenericLocalDAOTest {
     assertEquals(backfillResults.size(), 1);
     assertEquals(backfillResults.get(fooUrn).get(AspectFoo.class).get(), aspectFoo);
   }
+
+  @Test
+  public void testDelete() throws URISyntaxException {
+    FooUrn fooUrn1 = FooUrn.createFromString("urn:li:foo:1");
+    AspectFoo aspectFoo = new AspectFoo().setValue("foo");
+
+    _genericLocalDAO.save(fooUrn1, AspectFoo.class, RecordUtils.toJsonString(aspectFoo),
+        makeAuditStamp("tester"), null, null);
+
+    SqlQuery sqlQuery = _server.createSqlQuery("select * from metadata_aspect");
+    List<SqlRow> result = sqlQuery.findList();
+
+    // One record is returned.
+    assertEquals(result.size(), 1);
+    assertEquals(result.get(0).getString("urn"), "urn:li:foo:1");
+    assertEquals(result.get(0).getString("metadata"), RecordUtils.toJsonString(aspectFoo)); // {"value":"foo"}
+    assertEquals(result.get(0).getString("aspect"), AspectFoo.class.getCanonicalName());
+
+    // Delete the record and verify it is deleted.
+    _genericLocalDAO.delete(fooUrn1, AspectFoo.class, makeAuditStamp("tester"));
+
+    result = sqlQuery.findList();
+    assertEquals(result.size(), 0);
+  }
+
+  @Test
+  public void testDeleteVoid() throws URISyntaxException {
+    FooUrn fooUrn1 = FooUrn.createFromString("urn:li:foo:1");
+
+    SqlQuery sqlQuery = _server.createSqlQuery("select * from metadata_aspect");
+    List<SqlRow> result = sqlQuery.findList();
+
+    // no record is returned.
+    assertEquals(result.size(), 0);
+
+    // Delete the record and verify no record is returned.
+    _genericLocalDAO.delete(fooUrn1, AspectFoo.class, makeAuditStamp("tester"));
+
+    result = sqlQuery.findList();
+    assertEquals(result.size(), 0);
+  }
 }
