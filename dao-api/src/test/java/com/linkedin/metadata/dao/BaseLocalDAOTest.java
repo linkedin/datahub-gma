@@ -667,7 +667,7 @@ public class BaseLocalDAOTest {
 
     AspectCallbackRegistry aspectCallbackRegistry = new AspectCallbackRegistry(aspectCallbackMap);
     _dummyLocalDAO.setAspectCallbackRegistry(aspectCallbackRegistry);
-    BaseLocalDAO.AspectUpdateResult result = _dummyLocalDAO.aspectCallbackHelper(urn, foo, null);
+    BaseLocalDAO.AspectUpdateResult result = _dummyLocalDAO.aspectCallbackHelper(urn, foo, Optional.empty(), null);
     AspectFoo newAspect = (AspectFoo) result.getUpdatedAspect();
     assertEquals(newAspect, bar);
   }
@@ -705,7 +705,7 @@ public class BaseLocalDAOTest {
     _dummyLocalDAO.setAspectCallbackRegistry(aspectCallbackRegistry);
 
     // Call the add method
-    BaseLocalDAO.AspectUpdateResult result = _dummyLocalDAO.aspectCallbackHelper(urn, foo, null);
+    BaseLocalDAO.AspectUpdateResult result = _dummyLocalDAO.aspectCallbackHelper(urn, foo, Optional.empty(), null);
 
     // Verify that the result is the same as the input aspect since it's not registered
     assertEquals(result.getUpdatedAspect(), foo);
