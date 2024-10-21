@@ -602,7 +602,7 @@ public class EBeanDAOUtilsTest {
     AnnotatedAspectFooWithRelationshipField fooWithNullRelationshipField = new AnnotatedAspectFooWithRelationshipField();
     assertTrue(EBeanDAOUtils.extractRelationshipsFromAspect(fooWithNullRelationshipField).isEmpty());
 
-    // case 4: aspect model contains multiple relationship fields, some null and some non-null, as well as array fields
+    // case 4: aspect model contains multiple singleton and array-type relationship fields, some null and some non-null, as well as array fields
     //         containing non-Relationship objects
     // expected: return only the non-null relationships
     relationshipFoos = new AnnotatedRelationshipFooArray(new AnnotatedRelationshipFoo(), new AnnotatedRelationshipFoo());
@@ -612,6 +612,8 @@ public class EBeanDAOUtilsTest {
     //     value -> "abc"
     //     integers -> [1]
     //     nonRelationshipStructs -> [commonAspect1]
+    //     relationshipFoo1 -> foo1
+    //     relationshipFoo2 -> not present
     //     relationshipFoos -> [foo1, foo2]
     //     relationshipBars -> [bar1]
     //     moreRelationshipFoos -> not present
@@ -622,16 +624,20 @@ public class EBeanDAOUtilsTest {
         .setValue("abc")
         .setIntegers(new IntegerArray(1))
         .setNonRelationshipStructs(new CommonAspectArray(new CommonAspect()))
+        .setRelationshipFoo1(new AnnotatedRelationshipFoo())
+        // don't set relationshipFoo2 fields
         .setRelationshipFoos(relationshipFoos)
         .setRelationshipBars(relationshipBars); // don't set moreRelationshipFoos field
 
     results = EBeanDAOUtils.extractRelationshipsFromAspect(barWithRelationshipFields);
-    assertEquals(2, results.size());
-    assertEquals(2, results.get(0).size());
-    assertEquals(1, results.get(1).size());
+    assertEquals(3, results.size());
+    assertEquals(1, results.get(0).size()); // relationshipFoo1
+    assertEquals(2, results.get(1).size()); // relationshipFoos
+    assertEquals(1, results.get(2).size()); // relationshipBars
     assertEquals(new AnnotatedRelationshipFoo(), results.get(0).get(0));
-    assertEquals(new AnnotatedRelationshipFoo(), results.get(0).get(1));
-    assertEquals(new AnnotatedRelationshipBar(), results.get(1).get(0));
+    assertEquals(new AnnotatedRelationshipFoo(), results.get(1).get(0));
+    assertEquals(new AnnotatedRelationshipFoo(), results.get(1).get(1));
+    assertEquals(new AnnotatedRelationshipBar(), results.get(2).get(0));
   }
 
 
