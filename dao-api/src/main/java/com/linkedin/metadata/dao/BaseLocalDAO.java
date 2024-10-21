@@ -1721,9 +1721,10 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @return AspectUpdateResult which contains updated aspect value
    */
   protected <ASPECT extends RecordTemplate> AspectUpdateResult aspectCallbackHelper(URN urn, ASPECT newAspectValue, Optional<ASPECT> oldAspectValue) {
+
     if (_aspectCallbackRegistry != null && _aspectCallbackRegistry.isRegistered(
-        newAspectValue.getClass())) {
-      AspectCallbackRoutingClient client = _aspectCallbackRegistry.getAspectCallbackRoutingClient(newAspectValue.getClass());
+        newAspectValue.getClass(), urn.getEntityType())) {
+      AspectCallbackRoutingClient client = _aspectCallbackRegistry.getAspectCallbackRoutingClient(newAspectValue.getClass(), urn.getEntityType());
       AspectCallbackResponse aspectCallbackResponse = client.routeAspectCallback(urn, newAspectValue, oldAspectValue);
       ASPECT updatedAspect = (ASPECT) aspectCallbackResponse.getUpdatedAspect();
       log.info("Aspect callback routing completed in BaseLocalDao, urn: {}, updated aspect: {}", urn, updatedAspect);

@@ -417,7 +417,7 @@ public abstract class BaseAspectRoutingResource<
         try {
           // get the updated aspect if there is a preupdate routing lambda registered
           AspectCallbackRegistry registry = getLocalDAO().getAspectCallbackRegistry();
-          if (!skipExtraProcessing && registry != null && registry.isRegistered(aspect.getClass())) {
+          if (!skipExtraProcessing && registry != null && registry.isRegistered(aspect.getClass(), urn.getEntityType())) {
             log.info(String.format("Executing registered pre-update routing lambda for aspect class %s.", aspect.getClass()));
             aspect = aspectCallbackHelper((URN) urn, aspect, registry);
             log.info("PreUpdateRouting completed in ingestInternalAsset, urn: {}, updated aspect: {}", urn, aspect);
@@ -691,7 +691,7 @@ public abstract class BaseAspectRoutingResource<
    * @return the updated aspect
    */
   private RecordTemplate aspectCallbackHelper(URN urn, RecordTemplate aspect, AspectCallbackRegistry registry) {
-    AspectCallbackRoutingClient preUpdateClient = registry.getAspectCallbackRoutingClient(aspect.getClass());
+    AspectCallbackRoutingClient preUpdateClient = registry.getAspectCallbackRoutingClient(aspect.getClass(), urn.getEntityType());
     AspectCallbackResponse aspectCallbackResponse = preUpdateClient.routeAspectCallback(urn, aspect, null);
     return aspectCallbackResponse.getUpdatedAspect();
   }
