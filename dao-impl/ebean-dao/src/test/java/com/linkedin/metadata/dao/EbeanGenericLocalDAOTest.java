@@ -248,11 +248,16 @@ public class EbeanGenericLocalDAOTest {
     _genericLocalDAO.save(fooUrn, AspectFoo.class, RecordUtils.toJsonString(aspectFoo),
         makeAuditStamp("tester"), null, null);
 
+    verify(_producer, times(1)).produceAspectSpecificMetadataAuditEvent(eq(fooUrn),
+        eq(null), eq(aspectFoo), eq(makeAuditStamp("tester")), eq(null), eq(null));
+
     Optional<GenericLocalDAO.MetadataWithExtraInfo> metadata = _genericLocalDAO.queryLatest(fooUrn, AspectFoo.class);
 
     // {"value":"foo"} is inserted later so it is the latest metadata.
     assertTrue(metadata.isPresent());
     assertEquals(metadata.get().getAspect(), RecordUtils.toJsonString(aspectFoo));
+
+    reset(_producer);
 
     // Delete the record and verify it is deleted.
     _genericLocalDAO.delete(fooUrn, AspectFoo.class, makeAuditStamp("tester"));
@@ -262,7 +267,7 @@ public class EbeanGenericLocalDAOTest {
 
     // does not produce MAE for deletion
     verify(_producer, times(0)).produceAspectSpecificMetadataAuditEvent(eq(fooUrn),
-        any(), any(), any(), eq(null), eq(null));
+        any(), any(), any(), any(), any());
     verifyNoMoreInteractions(_producer);
   }
 
@@ -283,7 +288,7 @@ public class EbeanGenericLocalDAOTest {
 
     // does not produce MAE for deletion
     verify(_producer, times(0)).produceAspectSpecificMetadataAuditEvent(eq(fooUrn),
-        any(), any(), any(), eq(null), eq(null));
+        any(), any(), any(), any(), any());
     verifyNoMoreInteractions(_producer);
   }
 
