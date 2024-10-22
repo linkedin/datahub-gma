@@ -103,6 +103,9 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
 
       if (!latest.isPresent()) {
         saveLatest(urn, aspectClass, newValue, null, auditStamp, null);
+        if (shouldSkipMAEUpdate(newValue)) {
+          return null;
+        }
         _producer.produceAspectSpecificMetadataAuditEvent(urn, null, newValue, auditStamp, trackingContext, ingestionMode);
       } else {
         RecordTemplate currentValue = toRecordTemplate(aspectClass, latest.get().getAspect());
@@ -117,13 +120,24 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
         }
 
         // Skip update if current value and new value are equal.
-        if (!areEqual(currentValue, newValue, _equalityTesters.get(aspectClass))) {
-          saveLatest(urn, aspectClass, newValue, currentValue, auditStamp, latest.get().getExtraInfo().getAudit());
-          _producer.produceAspectSpecificMetadataAuditEvent(urn, currentValue, newValue, auditStamp, trackingContext, ingestionMode);
+        // currentValue is always not null in this case
+        if (newValue != null && areEqual(currentValue, newValue, _equalityTesters.get(aspectClass))) {
+          return null;
         }
+        saveLatest(urn, aspectClass, newValue, currentValue, auditStamp, latest.get().getExtraInfo().getAudit());
+
+        if (shouldSkipMAEUpdate(newValue)) {
+          return null;
+        }
+        _producer.produceAspectSpecificMetadataAuditEvent(urn, currentValue, newValue, auditStamp, trackingContext, ingestionMode);
       }
       return null;
     }, 5);
+  }
+
+  private boolean shouldSkipMAEUpdate(@Nullable RecordTemplate newValue) {
+    // do not send MAE for null new value (deletion), to keep the same behavior as in BaseLocalDao
+    return newValue == null;
   }
 
   /**
@@ -138,7 +152,7 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
     final PrimaryKey key = new PrimaryKey(urn.toString(), aspectName, LATEST_VERSION);
     EbeanMetadataAspect metadata = _server.find(EbeanMetadataAspect.class, key);
 
-    if (metadata == null || metadata.getMetadata() == null) {
+    if (metadata == null || metadata.getMetadata() == null || DELETED_VALUE.equals(metadata.getMetadata())) {
       return Optional.empty();
     }
 

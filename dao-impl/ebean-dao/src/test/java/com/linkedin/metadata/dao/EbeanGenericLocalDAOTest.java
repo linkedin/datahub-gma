@@ -242,42 +242,73 @@ public class EbeanGenericLocalDAOTest {
 
   @Test
   public void testDelete() throws URISyntaxException {
-    FooUrn fooUrn1 = FooUrn.createFromString("urn:li:foo:1");
+    FooUrn fooUrn = FooUrn.createFromString("urn:li:foo:1");
     AspectFoo aspectFoo = new AspectFoo().setValue("foo");
 
-    _genericLocalDAO.save(fooUrn1, AspectFoo.class, RecordUtils.toJsonString(aspectFoo),
+    _genericLocalDAO.save(fooUrn, AspectFoo.class, RecordUtils.toJsonString(aspectFoo),
         makeAuditStamp("tester"), null, null);
 
-    SqlQuery sqlQuery = _server.createSqlQuery("select * from metadata_aspect");
-    List<SqlRow> result = sqlQuery.findList();
+    Optional<GenericLocalDAO.MetadataWithExtraInfo> metadata = _genericLocalDAO.queryLatest(fooUrn, AspectFoo.class);
 
-    // One record is returned.
-    assertEquals(result.size(), 1);
-    assertEquals(result.get(0).getString("urn"), "urn:li:foo:1");
-    assertEquals(result.get(0).getString("metadata"), RecordUtils.toJsonString(aspectFoo)); // {"value":"foo"}
-    assertEquals(result.get(0).getString("aspect"), AspectFoo.class.getCanonicalName());
+    // {"value":"foo"} is inserted later so it is the latest metadata.
+    assertTrue(metadata.isPresent());
+    assertEquals(metadata.get().getAspect(), RecordUtils.toJsonString(aspectFoo));
 
     // Delete the record and verify it is deleted.
-    _genericLocalDAO.delete(fooUrn1, AspectFoo.class, makeAuditStamp("tester"));
+    _genericLocalDAO.delete(fooUrn, AspectFoo.class, makeAuditStamp("tester"));
 
-    result = sqlQuery.findList();
-    assertEquals(result.size(), 0);
+    metadata = _genericLocalDAO.queryLatest(fooUrn, AspectFoo.class);
+    assertFalse(metadata.isPresent());
+
+    // does not produce MAE for deletion
+    verify(_producer, times(0)).produceAspectSpecificMetadataAuditEvent(eq(fooUrn),
+        any(), any(), any(), eq(null), eq(null));
+    verifyNoMoreInteractions(_producer);
   }
 
   @Test
   public void testDeleteVoid() throws URISyntaxException {
-    FooUrn fooUrn1 = FooUrn.createFromString("urn:li:foo:1");
+    FooUrn fooUrn = FooUrn.createFromString("urn:li:foo:1");
 
-    SqlQuery sqlQuery = _server.createSqlQuery("select * from metadata_aspect");
-    List<SqlRow> result = sqlQuery.findList();
+    Optional<GenericLocalDAO.MetadataWithExtraInfo> metadata = _genericLocalDAO.queryLatest(fooUrn, AspectFoo.class);
 
     // no record is returned.
-    assertEquals(result.size(), 0);
+    assertFalse(metadata.isPresent());
 
     // Delete the record and verify no record is returned.
-    _genericLocalDAO.delete(fooUrn1, AspectFoo.class, makeAuditStamp("tester"));
+    _genericLocalDAO.delete(fooUrn, AspectFoo.class, makeAuditStamp("tester"));
 
-    result = sqlQuery.findList();
-    assertEquals(result.size(), 0);
+    metadata = _genericLocalDAO.queryLatest(fooUrn, AspectFoo.class);
+    assertFalse(metadata.isPresent());
+
+    // does not produce MAE for deletion
+    verify(_producer, times(0)).produceAspectSpecificMetadataAuditEvent(eq(fooUrn),
+        any(), any(), any(), eq(null), eq(null));
+    verifyNoMoreInteractions(_producer);
+  }
+
+  @Test
+  public void testBackfillAfterDelete() throws URISyntaxException {
+    FooUrn fooUrn = FooUrn.createFromString("urn:li:foo:1");
+    AspectFoo aspectFoo = new AspectFoo().setValue("foo");
+
+    _genericLocalDAO.save(fooUrn, AspectFoo.class, RecordUtils.toJsonString(aspectFoo),
+        makeAuditStamp("tester"), null, null);
+
+    Map<Urn, Set<Class<? extends RecordTemplate>>> aspects = Collections.singletonMap(fooUrn, Collections.singleton(AspectFoo.class));
+
+    Map<Urn, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfillResults
+        = _genericLocalDAO.backfill(BackfillMode.BACKFILL_ALL, aspects);
+
+    assertEquals(backfillResults.size(), 1);
+    assertEquals(backfillResults.get(fooUrn).get(AspectFoo.class).get(), aspectFoo);
+
+
+    // verify no aspect will be backfilled after deletion
+    _genericLocalDAO.delete(fooUrn, AspectFoo.class, makeAuditStamp("tester"));
+
+    backfillResults = _genericLocalDAO.backfill(BackfillMode.BACKFILL_ALL, aspects);
+    assertEquals(backfillResults.size(), 1);
+    assertEquals(backfillResults.get(fooUrn).size(), 0);
   }
 }
