@@ -36,6 +36,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
     private static final String LAST_MODIFIED_ON = "lastmodifiedon";
     private static final String LAST_MODIFIED_BY = "lastmodifiedby";
     private static final String DELETED_TS = "deleted_ts";
+    private static final String ASPECT = "aspect";
   }
 
   public EbeanLocalRelationshipWriterDAO(EbeanServer server) {
@@ -73,7 +74,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
       return;
     }
     RelationshipValidator.validateRelationshipSchema(relationshipClass);
-    SqlUpdate deletionSQL = _server.createSqlUpdate(SQLStatementUtils.deleteLocaRelationshipSQL(
+    SqlUpdate deletionSQL = _server.createSqlUpdate(SQLStatementUtils.deleteLocalRelationshipSQL(
         isTestMode ? SQLSchemaUtils.getTestRelationshipTableName(relationshipClass)
             : SQLSchemaUtils.getRelationshipTableName(relationshipClass), removalOption));
     if (removalOption == RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE) {
@@ -102,7 +103,13 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
 
   @Override
   public <RELATIONSHIP extends RecordTemplate> void removeRelationships(@Nonnull List<RELATIONSHIP> relationships) {
-    throw new UnsupportedOperationException("Local relationship only supports adding relationships.");
+    for (RELATIONSHIP relationship : relationships) {
+      _server.createSqlUpdate(SQLStatementUtils.deleteLocalRelationshipSQL(SQLSchemaUtils.getRelationshipTableName(relationship),
+              RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE_TO_DESTINATION))
+          .setParameter(CommonColumnName.SOURCE, getSourceUrnFromRelationship(relationship).toString())
+          .setParameter(CommonColumnName.DESTINATION, getDestinationUrnFromRelationship(relationship).toString())
+          .execute();
+    }
   }
 
   @Override
@@ -156,7 +163,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
       return;
     }
 
-    SqlUpdate deletionSQL = _server.createSqlUpdate(SQLStatementUtils.deleteLocaRelationshipSQL(tableName, removalOption));
+    SqlUpdate deletionSQL = _server.createSqlUpdate(SQLStatementUtils.deleteLocalRelationshipSQL(tableName, removalOption));
     Urn source = getSourceUrnFromRelationship(relationship);
     Urn destination = getDestinationUrnFromRelationship(relationship);
 

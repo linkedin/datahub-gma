@@ -219,7 +219,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     // Soft (set delete_ts = now()) Delete Jack reports-to ALice relationship
     SqlUpdate deletionSQL = _server.createSqlUpdate(
-        SQLStatementUtils.deleteLocaRelationshipSQL(SQLSchemaUtils.getRelationshipTableName(jackReportsToAlice),
+        SQLStatementUtils.deleteLocalRelationshipSQL(SQLSchemaUtils.getRelationshipTableName(jackReportsToAlice),
             BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE));
     deletionSQL.setParameter("source", jack.toString());
     deletionSQL.execute();
@@ -368,7 +368,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     // Soft (set delete_ts = now()) Delete Jack reports-to ALice relationship
     SqlUpdate deletionSQL = _server.createSqlUpdate(
-        SQLStatementUtils.deleteLocaRelationshipSQL(SQLSchemaUtils.getRelationshipTableName(jackReportsToAlice),
+        SQLStatementUtils.deleteLocalRelationshipSQL(SQLSchemaUtils.getRelationshipTableName(jackReportsToAlice),
             BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE));
     deletionSQL.setParameter("source", jack.toString());
     deletionSQL.execute();

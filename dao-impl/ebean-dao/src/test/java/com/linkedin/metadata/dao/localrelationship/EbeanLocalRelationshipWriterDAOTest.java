@@ -20,6 +20,7 @@ import io.ebean.SqlRow;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.List;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
@@ -256,6 +257,31 @@ public class EbeanLocalRelationshipWriterDAOTest {
 
     // Clean up
     _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_pairswith"));
+  }
+
+  @Test
+  public void testRemoveRelationships() throws URISyntaxException {
+    BarUrn barUrn = BarUrn.createFromString("urn:li:bar:123");
+    FooUrn fooUrn123 = FooUrn.createFromString("urn:li:foo:123");
+    FooUrn fooUrn456 = FooUrn.createFromString("urn:li:foo:456");
+    _server.execute(Ebean.createSqlUpdate(insertRelationships("metadata_relationship_pairswith", barUrn.toString(),
+        "bar", fooUrn123.toString(), "foo")));
+
+    _server.execute(Ebean.createSqlUpdate(insertRelationships("metadata_relationship_pairswith", barUrn.toString(),
+        "bar", fooUrn456.toString(), "foo")));
+
+    // Before processing
+    List<SqlRow> before = _server.createSqlQuery("select * from metadata_relationship_pairswith where deleted_ts is null").findList();
+    assertEquals(before.size(), 2);
+
+    PairsWith pairsWith = new PairsWith().setSource(barUrn).setDestination(fooUrn123);
+    _localRelationshipWriterDAO.removeRelationships(Collections.singletonList(pairsWith));
+
+    // After processing verification
+    List<SqlRow> all = _server.createSqlQuery("select * from metadata_relationship_pairswith where deleted_ts is null").findList();
+    assertEquals(all.size(), 1); // Total number of edges is 1
+    assertEquals(all.get(0).getString("source"), barUrn.toString());
+    assertEquals(all.get(0).getString("destination"), fooUrn456.toString());
   }
 
   private String insertRelationships(String table, String sourceUrn, String sourceType, String destinationUrn, String destinationType) {

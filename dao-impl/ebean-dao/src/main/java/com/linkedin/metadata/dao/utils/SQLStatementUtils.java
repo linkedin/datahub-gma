@@ -337,7 +337,7 @@ public class SQLStatementUtils {
 
   @Nonnull
   @ParametersAreNonnullByDefault
-  public static String deleteLocaRelationshipSQL(final String tableName, final BaseGraphWriterDAO.RemovalOption removalOption) {
+  public static String deleteLocalRelationshipSQL(final String tableName, final BaseGraphWriterDAO.RemovalOption removalOption) {
     if (removalOption == BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE) {
       return String.format(DELETE_BY_SOURCE, tableName);
     } else if (removalOption == BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE_TO_DESTINATION) {

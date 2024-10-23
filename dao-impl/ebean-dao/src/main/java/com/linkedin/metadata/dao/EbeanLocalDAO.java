@@ -611,10 +611,11 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
                 aspectClass.getCanonicalName()));
       }
 
-      if (_relationshipSource == RelationshipSource.ASPECT_METADATA) {
-        // TODO: not yet implemented -> add support for removing relationships when the aspect is to be soft-deleted
-        throw new UnsupportedOperationException("This method has not been implemented yet to support the "
-            + "ASPECT_METADATA RelationshipSource type yet.");
+      if (_relationshipSource == RelationshipSource.ASPECT_METADATA && oldValue != null) {
+        List<RecordTemplate> relationships = extractRelationshipsFromAspect(oldValue).stream()
+            .flatMap(List::stream)
+            .collect(Collectors.toList());
+        _localRelationshipWriterDAO.removeRelationships(relationships);
       }
     }
 
@@ -887,6 +888,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    */
   public <ASPECT extends RecordTemplate, RELATIONSHIP extends RecordTemplate> List<LocalRelationshipUpdates> addRelationshipsIfAny(
       @Nonnull URN urn, @Nullable ASPECT aspect, @Nonnull Class<ASPECT> aspectClass, boolean isTestMode) {
+    if (aspect == null) {
+      return Collections.emptyList();
+    }
     List<LocalRelationshipUpdates> localRelationshipUpdates = Collections.emptyList();
     if (_relationshipSource == RelationshipSource.ASPECT_METADATA) {
       List<List<RELATIONSHIP>> allRelationships = EBeanDAOUtils.extractRelationshipsFromAspect(aspect);

@@ -49,6 +49,7 @@ import com.linkedin.testing.EntityValue;
 import com.linkedin.testing.InternalEntityAspectUnion;
 import com.linkedin.testing.InternalEntitySnapshot;
 import com.linkedin.testing.localrelationship.AspectFooBar;
+import com.linkedin.testing.localrelationship.AspectFooBarBaz;
 import com.linkedin.testing.localrelationship.BelongsTo;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.FooUrn;
@@ -251,9 +252,10 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     AspectKey<FooUrn, AspectFoo> aspect1Key = new AspectKey<>(AspectFoo.class, urn, LATEST_VERSION);
     AspectKey<FooUrn, AspectBar> aspect2Key = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
     AspectKey<FooUrn, AspectFooBar> aspect3Key = new AspectKey<>(AspectFooBar.class, urn, LATEST_VERSION);
-    AspectKey<FooUrn, AspectAttributes> aspect4Key = new AspectKey<>(AspectAttributes.class, urn, LATEST_VERSION);
+    AspectKey<FooUrn, AspectFooBarBaz> aspect4Key = new AspectKey<>(AspectFooBarBaz.class, urn, LATEST_VERSION);
+    AspectKey<FooUrn, AspectAttributes> aspect5Key = new AspectKey<>(AspectAttributes.class, urn, LATEST_VERSION);
     when(_mockLocalDAO.exists(urn)).thenReturn(true);
-    when(_mockLocalDAO.get(new HashSet<>(Arrays.asList(aspect1Key, aspect2Key, aspect3Key, aspect4Key)))).thenReturn(
+    when(_mockLocalDAO.get(new HashSet<>(Arrays.asList(aspect1Key, aspect2Key, aspect3Key, aspect4Key, aspect5Key)))).thenReturn(
         Collections.singletonMap(aspect1Key, Optional.of(foo)));
 
     EntityValue value = runAndWait(_resource.get(makeResourceKey(urn), null));
@@ -357,14 +359,16 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     AspectKey<FooUrn, AspectFoo> aspectFooKey1 = new AspectKey<>(AspectFoo.class, urn1, LATEST_VERSION);
     AspectKey<FooUrn, AspectBar> aspectBarKey1 = new AspectKey<>(AspectBar.class, urn1, LATEST_VERSION);
     AspectKey<FooUrn, AspectFooBar> aspectFooBarKey1 = new AspectKey<>(AspectFooBar.class, urn1, LATEST_VERSION);
+    AspectKey<FooUrn, AspectFooBarBaz> aspectFooBarBazKey1 = new AspectKey<>(AspectFooBarBaz.class, urn1, LATEST_VERSION);
     AspectKey<FooUrn, AspectAttributes> aspectAttKey1 = new AspectKey<>(AspectAttributes.class, urn1, LATEST_VERSION);
     AspectKey<FooUrn, AspectFoo> aspectFooKey2 = new AspectKey<>(AspectFoo.class, urn2, LATEST_VERSION);
     AspectKey<FooUrn, AspectBar> aspectBarKey2 = new AspectKey<>(AspectBar.class, urn2, LATEST_VERSION);
     AspectKey<FooUrn, AspectFooBar> aspectFooBarKey2 = new AspectKey<>(AspectFooBar.class, urn2, LATEST_VERSION);
+    AspectKey<FooUrn, AspectFooBarBaz> aspectFooBarBazKey2 = new AspectKey<>(AspectFooBarBaz.class, urn2, LATEST_VERSION);
     AspectKey<FooUrn, AspectAttributes> aspectAttKey2 = new AspectKey<>(AspectAttributes.class, urn2, LATEST_VERSION);
 
-    when(_mockLocalDAO.get(ImmutableSet.of(aspectFooBarKey1, aspectFooBarKey2, aspectFooKey1, aspectBarKey1, aspectFooKey2,
-        aspectBarKey2, aspectAttKey1, aspectAttKey2)))
+    when(_mockLocalDAO.get(ImmutableSet.of(aspectFooBarKey1, aspectFooBarKey2, aspectFooBarBazKey1, aspectFooBarBazKey2,
+        aspectFooKey1, aspectBarKey1, aspectFooKey2, aspectBarKey2, aspectAttKey1, aspectAttKey2)))
         .thenReturn(ImmutableMap.of(aspectFooKey1, Optional.of(foo), aspectFooKey2, Optional.of(bar)));
 
     Map<EntityKey, EntityValue> keyValueMap =
@@ -711,16 +715,18 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     AspectFoo foo = new AspectFoo().setValue("foo");
     AspectFoo bar = new AspectFoo().setValue("bar");
     AspectFooBar fooBar = new AspectFooBar().setBars(new BarUrnArray(new BarUrn(1)));
+    AspectFooBarBaz fooBarBaz = new AspectFooBarBaz().setBars(new BarUrnArray(new BarUrn(1)));
     AspectAttributes attributes = new AspectAttributes().setAttributes(new StringArray("a"));
 
     AspectKey<FooUrn, ? extends RecordTemplate> fooKey = new AspectKey<>(AspectFoo.class, urn, LATEST_VERSION);
     AspectKey<FooUrn, ? extends RecordTemplate> barKey = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
     AspectKey<FooUrn, ? extends RecordTemplate> fooBarKey = new AspectKey<>(AspectFooBar.class, urn, LATEST_VERSION);
+    AspectKey<FooUrn, ? extends RecordTemplate> fooBarBazKey = new AspectKey<>(AspectFooBarBaz.class, urn, LATEST_VERSION);
     AspectKey<FooUrn, ? extends RecordTemplate> attKey = new AspectKey<>(AspectAttributes.class, urn, LATEST_VERSION);
 
-    Set<AspectKey<FooUrn, ? extends RecordTemplate>> aspectKeys = ImmutableSet.of(fooKey, barKey, fooBarKey, attKey);
+    Set<AspectKey<FooUrn, ? extends RecordTemplate>> aspectKeys = ImmutableSet.of(fooKey, barKey, fooBarKey, fooBarBazKey, attKey);
     when(_mockLocalDAO.get(aspectKeys)).thenReturn(ImmutableMap.of(fooKey, Optional.of(foo), barKey, Optional.of(bar),
-        fooBarKey, Optional.of(fooBar), attKey, Optional.of(attributes)));
+        fooBarKey, Optional.of(fooBar), fooBarBazKey, Optional.of(fooBarBaz), attKey, Optional.of(attributes)));
 
     EntitySnapshot snapshot = runAndWait(_resource.getSnapshot(urn.toString(), null));
 
@@ -1152,7 +1158,8 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     // case 2: null aspects is provided i.e. all aspects in the aspect union will be returned, non-null last urn
     List<UrnAspectEntry<FooUrn>> listResult2 = Collections.singletonList(entry2);
 
-    when(_mockLocalDAO.getAspects(ImmutableSet.of(AspectFoo.class, AspectBar.class, AspectFooBar.class, AspectAttributes.class), indexFilter, null, urn1, 2))
+    when(_mockLocalDAO.getAspects(ImmutableSet.of(AspectFoo.class, AspectBar.class, AspectFooBar.class, AspectFooBarBaz.class,
+        AspectAttributes.class), indexFilter, null, urn1, 2))
         .thenReturn(listResult2);
 
     List<EntityValue> actual2 =
@@ -1300,10 +1307,11 @@ public class BaseEntityResourceTest extends BaseEngineTest {
 
     // All aspects
     aspectClasses = _resource.parseAspectsParam(null, false);
-    assertEquals(aspectClasses.size(), 4);
+    assertEquals(aspectClasses.size(), 5);
     assertTrue(aspectClasses.contains(AspectFoo.class));
     assertTrue(aspectClasses.contains(AspectBar.class));
     assertTrue(aspectClasses.contains(AspectFooBar.class));
+    assertTrue(aspectClasses.contains(AspectFooBarBaz.class));
     assertTrue(aspectClasses.contains(AspectAttributes.class));
   }
 

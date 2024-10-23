@@ -44,9 +44,9 @@ CREATE TABLE IF NOT EXISTS metadata_entity_burger (
     );
 
 CREATE TABLE IF NOT EXISTS metadata_relationship_belongsto (
-                                                               id BIGINT NOT NULL AUTO_INCREMENT,
-                                                               metadata LONGTEXT NOT NULL,
-                                                               source VARCHAR(1000) NOT NULL,
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    metadata LONGTEXT NOT NULL,
+    source VARCHAR(1000) NOT NULL,
     source_type VARCHAR(100) NOT NULL,
     destination VARCHAR(1000) NOT NULL,
     destination_type VARCHAR(100) NOT NULL,
@@ -54,7 +54,20 @@ CREATE TABLE IF NOT EXISTS metadata_relationship_belongsto (
     lastmodifiedby VARCHAR(255) NOT NULL,
     deleted_ts DATETIME(6) DEFAULT NULL,
     PRIMARY KEY (id)
-    );
+);
+
+CREATE TABLE IF NOT EXISTS metadata_relationship_reportsto (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    metadata LONGTEXT NOT NULL,
+    source VARCHAR(1000) NOT NULL,
+    source_type VARCHAR(100) NOT NULL,
+    destination VARCHAR(1000) NOT NULL,
+    destination_type VARCHAR(100) NOT NULL,
+    lastmodifiedon TIMESTAMP NOT NULL,
+    lastmodifiedby VARCHAR(255) NOT NULL,
+    deleted_ts DATETIME(6) DEFAULT NULL,
+    PRIMARY KEY (id)
+);
 
 CREATE TABLE metadata_id (
                              namespace VARCHAR(255) NOT NULL,
@@ -91,6 +104,9 @@ ALTER TABLE metadata_entity_foo_test ADD a_aspectbar JSON;
 
 -- add foobar aspect to foo entity
 ALTER TABLE metadata_entity_foo ADD a_aspectfoobar JSON;
+
+-- add foobar aspect to foo entity
+ALTER TABLE metadata_entity_foo ADD a_aspectfoobarbaz JSON;
 
 -- add array aspect to foo entity
 ALTER TABLE metadata_entity_foo ADD a_aspectattributes JSON;
