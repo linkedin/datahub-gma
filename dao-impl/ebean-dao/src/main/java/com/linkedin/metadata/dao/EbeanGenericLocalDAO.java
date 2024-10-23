@@ -87,13 +87,25 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
    */
   public void save(@Nonnull Urn urn, @Nonnull Class aspectClass, @Nonnull String metadata, @Nonnull AuditStamp auditStamp,
       @Nullable IngestionTrackingContext trackingContext, @Nullable IngestionMode ingestionMode) {
+    saveCommon(urn, aspectClass, metadata, auditStamp, trackingContext, ingestionMode);
+  }
+
+  /* a common helper method for saving metadata */
+  void saveCommon(@Nonnull Urn urn, @Nonnull Class aspectClass, @Nullable String metadata, @Nonnull AuditStamp auditStamp,
+      @Nullable IngestionTrackingContext trackingContext, @Nullable IngestionMode ingestionMode) {
     runInTransactionWithRetry(() -> {
       final Optional<GenericLocalDAO.MetadataWithExtraInfo> latest = queryLatest(urn, aspectClass);
-      RecordTemplate newValue = toRecordTemplate(aspectClass, metadata);
+
+      RecordTemplate newValue = null;
+      if (metadata != null) {
+        newValue = toRecordTemplate(aspectClass, metadata);
+      }
 
       if (!latest.isPresent()) {
         saveLatest(urn, aspectClass, newValue, null, auditStamp, null);
-        _producer.produceAspectSpecificMetadataAuditEvent(urn, null, newValue, auditStamp, trackingContext, ingestionMode);
+        if (!shouldSkipMAEUpdate(newValue)) {
+          _producer.produceAspectSpecificMetadataAuditEvent(urn, null, newValue, auditStamp, trackingContext, ingestionMode);
+        }
       } else {
         RecordTemplate currentValue = toRecordTemplate(aspectClass, latest.get().getAspect());
         final AuditStamp oldAuditStamp = latest.get().getExtraInfo() == null ? null : latest.get().getExtraInfo().getAudit();
@@ -107,13 +119,23 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
         }
 
         // Skip update if current value and new value are equal.
-        if (!areEqual(currentValue, newValue, _equalityTesters.get(aspectClass))) {
-          saveLatest(urn, aspectClass, newValue, currentValue, auditStamp, latest.get().getExtraInfo().getAudit());
+        // currentValue is always not null in this case
+        if (newValue != null && areEqual(currentValue, newValue, _equalityTesters.get(aspectClass))) {
+          return null;
+        }
+        saveLatest(urn, aspectClass, newValue, currentValue, auditStamp, latest.get().getExtraInfo().getAudit());
+
+        if (!shouldSkipMAEUpdate(newValue)) {
           _producer.produceAspectSpecificMetadataAuditEvent(urn, currentValue, newValue, auditStamp, trackingContext, ingestionMode);
         }
       }
       return null;
     }, 5);
+  }
+
+  private boolean shouldSkipMAEUpdate(@Nullable RecordTemplate newValue) {
+    // do not send MAE for null new value (deletion), to keep the same behavior as in BaseLocalDao
+    return newValue == null;
   }
 
   /**
@@ -128,7 +150,7 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
     final PrimaryKey key = new PrimaryKey(urn.toString(), aspectName, LATEST_VERSION);
     EbeanMetadataAspect metadata = _server.find(EbeanMetadataAspect.class, key);
 
-    if (metadata == null || metadata.getMetadata() == null) {
+    if (metadata == null || metadata.getMetadata() == null || DELETED_VALUE.equals(metadata.getMetadata())) {
       return Optional.empty();
     }
 
@@ -170,6 +192,11 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
     return urnToAspects;
   }
 
+  @Override
+  public void delete(@Nonnull Urn urn, @Nonnull Class aspectClass, @Nonnull AuditStamp auditStamp) {
+    saveCommon(urn, aspectClass, null, auditStamp, null, null);
+  }
+
   /**
    * Emits backfill MAE for an aspect of an entity depending on the backfill mode.
    *
@@ -195,7 +222,7 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
   /**
    * Save metadata into database.
    */
-  private void saveLatest(@Nonnull Urn urn, @Nonnull Class aspectClass, @Nonnull RecordTemplate newValue,
+  private void saveLatest(@Nonnull Urn urn, @Nonnull Class aspectClass, @Nullable RecordTemplate newValue,
       @Nullable RecordTemplate currentValue, @Nonnull AuditStamp newAuditStamp, @Nullable AuditStamp currentAuditStamp) {
 
     // Save oldValue as the largest version + 1

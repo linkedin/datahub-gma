@@ -86,4 +86,13 @@ public class BaseEntityAgnosticAspectResourceTest extends BaseEngineTest {
 
     verifyNoMoreInteractions(_mockLocalDAO);
   }
+
+  @Test
+  public void testDelete() {
+    runAndWait(_resource.delete(ENTITY_URN.toString(), AspectFoo.class.getCanonicalName()));
+
+    verify(_mockLocalDAO, times(1)).delete(eq(ENTITY_URN), eq(AspectFoo.class), any(AuditStamp.class));
+
+    verifyNoMoreInteractions(_mockLocalDAO);
+  }
 }
