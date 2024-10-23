@@ -23,6 +23,7 @@ import com.linkedin.restli.server.annotations.Optional;
 import com.linkedin.restli.server.annotations.PagingContextParam;
 import com.linkedin.restli.server.annotations.QueryParam;
 import com.linkedin.restli.server.annotations.RestMethod;
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -210,7 +211,7 @@ public abstract class BaseSearchableEntityResource<
           .map(d -> (URN) ModelUtils.getUrnFromDocument(d))
           .collect(Collectors.toList());
     } else if (searchResult.getSearchResultMetadata().hasUrns()) {
-      matchedUrns = searchResult.getSearchResultMetadata().getUrns().stream().map(urn -> (URN) urn).collect(Collectors.toList());
+      matchedUrns = searchResult.getSearchResultMetadata().getUrns().stream().map(this::toEntitySpecificUrn).collect(Collectors.toList());
     }
 
     final Map<URN, VALUE> urnValueMap =
@@ -222,5 +223,13 @@ public abstract class BaseSearchableEntityResource<
         searchResult.getTotalCount(),
         searchResult.getSearchResultMetadata().setUrns(new UrnArray(existingUrns.stream().map(urn -> (Urn) urn).collect(Collectors.toList())))
     );
+  }
+
+  private URN toEntitySpecificUrn(Urn urn) {
+     try {
+       return (URN) (_urnClass.getMethod("createFromUrn", Urn.class).invoke(null, urn));
+     } catch (InvocationTargetException | IllegalAccessException | NoSuchMethodException e) {
+       throw new RuntimeException(e);
+     }
   }
 }
