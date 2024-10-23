@@ -27,8 +27,11 @@ public final class RestliConstants {
   public static final String ACTION_INGEST_ASSET = "ingestAsset";
   public static final String ACTION_INGEST_WITH_TRACKING = "ingestWithTracking";
   public static final String ACTION_QUERY = "query";
+  public static final String ACTION_RAW_INGEST = "rawIngest";
+  public static final String ACTION_RAW_INGEST_ASSET = "rawIngestAsset";
   public static final String ACTION_LIST_URNS_FROM_INDEX = "listUrnsFromIndex";
   public static final String ACTION_LIST_URNS = "listUrns";
+  public static final String ACTION_DELETE = "delete";
   public static final String PARAM_INPUT = "input";
   public static final String PARAM_ASPECTS = "aspects";
   public static final String PARAM_ASPECT = "aspect";

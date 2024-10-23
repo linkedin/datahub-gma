@@ -1,7 +1,6 @@
 package com.linkedin.metadata.dao;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.protobuf.Message;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.DataMap;
@@ -23,10 +22,11 @@ import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelat
 import com.linkedin.metadata.dao.equality.DefaultEqualityTester;
 import com.linkedin.metadata.dao.equality.EqualityTester;
 import com.linkedin.metadata.dao.exception.ModelValidationException;
+import com.linkedin.metadata.dao.ingestion.AspectCallbackResponse;
 import com.linkedin.metadata.dao.ingestion.BaseLambdaFunction;
 import com.linkedin.metadata.dao.ingestion.LambdaFunctionRegistry;
-import com.linkedin.metadata.dao.ingestion.RestliPreUpdateAspectRegistry;
-import com.linkedin.metadata.dao.ingestion.RestliCompliantPreUpdateRoutingClient;
+import com.linkedin.metadata.dao.ingestion.AspectCallbackRegistry;
+import com.linkedin.metadata.dao.ingestion.AspectCallbackRoutingClient;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.IndefiniteRetention;
@@ -159,6 +159,13 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     }
   }
 
+  @Data
+  @AllArgsConstructor
+  protected static class AspectUpdateResult<ASPECT extends RecordTemplate> {
+    private ASPECT updatedAspect;
+    private boolean skipProcessing;
+  }
+
   private static final String DEFAULT_ID_NAMESPACE = "global";
 
   private static final String BACKFILL_EMITTER = "dao_backfill_endpoint";
@@ -182,7 +189,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   protected UrnPathExtractor<URN> _urnPathExtractor;
 
   private LambdaFunctionRegistry _lambdaFunctionRegistry;
-  private RestliPreUpdateAspectRegistry _restliPreUpdateAspectRegistry;
+  private AspectCallbackRegistry _aspectCallbackRegistry = null;
 
   // Maps an aspect class to the corresponding retention policy
   private final Map<Class<? extends RecordTemplate>, Retention> _aspectRetentionMap = new HashMap<>();
@@ -214,6 +221,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   private boolean _emitAuditEvent = false;
 
   private Clock _clock = Clock.systemUTC();
+
 
   /**
    * Constructor for BaseLocalDAO.
@@ -313,6 +321,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     _clock = clock;
   }
 
+
   /**
    * Sets {@link Retention} for a specific aspect type.
    */
@@ -400,13 +409,19 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * Set pre ingestion aspect registry.
+   * Set aspect callback registry.
    */
-  public void setRestliPreIngestionAspectRegistry(
-      @Nullable RestliPreUpdateAspectRegistry restliPreUpdateAspectRegistry) {
-    _restliPreUpdateAspectRegistry = restliPreUpdateAspectRegistry;
+  public void setAspectCallbackRegistry(
+      @Nullable AspectCallbackRegistry aspectCallbackRegistry) {
+    _aspectCallbackRegistry = aspectCallbackRegistry;
   }
 
+  /**
+   * Get aspect callback registry.
+   */
+  public AspectCallbackRegistry getAspectCallbackRegistry() {
+    return _aspectCallbackRegistry;
+  }
 
   /**
    * Enables or disables atomic updates of multiple aspects.
@@ -603,6 +618,11 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   private <ASPECT extends RecordTemplate> AddResult<ASPECT> aspectUpdateHelper(URN urn, AspectUpdateLambda<ASPECT> updateTuple,
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext) {
+    return aspectUpdateHelper(urn, updateTuple, auditStamp, trackingContext, false);
+  }
+
+  private <ASPECT extends RecordTemplate> AddResult<ASPECT> aspectUpdateHelper(URN urn, AspectUpdateLambda<ASPECT> updateTuple,
+      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext, boolean isRawUpdate) {
     AspectEntry<ASPECT> latest = getLatest(urn, updateTuple.getAspectClass(), updateTuple.getIngestionParams().isTestMode());
 
     // TODO(yanyang) added for job-gms duplicity debug, throwaway afterwards
@@ -620,6 +640,15 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     if (_lambdaFunctionRegistry != null && _lambdaFunctionRegistry.isRegistered(updateTuple.getAspectClass())) {
       newValue = updatePreIngestionLambdas(urn, oldValue, newValue);
+    }
+    // this will skip the pre/in update callbacks
+    if (!isRawUpdate) {
+      AspectUpdateResult result = aspectCallbackHelper(urn, newValue, oldValue, updateTuple.getIngestionParams());
+      newValue = (ASPECT) result.getUpdatedAspect();
+      // skip the normal ingestion to the DAO
+      if (result.isSkipProcessing()) {
+        return null;
+      }
     }
 
     checkValidAspect(newValue.getClass());
@@ -680,8 +709,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     if (_emitAspectSpecificAuditEvent) {
       if (_alwaysEmitAspectSpecificAuditEvent || !oldAndNewEqual) {
         if (_trackingProducer != null) {
-          _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, auditStamp, trackingContext,
-              IngestionMode.LIVE);
+          _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, auditStamp,
+              trackingContext, IngestionMode.LIVE);
         } else {
           _producer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, auditStamp, IngestionMode.LIVE);
         }
@@ -731,6 +760,18 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
+   * Same as above {@link #add(Urn, Class, Function, AuditStamp, int, IngestionTrackingContext, IngestionParams)} but to skip aspect callback routing.
+   * DO NOT USE THIS METHOD WITHOUT EXPLICIT PERMISSION FROM THE METADATA GRAPH TEAM.
+   * Please use the regular add method linked above.
+   */
+  @Nonnull
+  public <ASPECT extends RecordTemplate> ASPECT rawAdd(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
+      @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp,
+      int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext, @Nonnull IngestionParams ingestionParams) {
+    return add(urn, new AspectUpdateLambda<>(aspectClass, updateLambda, ingestionParams), auditStamp, maxTransactionRetry, trackingContext, true);
+  }
+
+  /**
    * Adds a new version of an aspect for an entity.
    *
    * <p>
@@ -758,17 +799,27 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, AspectUpdateLambda<ASPECT> updateLambda,
       @Nonnull AuditStamp auditStamp, int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext) {
+    return add(urn, updateLambda, auditStamp, maxTransactionRetry, trackingContext, false);
+  }
+
+  /**
+   * Same as above {@link #add(Urn, AspectUpdateLambda, AuditStamp, int, IngestionTrackingContext)} but with a flag to skip aspect callback routing.
+   */
+  @Nonnull
+  public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, AspectUpdateLambda<ASPECT> updateLambda,
+      @Nonnull AuditStamp auditStamp, int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext, boolean isRawUpdate) {
     final Class<ASPECT> aspectClass = updateLambda.getAspectClass();
     checkValidAspect(aspectClass);
-    // dual-write to test table while test mode is enabled.
-    if (updateLambda.getIngestionParams().isTestMode()) {
-      runInTransactionWithRetry(() -> aspectUpdateHelper(urn, updateLambda, auditStamp, trackingContext),
-          maxTransactionRetry);
-    }
-    final AddResult<ASPECT> result = runInTransactionWithRetry(() -> aspectUpdateHelper(urn,
-        new AspectUpdateLambda<>(aspectClass, updateLambda.getUpdateLambda(),
-            updateLambda.getIngestionParams().setTestMode(false)), auditStamp, trackingContext), maxTransactionRetry);
-    return unwrapAddResult(urn, result, auditStamp, trackingContext);
+
+    // default test mode is false being set in
+    // {@link #rawAdd(Urn, RecordTemplate, AuditStamp, IngestionTrackingContext, IngestionParams)}}
+    final AddResult<ASPECT> result =
+        runInTransactionWithRetry(() -> aspectUpdateHelper(urn, updateLambda, auditStamp, trackingContext, isRawUpdate),
+            maxTransactionRetry);
+
+    // skip MAE producing and post update hook in test mode
+    return updateLambda.getIngestionParams().isTestMode() ? result.newValue
+        : unwrapAddResult(urn, result, auditStamp, trackingContext);
   }
 
   /**
@@ -827,6 +878,18 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
+   * Same as above {@link #add(Urn, Class, Function, AuditStamp, IngestionTrackingContext, IngestionParams)} but skips any aspect callbacks.
+   * DO NOT USE THIS METHOD WITHOUT EXPLICIT PERMISSION FROM THE METADATA GRAPH TEAM.
+   * Please use the regular add method linked above.
+   */
+  @Nonnull
+  public <ASPECT extends RecordTemplate> ASPECT rawAdd(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
+      @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp,
+      @Nullable IngestionTrackingContext trackingContext, @Nonnull IngestionParams ingestionParams) {
+    return rawAdd(urn, aspectClass, updateLambda, auditStamp, DEFAULT_MAX_TRANSACTION_RETRY, trackingContext, ingestionParams);
+  }
+
+  /**
    * Similar to {@link #add(Urn, Class, Function, AuditStamp)} but takes the new value directly.
    */
   @VisibleForTesting
@@ -838,7 +901,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   /**
    * Same as above {@link #add(Urn, RecordTemplate, AuditStamp)} but with tracking context.
-   * Note: If you update the lambda function (ignored - newValue), make sure to update {@link #preUpdateRouting(Urn, RecordTemplate)} as well
+   * Note: If you update the lambda function (ignored - newValue),
+   * make sure to update {@link #aspectCallbackHelper(Urn, RecordTemplate, Optional, IngestionParams)}as well
    * to avoid any inconsistency between the lambda function and the add method.
    */
   @Nonnull
@@ -848,8 +912,22 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     final IngestionParams nonNullIngestionParams =
         ingestionParams == null || !ingestionParams.hasTestMode() ? new IngestionParams().setIngestionMode(
             IngestionMode.LIVE).setTestMode(false) : ingestionParams;
-    ASPECT updatedAspect = preUpdateRouting(urn, newValue);
-    return add(urn, (Class<ASPECT>) newValue.getClass(), ignored -> updatedAspect, auditStamp, trackingContext, nonNullIngestionParams);
+    return add(urn, (Class<ASPECT>) newValue.getClass(), ignored -> newValue, auditStamp, trackingContext, nonNullIngestionParams);
+  }
+
+  /**
+   * Same as above {@link #add(Urn, RecordTemplate, AuditStamp, IngestionTrackingContext, IngestionParams)} but
+   * skips any aspect callbacks. DO NOT USE THIS METHOD WITHOUT EXPLICIT PERMISSION FROM THE METADATA GRAPH TEAM.
+   * Please use the regular add method linked above.
+   */
+  @Nonnull
+  public <ASPECT extends RecordTemplate> ASPECT rawAdd(@Nonnull URN urn, @Nonnull ASPECT newValue,
+      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext,
+      @Nullable IngestionParams ingestionParams) {
+    final IngestionParams nonNullIngestionParams =
+        ingestionParams == null || !ingestionParams.hasTestMode() ? new IngestionParams().setIngestionMode(
+            IngestionMode.LIVE).setTestMode(false) : ingestionParams;
+    return rawAdd(urn, (Class<ASPECT>) newValue.getClass(), ignored -> newValue, auditStamp, trackingContext, nonNullIngestionParams);
   }
 
   /**
@@ -1637,21 +1715,24 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * This method routes the update request to the appropriate custom API for pre-ingestion processing.
+   * This method routes the aspect updates to the appropriate aspect callback clients and get the updated aspect as response.
    * @param urn the urn of the asset
-   * @param newValue the new aspect value
-   * @return the updated aspect
+   * @param newAspectValue the new aspect value
+   * @param oldAspectValue the old aspect value
+   * @param ingestionParams the ingestionparams of the current update
+   * @return AspectUpdateResult which contains updated aspect value
    */
-  protected <ASPECT extends RecordTemplate> ASPECT preUpdateRouting(URN urn, ASPECT newValue) {
-    if (_restliPreUpdateAspectRegistry != null && _restliPreUpdateAspectRegistry.isRegistered(
-        newValue.getClass())) {
-      RestliCompliantPreUpdateRoutingClient client =
-          _restliPreUpdateAspectRegistry.getPreUpdateRoutingClient(newValue);
-      Message updatedAspect =
-          client.routingLambda(client.convertUrnToMessage(urn), client.convertAspectToMessage(newValue));
-      RecordTemplate convertedAspect = client.convertAspectFromMessage(updatedAspect);
-      return (ASPECT) convertedAspect;
+  protected <ASPECT extends RecordTemplate> AspectUpdateResult aspectCallbackHelper(URN urn, ASPECT newAspectValue,
+      Optional<ASPECT> oldAspectValue, IngestionParams ingestionParams) {
+
+    if (_aspectCallbackRegistry != null && _aspectCallbackRegistry.isRegistered(
+        newAspectValue.getClass(), urn.getEntityType())) {
+      AspectCallbackRoutingClient client = _aspectCallbackRegistry.getAspectCallbackRoutingClient(newAspectValue.getClass(), urn.getEntityType());
+      AspectCallbackResponse aspectCallbackResponse = client.routeAspectCallback(urn, newAspectValue, oldAspectValue, ingestionParams);
+      ASPECT updatedAspect = (ASPECT) aspectCallbackResponse.getUpdatedAspect();
+      log.info("Aspect callback routing completed in BaseLocalDao, urn: {}, updated aspect: {}", urn, updatedAspect);
+      return new AspectUpdateResult(updatedAspect, client.isSkipProcessing());
     }
-    return newValue;
+    return new AspectUpdateResult(newAspectValue, false);
   }
 }

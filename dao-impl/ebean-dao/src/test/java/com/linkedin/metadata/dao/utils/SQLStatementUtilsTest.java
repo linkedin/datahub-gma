@@ -1,6 +1,7 @@
 package com.linkedin.metadata.dao.utils;
 
 import com.linkedin.common.urn.Urn;
+import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.query.AspectField;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.IndexCriterion;
@@ -14,7 +15,10 @@ import com.linkedin.metadata.query.LocalRelationshipFilter;
 import com.linkedin.metadata.query.LocalRelationshipValue;
 import com.linkedin.metadata.query.RelationshipField;
 import com.linkedin.metadata.query.UrnField;
+import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectFoo;
+import com.linkedin.testing.BarAsset;
+import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.FooUrn;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
@@ -26,6 +30,7 @@ import java.util.Set;
 import org.javatuples.Pair;
 import org.testng.annotations.Test;
 
+import static com.linkedin.metadata.dao.utils.SQLSchemaUtils.*;
 import static com.linkedin.testing.TestUtils.*;
 import static org.testng.Assert.*;
 
@@ -78,7 +83,7 @@ public class SQLStatementUtilsTest {
     indexCriterionArray.add(indexCriterion2);
     indexFilter.setCriteria(indexCriterionArray);
 
-    String sql1 = SQLStatementUtils.createFilterSql("metadata_entity_foo", indexFilter, true, false);
+    String sql1 = SQLStatementUtils.createFilterSql("foo", indexFilter, true, false);
     String expectedSql1 = "SELECT *, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE a_aspectfoo IS NOT NULL\n"
         + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo$value >= 25\n"
         + "AND a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
@@ -89,7 +94,7 @@ public class SQLStatementUtilsTest {
 
     assertEquals(sql1, expectedSql1);
 
-    String sql2 = SQLStatementUtils.createFilterSql("metadata_entity_foo", indexFilter, true, true);
+    String sql2 = SQLStatementUtils.createFilterSql("foo", indexFilter, true, true);
     String expectedSql2 = "SELECT *, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE a_aspectfoo IS NOT NULL\n"
         + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo0value >= 25\n"
         + "AND a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
@@ -120,14 +125,14 @@ public class SQLStatementUtilsTest {
     indexGroupByCriterion.setAspect(AspectFoo.class.getCanonicalName());
     indexGroupByCriterion.setPath("/value");
 
-    String sql1 = SQLStatementUtils.createGroupBySql("metadata_entity_foo", indexFilter, indexGroupByCriterion, false);
+    String sql1 = SQLStatementUtils.createGroupBySql("foo", indexFilter, indexGroupByCriterion, false);
     assertEquals(sql1, "SELECT count(*) as COUNT, i_aspectfoo$value FROM metadata_entity_foo\n"
         + "WHERE a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
         + "AND i_aspectfoo$value >= 25\n" + "AND a_aspectfoo IS NOT NULL\n"
         + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo$value < 50\n"
         + "GROUP BY i_aspectfoo$value");
 
-    String sql2 = SQLStatementUtils.createGroupBySql("metadata_entity_foo", indexFilter, indexGroupByCriterion, true);
+    String sql2 = SQLStatementUtils.createGroupBySql("foo", indexFilter, indexGroupByCriterion, true);
     assertEquals(sql2, "SELECT count(*) as COUNT, i_aspectfoo0value FROM metadata_entity_foo\n"
         + "WHERE a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
         + "AND i_aspectfoo0value >= 25\n" + "AND a_aspectfoo IS NOT NULL\n"
@@ -348,14 +353,13 @@ public class SQLStatementUtilsTest {
   @Test
   public void testCreateListAspectSql() throws URISyntaxException {
     FooUrn fooUrn = new FooUrn(1);
-    String tableName = SQLSchemaUtils.getTableName(fooUrn.getEntityType());
     assertEquals(
-        SQLStatementUtils.createListAspectWithPaginationSql(AspectFoo.class, tableName, true, 0, 5),
+        SQLStatementUtils.createListAspectWithPaginationSql(AspectFoo.class, fooUrn.getEntityType(), true, 0, 5),
         "SELECT urn, a_aspectfoo, lastmodifiedon, lastmodifiedby, createdfor, (SELECT COUNT(urn) FROM "
             + "metadata_entity_foo WHERE a_aspectfoo IS NOT NULL) as _total_count FROM metadata_entity_foo "
             + "WHERE a_aspectfoo IS NOT NULL LIMIT 5 OFFSET 0");
     assertEquals(
-        SQLStatementUtils.createListAspectWithPaginationSql(AspectFoo.class, tableName, false, 0, 5),
+        SQLStatementUtils.createListAspectWithPaginationSql(AspectFoo.class, fooUrn.getEntityType(), false, 0, 5),
         "SELECT urn, a_aspectfoo, lastmodifiedon, lastmodifiedby, createdfor, (SELECT COUNT(urn) FROM "
             + "metadata_entity_foo WHERE a_aspectfoo IS NOT NULL AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL) "
             + "as _total_count FROM metadata_entity_foo WHERE a_aspectfoo IS NOT NULL AND "
@@ -379,5 +383,37 @@ public class SQLStatementUtilsTest {
     assertEquals(
         SQLStatementUtils.createAspectUpdateWithOptimisticLockSql(fooUrn, AspectFoo.class, false, false),
         expectedSql);
+  }
+
+  @Test
+  public void testAspectField() {
+    AspectField aspectField = new AspectField();
+    aspectField.setAspect(AspectBar.class.getCanonicalName());
+    // unknown if asset field is not set
+    assertEquals(SQLStatementUtils.getAssetType(aspectField), UNKNOWN_ASSET);
+
+    try {
+      aspectField.setAsset("invalid_class");
+      SQLStatementUtils.getAssetType(aspectField);
+      fail("should fail because invalid asset class");
+    } catch (IllegalArgumentException e) {
+    }
+
+    try {
+      aspectField.setAsset(String.class.getCanonicalName());
+      SQLStatementUtils.getAssetType(aspectField);
+      fail("should fail because not RecordTemplate");
+    } catch (IllegalArgumentException e) {
+    }
+
+    try {
+      aspectField.setAsset(RecordTemplate.class.getCanonicalName());
+      SQLStatementUtils.getAssetType(aspectField);
+      fail("should fail because not an valid Asset");
+    } catch (IllegalArgumentException e) {
+    }
+
+    aspectField.setAsset(BarAsset.class.getCanonicalName());
+    assertEquals(SQLStatementUtils.getAssetType(aspectField), BarUrn.ENTITY_TYPE);
   }
 }

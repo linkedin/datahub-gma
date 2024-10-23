@@ -5,6 +5,7 @@ import com.google.common.escape.Escapers;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
+import com.linkedin.metadata.query.AspectField;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
@@ -160,10 +161,11 @@ public class SQLStatementUtils {
     if (urns.size() == 0) {
       throw new IllegalArgumentException("Need at least 1 urn to query.");
     }
-    final String columnName = getAspectColumnName(aspectClass);
+
     StringBuilder stringBuilder = new StringBuilder();
     List<String> selectStatements = urns.stream().map(urn -> {
       final String tableName = isTestMode ? getTestTableName(urn) : getTableName(urn);
+      final String columnName = getAspectColumnName(urn.getEntityType(), aspectClass);
       final String sqlTemplate =
           includeSoftDeleted ? SQL_READ_ASPECT_WITH_SOFT_DELETED_TEMPLATE : SQL_READ_ASPECT_TEMPLATE;
       return String.format(sqlTemplate, columnName, tableName, escapeReservedCharInUrn(urn.toString()), columnName);
@@ -182,7 +184,7 @@ public class SQLStatementUtils {
    */
   public static <ASPECT extends RecordTemplate> String createListAspectByUrnSql(@Nonnull Class<ASPECT> aspectClass,
       @Nonnull Urn urn, boolean includeSoftDeleted) {
-    final String columnName = getAspectColumnName(aspectClass);
+    final String columnName = getAspectColumnName(urn.getEntityType(), aspectClass);
     final String tableName = getTableName(urn);
     if (includeSoftDeleted) {
       return String.format(SQL_LIST_ASPECT_BY_URN_WITH_SOFT_DELETED_TEMPLATE, columnName, tableName,
@@ -196,7 +198,7 @@ public class SQLStatementUtils {
   /**
    * List all the aspects for a given entity type and aspect type.
    * @param aspectClass aspect type
-   * @param tableName table name
+   * @param entityType entity name from Urn
    * @param includeSoftDeleted whether to include soft deleted aspects
    * @param start pagination offset
    * @param pageSize page size
@@ -204,8 +206,9 @@ public class SQLStatementUtils {
    * @return a SQL to run listing aspect query with pagination.
    */
   public static <ASPECT extends RecordTemplate> String createListAspectWithPaginationSql(@Nonnull Class<ASPECT> aspectClass,
-      String tableName, boolean includeSoftDeleted, int start, int pageSize) {
-    final String columnName = getAspectColumnName(aspectClass);
+      String entityType, boolean includeSoftDeleted, int start, int pageSize) {
+    final String tableName = SQLSchemaUtils.getTableName(entityType);
+    final String columnName = getAspectColumnName(entityType, aspectClass);
     if (includeSoftDeleted) {
       return String.format(SQL_LIST_ASPECT_WITH_PAGINATION_WITH_SOFT_DELETED_TEMPLATE, columnName, tableName,
           columnName, tableName, columnName, pageSize, start);
@@ -226,7 +229,7 @@ public class SQLStatementUtils {
   public static <ASPECT extends RecordTemplate> String createAspectUpsertSql(@Nonnull Urn urn,
       @Nonnull Class<ASPECT> aspectClass, boolean urnExtraction, boolean isTestMode) {
     final String tableName = isTestMode ? getTestTableName(urn) : getTableName(urn);
-    final String columnName = getAspectColumnName(aspectClass);
+    final String columnName = getAspectColumnName(urn.getEntityType(), aspectClass);
     return String.format(urnExtraction ? SQL_UPSERT_ASPECT_WITH_URN_TEMPLATE : SQL_UPSERT_ASPECT_TEMPLATE, tableName, columnName, columnName);
   }
 
@@ -242,21 +245,22 @@ public class SQLStatementUtils {
   public static <ASPECT extends RecordTemplate> String createAspectUpdateWithOptimisticLockSql(@Nonnull Urn urn,
       @Nonnull Class<ASPECT> aspectClass, boolean urnExtraction, boolean isTestMode) {
     final String tableName = isTestMode ? getTestTableName(urn) : getTableName(urn);
-    final String columnName = getAspectColumnName(aspectClass);
+    final String columnName = getAspectColumnName(urn.getEntityType(), aspectClass);
     return String.format(urnExtraction ? SQL_UPDATE_ASPECT_WITH_URN_TEMPLATE : SQL_UPDATE_ASPECT_TEMPLATE, tableName,
         columnName, columnName, columnName);
   }
 
   /**
    * Create filter SQL statement.
-   * @param tableName table name
+   * @param entityType entity type from urn
    * @param indexFilter index filter
    * @param hasTotalCount whether to calculate total count in SQL.
    * @param nonDollarVirtualColumnsEnabled  true if virtual column does not contain $, false otherwise
    * @return translated SQL where statement
    */
-  public static String createFilterSql(String tableName, @Nullable IndexFilter indexFilter, boolean hasTotalCount, boolean nonDollarVirtualColumnsEnabled) {
-    String whereClause = parseIndexFilter(indexFilter, nonDollarVirtualColumnsEnabled);
+  public static String createFilterSql(String entityType, @Nullable IndexFilter indexFilter, boolean hasTotalCount, boolean nonDollarVirtualColumnsEnabled) {
+    final String tableName = SQLSchemaUtils.getTableName(entityType);
+    String whereClause = parseIndexFilter(entityType, indexFilter, nonDollarVirtualColumnsEnabled);
     String totalCountSql = String.format("SELECT COUNT(urn) FROM %s %s", tableName, whereClause);
     StringBuilder sb = new StringBuilder();
 
@@ -273,19 +277,22 @@ public class SQLStatementUtils {
 
   /**
    * Create index group by SQL statement.
-   * @param tableName table name
+   * @param entityType entity type
    * @param indexFilter index filter
    * @param indexGroupByCriterion group by
    * @param nonDollarVirtualColumnsEnabled  true if virtual column does not contain $, false otherwise
    * @return translated group by SQL
    */
-  public static String createGroupBySql(String tableName, @Nullable IndexFilter indexFilter,
+  public static String createGroupBySql(String entityType, @Nullable IndexFilter indexFilter,
       @Nonnull IndexGroupByCriterion indexGroupByCriterion, boolean nonDollarVirtualColumnsEnabled) {
-    final String columnName = getGeneratedColumnName(indexGroupByCriterion.getAspect(), indexGroupByCriterion.getPath(), nonDollarVirtualColumnsEnabled);
+    final String tableName = SQLSchemaUtils.getTableName(entityType);
+    final String columnName =
+        getGeneratedColumnName(entityType, indexGroupByCriterion.getAspect(), indexGroupByCriterion.getPath(),
+            nonDollarVirtualColumnsEnabled);
     StringBuilder sb = new StringBuilder();
     sb.append(String.format(INDEX_GROUP_BY_CRITERION, columnName, tableName));
     sb.append("\n");
-    sb.append(parseIndexFilter(indexFilter, nonDollarVirtualColumnsEnabled));
+    sb.append(parseIndexFilter(entityType, indexFilter, nonDollarVirtualColumnsEnabled));
     sb.append("\nGROUP BY ");
     sb.append(columnName);
     return sb.toString();
@@ -305,7 +312,7 @@ public class SQLStatementUtils {
   public static <ASPECT extends RecordTemplate> String createAspectBrowseSql(String entityType,
       Class<ASPECT> aspectClass, int offset, int pageSize) {
     final String tableName = getTableName(entityType);
-    final String columnName = getAspectColumnName(aspectClass);
+    final String columnName = getAspectColumnName(entityType, aspectClass);
     return String.format(SQL_BROWSE_ASPECT_TEMPLATE, columnName, tableName, tableName, columnName,
         Math.max(pageSize, 0), Math.max(offset, 0));
   }
@@ -469,12 +476,34 @@ public class SQLStatementUtils {
     }
 
     if (field.isAspectField()) {
-      return tablePrefix + SQLSchemaUtils.getGeneratedColumnName(field.getAspectField().getAspect(),
+      // entity type from Urn definition.
+      String assetType = getAssetType(field.getAspectField());
+      return tablePrefix + SQLSchemaUtils.getGeneratedColumnName(assetType, field.getAspectField().getAspect(),
           field.getAspectField().getPath(), nonDollarVirtualColumnsEnabled);
     }
 
     throw new IllegalArgumentException("Unrecognized field type");
   }
+
+  /**
+   * Get asset type from an aspectField.
+   * @param aspectField {@link AspectField}
+   * @return asset type, which is equivalent to Urn's entity type
+   */
+  protected static String getAssetType(AspectField aspectField) {
+
+    String assetType = UNKNOWN_ASSET;
+    if (aspectField.hasAsset()) {
+      try {
+        assetType =
+            ModelUtils.getUrnTypeFromAsset(Class.forName(aspectField.getAsset()).asSubclass(RecordTemplate.class));
+      } catch (ClassNotFoundException | ClassCastException e) {
+        throw new IllegalArgumentException("Unrecognized asset type: " + aspectField.getAsset());
+      }
+    }
+    return assetType;
+  }
+
 
   private static String parseLocalRelationshipValue(@Nonnull final LocalRelationshipValue localRelationshipValue) {
     if (localRelationshipValue.isArray()) {

@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -204,6 +205,20 @@ public class ModelUtils {
   }
 
   /**
+   * Get the asset type of urn inside a asset class.
+   * @param asset an assset class
+   * @return entity type of urn
+   */
+  @Nonnull
+  public static <ASSET extends RecordTemplate> String getUrnTypeFromAsset(@Nonnull Class<ASSET> asset) {
+    try {
+      return (String) asset.getMethod("getUrn").getReturnType().getField("ENTITY_TYPE").get(null);
+    } catch (Exception ignored) {
+      throw new IllegalArgumentException(String.format("The snapshot class %s is not valid.", asset.getCanonicalName()));
+    }
+  }
+
+  /**
    * Similar to {@link #getUrnFromSnapshot(RecordTemplate)} but extracts from a Snapshot union instead.
    */
   @Nonnull
@@ -318,7 +333,38 @@ public class ModelUtils {
   }
 
   /**
-   * Extracts the list of aspects in an asset.
+   * Get aspect types from asset type.
+   * @param assetClass asset class
+   * @return A list of aspect classes used in the asset
+   */
+  public static <ASSET extends RecordTemplate> List<Class<? extends RecordTemplate>> getAspectTypesFromAssetType(
+      @Nonnull Class<ASSET> assetClass) {
+    try {
+      final List<Class<? extends RecordTemplate>> aspectTypes = new ArrayList<>();
+      final Field[] assetFields = assetClass.getDeclaredFields();
+      for (final Field assetField : assetFields) {
+        if (assetField.getName().startsWith(FIELD_FIELD_PREFIX)) {
+          final String assetFieldName = assetField.getName().substring(FIELD_FIELD_PREFIX.length());
+          if (assetFieldName.equalsIgnoreCase(URN_FIELD)) {
+            continue;
+          }
+          String methodName = "get" + assetFieldName;
+          Class<?> returnType = assetClass.getMethod(methodName).getReturnType();
+          if (RecordTemplate.class.isAssignableFrom(returnType)) {
+            aspectTypes.add(returnType.asSubclass(RecordTemplate.class));
+          }
+        }
+      }
+      return aspectTypes;
+    } catch (NoSuchMethodException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+
+
+  /**
+   * Extracts the list of (non-null) aspects in an asset.
    *
    * @param asset the asset to extract aspects from
    * @param <ASSET> must be a valid asset model defined in com.linkedin.metadata.asset
@@ -348,6 +394,43 @@ public class ModelUtils {
     } catch (IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
       throw new RuntimeException(e);
     }
+  }
+
+  private final static ConcurrentHashMap<Class<? extends RecordTemplate>, Map<String, String>> ASPECT_ALIAS_CACHE =
+      new ConcurrentHashMap<>();
+
+  /**
+   * Return aspect alias (in lower cases) from given asset class and aspect FQCN (Fully Qualified Class Name).
+   * @param assetClass asset class
+   * @param aspectFQCN aspect FQCN
+   * @return alias names in lower cases
+   * @param <ASSET> Asset class
+   */
+  @Nullable
+  public static <ASSET extends RecordTemplate> String getAspectAlias(@Nonnull Class<ASSET> assetClass,
+      @Nonnull String aspectFQCN) {
+    return ASPECT_ALIAS_CACHE.computeIfAbsent(assetClass, key -> {
+      AssetValidator.validateAssetSchema(assetClass);
+      final Field[] declaredFields = assetClass.getDeclaredFields();
+      Map<String, String> map = new HashMap<>();
+      for (Field declaredField : declaredFields) {
+        if (!declaredField.getName().startsWith(FIELD_FIELD_PREFIX)) {
+          continue;
+        }
+        String fieldName = declaredField.getName().substring(FIELD_FIELD_PREFIX.length());
+        if (fieldName.equalsIgnoreCase(URN_FIELD)) {
+          continue;
+        }
+        String methodName = "get" + fieldName;
+        try {
+          String aspectClass = assetClass.getMethod(methodName).getReturnType().getCanonicalName();
+          map.put(aspectClass, fieldName.toLowerCase());
+        } catch (NoSuchMethodException e) {
+          throw new RuntimeException("Method not found: " + methodName, e);
+        }
+      }
+      return map;
+    }).get(aspectFQCN);
   }
 
   /**
@@ -498,23 +581,31 @@ public class ModelUtils {
       }
       RecordUtils.setRecordTemplatePrimitiveField(asset, URN_FIELD, urn);
 
+      // TODO: cache the asset methods loading
+      final Map<String, String> aspectTypeToAssetSetterMap = new HashMap<>();
+      for (final Method assetMethod : assetClass.getDeclaredMethods()) {
+        if (assetMethod.getName().startsWith("set") && assetMethod.getParameterTypes().length > 0) {
+          aspectTypeToAssetSetterMap.put(assetMethod.getParameterTypes()[0].getName(), assetMethod.getName());
+        }
+      }
+
       for (final ASPECT_UNION aspect : aspects) {
-        final Field[] aspectUnionFields = aspect.getClass().getDeclaredFields();
-        final Field[] assetFields = asset.getClass().getDeclaredFields();
-        for (final Field aspectUnionField : aspectUnionFields) {
-          if (aspectUnionField.getName().startsWith(MEMBER_FIELD_PREFIX)) {
-            final String aspectFieldName = aspectUnionField.getName().substring(MEMBER_FIELD_PREFIX.length());
-            for (final Field assetField : assetFields) {
-              if (assetField.getName().startsWith(FIELD_FIELD_PREFIX) && assetField.getName()
-                  .substring(FIELD_FIELD_PREFIX.length())
-                  .equals(aspectFieldName)) {
-                final Object aspectValue = aspect.getClass().getMethod("get" + aspectFieldName).invoke(aspect);
-                if (aspectValue != null) {
-                  asset.getClass()
-                      .getMethod("set" + aspectFieldName, aspectValue.getClass())
-                      .invoke(asset, aspectValue);
-                }
-              }
+        // TODO: cache the aspect union methods loading
+        final Map<String, String> aspectTypeToAspectUnionGetterMap = new HashMap<>();
+        for (final Method aspectUnionMethod : aspect.getClass().getMethods()) {
+          if (aspectUnionMethod.getName().startsWith("get")) {
+            aspectTypeToAspectUnionGetterMap.put(aspectUnionMethod.getReturnType().getName(),
+                aspectUnionMethod.getName());
+          }
+        }
+        for (final String aspectType : aspectTypeToAssetSetterMap.keySet()) {
+          if (aspectTypeToAspectUnionGetterMap.containsKey(aspectType)) {
+            Object aspectValue =
+                aspect.getClass().getMethod(aspectTypeToAspectUnionGetterMap.get(aspectType)).invoke(aspect);
+            if (aspectValue != null) {
+              asset.getClass()
+                  .getMethod(aspectTypeToAssetSetterMap.get(aspectType), aspectValue.getClass())
+                  .invoke(asset, aspectValue);
             }
           }
         }

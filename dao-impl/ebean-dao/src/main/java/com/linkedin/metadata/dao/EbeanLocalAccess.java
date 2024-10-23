@@ -68,6 +68,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   private static final int DEFAULT_PAGE_SIZE = 1000;
   private static final String ASPECT_JSON_PLACEHOLDER = "__PLACEHOLDER__";
   private static final String DEFAULT_ACTOR = "urn:li:principal:UNKNOWN";
+  private static final String SERVICE_IDENTIFIER = "SERVICE_IDENTIFIER";
 
   // key: table_name,
   // value: Set(column1, column2, column3 ...)
@@ -175,7 +176,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       final Urn entityUrn = aspectKeys.get(index).getUrn();
       final Class<ASPECT> aspectClass = (Class<ASPECT>) aspectKeys.get(index).getAspectClass();
       if (checkColumnExists(isTestMode ? getTestTableName(entityUrn) : getTableName(entityUrn),
-          getAspectColumnName(aspectClass))) {
+          getAspectColumnName(entityUrn.getEntityType(), aspectClass))) {
         keysToQueryMap.computeIfAbsent(aspectClass, unused -> new HashSet<>()).add(entityUrn);
       }
     }
@@ -261,7 +262,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       } else {
         sqlRow.set("_total_count", 1);
         final ASPECT aspect = RecordUtils.toRecordTemplate(aspectClass,
-            extractAspectJsonString(sqlRow.getString(getAspectColumnName(aspectClass))));
+            extractAspectJsonString(sqlRow.getString(getAspectColumnName(urn.getEntityType(), aspectClass))));
         final ListResultMetadata listResultMetadata = new ListResultMetadata().setExtraInfos(new ExtraInfoArray());
         final ExtraInfo extraInfo = new ExtraInfo().setUrn(urn)
             .setVersion(LATEST_VERSION)
@@ -282,8 +283,8 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   public <ASPECT extends RecordTemplate> ListResult<ASPECT> list(@Nonnull Class<ASPECT> aspectClass, int start,
       int pageSize) {
 
-    final String tableName = SQLSchemaUtils.getTableName(_entityType);
-    final String listAspectSql = SQLStatementUtils.createListAspectWithPaginationSql(aspectClass, tableName, false, start, pageSize);
+
+    final String listAspectSql = SQLStatementUtils.createListAspectWithPaginationSql(aspectClass, _entityType, false, start, pageSize);
     final SqlQuery sqlQuery = _server.createSqlQuery(listAspectSql);
     final List<SqlRow> sqlRows = sqlQuery.findList();
     if (sqlRows.isEmpty()) {
@@ -297,7 +298,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
                   sqlRow.getString("createdfor")));
       listResultMetadata.getExtraInfos().add(extraInfo);
       return RecordUtils.toRecordTemplate(aspectClass,
-          extractAspectJsonString(sqlRow.getString(getAspectColumnName(aspectClass))));
+          extractAspectJsonString(sqlRow.getString(getAspectColumnName(_entityType, aspectClass))));
     }).collect(Collectors.toList());
     return toListResult(aspectList, sqlRows, listResultMetadata, start, pageSize);
   }
@@ -308,7 +309,9 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   public Map<String, Long> countAggregate(@Nullable IndexFilter indexFilter,
       @Nonnull IndexGroupByCriterion indexGroupByCriterion) {
     final String tableName = SQLSchemaUtils.getTableName(_entityType);
-    final String groupByColumn = getGeneratedColumnName(indexGroupByCriterion.getAspect(), indexGroupByCriterion.getPath(), _nonDollarVirtualColumnsEnabled);
+    final String groupByColumn =
+        getGeneratedColumnName(_entityType, indexGroupByCriterion.getAspect(), indexGroupByCriterion.getPath(),
+            _nonDollarVirtualColumnsEnabled);
     // first, check for existence of the column we want to GROUP BY
     if (!checkColumnExists(tableName, groupByColumn)) {
       // if we are trying to GROUP BY the results on a column that does not exist, just return an empty map
@@ -316,7 +319,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     }
 
     // now run the actual GROUP BY query
-    final String groupBySql = SQLStatementUtils.createGroupBySql(tableName, indexFilter, indexGroupByCriterion, _nonDollarVirtualColumnsEnabled);
+    final String groupBySql = SQLStatementUtils.createGroupBySql(_entityType, indexFilter, indexGroupByCriterion, _nonDollarVirtualColumnsEnabled);
     final SqlQuery sqlQuery = _server.createSqlQuery(groupBySql);
     final List<SqlRow> sqlRows = sqlQuery.findList();
     Map<String, Long> resultMap = new HashMap<>();
@@ -342,12 +345,10 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    */
   private SqlQuery createFilterSqlQuery(@Nullable IndexFilter indexFilter,
       @Nullable IndexSortCriterion indexSortCriterion, int offset, int pageSize) {
-
-    final String tableName = SQLSchemaUtils.getTableName(_entityType);
     StringBuilder filterSql = new StringBuilder();
-    filterSql.append(SQLStatementUtils.createFilterSql(tableName, indexFilter, true, _nonDollarVirtualColumnsEnabled));
+    filterSql.append(SQLStatementUtils.createFilterSql(_entityType, indexFilter, true, _nonDollarVirtualColumnsEnabled));
     filterSql.append("\n");
-    filterSql.append(parseSortCriteria(indexSortCriterion, _nonDollarVirtualColumnsEnabled));
+    filterSql.append(parseSortCriteria(_entityType, indexSortCriterion, _nonDollarVirtualColumnsEnabled));
     filterSql.append(String.format(" LIMIT %d", Math.max(pageSize, 0)));
     filterSql.append(String.format(" OFFSET %d", Math.max(offset, 0)));
     return _server.createSqlQuery(filterSql.toString());
@@ -359,8 +360,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   private SqlQuery createFilterSqlQuery(@Nullable IndexFilter indexFilter,
       @Nullable IndexSortCriterion indexSortCriterion, @Nullable URN lastUrn, int pageSize) {
     StringBuilder filterSql = new StringBuilder();
-    final String tableName = SQLSchemaUtils.getTableName(_entityType);
-    filterSql.append(SQLStatementUtils.createFilterSql(tableName, indexFilter, false, _nonDollarVirtualColumnsEnabled));
+    filterSql.append(SQLStatementUtils.createFilterSql(_entityType, indexFilter, false, _nonDollarVirtualColumnsEnabled));
 
     if (lastUrn != null) {
       // because createFilterSql will only include a WHERE clause if there are non-urn filters, we need to make sure
@@ -377,7 +377,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     }
 
     filterSql.append("\n");
-    filterSql.append(parseSortCriteria(indexSortCriterion, _nonDollarVirtualColumnsEnabled));
+    filterSql.append(parseSortCriteria(_entityType, indexSortCriterion, _nonDollarVirtualColumnsEnabled));
     filterSql.append(String.format(" LIMIT %d", Math.max(pageSize, 0)));
     return _server.createSqlQuery(filterSql.toString());
   }
@@ -494,10 +494,14 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
   @Nonnull
   private SchemaEvolutionManager createSchemaEvolutionManager(@Nonnull ServerConfig serverConfig) {
+    String identifier = serverConfig.getDataSourceConfig().getCustomProperties() != null
+        ? serverConfig.getDataSourceConfig().getCustomProperties().getOrDefault(SERVICE_IDENTIFIER, null)
+        : null;
     SchemaEvolutionManager.Config config = new SchemaEvolutionManager.Config(
         serverConfig.getDataSourceConfig().getUrl(),
         serverConfig.getDataSourceConfig().getPassword(),
-        serverConfig.getDataSourceConfig().getUsername());
+        serverConfig.getDataSourceConfig().getUsername(),
+        identifier);
 
     return new FlywaySchemaEvolutionManager(config);
   }

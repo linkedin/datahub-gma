@@ -7,7 +7,9 @@ import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.validator.NullFieldException;
 import com.linkedin.testing.AspectAttributes;
+import com.linkedin.testing.AspectFooEvolved;
 import com.linkedin.testing.AspectUnionWithSoftDeletedAspect;
+import com.linkedin.testing.BarAsset;
 import com.linkedin.testing.BarUrnArray;
 import com.linkedin.testing.DatasetInfo;
 import com.linkedin.testing.DeltaUnionAlias;
@@ -319,14 +321,34 @@ public class ModelUtilsTest {
     EntityAsset asset = new EntityAsset();
     AspectFoo expectedAspectFoo = new AspectFoo().setValue("foo");
     AspectBar expectedAspectBar = new AspectBar().setValue("bar");
-    asset.setAspectFoo(expectedAspectFoo);
-    asset.setAspectBar(expectedAspectBar);
+    asset.setFoo(expectedAspectFoo);
+    asset.setBar(expectedAspectBar);
 
     List<? extends RecordTemplate> aspects = ModelUtils.getAspectsFromAsset(asset);
 
     assertEquals(aspects.size(), 2);
     assertEquals(aspects.get(0), expectedAspectFoo);
     assertEquals(aspects.get(1), expectedAspectBar);
+
+
+    BarAsset barAsset = new BarAsset();
+    aspects = ModelUtils.getAspectsFromAsset(barAsset);
+    assertTrue(aspects.isEmpty());
+  }
+
+  @Test
+  public void testGetAspectTypesFromAssetType() {
+    List<Class<? extends RecordTemplate>> assetTypes = ModelUtils.getAspectTypesFromAssetType(BarAsset.class);
+    assertEquals(assetTypes.size(), 1);
+    assertEquals(assetTypes.get(0), AspectBar.class);
+
+    assetTypes = ModelUtils.getAspectTypesFromAssetType(EntityAsset.class);
+    assertEquals(assetTypes.size(), 5);
+    assertEquals(assetTypes.get(0), AspectFoo.class);
+    assertEquals(assetTypes.get(1), AspectBar.class);
+    assertEquals(assetTypes.get(2), AspectFooEvolved.class);
+    assertEquals(assetTypes.get(3), AspectFooBar.class);
+    assertEquals(assetTypes.get(4), AspectAttributes.class);
   }
 
   @Test
@@ -601,10 +623,10 @@ public class ModelUtilsTest {
         ModelUtils.newAsset(EntityAsset.class, expectedUrn, Lists.newArrayList(aspectUnion1, aspectUnion2));
 
     assertEquals(asset.getUrn(), expectedUrn);
-    assertTrue(asset.hasAspectFoo());
-    assertTrue(asset.hasAspectBar());
-    assertEquals(asset.getAspectFoo(), expectedFoo);
-    assertEquals(asset.getAspectBar(), expectedBar);
+    assertTrue(asset.hasFoo());
+    assertTrue(asset.hasBar());
+    assertEquals(asset.getFoo(), expectedFoo);
+    assertEquals(asset.getBar(), expectedBar);
     assertFalse(asset.hasAspectAttributes());
   }
 
@@ -626,10 +648,10 @@ public class ModelUtilsTest {
     EntityAsset entityAsset = ModelUtils.convertSnapshotToAsset(EntityAsset.class, snapshot);
 
     assertEquals(entityAsset.getUrn(), expectedUrn);
-    assertTrue(entityAsset.hasAspectFoo());
-    assertTrue(entityAsset.hasAspectBar());
-    assertEquals(entityAsset.getAspectFoo(), expectedFoo);
-    assertEquals(entityAsset.getAspectBar(), expectedBar);
+    assertTrue(entityAsset.hasFoo());
+    assertTrue(entityAsset.hasBar());
+    assertEquals(entityAsset.getFoo(), expectedFoo);
+    assertEquals(entityAsset.getBar(), expectedBar);
     assertFalse(entityAsset.hasAspectAttributes());
   }
 
@@ -651,9 +673,9 @@ public class ModelUtilsTest {
     EntityAsset entityAsset = ModelUtils.convertSnapshotToAsset(EntityAsset.class, internalEntitySnapshot);
 
     assertEquals(entityAsset.getUrn(), expectedUrn);
-    assertEquals(entityAsset.getAspectFoo(), expectedFoo);
+    assertEquals(entityAsset.getFoo(), expectedFoo);
     assertEquals(entityAsset.getAspectFooBar(), expectedFooBar);
-    assertFalse(entityAsset.hasAspectBar());
+    assertFalse(entityAsset.hasBar());
     assertFalse(entityAsset.hasAspectAttributes());
   }
 
@@ -665,8 +687,8 @@ public class ModelUtilsTest {
     AspectBar expectedBar = new AspectBar().setValue("bar");
     AspectFooBar expectedFooBar = new AspectFooBar().setBars(new BarUrnArray(new BarUrn(2)));
     asset.setUrn(expectedUrn);
-    asset.setAspectFoo(expectedFoo);
-    asset.setAspectBar(expectedBar);
+    asset.setFoo(expectedFoo);
+    asset.setBar(expectedBar);
     asset.setAspectFooBar(expectedFooBar);
 
     InternalEntitySnapshot internalEntitySnapshot =
@@ -793,5 +815,23 @@ public class ModelUtilsTest {
 
     assertEquals(entityType, expectedUrn.getEntityType());
     assertNull(ModelUtils.getEntityType(null));
+  }
+
+  @Test
+  public void testGetUrnTypeFromAssetType() {
+    String assetType = ModelUtils.getUrnTypeFromAsset(BarAsset.class);
+    assertEquals(BarUrn.ENTITY_TYPE, assetType);
+  }
+
+  @Test
+  public void testGetAspectAlias() {
+    assertEquals(ModelUtils.getAspectAlias(BarAsset.class, AspectBar.class.getCanonicalName()), "aspect_bar");
+    assertNull(ModelUtils.getAspectAlias(BarAsset.class, AspectFoo.class.getCanonicalName()), "aspect_foo");
+    try {
+      ModelUtils.getAspectAlias(AspectBar.class, AspectFoo.class.getCanonicalName());
+      fail("should fail on non-Asset template");
+    } catch (Exception e) {
+
+    }
   }
 }

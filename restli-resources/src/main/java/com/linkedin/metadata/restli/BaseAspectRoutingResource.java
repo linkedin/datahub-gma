@@ -1,6 +1,5 @@
 package com.linkedin.metadata.restli;
 
-import com.google.protobuf.Message;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
@@ -8,8 +7,9 @@ import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.StringArray;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.AspectKey;
-import com.linkedin.metadata.dao.ingestion.RestliCompliantPreUpdateRoutingClient;
-import com.linkedin.metadata.dao.ingestion.RestliPreUpdateAspectRegistry;
+import com.linkedin.metadata.dao.ingestion.AspectCallbackRegistry;
+import com.linkedin.metadata.dao.ingestion.AspectCallbackResponse;
+import com.linkedin.metadata.dao.ingestion.AspectCallbackRoutingClient;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.internal.IngestionParams;
@@ -43,11 +43,13 @@ import lombok.extern.slf4j.Slf4j;
 import static com.linkedin.metadata.dao.BaseReadDAO.*;
 import static com.linkedin.metadata.dao.utils.ModelUtils.*;
 import static com.linkedin.metadata.restli.RestliConstants.*;
+import static com.linkedin.restli.common.HttpStatus.*;
 
 
 /**
  * Extends {@link BaseBrowsableEntityResource} with aspect routing capability.
- * For certain aspect of an entity, incoming request will be routed to different GMS.
+ * For certain aspects of an entity, incoming requests will be routed to a different GMS in addition to being
+ * written locally (i.e. dual write).
  * See http://go/aspect-routing for more details
  */
 @Slf4j
@@ -72,7 +74,6 @@ public abstract class BaseAspectRoutingResource<
   private final Class<INTERNAL_SNAPSHOT> _internalSnapshotClass;
   private final Class<INTERNAL_ASPECT_UNION> _internalAspectUnionClass;
   private final Class<ASSET> _assetClass;
-  private RestliPreUpdateAspectRegistry _restliPreUpdateAspectRegistry = null;
   private static final List<String> SKIP_INGESTION_FOR_ASPECTS = Collections.singletonList("com.linkedin.dataset.DatasetAccountableOwnership");
 
   public BaseAspectRoutingResource(@Nullable Class<SNAPSHOT> snapshotClass,
@@ -93,11 +94,6 @@ public abstract class BaseAspectRoutingResource<
    * @return {@link AspectRoutingGmsClientManager}
    */
   public abstract AspectRoutingGmsClientManager getAspectRoutingGmsClientManager();
-
-  /** Set the restliPreUpdateAspectRegistry. */
-  public void setRestliPreUpdateAspectRegistry(RestliPreUpdateAspectRegistry restliPreUpdateAspectRegistry) {
-    _restliPreUpdateAspectRegistry = restliPreUpdateAspectRegistry;
-  }
 
   /**
    * Retrieves the value for an entity that is made up of latest versions of specified aspects.
@@ -304,6 +300,15 @@ public abstract class BaseAspectRoutingResource<
     });
   }
 
+  /**
+   * Internal ingest method for snapshots. First execute any pre-ingestion updates. Then, route any aspects which have a registered routing
+   * GMS client to the respective GMS for ingestion. Finally, continue to save the aspect locally as well (i.e. dual write)
+   * @param snapshot snapshot to process
+   * @param aspectsToIgnore aspects to ignore
+   * @param trackingContext context for tracking ingestion health
+   * @param ingestionParams optional ingestion parameters
+   * @return Restli Task for metadata ingestion
+   */
   @Nonnull
   @Override
   protected Task<Void> ingestInternal(@Nonnull SNAPSHOT snapshot,
@@ -313,39 +318,44 @@ public abstract class BaseAspectRoutingResource<
     return RestliUtils.toTask(() -> {
       final URN urn = (URN) ModelUtils.getUrnFromSnapshot(snapshot);
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
-      ModelUtils.getAspectsFromSnapshot(snapshot).forEach(aspect -> {
-        if (!aspectsToIgnore.contains(aspect.getClass())) {
-          if (_restliPreUpdateAspectRegistry != null && _restliPreUpdateAspectRegistry.isRegistered(
-              aspect.getClass())) {
-            aspect = preUpdateRouting(urn, aspect);
-          }
-          // Get the fqcn of the aspect class
-          String aspectFQCN = aspect.getClass().getCanonicalName();
-          //TODO: META-21112: Remove this check after adding annotations at model level; to handle SKIP/PROCEED for preUpdateRouting
-          if (SKIP_INGESTION_FOR_ASPECTS.contains(aspectFQCN)) {
-            return;
-          }
-          if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
-            try {
-              if (trackingContext != null) {
-                getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingestWithTracking(urn, aspect, trackingContext, ingestionParams);
-              } else {
-                getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingest(urn, aspect);
-              }
-            } catch (Exception exception) {
-              log.error(
-                  String.format("Couldn't ingest routing aspect %s for %s", aspect.getClass().getSimpleName(), urn),
-                  exception);
-            }
-          } else {
-            getLocalDAO().add(urn, aspect, auditStamp, trackingContext, ingestionParams);
-          }
-        }
-      });
+      ModelUtils.getAspectsFromSnapshot(snapshot).forEach(aspect ->
+        ingestAspect(aspectsToIgnore, urn, aspect, trackingContext, ingestionParams, auditStamp, false));
       return null;
     });
   }
 
+  /**
+   * Raw internal ingest method for snapshots which skips any pre-, intra-, or post-processing. Route any aspects which
+   * have a registered routing GMS client to the respective GMS for ingestion. Finally, continue to save the aspect
+   * locally as well (i.e. dual write)
+   * @param snapshot snapshot to process
+   * @param aspectsToIgnore aspects to ignore
+   * @param trackingContext context for tracking ingestion health
+   * @param ingestionParams optional ingestion parameters
+   * @return Restli Task for metadata ingestion
+   */
+  @Nonnull
+  protected Task<Void> rawIngestInternal(@Nonnull SNAPSHOT snapshot,
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore, @Nullable IngestionTrackingContext trackingContext,
+      @Nullable IngestionParams ingestionParams) {
+    // TODO: META-18950: add trackingContext to BaseAspectRoutingResource. currently the param is unused.
+    return RestliUtils.toTask(() -> {
+      final URN urn = (URN) ModelUtils.getUrnFromSnapshot(snapshot);
+      final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
+      ModelUtils.getAspectsFromSnapshot(snapshot).forEach(aspect ->
+          ingestAspect(aspectsToIgnore, urn, aspect, trackingContext, ingestionParams, auditStamp, true));
+      return null;
+    });
+  }
+
+  /**
+   * Internal ingest method for assets. First execute any pre-ingestion updates. Then, route any aspects which have a registered routing
+   * GMS client to the respective GMS for ingestion. Finally, continue to save the aspect locally as well (i.e. dual write)
+   * @param asset asset to process
+   * @param aspectsToIgnore aspects to ignore
+   * @param ingestionParams optional ingestion parameters
+   * @return Restli Task for metadata ingestion
+   */
   @Nonnull
   @Override
   protected Task<Void> ingestInternalAsset(@Nonnull ASSET asset,
@@ -357,36 +367,90 @@ public abstract class BaseAspectRoutingResource<
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
       IngestionTrackingContext trackingContext =
           ingestionParams != null ? ingestionParams.getIngestionTrackingContext() : null;
-      ModelUtils.getAspectsFromAsset(asset).forEach(aspect -> {
-        if (!aspectsToIgnore.contains(aspect.getClass())) {
-          if (_restliPreUpdateAspectRegistry != null && _restliPreUpdateAspectRegistry.isRegistered(
-              aspect.getClass())) {
-            aspect = preUpdateRouting(urn, aspect);
-          }
-          // Get the fqcn of the aspect class
-          String aspectFQCN = aspect.getClass().getCanonicalName();
-          //TODO: META-21112: Remove this check after adding annotations at model level; to handle SKIP/PROCEED for preUpdateRouting
-          if (SKIP_INGESTION_FOR_ASPECTS.contains(aspectFQCN)) {
-            return;
-          }
-          if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
-            try {
-              if (trackingContext != null) {
-                getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass())
-                    .ingestWithTracking(urn, aspect, trackingContext, ingestionParams);
-              } else {
-                getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingest(urn, aspect);
-              }
-            } catch (Exception exception) {
-              log.error("Couldn't ingest routing aspect {} for {}", aspect.getClass().getSimpleName(), urn, exception);
-            }
-          } else {
-            getLocalDAO().add(urn, aspect, auditStamp, trackingContext, ingestionParams);
-          }
-        }
-      });
+      ModelUtils.getAspectsFromAsset(asset).forEach(aspect ->
+          ingestAspect(aspectsToIgnore, urn, aspect, trackingContext, ingestionParams, auditStamp, false));
       return null;
     });
+  }
+
+  /**
+   * Raw internal ingest method for assets which skips any pre-, intra-, or post-processing. Route any aspects which
+   * have a registered routing GMS client to the respective GMS for ingestion. Finally, continue to save the aspect
+   * locally as well (i.e. dual write)
+   * @param asset asset to process
+   * @param aspectsToIgnore aspects to ignore
+   * @param ingestionParams optional ingestion parameters
+   * @return Restli Task for metadata ingestion
+   */
+  @Nonnull
+  protected Task<Void> rawIngestInternalAsset(@Nonnull ASSET asset,
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore,
+      @Nullable IngestionParams ingestionParams) {
+    // TODO: META-18950: add trackingContext to BaseAspectRoutingResource. currently the param is unused.
+    return RestliUtils.toTask(() -> {
+      final URN urn = (URN) ModelUtils.getUrnFromAsset(asset);
+      final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
+      IngestionTrackingContext trackingContext =
+          ingestionParams != null ? ingestionParams.getIngestionTrackingContext() : null;
+      ModelUtils.getAspectsFromAsset(asset).forEach(aspect ->
+          ingestAspect(aspectsToIgnore, urn, aspect, trackingContext, ingestionParams, auditStamp, true));
+      return null;
+    });
+  }
+
+  /**
+   * Helper function to ingest an aspect either via routing or locally (or both). There is a flag that can be toggled
+   * to indicate whether to execute pre-, intra-, or post-ingestion updates if they exist.
+   * @param aspectsToIgnore set of aspect classes to ignore, if any
+   * @param urn urn associated with the aspect to ingest
+   * @param aspect aspect to ingest
+   * @param trackingContext context for tracking ingestion health
+   * @param ingestionParams optional ingestion parameters
+   * @param auditStamp audit information of the update
+   * @param skipExtraProcessing flag to indicate whether to execute pre-, intra-, or post-ingestion updates
+   */
+  private void ingestAspect(Set<Class<? extends RecordTemplate>> aspectsToIgnore, Urn urn, RecordTemplate aspect,
+      IngestionTrackingContext trackingContext, IngestionParams ingestionParams, AuditStamp auditStamp,
+      boolean skipExtraProcessing) {
+    if (!aspectsToIgnore.contains(aspect.getClass())) {
+      if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
+        try {
+          // get the updated aspect if there is a preupdate routing lambda registered
+          AspectCallbackRegistry registry = getLocalDAO().getAspectCallbackRegistry();
+          if (!skipExtraProcessing && registry != null && registry.isRegistered(aspect.getClass(), urn.getEntityType())) {
+            log.info(String.format("Executing registered pre-update routing lambda for aspect class %s.", aspect.getClass()));
+            aspect = aspectCallbackHelper((URN) urn, aspect, registry);
+            log.info("PreUpdateRouting completed in ingestInternalAsset, urn: {}, updated aspect: {}", urn, aspect);
+            // Get the fqcn of the aspect class
+            String aspectFQCN = aspect.getClass().getCanonicalName();
+            //TODO: META-21112: Remove this check after adding annotations at model level; to handle SKIP/PROCEED for preUpdateRouting
+            if (SKIP_INGESTION_FOR_ASPECTS.contains(aspectFQCN)) {
+              log.info("Skip ingestion in ingestInternalAsset for urn: {}, aspectFQCN: {}", urn, aspectFQCN);
+              return;
+            }
+          }
+          if (trackingContext != null) {
+            getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass())
+                .ingestWithTracking(urn, aspect, trackingContext, ingestionParams);
+          } else {
+            getAspectRoutingGmsClientManager().getRoutingGmsClient(aspect.getClass()).ingest(urn, aspect);
+          }
+          // here, always call a simple version of BaseLocalDAO::add which skips pre-update lambdas regardless of
+          // the value of param skipExtraProcessing since any pre-update lambdas would have already been executed
+          // in the code above.
+          getLocalDAO().rawAdd((URN) urn, aspect, auditStamp, trackingContext, ingestionParams);
+        } catch (Exception exception) {
+          log.error("Couldn't ingest routing aspect {} for {}", aspect.getClass().getSimpleName(), urn, exception);
+        }
+      } else {
+        if (skipExtraProcessing) {
+          // call a simple version of BaseLocalDAO::add which skips pre-update lambdas.
+          getLocalDAO().rawAdd((URN) urn, aspect, auditStamp, trackingContext, ingestionParams);
+        } else {
+          getLocalDAO().add((URN) urn, aspect, auditStamp, trackingContext, ingestionParams);
+        }
+      }
+    }
   }
 
   /**
@@ -605,12 +669,15 @@ public abstract class BaseAspectRoutingResource<
   private List<? extends RecordTemplate> getValueFromRoutingGms(@Nonnull URN urn,
       Collection<Class<? extends RecordTemplate>> routeAspectClasses) {
     return routeAspectClasses.stream().map(routeAspectClass -> {
-
       try {
         return getAspectRoutingGmsClientManager().getRoutingGmsClient(routeAspectClass).get(urn);
-      } catch (Exception exception) {
-        log.error(String.format("Couldn't get routing aspect %s for %s", routeAspectClass.getSimpleName(), urn),
-            exception);
+      } catch (Exception e) {
+        String logMessage = String.format("Couldn't find routing aspect %s for %s", routeAspectClass.getSimpleName(), urn);
+        if (e instanceof RestLiServiceException && ((RestLiServiceException) e).getStatus() == S_404_NOT_FOUND) {
+         log.warn(logMessage, e);
+        } else {
+          log.error(logMessage, e);
+        }
         return null;
       }
     }).filter(Objects::nonNull).collect(Collectors.toList());
@@ -620,13 +687,12 @@ public abstract class BaseAspectRoutingResource<
    * This method routes the update request to the appropriate custom API for pre-ingestion processing.
    * @param urn the urn of the asset
    * @param aspect the new aspect value
+   * @param registry the aspect callback registry
    * @return the updated aspect
    */
-  private RecordTemplate preUpdateRouting(URN urn, RecordTemplate aspect) {
-    RestliCompliantPreUpdateRoutingClient client =
-        _restliPreUpdateAspectRegistry.getPreUpdateRoutingClient(aspect);
-    Message updatedAspect =
-        client.routingLambda(client.convertUrnToMessage(urn), client.convertAspectToMessage(aspect));
-    return client.convertAspectFromMessage(updatedAspect);
+  private RecordTemplate aspectCallbackHelper(URN urn, RecordTemplate aspect, AspectCallbackRegistry registry) {
+    AspectCallbackRoutingClient preUpdateClient = registry.getAspectCallbackRoutingClient(aspect.getClass(), urn.getEntityType());
+    AspectCallbackResponse aspectCallbackResponse = preUpdateClient.routeAspectCallback(urn, aspect, null);
+    return aspectCallbackResponse.getUpdatedAspect();
   }
 }

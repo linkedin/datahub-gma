@@ -239,4 +239,81 @@ public class EbeanGenericLocalDAOTest {
     assertEquals(backfillResults.size(), 1);
     assertEquals(backfillResults.get(fooUrn).get(AspectFoo.class).get(), aspectFoo);
   }
+
+  @Test
+  public void testDelete() throws URISyntaxException {
+    FooUrn fooUrn = FooUrn.createFromString("urn:li:foo:1");
+    AspectFoo aspectFoo = new AspectFoo().setValue("foo");
+
+    _genericLocalDAO.save(fooUrn, AspectFoo.class, RecordUtils.toJsonString(aspectFoo),
+        makeAuditStamp("tester"), null, null);
+
+    verify(_producer, times(1)).produceAspectSpecificMetadataAuditEvent(eq(fooUrn),
+        eq(null), eq(aspectFoo), eq(makeAuditStamp("tester")), eq(null), eq(null));
+
+    Optional<GenericLocalDAO.MetadataWithExtraInfo> metadata = _genericLocalDAO.queryLatest(fooUrn, AspectFoo.class);
+
+    // {"value":"foo"} is inserted later so it is the latest metadata.
+    assertTrue(metadata.isPresent());
+    assertEquals(metadata.get().getAspect(), RecordUtils.toJsonString(aspectFoo));
+
+    reset(_producer);
+
+    // Delete the record and verify it is deleted.
+    _genericLocalDAO.delete(fooUrn, AspectFoo.class, makeAuditStamp("tester"));
+
+    metadata = _genericLocalDAO.queryLatest(fooUrn, AspectFoo.class);
+    assertFalse(metadata.isPresent());
+
+    // does not produce MAE for deletion
+    verify(_producer, times(0)).produceAspectSpecificMetadataAuditEvent(eq(fooUrn),
+        any(), any(), any(), any(), any());
+    verifyNoMoreInteractions(_producer);
+  }
+
+  @Test
+  public void testDeleteVoid() throws URISyntaxException {
+    FooUrn fooUrn = FooUrn.createFromString("urn:li:foo:1");
+
+    Optional<GenericLocalDAO.MetadataWithExtraInfo> metadata = _genericLocalDAO.queryLatest(fooUrn, AspectFoo.class);
+
+    // no record is returned.
+    assertFalse(metadata.isPresent());
+
+    // Delete the record and verify no record is returned.
+    _genericLocalDAO.delete(fooUrn, AspectFoo.class, makeAuditStamp("tester"));
+
+    metadata = _genericLocalDAO.queryLatest(fooUrn, AspectFoo.class);
+    assertFalse(metadata.isPresent());
+
+    // does not produce MAE for deletion
+    verify(_producer, times(0)).produceAspectSpecificMetadataAuditEvent(eq(fooUrn),
+        any(), any(), any(), any(), any());
+    verifyNoMoreInteractions(_producer);
+  }
+
+  @Test
+  public void testBackfillAfterDelete() throws URISyntaxException {
+    FooUrn fooUrn = FooUrn.createFromString("urn:li:foo:1");
+    AspectFoo aspectFoo = new AspectFoo().setValue("foo");
+
+    _genericLocalDAO.save(fooUrn, AspectFoo.class, RecordUtils.toJsonString(aspectFoo),
+        makeAuditStamp("tester"), null, null);
+
+    Map<Urn, Set<Class<? extends RecordTemplate>>> aspects = Collections.singletonMap(fooUrn, Collections.singleton(AspectFoo.class));
+
+    Map<Urn, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfillResults
+        = _genericLocalDAO.backfill(BackfillMode.BACKFILL_ALL, aspects);
+
+    assertEquals(backfillResults.size(), 1);
+    assertEquals(backfillResults.get(fooUrn).get(AspectFoo.class).get(), aspectFoo);
+
+
+    // verify no aspect will be backfilled after deletion
+    _genericLocalDAO.delete(fooUrn, AspectFoo.class, makeAuditStamp("tester"));
+
+    backfillResults = _genericLocalDAO.backfill(BackfillMode.BACKFILL_ALL, aspects);
+    assertEquals(backfillResults.size(), 1);
+    assertEquals(backfillResults.get(fooUrn).size(), 0);
+  }
 }

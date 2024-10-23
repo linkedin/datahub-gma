@@ -8,10 +8,12 @@ import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.UnionTemplate;
+import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.builder.LocalRelationshipBuilderRegistry;
 import com.linkedin.metadata.dao.exception.ModelConversionException;
 import com.linkedin.metadata.dao.exception.RetryLimitReached;
+import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
@@ -136,6 +138,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   /**
    * Set where the relationships should be derived from during ingestion. Either from aspect models or from relationship
    * builders. The default is relationship builders. This should only be used during DAO instantiation i.e. in the DAO factory.
+   * One limitation when setting this is that all aspects for a particular entity type must use the same relationship source config.
    * @param relationshipSource {@link RelationshipSource ASPECT_METADATA or RELATIONSHIP_BUILDERS}
    */
   public void setRelationshipSource(RelationshipSource relationshipSource) {
@@ -609,7 +612,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       }
 
       if (_relationshipSource == RelationshipSource.ASPECT_METADATA) {
-        // TODO: not yet implemented
+        // TODO: not yet implemented -> add support for removing relationships when the aspect is to be soft-deleted
         throw new UnsupportedOperationException("This method has not been implemented yet to support the "
             + "ASPECT_METADATA RelationshipSource type yet.");
       }
@@ -863,8 +866,12 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       _localAccess.add(urn, (ASPECT) value, aspectClass, auditStamp, trackingContext, isTestMode);
     }
 
-    if (_changeLogEnabled) {
-      // skip appending change log table (metadata_aspect) if not enabled
+    // DO append change log table (metadata_aspect) if:
+    //   1. explicitly enabled
+    //   AND
+    //   2. if NOT in test mode
+    //      -> which is ALWAYS a dual-write operation (meaning this insertion will already happen in the "other" write)
+    if (_changeLogEnabled && !isTestMode) {
       _server.insert(aspect);
     }
   }
@@ -878,24 +885,26 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * @param isTestMode Whether the test mode is enabled or not
    * @return List of LocalRelationshipUpdates that were executed
    */
-  public <ASPECT extends RecordTemplate> List<LocalRelationshipUpdates> addRelationshipsIfAny(@Nonnull URN urn, @Nullable ASPECT aspect,
-      @Nonnull Class<ASPECT> aspectClass, boolean isTestMode) {
+  public <ASPECT extends RecordTemplate, RELATIONSHIP extends RecordTemplate> List<LocalRelationshipUpdates> addRelationshipsIfAny(
+      @Nonnull URN urn, @Nullable ASPECT aspect, @Nonnull Class<ASPECT> aspectClass, boolean isTestMode) {
+    List<LocalRelationshipUpdates> localRelationshipUpdates = Collections.emptyList();
     if (_relationshipSource == RelationshipSource.ASPECT_METADATA) {
-      // TODO: not yet implemented
-      throw new UnsupportedOperationException("This method has not been implemented yet to support the "
-          + "ASPECT_METADATA RelationshipSource type yet.");
+      List<List<RELATIONSHIP>> allRelationships = EBeanDAOUtils.extractRelationshipsFromAspect(aspect);
+      localRelationshipUpdates = allRelationships.stream()
+          .filter(relationships -> !relationships.isEmpty()) // ensure at least 1 relationship in sublist to avoid index out of bounds
+          .map(relationships -> new BaseLocalRelationshipBuilder.LocalRelationshipUpdates(
+              relationships, relationships.get(0).getClass(), BaseGraphWriterDAO.RemovalOption.REMOVE_NONE))
+          .collect(Collectors.toList());
     } else if (_relationshipSource == RelationshipSource.RELATIONSHIP_BUILDERS) {
       if (_localRelationshipBuilderRegistry != null && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
-        List<LocalRelationshipUpdates> localRelationshipUpdates =
-            _localRelationshipBuilderRegistry.getLocalRelationshipBuilder(aspect).buildRelationships(urn, aspect);
-        _localRelationshipWriterDAO.processLocalRelationshipUpdates(urn, localRelationshipUpdates, isTestMode);
-        return localRelationshipUpdates;
+        localRelationshipUpdates = _localRelationshipBuilderRegistry.getLocalRelationshipBuilder(aspect).buildRelationships(urn, aspect);
       }
     } else {
       throw new UnsupportedOperationException("Please ensure that the RelationshipSource enum is properly set using "
           + "setRelationshipSource method.");
     }
-    return Collections.emptyList();
+    _localRelationshipWriterDAO.processLocalRelationshipUpdates(urn, localRelationshipUpdates, isTestMode);
+    return localRelationshipUpdates;
   }
 
   @Nonnull

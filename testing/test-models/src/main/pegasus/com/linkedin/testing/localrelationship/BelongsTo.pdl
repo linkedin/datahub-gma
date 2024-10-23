@@ -4,5 +4,6 @@ namespace com.linkedin.testing.localrelationship
   "destination": "com.linkedin.testing.urn.FooUrn",
   "source": "com.linkedin.testing.urn.BarUrn"
 } ]
+@gma.model = "RELATIONSHIP"
 record BelongsTo includes BaseRelationship {
 }

@@ -23,6 +23,7 @@ import com.linkedin.restli.server.annotations.Optional;
 import com.linkedin.restli.server.annotations.PagingContextParam;
 import com.linkedin.restli.server.annotations.QueryParam;
 import com.linkedin.restli.server.annotations.RestMethod;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -200,10 +201,18 @@ public abstract class BaseSearchableEntityResource<
   public CollectionResult<VALUE, SearchResultMetadata> getSearchQueryCollectionResult(@Nonnull SearchResult<DOCUMENT> searchResult,
       @Nullable String[] aspectNames, boolean isInternalModelsEnabled) {
 
-    final List<URN> matchedUrns = searchResult.getDocumentList()
-        .stream()
-        .map(d -> (URN) ModelUtils.getUrnFromDocument(d))
-        .collect(Collectors.toList());
+    List<URN> matchedUrns = new ArrayList<>();
+
+    // First try to fetch the urns from document field. Then try to fetch urns from SearchResultMetadata.
+    if (searchResult.getDocumentList() != null && !searchResult.getDocumentList().isEmpty()) {
+      matchedUrns = searchResult.getDocumentList()
+          .stream()
+          .map(d -> (URN) ModelUtils.getUrnFromDocument(d))
+          .collect(Collectors.toList());
+    } else if (searchResult.getSearchResultMetadata().hasUrns()) {
+      matchedUrns = searchResult.getSearchResultMetadata().getUrns().stream().map(urn -> (URN) urn).collect(Collectors.toList());
+    }
+
     final Map<URN, VALUE> urnValueMap =
         getInternalNonEmpty(matchedUrns, parseAspectsParam(aspectNames, isInternalModelsEnabled),
             isInternalModelsEnabled);

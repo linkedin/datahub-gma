@@ -1,6 +1,6 @@
 buildscript {
-  ext.pegasusVersion = '28.3.7'
-  ext.junitJupiterVersion = '5.6.1'
+  ext.pegasusVersion = '29.6.9'
+  ext.junitJupiterVersion = '5.8.2'
 
   apply from: './repositories.gradle'
   buildscript.repositories.addAll(project.repositories)
@@ -34,20 +34,20 @@ project.ext.spec = [
 
 project.ext.externalDependency = [
     'assertJ': 'org.assertj:assertj-core:3.11.1',
-    'commonsIo': 'commons-io:commons-io:2.4',
+    'commonsIo': 'commons-io:commons-io:2.16.1',
     'commonsLang': 'commons-lang:commons-lang:2.6',
     'caffeine': 'com.github.ben-manes.caffeine:caffeine:2.9.2',
     'ebean': 'io.ebean:ebean:11.33.3',
     'ebeanAgent': 'io.ebean:ebean-agent:11.27.1',
     'elasticSearchRest': 'org.elasticsearch.client:elasticsearch-rest-high-level-client:5.6.8',
     'elasticSearchTransport': 'org.elasticsearch.client:transport:5.6.8',
-    'elasticSearchRest7': 'org.elasticsearch.client:elasticsearch-rest-high-level-client:7.9.3',
-    'elasticSearchTransport7': 'org.elasticsearch.client:transport:7.9.3',
+    'elasticSearchRest7': 'org.elasticsearch.client:elasticsearch-rest-high-level-client:7.17.24',
+    'elasticSearchTransport7': 'org.elasticsearch.client:transport:7.17.24',
     'flywayCore': 'org.flywaydb:flyway-core:7.15.0',
-    'guava': 'com.google.guava:guava:27.0.1-jre',
+    'guava': 'com.google.guava:guava:32.0.0-jre',
     'h2': 'com.h2database:h2:1.4.196',
-    'jacksonCore': 'com.fasterxml.jackson.core:jackson-core:2.9.7',
-    'jacksonDataBind': 'com.fasterxml.jackson.core:jackson-databind:2.9.7',
+    'jacksonCore': 'com.fasterxml.jackson.core:jackson-core:2.17.2',
+    'jacksonDataBind': 'com.fasterxml.jackson.core:jackson-databind:2.17.2',
     'javatuples': 'org.javatuples:javatuples:1.2',
     'jsonSimple': 'com.googlecode.json-simple:json-simple:1.1.1',
     'junitJupiterApi': "org.junit.jupiter:junit-jupiter-api:$junitJupiterVersion",
@@ -55,18 +55,18 @@ project.ext.externalDependency = [
     'junitJupiterEngine': "org.junit.jupiter:junit-jupiter-engine:$junitJupiterVersion",
     'junitVintageEngine': "org.junit.vintage:junit-vintage-engine:$junitJupiterVersion",
     'log4j': 'org.apache.logging.log4j:log4j-slf4j-impl:2.18.0',
-    'lombok': 'org.projectlombok:lombok:1.18.22',
-    'lombokAnnotationProcessor': 'org.projectlombok:lombok:1.18.22',
+    'lombok': 'org.projectlombok:lombok:1.18.30',
+    'lombokAnnotationProcessor': 'org.projectlombok:lombok:1.18.30',
     'maria4j': 'ch.vorburger.mariaDB4j:mariaDB4j:2.5.3',
-    'mockito': 'org.mockito:mockito-core:3.0.0',
+    'mockito': 'org.mockito:mockito-core:4.11.0',
     'mockitoInline': 'org.mockito:mockito-inline:3.11.2',
     'mysql': 'mysql:mysql-connector-java:8.0.29',
     'neo4jHarness': 'org.neo4j.test:neo4j-harness:3.4.11',
     'neo4jJavaDriver': 'org.neo4j.driver:neo4j-java-driver:4.0.0',
-    'parseqTest': 'com.linkedin.parseq:parseq:3.0.7:test',
+    'parseqTest': 'com.linkedin.parseq:parseq-test-api:5.1.20',
     'postgresql': 'org.postgresql:postgresql:42.2.14',
     'reflections': 'org.reflections:reflections:0.9.11',
-    'rythmEngine': 'org.rythmengine:rythm-engine:1.3.0',
+    'rythmEngine': 'org.rythmengine:rythm-engine:1.4.2',
     'spock': 'org.spockframework:spock-core:1.3-groovy-2.4',
     'testContainers': 'org.testcontainers:testcontainers:1.15.1',
     'testContainersJunit': 'org.testcontainers:junit-jupiter:1.15.1',

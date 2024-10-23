@@ -1,3 +1,4 @@
+DROP TABLE IF EXISTS metadata_entity_foobaz;
 DROP TABLE IF EXISTS metadata_entity_foo;
 DROP TABLE IF EXISTS metadata_entity_bar;
 DROP TABLE IF EXISTS metadata_aspect;

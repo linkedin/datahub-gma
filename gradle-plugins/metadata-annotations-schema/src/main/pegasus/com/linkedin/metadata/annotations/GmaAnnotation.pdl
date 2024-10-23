@@ -15,6 +15,15 @@ record GmaAnnotation {
   delta: optional DeltaAnnotation
 
   /**
+   * The type of model
+   */
+  model: optional enum ModelType {
+    ASSET,
+    ASPECT,
+    RELATIONSHIP
+  }
+
+  /**
    * Information about GMA Search functionality.
    */
   search: optional SearchAnnotation
