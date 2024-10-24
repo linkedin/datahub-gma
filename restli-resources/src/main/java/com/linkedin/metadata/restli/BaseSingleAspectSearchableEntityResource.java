@@ -64,6 +64,15 @@ public abstract class BaseSingleAspectSearchableEntityResource<
     _valueClass = valueClass;
   }
 
+  public BaseSingleAspectSearchableEntityResource(@Nonnull Class<ASPECT> aspectClass,
+      @Nullable Class<ASPECT_UNION> aspectUnionClass, @Nonnull Class<URN> urnClass, @Nonnull Class<VALUE> valueClass,
+      @Nullable Class<SNAPSHOT> snapshotClass, @Nonnull Class<INTERNAL_SNAPSHOT> internalSnapshotClass,
+      @Nonnull Class<INTERNAL_ASPECT_UNION> internalAspectUnionClass, @Nonnull Class<ASSET> assetClass) {
+    super(snapshotClass, aspectUnionClass, urnClass, internalSnapshotClass, internalAspectUnionClass, assetClass);
+    _aspectClass = aspectClass;
+    _valueClass = valueClass;
+  }
+
   /**
    * Takes a partial entity created by {@link #createPartialEntityFromAspect(RecordTemplate)} and the urn and
    * creates the complete entity value.
