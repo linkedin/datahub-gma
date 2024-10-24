@@ -217,9 +217,9 @@ public abstract class BaseSearchableEntityResource<
     final Map<URN, VALUE> urnValueMap =
         getInternalNonEmpty(matchedUrns, parseAspectsParam(aspectNames, isInternalModelsEnabled),
             isInternalModelsEnabled);
-    final List<URN> existingUrns = matchedUrns.stream().filter(urn -> urnValueMap.containsKey(urn)).collect(Collectors.toList());
+    final List<URN> existingUrns = matchedUrns.stream().filter(urnValueMap::containsKey).collect(Collectors.toList());
     return new CollectionResult<>(
-        existingUrns.stream().map(urn -> urnValueMap.get(urn)).collect(Collectors.toList()),
+        existingUrns.stream().map(urnValueMap::get).collect(Collectors.toList()),
         searchResult.getTotalCount(),
         searchResult.getSearchResultMetadata().setUrns(new UrnArray(existingUrns.stream().map(urn -> (Urn) urn).collect(Collectors.toList())))
     );
