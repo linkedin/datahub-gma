@@ -817,9 +817,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
         runInTransactionWithRetry(() -> aspectUpdateHelper(urn, updateLambda, auditStamp, trackingContext, isRawUpdate),
             maxTransactionRetry);
 
-    // skip MAE producing and post update hook in test mode
+    // skip MAE producing and post update hook in test mode or if the result is null (no actual update with addCommon)
     return updateLambda.getIngestionParams().isTestMode() ? result.newValue
-        : unwrapAddResult(urn, result, auditStamp, trackingContext);
+        : result == null ? null : unwrapAddResult(urn, result, auditStamp, trackingContext);
   }
 
   /**
