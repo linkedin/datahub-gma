@@ -601,22 +601,13 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       @Nonnull AuditStamp newAuditStamp, boolean isSoftDeleted, @Nullable IngestionTrackingContext trackingContext,
       boolean isTestMode) {
     // First, check that if the aspect is going to be soft-deleted that it does not have any relationships derived from it.
-    // We currently don't support soft-deleting aspects from which local relationships are derived from.
-    if (newValue == null) {
-      if (_relationshipSource == RelationshipSource.RELATIONSHIP_BUILDERS
+    // We currently don't support soft-deleting aspects from which local relationships are derived via relationship builders.
+    if (newValue == null && _relationshipSource == RelationshipSource.RELATIONSHIP_BUILDERS
           && _localRelationshipBuilderRegistry != null
           && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
-        throw new UnsupportedOperationException(
-            String.format("Aspect %s cannot be soft-deleted because it has a local relationship builder registered.",
-                aspectClass.getCanonicalName()));
-      }
-
-      if (_relationshipSource == RelationshipSource.ASPECT_METADATA && oldValue != null) {
-        List<RecordTemplate> relationships = extractRelationshipsFromAspect(oldValue).stream()
-            .flatMap(List::stream)
-            .collect(Collectors.toList());
-        _localRelationshipWriterDAO.removeRelationships(relationships);
-      }
+      throw new UnsupportedOperationException(
+          String.format("Aspect %s cannot be soft-deleted because it has a local relationship builder registered.",
+              aspectClass.getCanonicalName()));
     }
 
     // Save oldValue as the largest version + 1
@@ -657,8 +648,17 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       insert(urn, newValue, aspectClass, newAuditStamp, LATEST_VERSION, trackingContext, isTestMode);
     }
 
-    // Add any local relationships that are derived from the aspect.
-    addRelationshipsIfAny(urn, newValue, aspectClass, isTestMode);
+    // If the aspect is to be soft deleted and we are deriving relationships from aspect metadata, remove any relationships
+    // associated with the previous aspect value.
+    if (newValue == null && _relationshipSource == RelationshipSource.ASPECT_METADATA && oldValue != null) {
+      List<RecordTemplate> relationships = extractRelationshipsFromAspect(oldValue).stream()
+          .flatMap(List::stream)
+          .collect(Collectors.toList());
+      _localRelationshipWriterDAO.removeRelationships(relationships);
+    // Otherwise, add any local relationships that are derived from the aspect.
+    } else {
+      addRelationshipsIfAny(urn, newValue, aspectClass, isTestMode);
+    }
 
     return largestVersion;
   }
