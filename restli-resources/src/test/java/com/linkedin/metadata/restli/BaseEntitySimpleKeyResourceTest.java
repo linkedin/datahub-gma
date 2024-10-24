@@ -28,6 +28,7 @@ import com.linkedin.testing.EntityValue;
 import com.linkedin.testing.InternalEntityAspectUnion;
 import com.linkedin.testing.InternalEntitySnapshot;
 import com.linkedin.testing.localrelationship.AspectFooBar;
+import com.linkedin.testing.localrelationship.AspectFooBarBaz;
 import com.linkedin.testing.urn.BarUrn;
 import java.net.URISyntaxException;
 import java.util.Arrays;
@@ -68,10 +69,11 @@ public class BaseEntitySimpleKeyResourceTest extends BaseEngineTest {
     AspectKey<Urn, AspectFoo> aspect1Key = new AspectKey<>(AspectFoo.class, urn, LATEST_VERSION);
     AspectKey<Urn, AspectBar> aspect2Key = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
     AspectKey<Urn, AspectFooBar> aspect3Key = new AspectKey<>(AspectFooBar.class, urn, LATEST_VERSION);
-    AspectKey<Urn, AspectAttributes> aspect4Key = new AspectKey<>(AspectAttributes.class, urn, LATEST_VERSION);
+    AspectKey<Urn, AspectFooBarBaz> aspect4Key = new AspectKey<>(AspectFooBarBaz.class, urn, LATEST_VERSION);
+    AspectKey<Urn, AspectAttributes> aspect5Key = new AspectKey<>(AspectAttributes.class, urn, LATEST_VERSION);
 
     when(_mockLocalDAO.exists(urn)).thenReturn(true);
-    when(_mockLocalDAO.get(new HashSet<>(Arrays.asList(aspect1Key, aspect2Key, aspect3Key, aspect4Key))))
+    when(_mockLocalDAO.get(new HashSet<>(Arrays.asList(aspect1Key, aspect2Key, aspect3Key, aspect4Key, aspect5Key))))
         .thenReturn(Collections.singletonMap(aspect1Key, Optional.of(foo)));
 
     EntityValue value = runAndWait(_resource.get(id, null));
@@ -187,11 +189,13 @@ public class BaseEntitySimpleKeyResourceTest extends BaseEngineTest {
     AspectKey<Urn, AspectBar> aspectBarKey2 = new AspectKey<>(AspectBar.class, urn2, LATEST_VERSION);
     AspectKey<Urn, AspectFooBar> aspectFooBarKey1 = new AspectKey<>(AspectFooBar.class, urn1, LATEST_VERSION);
     AspectKey<Urn, AspectFooBar> aspectFooBarKey2 = new AspectKey<>(AspectFooBar.class, urn2, LATEST_VERSION);
+    AspectKey<Urn, AspectFooBarBaz> aspectFooBarBazKey1 = new AspectKey<>(AspectFooBarBaz.class, urn1, LATEST_VERSION);
+    AspectKey<Urn, AspectFooBarBaz> aspectFooBarBazKey2 = new AspectKey<>(AspectFooBarBaz.class, urn2, LATEST_VERSION);
     AspectKey<Urn, AspectAttributes> aspectAttKey1 = new AspectKey<>(AspectAttributes.class, urn1, LATEST_VERSION);
     AspectKey<Urn, AspectAttributes> aspectAttKey2 = new AspectKey<>(AspectAttributes.class, urn2, LATEST_VERSION);
 
     when(_mockLocalDAO.get(ImmutableSet.of(aspectFooKey1, aspectBarKey1, aspectAttKey1, aspectFooKey2, aspectBarKey2,
-        aspectAttKey2, aspectFooBarKey1, aspectFooBarKey2))).thenReturn(
+        aspectAttKey2, aspectFooBarKey1, aspectFooBarKey2, aspectFooBarBazKey1, aspectFooBarBazKey2))).thenReturn(
         ImmutableMap.of(aspectFooKey1, Optional.of(foo), aspectFooKey2, Optional.of(bar)));
 
     Map<Long, EntityValue> keyValueMap = runAndWait(_resource.batchGet(ImmutableSet.of(id1, id2), null))
@@ -297,14 +301,16 @@ public class BaseEntitySimpleKeyResourceTest extends BaseEngineTest {
     AspectFoo foo = new AspectFoo().setValue("foo");
     AspectBar bar = new AspectBar().setValue("bar");
     AspectFooBar fooBar = new AspectFooBar().setBars(new BarUrnArray(new BarUrn(1)));
+    AspectFooBarBaz fooBarBaz = new AspectFooBarBaz().setBars(new BarUrnArray(new BarUrn(1)));
     AspectAttributes att = new AspectAttributes().setAttributes(new StringArray("a"));
     AspectKey<Urn, ? extends RecordTemplate> fooKey = new AspectKey<>(AspectFoo.class, urn, LATEST_VERSION);
     AspectKey<Urn, ? extends RecordTemplate> barKey = new AspectKey<>(AspectBar.class, urn, LATEST_VERSION);
     AspectKey<Urn, ? extends RecordTemplate> fooBarKey = new AspectKey<>(AspectFooBar.class, urn, LATEST_VERSION);
+    AspectKey<Urn, ? extends RecordTemplate> fooBarBazKey = new AspectKey<>(AspectFooBarBaz.class, urn, LATEST_VERSION);
     AspectKey<Urn, ? extends RecordTemplate> attKey = new AspectKey<>(AspectAttributes.class, urn, LATEST_VERSION);
-    Set<AspectKey<Urn, ? extends RecordTemplate>> aspectKeys = ImmutableSet.of(fooKey, barKey, fooBarKey, attKey);
+    Set<AspectKey<Urn, ? extends RecordTemplate>> aspectKeys = ImmutableSet.of(fooKey, barKey, fooBarKey, fooBarBazKey, attKey);
     when(_mockLocalDAO.get(aspectKeys)).thenReturn(ImmutableMap.of(fooKey, Optional.of(foo), barKey, Optional.of(bar),
-        fooBarKey, Optional.of(fooBar), attKey, Optional.of(att)));
+        fooBarKey, Optional.of(fooBar), fooBarBazKey, Optional.of(fooBarBaz), attKey, Optional.of(att)));
 
     EntitySnapshot snapshot = runAndWait(_resource.getSnapshot(urn.toString(), null));
 

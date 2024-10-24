@@ -43,3 +43,16 @@ CREATE TABLE IF NOT EXISTS metadata_relationship_belongsto (
     deleted_ts DATETIME(6) DEFAULT NULL,
     PRIMARY KEY (id)
 );
+
+CREATE TABLE IF NOT EXISTS metadata_relationship_reportsto (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    metadata JSON NOT NULL,
+    source VARCHAR(500) NOT NULL,
+    source_type VARCHAR(100) NOT NULL,
+    destination VARCHAR(500) NOT NULL,
+    destination_type VARCHAR(100) NOT NULL,
+    lastmodifiedon DATETIME(6) NOT NULL,
+    lastmodifiedby VARCHAR(255) NOT NULL,
+    deleted_ts DATETIME(6) DEFAULT NULL,
+    PRIMARY KEY (id)
+);

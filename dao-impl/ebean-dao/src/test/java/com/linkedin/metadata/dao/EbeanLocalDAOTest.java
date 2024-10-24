@@ -63,8 +63,11 @@ import com.linkedin.testing.EntityAspectUnion;
 import com.linkedin.testing.FooSnapshot;
 import com.linkedin.testing.MixedRecord;
 import com.linkedin.testing.localrelationship.AspectFooBar;
+import com.linkedin.testing.localrelationship.AspectFooBarBaz;
 import com.linkedin.testing.localrelationship.BelongsTo;
 import com.linkedin.testing.localrelationship.BelongsToArray;
+import com.linkedin.testing.localrelationship.ReportsTo;
+import com.linkedin.testing.localrelationship.ReportsToArray;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.BurgerUrn;
 import com.linkedin.testing.urn.FooUrn;
@@ -2534,6 +2537,85 @@ public class EbeanLocalDAOTest {
     inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
     // TODO: verify that MAE was produced with newValue set as null for soft deleted aspect
     verifyNoMoreInteractions(_mockProducer);
+  }
+
+  @Test
+  public void testRemoveRelationshipsDuringAspectSoftDeletion() throws URISyntaxException {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> fooDao = createDao(FooUrn.class);
+    EbeanLocalDAO<EntityAspectUnion, BarUrn> barDao = createDao(BarUrn.class);
+
+    fooDao.setRelationshipSource(EbeanLocalDAO.RelationshipSource.ASPECT_METADATA);
+
+    // add an aspect (AspectFooBar) which includes BelongsTo relationships and ReportsTo relationships
+    FooUrn fooUrn = makeFooUrn(1);
+    BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
+    BelongsTo belongsTo1 = new BelongsTo().setSource(barUrn1).setDestination(fooUrn);
+    BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:2");
+    BelongsTo belongsTo2 = new BelongsTo().setSource(barUrn2).setDestination(fooUrn);
+    BarUrn barUrn3 = BarUrn.createFromString("urn:li:bar:3");
+    BelongsTo belongsTo3 = new BelongsTo().setSource(barUrn3).setDestination(fooUrn);
+    BelongsToArray belongsToArray = new BelongsToArray(belongsTo1, belongsTo2, belongsTo3);
+    ReportsTo reportsTo = new ReportsTo().setSource(fooUrn).setDestination(barUrn1);
+    ReportsToArray reportsToArray = new ReportsToArray(reportsTo);
+    AspectFooBar aspectFooBar = new AspectFooBar()
+        .setBars(new BarUrnArray(barUrn1, barUrn2, barUrn3)).setBelongsTos(belongsToArray).setReportsTos(reportsToArray);
+    AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
+
+    fooDao.add(fooUrn, aspectFooBar, auditStamp);
+    barDao.add(barUrn1, new AspectFoo().setValue("1"), auditStamp);
+    barDao.add(barUrn2, new AspectFoo().setValue("2"), auditStamp);
+    barDao.add(barUrn3, new AspectFoo().setValue("3"), auditStamp);
+
+    // add another aspect (AspectFooBarBaz) which includes BelongsTo relationship(s)
+    BarUrn barUrn4 = BarUrn.createFromString("urn:li:bar:4");
+    BelongsTo belongsTo4 = new BelongsTo().setSource(barUrn4).setDestination(fooUrn);
+    AspectFooBarBaz aspectFooBarBaz = new AspectFooBarBaz().setBars(new BarUrnArray(barUrn4)).setBelongsTos(new BelongsToArray(belongsTo4));
+    fooDao.add(fooUrn, aspectFooBarBaz, auditStamp);
+    barDao.add(barUrn4, new AspectFoo().setValue("4"), auditStamp);
+
+    // Verify local relationships and entities are added.
+    EbeanLocalRelationshipQueryDAO ebeanLocalRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server);
+    ebeanLocalRelationshipQueryDAO.setSchemaConfig(_schemaConfig);
+
+    List<BelongsTo> resultBelongsTos =
+        ebeanLocalRelationshipQueryDAO.findRelationships(BarSnapshot.class, EMPTY_FILTER, FooSnapshot.class,
+            EMPTY_FILTER, BelongsTo.class, OUTGOING_FILTER, 0, 10);
+
+    assertEquals(resultBelongsTos.size(), 4);
+
+    List<ReportsTo> resultReportsTos =
+        ebeanLocalRelationshipQueryDAO.findRelationships(FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class,
+            EMPTY_FILTER, ReportsTo.class, OUTGOING_FILTER, 0, 10);
+
+    assertEquals(resultReportsTos.size(), 1);
+
+    AspectKey<FooUrn, AspectFooBar> key = new AspectKey<>(AspectFooBar.class, fooUrn, 0L);
+    List<EbeanMetadataAspect> aspects = fooDao.batchGetHelper(Collections.singletonList(key), 1, 0);
+
+    assertEquals(aspects.size(), 1);
+
+    // soft delete the AspectFooBar aspect
+    fooDao.delete(fooUrn, AspectFooBar.class, _dummyAuditStamp);
+
+    // check that the belongsTo relationships 1, 2, & 3 were soft deleted
+    resultBelongsTos = ebeanLocalRelationshipQueryDAO.findRelationships(BarSnapshot.class, EMPTY_FILTER, FooSnapshot.class,
+            EMPTY_FILTER, BelongsTo.class, OUTGOING_FILTER, 0, 10);
+
+    // but ensure that belongsTo4 (from AspectFooBarBaz) was left untouched
+    assertEquals(resultBelongsTos.size(), 1);
+    assertEquals(resultBelongsTos.get(0).getSource(), barUrn4);
+    assertEquals(resultBelongsTos.get(0).getDestination(), fooUrn);
+
+    // check that the reportsTo relationship was soft deleted
+    resultReportsTos =
+        ebeanLocalRelationshipQueryDAO.findRelationships(FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class,
+            EMPTY_FILTER, ReportsTo.class, OUTGOING_FILTER, 0, 10);
+
+    assertEquals(resultReportsTos.size(), 0);
+
+    // check that the AspectFooBar aspect was soft deleted
+    Optional<AspectWithExtraInfo<AspectFooBar>> optionalAspect = fooDao.getWithExtraInfo(AspectFooBar.class, fooUrn, 0L);
+    assertFalse(optionalAspect.isPresent());
   }
 
   @Test

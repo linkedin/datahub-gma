@@ -3,8 +3,14 @@ namespace com.linkedin.testing
 /**
  * For unit tests
  */
-@gma.aspect.column.name = "annotatedaspectbarwithrelationshipfields"
-@gma.model = "ASPECT"
+@gma = {
+  "aspect": {
+    "column": {
+      "name": "annotatedaspectbarwithrelationshipfields"
+    }
+  },
+  "model": "ASPECT"
+}
 record AnnotatedAspectBarWithRelationshipFields {
   /**
    * For unit tests
