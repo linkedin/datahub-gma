@@ -45,6 +45,7 @@ import javax.annotation.Nullable;
 import javax.persistence.PersistenceException;
 import lombok.extern.slf4j.Slf4j;
 import org.json.simple.JSONObject;
+import com.zaxxer.hikari.HikariDataSource;
 
 import static com.linkedin.metadata.dao.EbeanLocalDAO.*;
 import static com.linkedin.metadata.dao.utils.EBeanDAOUtils.*;
@@ -494,16 +495,38 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
   @Nonnull
   private SchemaEvolutionManager createSchemaEvolutionManager(@Nonnull ServerConfig serverConfig) {
-    String identifier = serverConfig.getDataSourceConfig().getCustomProperties() != null
-        ? serverConfig.getDataSourceConfig().getCustomProperties().getOrDefault(SERVICE_IDENTIFIER, null)
-        : null;
-    SchemaEvolutionManager.Config config = new SchemaEvolutionManager.Config(
-        serverConfig.getDataSourceConfig().getUrl(),
-        serverConfig.getDataSourceConfig().getPassword(),
-        serverConfig.getDataSourceConfig().getUsername(),
-        identifier);
+    // if ServerConfig is created with a HikariDataSource, we need to extract the config differently.
+    if (isHikariConfig(serverConfig)) {
+      final HikariDataSource hikariDataSource = (HikariDataSource) serverConfig.getDataSource();
 
-    return new FlywaySchemaEvolutionManager(config);
+      final SchemaEvolutionManager.Config config = new SchemaEvolutionManager.Config(
+          hikariDataSource.getJdbcUrl(),
+          hikariDataSource.getPassword(),
+          hikariDataSource.getUsername(),
+          null);
+
+      return new FlywaySchemaEvolutionManager(config);
+    } else {
+      String identifier = serverConfig.getDataSourceConfig().getCustomProperties() != null
+          ? serverConfig.getDataSourceConfig().getCustomProperties().getOrDefault(SERVICE_IDENTIFIER, null)
+          : null;
+      SchemaEvolutionManager.Config config = new SchemaEvolutionManager.Config(
+          serverConfig.getDataSourceConfig().getUrl(),
+          serverConfig.getDataSourceConfig().getPassword(),
+          serverConfig.getDataSourceConfig().getUsername(),
+          identifier);
+
+      return new FlywaySchemaEvolutionManager(config);
+    }
+  }
+
+  /**
+   * Checks if the serverConfig is a HikariConfig.
+   * @param serverConfig contains either a HikariDataSource as dataSource, or a DataSourceConfig as dataSourceConfig.
+   * @return true if the dataSource is a HikariDataSource, false otherwise.
+   */
+  private boolean isHikariConfig(@Nonnull ServerConfig serverConfig) {
+    return serverConfig.getDataSource() instanceof HikariDataSource;
   }
 
   /**
