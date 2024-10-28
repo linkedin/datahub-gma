@@ -44,9 +44,10 @@ public class ModelUtils {
 
   private static final ClassLoader CLASS_LOADER = DummySnapshot.class.getClassLoader();
   private static final String ASPECTS_FIELD = "aspects";
+  private static final String DESTINATION_FIELD = "destination";
   private static final String FIELD_FIELD_PREFIX = "FIELD_";
-  private static final String MEMBER_FIELD_PREFIX = "MEMBER_";
   private static final String METADATA_AUDIT_EVENT_PREFIX = "METADATA_AUDIT_EVENT";
+  private static final String SOURCE_FIELD = "source";
   private static final String URN_FIELD = "urn";
 
   private ModelUtils() {
@@ -293,7 +294,9 @@ public class ModelUtils {
   private static <RELATIONSHIP extends RecordTemplate> Urn getUrnFromRelationship(@Nonnull RELATIONSHIP relationship,
       @Nonnull String fieldName) {
     RelationshipValidator.validateRelationshipSchema(relationship.getClass());
-    final Urn urn = RecordUtils.getRecordTemplateField(relationship, fieldName, urnClassForRelationship(relationship.getClass(), fieldName));
+    boolean isRelationshipInV2 = isRelationshipInV2(relationship);
+    final Urn urn = RecordUtils.getRecordTemplateField(relationship, fieldName,
+        urnClassForRelationship(relationship.getClass(), fieldName, isRelationshipInV2));
     if (urn == null) {
       ValidationUtils.throwNullFieldException(URN_FIELD);
     }
@@ -306,7 +309,12 @@ public class ModelUtils {
   @Nonnull
   public static <RELATIONSHIP extends RecordTemplate> Urn getSourceUrnFromRelationship(
       @Nonnull RELATIONSHIP relationship) {
-    return getUrnFromRelationship(relationship, "source");
+    //ToDo: remove this if statement after all relationships are in Relationship model V2.
+    if (!isRelationshipInV2(relationship)) {
+      return getUrnFromRelationship(relationship, SOURCE_FIELD);
+    }
+
+    return getUrnFromRelationship(relationship, extractFieldNameFromUnionField(relationship, SOURCE_FIELD));
   }
 
   /**
@@ -315,7 +323,26 @@ public class ModelUtils {
   @Nonnull
   public static <RELATIONSHIP extends RecordTemplate> Urn getDestinationUrnFromRelationship(
       @Nonnull RELATIONSHIP relationship) {
-    return getUrnFromRelationship(relationship, "destination");
+    //ToDo: remove this if statement after all relationships are in Relationship model V2.
+    if (!isRelationshipInV2(relationship)) {
+      return getUrnFromRelationship(relationship, DESTINATION_FIELD);
+    }
+
+    return getUrnFromRelationship(relationship, extractFieldNameFromUnionField(relationship, DESTINATION_FIELD));
+  }
+
+  /**
+   * Get the field name within a union type. e.g. to get "sourceDemoAsset" from the following "source" union type.
+   *   source: optional union[
+   *     sourceDemoAsset: DemoAssetUrn
+   *   ]
+   */
+  public static <RELATIONSHIP extends RecordTemplate> String extractFieldNameFromUnionField(RELATIONSHIP relationship, String fieldName) {
+    final DataMap dataMap = RecordUtils.getRecordTemplateField(relationship, fieldName, DataMap.class);
+    if (dataMap == null) {
+      ValidationUtils.throwNullFieldException(fieldName);
+    }
+    return dataMap.keySet().iterator().next();
   }
 
   /**
@@ -717,10 +744,19 @@ public class ModelUtils {
    * Gets the expected {@link Urn} class for a specific kind of relationship.
    */
   @Nonnull
-  private static Class<? extends Urn> urnClassForRelationship(
+  static Class<? extends Urn> urnClassForRelationship(
       @Nonnull Class<? extends RecordTemplate> relationshipClass, @Nonnull String fieldName) {
+    return urnClassForRelationship(relationshipClass, fieldName, false);
+  }
+
+  /**
+   * Gets the expected {@link Urn} class for a specific kind of relationship.
+   */
+  @Nonnull
+  static Class<? extends Urn> urnClassForRelationship(
+      @Nonnull Class<? extends RecordTemplate> relationshipClass, @Nonnull String fieldName, boolean isRelationshipInV2) {
     RelationshipValidator.validateRelationshipSchema(relationshipClass);
-    return urnClassForField(relationshipClass, fieldName);
+    return urnClassForField(relationshipClass, fieldName, isRelationshipInV2);
   }
 
   /**
@@ -729,7 +765,7 @@ public class ModelUtils {
   @Nonnull
   public static Class<? extends Urn> sourceUrnClassForRelationship(
       @Nonnull Class<? extends RecordTemplate> relationshipClass) {
-    return urnClassForRelationship(relationshipClass, "source");
+    return urnClassForRelationship(relationshipClass, SOURCE_FIELD);
   }
 
   /**
@@ -738,7 +774,7 @@ public class ModelUtils {
   @Nonnull
   public static Class<? extends Urn> destinationUrnClassForRelationship(
       @Nonnull Class<? extends RecordTemplate> relationshipClass) {
-    return urnClassForRelationship(relationshipClass, "destination");
+    return urnClassForRelationship(relationshipClass, DESTINATION_FIELD);
   }
 
   @Nonnull
@@ -750,6 +786,29 @@ public class ModelUtils {
         .getProperties()
         .get("java")).getString("class");
 
+    return getClassFromName(urnClassName, Urn.class);
+  }
+
+  @Nonnull
+  private static Class<? extends Urn> urnClassForField(@Nonnull Class<? extends RecordTemplate> recordClass,
+      @Nonnull String fieldName, boolean isRelationshipInV2) {
+    String urnClassName;
+    if (!isRelationshipInV2) {
+      urnClassName = ((DataMap) ValidationUtils.getRecordSchema(recordClass)
+          .getField(fieldName)
+          .getType()
+          .getProperties()
+          .get("java")).getString("class");
+    } else {
+      urnClassName =((DataMap)  ValidationUtils.getRecordSchema(recordClass)
+          .getField(fieldName)
+          .getType()
+          .getMembers()
+          .get(0)
+          .getType()
+          .getProperties()
+          .get("java")).getString("class");
+    }
     return getClassFromName(urnClassName, Urn.class);
   }
 
@@ -845,6 +904,31 @@ public class ModelUtils {
   public static boolean isCommonAspect(@Nonnull Class<? extends RecordTemplate> clazz) {
     return clazz.getPackage().getName().startsWith("com.linkedin.common");
   }
+
+  /**
+   * Check if a given relationship is in MG model v2 or not.
+   * @param relationship must be a valid relationship model defined in com.linkedin.metadata.relationship
+   * @return boolean. True if the relationship is in MG model V2.
+   */
+  static <RELATIONSHIP extends RecordTemplate> boolean isRelationshipInV2(RELATIONSHIP relationship) {
+    final RecordDataSchema schema = ValidationUtils.getRecordSchema(relationship.getClass());
+    return isRelationshipInV2(schema);
+  }
+
+  /**
+   * Check if a given relationship schema is in MG model v2 or not.
+   * Returns TRUE if source and destination fields are of union type.
+   * @param schema schema of a valid relationship model defined in com.linkedin.metadata.relationship
+   * @return boolean. True if the relationship is in MG model V2.
+   */
+  static boolean isRelationshipInV2(@Nonnull RecordDataSchema schema) {
+    // check the data type of the source and destination fields in schema and see if it's a union type
+    return schema.getFields().stream().anyMatch(
+        field -> field.getName().equals(SOURCE_FIELD) && field.getType().getType() == DataSchema.Type.UNION)
+        && schema.getFields().stream().anyMatch(
+        field -> field.getName().equals(DESTINATION_FIELD) && field.getType().getType() == DataSchema.Type.UNION);
+  }
+
 
   /**
    * Creates an entity union with a specific entity set.

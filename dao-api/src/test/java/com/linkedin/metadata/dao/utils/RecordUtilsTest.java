@@ -522,4 +522,14 @@ public class RecordUtilsTest {
     return RecordUtils.toRecordTemplate(AspectBaz.class,
         IOUtils.toString(ClassLoader.getSystemResourceAsStream(resourceName), StandardCharsets.UTF_8));
   }
+
+//  @Test
+//  public void testGetFieldNameFromUnionType() {
+//    AspectBaz baz = new AspectBaz();
+//    baz.setUnionField(new AspectBaz.UnionField());
+//    baz.getUnionField().setAspectFoo(new AspectFoo().setValue("foo"));
+//
+//    String tmpFieldName = RecordUtils.getFieldNameFromUnionType(baz, "unionField");
+//    assertEquals(tmpFieldName, "com.linkedin.testing.AspectFoo");
+//  }
 }

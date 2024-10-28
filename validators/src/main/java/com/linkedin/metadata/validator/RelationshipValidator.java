@@ -11,6 +11,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import lombok.Value;
 
@@ -22,6 +23,9 @@ public class RelationshipValidator {
 
   // A cache of validated classes
   private static final Set<Class<? extends UnionTemplate>> UNION_VALIDATED = ConcurrentHashMap.newKeySet();
+
+  private static final String DESTINATION_FIELD = "destination";
+  private static final String SOURCE_FIELD = "source";
 
   @Value
   private static class Pair {
@@ -43,23 +47,24 @@ public class RelationshipValidator {
     final String className = schema.getBindingName();
 
     if (!ValidationUtils.schemaHasExactlyOneSuchField(schema,
-        field -> ValidationUtils.isValidUrnField(field, "source"))) {
-      ValidationUtils.invalidSchema("Relationship '%s' must contain a 'source' field of URN type",
-          className);
+        field -> (ValidationUtils.isValidUrnField(field, SOURCE_FIELD) || ValidationUtils.isValidUnionField(field, SOURCE_FIELD)))) {
+      ValidationUtils.invalidSchema("Relationship '%s' must contain a '%s' field of URN type or UNION type || %s",
+          className, SOURCE_FIELD, schema.getFields().stream().map(f -> f.getName()).collect(Collectors.joining(",")));
     }
 
     if (!ValidationUtils.schemaHasExactlyOneSuchField(schema,
-        field -> ValidationUtils.isValidUrnField(field, "destination"))) {
-      ValidationUtils.invalidSchema("Relationship '%s' must contain a 'destination' field of URN type",
-          className);
+        field -> (ValidationUtils.isValidUrnField(field, DESTINATION_FIELD) || ValidationUtils.isValidUnionField(field, DESTINATION_FIELD)))) {
+      ValidationUtils.invalidSchema("Relationship '%s' must contain a '%s' field of URN type or UNION type",
+          className, DESTINATION_FIELD);
     }
 
-    ValidationUtils.fieldsUsingInvalidType(schema, ValidationUtils.PRIMITIVE_TYPES).forEach(field -> {
-      ValidationUtils.invalidSchema("Relationship '%s' contains a field '%s' that makes use of a disallowed type '%s'.",
-          className, field.getName(), field.getType().getType());
-    });
-
-    validatePairings(schema);
+    // Relationship V2 uses AuditStamp class, instead of primitive types
+//    ValidationUtils.fieldsUsingInvalidType(schema, ValidationUtils.PRIMITIVE_TYPES).forEach(field -> {
+//      ValidationUtils.invalidSchema("Relationship '%s' contains a field '%s' that makes use of a disallowed type '%s'.",
+//          className, field.getName(), field.getType().getType());
+//    });
+    // Relationship V2 no longer uses the 'pairings' property
+//    validatePairings(schema);
   }
 
 
@@ -112,19 +117,19 @@ public class RelationshipValidator {
     Set<Pair> registeredPairs = new HashSet<>();
     pairings.stream().forEach(obj -> {
       DataMap map = (DataMap) obj;
-      if (!map.containsKey("source") || !map.containsKey("destination")) {
+      if (!map.containsKey(SOURCE_FIELD) || !map.containsKey(DESTINATION_FIELD)) {
         ValidationUtils.invalidSchema("Relationship '%s' contains an invalid 'pairings' item. "
             + "Each item must contain a 'source' and 'destination' properties.", className);
       }
 
-      String sourceUrn = map.getString("source");
+      String sourceUrn = map.getString(SOURCE_FIELD);
       if (!isValidUrnClass(sourceUrn)) {
         ValidationUtils.invalidSchema(
             "Relationship '%s' contains an invalid item in 'pairings'. %s is not a valid URN class name.", className,
             sourceUrn);
       }
 
-      String destinationUrn = map.getString("destination");
+      String destinationUrn = map.getString(DESTINATION_FIELD);
       if (!isValidUrnClass(destinationUrn)) {
         ValidationUtils.invalidSchema(
             "Relationship '%s' contains an invalid item in 'pairings'. %s is not a valid URN class name.", className,

@@ -1,0 +1,28 @@
+namespace com.linkedin.testing
+
+import com.linkedin.common.AuditStamp
+
+/**
+ * * Test Relationship
+ */
+record RelationshipV2Bar {
+
+  /**
+   * The audit stamp of the relationship
+   */
+  auditStamp: optional AuditStamp
+
+  /**
+   * Urn of the source asset
+   */
+  source: optional union[
+    sourceFoo: FooUrn
+  ]
+
+  /**
+   * Urn of the destination asset
+   */
+  destination: optional union[
+    destinationBar: BarUrn
+  ]
+}

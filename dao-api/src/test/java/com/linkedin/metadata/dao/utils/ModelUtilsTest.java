@@ -11,6 +11,7 @@ import com.linkedin.testing.AspectFooEvolved;
 import com.linkedin.testing.AspectUnionWithSoftDeletedAspect;
 import com.linkedin.testing.BarAsset;
 import com.linkedin.testing.BarUrnArray;
+import com.linkedin.testing.BazUrn;
 import com.linkedin.testing.DatasetInfo;
 import com.linkedin.testing.DeltaUnionAlias;
 import com.linkedin.testing.EntityAspectUnionAliasArray;
@@ -56,6 +57,7 @@ import com.linkedin.testing.EntitySnapshotOptionalFields;
 import com.linkedin.testing.InvalidAspectUnion;
 import com.linkedin.testing.RelationshipFoo;
 import com.linkedin.testing.RelationshipFooOptionalFields;
+import com.linkedin.testing.RelationshipV2Bar;
 import com.linkedin.testing.RelationshipUnion;
 import com.linkedin.testing.RelationshipUnionAlias;
 import com.linkedin.testing.SnapshotUnion;
@@ -834,5 +836,71 @@ public class ModelUtilsTest {
     } catch (Exception e) {
 
     }
+  }
+
+  @Test
+  public void testGetSourceUrnFromRelationship() {
+    assertEquals("a", "a");
+  }
+
+  @Test
+  public void testGetDestinationUrnFromRelationship() {
+    FooUrn expectedSource = makeFooUrn(1);
+    BarUrn expectedDestination = makeBarUrn(1);
+    // relationship model v1 should return false
+    RelationshipFoo relationship = mockRelationshipFoo(expectedSource, expectedDestination);
+    Urn result = ModelUtils.getDestinationUrnFromRelationship(relationship);
+    try {
+      assertEquals(result, Urn.createFromString("urn:li:bar:1"));
+    } catch (URISyntaxException e) {
+      throw new RuntimeException(e);
+    }
+
+    // relationship model v2 should return true
+    RelationshipV2Bar relationshipV2 = mockRelationshipV2Bar(expectedSource, expectedDestination);
+    result = ModelUtils.getDestinationUrnFromRelationship(relationshipV2);
+    try {
+      assertEquals(result, Urn.createFromString("urn:li:bar:1"));
+    } catch (URISyntaxException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @Test
+  public void testExtractFieldNameFromUnionField() {
+    FooUrn fooUrn = makeFooUrn(1);
+    BarUrn barUrn = makeBarUrn(1);
+    RelationshipV2Bar relationshipV2 = mockRelationshipV2Bar(fooUrn, barUrn);
+
+    String sourceFieldName = ModelUtils.extractFieldNameFromUnionField(relationshipV2, "source");
+    assertEquals(sourceFieldName, "sourceFoo");
+
+    String destinationFieldName = ModelUtils.extractFieldNameFromUnionField(relationshipV2, "destination");
+    assertEquals(destinationFieldName, "destinationBar");
+  }
+
+  @Test
+  public void testIsRelationshipInV2() {
+    FooUrn expectedSource = makeFooUrn(1);
+    BarUrn expectedDestination = makeBarUrn(1);
+    // relationship model v1 should return false
+    RelationshipFoo relationship = mockRelationshipFoo(expectedSource, expectedDestination);
+    boolean result = ModelUtils.isRelationshipInV2(relationship);
+    assertFalse(result);
+
+    // relationship model v2 should return true
+    RelationshipV2Bar relationshipV2 = mockRelationshipV2Bar(expectedSource, expectedDestination);
+    result = ModelUtils.isRelationshipInV2(relationshipV2);
+    assertTrue(result);
+  }
+
+  private RelationshipFoo mockRelationshipFoo(FooUrn expectedSource, BarUrn expectedDestination) {
+    return new RelationshipFoo().setSource(expectedSource).setDestination(expectedDestination);
+  }
+
+  private RelationshipV2Bar mockRelationshipV2Bar(FooUrn expectedSource, BarUrn expectedDestination) {
+    RelationshipV2Bar.Source source = new RelationshipV2Bar().getSource().createWithSourceFoo(expectedSource);
+    RelationshipV2Bar.Destination destination = new RelationshipV2Bar().getDestination().createWithDestinationBar(expectedDestination);
+    return new RelationshipV2Bar().setSource(source).setDestination(destination);
   }
 }
