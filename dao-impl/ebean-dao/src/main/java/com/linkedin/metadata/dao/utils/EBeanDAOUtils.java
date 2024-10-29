@@ -44,6 +44,7 @@ import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
 import static com.linkedin.metadata.annotations.GmaAnnotationParser.*;
+import static com.linkedin.metadata.dao.utils.ModelUtils.*;
 
 
 /**
@@ -373,6 +374,21 @@ public class EBeanDAOUtils {
         .setField(field)
         .setValue(localRelationshipValue)
         .setCondition(condition);
+  }
+
+  /**
+   * Validate that the source of a relationship matches the asset urn that the relationship was derived from. Relationships
+   * must be defined such that the source is always the asset urn of the aspect the relationship is included in.
+   * @param assetUrn urn of the asset to be ingested
+   * @param relationship relationship derived from the aspect to be ingested
+   * @throws IllegalArgumentException if the asset urn and the relationship source urn don't match
+   */
+  public static <URN, RELATIONSHIP extends RecordTemplate> void validateRelationshipSource(URN assetUrn, RELATIONSHIP relationship) {
+    Urn sourceUrn = getSourceUrnFromRelationship(relationship);
+    if (!sourceUrn.equals(assetUrn)) {
+      throw new IllegalArgumentException(String.format("The asset from which a relationship is derived from must be the source of the relationship. "
+          + "Relationship class: %s, Expected source urn: %s, Actual source urn: %s", relationship.getClass().getCanonicalName(), assetUrn, sourceUrn));
+    }
   }
 
   /**

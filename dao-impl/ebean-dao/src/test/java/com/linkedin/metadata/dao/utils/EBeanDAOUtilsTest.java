@@ -24,6 +24,8 @@ import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.AnnotatedAspectFooWithRelationshipField;
 import com.linkedin.testing.CommonAspect;
 import com.linkedin.testing.CommonAspectArray;
+import com.linkedin.testing.localrelationship.BelongsTo;
+import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.BurgerUrn;
 import com.linkedin.testing.urn.FooUrn;
 import io.ebean.Ebean;
@@ -640,5 +642,24 @@ public class EBeanDAOUtilsTest {
     assertEquals(new AnnotatedRelationshipBar(), results.get(2).get(0));
   }
 
+  @Test
+  public void testValidateRelationshipSourceSuccess() throws URISyntaxException {
+    FooUrn assetUrn = FooUrn.createFromString("urn:li:foo:1");
+    BarUrn destUrn = BarUrn.createFromString("urn:li:bar:1");
+    BelongsTo belongsTo = new BelongsTo().setSource(assetUrn).setDestination(destUrn);
+    try {
+      EBeanDAOUtils.validateRelationshipSource(assetUrn, belongsTo);
+    } catch (IllegalArgumentException e) {
+      org.testng.Assert.fail("Test should not throw an exception", e);
+    }
+  }
 
+  @Test
+  public void testValidateRelationshipSourceFail() throws URISyntaxException {
+    FooUrn assetUrn = FooUrn.createFromString("urn:li:foo:1");
+    FooUrn sourceUrn = FooUrn.createFromString("urn:li:foo:2");
+    BarUrn destUrn = BarUrn.createFromString("urn:li:bar:1");
+    BelongsTo belongsTo = new BelongsTo().setSource(sourceUrn).setDestination(destUrn);
+    org.testng.Assert.assertThrows(() -> EBeanDAOUtils.validateRelationshipSource(assetUrn, belongsTo));
+  }
 }

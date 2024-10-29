@@ -21,12 +21,12 @@ public class BelongsToLocalRelationshipBuilder extends BaseLocalRelationshipBuil
       @Nonnull AspectFooBar aspectFooBar) {
     List<BelongsTo> belongsToRelationships = new ArrayList<>();
     for (Urn barUrn : aspectFooBar.getBars()) {
-      belongsToRelationships.add(new BelongsTo().setSource(barUrn).setDestination(urn));
+      belongsToRelationships.add(new BelongsTo().setSource(urn).setDestination(barUrn));
     }
 
     LocalRelationshipUpdates localRelationshipUpdates =
         new LocalRelationshipUpdates(belongsToRelationships, BelongsTo.class,
-            BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION);
+            BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE);
 
     return Collections.singletonList(localRelationshipUpdates);
   }

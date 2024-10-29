@@ -896,8 +896,13 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       List<List<RELATIONSHIP>> allRelationships = EBeanDAOUtils.extractRelationshipsFromAspect(aspect);
       localRelationshipUpdates = allRelationships.stream()
           .filter(relationships -> !relationships.isEmpty()) // ensure at least 1 relationship in sublist to avoid index out of bounds
-          .map(relationships -> new BaseLocalRelationshipBuilder.LocalRelationshipUpdates(
-              relationships, relationships.get(0).getClass(), BaseGraphWriterDAO.RemovalOption.REMOVE_NONE))
+          .map(relationships -> {
+            for (RELATIONSHIP relationship : relationships) {
+              validateRelationshipSource(urn, relationship); // validate that all relationships' sources are equal to the given asset urn
+            }
+            return new BaseLocalRelationshipBuilder.LocalRelationshipUpdates(
+              relationships, relationships.get(0).getClass(), BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE);
+          })
           .collect(Collectors.toList());
     } else if (_relationshipSource == RelationshipSource.RELATIONSHIP_BUILDERS) {
       if (_localRelationshipBuilderRegistry != null && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
