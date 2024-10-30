@@ -103,6 +103,9 @@ public final class ValidationUtils {
     return isValidUrnField(field, "urn");
   }
 
+  /**
+   * Returns true if the passed-in field matches the field name and is of UNION type.
+   */
   public static boolean isValidUnionField(@Nonnull RecordDataSchema.Field field, @Nonnull String fieldName) {
     return field.getName().equals(fieldName)
         && field.getType().getType() == DataSchema.Type.UNION;

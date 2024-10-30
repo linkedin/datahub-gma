@@ -586,27 +586,31 @@ public class RecordUtils {
     return Optional.of(reference);
   }
 
-//  /**
-//   * Get the field name within a union type. e.g. to get "sourceDemoAsset" from the following "source" union type.
-//   *   source: optional union[
-//   *     sourceDemoAsset: DemoAssetUrn
-//   *   ]
-//   */
-//  public static <RELATIONSHIP extends RecordTemplate> String getFieldNameFromUnionType(
-//      @Nonnull RELATIONSHIP relationship, @Nonnull String unionFieldName) {
-//    RecordDataSchema.Field field = getRecordDataSchemaField(relationship, unionFieldName);
-//    if (field.getType() instanceof UnionDataSchema) {
-//      String temp = ((UnionDataSchema) field.getType()).getMembers().get(0).getUnionMemberKey();
-//      return ((UnionDataSchema) field.getType()).getMembers().get(0).getUnionMemberKey();
-//    }
-//    throw new IllegalArgumentException("Field " + unionFieldName + " is not union type");
-//  }
-//
-//  public static <RELATIONSHIP extends RecordTemplate> String extractFieldNameFromUnionField(RELATIONSHIP relationship, String fieldName) {
-//    final DataMap dataMap = RecordUtils.getRecordTemplateField(relationship, fieldName, DataMap.class);
-//    if (dataMap == null) {
-//      ValidationUtils.throwNullFieldException(fieldName);
-//    }
-//    return dataMap.keySet().iterator().next();
-//  }
+  /**
+   * Get the field name within a union type. e.g. to get "sourceDemoAsset" from the following "source" union type.
+   *   source: optional union[
+   *     sourceDemoAsset: DemoAssetUrn
+   *   ]
+   */
+  public static <RELATIONSHIP extends RecordTemplate> String extractFieldNameFromUnionField(RELATIONSHIP relationship, String fieldName) {
+    final DataMap dataMap = RecordUtils.getRecordTemplateField(relationship, fieldName, DataMap.class);
+    if (dataMap == null) {
+      ValidationUtils.throwNullFieldException(fieldName);
+    }
+    return dataMap.keySet().iterator().next();
+  }
+
+  /**
+   * Get the field name within a union type. e.g. to get "sourceDemoAsset" from the following "source" union type.
+   *   source: optional union[
+   *     sourceDemoAsset: DemoAssetUrn
+   *   ]
+   */
+  public static <RELATIONSHIP extends RecordTemplate> String extractFieldValueFromUnionField(RELATIONSHIP relationship, String fieldName) {
+    final DataMap dataMap = RecordUtils.getRecordTemplateField(relationship, fieldName, DataMap.class);
+    if (dataMap == null) {
+      ValidationUtils.throwNullFieldException(fieldName);
+    }
+    return dataMap.values().iterator().next().toString();
+  }
 }

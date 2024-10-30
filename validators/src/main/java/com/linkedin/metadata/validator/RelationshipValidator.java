@@ -11,7 +11,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import lombok.Value;
 
@@ -38,46 +37,76 @@ public class RelationshipValidator {
   }
 
   /**
+   * Validates a specific relationship model (V1 or V2) defined in com.linkedin.metadata.relationship.
+   *
+   * @param schema schema for the model
+   * @param isRelationshipInV2 whether the relationship is in V2.
+   */
+  public static void validateRelationshipSchema(@Nonnull RecordDataSchema schema, boolean isRelationshipInV2) {
+
+    final String className = schema.getBindingName();
+
+    // Relationship V1 has these requirements that no longer valid in V2.
+    // 1. requires both source and destination fields of URN types
+    // 2. requires a "pairing" annotation
+    // This `if` block can be removed after all relationships are migrated to V2.
+    if (!isRelationshipInV2) {
+      // include "source" field of URN type
+      if (!ValidationUtils.schemaHasExactlyOneSuchField(schema,
+          field -> ValidationUtils.isValidUrnField(field, SOURCE_FIELD))) {
+        ValidationUtils.invalidSchema("Relationship '%s' must contain a '%s' field of URN type",
+            className, SOURCE_FIELD);
+      }
+      // include "destination" field of URN type
+      if (!ValidationUtils.schemaHasExactlyOneSuchField(schema,
+          field -> ValidationUtils.isValidUrnField(field, DESTINATION_FIELD))) {
+        ValidationUtils.invalidSchema("Relationship '%s' must contain a '%s' field of URN type",
+            className, DESTINATION_FIELD);
+      }
+      // include "pairings" annotation
+      validatePairings(schema);
+      // includes only primitive types
+      ValidationUtils.fieldsUsingInvalidType(schema, ValidationUtils.PRIMITIVE_TYPES).forEach(field -> {
+        ValidationUtils.invalidSchema("Relationship '%s' contains a field '%s' that makes use of a disallowed type '%s'.",
+            className, field.getName(), field.getType().getType());
+      });
+    } else {
+      // include "destination" field of UNION field
+      if (!ValidationUtils.schemaHasExactlyOneSuchField(schema,
+          field -> ValidationUtils.isValidUnionField(field, DESTINATION_FIELD))) {
+        ValidationUtils.invalidSchema("Relationship '%s' must contain a '%s' field of UNION type",
+            className, DESTINATION_FIELD);
+      }
+    }
+  }
+
+
+  /**
    * Validates a specific relationship model defined in com.linkedin.metadata.relationship.
    *
    * @param schema schema for the model
    */
   public static void validateRelationshipSchema(@Nonnull RecordDataSchema schema) {
-
-    final String className = schema.getBindingName();
-
-    if (!ValidationUtils.schemaHasExactlyOneSuchField(schema,
-        field -> (ValidationUtils.isValidUrnField(field, SOURCE_FIELD) || ValidationUtils.isValidUnionField(field, SOURCE_FIELD)))) {
-      ValidationUtils.invalidSchema("Relationship '%s' must contain a '%s' field of URN type or UNION type || %s",
-          className, SOURCE_FIELD, schema.getFields().stream().map(f -> f.getName()).collect(Collectors.joining(",")));
-    }
-
-    if (!ValidationUtils.schemaHasExactlyOneSuchField(schema,
-        field -> (ValidationUtils.isValidUrnField(field, DESTINATION_FIELD) || ValidationUtils.isValidUnionField(field, DESTINATION_FIELD)))) {
-      ValidationUtils.invalidSchema("Relationship '%s' must contain a '%s' field of URN type or UNION type",
-          className, DESTINATION_FIELD);
-    }
-
-    // Relationship V2 uses AuditStamp class, instead of primitive types
-//    ValidationUtils.fieldsUsingInvalidType(schema, ValidationUtils.PRIMITIVE_TYPES).forEach(field -> {
-//      ValidationUtils.invalidSchema("Relationship '%s' contains a field '%s' that makes use of a disallowed type '%s'.",
-//          className, field.getName(), field.getType().getType());
-//    });
-    // Relationship V2 no longer uses the 'pairings' property
-//    validatePairings(schema);
+    validateRelationshipSchema(schema, false);
   }
 
+  /**
+   * Similar to {@link #validateRelationshipSchema(RecordDataSchema)} but take a {@link Class} instead and caches results.
+   */
+  public static void validateRelationshipSchema(@Nonnull Class<? extends RecordTemplate> clazz, boolean isRelationshipInV2) {
+    if (VALIDATED.contains(clazz)) {
+      return;
+    }
+
+    validateRelationshipSchema(ValidationUtils.getRecordSchema(clazz), isRelationshipInV2);
+    VALIDATED.add(clazz);
+  }
 
   /**
    * Similar to {@link #validateRelationshipSchema(RecordDataSchema)} but take a {@link Class} instead and caches results.
    */
   public static void validateRelationshipSchema(@Nonnull Class<? extends RecordTemplate> clazz) {
-    if (VALIDATED.contains(clazz)) {
-      return;
-    }
-
-    validateRelationshipSchema(ValidationUtils.getRecordSchema(clazz));
-    VALIDATED.add(clazz);
+    validateRelationshipSchema(clazz, false);
   }
 
   /**
@@ -119,7 +148,7 @@ public class RelationshipValidator {
       DataMap map = (DataMap) obj;
       if (!map.containsKey(SOURCE_FIELD) || !map.containsKey(DESTINATION_FIELD)) {
         ValidationUtils.invalidSchema("Relationship '%s' contains an invalid 'pairings' item. "
-            + "Each item must contain a 'source' and 'destination' properties.", className);
+            + "Each item must contain a '%s' and '%s' properties.", className, SOURCE_FIELD, DESTINATION_FIELD);
       }
 
       String sourceUrn = map.getString(SOURCE_FIELD);

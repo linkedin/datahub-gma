@@ -10,19 +10,12 @@ record RelationshipV2Bar {
   /**
    * The audit stamp of the relationship
    */
-  auditStamp: optional AuditStamp
-
-  /**
-   * Urn of the source asset
-   */
-  source: optional union[
-    sourceFoo: FooUrn
-  ]
+  auditStamp: AuditStamp
 
   /**
    * Urn of the destination asset
    */
-  destination: optional union[
+  destination: union[
     destinationBar: BarUrn
   ]
 }
