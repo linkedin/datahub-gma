@@ -13,6 +13,7 @@ import com.linkedin.testing.AspectBaz;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.AspectBarArray;
 import com.linkedin.testing.AspectFooArray;
+import com.linkedin.testing.AspectWithDefaultValue;
 import com.linkedin.testing.EntityAspectUnion;
 import com.linkedin.testing.EntityAspectUnionAlias;
 import com.linkedin.testing.EntityAspectUnionComplex;
@@ -49,6 +50,17 @@ public class RecordUtilsTest {
         loadJsonFromResource("foo.json").replaceAll("\\s+", "").replaceAll("\\n", "").replaceAll("\\r", "");
 
     String actual = RecordUtils.toJsonString(foo);
+
+    assertEquals(actual, expected);
+  }
+
+  @Test
+  public void testToJsonStringWithDefault() throws IOException {
+    AspectWithDefaultValue defaultValueAspect = new AspectWithDefaultValue();
+    String expected =
+        loadJsonFromResource("defaultValueAspect.json").replaceAll("\\s+", "").replaceAll("\\n", "").replaceAll("\\r", "");
+
+    String actual = RecordUtils.toJsonString(defaultValueAspect, true);
 
     assertEquals(actual, expected);
   }

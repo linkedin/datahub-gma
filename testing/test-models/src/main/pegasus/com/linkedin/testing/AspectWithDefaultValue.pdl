@@ -1,0 +1,9 @@
+namespace com.linkedin.testing
+
+record AspectWithDefaultValue {
+
+  /**
+   * For unit tests
+   */
+  valueWithDefault: string = ""
+}
