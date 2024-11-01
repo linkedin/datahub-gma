@@ -1,3 +1,6 @@
 {
+  "nestedValueWithDefault":{
+    "mapValueWithDefaultmap":{}
+  },
   "valueWithDefault": ""
 }

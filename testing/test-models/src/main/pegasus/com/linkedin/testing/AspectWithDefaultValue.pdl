@@ -6,4 +6,5 @@ record AspectWithDefaultValue {
    * For unit tests
    */
   valueWithDefault: string = ""
+  nestedValueWithDefault: record MapValueRecord {mapValueWithDefaultmap: map[string, string] = { }}
 }

@@ -81,7 +81,7 @@ public class RecordUtils {
 
   /**
    * Serializes a {@link RecordTemplate} to JSON string.
-   *Also take test mode as input to control the default value fill in strategy
+   * Also take test mode as input to control the default value fill in strategy
    * @param recordTemplate the record template to serialize
    * @return the JSON string serialized using {@link JacksonDataTemplateCodec}.
    */

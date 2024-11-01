@@ -23,6 +23,7 @@ import com.linkedin.testing.MixedRecord;
 import com.linkedin.testing.PizzaInfo;
 import com.linkedin.testing.StringUnion;
 import com.linkedin.testing.StringUnionArray;
+import com.linkedin.testing.MapValueRecord;
 import com.linkedin.testing.singleaspectentity.EntityValue;
 import com.linkedin.testing.urn.FooUrn;
 import java.io.IOException;
@@ -56,7 +57,7 @@ public class RecordUtilsTest {
 
   @Test
   public void testToJsonStringWithDefault() throws IOException {
-    AspectWithDefaultValue defaultValueAspect = new AspectWithDefaultValue();
+    AspectWithDefaultValue defaultValueAspect = new AspectWithDefaultValue().setNestedValueWithDefault(new MapValueRecord());
     String expected =
         loadJsonFromResource("defaultValueAspect.json").replaceAll("\\s+", "").replaceAll("\\n", "").replaceAll("\\r", "");
 
