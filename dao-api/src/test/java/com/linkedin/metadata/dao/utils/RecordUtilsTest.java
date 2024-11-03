@@ -539,4 +539,24 @@ public class RecordUtilsTest {
     destination.setDestinationBar(barUrn);
     return new RelationshipV2Bar().setDestination(destination);
   }
+
+  @Test
+  public void testExtractFieldValueFromUnionField() {
+    BarUrn barUrn = makeBarUrn(1);
+    RelationshipV2Bar relationshipV2 = mockRelationshipV2Bar(barUrn);
+
+    String destinationFieldValue = RecordUtils.extractFieldValueFromUnionField(relationshipV2, "destination");
+    assertEquals(destinationFieldValue, makeBarUrn(1).toString());
+  }
+
+  private AspectBaz loadAspectBaz(String resourceName) throws IOException {
+    return RecordUtils.toRecordTemplate(AspectBaz.class,
+        IOUtils.toString(ClassLoader.getSystemResourceAsStream(resourceName), StandardCharsets.UTF_8));
+  }
+
+  private RelationshipV2Bar mockRelationshipV2Bar(BarUrn barUrn) {
+    RelationshipV2Bar.Destination destination = new RelationshipV2Bar.Destination();
+    destination.setDestinationBar(barUrn);
+    return new RelationshipV2Bar().setDestination(destination);
+  }
 }

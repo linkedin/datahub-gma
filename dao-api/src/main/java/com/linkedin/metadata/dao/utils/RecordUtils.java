@@ -601,7 +601,7 @@ public class RecordUtils {
   }
 
   /**
-   * Get the field name within a union type. e.g. to get "sourceDemoAsset" from the following "source" union type.
+   * Get the field value within a union type. e.g. to get "DemoAssetUrn" from the following "source" union type.
    *   source: optional union[
    *     sourceDemoAsset: DemoAssetUrn
    *   ]
