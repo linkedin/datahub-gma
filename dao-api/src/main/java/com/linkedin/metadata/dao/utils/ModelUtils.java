@@ -301,9 +301,15 @@ public class ModelUtils {
     final Urn urn;
     if (!relationshipInV2) {
       // if V1, get the urn from the given field name, "source" or "destination"
+      if (!fieldName.equals(DESTINATION_FIELD) && !fieldName.equals(SOURCE_FIELD)) {
+        throw new IllegalArgumentException("Expecting destination or source field, but got " + fieldName);
+      }
       urn = RecordUtils.getRecordTemplateField(relationship, fieldName, urnClassForRelationship(relationship.getClass(), fieldName));
     } else {
       // if V2, get the urn from the union field, "destination"
+      if (!fieldName.equals(DESTINATION_FIELD)) {
+        throw new IllegalArgumentException("Expecting destination field, but got " + fieldName);
+      }
       urn = getUrnFromString(RecordUtils.extractFieldValueFromUnionField(relationship, fieldName), Urn.class);
     }
     if (urn == null) {

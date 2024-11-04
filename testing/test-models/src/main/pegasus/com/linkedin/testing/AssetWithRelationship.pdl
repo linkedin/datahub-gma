@@ -14,5 +14,5 @@ record AssetWithRelationship {
   /**
    * For unit tests
    */
-  aspect_with_relationship: AspectWithRelationship
+  aspectWithRelationship: AspectWithRelationship
 }
