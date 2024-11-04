@@ -321,6 +321,7 @@ public class ModelUtils {
     if (!isRelationshipInV2(relationship.getClass())) {
       return getUrnFromRelationship(relationship, SOURCE_FIELD);
     } else {
+      // ToDo: how to get source urn for a given relationship in V2?
       throw new UnsupportedOperationException("Relationship V2 models don't have a source field.");
     }
   }
