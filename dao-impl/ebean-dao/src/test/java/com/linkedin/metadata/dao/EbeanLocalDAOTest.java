@@ -64,7 +64,8 @@ import com.linkedin.testing.FooSnapshot;
 import com.linkedin.testing.MixedRecord;
 import com.linkedin.testing.localrelationship.AspectFooBar;
 import com.linkedin.testing.localrelationship.BelongsTo;
-import com.linkedin.testing.localrelationship.BelongsToArray;
+import com.linkedin.testing.localrelationship.BelongsToV2;
+import com.linkedin.testing.localrelationship.BelongsToV2Array;
 import com.linkedin.testing.localrelationship.ReportsTo;
 import com.linkedin.testing.localrelationship.ReportsToArray;
 import com.linkedin.testing.urn.BarUrn;
@@ -2548,12 +2549,13 @@ public class EbeanLocalDAOTest {
     // add an aspect (AspectFooBar) which includes BelongsTo relationships and ReportsTo relationships
     FooUrn fooUrn = makeFooUrn(1);
     BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
-    BelongsTo belongsTo1 = new BelongsTo().setSource(fooUrn).setDestination(barUrn1);
+
+    BelongsToV2 belongsTo1 = new BelongsToV2().setSource(fooUrn).setDestination(barUrn1);
     BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:2");
-    BelongsTo belongsTo2 = new BelongsTo().setSource(fooUrn).setDestination(barUrn2);
+    BelongsToV2 belongsTo2 = new BelongsToV2().setSource(fooUrn).setDestination(barUrn2);
     BarUrn barUrn3 = BarUrn.createFromString("urn:li:bar:3");
-    BelongsTo belongsTo3 = new BelongsTo().setSource(fooUrn).setDestination(barUrn3);
-    BelongsToArray belongsToArray = new BelongsToArray(belongsTo1, belongsTo2, belongsTo3);
+    BelongsToV2 belongsTo3 = new BelongsToV2().setSource(fooUrn).setDestination(barUrn3);
+    BelongsToV2Array belongsToArray = new BelongsToV2Array(belongsTo1, belongsTo2, belongsTo3);
     ReportsTo reportsTo = new ReportsTo().setSource(fooUrn).setDestination(barUrn1);
     ReportsToArray reportsToArray = new ReportsToArray(reportsTo);
     AspectFooBar aspectFooBar = new AspectFooBar()
@@ -2565,13 +2567,20 @@ public class EbeanLocalDAOTest {
     barDao.add(barUrn2, new AspectFoo().setValue("2"), auditStamp);
     barDao.add(barUrn3, new AspectFoo().setValue("3"), auditStamp);
 
+    // add another aspect (AspectFooBarBaz) which includes BelongsTo relationship(s)
+    BarUrn barUrn4 = BarUrn.createFromString("urn:li:bar:4");
+    BelongsToV2 belongsTo4 = new BelongsToV2().setSource(barUrn4).setDestination(fooUrn);
+    AspectFooBarBaz aspectFooBarBaz = new AspectFooBarBaz().setBars(new BarUrnArray(barUrn4)).setBelongsTos(new BelongsToV2Array(belongsTo4));
+    fooDao.add(fooUrn, aspectFooBarBaz, auditStamp);
+    barDao.add(barUrn4, new AspectFoo().setValue("4"), auditStamp);
+
     // Verify local relationships and entities are added.
     EbeanLocalRelationshipQueryDAO ebeanLocalRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server);
     ebeanLocalRelationshipQueryDAO.setSchemaConfig(_schemaConfig);
 
-    List<BelongsTo> resultBelongsTos =
+    List<BelongsToV2> resultBelongsTos =
         ebeanLocalRelationshipQueryDAO.findRelationships(FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class,
-            EMPTY_FILTER, BelongsTo.class, OUTGOING_FILTER, 0, 10);
+            EMPTY_FILTER, BelongsToV2.class, OUTGOING_FILTER, 0, 10);
 
     assertEquals(resultBelongsTos.size(), 3);
 
@@ -2591,7 +2600,7 @@ public class EbeanLocalDAOTest {
 
     // check that the belongsTo relationships 1, 2, & 3 were soft deleted
     resultBelongsTos = ebeanLocalRelationshipQueryDAO.findRelationships(FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class,
-            EMPTY_FILTER, BelongsTo.class, OUTGOING_FILTER, 0, 10);
+            EMPTY_FILTER, BelongsToV2.class, OUTGOING_FILTER, 0, 10);
 
     // check that the reportsTo relationship was soft deleted
     resultReportsTos =
@@ -3141,12 +3150,13 @@ public class EbeanLocalDAOTest {
 
     FooUrn fooUrn = makeFooUrn(1);
     BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
-    BelongsTo belongsTo1 = new BelongsTo().setSource(fooUrn).setDestination(barUrn1);
+
+    BelongsToV2 belongsTo1 = new BelongsToV2().setSource(fooUrn).setDestination(barUrn1);
     BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:2");
-    BelongsTo belongsTo2 = new BelongsTo().setSource(fooUrn).setDestination(barUrn2);
+    BelongsToV2 belongsTo2 = new BelongsToV2().setSource(fooUrn).setDestination(barUrn2);
     BarUrn barUrn3 = BarUrn.createFromString("urn:li:bar:3");
-    BelongsTo belongsTo3 = new BelongsTo().setSource(fooUrn).setDestination(barUrn3);
-    BelongsToArray belongsToArray = new BelongsToArray(belongsTo1, belongsTo2, belongsTo3);
+    BelongsToV2 belongsTo3 = new BelongsToV2().setSource(fooUrn).setDestination(barUrn3);
+    BelongsToV2Array belongsToArray = new BelongsToV2Array(belongsTo1, belongsTo2, belongsTo3);
     AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(barUrn1, barUrn2, barUrn3)).setBelongsTos(belongsToArray);
     AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
 

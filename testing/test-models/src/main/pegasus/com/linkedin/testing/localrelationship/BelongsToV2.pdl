@@ -1,0 +1,9 @@
+namespace com.linkedin.testing.localrelationship
+
+@pairings = [ {
+  "destination": "com.linkedin.testing.urn.FooUrn",
+  "source": "com.linkedin.testing.urn.BarUrn"
+} ]
+@gma.model = "RELATIONSHIP"
+record BelongsToV2 includes BaseRelationship {
+}
