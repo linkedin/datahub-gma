@@ -951,7 +951,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * @param updatesBuiltFromRelationshipBuilders LocalRelationshipUpdates built from relationship builders
    * @return true if there is no conflict, false otherwise
    */
-  private boolean areConsistentLocalRelationshipUpdates(List<LocalRelationshipUpdates> updatesExtractedFromAspect, List<LocalRelationshipUpdates> updatesBuiltFromRelationshipBuilders) {
+  private boolean areConsistentLocalRelationshipUpdates(List<LocalRelationshipUpdates> updatesExtractedFromAspect,
+      List<LocalRelationshipUpdates> updatesBuiltFromRelationshipBuilders) {
     if (updatesExtractedFromAspect.isEmpty() || updatesBuiltFromRelationshipBuilders.isEmpty()) {
       return true;
     }
