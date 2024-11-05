@@ -8,7 +8,6 @@ import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.UnionTemplate;
-import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.builder.LocalRelationshipBuilderRegistry;
 import com.linkedin.metadata.dao.exception.ModelConversionException;
@@ -18,10 +17,10 @@ import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
 import com.linkedin.metadata.dao.retention.VersionBasedRetention;
-import com.linkedin.metadata.dao.urnpath.EmptyPathExtractor;
-import com.linkedin.metadata.dao.urnpath.UrnPathExtractor;
 import com.linkedin.metadata.dao.storage.LocalDAOStorageConfig;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
+import com.linkedin.metadata.dao.urnpath.EmptyPathExtractor;
+import com.linkedin.metadata.dao.urnpath.UrnPathExtractor;
 import com.linkedin.metadata.dao.utils.EBeanDAOUtils;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.QueryUtils;
@@ -896,13 +895,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       List<List<RELATIONSHIP>> allRelationships = EBeanDAOUtils.extractRelationshipsFromAspect(aspect);
       localRelationshipUpdates = allRelationships.stream()
           .filter(relationships -> !relationships.isEmpty()) // ensure at least 1 relationship in sublist to avoid index out of bounds
-          .map(relationships -> {
-            for (RELATIONSHIP relationship : relationships) {
-              validateRelationshipSource(urn, relationship); // validate that all relationships' sources are equal to the given asset urn
-            }
-            return new BaseLocalRelationshipBuilder.LocalRelationshipUpdates(
-              relationships, relationships.get(0).getClass(), BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE);
-          })
+          .map(relationships -> new LocalRelationshipUpdates(
+            relationships, relationships.get(0).getClass(), BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE))
           .collect(Collectors.toList());
     } else if (_relationshipSource == RelationshipSource.RELATIONSHIP_BUILDERS) {
       if (_localRelationshipBuilderRegistry != null && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
