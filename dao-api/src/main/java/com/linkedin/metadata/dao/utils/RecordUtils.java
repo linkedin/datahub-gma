@@ -15,6 +15,9 @@ import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.exception.ModelConversionException;
 import com.linkedin.metadata.validator.InvalidSchemaException;
+import com.linkedin.metadata.validator.ValidationUtils;
+import com.linkedin.restli.internal.server.response.ResponseUtils;
+import com.linkedin.restli.server.RestLiServiceException;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -74,6 +77,27 @@ public class RecordUtils {
       return DATA_TEMPLATE_CODEC.mapToString(recordTemplate.data());
     } catch (IOException e) {
       throw new ModelConversionException("Failed to serialize RecordTemplate: " + recordTemplate.toString());
+    }
+  }
+
+  /**
+   * Serializes a {@link RecordTemplate} to JSON string.
+   * Also take test mode as input to control the default value fill in strategy
+   * @param recordTemplate the record template to serialize
+   * @return the JSON string serialized using {@link JacksonDataTemplateCodec}.
+   */
+  //Todo: we will remove this method once we verify it works and does not bring too much degrade in test mode.
+  @Nonnull
+  public static String toJsonString(@Nonnull RecordTemplate recordTemplate, boolean isTestMode) {
+    if (isTestMode) {
+      try {
+        DataMap dataWithDefaultValue = (DataMap) ResponseUtils.fillInDataDefault(recordTemplate.schema(), recordTemplate.data());
+        return DATA_TEMPLATE_CODEC.mapToString(dataWithDefaultValue);
+      } catch (RestLiServiceException | IOException e) {
+        throw new ModelConversionException("Failed to serialize RecordTemplate: " + recordTemplate.toString(), e);
+      }
+    } else {
+      return toJsonString(recordTemplate);
     }
   }
 
@@ -583,5 +607,33 @@ public class RecordUtils {
       }
     }
     return Optional.of(reference);
+  }
+
+  /**
+   * Get the field name within a union type. e.g. to get "sourceDemoAsset" from the following "source" union type.
+   *   source: optional union[
+   *     sourceDemoAsset: DemoAssetUrn
+   *   ]
+   */
+  public static <RELATIONSHIP extends RecordTemplate> String extractFieldNameFromUnionField(RELATIONSHIP relationship, String fieldName) {
+    final DataMap dataMap = RecordUtils.getRecordTemplateField(relationship, fieldName, DataMap.class);
+    if (dataMap == null) {
+      ValidationUtils.throwNullFieldException(fieldName);
+    }
+    return dataMap.keySet().iterator().next();
+  }
+
+  /**
+   * Get the field value within a union type. e.g. to get "DemoAssetUrn" from the following "source" union type.
+   *   source: optional union[
+   *     sourceDemoAsset: DemoAssetUrn
+   *   ]
+   */
+  public static <RELATIONSHIP extends RecordTemplate> String extractFieldValueFromUnionField(RELATIONSHIP relationship, String fieldName) {
+    final DataMap dataMap = RecordUtils.getRecordTemplateField(relationship, fieldName, DataMap.class);
+    if (dataMap == null) {
+      ValidationUtils.throwNullFieldException(fieldName);
+    }
+    return dataMap.values().iterator().next().toString();
   }
 }

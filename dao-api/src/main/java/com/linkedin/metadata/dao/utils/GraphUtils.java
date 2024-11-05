@@ -7,7 +7,6 @@ import java.util.List;
 import javax.annotation.Nonnull;
 
 import static com.linkedin.metadata.dao.utils.ModelUtils.*;
-import static com.linkedin.metadata.dao.utils.RecordUtils.*;
 
 
 public class GraphUtils {
@@ -25,6 +24,7 @@ public class GraphUtils {
       return;
     }
 
+    // ToDo: how to handle this for Relationship V2?
     final Urn sourceUrn = getSourceUrnFromRelationship(relationships.get(0));
     final Urn destinationUrn = getDestinationUrnFromRelationship(relationships.get(0));
 
@@ -41,7 +41,7 @@ public class GraphUtils {
   private static void checkSameUrn(@Nonnull List<? extends RecordTemplate> records, @Nonnull String field,
       @Nonnull Urn compare) {
     for (RecordTemplate relation : records) {
-      if (!compare.equals(getRecordTemplateField(relation, field, Urn.class))) {
+      if (!compare.equals(ModelUtils.getUrnFromRelationship(relation, field))) {
         throw new IllegalArgumentException("Records have different " + field + " urn");
       }
     }

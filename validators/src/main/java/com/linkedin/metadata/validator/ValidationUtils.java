@@ -97,6 +97,21 @@ public final class ValidationUtils {
   }
 
   /**
+   * Similar to {@link #isValidUrnField(RecordDataSchema.Field, String)} but with a fixed field "urn".
+   */
+  public static boolean isValidUrnField(@Nonnull RecordDataSchema.Field field) {
+    return isValidUrnField(field, "urn");
+  }
+
+  /**
+   * Returns true if the passed-in field matches the field name and is of UNION type.
+   */
+  public static boolean isValidUnionField(@Nonnull RecordDataSchema.Field field, @Nonnull String fieldName) {
+    return field.getName().equals(fieldName)
+        && field.getType().getType() == DataSchema.Type.UNION;
+  }
+
+  /**
    * Returns the Java class for an URN typeref field.
    */
   public static Class<Urn> getUrnClass(@Nonnull RecordDataSchema.Field field) {
@@ -108,13 +123,6 @@ public final class ValidationUtils {
     } catch (ClassNotFoundException e) {
       throw new RuntimeException(e);
     }
-  }
-
-  /**
-   * Similar to {@link #isValidUrnField(RecordDataSchema.Field, String)} but with a fixed field "urn".
-   */
-  public static boolean isValidUrnField(@Nonnull RecordDataSchema.Field field) {
-    return isValidUrnField(field, "urn");
   }
 
   /**

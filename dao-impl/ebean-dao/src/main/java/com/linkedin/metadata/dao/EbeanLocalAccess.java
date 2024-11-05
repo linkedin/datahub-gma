@@ -138,7 +138,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     }
 
     AuditedAspect auditedAspect = new AuditedAspect()
-        .setAspect(RecordUtils.toJsonString(newValue))
+        .setAspect(RecordUtils.toJsonString(newValue, isTestMode))
         .setCanonicalName(aspectClass.getCanonicalName())
         .setLastmodifiedby(actor)
         .setLastmodifiedon(new Timestamp(timestamp).toString())

@@ -1,0 +1,18 @@
+namespace com.linkedin.testing
+
+/**
+ * For unit tests
+ */
+@gma.aspect.column.name = "aspectwithrelationship"
+record AspectWithRelationship {
+
+  /**
+   * For unit tests
+   */
+  value: string
+
+  /**
+   * Relationship field for unit tests
+   */
+  testRelationship: RelationshipV2Bar
+}

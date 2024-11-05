@@ -3,67 +3,68 @@ package com.linkedin.metadata.dao.utils;
 import com.google.common.collect.ImmutableSet;
 import com.linkedin.common.CommonTestAspect;
 import com.linkedin.common.urn.Urn;
+import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.UnionTemplate;
+import com.linkedin.metadata.validator.InvalidSchemaException;
 import com.linkedin.metadata.validator.NullFieldException;
 import com.linkedin.testing.AspectAttributes;
+import com.linkedin.testing.AspectBar;
+import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.AspectFooEvolved;
 import com.linkedin.testing.AspectUnionWithSoftDeletedAspect;
 import com.linkedin.testing.BarAsset;
 import com.linkedin.testing.BarUrnArray;
 import com.linkedin.testing.DatasetInfo;
+import com.linkedin.testing.DeltaUnion;
 import com.linkedin.testing.DeltaUnionAlias;
+import com.linkedin.testing.EntityAspectUnion;
+import com.linkedin.testing.EntityAspectUnionAlias;
 import com.linkedin.testing.EntityAspectUnionAliasArray;
+import com.linkedin.testing.EntityAspectUnionArray;
 import com.linkedin.testing.EntityAsset;
+import com.linkedin.testing.EntityBar;
+import com.linkedin.testing.EntityDelta;
 import com.linkedin.testing.EntityDeltaAlias;
+import com.linkedin.testing.EntityDocument;
+import com.linkedin.testing.EntityDocumentInvalid;
+import com.linkedin.testing.EntityDocumentOptionalUrn;
 import com.linkedin.testing.EntityFoo;
 import com.linkedin.testing.EntityFooInvalid;
 import com.linkedin.testing.EntityFooOptionalUrn;
+import com.linkedin.testing.EntitySnapshot;
 import com.linkedin.testing.EntitySnapshotAlias;
 import com.linkedin.testing.EntitySnapshotAliasOptionalFields;
+import com.linkedin.testing.EntitySnapshotInvalid;
+import com.linkedin.testing.EntitySnapshotOptionalFields;
 import com.linkedin.testing.EntityUnion;
 import com.linkedin.testing.EntityUnionAlias;
 import com.linkedin.testing.EntityValue;
 import com.linkedin.testing.InternalEntityAspectUnion;
 import com.linkedin.testing.InternalEntityAspectUnionArray;
 import com.linkedin.testing.InternalEntitySnapshot;
+import com.linkedin.testing.InvalidAspectUnion;
 import com.linkedin.testing.PizzaInfo;
 import com.linkedin.testing.PizzaOrder;
-import com.linkedin.testing.SnapshotUnionAlias;
-import com.linkedin.testing.SnapshotUnionAliasWithEntitySnapshotAliasOptionalFields;
-import com.linkedin.testing.TyperefPizzaAspect;
-import com.linkedin.testing.localrelationship.AspectFooBar;
-import com.linkedin.testing.localrelationship.AspectFooBarBaz;
-import com.linkedin.testing.namingedgecase.InternalEntitySnapshotNamingEdgeCase;
-import com.linkedin.testing.urn.PizzaUrn;
-import com.linkedin.testing.urn.BarUrn;
-import com.linkedin.data.template.RecordTemplate;
-import com.linkedin.metadata.validator.InvalidSchemaException;
-import com.linkedin.testing.AspectBar;
-import com.linkedin.testing.AspectFoo;
-import com.linkedin.testing.DeltaUnion;
-import com.linkedin.testing.EntityAspectUnion;
-import com.linkedin.testing.EntityAspectUnionAlias;
-import com.linkedin.testing.EntityAspectUnionArray;
-import com.linkedin.testing.EntityBar;
-import com.linkedin.testing.EntityDelta;
-import com.linkedin.testing.EntityDocument;
-import com.linkedin.testing.EntityDocumentInvalid;
-import com.linkedin.testing.EntityDocumentOptionalUrn;
-import com.linkedin.testing.EntitySnapshot;
-import com.linkedin.testing.EntitySnapshotInvalid;
-import com.linkedin.testing.EntitySnapshotOptionalFields;
-import com.linkedin.testing.InvalidAspectUnion;
 import com.linkedin.testing.RelationshipFoo;
 import com.linkedin.testing.RelationshipFooOptionalFields;
 import com.linkedin.testing.RelationshipUnion;
 import com.linkedin.testing.RelationshipUnionAlias;
+import com.linkedin.testing.RelationshipV2Bar;
 import com.linkedin.testing.SnapshotUnion;
+import com.linkedin.testing.SnapshotUnionAlias;
+import com.linkedin.testing.SnapshotUnionAliasWithEntitySnapshotAliasOptionalFields;
 import com.linkedin.testing.SnapshotUnionWithEntitySnapshotOptionalFields;
-import com.linkedin.testing.urn.FooUrn;
+import com.linkedin.testing.TyperefPizzaAspect;
+import com.linkedin.testing.localrelationship.AspectFooBar;
+import com.linkedin.testing.localrelationship.AspectFooBarBaz;
 import com.linkedin.testing.namingedgecase.EntityValueNamingEdgeCase;
 import com.linkedin.testing.namingedgecase.InternalEntityAspectUnionNamingEdgeCase;
 import com.linkedin.testing.namingedgecase.InternalEntityAspectUnionNamingEdgeCaseArray;
+import com.linkedin.testing.namingedgecase.InternalEntitySnapshotNamingEdgeCase;
+import com.linkedin.testing.urn.BarUrn;
+import com.linkedin.testing.urn.FooUrn;
+import com.linkedin.testing.urn.PizzaUrn;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
@@ -250,6 +251,7 @@ public class ModelUtilsTest {
 
   @Test
   public void testGetUrnFromRelationship() {
+    // test Relationship model V1
     FooUrn expectedSource = makeFooUrn(1);
     BarUrn expectedDestination = makeBarUrn(1);
     RelationshipFoo relationship = new RelationshipFoo().setSource(expectedSource).setDestination(expectedDestination);
@@ -258,6 +260,13 @@ public class ModelUtilsTest {
     Urn destinationUrn = ModelUtils.getDestinationUrnFromRelationship(relationship);
     assertEquals(sourceUrn, expectedSource);
     assertEquals(destinationUrn, expectedDestination);
+
+    // test Relationship model V2
+    BarUrn barUrn = makeBarUrn(2);
+    RelationshipV2Bar relationshipv2 = mockRelationshipV2Bar(barUrn);
+    destinationUrn = ModelUtils.getDestinationUrnFromRelationship(relationshipv2);
+    assertThrows(UnsupportedOperationException.class, () -> ModelUtils.getSourceUrnFromRelationship(relationshipv2));
+    assertEquals(destinationUrn, ModelUtils.getDestinationUrnFromRelationship(relationshipv2));
   }
 
   @Test
@@ -834,5 +843,40 @@ public class ModelUtilsTest {
     } catch (Exception e) {
 
     }
+  }
+
+  @Test
+  public void testIsRelationshipInV2() {
+    // testing isRelationshipInV2(Class<? extends RecordTemplate> relationship)
+    // test relationship model v1
+    FooUrn expectedSource = makeFooUrn(1);
+    BarUrn expectedDestination = makeBarUrn(1);
+    RelationshipFoo relationship = mockRelationshipFoo(expectedSource, expectedDestination);
+    boolean result = ModelUtils.isRelationshipInV2(relationship.getClass());
+    assertFalse(result);
+
+    // test relationship model v2
+    RelationshipV2Bar relationshipV2 = mockRelationshipV2Bar(expectedDestination);
+    result = ModelUtils.isRelationshipInV2(relationshipV2.getClass());
+    assertTrue(result);
+
+    // testing isRelationshipInV2(@Nonnull RecordDataSchema schema)
+    // test relationship model v1
+    result = ModelUtils.isRelationshipInV2(relationship.schema());
+    assertFalse(result);
+
+    // test relationship model v2
+    result = ModelUtils.isRelationshipInV2(relationshipV2.schema());
+    assertTrue(result);
+  }
+
+  private RelationshipFoo mockRelationshipFoo(FooUrn expectedSource, BarUrn expectedDestination) {
+    return new RelationshipFoo().setSource(expectedSource).setDestination(expectedDestination);
+  }
+
+  private RelationshipV2Bar mockRelationshipV2Bar(BarUrn barUrn) {
+    RelationshipV2Bar.Destination destination = new RelationshipV2Bar.Destination();
+    destination.setDestinationBar(barUrn);
+    return new RelationshipV2Bar().setDestination(destination);
   }
 }

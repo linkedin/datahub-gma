@@ -10,6 +10,7 @@ dependencies {
   compile externalDependency.reflections
   compile externalDependency.commonsLang
   implementation 'com.google.protobuf:protobuf-java:3.21.1'
+  implementation spec.product.pegasus.restliServer
   dataModel project(':core-models')
   dataModel project(':validators')
 
