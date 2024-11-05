@@ -57,6 +57,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.persistence.OptimisticLockException;
@@ -103,7 +104,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    */
   public enum RelationshipSource {
     ASPECT_METADATA, // Look at the aspect model and extract any relationship from its fields
-    RELATIONSHIP_BUILDERS // Use the relationship registry, which relies on relationship builders
+    RELATIONSHIP_BUILDERS, // Use the relationship registry, which relies on relationship builders
+    DUAL_SOURCE
   }
 
   // Which approach to be used for record retrieval when inserting a new record
@@ -136,9 +138,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   /**
    * Set where the relationships should be derived from during ingestion. Either from aspect models or from relationship
-   * builders. The default is relationship builders. This should only be used during DAO instantiation i.e. in the DAO factory.
+   * builders, or both. The default is relationship builders. This should only be used during DAO instantiation i.e. in the DAO factory.
    * One limitation when setting this is that all aspects for a particular entity type must use the same relationship source config.
-   * @param relationshipSource {@link RelationshipSource ASPECT_METADATA or RELATIONSHIP_BUILDERS}
+   * @param relationshipSource {@link RelationshipSource ASPECT_METADATA or RELATIONSHIP_BUILDERS or DUAL_SOURCE}
    */
   public void setRelationshipSource(RelationshipSource relationshipSource) {
     _relationshipSource = relationshipSource;
@@ -649,7 +651,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
     // If the aspect is to be soft deleted and we are deriving relationships from aspect metadata, remove any relationships
     // associated with the previous aspect value.
-    if (newValue == null && _relationshipSource == RelationshipSource.ASPECT_METADATA && oldValue != null) {
+    if (newValue == null && oldValue != null
+        && (_relationshipSource == RelationshipSource.ASPECT_METADATA || _relationshipSource == RelationshipSource.DUAL_SOURCE)) {
       List<RecordTemplate> relationships = extractRelationshipsFromAspect(oldValue).stream()
           .flatMap(List::stream)
           .collect(Collectors.toList());
@@ -890,24 +893,102 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     if (aspect == null) {
       return Collections.emptyList();
     }
-    List<LocalRelationshipUpdates> localRelationshipUpdates = Collections.emptyList();
+
+    boolean needsToBuildFromAspect = false;
+    boolean needsToBuildFromRelationshipBuilders = false;
+
+    List<LocalRelationshipUpdates> updatesExtractedFromAspect = new ArrayList<>();
+    List<LocalRelationshipUpdates> updatesBuiltFromRelationshipBuilders = new ArrayList<>();
+
     if (_relationshipSource == RelationshipSource.ASPECT_METADATA) {
-      List<List<RELATIONSHIP>> allRelationships = EBeanDAOUtils.extractRelationshipsFromAspect(aspect);
-      localRelationshipUpdates = allRelationships.stream()
-          .filter(relationships -> !relationships.isEmpty()) // ensure at least 1 relationship in sublist to avoid index out of bounds
-          .map(relationships -> new LocalRelationshipUpdates(
-            relationships, relationships.get(0).getClass(), BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE))
-          .collect(Collectors.toList());
+      needsToBuildFromAspect = true;
     } else if (_relationshipSource == RelationshipSource.RELATIONSHIP_BUILDERS) {
-      if (_localRelationshipBuilderRegistry != null && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
-        localRelationshipUpdates = _localRelationshipBuilderRegistry.getLocalRelationshipBuilder(aspect).buildRelationships(urn, aspect);
-      }
+      needsToBuildFromRelationshipBuilders = true;
+    } else if (_relationshipSource == RelationshipSource.DUAL_SOURCE) {
+      needsToBuildFromAspect = true;
+      needsToBuildFromRelationshipBuilders = true;
     } else {
       throw new UnsupportedOperationException("Please ensure that the RelationshipSource enum is properly set using "
           + "setRelationshipSource method.");
     }
-    _localRelationshipWriterDAO.processLocalRelationshipUpdates(urn, localRelationshipUpdates, isTestMode);
-    return localRelationshipUpdates;
+
+    if (needsToBuildFromAspect) {
+      List<List<RELATIONSHIP>> allRelationships = EBeanDAOUtils.extractRelationshipsFromAspect(aspect);
+      updatesExtractedFromAspect = allRelationships.stream()
+          .filter(relationships -> !relationships.isEmpty()) // ensure at least 1 relationship in sublist to avoid index out of bounds
+          .map(relationships -> new LocalRelationshipUpdates(
+            relationships, relationships.get(0).getClass(), BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE))
+          .collect(Collectors.toList());
+    }
+
+    if (needsToBuildFromRelationshipBuilders) {
+      if (_localRelationshipBuilderRegistry != null && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
+        updatesBuiltFromRelationshipBuilders = _localRelationshipBuilderRegistry.getLocalRelationshipBuilder(aspect).buildRelationships(urn, aspect);
+      }
+    }
+
+    // if DUAL_SOURCE mode, verify that the relationships extracted from aspect and built from relationship builders have the same source/destination pairs,
+    // with different relationship types. Else, throw an exception.
+    if (areConsistentLocalRelationshipUpdates(updatesExtractedFromAspect, updatesBuiltFromRelationshipBuilders)) {
+      _localRelationshipWriterDAO.processLocalRelationshipUpdates(urn, updatesExtractedFromAspect, isTestMode);
+      _localRelationshipWriterDAO.processLocalRelationshipUpdates(urn, updatesBuiltFromRelationshipBuilders, isTestMode);
+    } else {
+      throw new IllegalArgumentException(String.format(
+          "Inconsistent relationships extracted from aspect and built from relationship builders from aspect: %s.", aspect));
+    }
+
+    // returns both updates from aspect and relationship builders
+    return Stream.concat(updatesExtractedFromAspect.stream(), updatesBuiltFromRelationshipBuilders.stream())
+        .collect(Collectors.toList());
+  }
+
+  /**
+   * Checks data conflicts between relationships extracted from aspect and relationships built from relationship builders.
+   * Conflict:
+   * 1. Both relationships are the same type.
+   * 2. Two relationships have different source/destination pairs.
+   * @param updatesExtractedFromAspect LocalRelationshipUpdates extracted from aspect
+   * @param updatesBuiltFromRelationshipBuilders LocalRelationshipUpdates built from relationship builders
+   * @return true if there is no conflict, false otherwise
+   */
+  private boolean areConsistentLocalRelationshipUpdates(List<LocalRelationshipUpdates> updatesExtractedFromAspect, List<LocalRelationshipUpdates> updatesBuiltFromRelationshipBuilders) {
+    if (updatesExtractedFromAspect.isEmpty() || updatesBuiltFromRelationshipBuilders.isEmpty()) {
+      return true;
+    }
+
+    // must have the same number of types of relationships
+    if (updatesExtractedFromAspect.size() != updatesBuiltFromRelationshipBuilders.size()) {
+      return false;
+    }
+
+    // must have different relationship types
+    Set relationshipTypes = updatesExtractedFromAspect.stream()
+        .map(LocalRelationshipUpdates::getRelationshipClass)
+        .collect(Collectors.toSet());
+
+    if (updatesBuiltFromRelationshipBuilders.stream().anyMatch(update -> relationshipTypes.contains(update.getRelationshipClass()))) {
+      return false;
+    }
+
+    // TODO: update aspect in unit tests to v2, as aspect should aways be v2, if aspect is v1, we should throw exception
+    // must have the same source/destination pairs
+    Set<String> sourceDestinationPairs = (Set<String>) updatesExtractedFromAspect.stream()
+        .map(LocalRelationshipUpdates::getRelationships)
+        .flatMap(List::stream)
+        .map(relationship -> relationship.toString())
+        .collect(Collectors.toSet());
+
+    Set<String> s = (Set<String>) updatesBuiltFromRelationshipBuilders.stream()
+        .map(LocalRelationshipUpdates::getRelationships)
+        .flatMap(List::stream)
+        .map(relationship -> relationship.toString())
+        .collect(Collectors.toSet());
+
+    if (!sourceDestinationPairs.equals(s)) {
+      return false;
+    }
+
+    return true;
   }
 
   @Nonnull
