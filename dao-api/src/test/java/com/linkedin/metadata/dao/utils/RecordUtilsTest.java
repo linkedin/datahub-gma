@@ -21,10 +21,12 @@ import com.linkedin.testing.EntitySnapshot;
 import com.linkedin.testing.EntityValueArray;
 import com.linkedin.testing.MixedRecord;
 import com.linkedin.testing.PizzaInfo;
+import com.linkedin.testing.RelationshipV2Bar;
 import com.linkedin.testing.StringUnion;
 import com.linkedin.testing.StringUnionArray;
 import com.linkedin.testing.MapValueRecord;
 import com.linkedin.testing.singleaspectentity.EntityValue;
+import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.FooUrn;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -531,8 +533,43 @@ public class RecordUtilsTest {
     assertEquals(RecordUtils.capitalizeFirst(s), "");
   }
 
+  @Test
+  public void testExtractFieldNameFromUnionField() {
+    BarUrn barUrn = makeBarUrn(1);
+    RelationshipV2Bar relationshipV2 = mockRelationshipV2Bar(barUrn);
+
+    String destinationFieldName = RecordUtils.extractFieldNameFromUnionField(relationshipV2, "destination");
+    assertEquals(destinationFieldName, "destinationBar");
+  }
+
   private AspectBaz loadAspectBaz(String resourceName) throws IOException {
     return RecordUtils.toRecordTemplate(AspectBaz.class,
         IOUtils.toString(ClassLoader.getSystemResourceAsStream(resourceName), StandardCharsets.UTF_8));
+  }
+
+  private RelationshipV2Bar mockRelationshipV2Bar(BarUrn barUrn) {
+    RelationshipV2Bar.Destination destination = new RelationshipV2Bar.Destination();
+    destination.setDestinationBar(barUrn);
+    return new RelationshipV2Bar().setDestination(destination);
+  }
+
+  @Test
+  public void testExtractFieldValueFromUnionField() {
+    BarUrn barUrn = makeBarUrn(1);
+    RelationshipV2Bar relationshipV2 = mockRelationshipV2Bar(barUrn);
+
+    String destinationFieldValue = RecordUtils.extractFieldValueFromUnionField(relationshipV2, "destination");
+    assertEquals(destinationFieldValue, makeBarUrn(1).toString());
+  }
+
+  private AspectBaz loadAspectBaz(String resourceName) throws IOException {
+    return RecordUtils.toRecordTemplate(AspectBaz.class,
+        IOUtils.toString(ClassLoader.getSystemResourceAsStream(resourceName), StandardCharsets.UTF_8));
+  }
+
+  private RelationshipV2Bar mockRelationshipV2Bar(BarUrn barUrn) {
+    RelationshipV2Bar.Destination destination = new RelationshipV2Bar.Destination();
+    destination.setDestinationBar(barUrn);
+    return new RelationshipV2Bar().setDestination(destination);
   }
 }

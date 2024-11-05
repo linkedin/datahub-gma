@@ -44,9 +44,10 @@ public class ModelUtils {
 
   private static final ClassLoader CLASS_LOADER = DummySnapshot.class.getClassLoader();
   private static final String ASPECTS_FIELD = "aspects";
+  private static final String DESTINATION_FIELD = "destination";
   private static final String FIELD_FIELD_PREFIX = "FIELD_";
-  private static final String MEMBER_FIELD_PREFIX = "MEMBER_";
   private static final String METADATA_AUDIT_EVENT_PREFIX = "METADATA_AUDIT_EVENT";
+  private static final String SOURCE_FIELD = "source";
   private static final String URN_FIELD = "urn";
 
   private ModelUtils() {
@@ -290,10 +291,27 @@ public class ModelUtils {
    * @return the extracted {@link Urn}
    */
   @Nonnull
-  private static <RELATIONSHIP extends RecordTemplate> Urn getUrnFromRelationship(@Nonnull RELATIONSHIP relationship,
+  public static <RELATIONSHIP extends RecordTemplate> Urn getUrnFromRelationship(@Nonnull RELATIONSHIP relationship,
       @Nonnull String fieldName) {
-    RelationshipValidator.validateRelationshipSchema(relationship.getClass());
-    final Urn urn = RecordUtils.getRecordTemplateField(relationship, fieldName, urnClassForRelationship(relationship.getClass(), fieldName));
+    boolean relationshipInV2 = isRelationshipInV2(relationship.getClass());
+    // validate relationship schema
+    RelationshipValidator.validateRelationshipSchema(relationship.getClass(), relationshipInV2);
+
+    // get Urn field from the relationship
+    final Urn urn;
+    if (!relationshipInV2) {
+      // if V1, get the urn from the given field name, "source" or "destination"
+      if (!fieldName.equals(DESTINATION_FIELD) && !fieldName.equals(SOURCE_FIELD)) {
+        throw new IllegalArgumentException("Expecting destination or source field, but got " + fieldName);
+      }
+      urn = RecordUtils.getRecordTemplateField(relationship, fieldName, urnClassForRelationship(relationship.getClass(), fieldName));
+    } else {
+      // if V2, get the urn from the union field, "destination"
+      if (!fieldName.equals(DESTINATION_FIELD)) {
+        throw new IllegalArgumentException("Expecting destination field, but got " + fieldName);
+      }
+      urn = getUrnFromString(RecordUtils.extractFieldValueFromUnionField(relationship, fieldName), Urn.class);
+    }
     if (urn == null) {
       ValidationUtils.throwNullFieldException(URN_FIELD);
     }
@@ -306,7 +324,12 @@ public class ModelUtils {
   @Nonnull
   public static <RELATIONSHIP extends RecordTemplate> Urn getSourceUrnFromRelationship(
       @Nonnull RELATIONSHIP relationship) {
-    return getUrnFromRelationship(relationship, "source");
+    if (!isRelationshipInV2(relationship.getClass())) {
+      return getUrnFromRelationship(relationship, SOURCE_FIELD);
+    } else {
+      // ToDo: how to get source urn for a given relationship in V2?
+      throw new UnsupportedOperationException("Relationship V2 models don't have a source field.");
+    }
   }
 
   /**
@@ -315,7 +338,7 @@ public class ModelUtils {
   @Nonnull
   public static <RELATIONSHIP extends RecordTemplate> Urn getDestinationUrnFromRelationship(
       @Nonnull RELATIONSHIP relationship) {
-    return getUrnFromRelationship(relationship, "destination");
+    return getUrnFromRelationship(relationship, DESTINATION_FIELD);
   }
 
   /**
@@ -717,9 +740,9 @@ public class ModelUtils {
    * Gets the expected {@link Urn} class for a specific kind of relationship.
    */
   @Nonnull
-  private static Class<? extends Urn> urnClassForRelationship(
+  static Class<? extends Urn> urnClassForRelationship(
       @Nonnull Class<? extends RecordTemplate> relationshipClass, @Nonnull String fieldName) {
-    RelationshipValidator.validateRelationshipSchema(relationshipClass);
+    RelationshipValidator.validateRelationshipSchema(relationshipClass, isRelationshipInV2(relationshipClass));
     return urnClassForField(relationshipClass, fieldName);
   }
 
@@ -729,7 +752,7 @@ public class ModelUtils {
   @Nonnull
   public static Class<? extends Urn> sourceUrnClassForRelationship(
       @Nonnull Class<? extends RecordTemplate> relationshipClass) {
-    return urnClassForRelationship(relationshipClass, "source");
+    return urnClassForRelationship(relationshipClass, SOURCE_FIELD);
   }
 
   /**
@@ -738,7 +761,7 @@ public class ModelUtils {
   @Nonnull
   public static Class<? extends Urn> destinationUrnClassForRelationship(
       @Nonnull Class<? extends RecordTemplate> relationshipClass) {
-    return urnClassForRelationship(relationshipClass, "destination");
+    return urnClassForRelationship(relationshipClass, DESTINATION_FIELD);
   }
 
   @Nonnull
@@ -845,6 +868,33 @@ public class ModelUtils {
   public static boolean isCommonAspect(@Nonnull Class<? extends RecordTemplate> clazz) {
     return clazz.getPackage().getName().startsWith("com.linkedin.common");
   }
+
+  /**
+   * Check if a given relationship is in MG model v2 or not.
+   * @param relationship must be a valid relationship model defined in com.linkedin.metadata.relationship
+   * @return boolean. True if the relationship is in MG model V2.
+   */
+  static <RELATIONSHIP extends RecordTemplate> boolean isRelationshipInV2(Class<? extends RecordTemplate> relationship) {
+    final RecordDataSchema schema = ValidationUtils.getRecordSchema(relationship);
+    return isRelationshipInV2(schema);
+  }
+
+  /**
+   * Check if a given relationship schema is in MG model v2 or not.
+   * Returns TRUE if it:
+   * 1. has no source field
+   * 2. has one destination fields of union type.
+   * @param schema schema of a valid relationship model defined in com.linkedin.metadata.relationship
+   * @return boolean. True if the relationship is in MG model V2.
+   */
+  static boolean isRelationshipInV2(@Nonnull RecordDataSchema schema) {
+    // check the data type of the destination fields in schema and see if it's a union type
+    return schema.getFields().stream().noneMatch(
+        field -> field.getName().equals(SOURCE_FIELD))
+        && schema.getFields().stream().anyMatch(
+        field -> field.getName().equals(DESTINATION_FIELD) && field.getType().getType() == DataSchema.Type.UNION);
+  }
+
 
   /**
    * Creates an entity union with a specific entity set.
