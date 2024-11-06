@@ -16,12 +16,12 @@ import com.linkedin.metadata.query.LocalRelationshipValue;
 import com.linkedin.metadata.query.RelationshipField;
 import com.linkedin.metadata.query.UrnField;
 import com.linkedin.testing.AnnotatedAspectBarWithRelationshipFields;
+import com.linkedin.testing.AnnotatedAspectFooWithRelationshipField;
 import com.linkedin.testing.AnnotatedRelationshipBar;
 import com.linkedin.testing.AnnotatedRelationshipBarArray;
 import com.linkedin.testing.AnnotatedRelationshipFoo;
 import com.linkedin.testing.AnnotatedRelationshipFooArray;
 import com.linkedin.testing.AspectFoo;
-import com.linkedin.testing.AnnotatedAspectFooWithRelationshipField;
 import com.linkedin.testing.CommonAspect;
 import com.linkedin.testing.CommonAspectArray;
 import com.linkedin.testing.urn.BurgerUrn;
@@ -639,6 +639,4 @@ public class EBeanDAOUtilsTest {
     assertEquals(new AnnotatedRelationshipFoo(), results.get(1).get(1));
     assertEquals(new AnnotatedRelationshipBar(), results.get(2).get(0));
   }
-
-
 }

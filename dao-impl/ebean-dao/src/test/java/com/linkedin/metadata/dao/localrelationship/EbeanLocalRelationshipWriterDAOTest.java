@@ -42,8 +42,8 @@ public class EbeanLocalRelationshipWriterDAOTest {
 
   @Test
   public void testAddRelationshipWithRemoveAllEdgesToDestination() throws URISyntaxException {
-    _server.execute(Ebean.createSqlUpdate(insertRelationships("metadata_relationship_belongsto", "urn:li:bar:000",
-        "bar", "urn:li:foo:123", "foo")));
+    _server.execute(Ebean.createSqlUpdate(insertRelationships("metadata_relationship_belongsto", "urn:li:foo:123",
+        "foo", "urn:li:bar:000", "bar")));
 
     AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(
         BarUrn.createFromString("urn:li:bar:123"),
@@ -54,7 +54,7 @@ public class EbeanLocalRelationshipWriterDAOTest {
         .buildRelationships(FooUrn.createFromString("urn:li:foo:123"), aspectFooBar);
 
     // Before processing
-    List<SqlRow> before = _server.createSqlQuery("select * from metadata_relationship_belongsto where source='urn:li:bar:000'").findList();
+    List<SqlRow> before = _server.createSqlQuery("select * from metadata_relationship_belongsto where destination='urn:li:bar:000'").findList();
     assertEquals(before.size(), 1);
 
     _localRelationshipWriterDAO.processLocalRelationshipUpdates(FooUrn.createFromString("urn:li:foo:123"), updates, false);
@@ -67,7 +67,7 @@ public class EbeanLocalRelationshipWriterDAOTest {
     assertEquals(softDeleted.size(), 1); // 1 soft deleted edge
 
     List<SqlRow> newEdges = _server.createSqlQuery(
-        "select * from metadata_relationship_belongsto where destination='urn:li:foo:123' and deleted_ts IS NULL").findList();
+        "select * from metadata_relationship_belongsto where source='urn:li:foo:123' and deleted_ts IS NULL").findList();
 
     assertEquals(newEdges.size(), 3); // 3 new edges added.
 
