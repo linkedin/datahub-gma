@@ -88,6 +88,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
     } else if (removalOption == RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION) {
       deletionSQL.setParameter(CommonColumnName.DESTINATION, urn.toString());
     }
+    batchCount = 0;
     // Execute in a loop until no more rows are deleted in a batch
     while (true) {
       int rowsAffected = deletionSQL.execute();
