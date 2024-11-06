@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
+import lombok.Getter;
 
 import static com.linkedin.metadata.dao.utils.ModelUtils.*;
 
@@ -40,6 +41,8 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
   }
   private static final int BATCH_SIZE = 10000; // Process rows in batches of 10,000
   private static final String LIMIT = " LIMIT ";
+  @Getter
+  private int batchCount = 0; //Only for unit test purpose
 
   public EbeanLocalRelationshipWriterDAO(EbeanServer server) {
     _server = server;
@@ -88,6 +91,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
     // Execute in a loop until no more rows are deleted in a batch
     while (true) {
       int rowsAffected = deletionSQL.execute();
+      batchCount++;
       if (rowsAffected < BATCH_SIZE) {
         // Exit if fewer than batchSize rows were affected, indicating all rows are processed
         break;

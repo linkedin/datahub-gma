@@ -265,7 +265,7 @@ public class EbeanLocalRelationshipWriterDAOTest {
   @Test
   public void testClearRelationshipsByEntityUrnWithBatching() throws URISyntaxException {
     // Insert a large number of relationships to trigger batch processing
-    for (int i = 0; i < 20000; i++) {
+    for (int i = 0; i < 10001; i++) {
       _server.execute(Ebean.createSqlUpdate(insertRelationships("metadata_relationship_pairswith", "urn:li:bar:123",
           "bar", "urn:li:foo:" + i, "foo")));
     }
@@ -273,40 +273,15 @@ public class EbeanLocalRelationshipWriterDAOTest {
     BarUrn barUrn = BarUrn.createFromString("urn:li:bar:123");
     // Before processing
     List<SqlRow> before = _server.createSqlQuery("select * from metadata_relationship_pairswith where deleted_ts is null").findList();
-    assertEquals(before.size(), 20000);
+    assertEquals(before.size(), 10001);
 
     _localRelationshipWriterDAO.clearRelationshipsByEntity(barUrn, PairsWith.class,
         BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE, false);
 
     // After processing verification
     List<SqlRow> all = _server.createSqlQuery("select * from metadata_relationship_pairswith where deleted_ts is null").findList();
-    assertEquals(all.size(), 0); // Total number of edges is 0
-  }
-
-  @Test
-  public void testClearRelationshipsByEntityUrnWithBatchDeletionVerification() throws URISyntaxException {
-    // Insert a large number of relationships to trigger batch processing
-    for (int i = 0; i < 20000; i++) {
-      _server.execute(Ebean.createSqlUpdate(insertRelationships("metadata_relationship_pairswith", "urn:li:bar:123",
-          "bar", "urn:li:foo:" + i, "foo")));
-    }
-
-    BarUrn barUrn = BarUrn.createFromString("urn:li:bar:123");
-
-    // Mock the SqlUpdate object
-    SqlUpdate mockSqlUpdate = mock(SqlUpdate.class);
-    when(_server.createSqlUpdate(anyString())).thenReturn(mockSqlUpdate);
-    when(mockSqlUpdate.execute()).thenReturn(10000, 10000, 0); // Simulate batch execution
-
-    // Call the method under test
-    _localRelationshipWriterDAO.clearRelationshipsByEntity(barUrn, PairsWith.class,
-        BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE, false);
-
-    // Verify the number of times execute is called
-    verify(mockSqlUpdate, times(3)).execute();
-
-    // Clean up
-    _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_pairswith"));
+    assertEquals(all.size(), 0);// Total number of edges is 0
+    assertEquals(_localRelationshipWriterDAO.getBatchCount(), 2); //expect 2 batches
   }
 
   @Test
@@ -336,7 +311,7 @@ public class EbeanLocalRelationshipWriterDAOTest {
 
   private String insertRelationships(String table, String sourceUrn, String sourceType, String destinationUrn, String destinationType) {
     String insertTemplate = "INSERT INTO %s (metadata, source, source_type, destination, destination_type, lastmodifiedon, lastmodifiedby)"
-        + " VALUES ('{\"metadata\": true}', '%s', '%s', '%s', '%s', '1970-01-01 00:00:01', 'unknown')";
+        + " VALUES ('{\"metadata\": true}', '%s', '%s', '%s', '%s', CURRENT_TIMESTAMP, 'unknown')";
     return String.format(insertTemplate, table, sourceUrn, sourceType, destinationUrn, destinationType);
   }
 }
