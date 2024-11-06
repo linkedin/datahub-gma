@@ -279,6 +279,8 @@ public class EbeanLocalRelationshipWriterDAOTest {
     List<SqlRow> all = _server.createSqlQuery("select * from metadata_relationship_pairswith where deleted_ts is null").findList();
     assertEquals(all.size(), 0); // Total number of edges is 0
     assertEquals(_localRelationshipWriterDAO.getBatchCount(), 2); //expect 2 batches
+    // Clean up
+    _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_pairswith"));
   }
 
   @Test
