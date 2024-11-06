@@ -1,0 +1,8 @@
+namespace com.linkedin.testing.localrelationship
+
+@gma.model = "RELATIONSHIP"
+record BelongsToV2 {
+  destination: union [
+    string
+  ]
+}
