@@ -17,6 +17,7 @@ import com.linkedin.testing.urn.FooUrn;
 import io.ebean.Ebean;
 import io.ebean.EbeanServer;
 import io.ebean.SqlRow;
+import io.ebean.SqlUpdate;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
@@ -25,6 +26,8 @@ import java.util.List;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.*;
 import static org.testng.Assert.*;
 
 
@@ -254,6 +257,53 @@ public class EbeanLocalRelationshipWriterDAOTest {
     // After processing verification
     all = _server.createSqlQuery("select * from metadata_relationship_pairswith where deleted_ts is null").findList();
     assertEquals(all.size(), 1); // Total number of edges is 1
+
+    // Clean up
+    _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_pairswith"));
+  }
+
+  @Test
+  public void testClearRelationshipsByEntityUrnWithBatching() throws URISyntaxException {
+    // Insert a large number of relationships to trigger batch processing
+    for (int i = 0; i < 20000; i++) {
+      _server.execute(Ebean.createSqlUpdate(insertRelationships("metadata_relationship_pairswith", "urn:li:bar:123",
+          "bar", "urn:li:foo:" + i, "foo")));
+    }
+
+    BarUrn barUrn = BarUrn.createFromString("urn:li:bar:123");
+    // Before processing
+    List<SqlRow> before = _server.createSqlQuery("select * from metadata_relationship_pairswith where deleted_ts is null").findList();
+    assertEquals(before.size(), 20000);
+
+    _localRelationshipWriterDAO.clearRelationshipsByEntity(barUrn, PairsWith.class,
+        BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE, false);
+
+    // After processing verification
+    List<SqlRow> all = _server.createSqlQuery("select * from metadata_relationship_pairswith where deleted_ts is null").findList();
+    assertEquals(all.size(), 0); // Total number of edges is 0
+  }
+
+  @Test
+  public void testClearRelationshipsByEntityUrnWithBatchDeletionVerification() throws URISyntaxException {
+    // Insert a large number of relationships to trigger batch processing
+    for (int i = 0; i < 20000; i++) {
+      _server.execute(Ebean.createSqlUpdate(insertRelationships("metadata_relationship_pairswith", "urn:li:bar:123",
+          "bar", "urn:li:foo:" + i, "foo")));
+    }
+
+    BarUrn barUrn = BarUrn.createFromString("urn:li:bar:123");
+
+    // Mock the SqlUpdate object
+    SqlUpdate mockSqlUpdate = mock(SqlUpdate.class);
+    when(_server.createSqlUpdate(anyString())).thenReturn(mockSqlUpdate);
+    when(mockSqlUpdate.execute()).thenReturn(10000, 10000, 0); // Simulate batch execution
+
+    // Call the method under test
+    _localRelationshipWriterDAO.clearRelationshipsByEntity(barUrn, PairsWith.class,
+        BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE, false);
+
+    // Verify the number of times execute is called
+    verify(mockSqlUpdate, times(3)).execute();
 
     // Clean up
     _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_pairswith"));

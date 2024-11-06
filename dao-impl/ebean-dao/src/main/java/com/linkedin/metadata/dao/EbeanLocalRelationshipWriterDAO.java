@@ -38,6 +38,8 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
     private static final String DELETED_TS = "deleted_ts";
     private static final String ASPECT = "aspect";
   }
+  private static final int BATCH_SIZE = 10000; // Process rows in batches of 10,000
+  private static final String LIMIT = " LIMIT ";
 
   public EbeanLocalRelationshipWriterDAO(EbeanServer server) {
     _server = server;
@@ -74,15 +76,23 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
       return;
     }
     RelationshipValidator.validateRelationshipSchema(relationshipClass);
-    SqlUpdate deletionSQL = _server.createSqlUpdate(SQLStatementUtils.deleteLocalRelationshipSQL(
+    String deletionQuery = SQLStatementUtils.deleteLocalRelationshipSQL(
         isTestMode ? SQLSchemaUtils.getTestRelationshipTableName(relationshipClass)
-            : SQLSchemaUtils.getRelationshipTableName(relationshipClass), removalOption));
+            : SQLSchemaUtils.getRelationshipTableName(relationshipClass), removalOption) + LIMIT + BATCH_SIZE;
+    SqlUpdate deletionSQL = _server.createSqlUpdate(deletionQuery);
     if (removalOption == RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE) {
       deletionSQL.setParameter(CommonColumnName.SOURCE, urn.toString());
     } else if (removalOption == RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION) {
       deletionSQL.setParameter(CommonColumnName.DESTINATION, urn.toString());
     }
-    deletionSQL.execute();
+    // Execute in a loop until no more rows are deleted in a batch
+    while (true) {
+      int rowsAffected = deletionSQL.execute();
+      if (rowsAffected < BATCH_SIZE) {
+        // Exit if fewer than batchSize rows were affected, indicating all rows are processed
+        break;
+      }
+    }
   }
 
   @Override
