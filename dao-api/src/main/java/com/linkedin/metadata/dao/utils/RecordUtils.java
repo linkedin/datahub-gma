@@ -74,30 +74,10 @@ public class RecordUtils {
   @Nonnull
   public static String toJsonString(@Nonnull RecordTemplate recordTemplate) {
     try {
-      return DATA_TEMPLATE_CODEC.mapToString(recordTemplate.data());
-    } catch (IOException e) {
-      throw new ModelConversionException("Failed to serialize RecordTemplate: " + recordTemplate.toString());
-    }
-  }
-
-  /**
-   * Serializes a {@link RecordTemplate} to JSON string.
-   * Also take test mode as input to control the default value fill in strategy
-   * @param recordTemplate the record template to serialize
-   * @return the JSON string serialized using {@link JacksonDataTemplateCodec}.
-   */
-  //Todo: we will remove this method once we verify it works and does not bring too much degrade in test mode.
-  @Nonnull
-  public static String toJsonString(@Nonnull RecordTemplate recordTemplate, boolean isTestMode) {
-    if (isTestMode) {
-      try {
-        DataMap dataWithDefaultValue = (DataMap) ResponseUtils.fillInDataDefault(recordTemplate.schema(), recordTemplate.data());
-        return DATA_TEMPLATE_CODEC.mapToString(dataWithDefaultValue);
-      } catch (RestLiServiceException | IOException e) {
-        throw new ModelConversionException("Failed to serialize RecordTemplate: " + recordTemplate.toString(), e);
-      }
-    } else {
-      return toJsonString(recordTemplate);
+      DataMap dataWithDefaultValue = (DataMap) ResponseUtils.fillInDataDefault(recordTemplate.schema(), recordTemplate.data());
+      return DATA_TEMPLATE_CODEC.mapToString(dataWithDefaultValue);
+    } catch (RestLiServiceException | IOException e) {
+      throw new ModelConversionException("Failed to serialize RecordTemplate: " + recordTemplate.toString(), e);
     }
   }
 

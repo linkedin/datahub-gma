@@ -818,8 +818,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
             maxTransactionRetry);
 
     // skip MAE producing and post update hook in test mode or if the result is null (no actual update with addCommon)
-    return updateLambda.getIngestionParams().isTestMode() ? result.newValue
-        : result == null ? null : unwrapAddResult(urn, result, auditStamp, trackingContext);
+    return result == null ? null : (updateLambda.getIngestionParams().isTestMode() ? result.newValue
+        : unwrapAddResult(urn, result, auditStamp, trackingContext));
   }
 
   /**
