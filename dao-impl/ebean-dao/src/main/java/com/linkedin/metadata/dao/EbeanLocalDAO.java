@@ -894,23 +894,20 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       return Collections.emptyList();
     }
 
-    boolean needsToBuildFromAspect = false;
-    boolean needsToBuildFromRelationshipBuilders = false;
-
-    List<LocalRelationshipUpdates> updatesExtractedFromAspect = new ArrayList<>();
-    List<LocalRelationshipUpdates> updatesBuiltFromRelationshipBuilders = new ArrayList<>();
-
-    if (_relationshipSource == RelationshipSource.ASPECT_METADATA) {
-      needsToBuildFromAspect = true;
-    } else if (_relationshipSource == RelationshipSource.RELATIONSHIP_BUILDERS) {
-      needsToBuildFromRelationshipBuilders = true;
-    } else if (_relationshipSource == RelationshipSource.DUAL_SOURCE) {
-      needsToBuildFromAspect = true;
-      needsToBuildFromRelationshipBuilders = true;
-    } else {
+    if (!(_relationshipSource == RelationshipSource.ASPECT_METADATA
+        || _relationshipSource == RelationshipSource.RELATIONSHIP_BUILDERS
+        || _relationshipSource == RelationshipSource.DUAL_SOURCE)) {
       throw new UnsupportedOperationException("Please ensure that the RelationshipSource enum is properly set using "
           + "setRelationshipSource method.");
     }
+
+    boolean needsToBuildFromAspect = _relationshipSource == RelationshipSource.ASPECT_METADATA
+        || _relationshipSource == RelationshipSource.DUAL_SOURCE;
+    boolean needsToBuildFromRelationshipBuilders = _relationshipSource == RelationshipSource.RELATIONSHIP_BUILDERS
+        || _relationshipSource == RelationshipSource.DUAL_SOURCE;
+
+    List<LocalRelationshipUpdates> updatesExtractedFromAspect = new ArrayList<>();
+    List<LocalRelationshipUpdates> updatesBuiltFromRelationshipBuilders = new ArrayList<>();
 
     if (needsToBuildFromAspect) {
       List<List<RELATIONSHIP>> allRelationships = EBeanDAOUtils.extractRelationshipsFromAspect(aspect);
@@ -921,21 +918,22 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
           .collect(Collectors.toList());
     }
 
-    if (needsToBuildFromRelationshipBuilders) {
-      if (_localRelationshipBuilderRegistry != null && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
+    if (needsToBuildFromRelationshipBuilders
+        && _localRelationshipBuilderRegistry != null && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
         updatesBuiltFromRelationshipBuilders = _localRelationshipBuilderRegistry.getLocalRelationshipBuilder(aspect).buildRelationships(urn, aspect);
       }
-    }
 
     // if DUAL_SOURCE mode, verify that the relationships extracted from aspect and built from relationship builders have the same source/destination pairs,
     // with different relationship types. Else, throw an exception.
-    if (areConsistentLocalRelationshipUpdates(updatesExtractedFromAspect, updatesBuiltFromRelationshipBuilders)) {
-      _localRelationshipWriterDAO.processLocalRelationshipUpdates(urn, updatesExtractedFromAspect, isTestMode);
-      _localRelationshipWriterDAO.processLocalRelationshipUpdates(urn, updatesBuiltFromRelationshipBuilders, isTestMode);
-    } else {
-      throw new IllegalArgumentException(String.format(
-          "Inconsistent relationships extracted from aspect and built from relationship builders from aspect: %s.", aspect));
+    if (_relationshipSource == RelationshipSource.DUAL_SOURCE
+        && !areConsistentLocalRelationshipUpdates(updatesExtractedFromAspect, updatesBuiltFromRelationshipBuilders)) {
+        throw new IllegalArgumentException(String.format(
+            "Inconsistent relationships extracted from aspect and built from relationship builders from aspect: %s.", aspect));
     }
+
+    // process the updates. The 2nd arg could be an empty list, but processLocalRelationshipUpdates can handle it.
+    _localRelationshipWriterDAO.processLocalRelationshipUpdates(urn, updatesExtractedFromAspect, isTestMode);
+    _localRelationshipWriterDAO.processLocalRelationshipUpdates(urn, updatesBuiltFromRelationshipBuilders, isTestMode);
 
     // returns both updates from aspect and relationship builders
     return Stream.concat(updatesExtractedFromAspect.stream(), updatesBuiltFromRelationshipBuilders.stream())
@@ -953,7 +951,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    */
   private boolean areConsistentLocalRelationshipUpdates(List<LocalRelationshipUpdates> updatesExtractedFromAspect,
       List<LocalRelationshipUpdates> updatesBuiltFromRelationshipBuilders) {
-    if (updatesExtractedFromAspect.isEmpty() || updatesBuiltFromRelationshipBuilders.isEmpty()) {
+    if (updatesExtractedFromAspect.isEmpty() && updatesBuiltFromRelationshipBuilders.isEmpty()) {
       return true;
     }
 
@@ -963,33 +961,28 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
 
     // must have different relationship types
-    Set relationshipTypes = updatesExtractedFromAspect.stream()
+    Set<Class> aspectExtractedRelationshipTypes = updatesExtractedFromAspect.stream()
         .map(LocalRelationshipUpdates::getRelationshipClass)
         .collect(Collectors.toSet());
 
-    if (updatesBuiltFromRelationshipBuilders.stream().anyMatch(update -> relationshipTypes.contains(update.getRelationshipClass()))) {
+    if (updatesBuiltFromRelationshipBuilders.stream().anyMatch(update -> aspectExtractedRelationshipTypes.contains(update.getRelationshipClass()))) {
       return false;
     }
 
-    // TODO: update aspect in unit tests to v2, as aspect should aways be v2, if aspect is v1, we should throw exception
     // must have the same source/destination pairs
-    Set<String> sourceDestinationPairs = (Set<String>) updatesExtractedFromAspect.stream()
+    Set<String> aspectExtractedSourceDestinationPairs = (Set<String>) updatesExtractedFromAspect.stream()
+        .map(LocalRelationshipUpdates::getRelationships)
+        .flatMap(List::stream)
+        .map(relationship -> relationship.toString()) // relationship.toString() returns "{"source":"sourceUrn","destination":"destinationUrn"}"
+        .collect(Collectors.toSet());
+
+    Set<String> relationshipBuilderExtractedSourceDestinationPairs = (Set<String>) updatesBuiltFromRelationshipBuilders.stream()
         .map(LocalRelationshipUpdates::getRelationships)
         .flatMap(List::stream)
         .map(relationship -> relationship.toString())
         .collect(Collectors.toSet());
 
-    Set<String> s = (Set<String>) updatesBuiltFromRelationshipBuilders.stream()
-        .map(LocalRelationshipUpdates::getRelationships)
-        .flatMap(List::stream)
-        .map(relationship -> relationship.toString())
-        .collect(Collectors.toSet());
-
-    if (!sourceDestinationPairs.equals(s)) {
-      return false;
-    }
-
-    return true;
+    return aspectExtractedSourceDestinationPairs.equals(relationshipBuilderExtractedSourceDestinationPairs);
   }
 
   @Nonnull
