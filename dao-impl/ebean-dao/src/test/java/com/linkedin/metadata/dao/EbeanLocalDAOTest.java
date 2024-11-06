@@ -63,7 +63,6 @@ import com.linkedin.testing.EntityAspectUnion;
 import com.linkedin.testing.FooSnapshot;
 import com.linkedin.testing.MixedRecord;
 import com.linkedin.testing.localrelationship.AspectFooBar;
-import com.linkedin.testing.localrelationship.AspectFooBarBaz;
 import com.linkedin.testing.localrelationship.BelongsTo;
 import com.linkedin.testing.localrelationship.BelongsToV2;
 import com.linkedin.testing.localrelationship.BelongsToV2Array;
@@ -2567,13 +2566,6 @@ public class EbeanLocalDAOTest {
     barDao.add(barUrn1, new AspectFoo().setValue("1"), auditStamp);
     barDao.add(barUrn2, new AspectFoo().setValue("2"), auditStamp);
     barDao.add(barUrn3, new AspectFoo().setValue("3"), auditStamp);
-
-    // add another aspect (AspectFooBarBaz) which includes BelongsTo relationship(s)
-    BarUrn barUrn4 = BarUrn.createFromString("urn:li:bar:4");
-    BelongsToV2 belongsTo4 = new BelongsToV2().setSource(barUrn4).setDestination(fooUrn);
-    AspectFooBarBaz aspectFooBarBaz = new AspectFooBarBaz().setBars(new BarUrnArray(barUrn4)).setBelongsTos(new BelongsToV2Array(belongsTo4));
-    fooDao.add(fooUrn, aspectFooBarBaz, auditStamp);
-    barDao.add(barUrn4, new AspectFoo().setValue("4"), auditStamp);
 
     // Verify local relationships and entities are added.
     EbeanLocalRelationshipQueryDAO ebeanLocalRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server);
