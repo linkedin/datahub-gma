@@ -20,9 +20,10 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 import static com.linkedin.metadata.dao.utils.ModelUtils.*;
-
+@Slf4j
 public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
   private static final String DEFAULT_ACTOR = "urn:li:principal:UNKNOWN";
   private final EbeanServer _server;
@@ -98,6 +99,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
         break;
       }
     }
+    log.info("Cleared relationships in {} batches", batchCount);
   }
 
   @Override
