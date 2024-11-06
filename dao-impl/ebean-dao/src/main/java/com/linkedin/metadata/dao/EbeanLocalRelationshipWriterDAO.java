@@ -5,7 +5,6 @@ import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
 import com.linkedin.metadata.dao.utils.GraphUtils;
-import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
 import com.linkedin.metadata.dao.utils.SQLStatementUtils;
@@ -164,15 +163,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
       // Relationship model V2 doesn't include source urn, it needs to be passed in.
       // For relationship model V1, this given urn can be source urn or destination urn.
       // For relationship model V2, this given urn can only be source urn.
-      Urn source = urn;
-      if (!ModelUtils.isRelationshipInV2(relationship.schema())) {
-        // get source urn from relationship if V1
-        source = getSourceUrnFromRelationship(relationship);
-      }
-      if (source == null) {
-        throw new IllegalArgumentException("source urn is required for Relationship V2");
-      }
-
+      Urn source = GraphUtils.getSourceUrnBasedOnRelationshipVersion(relationship, urn);
       Urn destination = getDestinationUrnFromRelationship(relationship);
 
       _server.createSqlUpdate(SQLStatementUtils.insertLocalRelationshipSQL(
@@ -205,12 +196,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
     }
 
     SqlUpdate deletionSQL = _server.createSqlUpdate(SQLStatementUtils.deleteLocalRelationshipSQL(tableName, removalOption));
-    Urn source = urn;
-    if (!ModelUtils.isRelationshipInV2(relationship.schema())) {
-      source = getSourceUrnFromRelationship(relationship);
-    } else if (source == null) {
-      throw new IllegalArgumentException("source urn is required for Relationship V2");
-    }
+    Urn source = GraphUtils.getSourceUrnBasedOnRelationshipVersion(relationship, urn);
     Urn destination = getDestinationUrnFromRelationship(relationship);
 
     if (removalOption == RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE_TO_DESTINATION) {
