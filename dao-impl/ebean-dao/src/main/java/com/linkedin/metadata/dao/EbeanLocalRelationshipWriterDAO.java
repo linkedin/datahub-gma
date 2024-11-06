@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import static com.linkedin.metadata.dao.utils.ModelUtils.*;
 
@@ -48,7 +49,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
    */
   @Transactional
   public void processLocalRelationshipUpdates(@Nonnull Urn urn,
-      @Nonnull List<LocalRelationshipUpdates> relationshipUpdates, boolean isTestMode) {
+      @Nonnull List<LocalRelationshipUpdates> relationshipUpdates, @Nonnull boolean isTestMode) {
     for (LocalRelationshipUpdates relationshipUpdate : relationshipUpdates) {
       if (relationshipUpdate.getRelationships().isEmpty()) {
         clearRelationshipsByEntity(urn, relationshipUpdate.getRelationshipClass(),
@@ -67,7 +68,8 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
    * @param isTestMode whether to use test schema
    */
   public void clearRelationshipsByEntity(@Nonnull Urn urn,
-      @Nonnull Class<? extends RecordTemplate> relationshipClass, @Nonnull RemovalOption removalOption, boolean isTestMode) {
+      @Nonnull Class<? extends RecordTemplate> relationshipClass, @Nonnull RemovalOption removalOption,
+      @Nonnull boolean isTestMode) {
     if (removalOption == RemovalOption.REMOVE_NONE
         || removalOption == RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE_TO_DESTINATION) {
       // this method is to handle the case of adding empty relationship list to clear relationships of an entity urn
@@ -96,7 +98,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
    *            For Relationship V2: Required, is the source urn.
    */
   public <RELATIONSHIP extends RecordTemplate> void addRelationships(@Nonnull List<RELATIONSHIP> relationships,
-      @Nonnull RemovalOption removalOption, boolean isTestMode, Urn urn) {
+      @Nonnull RemovalOption removalOption, @Nonnull boolean isTestMode, @Nullable Urn urn) {
     // split relationships by relationship type
     Map<String, List<RELATIONSHIP>> relationshipGroupMap = relationships.stream()
         .collect(Collectors.groupingBy(relationship -> relationship.getClass().getCanonicalName()));
@@ -109,9 +111,10 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
       addRelationshipGroup(relationshipGroup, removalOption, isTestMode, urn);
     });
   }
+
   @Override
   public <RELATIONSHIP extends RecordTemplate> void addRelationships(@Nonnull List<RELATIONSHIP> relationships,
-      @Nonnull RemovalOption removalOption, boolean isTestMode) {
+      @Nonnull RemovalOption removalOption, @Nonnull boolean isTestMode) {
     addRelationships(relationships, removalOption, isTestMode, null);
   }
 
@@ -145,7 +148,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
    *            Needed for Relationship V2 because source is not included in the relationshipV2 metadata.
    */
   private <RELATIONSHIP extends RecordTemplate> void addRelationshipGroup(@Nonnull final List<RELATIONSHIP> relationshipGroup,
-      @Nonnull RemovalOption removalOption, boolean isTestMode, Urn urn) {
+      @Nonnull RemovalOption removalOption, @Nonnull boolean isTestMode, @Nullable Urn urn) {
     if (relationshipGroup.size() == 0) {
       return;
     }
@@ -189,7 +192,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
    *            Needed for Relationship V2 because source is not included in the relationshipV2 metadata.
    */
   private <RELATIONSHIP extends RecordTemplate> void processRemovalOption(@Nonnull String tableName,
-      @Nonnull RELATIONSHIP relationship, @Nonnull RemovalOption removalOption, Urn urn) {
+      @Nonnull RELATIONSHIP relationship, @Nonnull RemovalOption removalOption, @Nullable Urn urn) {
 
     if (removalOption == RemovalOption.REMOVE_NONE) {
       return;

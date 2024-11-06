@@ -5,6 +5,7 @@ import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
 import java.util.List;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import static com.linkedin.metadata.dao.utils.ModelUtils.*;
 
@@ -25,7 +26,7 @@ public class GraphUtils {
    */
   public static void checkSameUrn(@Nonnull final List<? extends RecordTemplate> relationships,
       @Nonnull final BaseGraphWriterDAO.RemovalOption removalOption, @Nonnull final String sourceField,
-      @Nonnull final String destinationField, Urn urn) {
+      @Nonnull final String destinationField, @Nullable Urn urn) {
 
     if (relationships.isEmpty()) {
       return;
@@ -51,7 +52,7 @@ public class GraphUtils {
    * @return The source asset urn.
    */
   public static <RELATIONSHIP extends RecordTemplate> Urn getSourceUrnBasedOnRelationshipVersion(
-      @Nonnull RELATIONSHIP relationship, Urn urn) {
+      @Nonnull RELATIONSHIP relationship, @Nullable Urn urn) {
     Urn sourceUrn;
     boolean isRelationshipInV2 = ModelUtils.isRelationshipInV2(relationship.schema());
     if (isRelationshipInV2 && urn != null) {
@@ -68,14 +69,15 @@ public class GraphUtils {
   }
 
   public static void checkSameUrn(@Nonnull final List<? extends RecordTemplate> relationships,
-      @Nonnull final BaseGraphWriterDAO.RemovalOption removalOption, final String sourceField, final String destinationField) {
+      @Nonnull final BaseGraphWriterDAO.RemovalOption removalOption, @Nonnull final String sourceField,
+      @Nonnull final String destinationField) {
     checkSameUrn(relationships, removalOption, sourceField, destinationField, null);
   }
 
   private static void checkSameUrn(@Nonnull List<? extends RecordTemplate> records, @Nonnull String field,
       @Nonnull Urn compare) {
     for (RecordTemplate relation : records) {
-      if (ModelUtils.isRelationshipInV2(relation.schema()) && field == SOURCE) {
+      if (ModelUtils.isRelationshipInV2(relation.schema()) && field.equals(SOURCE)) {
         // Skip source urn check for V2 relationships since they don't have source field
         // ToDo: enhance the source check for V2 relationships
         return;
