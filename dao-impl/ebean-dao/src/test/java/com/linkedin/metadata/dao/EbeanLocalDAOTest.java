@@ -63,6 +63,7 @@ import com.linkedin.testing.EntityAspectUnion;
 import com.linkedin.testing.FooSnapshot;
 import com.linkedin.testing.MixedRecord;
 import com.linkedin.testing.localrelationship.AspectFooBar;
+import com.linkedin.testing.localrelationship.AspectFooBarBaz;
 import com.linkedin.testing.localrelationship.BelongsTo;
 import com.linkedin.testing.localrelationship.BelongsToV2;
 import com.linkedin.testing.localrelationship.BelongsToV2Array;
@@ -3150,7 +3151,6 @@ public class EbeanLocalDAOTest {
 
     FooUrn fooUrn = makeFooUrn(1);
     BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
-
     BelongsToV2 belongsTo1 = new BelongsToV2().setSource(fooUrn).setDestination(barUrn1);
     BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:2");
     BelongsToV2 belongsTo2 = new BelongsToV2().setSource(fooUrn).setDestination(barUrn2);
@@ -3170,7 +3170,7 @@ public class EbeanLocalDAOTest {
     ebeanLocalRelationshipQueryDAO.setSchemaConfig(_schemaConfig);
 
     List<BelongsToV2> relationships =
-        ebeanLocalRelationshipQueryDAO.findRelationships(BarSnapshot.class, EMPTY_FILTER, FooSnapshot.class,
+        ebeanLocalRelationshipQueryDAO.findRelationships(FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class,
             EMPTY_FILTER, BelongsToV2.class, OUTGOING_FILTER, 0, 10);
 
     AspectKey<FooUrn, AspectFooBar> key = new AspectKey<>(AspectFooBar.class, fooUrn, 0L);
@@ -3191,11 +3191,11 @@ public class EbeanLocalDAOTest {
 
     FooUrn fooUrn = makeFooUrn(1);
     BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
-    BelongsToV2 belongsTo1 = new BelongsToV2().setSource(barUrn1).setDestination(fooUrn);
+    BelongsToV2 belongsTo1 = new BelongsToV2().setSource(fooUrn).setDestination(barUrn1);
     BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:2");
-    BelongsToV2 belongsTo2 = new BelongsToV2().setSource(barUrn2).setDestination(fooUrn);
+    BelongsToV2 belongsTo2 = new BelongsToV2().setSource(fooUrn).setDestination(barUrn2);
     BarUrn barUrn3 = BarUrn.createFromString("urn:li:bar:3");
-    BelongsToV2 belongsTo3 = new BelongsToV2().setSource(barUrn3).setDestination(fooUrn);
+    BelongsToV2 belongsTo3 = new BelongsToV2().setSource(fooUrn).setDestination(barUrn3);
     BelongsToV2Array belongsToArray = new BelongsToV2Array(belongsTo1, belongsTo2, belongsTo3);
 
     AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(barUrn1, barUrn2, barUrn3)).setBelongsTos(belongsToArray);
@@ -3223,7 +3223,7 @@ public class EbeanLocalDAOTest {
 
     // verify 3 BelongsToV2
     List<BelongsToV2> relationshipsV2 =
-        ebeanLocalRelationshipQueryDAO.findRelationships(BarSnapshot.class, EMPTY_FILTER, FooSnapshot.class,
+        ebeanLocalRelationshipQueryDAO.findRelationships(FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class,
             EMPTY_FILTER, BelongsToV2.class, OUTGOING_FILTER, 0, 10);
 
     assertEquals(relationshipsV2.size(), 3);
