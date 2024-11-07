@@ -127,7 +127,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
     for (RELATIONSHIP relationship : relationships) {
       _server.createSqlUpdate(SQLStatementUtils.deleteLocalRelationshipSQL(SQLSchemaUtils.getRelationshipTableName(relationship),
               RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE_TO_DESTINATION))
-          .setParameter(CommonColumnName.SOURCE, GraphUtils.getSourceUrnBasedOnRelationshipVersion(relationship, sourceUrn))
+          .setParameter(CommonColumnName.SOURCE, GraphUtils.getSourceUrnBasedOnRelationshipVersion(relationship, sourceUrn).toString())
           .setParameter(CommonColumnName.DESTINATION, getDestinationUrnFromRelationship(relationship).toString())
           .execute();
     }
