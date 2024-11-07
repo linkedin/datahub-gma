@@ -63,7 +63,7 @@ public class RecordUtilsTest {
     String expected =
         loadJsonFromResource("defaultValueAspect.json").replaceAll("\\s+", "").replaceAll("\\n", "").replaceAll("\\r", "");
 
-    String actual = RecordUtils.toJsonString(defaultValueAspect, true);
+    String actual = RecordUtils.toJsonString(defaultValueAspect);
 
     assertEquals(actual, expected);
   }
