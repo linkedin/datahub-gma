@@ -102,6 +102,13 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
         // Exit if fewer than batchSize rows were affected, indicating all rows are processed
         break;
       }
+      // Sleep for 1 millisecond to reduce load
+      try {
+        Thread.sleep(1);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt(); // Restore interrupted status
+        throw new RuntimeException("Batch deletion interrupted", e);
+      }
     }
     log.info("Cleared relationships in {} batches", batchCount);
   }
