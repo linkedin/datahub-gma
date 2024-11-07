@@ -5,6 +5,6 @@ import com.linkedin.testing.BarUrn
 @gma.aspect.column.name = "aspectfoobar"
 record AspectFooBar {
   bars: array[BarUrn]
-  belongsTos: optional array[BelongsTo]
+  belongsTos: optional array[BelongsToV2]
   reportsTos: optional array[ReportsTo]
 }

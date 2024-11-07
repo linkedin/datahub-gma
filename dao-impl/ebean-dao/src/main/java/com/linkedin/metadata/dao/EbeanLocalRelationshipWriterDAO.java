@@ -120,10 +120,14 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
 
   @Override
   public <RELATIONSHIP extends RecordTemplate> void removeRelationships(@Nonnull List<RELATIONSHIP> relationships) {
+    removeRelationshipsV2(relationships, null);
+  }
+
+  public <RELATIONSHIP extends RecordTemplate> void removeRelationshipsV2(@Nonnull List<RELATIONSHIP> relationships, @Nullable Urn sourceUrn) {
     for (RELATIONSHIP relationship : relationships) {
       _server.createSqlUpdate(SQLStatementUtils.deleteLocalRelationshipSQL(SQLSchemaUtils.getRelationshipTableName(relationship),
               RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE_TO_DESTINATION))
-          .setParameter(CommonColumnName.SOURCE, getSourceUrnFromRelationship(relationship).toString())
+          .setParameter(CommonColumnName.SOURCE, GraphUtils.getSourceUrnBasedOnRelationshipVersion(relationship, sourceUrn))
           .setParameter(CommonColumnName.DESTINATION, getDestinationUrnFromRelationship(relationship).toString())
           .execute();
     }

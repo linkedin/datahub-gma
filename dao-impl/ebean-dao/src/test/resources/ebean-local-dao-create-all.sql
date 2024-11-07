@@ -6,6 +6,7 @@ DROP TABLE IF EXISTS metadata_aspect;
 DROP TABLE IF EXISTS metadata_id;
 DROP TABLE IF EXISTS metadata_index;
 DROP TABLE IF EXISTS metadata_relationship_belongsto;
+DROP TABLE IF EXISTS metadata_relationship_belongstov2;
 
 -- initialize foo entity table
 CREATE TABLE IF NOT EXISTS metadata_entity_foo (
@@ -44,6 +45,19 @@ CREATE TABLE IF NOT EXISTS metadata_entity_burger (
 );
 
 CREATE TABLE IF NOT EXISTS metadata_relationship_belongsto (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    metadata LONGTEXT NOT NULL,
+    source VARCHAR(1000) NOT NULL,
+    source_type VARCHAR(100) NOT NULL,
+    destination VARCHAR(1000) NOT NULL,
+    destination_type VARCHAR(100) NOT NULL,
+    lastmodifiedon TIMESTAMP NOT NULL,
+    lastmodifiedby VARCHAR(255) NOT NULL,
+    deleted_ts DATETIME(6) DEFAULT NULL,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS metadata_relationship_belongstov2 (
     id BIGINT NOT NULL AUTO_INCREMENT,
     metadata LONGTEXT NOT NULL,
     source VARCHAR(1000) NOT NULL,
