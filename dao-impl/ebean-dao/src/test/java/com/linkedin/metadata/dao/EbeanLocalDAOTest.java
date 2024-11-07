@@ -3133,7 +3133,6 @@ public class EbeanLocalDAOTest {
     assertEquals(aspects.size(), 1);
   }
 
-  // TODO: fix this
   @Test
   public void testAddRelationshipsFromAspect() throws URISyntaxException {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> fooDao = createDao(FooUrn.class);
