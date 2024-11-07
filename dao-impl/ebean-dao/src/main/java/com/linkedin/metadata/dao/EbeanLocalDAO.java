@@ -57,6 +57,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.persistence.OptimisticLockException;
@@ -69,6 +70,7 @@ import static com.linkedin.metadata.dao.EbeanLocalAccess.*;
 import static com.linkedin.metadata.dao.EbeanMetadataAspect.*;
 import static com.linkedin.metadata.dao.utils.EBeanDAOUtils.*;
 import static com.linkedin.metadata.dao.utils.EbeanServerUtils.*;
+import static com.linkedin.metadata.dao.utils.GraphUtils.*;
 
 
 /**
@@ -103,7 +105,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    */
   public enum RelationshipSource {
     ASPECT_METADATA, // Look at the aspect model and extract any relationship from its fields
-    RELATIONSHIP_BUILDERS // Use the relationship registry, which relies on relationship builders
+    RELATIONSHIP_BUILDERS, // Use the relationship registry, which relies on relationship builders
+    DUAL_SOURCE
   }
 
   // Which approach to be used for record retrieval when inserting a new record
@@ -136,9 +139,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   /**
    * Set where the relationships should be derived from during ingestion. Either from aspect models or from relationship
-   * builders. The default is relationship builders. This should only be used during DAO instantiation i.e. in the DAO factory.
+   * builders, or both. The default is relationship builders. This should only be used during DAO instantiation i.e. in the DAO factory.
    * One limitation when setting this is that all aspects for a particular entity type must use the same relationship source config.
-   * @param relationshipSource {@link RelationshipSource ASPECT_METADATA or RELATIONSHIP_BUILDERS}
+   * @param relationshipSource {@link RelationshipSource ASPECT_METADATA or RELATIONSHIP_BUILDERS or DUAL_SOURCE}
    */
   public void setRelationshipSource(RelationshipSource relationshipSource) {
     _relationshipSource = relationshipSource;
@@ -649,7 +652,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
     // If the aspect is to be soft deleted and we are deriving relationships from aspect metadata, remove any relationships
     // associated with the previous aspect value.
-    if (newValue == null && _relationshipSource == RelationshipSource.ASPECT_METADATA && oldValue != null) {
+    if (newValue == null && oldValue != null
+        && (_relationshipSource == RelationshipSource.ASPECT_METADATA || _relationshipSource == RelationshipSource.DUAL_SOURCE)) {
       List<RecordTemplate> relationships = extractRelationshipsFromAspect(oldValue).stream()
           .flatMap(List::stream)
           .collect(Collectors.toList());
@@ -890,24 +894,51 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     if (aspect == null) {
       return Collections.emptyList();
     }
-    List<LocalRelationshipUpdates> localRelationshipUpdates = Collections.emptyList();
-    if (_relationshipSource == RelationshipSource.ASPECT_METADATA) {
+
+    if (_relationshipSource == null) {
+      throw new UnsupportedOperationException("Please ensure that the RelationshipSource enum is properly set using "
+          + "setRelationshipSource method.");
+    }
+
+    boolean needsToBuildFromAspect = _relationshipSource == RelationshipSource.ASPECT_METADATA
+        || _relationshipSource == RelationshipSource.DUAL_SOURCE;
+    boolean needsToBuildFromRelationshipBuilders = _relationshipSource == RelationshipSource.RELATIONSHIP_BUILDERS
+        || _relationshipSource == RelationshipSource.DUAL_SOURCE;
+
+    List<LocalRelationshipUpdates> updatesExtractedFromAspect = new ArrayList<>();
+    List<LocalRelationshipUpdates> updatesBuiltFromRelationshipBuilders = new ArrayList<>();
+
+    if (needsToBuildFromAspect) {
       List<List<RELATIONSHIP>> allRelationships = EBeanDAOUtils.extractRelationshipsFromAspect(aspect);
-      localRelationshipUpdates = allRelationships.stream()
+      updatesExtractedFromAspect = allRelationships.stream()
           .filter(relationships -> !relationships.isEmpty()) // ensure at least 1 relationship in sublist to avoid index out of bounds
           .map(relationships -> new LocalRelationshipUpdates(
             relationships, relationships.get(0).getClass(), BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE))
           .collect(Collectors.toList());
-    } else if (_relationshipSource == RelationshipSource.RELATIONSHIP_BUILDERS) {
-      if (_localRelationshipBuilderRegistry != null && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
-        localRelationshipUpdates = _localRelationshipBuilderRegistry.getLocalRelationshipBuilder(aspect).buildRelationships(urn, aspect);
-      }
-    } else {
-      throw new UnsupportedOperationException("Please ensure that the RelationshipSource enum is properly set using "
-          + "setRelationshipSource method.");
     }
-    _localRelationshipWriterDAO.processLocalRelationshipUpdates(urn, localRelationshipUpdates, isTestMode);
-    return localRelationshipUpdates;
+
+    if (needsToBuildFromRelationshipBuilders
+        && _localRelationshipBuilderRegistry != null && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
+        updatesBuiltFromRelationshipBuilders = _localRelationshipBuilderRegistry.getLocalRelationshipBuilder(aspect).buildRelationships(urn, aspect);
+      }
+
+    // if DUAL_SOURCE mode, verify that the relationships extracted from aspect and built from relationship builders have the same source/destination pairs,
+    // with different relationship types. Else, throw an exception.
+    if (_relationshipSource == RelationshipSource.DUAL_SOURCE
+        && !EBeanDAOUtils.areConsistentLocalRelationshipUpdates(updatesExtractedFromAspect, updatesBuiltFromRelationshipBuilders, urn)) {
+        throw new IllegalArgumentException(String.format(
+            "Inconsistent relationships extracted from aspect and built from relationship builders from aspect: %s. Source urn: %s. "
+                + "Updates extracted from local relationship builder: %s. Updates extracted from aspect: %s",
+            aspect, urn, updatesBuiltFromRelationshipBuilders, updatesExtractedFromAspect));
+    }
+
+    // process the updates. The 2nd arg could be an empty list, but processLocalRelationshipUpdates can handle it.
+    _localRelationshipWriterDAO.processLocalRelationshipUpdates(urn, updatesExtractedFromAspect, isTestMode);
+    _localRelationshipWriterDAO.processLocalRelationshipUpdates(urn, updatesBuiltFromRelationshipBuilders, isTestMode);
+
+    // returns both updates from aspect and relationship builders
+    return Stream.concat(updatesExtractedFromAspect.stream(), updatesBuiltFromRelationshipBuilders.stream())
+        .collect(Collectors.toList());
   }
 
   @Nonnull

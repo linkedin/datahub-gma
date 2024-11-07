@@ -1,6 +1,8 @@
 package com.linkedin.metadata.dao.utils;
 
 import com.linkedin.common.urn.Urn;
+import com.linkedin.data.DataMap;
+import com.linkedin.data.schema.DataSchema;
 import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.template.DataTemplateUtil;
 import com.linkedin.data.template.RecordTemplate;
@@ -13,6 +15,7 @@ import com.linkedin.metadata.aspect.AuditedAspect;
 import com.linkedin.metadata.aspect.SoftDeletedAspect;
 import com.linkedin.metadata.dao.EbeanMetadataAspect;
 import com.linkedin.metadata.dao.ListResult;
+import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder;
 import com.linkedin.metadata.query.AspectField;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.LocalRelationshipCriterion;
@@ -34,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -44,6 +48,7 @@ import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
 import static com.linkedin.metadata.annotations.GmaAnnotationParser.*;
+import static com.linkedin.metadata.dao.utils.GraphUtils.*;
 
 
 /**
@@ -52,6 +57,8 @@ import static com.linkedin.metadata.annotations.GmaAnnotationParser.*;
 @Slf4j
 public class EBeanDAOUtils {
 
+  private static final String SOURCE = "source";
+  private static final String DESTINATION = "destination";
   public static final String DIFFERENT_RESULTS_TEMPLATE = "The results of %s from the new schema table and old schema table are not equal. Reason: %s. "
       + "Defaulting to using the value(s) from the old schema table.";
   // String stored in metadata_aspect table for soft deleted aspect
@@ -426,6 +433,94 @@ public class EBeanDAOUtils {
       return gmaAnnotation.get().getModel();
     } catch (Exception e) {
       throw new RuntimeException(String.format("Failed to parse the annotations for field %s", model.getClass().getCanonicalName()), e);
+    }
+  }
+
+  /**
+   * Checks data conflicts between relationships extracted from aspect and relationships built from relationship builders.
+   * Conflict:
+   * 1. Both relationships are the same type.
+   * 2. Two relationships have different source/destination pairs.
+   * @param updatesInRelationshipV2 LocalRelationshipUpdates extracted from aspect
+   * @param updatesInRelationshipV1 LocalRelationshipUpdates built from relationship builders
+   * @return true if there is no conflict, false otherwise
+   */
+  public static <URN extends Urn> boolean areConsistentLocalRelationshipUpdates(
+      @Nonnull List<BaseLocalRelationshipBuilder.LocalRelationshipUpdates> updatesInRelationshipV1,
+      @Nonnull List<BaseLocalRelationshipBuilder.LocalRelationshipUpdates> updatesInRelationshipV2, @Nonnull URN urn) {
+    if (updatesInRelationshipV2.isEmpty() && updatesInRelationshipV1.isEmpty()) {
+      return true;
+    }
+
+    // must have the same number of types of relationships
+    if (updatesInRelationshipV2.size() != updatesInRelationshipV1.size()) {
+      return false;
+    }
+
+    // must have different relationship types
+    Set<Class> relationshipV2Types = updatesInRelationshipV2.stream()
+        .map(BaseLocalRelationshipBuilder.LocalRelationshipUpdates::getRelationshipClass)
+        .collect(Collectors.toSet());
+
+    if (updatesInRelationshipV1.stream().anyMatch(update -> relationshipV2Types.contains(update.getRelationshipClass()))) {
+      return false;
+    }
+
+    Set<String> destinationNamesFromV2 = getRelationshipUrnsFromLocalRelationshipUpdates(updatesInRelationshipV2);
+    Set<String> destinationNamesFromV1 = getRelationshipUrnsFromLocalRelationshipUpdates(updatesInRelationshipV1);
+
+    // checks all relationships have the same destinations
+    if (!destinationNamesFromV2.equals(destinationNamesFromV1)) {
+      return false;
+    }
+
+    // checks all relationships have the same source
+    updatesInRelationshipV1.forEach(update -> checkSameUrn(update.getRelationships(), SOURCE, urn));
+
+    return true;
+  }
+
+  /**
+   * Extracts destination from a list of relationships.
+   */
+  @Nonnull
+  private static Set<String> getRelationshipUrnsFromLocalRelationshipUpdates(
+      @Nonnull List<BaseLocalRelationshipBuilder.LocalRelationshipUpdates> updatesInRelationshipV2) {
+    return (Set<String>) updatesInRelationshipV2.stream()
+        .map(BaseLocalRelationshipBuilder.LocalRelationshipUpdates::getRelationships)
+        .flatMap(List::stream)
+        .map(relationship -> extractDestinationFromRelationship((RecordTemplate) relationship))
+        .collect(Collectors.toSet());
+  }
+
+  /**
+   * Extracts destination from relationship. Relationship V1 has the destination as a typeref, and relationship V2 has the destination in a union.
+   * @param relationship in V1 or V2
+   * @return the destination urn string
+   */
+  @Nonnull
+  private static String extractDestinationFromRelationship(@Nonnull RecordTemplate relationship) {
+    RecordDataSchema relationshipSchema = relationship.schema();
+
+    if (!relationshipSchema.contains(DESTINATION)) {
+      throw new IllegalArgumentException(String.format("Relationship does not contain destination fields: %s.", relationship));
+    }
+
+    RecordDataSchema.Field destinationField = relationshipSchema.getField(DESTINATION);
+    DataMap destinationMap = relationship.data();
+
+    if (destinationField.getType().getType() == DataSchema.Type.UNION) {
+      DataMap union = destinationMap.getDataMap(DESTINATION);
+
+      if (union.size() != 1) {
+        throw new IllegalArgumentException(String.format("Destination union contains more than one field: %s.", union));
+      }
+
+      return union.values().toArray()[0].toString();
+    } else if (destinationField.getType().getType() == DataSchema.Type.TYPEREF) {
+      return destinationMap.getString(DESTINATION);
+    } else {
+      throw new IllegalArgumentException(String.format("Destination field is not a UNION or TYPEREF: %s.", destinationField));
     }
   }
 }

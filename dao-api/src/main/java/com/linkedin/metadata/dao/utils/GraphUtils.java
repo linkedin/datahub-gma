@@ -74,7 +74,7 @@ public class GraphUtils {
     checkSameUrn(relationships, removalOption, sourceField, destinationField, null);
   }
 
-  private static void checkSameUrn(@Nonnull List<? extends RecordTemplate> records, @Nonnull String field,
+  public static void checkSameUrn(@Nonnull List<? extends RecordTemplate> records, @Nonnull String field,
       @Nonnull Urn compare) {
     for (RecordTemplate relation : records) {
       if (ModelUtils.isRelationshipInV2(relation.schema()) && field.equals(SOURCE)) {

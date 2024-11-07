@@ -2549,11 +2549,11 @@ public class EbeanLocalDAOTest {
     // add an aspect (AspectFooBar) which includes BelongsTo relationships and ReportsTo relationships
     FooUrn fooUrn = makeFooUrn(1);
     BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
-    BelongsToV2 belongsTo1 = new BelongsToV2().setDestination(BelongsToV2.Destination.create(barUrn1.toString()));
+    BelongsToV2 belongsTo1 = new BelongsToV2().setDestination(BelongsToV2.Destination.createWithDestinationBar(barUrn1));
     BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:2");
-    BelongsToV2 belongsTo2 = new BelongsToV2().setDestination(BelongsToV2.Destination.create(barUrn2.toString()));
+    BelongsToV2 belongsTo2 = new BelongsToV2().setDestination(BelongsToV2.Destination.createWithDestinationBar(barUrn2));
     BarUrn barUrn3 = BarUrn.createFromString("urn:li:bar:3");
-    BelongsToV2 belongsTo3 = new BelongsToV2().setDestination(BelongsToV2.Destination.create(barUrn3.toString()));
+    BelongsToV2 belongsTo3 = new BelongsToV2().setDestination(BelongsToV2.Destination.createWithDestinationBar(barUrn3));
     BelongsToV2Array belongsToArray = new BelongsToV2Array(belongsTo1, belongsTo2, belongsTo3);
     ReportsTo reportsTo = new ReportsTo().setSource(fooUrn).setDestination(barUrn1);
     ReportsToArray reportsToArray = new ReportsToArray(reportsTo);
@@ -3142,11 +3142,11 @@ public class EbeanLocalDAOTest {
 
     FooUrn fooUrn = makeFooUrn(1);
     BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
-    BelongsToV2 belongsTo1 = new BelongsToV2().setDestination(BelongsToV2.Destination.create(barUrn1.toString()));
+    BelongsToV2 belongsTo1 = new BelongsToV2().setDestination(BelongsToV2.Destination.createWithDestinationBar(barUrn1));
     BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:2");
-    BelongsToV2 belongsTo2 = new BelongsToV2().setDestination(BelongsToV2.Destination.create(barUrn2.toString()));
+    BelongsToV2 belongsTo2 = new BelongsToV2().setDestination(BelongsToV2.Destination.createWithDestinationBar(barUrn2));
     BarUrn barUrn3 = BarUrn.createFromString("urn:li:bar:3");
-    BelongsToV2 belongsTo3 = new BelongsToV2().setDestination(BelongsToV2.Destination.create(barUrn3.toString()));
+    BelongsToV2 belongsTo3 = new BelongsToV2().setDestination(BelongsToV2.Destination.createWithDestinationBar(barUrn3));
     BelongsToV2Array belongsToArray = new BelongsToV2Array(belongsTo1, belongsTo2, belongsTo3);
     AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(barUrn1, barUrn2, barUrn3)).setBelongsTos(belongsToArray);
     AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
@@ -3169,6 +3169,80 @@ public class EbeanLocalDAOTest {
 
     assertEquals(relationships.size(), 3);
     assertEquals(aspects.size(), 1);
+  }
+
+  @Test
+  public void testAddRelationshipsFromDualSource() throws URISyntaxException {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> fooDao = createDao(FooUrn.class);
+    EbeanLocalDAO<EntityAspectUnion, BarUrn> barDao = createDao(BarUrn.class);
+    fooDao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
+    barDao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
+
+    fooDao.setRelationshipSource(EbeanLocalDAO.RelationshipSource.DUAL_SOURCE);
+
+    FooUrn fooUrn = makeFooUrn(1);
+    BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
+    BelongsToV2 belongsTo1 = new BelongsToV2().setDestination(BelongsToV2.Destination.createWithDestinationBar(barUrn1));
+    BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:2");
+    BelongsToV2 belongsTo2 = new BelongsToV2().setDestination(BelongsToV2.Destination.createWithDestinationBar(barUrn2));
+    BarUrn barUrn3 = BarUrn.createFromString("urn:li:bar:3");
+    BelongsToV2 belongsTo3 = new BelongsToV2().setDestination(BelongsToV2.Destination.createWithDestinationBar(barUrn3));
+    BelongsToV2Array belongsToArray = new BelongsToV2Array(belongsTo1, belongsTo2, belongsTo3);
+
+    AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(barUrn1, barUrn2, barUrn3)).setBelongsTos(belongsToArray);
+    AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
+
+    fooDao.add(fooUrn, aspectFooBar, auditStamp);
+    barDao.add(barUrn1, new AspectFoo().setValue("1"), auditStamp);
+    barDao.add(barUrn2, new AspectFoo().setValue("2"), auditStamp);
+    barDao.add(barUrn3, new AspectFoo().setValue("3"), auditStamp);
+
+    // Verify local relationships and entity are added.
+    EbeanLocalRelationshipQueryDAO ebeanLocalRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server);
+    ebeanLocalRelationshipQueryDAO.setSchemaConfig(_schemaConfig);
+
+    // verify 3 BelongsTo (V1)
+    List<BelongsTo> relationships =
+        ebeanLocalRelationshipQueryDAO.findRelationships(FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class,
+            EMPTY_FILTER, BelongsTo.class, OUTGOING_FILTER, 0, 10);
+
+    AspectKey<FooUrn, AspectFooBar> key = new AspectKey<>(AspectFooBar.class, fooUrn, 0L);
+    List<EbeanMetadataAspect> aspects = fooDao.batchGetHelper(Collections.singletonList(key), 1, 0);
+
+    assertEquals(relationships.size(), 3);
+    assertEquals(aspects.size(), 1);
+
+    // verify 3 BelongsToV2
+    List<BelongsToV2> relationshipsV2 =
+        ebeanLocalRelationshipQueryDAO.findRelationships(FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class,
+            EMPTY_FILTER, BelongsToV2.class, OUTGOING_FILTER, 0, 10);
+
+    assertEquals(relationshipsV2.size(), 3);
+  }
+
+  @Test
+  public void testAddRelationshipsFromDualSourceWithInconsistentRelationships() throws URISyntaxException {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> fooDao = createDao(FooUrn.class);
+    EbeanLocalDAO<EntityAspectUnion, BarUrn> barDao = createDao(BarUrn.class);
+    fooDao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
+    barDao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
+
+    fooDao.setRelationshipSource(EbeanLocalDAO.RelationshipSource.DUAL_SOURCE);
+
+    FooUrn fooUrn = makeFooUrn(1);
+    BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
+
+    BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:2");
+    BelongsToV2 belongsTo2 = new BelongsToV2().setDestination(BelongsToV2.Destination.createWithDestinationBar(barUrn2));
+    BarUrn barUrn3 = BarUrn.createFromString("urn:li:bar:3");
+    BelongsToV2 belongsTo3 = new BelongsToV2().setDestination(BelongsToV2.Destination.createWithDestinationBar(barUrn3));
+    BelongsToV2Array belongsToArray = new BelongsToV2Array(belongsTo2, belongsTo3);
+
+    // bars field and belongsTos field have different values (inconsistent relationships)
+    AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(barUrn1)).setBelongsTos(belongsToArray);
+    AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
+
+    assertThrows(IllegalArgumentException.class, () -> fooDao.add(fooUrn, aspectFooBar, auditStamp));
   }
 
   @Test

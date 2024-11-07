@@ -8,6 +8,8 @@ import com.linkedin.metadata.aspect.AuditedAspect;
 import com.linkedin.metadata.dao.EbeanLocalAccess;
 import com.linkedin.metadata.dao.EbeanMetadataAspect;
 import com.linkedin.metadata.dao.ListResult;
+import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder;
+import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
 import com.linkedin.metadata.query.AspectField;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.ListResultMetadata;
@@ -24,6 +26,9 @@ import com.linkedin.testing.AnnotatedRelationshipFooArray;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.CommonAspect;
 import com.linkedin.testing.CommonAspectArray;
+import com.linkedin.testing.localrelationship.BelongsTo;
+import com.linkedin.testing.localrelationship.BelongsToV2;
+import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.BurgerUrn;
 import com.linkedin.testing.urn.FooUrn;
 import io.ebean.Ebean;
@@ -638,5 +643,24 @@ public class EBeanDAOUtilsTest {
     assertEquals(new AnnotatedRelationshipFoo(), results.get(1).get(0));
     assertEquals(new AnnotatedRelationshipFoo(), results.get(1).get(1));
     assertEquals(new AnnotatedRelationshipBar(), results.get(2).get(0));
+  }
+
+  @Test
+  public void testAreConsistentLocalRelationshipUpdates() throws URISyntaxException {
+    FooUrn fooUrn = new FooUrn(1);
+
+    List<BelongsTo> belongsTos = new ArrayList<>();
+    belongsTos.add(new BelongsTo().setDestination(new BarUrn(1)).setSource(fooUrn));
+    BaseLocalRelationshipBuilder.LocalRelationshipUpdates update1 =
+        new BaseLocalRelationshipBuilder.LocalRelationshipUpdates(belongsTos, BelongsTo.class,
+            BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE);
+
+    List<BelongsToV2> belongsToV2s = new ArrayList<>();
+    belongsToV2s.add(new BelongsToV2().setDestination(BelongsToV2.Destination.createWithDestinationBar(new BarUrn(1))));
+    BaseLocalRelationshipBuilder.LocalRelationshipUpdates update2 =
+        new BaseLocalRelationshipBuilder.LocalRelationshipUpdates(belongsToV2s, BelongsToV2.class,
+            BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE);
+
+    assertTrue(EBeanDAOUtils.areConsistentLocalRelationshipUpdates(Collections.singletonList(update1), Collections.singletonList(update2), fooUrn));
   }
 }

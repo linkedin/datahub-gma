@@ -1,8 +1,10 @@
 namespace com.linkedin.testing.localrelationship
 
+import com.linkedin.testing.BarUrn
+
 @gma.model = "RELATIONSHIP"
 record BelongsToV2 {
   destination: union [
-    string
+    destinationBar: BarUrn
   ]
 }
