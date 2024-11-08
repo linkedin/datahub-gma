@@ -504,7 +504,7 @@ public class EBeanDAOUtilsTest {
 
     Method extractAspectJsonString = EBeanDAOUtils.class.getDeclaredMethod("extractAspectJsonString", String.class);
     extractAspectJsonString.setAccessible(true);
-    assertEquals("{\"lastmodifiedon\":\"1\",\"lastmodifiedby\":\"0\",\"aspect\":{\"value\":\"test\"}}", toJson);
+    assertEquals("{\"lastmodifiedon\":\"1\",\"aspect\":{\"value\":\"test\"},\"lastmodifiedby\":\"0\"}", toJson);
     assertNotNull(RecordUtils.toRecordTemplate(AspectFoo.class, (String) extractAspectJsonString.invoke(EBeanDAOUtils.class, toJson)));
   }
 
