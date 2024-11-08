@@ -206,8 +206,6 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   private final Map<Class<? extends RecordTemplate>, EqualityTester<? extends RecordTemplate>>
       _aspectEqualityTesterMap = new ConcurrentHashMap<>();
 
-  private boolean _modelValidationOnWrite = true;
-
   // Always emit MAE on every update regardless if there's any actual change in value
   private boolean _alwaysEmitAuditEvent = false;
 
@@ -431,13 +429,6 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * Enables or disables model validation before persisting.
-   */
-  public void enableModelValidationOnWrite(boolean enabled) {
-    _modelValidationOnWrite = enabled;
-  }
-
-  /**
    * Sets if MAE should be always emitted after each update even if there's no actual value change.
    */
   public void setAlwaysEmitAuditEvent(boolean alwaysEmitAuditEvent) {
@@ -653,9 +644,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     checkValidAspect(newValue.getClass());
 
-    if (_modelValidationOnWrite) {
-      validateAgainstSchema(newValue);
-    }
+    validateAgainstSchemaAndFillinDefault(newValue);
 
     // Invoke pre-update hooks, if any
     if (_aspectPreUpdateHooksMap.containsKey(updateTuple.getAspectClass())) {
@@ -1550,9 +1539,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   /**
    * Validates a model against its schema.
    */
-  protected void validateAgainstSchema(@Nonnull RecordTemplate model) {
+  public static void validateAgainstSchemaAndFillinDefault(@Nonnull RecordTemplate model) {
     ValidationResult result = ValidateDataAgainstSchema.validate(model,
-        new ValidationOptions(RequiredMode.CAN_BE_ABSENT_IF_HAS_DEFAULT, CoercionMode.NORMAL,
+        new ValidationOptions(RequiredMode.FIXUP_ABSENT_WITH_DEFAULT, CoercionMode.NORMAL,
             UnrecognizedFieldMode.DISALLOW));
 
     if (!result.isValid()) {
