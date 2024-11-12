@@ -94,18 +94,19 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
       deletionSQL.setParameter(CommonColumnName.DESTINATION, urn.toString());
     }
     batchCount = 0;
-    // Begin transaction
-    try (Transaction transaction = _server.beginTransaction()) {
-      // Execute in a loop until no more rows are deleted in a batch
-      while (true) {
+    while (true) {
+      try (Transaction transaction = _server.beginTransaction()) {
         int rowsAffected = deletionSQL.execute();
         batchCount++;
-        // Commit the transaction after each batch execution
+        // Commit the transaction for this batch
         transaction.commit();
+        log.info("Deleted {} rows in batch {}", rowsAffected, batchCount);
+
         if (rowsAffected < BATCH_SIZE) {
-          // Exit if fewer than BATCH_SIZE rows were affected, indicating all rows are processed
+          // Exit loop if fewer than BATCH_SIZE rows were affected, indicating all rows are processed
           break;
         }
+
         // Sleep for 1 millisecond to reduce load
         try {
           Thread.sleep(1);
@@ -113,12 +114,12 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
           Thread.currentThread().interrupt(); // Restore interrupted status
           throw new RuntimeException("Batch deletion interrupted", e);
         }
+      } catch (Exception e) {
+        log.error("Error while executing batch deletion after {} batches", batchCount, e);
+        throw new RuntimeException("Batch deletion failed", e);
       }
-      log.info("Cleared relationships in {} batches", batchCount);
-    } catch (Exception e) {
-      log.error("Error while executing batch deletion", e);
-      throw new RuntimeException("Batch deletion failed", e);
     }
+    log.info("Cleared relationships in {} batches", batchCount);
   }
 
   /**
