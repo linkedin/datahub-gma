@@ -42,7 +42,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
   private static final int BATCH_SIZE = 10000; // Process rows in batches of 10,000
   private static final String LIMIT = " LIMIT ";
   @Getter
-  private int batchCount = 0; //Only for unit test purpose
+  private int batchCount = 0;
 
   public EbeanLocalRelationshipWriterDAO(EbeanServer server) {
     _server = server;
