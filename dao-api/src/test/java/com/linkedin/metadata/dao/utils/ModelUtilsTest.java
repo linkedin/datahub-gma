@@ -870,6 +870,17 @@ public class ModelUtilsTest {
     assertTrue(result);
   }
 
+  @Test
+  public void testAssetValidator() {
+    // test asset model v1
+    EntityAsset asset = new EntityAsset().setUrn(makeUrn(1));
+    ModelUtils.validateAsset(asset);
+
+    // test asset model v2
+    BarAsset barAsset = new BarAsset().setUrn(makeBarUrn(1));
+    ModelUtils.validateAsset(barAsset);
+  }
+
   private RelationshipFoo mockRelationshipFoo(FooUrn expectedSource, BarUrn expectedDestination) {
     return new RelationshipFoo().setSource(expectedSource).setDestination(expectedDestination);
   }

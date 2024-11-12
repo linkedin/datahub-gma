@@ -6,6 +6,12 @@ import com.linkedin.data.schema.ArrayDataSchema;
 import com.linkedin.data.schema.DataSchema;
 import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.schema.UnionDataSchema;
+import com.linkedin.data.schema.validation.CoercionMode;
+import com.linkedin.data.schema.validation.RequiredMode;
+import com.linkedin.data.schema.validation.UnrecognizedFieldMode;
+import com.linkedin.data.schema.validation.ValidateDataAgainstSchema;
+import com.linkedin.data.schema.validation.ValidationOptions;
+import com.linkedin.data.schema.validation.ValidationResult;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.aspect.SoftDeletedAspect;
@@ -209,4 +215,19 @@ public final class ValidationUtils {
   public static void throwNullFieldException(String field) {
     throw new NullFieldException(String.format("The '%s' field cannot be null.", field));
   }
+
+  /**
+   * Validates a model against its schema, useful for checking to make sure that a (curli) ingestion request's
+   * fields are all valid fields of the model that is being ingested.
+   *
+   * This is copied from BaseLocalDAO, which has this to validate at near-db-write time. However, this has utility in
+   * our validation at the API layer as well.
+   */
+  public static void validateAgainstSchema(@Nonnull RecordTemplate model) {
+    ValidationResult result = ValidateDataAgainstSchema.validate(model,
+        new ValidationOptions(RequiredMode.CAN_BE_ABSENT_IF_HAS_DEFAULT, CoercionMode.NORMAL,
+            UnrecognizedFieldMode.DISALLOW));
+    invalidSchema(result.getMessages().toString());
+  }
+
 }
