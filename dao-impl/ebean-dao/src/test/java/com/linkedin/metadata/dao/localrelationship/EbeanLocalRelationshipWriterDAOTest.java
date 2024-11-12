@@ -10,6 +10,7 @@ import com.linkedin.metadata.dao.localrelationship.builder.VersionOfLocalRelatio
 import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.testing.BarUrnArray;
+import com.linkedin.testing.RelationshipV2Bar;
 import com.linkedin.testing.localrelationship.AspectFooBar;
 import com.linkedin.testing.localrelationship.PairsWith;
 import com.linkedin.testing.urn.BarUrn;
@@ -20,6 +21,7 @@ import io.ebean.SqlRow;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import org.testng.annotations.BeforeClass;
@@ -179,6 +181,11 @@ public class EbeanLocalRelationshipWriterDAOTest {
 
   @Test
   public void testAddRelationshipWithRemoveAllEdgesFromSource() throws URISyntaxException {
+    // Test cases for Relationship Model V1
+    // set 3 existing relationships
+    // 1) "urn:li:bar:123" -> "urn:li:foo:123"
+    // 2) "urn:li:bar:123" -> "urn:li:foo:000"
+    // 3) "urn:li:bar:000" -> "urn:li:foo:123"
     _server.execute(Ebean.createSqlUpdate(insertRelationships("metadata_relationship_versionof", "urn:li:bar:123",
         "bar", "urn:li:foo:123", "foo")));
 
@@ -188,6 +195,8 @@ public class EbeanLocalRelationshipWriterDAOTest {
     _server.execute(Ebean.createSqlUpdate(insertRelationships("metadata_relationship_versionof", "urn:li:bar:000",
         "bar", "urn:li:foo:123", "foo")));
 
+    // mock a new relationship update
+    // 1) "urn:li:bar:123" -> "urn:li:foo:123"
     AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(BarUrn.createFromString("urn:li:bar:123")));
 
     List<LocalRelationshipUpdates> updates = new VersionOfLocalRelationshipBuilder(AspectFooBar.class)
@@ -200,6 +209,11 @@ public class EbeanLocalRelationshipWriterDAOTest {
     _localRelationshipWriterDAO.processLocalRelationshipUpdates(FooUrn.createFromString("urn:li:foo:123"), updates, false);
 
     // After processing verification
+    // now the relationship table should have the following relationships:
+    // 1) "urn:li:bar:123" -> "urn:li:foo:123" (soft-deleted)
+    // 2) "urn:li:bar:123" -> "urn:li:foo:000" (soft-deleted)
+    // 3) "urn:li:bar:000" -> "urn:li:foo:123"
+    // 4) "urn:li:bar:123" -> "urn:li:foo:123" (newly inserted)
     List<SqlRow> all = _server.createSqlQuery("select * from metadata_relationship_versionof").findList();
     assertEquals(all.size(), 4); // Total number of edges
 
@@ -216,6 +230,77 @@ public class EbeanLocalRelationshipWriterDAOTest {
 
     // Clean up
     _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_versionof"));
+
+    // Test cases for Relationship Model V2
+    // set 3 existing relationships
+    // 1) "urn:li:foo:1" -> "urn:li:bar:1"
+    // 2) "urn:li:foo:1" -> "urn:li:bar:2"
+    // 3) "urn:li:foo:2" -> "urn:li:bar:2"
+    _server.execute(Ebean.createSqlUpdate(insertRelationships("metadata_relationship_relationshipv2bar",
+        "urn:li:foo:1", "foo",
+        "urn:li:bar:1", "bar")));
+
+    _server.execute(Ebean.createSqlUpdate(insertRelationships("metadata_relationship_relationshipv2bar",
+        "urn:li:foo:1", "foo",
+        "urn:li:bar:2", "bar")));
+
+    _server.execute(Ebean.createSqlUpdate(insertRelationships("metadata_relationship_relationshipv2bar",
+        "urn:li:foo:2", "foo",
+        "urn:li:bar:2", "bar")));
+
+    // mock 3 new relationships
+    // 1) "urn:li:foo:1" -> "urn:li:bar:1"
+    // 2) "urn:li:foo:1" -> "urn:li:bar:22"
+    // 3) "urn:li:foo:1" -> "urn:li:bar:23"
+    List<RelationshipV2Bar> relationships = new ArrayList<>();
+    RelationshipV2Bar relationship21 = new RelationshipV2Bar().setDestination(
+        RelationshipV2Bar.Destination.createWithDestinationBar(new BarUrn(1)));
+    RelationshipV2Bar relationship22 = new RelationshipV2Bar().setDestination(
+        RelationshipV2Bar.Destination.createWithDestinationBar(new BarUrn(22)));
+    RelationshipV2Bar relationship23 = new RelationshipV2Bar().setDestination(
+        RelationshipV2Bar.Destination.createWithDestinationBar(new BarUrn(23)));
+    relationships.add(relationship21);
+    relationships.add(relationship22);
+    relationships.add(relationship23);
+
+    LocalRelationshipUpdates localRelationshipUpdates2 = new LocalRelationshipUpdates(relationships,
+        RelationshipV2Bar.class,
+        BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE);
+
+    List<LocalRelationshipUpdates> updates2 = new ArrayList<>();
+    updates2.add(localRelationshipUpdates2);
+
+    // Before processing new relationships, there should be 3 existing relationships
+    List<SqlRow> before2 = _server.createSqlQuery("select * from metadata_relationship_relationshipv2bar").findList();
+    assertEquals(before2.size(), 3);
+
+    // process the 3 new relationships
+    // then the relationship table should have the following records:
+    // 1) "urn:li:foo:1" -> "urn:li:bar:1" (soft-deleted)
+    // 2) "urn:li:foo:1" -> "urn:li:bar:2" (soft-deleted)
+    // 3) "urn:li:foo:2" -> "urn:li:bar:2"
+    // 4) "urn:li:foo:1" -> "urn:li:bar:1" (newly inserted)
+    // 5) "urn:li:foo:1" -> "urn:li:bar:22" (newly inserted)
+    // 6) "urn:li:foo:1" -> "urn:li:bar:23" (newly inserted)
+    _localRelationshipWriterDAO.processLocalRelationshipUpdates(FooUrn.createFromString("urn:li:foo:1"), updates2, false);
+
+    // After processing verification
+    List<SqlRow> all2 = _server.createSqlQuery("select * from metadata_relationship_relationshipv2bar").findList();
+    assertEquals(all2.size(), 6); // Total number of edges
+
+    List<SqlRow> softDeleted2 = _server.createSqlQuery("select * from metadata_relationship_relationshipv2bar where deleted_ts IS NOT NULL").findList();
+    assertEquals(softDeleted2.size(), 2); // 2 edges are soft-deleted
+
+    List<SqlRow> newEdge2 = _server.createSqlQuery(
+        "select * from metadata_relationship_relationshipv2bar where source='urn:li:foo:1' and deleted_ts IS NULL").findList();
+    assertEquals(newEdge2.size(), 3); // newly insert 3 edge
+
+    List<SqlRow> oldEdge2 = _server.createSqlQuery(
+        "select * from metadata_relationship_relationshipv2bar where source='urn:li:foo:2' and deleted_ts IS NULL").findList();
+    assertEquals(oldEdge2.size(), 1); // untouched record
+
+    // Clean up
+    _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_relationshipv2bar"));
   }
 
 

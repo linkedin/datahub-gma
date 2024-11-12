@@ -874,7 +874,7 @@ public class ModelUtils {
    * @param relationship must be a valid relationship model defined in com.linkedin.metadata.relationship
    * @return boolean. True if the relationship is in MG model V2.
    */
-  static <RELATIONSHIP extends RecordTemplate> boolean isRelationshipInV2(Class<? extends RecordTemplate> relationship) {
+  public static <RELATIONSHIP extends RecordTemplate> boolean isRelationshipInV2(Class<? extends RecordTemplate> relationship) {
     final RecordDataSchema schema = ValidationUtils.getRecordSchema(relationship);
     return isRelationshipInV2(schema);
   }
@@ -887,7 +887,7 @@ public class ModelUtils {
    * @param schema schema of a valid relationship model defined in com.linkedin.metadata.relationship
    * @return boolean. True if the relationship is in MG model V2.
    */
-  static boolean isRelationshipInV2(@Nonnull RecordDataSchema schema) {
+  public static boolean isRelationshipInV2(@Nonnull RecordDataSchema schema) {
     // check the data type of the destination fields in schema and see if it's a union type
     return schema.getFields().stream().noneMatch(
         field -> field.getName().equals(SOURCE_FIELD))

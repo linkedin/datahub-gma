@@ -4,6 +4,7 @@ DROP TABLE IF EXISTS metadata_relationship_ownedby;
 DROP TABLE IF EXISTS metadata_relationship_pairswith;
 DROP TABLE IF EXISTS metadata_relationship_versionof;
 DROP TABLE IF EXISTS metadata_relationship_consumefrom;
+DROP TABLE IF EXISTS metadata_relationship_relationshipv2bar;
 DROP TABLE IF EXISTS metadata_entity_foo;
 DROP TABLE IF EXISTS metadata_entity_bar;
 
@@ -89,6 +90,19 @@ CREATE TABLE IF NOT EXISTS metadata_relationship_versionof (
 CREATE TABLE IF NOT EXISTS metadata_relationship_consumefrom (
     id BIGINT NOT NULL AUTO_INCREMENT,
     metadata JSON NOT NULL,
+    source VARCHAR(1000) NOT NULL,
+    source_type VARCHAR(100) NOT NULL,
+    destination VARCHAR(1000) NOT NULL,
+    destination_type VARCHAR(100) NOT NULL,
+    lastmodifiedon TIMESTAMP NOT NULL,
+    lastmodifiedby VARCHAR(255) NOT NULL,
+    deleted_ts DATETIME(6) DEFAULT NULL,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS metadata_relationship_relationshipv2bar (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    metadata LONGTEXT NOT NULL,
     source VARCHAR(1000) NOT NULL,
     source_type VARCHAR(100) NOT NULL,
     destination VARCHAR(1000) NOT NULL,

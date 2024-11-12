@@ -653,7 +653,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       List<RecordTemplate> relationships = extractRelationshipsFromAspect(oldValue).stream()
           .flatMap(List::stream)
           .collect(Collectors.toList());
-      _localRelationshipWriterDAO.removeRelationships(relationships);
+      _localRelationshipWriterDAO.removeRelationshipsV2(relationships, urn);
     // Otherwise, add any local relationships that are derived from the aspect.
     } else {
       addRelationshipsIfAny(urn, newValue, aspectClass, isTestMode);
