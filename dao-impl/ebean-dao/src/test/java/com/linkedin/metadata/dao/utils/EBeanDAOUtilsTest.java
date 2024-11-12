@@ -5,6 +5,7 @@ import com.linkedin.data.template.IntegerArray;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.StringArray;
 import com.linkedin.metadata.aspect.AuditedAspect;
+import com.linkedin.metadata.dao.BaseLocalDAO;
 import com.linkedin.metadata.dao.EbeanLocalAccess;
 import com.linkedin.metadata.dao.EbeanMetadataAspect;
 import com.linkedin.metadata.dao.ListResult;
@@ -22,8 +23,10 @@ import com.linkedin.testing.AnnotatedRelationshipBarArray;
 import com.linkedin.testing.AnnotatedRelationshipFoo;
 import com.linkedin.testing.AnnotatedRelationshipFooArray;
 import com.linkedin.testing.AspectFoo;
+import com.linkedin.testing.AspectWithDefaultValue;
 import com.linkedin.testing.CommonAspect;
 import com.linkedin.testing.CommonAspectArray;
+import com.linkedin.testing.MapValueRecord;
 import com.linkedin.testing.urn.BurgerUrn;
 import com.linkedin.testing.urn.FooUrn;
 import io.ebean.Ebean;
@@ -505,6 +508,25 @@ public class EBeanDAOUtilsTest {
     Method extractAspectJsonString = EBeanDAOUtils.class.getDeclaredMethod("extractAspectJsonString", String.class);
     extractAspectJsonString.setAccessible(true);
     assertEquals("{\"lastmodifiedon\":\"1\",\"aspect\":{\"value\":\"test\"},\"lastmodifiedby\":\"0\"}", toJson);
+    assertNotNull(RecordUtils.toRecordTemplate(AspectFoo.class, (String) extractAspectJsonString.invoke(EBeanDAOUtils.class, toJson)));
+  }
+
+  @Test
+  public void testToAndFromJsonWithDefaultValue() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
+    AuditedAspect auditedAspect = new AuditedAspect();
+    AspectWithDefaultValue defaultValueAspect = new AspectWithDefaultValue().setNestedValueWithDefault(new MapValueRecord());
+    BaseLocalDAO.validateAgainstSchemaAndFillinDefault(defaultValueAspect);
+    String actual = RecordUtils.toJsonString(defaultValueAspect);
+
+    auditedAspect.setLastmodifiedby("0");
+    auditedAspect.setLastmodifiedon("1");
+    auditedAspect.setAspect(RecordUtils.toJsonString(defaultValueAspect));
+    String toJson = EbeanLocalAccess.toJsonString(auditedAspect);
+
+    Method extractAspectJsonString = EBeanDAOUtils.class.getDeclaredMethod("extractAspectJsonString", String.class);
+    extractAspectJsonString.setAccessible(true);
+    assertEquals("{\"lastmodifiedon\":\"1\",\"aspect\":{\"nestedValueWithDefault\":{\"mapValueWithDefaultmap\":{}},"
+        + "\"valueWithDefault\":\"\"},\"lastmodifiedby\":\"0\"}", toJson);
     assertNotNull(RecordUtils.toRecordTemplate(AspectFoo.class, (String) extractAspectJsonString.invoke(EBeanDAOUtils.class, toJson)));
   }
 
