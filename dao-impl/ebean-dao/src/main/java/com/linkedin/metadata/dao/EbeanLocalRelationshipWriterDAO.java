@@ -11,6 +11,7 @@ import com.linkedin.metadata.dao.utils.SQLStatementUtils;
 import com.linkedin.metadata.validator.RelationshipValidator;
 import io.ebean.EbeanServer;
 import io.ebean.SqlUpdate;
+import io.ebean.Transaction;
 import io.ebean.annotation.Transactional;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -18,7 +19,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
-import javax.annotation.ParametersAreNonnullByDefault;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nullable;
@@ -94,23 +94,31 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
       deletionSQL.setParameter(CommonColumnName.DESTINATION, urn.toString());
     }
     batchCount = 0;
-    // Execute in a loop until no more rows are deleted in a batch
-    while (true) {
-      int rowsAffected = deletionSQL.execute();
-      batchCount++;
-      if (rowsAffected < BATCH_SIZE) {
-        // Exit if fewer than batchSize rows were affected, indicating all rows are processed
-        break;
+    // Begin transaction
+    try (Transaction transaction = _server.beginTransaction()) {
+      // Execute in a loop until no more rows are deleted in a batch
+      while (true) {
+        int rowsAffected = deletionSQL.execute();
+        batchCount++;
+        // Commit the transaction after each batch execution
+        transaction.commit();
+        if (rowsAffected < BATCH_SIZE) {
+          // Exit if fewer than BATCH_SIZE rows were affected, indicating all rows are processed
+          break;
+        }
+        // Sleep for 1 millisecond to reduce load
+        try {
+          Thread.sleep(1);
+        } catch (InterruptedException e) {
+          Thread.currentThread().interrupt(); // Restore interrupted status
+          throw new RuntimeException("Batch deletion interrupted", e);
+        }
       }
-      // Sleep for 1 millisecond to reduce load
-      try {
-        Thread.sleep(1);
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt(); // Restore interrupted status
-        throw new RuntimeException("Batch deletion interrupted", e);
-      }
+      log.info("Cleared relationships in {} batches", batchCount);
+    } catch (Exception e) {
+      log.error("Error while executing batch deletion", e);
+      throw new RuntimeException("Batch deletion failed", e);
     }
-    log.info("Cleared relationships in {} batches", batchCount);
   }
 
   /**
