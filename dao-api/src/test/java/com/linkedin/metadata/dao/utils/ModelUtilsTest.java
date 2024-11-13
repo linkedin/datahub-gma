@@ -602,6 +602,13 @@ public class ModelUtilsTest {
   }
 
   @Test
+  public void testGetAspectClassNamesWithAlias() {
+    List<String> classNames = ModelUtils.getAspectClassNames(EntityUnionAlias.class);
+    assertEquals(classNames.get(0), "com.linkedin.testing.EntityFoo");
+    assertEquals(classNames.get(1), "com.linkedin.testing.EntityBar");
+  }
+
+  @Test
   public void testGetUnionClassFromSnapshot() {
     Class<UnionTemplate> unionTemplate = ModelUtils.getUnionClassFromSnapshot(EntitySnapshot.class);
     assertEquals(unionTemplate.getCanonicalName(), "com.linkedin.testing.EntityAspectUnion");
