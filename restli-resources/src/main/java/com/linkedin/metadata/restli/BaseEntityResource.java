@@ -1076,11 +1076,44 @@ public abstract class BaseEntityResource<
   }
 
   /**
+   * Same as the above but doesn't require the callee to provide the 'isInternalModelsEnabled' flag.
+   *
+   * @param urns collection of urns
+   * @param aspectClasses set of aspect classes
+   * @return All {@link VALUE} objects keyed by {@link URN} obtained from DB
+   */
+  @Nonnull
+  protected Map<URN, VALUE> getInternal(@Nonnull Collection<URN> urns,
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses) {
+    final boolean isInternalModelsEnabled = getResourceLix().testGetAll(_urnClass.getSimpleName());
+    return getUrnAspectMap(urns, aspectClasses, isInternalModelsEnabled).entrySet()
+        .stream()
+        .collect(Collectors.toMap(Map.Entry::getKey,
+            e -> isInternalModelsEnabled ? toInternalValue(newInternalSnapshot(e.getKey(), e.getValue()))
+                : toValue(newSnapshot(e.getKey(), e.getValue()))));
+  }
+
+  /**
    * Similar to {@link #getInternal(Collection, Set, boolean)}  but filter out {@link URN}s which are not in the DB.
    */
   @Nonnull
   protected Map<URN, VALUE> getInternalNonEmpty(@Nonnull Collection<URN> urns,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, boolean isInternalModelsEnabled) {
+    return getUrnAspectMap(urns, aspectClasses, isInternalModelsEnabled).entrySet()
+        .stream()
+        .filter(e -> !e.getValue().isEmpty())
+        .collect(Collectors.toMap(Map.Entry::getKey,
+            e -> isInternalModelsEnabled ? toInternalValue(newInternalSnapshot(e.getKey(), e.getValue()))
+                : toValue(newSnapshot(e.getKey(), e.getValue()))));
+  }
+
+  /**
+   * Same as the above but doesn't require the callee to provide the 'isInternalModelsEnabled' flag.
+   */
+  @Nonnull
+  protected Map<URN, VALUE> getInternalNonEmpty(@Nonnull Collection<URN> urns,
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses) {
+    final boolean isInternalModelsEnabled = getResourceLix().testGetAll(_urnClass.getSimpleName());
     return getUrnAspectMap(urns, aspectClasses, isInternalModelsEnabled).entrySet()
         .stream()
         .filter(e -> !e.getValue().isEmpty())
