@@ -29,12 +29,10 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -385,7 +383,7 @@ public class EBeanDAOUtils {
    *     all the top-level relationship fields in the aspect. An empty map means that there is no non-null relationship metadata attached to the given aspect.
    */
   @Nonnull
-  public static <RELATIONSHIP extends RecordTemplate, ASPECT extends RecordTemplate>Map<Class<?>, Set<RELATIONSHIP>>
+  public static <RELATIONSHIP extends RecordTemplate, ASPECT extends RecordTemplate> Map<Class<?>, Set<RELATIONSHIP>>
   extractRelationshipsFromAspect(ASPECT aspect) {
     Map<Class<?>, Set<RELATIONSHIP>> relationshipMap = new HashMap<>();
     aspect.schema().getFields().stream().filter(field -> !field.getType().isPrimitive()).forEach(field -> {
