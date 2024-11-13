@@ -48,6 +48,7 @@ import java.lang.reflect.Method;
 import java.net.URISyntaxException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -650,8 +651,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     // If the aspect is to be soft deleted and we are deriving relationships from aspect metadata, remove any relationships
     // associated with the previous aspect value.
     if (newValue == null && _relationshipSource == RelationshipSource.ASPECT_METADATA && oldValue != null) {
-      List<RecordTemplate> relationships = extractRelationshipsFromAspect(oldValue).stream()
-          .flatMap(List::stream)
+      List<RecordTemplate> relationships = extractRelationshipsFromAspect(oldValue).values().stream()
+          .flatMap(Set::stream)
           .collect(Collectors.toList());
       _localRelationshipWriterDAO.removeRelationshipsV2(relationships, urn);
     // Otherwise, add any local relationships that are derived from the aspect.
@@ -892,11 +893,11 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
     List<LocalRelationshipUpdates> localRelationshipUpdates = Collections.emptyList();
     if (_relationshipSource == RelationshipSource.ASPECT_METADATA) {
-      List<List<RELATIONSHIP>> allRelationships = EBeanDAOUtils.extractRelationshipsFromAspect(aspect);
-      localRelationshipUpdates = allRelationships.stream()
-          .filter(relationships -> !relationships.isEmpty()) // ensure at least 1 relationship in sublist to avoid index out of bounds
-          .map(relationships -> new LocalRelationshipUpdates(
-            relationships, relationships.get(0).getClass(), BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE))
+      Map<Class<?>, Set<RELATIONSHIP>> allRelationships = EBeanDAOUtils.extractRelationshipsFromAspect(aspect);
+      localRelationshipUpdates = allRelationships.entrySet().stream()
+          .filter(entry -> !entry.getValue().isEmpty()) // ensure at least 1 relationship in sublist to avoid index out of bounds
+          .map(entry -> new LocalRelationshipUpdates(
+              Arrays.asList(entry.getValue().toArray()), entry.getKey(), BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE))
           .collect(Collectors.toList());
     } else if (_relationshipSource == RelationshipSource.RELATIONSHIP_BUILDERS) {
       if (_localRelationshipBuilderRegistry != null && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
