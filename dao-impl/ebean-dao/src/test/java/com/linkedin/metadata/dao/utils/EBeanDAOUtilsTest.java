@@ -658,7 +658,7 @@ public class EBeanDAOUtilsTest {
         .setRelationshipBars(relationshipBars); // don't set moreRelationshipFoos field
 
     results = EBeanDAOUtils.extractRelationshipsFromAspect(barWithRelationshipFields);
-    assertEquals(3, results.size());
+    assertEquals(2, results.size());
     assertEquals(3, results.get(AnnotatedRelationshipFoo.class).size()); // relationshipFoo1 (1) + relationshipFoos (2)
     assertEquals(1, results.get(AnnotatedRelationshipBar.class).size()); // relationshipBars
     assertTrue(results.get(AnnotatedRelationshipFoo.class).contains(test1));
