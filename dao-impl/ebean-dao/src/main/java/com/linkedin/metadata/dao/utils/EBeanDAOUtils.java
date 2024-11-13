@@ -410,7 +410,7 @@ public class EBeanDAOUtils {
         if (modelType == ModelType.RELATIONSHIP) {
           log.debug("Found {} relationships of type {} for field {} of aspect class {}.",
               relationshipsList.size(), relationshipsList.get(0).getClass(), fieldName, clazz.getName());
-          relationshipMap.computeIfAbsent(obj.getClass(), k -> new HashSet<>()).addAll((List<RELATIONSHIP>) relationshipsList);
+          relationshipMap.computeIfAbsent(relationshipsList.get(0).getClass(), k -> new HashSet<>()).addAll((List<RELATIONSHIP>) relationshipsList);
         }
       } catch (ReflectiveOperationException e) {
         throw new RuntimeException(e);
