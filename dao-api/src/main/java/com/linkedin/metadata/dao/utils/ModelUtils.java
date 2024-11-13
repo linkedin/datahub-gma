@@ -929,7 +929,9 @@ public class ModelUtils {
     try {
       final UnionTemplate unionTemplate = unionClass.newInstance();
       final UnionDataSchema unionDataSchema = (UnionDataSchema) unionTemplate.schema();
-      return unionDataSchema.getMembers().stream().map(UnionDataSchema.Member::getUnionMemberKey).collect(Collectors.toList());
+      return unionDataSchema.getMembers().stream().map(
+          member -> member.hasAlias() ? member.getType().getUnionMemberKey() : member.getUnionMemberKey()
+      ).collect(Collectors.toList());
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
