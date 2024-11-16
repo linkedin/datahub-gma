@@ -880,36 +880,14 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   /**
    * If the aspect is associated with at least one relationship, upsert the relationship into the corresponding local
    * relationship table. Associated means that the aspect has a registered relationship build or it includes a relationship field.
+   * It will first try to find a registered relationship builder; if one doesn't exist or returns no relationship updates,
+   * try to find relationships from the aspect itself.
    * @param urn Urn of the metadata update
    * @param aspect Aspect of the metadata update
    * @param aspectClass Aspect class of the metadata update
    * @param isTestMode Whether the test mode is enabled or not
    * @return List of LocalRelationshipUpdates that were executed
    */
-  //  public <ASPECT extends RecordTemplate, RELATIONSHIP extends RecordTemplate> List<LocalRelationshipUpdates> addRelationshipsIfAny(
-  //      @Nonnull URN urn, @Nullable ASPECT aspect, @Nonnull Class<ASPECT> aspectClass, boolean isTestMode) {
-  //    if (aspect == null) {
-  //      return Collections.emptyList();
-  //    }
-  //    List<LocalRelationshipUpdates> localRelationshipUpdates = Collections.emptyList();
-  //    if (_relationshipSource == RelationshipSource.ASPECT_METADATA) {
-  //      Map<Class<?>, Set<RELATIONSHIP>> allRelationships = EBeanDAOUtils.extractRelationshipsFromAspect(aspect);
-  //      localRelationshipUpdates = allRelationships.entrySet().stream()
-  //          .filter(entry -> !entry.getValue().isEmpty()) // ensure at least 1 relationship in sublist to avoid index out of bounds
-  //          .map(entry -> new LocalRelationshipUpdates(
-  //              Arrays.asList(entry.getValue().toArray()), entry.getKey(), BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE))
-  //          .collect(Collectors.toList());
-  //    } else if (_relationshipSource == RelationshipSource.RELATIONSHIP_BUILDERS) {
-  //      if (_localRelationshipBuilderRegistry != null && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
-  //        localRelationshipUpdates = _localRelationshipBuilderRegistry.getLocalRelationshipBuilder(aspect).buildRelationships(urn, aspect);
-  //      }
-  //    } else {
-  //      throw new UnsupportedOperationException("Please ensure that the RelationshipSource enum is properly set using "
-  //          + "setRelationshipSource method.");
-  //    }
-  //    _localRelationshipWriterDAO.processLocalRelationshipUpdates(urn, localRelationshipUpdates, isTestMode);
-  //    return localRelationshipUpdates;
-  //  }
   public <ASPECT extends RecordTemplate, RELATIONSHIP extends RecordTemplate> List<LocalRelationshipUpdates> addRelationshipsIfAny(
       @Nonnull URN urn, @Nullable ASPECT aspect, @Nonnull Class<ASPECT> aspectClass, boolean isTestMode) {
     if (aspect == null) {

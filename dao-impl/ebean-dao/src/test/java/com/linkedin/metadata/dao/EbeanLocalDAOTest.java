@@ -3247,6 +3247,49 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
+  public void testAddRelationshipsV2DefaultToRelationshipBuilders() throws URISyntaxException {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> fooDao = createDao(FooUrn.class);
+    EbeanLocalDAO<EntityAspectUnion, BarUrn> barDao = createDao(BarUrn.class);
+
+    // create AspectFooBaz with non-null bar array and non-null relationship-type fields but with different values.
+    // bars: 1, 2, 3 -RelationshipBuilder-> foo1->bar1, foo1->bar2, foo1->bar3
+    // belongsTos: foo1->bar4
+    // the DAO should default to using the relationships from the relationship builders over the relationships
+    // extracted from the aspect.
+    FooUrn fooUrn = makeFooUrn(1);
+    BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
+    BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:2");
+    BarUrn barUrn3 = BarUrn.createFromString("urn:li:bar:3");
+    BarUrn barUrn4 = BarUrn.createFromString("urn:li:bar:4");
+    BelongsToV2 belongsTo4 = new BelongsToV2().setDestination(BelongsToV2.Destination.create(barUrn4.toString()));
+    BelongsToV2Array belongsToArray = new BelongsToV2Array(belongsTo4);
+    AspectFooBaz aspectFooBaz = new AspectFooBaz().setBars(new BarUrnArray(barUrn1, barUrn2, barUrn3)).setBelongsTos(belongsToArray);
+    AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
+
+    fooDao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
+
+    fooDao.add(fooUrn, aspectFooBaz, auditStamp);
+    barDao.add(barUrn1, new AspectFoo().setValue("1"), auditStamp);
+    barDao.add(barUrn2, new AspectFoo().setValue("2"), auditStamp);
+    barDao.add(barUrn3, new AspectFoo().setValue("3"), auditStamp);
+
+    // Verify local relationships and entity are added.
+    EbeanLocalRelationshipQueryDAO ebeanLocalRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server);
+    ebeanLocalRelationshipQueryDAO.setSchemaConfig(_schemaConfig);
+
+    List<BelongsToV2> relationships =
+        ebeanLocalRelationshipQueryDAO.findRelationships(FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class,
+            EMPTY_FILTER, BelongsToV2.class, OUTGOING_FILTER, 0, 10);
+
+    AspectKey<FooUrn, AspectFooBaz> key = new AspectKey<>(AspectFooBaz.class, fooUrn, 0L);
+    List<EbeanMetadataAspect> aspects = fooDao.batchGetHelper(Collections.singletonList(key), 1, 0);
+
+    assertEquals(relationships.size(), 3);
+    assertFalse(relationships.contains(belongsTo4));
+    assertEquals(aspects.size(), 1);
+  }
+
+  @Test
   public void testNewSchemaFilterByArray() {
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
 
