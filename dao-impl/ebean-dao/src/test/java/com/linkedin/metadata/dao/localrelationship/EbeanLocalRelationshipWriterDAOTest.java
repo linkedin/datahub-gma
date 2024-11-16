@@ -1,17 +1,19 @@
 package com.linkedin.metadata.dao.localrelationship;
 
 import com.google.common.io.Resources;
+import com.linkedin.common.urn.Urn;
 import com.linkedin.metadata.dao.EbeanLocalRelationshipWriterDAO;
+import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder;
+import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
-import com.linkedin.metadata.dao.localrelationship.builder.BelongsToLocalRelationshipBuilder;
 import com.linkedin.metadata.dao.localrelationship.builder.PairsWithLocalRelationshipBuilder;
 import com.linkedin.metadata.dao.localrelationship.builder.ReportsToLocalRelationshipBuilder;
 import com.linkedin.metadata.dao.localrelationship.builder.VersionOfLocalRelationshipBuilder;
 import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
-import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.testing.BarUrnArray;
 import com.linkedin.testing.RelationshipV2Bar;
 import com.linkedin.testing.localrelationship.AspectFooBar;
+import com.linkedin.testing.localrelationship.BelongsTo;
 import com.linkedin.testing.localrelationship.PairsWith;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.FooUrn;
@@ -24,6 +26,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import javax.annotation.Nonnull;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
@@ -44,44 +47,40 @@ public class EbeanLocalRelationshipWriterDAOTest {
 
   @Test
   public void testAddRelationshipWithRemoveAllEdgesToDestination() throws URISyntaxException {
-    _server.execute(Ebean.createSqlUpdate(insertRelationships("metadata_relationship_belongsto", "urn:li:foo:123",
-        "foo", "urn:li:bar:000", "bar")));
+    // All relationship ingestion should default to REMOVE_ALL_EDGES_FROM_SOURCE. REMOVE_ALL_EDGES_TO_DESTINATION is no longer supported.
+    class DestRelationshipBuilder extends BaseLocalRelationshipBuilder<AspectFooBar> {
+      private DestRelationshipBuilder(Class<AspectFooBar> aspectClass) {
+        super(aspectClass);
+      }
+      @Nonnull
+      @Override
+      public <URN extends Urn> List<LocalRelationshipUpdates> buildRelationships(@Nonnull URN urn,
+          @Nonnull AspectFooBar aspectFooBar) {
+        List<BelongsTo> belongsTo = Collections.singletonList(new BelongsTo());
+        return Collections.singletonList(new LocalRelationshipUpdates(
+            belongsTo, BelongsTo.class, BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION));
+      }
+    }
 
     AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(
         BarUrn.createFromString("urn:li:bar:123"),
         BarUrn.createFromString("urn:li:bar:456"),
         BarUrn.createFromString("urn:li:bar:789")));
 
-    List<LocalRelationshipUpdates> updates = new BelongsToLocalRelationshipBuilder(AspectFooBar.class)
+    List<LocalRelationshipUpdates> updates = new DestRelationshipBuilder(AspectFooBar.class)
         .buildRelationships(FooUrn.createFromString("urn:li:foo:123"), aspectFooBar);
 
-    // Before processing
-    List<SqlRow> before = _server.createSqlQuery("select * from metadata_relationship_belongsto where destination='urn:li:bar:000'").findList();
-    assertEquals(before.size(), 1);
-
-    _localRelationshipWriterDAO.processLocalRelationshipUpdates(FooUrn.createFromString("urn:li:foo:123"), updates, false);
-
-    // After processing verification
-    List<SqlRow> all = _server.createSqlQuery("select * from metadata_relationship_belongsto").findList();
-    assertEquals(all.size(), 4); // Total number of edges is 4
-
-    List<SqlRow> softDeleted = _server.createSqlQuery("select * from metadata_relationship_belongsto where deleted_ts IS NOT NULL").findList();
-    assertEquals(softDeleted.size(), 1); // 1 soft deleted edge
-
-    List<SqlRow> newEdges = _server.createSqlQuery(
-        "select * from metadata_relationship_belongsto where source='urn:li:foo:123' and deleted_ts IS NULL").findList();
-
-    assertEquals(newEdges.size(), 3); // 3 new edges added.
-
-    // Clean up
-    _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_belongsto"));
+    try {
+      _localRelationshipWriterDAO.processLocalRelationshipUpdates(FooUrn.createFromString("urn:li:foo:123"), updates, false);
+      fail("This test should throw an exception since only REMOVE_ALL_EDGES_FROM_SOURCE is supported");
+    } catch (IllegalArgumentException e) {
+      // do nothing
+    }
   }
 
   @Test
   public void testAddRelationshipWithRemoveNone() throws URISyntaxException {
-    _server.execute(Ebean.createSqlUpdate(insertRelationships("metadata_relationship_reportsto", "urn:li:bar:000",
-        "bar", "urn:li:foo:123", "foo")));
-
+    // All relationship ingestion should default to REMOVE_ALL_EDGES_FROM_SOURCE. REMOVE_NONE is no longer supported.
     AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(
         BarUrn.createFromString("urn:li:bar:123"),
         BarUrn.createFromString("urn:li:bar:456"),
@@ -90,93 +89,29 @@ public class EbeanLocalRelationshipWriterDAOTest {
     List<LocalRelationshipUpdates> updates = new ReportsToLocalRelationshipBuilder(AspectFooBar.class)
         .buildRelationships(FooUrn.createFromString("urn:li:foo:123"), aspectFooBar);
 
-    // Before processing
-    List<SqlRow> before = _server.createSqlQuery("select * from metadata_relationship_reportsto where source='urn:li:bar:000'").findList();
-    assertEquals(before.size(), 1);
-
-    _localRelationshipWriterDAO.processLocalRelationshipUpdates(FooUrn.createFromString("urn:li:foo:123"), updates, false);
-
-    // After processing verification
-    List<SqlRow> after = _server.createSqlQuery("select * from metadata_relationship_reportsto where destination='urn:li:foo:123'").findList();
-    assertEquals(after.size(), 4);
-    List<SqlRow> edges = _server.createSqlQuery("select * from metadata_relationship_reportsto where source='urn:li:bar:000'").findList();
-    assertEquals(edges.size(), 1);
-
-    // Clean up
-    _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_reportsto"));
-  }
-
-  @Test
-  public void testAddRelationshipWithRemoveNoneInTestMode() throws URISyntaxException {
-    _server.execute(Ebean.createSqlUpdate(
-        insertRelationships("metadata_relationship_reportsto_test", "urn:li:bar:000", "bar", "urn:li:foo:123", "foo")));
-
-    AspectFooBar aspectFooBar = new AspectFooBar().setBars(
-        new BarUrnArray(BarUrn.createFromString("urn:li:bar:123"), BarUrn.createFromString("urn:li:bar:456"),
-            BarUrn.createFromString("urn:li:bar:789")));
-
-    List<LocalRelationshipUpdates> updates =
-        new ReportsToLocalRelationshipBuilder(AspectFooBar.class).buildRelationships(
-            FooUrn.createFromString("urn:li:foo:123"), aspectFooBar);
-
-    // Before processing
-    List<SqlRow> beforeTest =
-        _server.createSqlQuery("select * from metadata_relationship_reportsto_test where source='urn:li:bar:000'")
-            .findList();
-    assertEquals(beforeTest.size(), 1);
-
-    _localRelationshipWriterDAO.processLocalRelationshipUpdates(FooUrn.createFromString("urn:li:foo:123"), updates,
-        true);
-
-    // After processing verification
-    List<SqlRow> afterTest =
-        _server.createSqlQuery("select * from metadata_relationship_reportsto_test where destination='urn:li:foo:123'")
-            .findList();
-    assertEquals(afterTest.size(), 4);
-    List<SqlRow> edgesTest =
-        _server.createSqlQuery("select * from metadata_relationship_reportsto_test where source='urn:li:bar:000'")
-            .findList();
-    assertEquals(edgesTest.size(), 1);
-
-    // Clean up
-    _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_reportsto_test"));
+    try {
+      _localRelationshipWriterDAO.processLocalRelationshipUpdates(FooUrn.createFromString("urn:li:foo:123"), updates, false);
+      fail("This test should throw an exception since only REMOVE_ALL_EDGES_FROM_SOURCE is supported");
+    } catch (IllegalArgumentException e) {
+      // do nothing
+    }
   }
 
   @Test
   public void testAddRelationshipWithRemoveAllEdgesFromSourceToDestination() throws URISyntaxException {
-    _server.execute(Ebean.createSqlUpdate(insertRelationships("metadata_relationship_pairswith", "urn:li:bar:123",
-        "bar", "urn:li:foo:123", "foo")));
-
-    _server.execute(Ebean.createSqlUpdate(insertRelationships("metadata_relationship_pairswith", "urn:li:bar:123",
-        "bar", "urn:li:foo:123", "foo")));
-
-    _server.execute(Ebean.createSqlUpdate(insertRelationships("metadata_relationship_pairswith", "urn:li:bar:000",
-        "bar", "urn:li:foo:123", "foo")));
-
+    // All relationship ingestion should default to REMOVE_ALL_EDGES_FROM_SOURCE. REMOVE_ALL_EDGES_FROM_SOURCE_TO_DESTINATION is no longer supported.
     AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(BarUrn.createFromString("urn:li:bar:123")));
 
     List<LocalRelationshipUpdates> updates = new PairsWithLocalRelationshipBuilder(AspectFooBar.class)
         .buildRelationships(FooUrn.createFromString("urn:li:foo:123"), aspectFooBar);
 
-    // Before processing
-    List<SqlRow> before = _server.createSqlQuery("select * from metadata_relationship_pairswith").findList();
-    assertEquals(before.size(), 3);
-
-    _localRelationshipWriterDAO.processLocalRelationshipUpdates(FooUrn.createFromString("urn:li:foo:123"), updates, false);
-
-    // After processing verification
-    List<SqlRow> all = _server.createSqlQuery("select * from metadata_relationship_pairswith").findList();
-    assertEquals(all.size(), 4); // Total number of edges is 4
-
-    List<SqlRow> softDeleted = _server.createSqlQuery("select * from metadata_relationship_pairswith where deleted_ts IS NOT NULL").findList();
-    assertEquals(softDeleted.size(), 2); // 2 edges are soft-deleted.
-
-    List<SqlRow> oldEdge = _server.createSqlQuery(
-        "select * from metadata_relationship_pairswith where source='urn:li:bar:000' and deleted_ts IS NULL").findList();
-    assertEquals(oldEdge.size(), 1); // 1 old edge untouched.
-
-    // Clean up
-    _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_pairswith"));
+    try {
+      _localRelationshipWriterDAO.processLocalRelationshipUpdates(FooUrn.createFromString("urn:li:foo:123"), updates,
+          false);
+      fail("This test should throw an exception since only REMOVE_ALL_EDGES_FROM_SOURCE is supported");
+    } catch (IllegalArgumentException e) {
+      // do nothing
+    }
   }
 
   @Test
@@ -326,19 +261,13 @@ public class EbeanLocalRelationshipWriterDAOTest {
     List<SqlRow> all = _server.createSqlQuery("select * from metadata_relationship_pairswith where deleted_ts is null").findList();
     assertEquals(all.size(), 0); // Total number of edges is 0
 
-
-    _server.execute(Ebean.createSqlUpdate(insertRelationships("metadata_relationship_pairswith", "urn:li:bar:123",
-        "bar", "urn:li:foo:123", "foo")));
-
-    _server.execute(Ebean.createSqlUpdate(insertRelationships("metadata_relationship_pairswith", "urn:li:bar:123",
-        "bar", "urn:li:foo:456", "foo")));
-
-    _localRelationshipWriterDAO.clearRelationshipsByEntity(fooUrn, PairsWith.class,
-        BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION, false);
-
-    // After processing verification
-    all = _server.createSqlQuery("select * from metadata_relationship_pairswith where deleted_ts is null").findList();
-    assertEquals(all.size(), 1); // Total number of edges is 1
+    try {
+      _localRelationshipWriterDAO.clearRelationshipsByEntity(fooUrn, PairsWith.class,
+          BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION, false);
+      fail("Relationships can only be cleared using REMOVE_ALL_EDGES_FROM_SOURCE during relationship ingestion");
+    } catch (IllegalArgumentException e) {
+      // do nothing
+    }
 
     // Clean up
     _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_pairswith"));

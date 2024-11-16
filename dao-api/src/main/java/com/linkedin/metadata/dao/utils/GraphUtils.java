@@ -21,28 +21,18 @@ public class GraphUtils {
    * @param relationships  list of relationships
    * @param removalOption  removal option to specify which relationships to be removed
    * @param sourceField    name of the source field
-   * @param destinationField name of the destination field
    * @param urn  source urn to compare. Optional for V1. Needed for V2.
    */
   public static void checkSameUrn(@Nonnull final List<? extends RecordTemplate> relationships,
-      @Nonnull final BaseGraphWriterDAO.RemovalOption removalOption, @Nonnull final String sourceField,
-      @Nonnull final String destinationField, @Nullable Urn urn) {
-
+      @Nonnull final BaseGraphWriterDAO.RemovalOption removalOption, @Nonnull final String sourceField, @Nullable Urn urn) {
+    if (removalOption != BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE) {
+      throw new IllegalArgumentException("Relationship removal option is not REMOVE_ALL_EDGES_FROM_SOURCE.");
+    }
     if (relationships.isEmpty()) {
       return;
     }
-
     final Urn sourceUrn = getSourceUrnBasedOnRelationshipVersion(relationships.get(0), urn);
-    final Urn destinationUrn = getDestinationUrnFromRelationship(relationships.get(0));
-
-    if (removalOption == BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE) {
-      checkSameUrn(relationships, sourceField, sourceUrn);
-    } else if (removalOption == BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION) {
-      checkSameUrn(relationships, destinationField, destinationUrn);
-    } else if (removalOption == BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE_TO_DESTINATION) {
-      checkSameUrn(relationships, sourceField, sourceUrn);
-      checkSameUrn(relationships, destinationField, destinationUrn);
-    }
+    checkSameUrn(relationships, sourceField, sourceUrn);
   }
 
   /**
@@ -69,9 +59,8 @@ public class GraphUtils {
   }
 
   public static void checkSameUrn(@Nonnull final List<? extends RecordTemplate> relationships,
-      @Nonnull final BaseGraphWriterDAO.RemovalOption removalOption, @Nonnull final String sourceField,
-      @Nonnull final String destinationField) {
-    checkSameUrn(relationships, removalOption, sourceField, destinationField, null);
+      @Nonnull final BaseGraphWriterDAO.RemovalOption removalOption, @Nonnull final String sourceField) {
+    checkSameUrn(relationships, removalOption, sourceField, null);
   }
 
   private static void checkSameUrn(@Nonnull List<? extends RecordTemplate> records, @Nonnull String field,

@@ -21,8 +21,7 @@ public class GraphUtilsTest {
   @Test
   public void testCheckSameUrnWithEmptyRelationships() {
     List<RecordTemplate> relationships = Collections.emptyList();
-    GraphUtils.checkSameUrn(relationships, BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE, "source", "destination");
-    GraphUtils.checkSameUrn(relationships, BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION, "source", "destination", new BarUrn(1));
+    GraphUtils.checkSameUrn(relationships, BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE, "source");
     // No exception should be thrown
   }
 
@@ -38,14 +37,14 @@ public class GraphUtilsTest {
 
     List<RecordTemplate> relationships = Lists.newArrayList(relationship, relationship);
     try {
-      GraphUtils.checkSameUrn(relationships, BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE, "source", "destination");
+      GraphUtils.checkSameUrn(relationships, BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE, "source");
     } catch (IllegalArgumentException e) {
       fail("Expected no IllegalArgumentException to be thrown, but got: " + e.getMessage());
     }
 
     // when urn is provided for relationship V1, the provided urn should be ignored
     try {
-      GraphUtils.checkSameUrn(relationships, BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE, "source", "destination", new BarUrn(10));
+      GraphUtils.checkSameUrn(relationships, BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE, "source", new BarUrn(10));
     } catch (IllegalArgumentException e) {
       fail("Expected no IllegalArgumentException to be thrown, but got: " + e.getMessage());
     }
@@ -55,7 +54,7 @@ public class GraphUtilsTest {
     List<RecordTemplate> relationshipsV2 = Lists.newArrayList(relationshipV2, relationshipV2);
     // when urn is provided for relationship V2, the check should pass
     try {
-      GraphUtils.checkSameUrn(relationshipsV2, BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE, "source", "destination", new BarUrn(2));
+      GraphUtils.checkSameUrn(relationshipsV2, BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE, "source", new BarUrn(2));
     } catch (IllegalArgumentException e) {
       fail("Expected no IllegalArgumentException to be thrown, but got: " + e.getMessage());
     }
@@ -64,8 +63,7 @@ public class GraphUtilsTest {
         () -> GraphUtils.checkSameUrn(
             relationshipsV2,
             BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE,
-            "source",
-            "destination")
+            "source")
     );
   }
 
@@ -86,8 +84,7 @@ public class GraphUtilsTest {
         () -> GraphUtils.checkSameUrn(
             relationships,
             BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE,
-            "source",
-            "destination")
+            "source")
     );
     // when urn is provided for relationship V1, the provided urn should be ignored
     assertThrows(IllegalArgumentException.class,
@@ -95,7 +92,6 @@ public class GraphUtilsTest {
             relationships,
             BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE,
             "source",
-            "destination",
             new BarUrn(10))
     );
 
@@ -114,18 +110,18 @@ public class GraphUtilsTest {
     List<RecordTemplate> relationships1 = Lists.newArrayList(relationship1, relationship1);
 
     try {
-      GraphUtils.checkSameUrn(relationships1, BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION, "source",
-          "destination");
+      GraphUtils.checkSameUrn(relationships1, BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION, "source");
+      fail("Expected IllegalArgumentException to be thrown, but it wasn't");
     } catch (IllegalArgumentException e) {
-      fail("Expected no IllegalArgumentException to be thrown, but got: " + e.getMessage());
+      // do nothing
     }
 
     // when urn is provided for relationship V1, the provided urn should be ignored
     try {
-      GraphUtils.checkSameUrn(relationships1, BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION, "source",
-          "destination", new BarUrn(10));
+      GraphUtils.checkSameUrn(relationships1, BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION, "source", new BarUrn(10));
+      fail("Expected IllegalArgumentException to be thrown, but it wasn't");
     } catch (IllegalArgumentException e) {
-      fail("Expected no IllegalArgumentException to be thrown, but got: " + e.getMessage());
+      // do nothing
     }
 
     // Test cases for relationship V2
@@ -137,15 +133,14 @@ public class GraphUtilsTest {
         () -> GraphUtils.checkSameUrn(
             relationships2,
             BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION,
-            "source",
-            "destination")
+            "source")
     );
 
     try {
-      GraphUtils.checkSameUrn(relationships2, BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION, "source",
-          "destination", new BarUrn(10));
+      GraphUtils.checkSameUrn(relationships2, BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION, "source", new BarUrn(10));
+      fail("Expected IllegalArgumentException to be thrown, but it wasn't");
     } catch (IllegalArgumentException e) {
-      fail("Expected no IllegalArgumentException to be thrown, but got: " + e.getMessage());
+      // do nothing
     }
   }
 
@@ -166,8 +161,7 @@ public class GraphUtilsTest {
         () -> GraphUtils.checkSameUrn(
             relationships1,
             BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION,
-            "source",
-            "destination")
+            "source")
     );
 
     assertThrows(IllegalArgumentException.class,
@@ -175,7 +169,6 @@ public class GraphUtilsTest {
             relationships1,
             BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION,
             "source",
-            "destination",
             new BarUrn(10))
     );
 
@@ -187,8 +180,7 @@ public class GraphUtilsTest {
         () -> GraphUtils.checkSameUrn(
             relationships2,
             BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION,
-            "source",
-            "destination")
+            "source")
     );
 
     assertThrows(IllegalArgumentException.class,
@@ -196,7 +188,6 @@ public class GraphUtilsTest {
             relationships2,
             BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION,
             "source",
-            "destination",
             new BarUrn(10))
     );
   }
