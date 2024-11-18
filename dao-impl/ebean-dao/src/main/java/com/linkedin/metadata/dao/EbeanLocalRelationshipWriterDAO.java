@@ -3,12 +3,14 @@ package com.linkedin.metadata.dao;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
+import com.linkedin.metadata.dao.exception.RetryLimitReached;
 import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
 import com.linkedin.metadata.dao.utils.GraphUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
 import com.linkedin.metadata.dao.utils.SQLStatementUtils;
 import com.linkedin.metadata.validator.RelationshipValidator;
+import io.ebean.DuplicateKeyException;
 import io.ebean.EbeanServer;
 import io.ebean.SqlUpdate;
 import io.ebean.Transaction;
@@ -17,8 +19,11 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+import javax.persistence.OptimisticLockException;
+import javax.persistence.RollbackException;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nullable;
@@ -40,6 +45,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
     private static final String LAST_MODIFIED_BY = "lastmodifiedby";
   }
   private static final int BATCH_SIZE = 10000; // Process rows in batches of 10,000
+  private static final int MAX_BATCHES = 1000; // Maximum number of batches to process
   private static final String LIMIT = " LIMIT ";
   @Getter
   private int batchCount = 0;
@@ -94,32 +100,32 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
       deletionSQL.setParameter(CommonColumnName.DESTINATION, urn.toString());
     }
     batchCount = 0;
-    while (true) {
-      try (Transaction transaction = _server.beginTransaction()) {
-        int rowsAffected = deletionSQL.execute();
-        batchCount++;
-        // Commit the transaction for this batch
-        transaction.commit();
-        log.info("Deleted {} rows in batch {}", rowsAffected, batchCount);
+    while (batchCount < MAX_BATCHES) {
+      int rowsAffected = runInTransactionWithRetry(deletionSQL::execute, 3); // Retry up to 3 times
+      batchCount++;
 
-        if (rowsAffected < BATCH_SIZE) {
-          // Exit loop if fewer than BATCH_SIZE rows were affected, indicating all rows are processed
-          break;
-        }
+      if (log.isDebugEnabled()) {
+        log.debug("Deleted {} rows in batch {}", rowsAffected, batchCount);
+      }
 
-        // Sleep for 1 millisecond to reduce load
-        try {
-          Thread.sleep(1);
-        } catch (InterruptedException e) {
-          Thread.currentThread().interrupt(); // Restore interrupted status
-          throw new RuntimeException("Batch deletion interrupted", e);
-        }
-      } catch (Exception e) {
-        log.error("Error while executing batch deletion after {} batches", batchCount, e);
-        throw new RuntimeException("Batch deletion failed", e);
+      if (rowsAffected < BATCH_SIZE) {
+        // Exit loop if fewer than BATCH_SIZE rows were affected, indicating all rows are processed
+        break;
+      }
+
+      try {
+        Thread.sleep(1); // Sleep for 1ms to reduce load
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new RuntimeException("Batch deletion interrupted", e);
       }
     }
-    log.info("Cleared relationships in {} batches", batchCount);
+    if (batchCount >= MAX_BATCHES) {
+      log.warn("Reached maximum batch count of {}, consider increasing MAX_BATCH_COUNT or debugging the deletion logic.", MAX_BATCHES);
+    }
+    if (log.isDebugEnabled()) {
+      log.info("Cleared relationships in {} batches", batchCount);
+    }
   }
 
   /**
@@ -250,5 +256,29 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
     }
 
     deletionSQL.execute();
+  }
+
+  @Nonnull
+  protected <T> T runInTransactionWithRetry(@Nonnull Supplier<T> block, int maxTransactionRetry) {
+    int retryCount = 0;
+    Exception lastException;
+
+    T result = null;
+    do {
+      try (Transaction transaction = _server.beginTransaction()) {
+        result = block.get();
+        transaction.commit();
+        lastException = null;
+        break;
+      } catch (RollbackException | DuplicateKeyException | OptimisticLockException exception) {
+        lastException = exception;
+      }
+    } while (++retryCount <= maxTransactionRetry);
+
+    if (lastException != null) {
+      throw new RetryLimitReached("Failed to soft-delete after " + maxTransactionRetry + " retries", lastException);
+    }
+
+    return result;
   }
 }
