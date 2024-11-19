@@ -27,7 +27,7 @@ public class GraphUtils {
       if (ModelUtils.isRelationshipInV2(relationship.schema())) {
         if (assetUrn == null) {
           throw new IllegalArgumentException("Something went wrong. The asset urn is missing which is required during "
-              + "ingestion of a model 2.0 relationship");
+              + "ingestion of a model 2.0 relationship. Relationship model: " + relationship);
         }
         // Skip source urn check for V2 relationships since they don't have source field
       } else {
