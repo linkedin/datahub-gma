@@ -35,12 +35,11 @@ public class GraphUtilsTest {
     }
 
     List<RecordTemplate> relationships = Lists.newArrayList(relationship, relationship);
-    // when the assetUrn is not provided for relationship v1, throw an IllegalArgumentException
+    // when the assetUrn is not provided for relationship v1, use the first relationship's source to compare instead
     try {
       GraphUtils.checkSameSourceUrn(relationships, null);
-      fail("Expected an IllegalArgumentException to be thrown, but it wasn't");
     } catch (IllegalArgumentException e) {
-      // do nothing
+      fail("Expected no IllegalArgumentException to be thrown, but got: " + e.getMessage());
     }
 
     // when the assetUrn is provided for relationship V1, check all relationships to see if they have the same source

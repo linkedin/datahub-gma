@@ -24,17 +24,19 @@ public class GraphUtils {
       return;
     }
     for (RecordTemplate relationship : relationships) {
-      if (ModelUtils.isRelationshipInV2(relationship.schema()) && assetUrn != null) {
+      if (ModelUtils.isRelationshipInV2(relationship.schema())) {
+        if (assetUrn == null) {
+          throw new IllegalArgumentException("Something went wrong. The asset urn is missing which is required during "
+              + "ingestion of a model 2.0 relationship");
+        }
         // Skip source urn check for V2 relationships since they don't have source field
-        return;
-      } else if (assetUrn == null) {
-        throw new IllegalArgumentException("Something went wrong. The asset urn is missing, indicating ingestion of a model 2.0 relationship");
-      }
-      final Urn sourceUrn = getSourceUrnFromRelationship(relationships.get(0));
-
-      if (!assetUrn.equals(getSourceUrnFromRelationship(relationships.get(0)))) {
-        throw new IllegalArgumentException(
-            String.format("Relationships have different source urns. Asset urn: %s, Relationship source: %s", assetUrn, sourceUrn));
+      } else {
+        Urn compare = assetUrn == null ? getSourceUrnFromRelationship(relationships.get(0)) : assetUrn;
+        Urn source = getSourceUrnFromRelationship(relationship);
+        if (!compare.equals(source)) {
+          throw new IllegalArgumentException(
+              String.format("Relationships have different source urns. Urn being compared to: %s, Relationship source: %s", compare, source));
+        }
       }
     }
   }

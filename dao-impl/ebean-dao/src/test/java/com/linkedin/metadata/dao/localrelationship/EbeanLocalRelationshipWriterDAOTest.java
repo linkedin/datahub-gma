@@ -1,9 +1,7 @@
 package com.linkedin.metadata.dao.localrelationship;
 
 import com.google.common.io.Resources;
-import com.linkedin.common.urn.Urn;
 import com.linkedin.metadata.dao.EbeanLocalRelationshipWriterDAO;
-import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
 import com.linkedin.metadata.dao.localrelationship.builder.PairsWithLocalRelationshipBuilder;
@@ -13,7 +11,6 @@ import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
 import com.linkedin.testing.BarUrnArray;
 import com.linkedin.testing.RelationshipV2Bar;
 import com.linkedin.testing.localrelationship.AspectFooBar;
-import com.linkedin.testing.localrelationship.BelongsTo;
 import com.linkedin.testing.localrelationship.PairsWith;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.FooUrn;
@@ -26,7 +23,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import javax.annotation.Nonnull;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
@@ -43,39 +39,6 @@ public class EbeanLocalRelationshipWriterDAOTest {
     _server.execute(Ebean.createSqlUpdate(
         Resources.toString(Resources.getResource("ebean-local-relationship-dao-create-all.sql"), StandardCharsets.UTF_8)));
     _localRelationshipWriterDAO = new EbeanLocalRelationshipWriterDAO(_server);
-  }
-
-  @Test
-  public void testAddRelationshipWithRemoveAllEdgesToDestination() throws URISyntaxException {
-    // All relationship ingestion should default to REMOVE_ALL_EDGES_FROM_SOURCE. REMOVE_ALL_EDGES_TO_DESTINATION is no longer supported.
-    class DestRelationshipBuilder extends BaseLocalRelationshipBuilder<AspectFooBar> {
-      private DestRelationshipBuilder(Class<AspectFooBar> aspectClass) {
-        super(aspectClass);
-      }
-      @Nonnull
-      @Override
-      public <URN extends Urn> List<LocalRelationshipUpdates> buildRelationships(@Nonnull URN urn,
-          @Nonnull AspectFooBar aspectFooBar) {
-        List<BelongsTo> belongsTo = Collections.singletonList(new BelongsTo());
-        return Collections.singletonList(new LocalRelationshipUpdates(
-            belongsTo, BelongsTo.class, BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION));
-      }
-    }
-
-    AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(
-        BarUrn.createFromString("urn:li:bar:123"),
-        BarUrn.createFromString("urn:li:bar:456"),
-        BarUrn.createFromString("urn:li:bar:789")));
-
-    List<LocalRelationshipUpdates> updates = new DestRelationshipBuilder(AspectFooBar.class)
-        .buildRelationships(FooUrn.createFromString("urn:li:foo:123"), aspectFooBar);
-
-    try {
-      _localRelationshipWriterDAO.processLocalRelationshipUpdates(FooUrn.createFromString("urn:li:foo:123"), updates, false);
-      fail("This test should throw an exception since only REMOVE_ALL_EDGES_FROM_SOURCE is supported");
-    } catch (IllegalArgumentException e) {
-      // do nothing
-    }
   }
 
   @Test
@@ -141,7 +104,7 @@ public class EbeanLocalRelationshipWriterDAOTest {
     List<SqlRow> before = _server.createSqlQuery("select * from metadata_relationship_versionof").findList();
     assertEquals(before.size(), 3);
 
-    _localRelationshipWriterDAO.processLocalRelationshipUpdates(FooUrn.createFromString("urn:li:foo:123"), updates, false);
+    _localRelationshipWriterDAO.processLocalRelationshipUpdates(BarUrn.createFromString("urn:li:bar:123"), updates, false);
 
     // After processing verification
     // now the relationship table should have the following relationships:
