@@ -254,20 +254,11 @@ public class EbeanLocalRelationshipWriterDAOTest {
     List<SqlRow> before = _server.createSqlQuery("select * from metadata_relationship_pairswith where deleted_ts is null").findList();
     assertEquals(before.size(), 2);
 
-    _localRelationshipWriterDAO.clearRelationshipsByEntity(barUrn, PairsWith.class,
-        BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE, false);
+    _localRelationshipWriterDAO.clearRelationshipsByEntity(barUrn, PairsWith.class, false);
 
     // After processing verification
     List<SqlRow> all = _server.createSqlQuery("select * from metadata_relationship_pairswith where deleted_ts is null").findList();
     assertEquals(all.size(), 0); // Total number of edges is 0
-
-    try {
-      _localRelationshipWriterDAO.clearRelationshipsByEntity(fooUrn, PairsWith.class,
-          BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION, false);
-      fail("Relationships can only be cleared using REMOVE_ALL_EDGES_FROM_SOURCE during relationship ingestion");
-    } catch (IllegalArgumentException e) {
-      // do nothing
-    }
 
     // Clean up
     _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_pairswith"));

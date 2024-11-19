@@ -2,7 +2,6 @@ package com.linkedin.metadata.dao.utils;
 
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
-import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
 import java.util.List;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -11,28 +10,33 @@ import static com.linkedin.metadata.dao.utils.ModelUtils.*;
 
 
 public class GraphUtils {
-  private static final String SOURCE = "source";
   private GraphUtils() {
     // Util class
   }
 
   /**
-   * Check if a group relationship shares the same source urn, destination urn or both based on the remove option.
+   * Check if a group relationship shares the same source urn.
    * @param relationships  list of relationships
-   * @param removalOption  removal option to specify which relationships to be removed
-   * @param sourceField    name of the source field
-   * @param urn  source urn to compare. Optional for V1. Needed for V2.
+   * @param assetUrn source urn to compare. Optional for V1. Needed for V2.
    */
-  public static void checkSameUrn(@Nonnull final List<? extends RecordTemplate> relationships,
-      @Nonnull final BaseGraphWriterDAO.RemovalOption removalOption, @Nonnull final String sourceField, @Nullable Urn urn) {
-    if (removalOption != BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE) {
-      throw new IllegalArgumentException("Relationship removal option is not REMOVE_ALL_EDGES_FROM_SOURCE.");
-    }
+  public static void checkSameSourceUrn(@Nonnull final List<? extends RecordTemplate> relationships, @Nullable Urn assetUrn) {
     if (relationships.isEmpty()) {
       return;
     }
-    final Urn sourceUrn = getSourceUrnBasedOnRelationshipVersion(relationships.get(0), urn);
-    checkSameUrn(relationships, sourceField, sourceUrn);
+    for (RecordTemplate relationship : relationships) {
+      if (ModelUtils.isRelationshipInV2(relationship.schema()) && assetUrn != null) {
+        // Skip source urn check for V2 relationships since they don't have source field
+        return;
+      } else if (assetUrn == null) {
+        throw new IllegalArgumentException("Something went wrong. The asset urn is missing, indicating ingestion of a model 2.0 relationship");
+      }
+      final Urn sourceUrn = getSourceUrnFromRelationship(relationships.get(0));
+
+      if (!assetUrn.equals(getSourceUrnFromRelationship(relationships.get(0)))) {
+        throw new IllegalArgumentException(
+            String.format("Relationships have different source urns. Asset urn: %s, Relationship source: %s", assetUrn, sourceUrn));
+      }
+    }
   }
 
   /**
@@ -56,24 +60,5 @@ public class GraphUtils {
       throw new IllegalArgumentException("Source urn is needed for Relationship V2");
     }
     return sourceUrn;
-  }
-
-  public static void checkSameUrn(@Nonnull final List<? extends RecordTemplate> relationships,
-      @Nonnull final BaseGraphWriterDAO.RemovalOption removalOption, @Nonnull final String sourceField) {
-    checkSameUrn(relationships, removalOption, sourceField, null);
-  }
-
-  private static void checkSameUrn(@Nonnull List<? extends RecordTemplate> records, @Nonnull String field,
-      @Nonnull Urn compare) {
-    for (RecordTemplate relation : records) {
-      if (ModelUtils.isRelationshipInV2(relation.schema()) && field.equals(SOURCE)) {
-        // Skip source urn check for V2 relationships since they don't have source field
-        // ToDo: enhance the source check for V2 relationships
-        return;
-      }
-      if (!compare.equals(ModelUtils.getUrnFromRelationship(relation, field))) {
-        throw new IllegalArgumentException("Records have different " + field + " urn");
-      }
-    }
   }
 }
