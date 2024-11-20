@@ -897,7 +897,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     // Try to get relationships using relationship builders first. If there is not a relationship builder registered
     // for the aspect class, try to get relationships from the aspect metadata instead. After most relationship models
     // are using Model 2.0, switch the priority i.e. try to get the relationship from the aspect first before falling back
-    // on relationship builders
+    // on relationship builders.
+    // TODO: fix the gap where users can define new relationships in the aspect while still using graph builders to extract existing relationships
     if (_localRelationshipBuilderRegistry != null && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
       localRelationshipUpdates = _localRelationshipBuilderRegistry.getLocalRelationshipBuilder(aspect).buildRelationships(urn, aspect);
       // default all relationship updates to use REMOVE_ALL_EDGES_FROM_SOURCE
