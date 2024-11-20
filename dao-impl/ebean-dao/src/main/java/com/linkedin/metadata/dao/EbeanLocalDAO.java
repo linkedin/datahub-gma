@@ -880,6 +880,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   /**
    * If the aspect is associated with at least one relationship, upsert the relationship into the corresponding local
    * relationship table. Associated means that the aspect has a registered relationship build or it includes a relationship field.
+   * It will first try to find a registered relationship builder; if one doesn't exist or returns no relationship updates,
+   * try to find relationships from the aspect itself.
    * @param urn Urn of the metadata update
    * @param aspect Aspect of the metadata update
    * @param aspectClass Aspect class of the metadata update
@@ -892,20 +894,24 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       return Collections.emptyList();
     }
     List<LocalRelationshipUpdates> localRelationshipUpdates = Collections.emptyList();
-    if (_relationshipSource == RelationshipSource.ASPECT_METADATA) {
+    // Try to get relationships using relationship builders first. If there is not a relationship builder registered
+    // for the aspect class, try to get relationships from the aspect metadata instead. After most relationship models
+    // are using Model 2.0, switch the priority i.e. try to get the relationship from the aspect first before falling back
+    // on relationship builders.
+    // TODO: fix the gap where users can define new relationships in the aspect while still using graph builders to extract existing relationships
+    if (_localRelationshipBuilderRegistry != null && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
+      localRelationshipUpdates = _localRelationshipBuilderRegistry.getLocalRelationshipBuilder(aspect).buildRelationships(urn, aspect);
+      // default all relationship updates to use REMOVE_ALL_EDGES_FROM_SOURCE
+      localRelationshipUpdates.forEach(update -> update.setRemovalOption(BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE));
+    }
+    // If no relationship updates were found using relationship builders, try to get them via the aspect.
+    if (localRelationshipUpdates.isEmpty()) {
       Map<Class<?>, Set<RELATIONSHIP>> allRelationships = EBeanDAOUtils.extractRelationshipsFromAspect(aspect);
       localRelationshipUpdates = allRelationships.entrySet().stream()
           .filter(entry -> !entry.getValue().isEmpty()) // ensure at least 1 relationship in sublist to avoid index out of bounds
           .map(entry -> new LocalRelationshipUpdates(
               Arrays.asList(entry.getValue().toArray()), entry.getKey(), BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE))
           .collect(Collectors.toList());
-    } else if (_relationshipSource == RelationshipSource.RELATIONSHIP_BUILDERS) {
-      if (_localRelationshipBuilderRegistry != null && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
-        localRelationshipUpdates = _localRelationshipBuilderRegistry.getLocalRelationshipBuilder(aspect).buildRelationships(urn, aspect);
-      }
-    } else {
-      throw new UnsupportedOperationException("Please ensure that the RelationshipSource enum is properly set using "
-          + "setRelationshipSource method.");
     }
     _localRelationshipWriterDAO.processLocalRelationshipUpdates(urn, localRelationshipUpdates, isTestMode);
     return localRelationshipUpdates;

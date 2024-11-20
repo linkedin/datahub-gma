@@ -14,6 +14,7 @@ import javax.annotation.Nonnull;
  */
 public abstract class BaseGraphWriterDAO {
 
+  // These removal options are deprecated; all relationship ingestion uses REMOVE_ALL_EDGES_FROM_SOURCE.
   public enum RemovalOption {
     REMOVE_NONE,
     REMOVE_ALL_EDGES_FROM_SOURCE,

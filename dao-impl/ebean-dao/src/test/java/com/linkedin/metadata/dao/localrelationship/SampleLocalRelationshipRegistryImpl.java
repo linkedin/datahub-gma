@@ -5,7 +5,9 @@ import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder;
 import com.linkedin.metadata.dao.builder.LocalRelationshipBuilderRegistry;
 import com.linkedin.metadata.dao.localrelationship.builder.BelongsToLocalRelationshipBuilder;
+import com.linkedin.metadata.dao.localrelationship.builder.BelongsToV2LocalRelationshipBuilder;
 import com.linkedin.testing.localrelationship.AspectFooBar;
+import com.linkedin.testing.localrelationship.AspectFooBaz;
 import java.util.Map;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -13,7 +15,10 @@ import javax.annotation.Nullable;
 
 public class SampleLocalRelationshipRegistryImpl implements LocalRelationshipBuilderRegistry {
   private Map<Class<? extends RecordTemplate>, BaseLocalRelationshipBuilder> builders =
-      new ImmutableMap.Builder().put(AspectFooBar.class, new BelongsToLocalRelationshipBuilder(AspectFooBar.class)).build();
+      new ImmutableMap.Builder()
+          .put(AspectFooBar.class, new BelongsToLocalRelationshipBuilder(AspectFooBar.class))
+          .put(AspectFooBaz.class, new BelongsToV2LocalRelationshipBuilder(AspectFooBaz.class))
+          .build();
 
   @Nullable
   @Override

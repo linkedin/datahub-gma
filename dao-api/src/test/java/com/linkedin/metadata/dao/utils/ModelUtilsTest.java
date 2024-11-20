@@ -57,6 +57,7 @@ import com.linkedin.testing.SnapshotUnionAliasWithEntitySnapshotAliasOptionalFie
 import com.linkedin.testing.SnapshotUnionWithEntitySnapshotOptionalFields;
 import com.linkedin.testing.TyperefPizzaAspect;
 import com.linkedin.testing.localrelationship.AspectFooBar;
+import com.linkedin.testing.localrelationship.AspectFooBaz;
 import com.linkedin.testing.localrelationship.AspectFooBarBaz;
 import com.linkedin.testing.namingedgecase.EntityValueNamingEdgeCase;
 import com.linkedin.testing.namingedgecase.InternalEntityAspectUnionNamingEdgeCase;
@@ -108,7 +109,7 @@ public class ModelUtilsTest {
     Set<Class<? extends RecordTemplate>> validTypes = ModelUtils.getValidAspectTypes(EntityAspectUnion.class);
 
     assertEquals(validTypes,
-        ImmutableSet.of(AspectFoo.class, AspectBar.class, AspectFooBar.class, AspectFooBarBaz.class, AspectAttributes.class));
+        ImmutableSet.of(AspectFoo.class, AspectBar.class, AspectFooBar.class, AspectFooBaz.class, AspectFooBarBaz.class, AspectAttributes.class));
   }
 
   @Test

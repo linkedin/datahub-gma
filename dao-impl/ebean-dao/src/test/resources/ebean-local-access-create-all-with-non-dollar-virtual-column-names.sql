@@ -81,6 +81,9 @@ ALTER TABLE metadata_entity_foo ADD a_aspectbar JSON;
 -- add foobar aspect to foo entity
 ALTER TABLE metadata_entity_foo ADD a_aspectfoobar JSON;
 
+-- add foobaz aspect to foo entity
+ALTER TABLE metadata_entity_foo ADD a_aspectfoobaz JSON;
+
 -- add foo aspect to burger entity
 ALTER TABLE metadata_entity_burger ADD a_aspectfoo JSON;
 

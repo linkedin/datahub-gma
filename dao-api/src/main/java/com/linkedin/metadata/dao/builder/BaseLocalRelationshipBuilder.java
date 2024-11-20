@@ -5,7 +5,8 @@ import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
 import java.util.List;
 import javax.annotation.Nonnull;
-import lombok.Value;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 
 
 /**
@@ -15,7 +16,8 @@ public abstract class BaseLocalRelationshipBuilder<ASPECT extends RecordTemplate
 
   private final Class<ASPECT> _aspectClass;
 
-  @Value
+  @AllArgsConstructor
+  @Data
   public static class LocalRelationshipUpdates<RELATIONSHIP extends RecordTemplate> {
     List<RELATIONSHIP> relationships;
     Class<RELATIONSHIP> relationshipClass;

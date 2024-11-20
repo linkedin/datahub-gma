@@ -342,11 +342,10 @@ public class SQLStatementUtils {
       return String.format(DELETE_BY_SOURCE, tableName);
     } else if (removalOption == BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE_TO_DESTINATION) {
       return String.format(DELETE_BY_SOURCE_AND_DESTINATION, tableName);
-    } else if (removalOption == BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION) {
-      return String.format(DELETE_BY_DESTINATION, tableName);
     }
-
-    throw new IllegalArgumentException(String.format("Removal option %s is not valid.", removalOption));
+    throw new IllegalArgumentException(String.format("Relationships can only be removed using either REMOVE_ALL_EDGES_FROM_SOURCE "
+        + "when inserting new relationships or REMOVE_ALL_EDGES_FROM_SOURCE_TO_DESTINATION when soft deleting an aspect "
+        + "from which relationships are derived from. Table name: %s, removal option: %s", tableName, removalOption));
   }
 
   /**
