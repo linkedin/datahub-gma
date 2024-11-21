@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS metadata_relationship_belongsto (
     lastmodifiedon DATETIME(6) NOT NULL,
     lastmodifiedby VARCHAR(255) NOT NULL,
     deleted_ts DATETIME(6) DEFAULT NULL,
+    aspect VARCHAR(200) DEFAULT NULL, -- should be NOT NULL in production use cases
     PRIMARY KEY (id)
 );
 
@@ -54,6 +55,7 @@ CREATE TABLE IF NOT EXISTS metadata_relationship_belongstov2 (
     lastmodifiedon DATETIME(6) NOT NULL,
     lastmodifiedby VARCHAR(255) NOT NULL,
     deleted_ts DATETIME(6) DEFAULT NULL,
+    aspect VARCHAR(200) DEFAULT NULL, -- should be NOT NULL in production use cases
     PRIMARY KEY (id)
 );
 
@@ -67,5 +69,6 @@ CREATE TABLE IF NOT EXISTS metadata_relationship_reportsto (
     lastmodifiedon DATETIME(6) NOT NULL,
     lastmodifiedby VARCHAR(255) NOT NULL,
     deleted_ts DATETIME(6) DEFAULT NULL,
+    aspect VARCHAR(200) DEFAULT NULL, -- should be NOT NULL in production use cases
     PRIMARY KEY (id)
 );

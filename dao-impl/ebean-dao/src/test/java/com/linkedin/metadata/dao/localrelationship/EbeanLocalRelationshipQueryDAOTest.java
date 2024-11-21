@@ -13,7 +13,6 @@ import com.linkedin.metadata.dao.EbeanLocalDAO;
 import com.linkedin.metadata.dao.EbeanLocalRelationshipQueryDAO;
 import com.linkedin.metadata.dao.EbeanLocalRelationshipWriterDAO;
 import com.linkedin.metadata.dao.IEbeanLocalAccess;
-import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
 import com.linkedin.metadata.dao.urnpath.EmptyPathExtractor;
 import com.linkedin.metadata.dao.utils.EBeanDAOUtils;
 import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
@@ -49,6 +48,7 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -185,11 +185,11 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     // Add Bob reports-to ALice relationship
     ReportsTo bobReportsToAlice = new ReportsTo().setSource(bob).setDestination(alice);
-    _localRelationshipWriterDAO.addRelationship(bobReportsToAlice, false);
+    _localRelationshipWriterDAO.addRelationships(bob, AspectFoo.class, Collections.singletonList(bobReportsToAlice), false);
 
     // Add Jack reports-to ALice relationship
     ReportsTo jackReportsToAlice = new ReportsTo().setSource(jack).setDestination(alice);
-    _localRelationshipWriterDAO.addRelationship(jackReportsToAlice, false);
+    _localRelationshipWriterDAO.addRelationships(jack, AspectFoo.class, Collections.singletonList(jackReportsToAlice), false);
 
     // Find all reports-to relationship for Alice.
     LocalRelationshipFilter filter;
@@ -220,8 +220,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     // Soft (set delete_ts = now()) Delete Jack reports-to ALice relationship
     SqlUpdate deletionSQL = _server.createSqlUpdate(
-        SQLStatementUtils.deleteLocalRelationshipSQL(SQLSchemaUtils.getRelationshipTableName(jackReportsToAlice),
-            BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE));
+        SQLStatementUtils.deleteLocalRelationshipSQL(SQLSchemaUtils.getRelationshipTableName(jackReportsToAlice), false));
     deletionSQL.setParameter("source", jack.toString());
     deletionSQL.execute();
 
@@ -264,13 +263,13 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     // Add Spark consume-from hdfs relationship
     ConsumeFrom sparkConsumeFromHdfs = new ConsumeFrom().setSource(spark).setDestination(hdfs).setEnvironment(EnvorinmentType.OFFLINE);
-    _localRelationshipWriterDAO.addRelationship(sparkConsumeFromHdfs, false);
+    _localRelationshipWriterDAO.addRelationships(spark, AspectFoo.class, Collections.singletonList(sparkConsumeFromHdfs), false);
 
     // Add Samza consume-from kafka and Samza consume-from restli relationships
     ConsumeFrom samzaConsumeFromKafka = new ConsumeFrom().setSource(samza).setDestination(kafka).setEnvironment(EnvorinmentType.NEARLINE);
     ConsumeFrom samzaConsumeFromRestli = new ConsumeFrom().setSource(samza).setDestination(restli).setEnvironment(EnvorinmentType.ONLINE);
 
-    _localRelationshipWriterDAO.addRelationships(ImmutableList.of(samzaConsumeFromKafka, samzaConsumeFromRestli), false);
+    _localRelationshipWriterDAO.addRelationships(samza, AspectFoo.class, ImmutableList.of(samzaConsumeFromKafka, samzaConsumeFromRestli), false);
 
     // Find all consume-from relationship for Samza.
     LocalRelationshipCriterion filterUrnCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(
@@ -331,11 +330,11 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     // Add Bob reports-to ALice relationship
     ReportsTo bobReportsToAlice = new ReportsTo().setSource(bob).setDestination(alice);
-    _localRelationshipWriterDAO.addRelationship(bobReportsToAlice, false);
+    _localRelationshipWriterDAO.addRelationships(bob, AspectFoo.class, Collections.singletonList(bobReportsToAlice), false);
 
     // Add Jack reports-to ALice relationship
     ReportsTo jackReportsToAlice = new ReportsTo().setSource(jack).setDestination(alice);
-    _localRelationshipWriterDAO.addRelationship(jackReportsToAlice, false);
+    _localRelationshipWriterDAO.addRelationships(jack, AspectFoo.class, Collections.singletonList(jackReportsToAlice), false);
 
     // Find all reports-to relationship for Alice.
     LocalRelationshipFilter destFilter;
@@ -367,8 +366,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     // Soft (set delete_ts = now()) Delete Jack reports-to ALice relationship
     SqlUpdate deletionSQL = _server.createSqlUpdate(
-        SQLStatementUtils.deleteLocalRelationshipSQL(SQLSchemaUtils.getRelationshipTableName(jackReportsToAlice),
-            BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE));
+        SQLStatementUtils.deleteLocalRelationshipSQL(SQLSchemaUtils.getRelationshipTableName(jackReportsToAlice), false));
     deletionSQL.setParameter("source", jack.toString());
     deletionSQL.execute();
 
@@ -411,13 +409,13 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     // Add Spark consume-from hdfs relationship
     ConsumeFrom sparkConsumeFromHdfs = new ConsumeFrom().setSource(spark).setDestination(hdfs).setEnvironment(EnvorinmentType.OFFLINE);
-    _localRelationshipWriterDAO.addRelationship(sparkConsumeFromHdfs, false);
+    _localRelationshipWriterDAO.addRelationships(spark, AspectFoo.class, Collections.singletonList(sparkConsumeFromHdfs), false);
 
     // Add Samza consume-from kafka and Samza consume-from restli relationships
     ConsumeFrom samzaConsumeFromKafka = new ConsumeFrom().setSource(samza).setDestination(kafka).setEnvironment(EnvorinmentType.NEARLINE);
     ConsumeFrom samzaConsumeFromRestli = new ConsumeFrom().setSource(samza).setDestination(restli).setEnvironment(EnvorinmentType.ONLINE);
 
-    _localRelationshipWriterDAO.addRelationships(ImmutableList.of(samzaConsumeFromRestli, samzaConsumeFromKafka), false);
+    _localRelationshipWriterDAO.addRelationships(samza, AspectFoo.class, ImmutableList.of(samzaConsumeFromRestli, samzaConsumeFromKafka), false);
 
     // Find all consume-from relationship for Samza.
     LocalRelationshipCriterion filterUrnCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(
@@ -481,23 +479,23 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     // add kafka owned by crew1
     OwnedBy kafkaOwnedByCrew1 = new OwnedBy().setSource(kafka).setDestination(crew1);
-    _localRelationshipWriterDAO.addRelationship(kafkaOwnedByCrew1, false);
+    _localRelationshipWriterDAO.addRelationships(kafka, AspectFoo.class, Collections.singletonList(kafkaOwnedByCrew1), false);
 
     // add hdfs owned by crew1
     OwnedBy hdfsOwnedByCrew1 = new OwnedBy().setSource(hdfs).setDestination(crew1);
-    _localRelationshipWriterDAO.addRelationship(hdfsOwnedByCrew1, false);
+    _localRelationshipWriterDAO.addRelationships(hdfs, AspectFoo.class, Collections.singletonList(hdfsOwnedByCrew1), false);
 
     // add restli owned by crew1
     OwnedBy restliOwnedByCrew1 = new OwnedBy().setSource(restli).setDestination(crew1);
-    _localRelationshipWriterDAO.addRelationship(restliOwnedByCrew1, false);
+    _localRelationshipWriterDAO.addRelationships(restli, AspectFoo.class, Collections.singletonList(restliOwnedByCrew1), false);
 
     // add spark owned by crew2
     OwnedBy sparkOwnedByCrew2 = new OwnedBy().setSource(spark).setDestination(crew2);
-    _localRelationshipWriterDAO.addRelationship(sparkOwnedByCrew2, false);
+    _localRelationshipWriterDAO.addRelationships(spark, AspectFoo.class, Collections.singletonList(sparkOwnedByCrew2), false);
 
     // add samza owned by crew2
     OwnedBy samzaOwnedByCrew2 = new OwnedBy().setSource(samza).setDestination(crew2);
-    _localRelationshipWriterDAO.addRelationship(samzaOwnedByCrew2, false);
+    _localRelationshipWriterDAO.addRelationships(samza, AspectFoo.class, Collections.singletonList(samzaOwnedByCrew2), false);
 
     // Find all owned-by relationship for crew1.
     LocalRelationshipCriterion filterUrnCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(
@@ -551,15 +549,15 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     // add kafka owned by crew
     OwnedBy kafkaOwnedByCrew = new OwnedBy().setSource(kafka).setDestination(crew);
-    _localRelationshipWriterDAO.addRelationship(kafkaOwnedByCrew, false);
+    _localRelationshipWriterDAO.addRelationships(kafka, AspectFoo.class, Collections.singletonList(kafkaOwnedByCrew), false);
 
     // add hdfs owned by crew
     OwnedBy hdfsOwnedByCrew = new OwnedBy().setSource(hdfs).setDestination(crew);
-    _localRelationshipWriterDAO.addRelationship(hdfsOwnedByCrew, false);
+    _localRelationshipWriterDAO.addRelationships(hdfs, AspectFoo.class, Collections.singletonList(hdfsOwnedByCrew), false);
 
     // add restli owned by crew
     OwnedBy restliOwnedByCrew = new OwnedBy().setSource(restli).setDestination(crew);
-    _localRelationshipWriterDAO.addRelationship(restliOwnedByCrew, false);
+    _localRelationshipWriterDAO.addRelationships(restli, AspectFoo.class, Collections.singletonList(restliOwnedByCrew), false);
 
     // Find all owned-by relationship for crew.
     LocalRelationshipCriterion filterUrnCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(
@@ -630,23 +628,23 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     // Add Bob reports-to ALice relationship
     ReportsTo bobReportsToAlice = new ReportsTo().setSource(bob).setDestination(alice);
-    _localRelationshipWriterDAO.addRelationship(bobReportsToAlice, false);
+    _localRelationshipWriterDAO.addRelationships(bob, AspectFoo.class, Collections.singletonList(bobReportsToAlice), false);
 
     // Add Jack reports-to ALice relationship
     ReportsTo jackReportsToAlice = new ReportsTo().setSource(jack).setDestination(alice);
-    _localRelationshipWriterDAO.addRelationship(jackReportsToAlice, false);
+    _localRelationshipWriterDAO.addRelationships(jack, AspectFoo.class, Collections.singletonList(jackReportsToAlice), false);
 
     // Add Lisa reports-to ALice relationship
     ReportsTo lisaReportsToAlice = new ReportsTo().setSource(lisa).setDestination(alice);
-    _localRelationshipWriterDAO.addRelationship(lisaReportsToAlice, false);
+    _localRelationshipWriterDAO.addRelationships(lisa, AspectFoo.class, Collections.singletonList(lisaReportsToAlice), false);
 
     // Add Rose reports-to ALice relationship
     ReportsTo roseReportsToAlice = new ReportsTo().setSource(rose).setDestination(alice);
-    _localRelationshipWriterDAO.addRelationship(roseReportsToAlice, false);
+    _localRelationshipWriterDAO.addRelationships(rose, AspectFoo.class, Collections.singletonList(roseReportsToAlice), false);
 
     // Add Jenny reports-to ALice relationship
     ReportsTo jennyReportsToAlice = new ReportsTo().setSource(jenny).setDestination(alice);
-    _localRelationshipWriterDAO.addRelationship(jennyReportsToAlice, false);
+    _localRelationshipWriterDAO.addRelationships(jenny, AspectFoo.class, Collections.singletonList(jennyReportsToAlice), false);
 
     // Find all reports-to relationship for Alice.
     LocalRelationshipFilter filter;
@@ -720,13 +718,13 @@ public class EbeanLocalRelationshipQueryDAOTest {
     _fooUrnEBeanLocalAccess.add(bob, new AspectFoo().setValue("Bob"), AspectFoo.class, new AuditStamp(), null, false);
     _fooUrnEBeanLocalAccess.add(jack, new AspectFoo().setValue("Jack"), AspectFoo.class, new AuditStamp(), null, false);
 
-    // Add Bob reports-to ALice relationship
+    // Add Bob reports-to Alice relationship
     ReportsTo bobReportsToAlice = new ReportsTo().setSource(bob).setDestination(alice);
-    _localRelationshipWriterDAO.addRelationship(bobReportsToAlice, false);
+    _localRelationshipWriterDAO.addRelationships(bob, AspectFoo.class, Collections.singletonList(bobReportsToAlice), false);
 
-    // Add Jack reports-to ALice relationship
+    // Add Jack reports-to Alice relationship
     ReportsTo jackReportsToAlice = new ReportsTo().setSource(jack).setDestination(alice);
-    _localRelationshipWriterDAO.addRelationship(jackReportsToAlice, false);
+    _localRelationshipWriterDAO.addRelationships(jack, AspectFoo.class, Collections.singletonList(jackReportsToAlice), false);
 
     // Find all Alice's direct reports.
     LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Alice"),
@@ -774,11 +772,11 @@ public class EbeanLocalRelationshipQueryDAOTest {
     // Add Alice belongs to MIT and Stanford.
     BelongsTo aliceBelongsToMit = new BelongsTo().setSource(alice).setDestination(mit);
     BelongsTo aliceBelongsToStanford = new BelongsTo().setSource(alice).setDestination(stanford);
-    _localRelationshipWriterDAO.addRelationships(ImmutableList.of(aliceBelongsToStanford, aliceBelongsToMit), false);
+    _localRelationshipWriterDAO.addRelationships(alice, AspectFoo.class, ImmutableList.of(aliceBelongsToStanford, aliceBelongsToMit), false);
 
     // Add Bob belongs to Stanford.
     BelongsTo bobBelongsToStandford = new BelongsTo().setSource(bob).setDestination(stanford);
-    _localRelationshipWriterDAO.addRelationship(bobBelongsToStandford, false);
+    _localRelationshipWriterDAO.addRelationships(bob, AspectFoo.class, Collections.singletonList(bobBelongsToStandford), false);
 
     // Alice filter
     LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Alice"),
@@ -833,15 +831,15 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     // Add Alice pair-with Jack relationships. Alice --> Jack.
     PairsWith alicePairsWithJack = new PairsWith().setSource(alice).setDestination(jack);
-    _localRelationshipWriterDAO.addRelationship(alicePairsWithJack, false);
+    _localRelationshipWriterDAO.addRelationships(alice, AspectFoo.class, Collections.singletonList(alicePairsWithJack), false);
 
     // Add Bob pair-with Alice relationships. Bob --> Alice.
     PairsWith bobPairsWithAlice = new PairsWith().setSource(bob).setDestination(alice);
-    _localRelationshipWriterDAO.addRelationship(bobPairsWithAlice, false);
+    _localRelationshipWriterDAO.addRelationships(bob, AspectFoo.class, Collections.singletonList(bobPairsWithAlice), false);
 
     // Add Alice pair-with John relationships. Alice --> John.
     PairsWith alicePairsWithJohn = new PairsWith().setSource(alice).setDestination(john);
-    _localRelationshipWriterDAO.addRelationship(alicePairsWithJohn, false);
+    _localRelationshipWriterDAO.addRelationships(alice, AspectFoo.class, Collections.singletonList(alicePairsWithJohn), false);
 
     // Alice filter
     LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Alice"),

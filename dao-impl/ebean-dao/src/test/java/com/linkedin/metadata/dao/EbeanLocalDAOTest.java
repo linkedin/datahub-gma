@@ -2545,8 +2545,6 @@ public class EbeanLocalDAOTest {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> fooDao = createDao(FooUrn.class);
     EbeanLocalDAO<EntityAspectUnion, BarUrn> barDao = createDao(BarUrn.class);
 
-    fooDao.setRelationshipSource(EbeanLocalDAO.RelationshipSource.ASPECT_METADATA);
-
     // add an aspect (AspectFooBar) which includes BelongsTo relationships and ReportsTo relationships
     FooUrn fooUrn = makeFooUrn(1);
     BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
@@ -2594,6 +2592,8 @@ public class EbeanLocalDAOTest {
     // check that the belongsTo relationships 1, 2, & 3 were soft deleted
     resultBelongsTos = ebeanLocalRelationshipQueryDAO.findRelationships(FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class,
             EMPTY_FILTER, BelongsToV2.class, OUTGOING_FILTER, 0, 10);
+
+    assertEquals(resultBelongsTos.size(), 0);
 
     // check that the reportsTo relationship was soft deleted
     resultReportsTos =
@@ -3092,13 +3092,59 @@ public class EbeanLocalDAOTest {
     fooDao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
 
     // Add only the local relationships
-    fooDao.addRelationshipsIfAny(fooUrn, aspectFooBar, AspectFooBar.class, false);
+    fooDao.addRelationshipsIfAny(fooUrn, aspectFooBar, null, AspectFooBar.class, false);
 
     // Verify that the local relationships were added
     relationships = ebeanLocalRelationshipQueryDAO.findRelationships(
         FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class, EMPTY_FILTER, BelongsTo.class, OUTGOING_FILTER, 0, 10);
 
     assertEquals(relationships.size(), 3);
+  }
+
+  @Test
+  public void testAddRelationshipsWithAspectColumn() throws URISyntaxException {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> fooDao = createDao(FooUrn.class);
+    EbeanLocalDAO<EntityAspectUnion, BarUrn> barDao = createDao(BarUrn.class);
+    FooUrn fooUrn = makeFooUrn(1);
+    BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
+    BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:2");
+    BarUrn barUrn3 = BarUrn.createFromString("urn:li:bar:3");
+    AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(barUrn1, barUrn2, barUrn3));
+    AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
+
+    // Turn off local relationship ingestion first, to fill only the entity tables.
+    fooDao.setLocalRelationshipBuilderRegistry(null);
+    barDao.setLocalRelationshipBuilderRegistry(null);
+
+    fooDao.add(fooUrn, aspectFooBar, auditStamp);
+    barDao.add(barUrn1, new AspectFoo().setValue("1"), auditStamp);
+    barDao.add(barUrn2, new AspectFoo().setValue("2"), auditStamp);
+    barDao.add(barUrn3, new AspectFoo().setValue("3"), auditStamp);
+
+    // Verify that NO local relationships were added
+    EbeanLocalRelationshipQueryDAO ebeanLocalRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server);
+    ebeanLocalRelationshipQueryDAO.setSchemaConfig(_schemaConfig);
+    List<BelongsTo> relationships = ebeanLocalRelationshipQueryDAO.findRelationships(
+        FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class, EMPTY_FILTER, BelongsTo.class, OUTGOING_FILTER, 0, 10);
+    assertEquals(relationships.size(), 0);
+
+    // Turn on local relationship ingestion now
+    fooDao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
+    fooDao.setUseAspectColumnForRelationshipRemoval(true);
+
+    // Add only the local relationships
+    fooDao.addRelationshipsIfAny(fooUrn, aspectFooBar, null, AspectFooBar.class, false);
+
+    // Verify that the local relationships were added
+    relationships = ebeanLocalRelationshipQueryDAO.findRelationships(
+        FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class, EMPTY_FILTER, BelongsTo.class, OUTGOING_FILTER, 0, 10);
+
+    assertEquals(relationships.size(), 3);
+
+    // Verify that all 3 relationships added have non-null aspect values
+    List<SqlRow> results = _server.createSqlQuery("select aspect from metadata_relationship_belongsto").findList();
+    assertEquals(results.size(), 3);
+    results.forEach(row -> assertEquals(row.getString("aspect"), AspectFooBar.class.getCanonicalName()));
   }
 
   @Test

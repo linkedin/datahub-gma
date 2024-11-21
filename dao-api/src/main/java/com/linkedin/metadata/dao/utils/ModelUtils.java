@@ -874,7 +874,7 @@ public class ModelUtils {
    * @param relationship must be a valid relationship model defined in com.linkedin.metadata.relationship
    * @return boolean. True if the relationship is in MG model V2.
    */
-  public static <RELATIONSHIP extends RecordTemplate> boolean isRelationshipInV2(Class<? extends RecordTemplate> relationship) {
+  public static boolean isRelationshipInV2(Class<? extends RecordTemplate> relationship) {
     final RecordDataSchema schema = ValidationUtils.getRecordSchema(relationship);
     return isRelationshipInV2(schema);
   }
