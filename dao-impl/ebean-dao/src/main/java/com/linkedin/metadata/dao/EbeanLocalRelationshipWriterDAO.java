@@ -106,9 +106,8 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
   @Override
   public <RELATIONSHIP extends RecordTemplate> void addRelationships(@Nonnull List<RELATIONSHIP> relationships,
       @Nonnull RemovalOption removalOption, boolean isTestMode) {
-    throw new UnsupportedOperationException("addRelationships(List<RELATIONSHIP>, RemovalOption, boolean) "
-        + "is not supported in EbeanLocalRelationshipWriterDAO. Please use addRelationships(@Nullable Urn urn, "
-        + "Class<ASPECT>, List<RELATIONSHIP>, boolean)");
+    throw new UnsupportedOperationException("addRelationships(List<RELATIONSHIP>, RemovalOption, boolean) is not supported "
+        + "in EbeanLocalRelationshipWriterDAO. Please use addRelationships(Urn, Class<ASPECT>, List<RELATIONSHIP>, boolean)");
   }
 
   @Override
