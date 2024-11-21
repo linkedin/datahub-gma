@@ -4,7 +4,6 @@ import com.google.common.escape.Escaper;
 import com.google.common.escape.Escapers;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
-import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
 import com.linkedin.metadata.query.AspectField;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.IndexFilter;
@@ -25,8 +24,8 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import org.apache.commons.lang.StringEscapeUtils;
 import org.javatuples.Pair;
 
-import static com.linkedin.metadata.dao.utils.SQLSchemaUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLIndexFilterUtils.*;
+import static com.linkedin.metadata.dao.utils.SQLSchemaUtils.*;
 
 
 /**
