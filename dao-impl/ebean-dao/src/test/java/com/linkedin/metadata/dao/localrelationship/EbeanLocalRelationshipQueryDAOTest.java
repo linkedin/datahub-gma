@@ -1,5 +1,6 @@
 package com.linkedin.metadata.dao.localrelationship;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.io.Resources;
 import com.linkedin.common.AuditStamp;
@@ -265,13 +266,11 @@ public class EbeanLocalRelationshipQueryDAOTest {
     ConsumeFrom sparkConsumeFromHdfs = new ConsumeFrom().setSource(spark).setDestination(hdfs).setEnvironment(EnvorinmentType.OFFLINE);
     _localRelationshipWriterDAO.addRelationship(sparkConsumeFromHdfs, false);
 
-    // Add Samza consume-from kafka relationship
+    // Add Samza consume-from kafka and Samza consume-from restli relationships
     ConsumeFrom samzaConsumeFromKafka = new ConsumeFrom().setSource(samza).setDestination(kafka).setEnvironment(EnvorinmentType.NEARLINE);
-    _localRelationshipWriterDAO.addRelationship(samzaConsumeFromKafka, false);
-
-    // Add Samza consume-from restli relationship
     ConsumeFrom samzaConsumeFromRestli = new ConsumeFrom().setSource(samza).setDestination(restli).setEnvironment(EnvorinmentType.ONLINE);
-    _localRelationshipWriterDAO.addRelationship(samzaConsumeFromRestli, false);
+
+    _localRelationshipWriterDAO.addRelationships(ImmutableList.of(samzaConsumeFromKafka, samzaConsumeFromRestli), false);
 
     // Find all consume-from relationship for Samza.
     LocalRelationshipCriterion filterUrnCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(
@@ -414,13 +413,11 @@ public class EbeanLocalRelationshipQueryDAOTest {
     ConsumeFrom sparkConsumeFromHdfs = new ConsumeFrom().setSource(spark).setDestination(hdfs).setEnvironment(EnvorinmentType.OFFLINE);
     _localRelationshipWriterDAO.addRelationship(sparkConsumeFromHdfs, false);
 
-    // Add Samza consume-from kafka relationship
+    // Add Samza consume-from kafka and Samza consume-from restli relationships
     ConsumeFrom samzaConsumeFromKafka = new ConsumeFrom().setSource(samza).setDestination(kafka).setEnvironment(EnvorinmentType.NEARLINE);
-    _localRelationshipWriterDAO.addRelationship(samzaConsumeFromKafka, false);
-
-    // Add Samza consume-from restli relationship
     ConsumeFrom samzaConsumeFromRestli = new ConsumeFrom().setSource(samza).setDestination(restli).setEnvironment(EnvorinmentType.ONLINE);
-    _localRelationshipWriterDAO.addRelationship(samzaConsumeFromRestli, false);
+
+    _localRelationshipWriterDAO.addRelationships(ImmutableList.of(samzaConsumeFromRestli, samzaConsumeFromKafka), false);
 
     // Find all consume-from relationship for Samza.
     LocalRelationshipCriterion filterUrnCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(
@@ -777,8 +774,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
     // Add Alice belongs to MIT and Stanford.
     BelongsTo aliceBelongsToMit = new BelongsTo().setSource(alice).setDestination(mit);
     BelongsTo aliceBelongsToStanford = new BelongsTo().setSource(alice).setDestination(stanford);
-    _localRelationshipWriterDAO.addRelationship(aliceBelongsToMit, false);
-    _localRelationshipWriterDAO.addRelationship(aliceBelongsToStanford, false);
+    _localRelationshipWriterDAO.addRelationships(ImmutableList.of(aliceBelongsToStanford, aliceBelongsToMit), false);
 
     // Add Bob belongs to Stanford.
     BelongsTo bobBelongsToStandford = new BelongsTo().setSource(bob).setDestination(stanford);

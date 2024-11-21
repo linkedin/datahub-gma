@@ -21,9 +21,9 @@ import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import javax.annotation.Nullable;
 
 import static com.linkedin.metadata.dao.utils.ModelUtils.*;
 @Slf4j
@@ -59,43 +59,31 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
    */
   @Transactional
   public void processLocalRelationshipUpdates(@Nonnull Urn urn,
-      @Nonnull List<LocalRelationshipUpdates> relationshipUpdates, @Nonnull boolean isTestMode) {
+      @Nonnull List<LocalRelationshipUpdates> relationshipUpdates, boolean isTestMode) {
     for (LocalRelationshipUpdates relationshipUpdate : relationshipUpdates) {
       if (relationshipUpdate.getRelationships().isEmpty()) {
-        clearRelationshipsByEntity(urn, relationshipUpdate.getRelationshipClass(),
-            relationshipUpdate.getRemovalOption(), isTestMode);
+        clearRelationshipsByEntity(urn, relationshipUpdate.getRelationshipClass(), isTestMode);
       } else {
-        addRelationships(relationshipUpdate.getRelationships(), relationshipUpdate.getRemovalOption(), isTestMode, urn);
+        addRelationships(relationshipUpdate.getRelationships(), isTestMode, urn);
       }
     }
   }
 
   /**
-   * This method is to serve for the purpose to clear all the relationships from a source entity urn.
-   * @param urn entity urn could be either source or destination, depends on the RemovalOption
-   * @param relationshipClass relationship that needs to be cleared
-   * @param removalOption removal option to specify which relationships to be removed
-   * @param isTestMode whether to use test schema
+   * This method clears all the relationships from a source entity urn using REMOVE_ALL_EDGES_FROM_SOURCE.
+   *
+   * @param urn                      entity urn could be either source or destination, depends on the RemovalOption
+   * @param relationshipClass        relationship that needs to be cleared
+   * @param isTestMode               whether to use test schema
    */
   public void clearRelationshipsByEntity(@Nonnull Urn urn,
-      @Nonnull Class<? extends RecordTemplate> relationshipClass, @Nonnull RemovalOption removalOption,
-      @Nonnull boolean isTestMode) {
-    if (removalOption == RemovalOption.REMOVE_NONE
-        || removalOption == RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE_TO_DESTINATION) {
-      // this method is to handle the case of adding empty relationship list to clear relationships of an entity urn
-      // REMOVE_NONE and REMOVE_ALL_EDGES_FROM_SOURCE_TO_DESTINATION won't apply for this case.
-      return;
-    }
-    RelationshipValidator.validateRelationshipSchema(relationshipClass);
+      @Nonnull Class<? extends RecordTemplate> relationshipClass, boolean isTestMode)  {
+    RelationshipValidator.validateRelationshipSchema(relationshipClass, isRelationshipInV2(relationshipClass));
     String deletionQuery = SQLStatementUtils.deleteLocalRelationshipSQL(
         isTestMode ? SQLSchemaUtils.getTestRelationshipTableName(relationshipClass)
-            : SQLSchemaUtils.getRelationshipTableName(relationshipClass), removalOption) + LIMIT + BATCH_SIZE;
+            : SQLSchemaUtils.getRelationshipTableName(relationshipClass), RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE) + LIMIT + BATCH_SIZE;
     SqlUpdate deletionSQL = _server.createSqlUpdate(deletionQuery);
-    if (removalOption == RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE) {
-      deletionSQL.setParameter(CommonColumnName.SOURCE, urn.toString());
-    } else if (removalOption == RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION) {
-      deletionSQL.setParameter(CommonColumnName.DESTINATION, urn.toString());
-    }
+    deletionSQL.setParameter(CommonColumnName.SOURCE, urn.toString());
     batchCount = 0;
     while (batchCount < MAX_BATCHES) {
       try {
@@ -124,8 +112,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
         log.error("Error while executing batch deletion after {} batches", batchCount, e);
         throw new RuntimeException("Batch deletion failed", e);
       }
-    }
-
+  }
 
     if (batchCount >= MAX_BATCHES) {
       log.warn(
@@ -138,34 +125,34 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
     }
   }
 
+
   /**
-   * Persist the given list of relationships to the local relationship tables.
+   * Persist the given list of relationships to the local relationship using REMOVE_ALL_EDGES_FROM_SOURCE.
    * @param relationships the list of relationships to be persisted
-   * @param removalOption whether to remove existing relationship of the same type
    * @param isTestMode whether to use test schema
    * @param urn Urn of the entity to update relationships.
    *            For Relationship V1: Optional, can be source or destination urn.
    *            For Relationship V2: Required, is the source urn.
    */
   public <RELATIONSHIP extends RecordTemplate> void addRelationships(@Nonnull List<RELATIONSHIP> relationships,
-      @Nonnull RemovalOption removalOption, @Nonnull boolean isTestMode, @Nullable Urn urn) {
+      boolean isTestMode, @Nullable Urn urn) {
     // split relationships by relationship type
     Map<String, List<RELATIONSHIP>> relationshipGroupMap = relationships.stream()
         .collect(Collectors.groupingBy(relationship -> relationship.getClass().getCanonicalName()));
 
     // validate if all relationship groups have valid urns
-    relationshipGroupMap.values().forEach(relationshipGroup
-        -> GraphUtils.checkSameUrn(relationshipGroup, removalOption, CommonColumnName.SOURCE, CommonColumnName.DESTINATION, urn));
+    relationshipGroupMap.values().forEach(relationshipGroup -> GraphUtils.checkSameSourceUrn(relationshipGroup, urn));
 
     relationshipGroupMap.values().forEach(relationshipGroup -> {
-      addRelationshipGroup(relationshipGroup, removalOption, isTestMode, urn);
+      addRelationshipGroup(relationshipGroup, isTestMode, urn);
     });
   }
 
+  // This method only supports Relationship 1.0 (i.e. source present in model) ingestion using graph builders.
   @Override
   public <RELATIONSHIP extends RecordTemplate> void addRelationships(@Nonnull List<RELATIONSHIP> relationships,
-      @Nonnull RemovalOption removalOption, @Nonnull boolean isTestMode) {
-    addRelationships(relationships, removalOption, isTestMode, null);
+      @Nonnull RemovalOption removalOption, boolean isTestMode) {
+    addRelationships(relationships, isTestMode, null);
   }
 
   @Override
@@ -196,23 +183,22 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
   /**
    * Add the given list of relationships to the local relationship tables.
    * @param relationshipGroup the list of relationships to be persisted
-   * @param removalOption whether to remove existing relationship of the same type
    * @param isTestMode  whether to use test schema
    * @param urn the source urn to be used for the relationships. Optional for Relationship V1.
    *            Needed for Relationship V2 because source is not included in the relationshipV2 metadata.
    */
   private <RELATIONSHIP extends RecordTemplate> void addRelationshipGroup(@Nonnull final List<RELATIONSHIP> relationshipGroup,
-      @Nonnull RemovalOption removalOption, @Nonnull boolean isTestMode, @Nullable Urn urn) {
+      boolean isTestMode, @Nullable Urn urn) {
     if (relationshipGroup.size() == 0) {
       return;
     }
 
     RELATIONSHIP firstRelationship = relationshipGroup.get(0);
-    RelationshipValidator.validateRelationshipSchema(firstRelationship.getClass());
+    RelationshipValidator.validateRelationshipSchema(firstRelationship.getClass(), isRelationshipInV2(firstRelationship.getClass()));
 
-    // Process remove option to delete some local relationships if needed before adding new relationships.
-    processRemovalOption(isTestMode ? SQLSchemaUtils.getTestRelationshipTableName(firstRelationship)
-        : SQLSchemaUtils.getRelationshipTableName(firstRelationship), firstRelationship, removalOption, urn);
+    // Remove some local relationships if needed before adding new relationships using REMOVE_ALL_EDGES_FROM_SOURCE.
+    removeRelationshipsBySource(isTestMode ? SQLSchemaUtils.getTestRelationshipTableName(firstRelationship)
+        : SQLSchemaUtils.getRelationshipTableName(firstRelationship), firstRelationship, urn);
 
     long now = Instant.now().toEpochMilli();
 
@@ -241,30 +227,14 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
    * Process the relationship removal in the DB tableName based on the removal option.
    * @param tableName the table name of the relationship
    * @param relationship the relationship to be removed
-   * @param removalOption the removal option
    * @param urn the source urn to be used for the relationships. Optional for Relationship V1.
    *            Needed for Relationship V2 because source is not included in the relationshipV2 metadata.
    */
-  private <RELATIONSHIP extends RecordTemplate> void processRemovalOption(@Nonnull String tableName,
-      @Nonnull RELATIONSHIP relationship, @Nonnull RemovalOption removalOption, @Nullable Urn urn) {
-
-    if (removalOption == RemovalOption.REMOVE_NONE) {
-      return;
-    }
-
-    SqlUpdate deletionSQL = _server.createSqlUpdate(SQLStatementUtils.deleteLocalRelationshipSQL(tableName, removalOption));
+  private <RELATIONSHIP extends RecordTemplate> void removeRelationshipsBySource(@Nonnull String tableName,
+      @Nonnull RELATIONSHIP relationship, @Nullable Urn urn) {
+    SqlUpdate deletionSQL = _server.createSqlUpdate(SQLStatementUtils.deleteLocalRelationshipSQL(tableName, RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE));
     Urn source = GraphUtils.getSourceUrnBasedOnRelationshipVersion(relationship, urn);
-    Urn destination = getDestinationUrnFromRelationship(relationship);
-
-    if (removalOption == RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE_TO_DESTINATION) {
-      deletionSQL.setParameter(CommonColumnName.DESTINATION, destination.toString());
-      deletionSQL.setParameter(CommonColumnName.SOURCE, source.toString());
-    } else if (removalOption == RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE) {
-      deletionSQL.setParameter(CommonColumnName.SOURCE, source.toString());
-    } else if (removalOption == RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION) {
-      deletionSQL.setParameter(CommonColumnName.DESTINATION, destination.toString());
-    }
-
+    deletionSQL.setParameter(CommonColumnName.SOURCE, source.toString());
     deletionSQL.execute();
   }
 

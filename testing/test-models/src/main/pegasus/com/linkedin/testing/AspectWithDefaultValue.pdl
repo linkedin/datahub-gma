@@ -7,4 +7,5 @@ record AspectWithDefaultValue {
    */
   valueWithDefault: string = ""
   nestedValueWithDefault: record MapValueRecord {mapValueWithDefaultmap: map[string, string] = { }}
+  optionalValueWithDefualt: optional string = ""
 }

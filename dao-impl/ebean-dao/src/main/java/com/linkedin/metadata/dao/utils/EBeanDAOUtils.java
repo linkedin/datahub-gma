@@ -29,11 +29,12 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -378,12 +379,14 @@ public class EBeanDAOUtils {
   /**
    * Extract the non-null values from all top-level relationship fields of an aspect.
    * @param aspect aspect (possibly with relationships) to be ingested
-   * @return a list of relationship arrays, with each array representing the relationship(s) present in each top-level relationship
-   *     field in the aspect. An empty list means that there is no non-null relationship metadata attached to the given aspect.
+   * @return a map of relationship class to relationship sets, with each set representing the relationship(s) of a particular type present in
+   *     all the top-level relationship fields in the aspect. An empty map means that there is no non-null relationship metadata attached to the given aspect.
    */
   @Nonnull
-  public static <RELATIONSHIP extends RecordTemplate, ASPECT extends RecordTemplate> List<List<RELATIONSHIP>> extractRelationshipsFromAspect(ASPECT aspect) {
-    return aspect.schema().getFields().stream().filter(field -> !field.getType().isPrimitive()).map(field -> {
+  public static <RELATIONSHIP extends RecordTemplate, ASPECT extends RecordTemplate> Map<Class<?>, Set<RELATIONSHIP>>
+  extractRelationshipsFromAspect(ASPECT aspect) {
+    Map<Class<?>, Set<RELATIONSHIP>> relationshipMap = new HashMap<>();
+    aspect.schema().getFields().stream().filter(field -> !field.getType().isPrimitive()).forEach(field -> {
       String fieldName = field.getName();
       Class<RecordTemplate> clazz = (Class<RecordTemplate>) aspect.getClass();
       try {
@@ -396,23 +399,24 @@ public class EBeanDAOUtils {
           if (modelType == ModelType.RELATIONSHIP) {
             log.debug("Found {} relationship(s) of type {} for field {} of aspect class {}.",
                 1, obj.getClass(), fieldName, clazz.getName());
-            return Collections.singletonList((RELATIONSHIP) obj);
+            relationshipMap.computeIfAbsent(obj.getClass(), k -> new HashSet<>()).add((RELATIONSHIP) obj);
+            return;
           }
         } else if (!(obj instanceof List) || ((List) obj).isEmpty() || !(((List) obj).get(0) instanceof RecordTemplate)) {
-          return null;
+          return;
         }
         List<RecordTemplate> relationshipsList = (List<RecordTemplate>) obj;
         ModelType modelType = parseModelTypeFromGmaAnnotation(relationshipsList.get(0));
         if (modelType == ModelType.RELATIONSHIP) {
           log.debug("Found {} relationships of type {} for field {} of aspect class {}.",
               relationshipsList.size(), relationshipsList.get(0).getClass(), fieldName, clazz.getName());
-          return (List<RELATIONSHIP>) relationshipsList;
+          relationshipMap.computeIfAbsent(relationshipsList.get(0).getClass(), k -> new HashSet<>()).addAll((List<RELATIONSHIP>) relationshipsList);
         }
       } catch (ReflectiveOperationException e) {
         throw new RuntimeException(e);
       }
-      return null;
-    }).filter(Objects::nonNull).collect(Collectors.toList());
+    });
+    return relationshipMap;
   }
 
   // Using the GmaAnnotationParser, extract the model type from the @gma.model annotation on any models.
