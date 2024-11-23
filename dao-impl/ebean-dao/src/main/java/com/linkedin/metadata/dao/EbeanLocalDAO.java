@@ -629,7 +629,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
 
     // This method will handle relationship ingestions and soft-deletions
-    addRelationshipsIfAny(urn, newValue, oldValue, aspectClass, isTestMode);
+    handleRelationshipIngestion(urn, newValue, oldValue, aspectClass, isTestMode);
 
     return largestVersion;
   }
@@ -662,7 +662,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       }
       Optional<ASPECT> aspect = toRecordTemplate(aspectClass, results.get(0));
       if (aspect.isPresent()) {
-        return addRelationshipsIfAny(urn, aspect.get(), null, aspectClass, false);
+        return handleRelationshipIngestion(urn, aspect.get(), null, aspectClass, false);
       }
       return Collections.emptyList();
     }, 1);
@@ -862,7 +862,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * @param isTestMode Whether the test mode is enabled or not
    * @return List of LocalRelationshipUpdates that were executed
    */
-  public <ASPECT extends RecordTemplate, RELATIONSHIP extends RecordTemplate> List<LocalRelationshipUpdates> addRelationshipsIfAny(
+  public <ASPECT extends RecordTemplate, RELATIONSHIP extends RecordTemplate> List<LocalRelationshipUpdates> handleRelationshipIngestion(
       @Nonnull URN urn, @Nullable ASPECT newValue, @Nullable ASPECT oldValue, @Nonnull Class<ASPECT> aspectClass, boolean isTestMode) {
     // Check if we're soft deleting newValue, which means we need to remove any relationships derived from oldValue
     boolean isSoftDeletion = false;

@@ -3092,7 +3092,7 @@ public class EbeanLocalDAOTest {
     fooDao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
 
     // Add only the local relationships
-    fooDao.addRelationshipsIfAny(fooUrn, aspectFooBar, null, AspectFooBar.class, false);
+    fooDao.handleRelationshipIngestion(fooUrn, aspectFooBar, null, AspectFooBar.class, false);
 
     // Verify that the local relationships were added
     relationships = ebeanLocalRelationshipQueryDAO.findRelationships(
@@ -3133,7 +3133,7 @@ public class EbeanLocalDAOTest {
     fooDao.setUseAspectColumnForRelationshipRemoval(true);
 
     // Add only the local relationships
-    fooDao.addRelationshipsIfAny(fooUrn, aspectFooBar, null, AspectFooBar.class, false);
+    fooDao.handleRelationshipIngestion(fooUrn, aspectFooBar, null, AspectFooBar.class, false);
 
     // Verify that the local relationships were added
     relationships = ebeanLocalRelationshipQueryDAO.findRelationships(
