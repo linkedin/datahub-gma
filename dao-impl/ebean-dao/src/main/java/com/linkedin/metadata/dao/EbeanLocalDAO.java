@@ -861,7 +861,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * @param oldValue previous value of the aspect
    * @param aspectClass Aspect class of the metadata update
    * @param isTestMode Whether the test mode is enabled or not
-   * @return List of LocalRelationshipUpdates that were executed
+   * @return List of LocalRelationshipUpdates that were executed, or an empty list if soft-deleting relationships only
    */
   public <ASPECT extends RecordTemplate, RELATIONSHIP extends RecordTemplate> List<LocalRelationshipUpdates> handleRelationshipIngestion(
       @Nonnull URN urn, @Nullable ASPECT newValue, @Nullable ASPECT oldValue, @Nonnull Class<ASPECT> aspectClass, boolean isTestMode) {
