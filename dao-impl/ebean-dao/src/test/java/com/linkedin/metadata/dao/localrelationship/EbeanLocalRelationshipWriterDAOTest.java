@@ -231,7 +231,29 @@ public class EbeanLocalRelationshipWriterDAOTest {
     // After processing verification - only the first relationship with foo123 should have been deleted
     List<SqlRow> all = _server.createSqlQuery("select * from metadata_relationship_pairswith where deleted_ts is null").findList();
     assertEquals(all.size(), 1); // Total number of edges is 1
+    // Clean up
+    _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_pairswith"));
+  }
 
+  @Test
+  public void testClearRelationshipsByEntityUrnWithBatching() throws URISyntaxException {
+    // Insert a large number of relationships to trigger batch processing
+    for (int i = 0; i < 10001; i++) {
+      _server.execute(Ebean.createSqlUpdate(insertRelationships("metadata_relationship_pairswith", "urn:li:bar:123",
+          "bar", "urn:li:foo:" + i, "foo", AspectFoo.class.getCanonicalName())));
+    }
+
+    BarUrn barUrn = BarUrn.createFromString("urn:li:bar:123");
+    // Before processing
+    List<SqlRow> before = _server.createSqlQuery("select * from metadata_relationship_pairswith where deleted_ts is null").findList();
+    assertEquals(before.size(), 10001);
+
+    _localRelationshipWriterDAO.clearRelationshipsByEntity(barUrn, PairsWith.class, false);
+
+    // After processing verification
+    List<SqlRow> all = _server.createSqlQuery("select * from metadata_relationship_pairswith where deleted_ts is null").findList();
+    assertEquals(all.size(), 0); // Total number of edges is 0
+    assertEquals(_localRelationshipWriterDAO.getBatchCount(), 2); //expect 2 batches
     // Clean up
     _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_pairswith"));
   }
@@ -239,7 +261,6 @@ public class EbeanLocalRelationshipWriterDAOTest {
   @Test
   public void testRemoveRelationshipsSameAspect() throws URISyntaxException {
     _localRelationshipWriterDAO.setUseAspectColumnForRelationshipRemoval(_useAspectColumnForRelationshipRemoval);
-
     BarUrn barUrn = BarUrn.createFromString("urn:li:bar:123");
     FooUrn fooUrn123 = FooUrn.createFromString("urn:li:foo:123");
     FooUrn fooUrn456 = FooUrn.createFromString("urn:li:foo:456");
@@ -301,7 +322,7 @@ public class EbeanLocalRelationshipWriterDAOTest {
     String insertWithAspectTemplate = "INSERT INTO %s (metadata, source, source_type, destination, destination_type, lastmodifiedon, lastmodifiedby, aspect)"
         + " VALUES ('{\"metadata\": true}', '%s', '%s', '%s', '%s', '1970-01-01 00:00:01', 'unknown', '%s')";
     String insertTemplate = "INSERT INTO %s (metadata, source, source_type, destination, destination_type, lastmodifiedon, lastmodifiedby)"
-        + " VALUES ('{\"metadata\": true}', '%s', '%s', '%s', '%s', '1970-01-01 00:00:01', 'unknown')";
+        + " VALUES ('{\"metadata\": true}', '%s', '%s', '%s', '%s', CURRENT_TIMESTAMP, 'unknown')";
     if (_useAspectColumnForRelationshipRemoval) {
       return String.format(insertWithAspectTemplate, table, sourceUrn, sourceType, destinationUrn, destinationType, aspect);
     }
