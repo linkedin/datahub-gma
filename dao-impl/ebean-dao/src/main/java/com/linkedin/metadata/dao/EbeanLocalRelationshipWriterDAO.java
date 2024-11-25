@@ -91,7 +91,6 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
     RelationshipValidator.validateRelationshipSchema(relationshipClass, isRelationshipInV2(relationshipClass));
     removeRelationshipsBySource(urn, aspectClass, isTestMode ? SQLSchemaUtils.getTestRelationshipTableName(relationshipClass)
         : SQLSchemaUtils.getRelationshipTableName(relationshipClass));
-
   }
 
 

@@ -320,7 +320,7 @@ public class EbeanLocalRelationshipWriterDAOTest {
 
   private String insertRelationships(String table, String sourceUrn, String sourceType, String destinationUrn, String destinationType, String aspect) {
     String insertWithAspectTemplate = "INSERT INTO %s (metadata, source, source_type, destination, destination_type, lastmodifiedon, lastmodifiedby, aspect)"
-        + " VALUES ('{\"metadata\": true}', '%s', '%s', '%s', '%s', '1970-01-01 00:00:01', 'unknown', '%s')";
+        + " VALUES ('{\"metadata\": true}', '%s', '%s', '%s', '%s', CURRENT_TIMESTAMP, 'unknown', '%s')";
     String insertTemplate = "INSERT INTO %s (metadata, source, source_type, destination, destination_type, lastmodifiedon, lastmodifiedby)"
         + " VALUES ('{\"metadata\": true}', '%s', '%s', '%s', '%s', CURRENT_TIMESTAMP, 'unknown')";
     if (_useAspectColumnForRelationshipRemoval) {
