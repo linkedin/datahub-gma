@@ -1448,6 +1448,8 @@ public class BaseEntityResourceTest extends BaseEngineTest {
         ImmutableMap.of(fooKey, Optional.of(foo), fooEvolvedKey, Optional.of(fooEvolved), barKey, Optional.of(bar),
             fooBarKey, Optional.of(fooBar), attKey, Optional.of(attributes)));
 
+    when(_mockLocalDAO.exists(urn)).thenReturn(true);
+
     EntityAsset asset = runAndWait(_resource.getAsset(urn.toString(), null));
 
     assertEquals(asset.getUrn(), urn);
@@ -1457,6 +1459,19 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     assertEquals(asset.getBar(), bar);
     assertEquals(asset.getAspectFooBar(), fooBar);
     assertEquals(asset.getAspectAttributes(), attributes);
+  }
+
+  @Test
+  public void testGetNonExistAsset() {
+    // Test get non existing assets
+    FooUrn nonExist = makeFooUrn(2);
+    when(_mockLocalDAO.exists(nonExist)).thenReturn(false);
+    try {
+      runAndWait(_resource.getAsset(nonExist.toString(), null));
+      fail("get non-exist asset should fail");
+    } catch (RestLiServiceException restLiServiceException) {
+      // expected failure
+    }
   }
 
   @Test
