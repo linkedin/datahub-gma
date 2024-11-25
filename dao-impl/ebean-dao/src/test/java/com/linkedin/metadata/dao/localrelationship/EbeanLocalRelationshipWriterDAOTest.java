@@ -248,7 +248,7 @@ public class EbeanLocalRelationshipWriterDAOTest {
     List<SqlRow> before = _server.createSqlQuery("select * from metadata_relationship_pairswith where deleted_ts is null").findList();
     assertEquals(before.size(), 10001);
 
-    _localRelationshipWriterDAO.clearRelationshipsByEntity(barUrn, PairsWith.class, false);
+    _localRelationshipWriterDAO.clearRelationshipsByEntity(barUrn, AspectFoo.class, PairsWith.class, false);
 
     // After processing verification
     List<SqlRow> all = _server.createSqlQuery("select * from metadata_relationship_pairswith where deleted_ts is null").findList();
