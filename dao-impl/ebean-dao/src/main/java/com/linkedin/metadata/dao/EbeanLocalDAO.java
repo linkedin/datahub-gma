@@ -96,6 +96,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     DUAL_SCHEMA // Write to both the old and new tables and perform a comparison between values when reading
   }
 
+  // TODO: clean up once AIM is no longer using existing local relationships - they should make new relationship tables with the aspect column
   private boolean _useAspectColumnForRelationshipRemoval = false;
 
   // Which approach to be used for record retrieval when inserting a new record
