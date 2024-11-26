@@ -528,6 +528,11 @@ public abstract class BaseEntityResource<
 
     return RestliUtils.toTask(() -> {
       final URN urn = parseUrnParam(urnString);
+
+      if (!getLocalDAO().exists(urn)) {
+        throw RestliUtils.resourceNotFoundException();
+      }
+
       final Set<AspectKey<URN, ? extends RecordTemplate>> keys = parseAspectsParam(aspectNames, true).stream()
           .map(aspectClass -> new AspectKey<>(aspectClass, urn, LATEST_VERSION))
           .collect(Collectors.toSet());
