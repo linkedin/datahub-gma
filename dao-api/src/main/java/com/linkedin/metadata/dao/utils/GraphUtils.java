@@ -47,6 +47,7 @@ public class GraphUtils {
    * @param urn The source asset urn. Optional for V1. Must for V2. Exception will be thrown if urn is not provided for V2.
    * @return The source asset urn.
    */
+  @Nonnull
   public static <RELATIONSHIP extends RecordTemplate> Urn getSourceUrnBasedOnRelationshipVersion(
       @Nonnull RELATIONSHIP relationship, @Nullable Urn urn) {
     Urn sourceUrn;

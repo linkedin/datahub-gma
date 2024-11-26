@@ -30,9 +30,11 @@ import static com.linkedin.metadata.dao.utils.ModelUtils.*;
 public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
   private static final String DEFAULT_ACTOR = "urn:li:principal:UNKNOWN";
   private final EbeanServer _server;
+  private boolean _useAspectColumnForRelationshipRemoval = false;
 
   // Common column names shared by all local relationship tables.
   private static class CommonColumnName {
+    private static final String ASPECT = "aspect";
     private static final String SOURCE = "source";
     private static final String DESTINATION = "destination";
     private static final String SOURCE_TYPE = "source_type";
@@ -52,19 +54,27 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
   }
 
   /**
+   * Set a flag to indicate whether to use the aspect column for relationship removal. If set to true, only relationships from
+   * the same aspect class will be removed during ingestion or soft-deletion.
+   */
+  public void setUseAspectColumnForRelationshipRemoval(boolean useAspectColumnForRelationshipRemoval) {
+    _useAspectColumnForRelationshipRemoval = useAspectColumnForRelationshipRemoval;
+  }
+
+  /**
    * Process the local relationship updates with transaction guarantee.
    * @param urn Urn of the entity to update relationships.
    * @param relationshipUpdates Updates to local relationship tables.
    * @param isTestMode whether to use test schema
    */
   @Transactional
-  public void processLocalRelationshipUpdates(@Nonnull Urn urn,
+  public <ASPECT extends RecordTemplate> void processLocalRelationshipUpdates(@Nonnull Urn urn, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull List<LocalRelationshipUpdates> relationshipUpdates, boolean isTestMode) {
     for (LocalRelationshipUpdates relationshipUpdate : relationshipUpdates) {
       if (relationshipUpdate.getRelationships().isEmpty()) {
-        clearRelationshipsByEntity(urn, relationshipUpdate.getRelationshipClass(), isTestMode);
+        clearRelationshipsByEntity(urn, aspectClass, relationshipUpdate.getRelationshipClass(), isTestMode);
       } else {
-        addRelationships(relationshipUpdate.getRelationships(), isTestMode, urn);
+        addRelationships(urn, aspectClass, relationshipUpdate.getRelationships(), isTestMode);
       }
     }
   }
@@ -76,66 +86,25 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
    * @param relationshipClass        relationship that needs to be cleared
    * @param isTestMode               whether to use test schema
    */
-  public void clearRelationshipsByEntity(@Nonnull Urn urn,
-      @Nonnull Class<? extends RecordTemplate> relationshipClass, boolean isTestMode)  {
+  public <ASPECT extends RecordTemplate> void clearRelationshipsByEntity(@Nonnull Urn urn, @Nonnull Class<ASPECT> aspectClass,
+      @Nonnull Class<? extends RecordTemplate> relationshipClass, boolean isTestMode) {
     RelationshipValidator.validateRelationshipSchema(relationshipClass, isRelationshipInV2(relationshipClass));
-    String deletionQuery = SQLStatementUtils.deleteLocalRelationshipSQL(
-        isTestMode ? SQLSchemaUtils.getTestRelationshipTableName(relationshipClass)
-            : SQLSchemaUtils.getRelationshipTableName(relationshipClass), RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE) + LIMIT + BATCH_SIZE;
-    SqlUpdate deletionSQL = _server.createSqlUpdate(deletionQuery);
-    deletionSQL.setParameter(CommonColumnName.SOURCE, urn.toString());
-    batchCount = 0;
-    while (batchCount < MAX_BATCHES) {
-      try {
-        // Use the runInTransactionWithRetry method to handle retries in case of transaction failures
-        int rowsAffected = runInTransactionWithRetry(deletionSQL::execute, 3); // Retry up to 3 times in case of transient failures
-        batchCount++;
-
-        if (log.isDebugEnabled()) {
-          log.debug("Deleted {} rows in batch {}", rowsAffected, batchCount);
-        }
-
-        if (rowsAffected < BATCH_SIZE) {
-          // Exit loop if fewer than BATCH_SIZE rows were affected, indicating all rows are processed
-          break;
-        }
-
-        // Sleep for 1 millisecond to reduce load
-        Thread.sleep(1);
-      } catch (RetryLimitReached e) {
-        log.error("Error while executing batch deletion after {} batches and retries", batchCount, e);
-        throw new RuntimeException("Batch deletion failed due to retry limit", e);
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt(); // Restore interrupted status
-        throw new RuntimeException("Batch deletion interrupted", e);
-      } catch (Exception e) {
-        log.error("Error while executing batch deletion after {} batches", batchCount, e);
-        throw new RuntimeException("Batch deletion failed", e);
-      }
-  }
-
-    if (batchCount >= MAX_BATCHES) {
-      log.warn(
-          "Reached maximum batch count of {}, consider increasing MAX_BATCH_COUNT or debugging the deletion logic.",
-          MAX_BATCHES);
-    }
-
-    if (log.isDebugEnabled()) {
-      log.info("Cleared relationships in {} batches", batchCount);
-    }
+    removeRelationshipsBySource(urn, aspectClass, isTestMode ? SQLSchemaUtils.getTestRelationshipTableName(relationshipClass)
+        : SQLSchemaUtils.getRelationshipTableName(relationshipClass));
   }
 
 
   /**
    * Persist the given list of relationships to the local relationship using REMOVE_ALL_EDGES_FROM_SOURCE.
-   * @param relationships the list of relationships to be persisted
-   * @param isTestMode whether to use test schema
    * @param urn Urn of the entity to update relationships.
    *            For Relationship V1: Optional, can be source or destination urn.
    *            For Relationship V2: Required, is the source urn.
+   * @param aspectClass class of the aspect from which these relationships are extracted from
+   * @param relationships the list of relationships to be persisted
+   * @param isTestMode whether to use test schema
    */
-  public <RELATIONSHIP extends RecordTemplate> void addRelationships(@Nonnull List<RELATIONSHIP> relationships,
-      boolean isTestMode, @Nullable Urn urn) {
+  public <ASPECT extends RecordTemplate, RELATIONSHIP extends RecordTemplate> void addRelationships(@Nullable Urn urn,
+      @Nonnull Class<ASPECT> aspectClass, @Nonnull List<RELATIONSHIP> relationships, boolean isTestMode) {
     // split relationships by relationship type
     Map<String, List<RELATIONSHIP>> relationshipGroupMap = relationships.stream()
         .collect(Collectors.groupingBy(relationship -> relationship.getClass().getCanonicalName()));
@@ -143,31 +112,42 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
     // validate if all relationship groups have valid urns
     relationshipGroupMap.values().forEach(relationshipGroup -> GraphUtils.checkSameSourceUrn(relationshipGroup, urn));
 
-    relationshipGroupMap.values().forEach(relationshipGroup -> {
-      addRelationshipGroup(relationshipGroup, isTestMode, urn);
-    });
+    relationshipGroupMap.values().forEach(relationshipGroup -> addRelationshipGroup(urn, aspectClass, relationshipGroup, isTestMode));
   }
 
-  // This method only supports Relationship 1.0 (i.e. source present in model) ingestion using graph builders.
   @Override
   public <RELATIONSHIP extends RecordTemplate> void addRelationships(@Nonnull List<RELATIONSHIP> relationships,
       @Nonnull RemovalOption removalOption, boolean isTestMode) {
-    addRelationships(relationships, isTestMode, null);
+    throw new UnsupportedOperationException("addRelationships(List<RELATIONSHIP>, RemovalOption, boolean) is not supported "
+        + "in EbeanLocalRelationshipWriterDAO. Please use addRelationships(Urn, Class<ASPECT>, List<RELATIONSHIP>, boolean)");
   }
 
   @Override
   public <RELATIONSHIP extends RecordTemplate> void removeRelationships(@Nonnull List<RELATIONSHIP> relationships) {
-    removeRelationshipsV2(relationships, null);
+    throw new UnsupportedOperationException("removeRelationships(List<RELATIONSHIP>) is not supported in EbeanLocalRelationshipWriterDAO. "
+        + "Please use removeRelationships(Urn, Class<ASPECT>, List<RELATIONSHIP>)");
   }
 
-  public <RELATIONSHIP extends RecordTemplate> void removeRelationshipsV2(@Nonnull List<RELATIONSHIP> relationships, @Nullable Urn sourceUrn) {
-    for (RELATIONSHIP relationship : relationships) {
-      _server.createSqlUpdate(SQLStatementUtils.deleteLocalRelationshipSQL(SQLSchemaUtils.getRelationshipTableName(relationship),
-              RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE_TO_DESTINATION))
-          .setParameter(CommonColumnName.SOURCE, GraphUtils.getSourceUrnBasedOnRelationshipVersion(relationship, sourceUrn).toString())
-          .setParameter(CommonColumnName.DESTINATION, getDestinationUrnFromRelationship(relationship).toString())
-          .execute();
+  /**
+   * Remove relationships based on source and aspect class.
+   * @param sourceUrn asset urn
+   * @param aspectClass class of the aspect from which the relationships are derived from
+   * @param relationships list of relationships to remove
+   */
+  public <ASPECT extends RecordTemplate, RELATIONSHIP extends RecordTemplate> void removeRelationships(@Nonnull Urn sourceUrn,
+      @Nonnull Class<ASPECT> aspectClass, @Nonnull List<RELATIONSHIP> relationships) {
+    if (relationships.isEmpty()) {
+      return;
     }
+    GraphUtils.checkSameSourceUrn(relationships, sourceUrn);
+    Map<String, List<RELATIONSHIP>> relationshipGroupMap = relationships.stream()
+        .collect(Collectors.groupingBy(relationship -> relationship.getClass().getCanonicalName()));
+    relationshipGroupMap.values()
+        .forEach(relationshipList -> {
+          Class<RELATIONSHIP> relationshipClass = (Class<RELATIONSHIP>) relationshipList.get(0).getClass();
+          RelationshipValidator.validateRelationshipSchema(relationshipClass, isRelationshipInV2(relationshipClass));
+          removeRelationshipsBySource(sourceUrn, aspectClass, SQLSchemaUtils.getRelationshipTableName(relationshipClass));
+        });
   }
 
   @Override
@@ -182,13 +162,14 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
 
   /**
    * Add the given list of relationships to the local relationship tables.
-   * @param relationshipGroup the list of relationships to be persisted
-   * @param isTestMode  whether to use test schema
    * @param urn the source urn to be used for the relationships. Optional for Relationship V1.
    *            Needed for Relationship V2 because source is not included in the relationshipV2 metadata.
+   * @param aspectClass class of the aspect from which these relationships are extracted from
+   * @param relationshipGroup the list of relationships to be persisted
+   * @param isTestMode  whether to use test schema
    */
-  private <RELATIONSHIP extends RecordTemplate> void addRelationshipGroup(@Nonnull final List<RELATIONSHIP> relationshipGroup,
-      boolean isTestMode, @Nullable Urn urn) {
+  private <ASPECT extends RecordTemplate, RELATIONSHIP extends RecordTemplate> void addRelationshipGroup(@Nullable Urn urn,
+      @Nonnull Class<ASPECT> aspectClass, @Nonnull final List<RELATIONSHIP> relationshipGroup, boolean isTestMode) {
     if (relationshipGroup.size() == 0) {
       return;
     }
@@ -197,8 +178,9 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
     RelationshipValidator.validateRelationshipSchema(firstRelationship.getClass(), isRelationshipInV2(firstRelationship.getClass()));
 
     // Remove some local relationships if needed before adding new relationships using REMOVE_ALL_EDGES_FROM_SOURCE.
-    removeRelationshipsBySource(isTestMode ? SQLSchemaUtils.getTestRelationshipTableName(firstRelationship)
-        : SQLSchemaUtils.getRelationshipTableName(firstRelationship), firstRelationship, urn);
+    Urn sourceUrn = GraphUtils.getSourceUrnBasedOnRelationshipVersion(firstRelationship, urn);
+    removeRelationshipsBySource(sourceUrn, aspectClass, isTestMode ? SQLSchemaUtils.getTestRelationshipTableName(firstRelationship)
+        : SQLSchemaUtils.getRelationshipTableName(firstRelationship));
 
     long now = Instant.now().toEpochMilli();
 
@@ -209,32 +191,74 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
       Urn source = GraphUtils.getSourceUrnBasedOnRelationshipVersion(relationship, urn);
       Urn destination = getDestinationUrnFromRelationship(relationship);
 
-      _server.createSqlUpdate(SQLStatementUtils.insertLocalRelationshipSQL(
+      SqlUpdate sqlUpdate = _server.createSqlUpdate(SQLStatementUtils.insertLocalRelationshipSQL(
               isTestMode ? SQLSchemaUtils.getTestRelationshipTableName(relationship)
-                  : SQLSchemaUtils.getRelationshipTableName(relationship)))
+                  : SQLSchemaUtils.getRelationshipTableName(relationship), _useAspectColumnForRelationshipRemoval))
           .setParameter(CommonColumnName.METADATA, RecordUtils.toJsonString(relationship))
           .setParameter(CommonColumnName.SOURCE_TYPE, source.getEntityType())
           .setParameter(CommonColumnName.DESTINATION_TYPE, destination.getEntityType())
           .setParameter(CommonColumnName.SOURCE, source.toString())
           .setParameter(CommonColumnName.DESTINATION, destination.toString())
           .setParameter(CommonColumnName.LAST_MODIFIED_ON, new Timestamp(now))
-          .setParameter(CommonColumnName.LAST_MODIFIED_BY, DEFAULT_ACTOR)
-          .execute();
+          .setParameter(CommonColumnName.LAST_MODIFIED_BY, DEFAULT_ACTOR);
+      if (_useAspectColumnForRelationshipRemoval) {
+        sqlUpdate.setParameter(CommonColumnName.ASPECT, aspectClass.getCanonicalName());
+      }
+      sqlUpdate.execute();
     }
   }
 
   /**
    * Process the relationship removal in the DB tableName based on the removal option.
+   * @param source the source urn to be used for the relationships
    * @param tableName the table name of the relationship
-   * @param relationship the relationship to be removed
-   * @param urn the source urn to be used for the relationships. Optional for Relationship V1.
-   *            Needed for Relationship V2 because source is not included in the relationshipV2 metadata.
    */
-  private <RELATIONSHIP extends RecordTemplate> void removeRelationshipsBySource(@Nonnull String tableName,
-      @Nonnull RELATIONSHIP relationship, @Nullable Urn urn) {
-    SqlUpdate deletionSQL = _server.createSqlUpdate(SQLStatementUtils.deleteLocalRelationshipSQL(tableName, RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE));
-    Urn source = GraphUtils.getSourceUrnBasedOnRelationshipVersion(relationship, urn);
+  private <ASPECT extends RecordTemplate> void removeRelationshipsBySource(@Nonnull Urn source,
+      @Nonnull Class<ASPECT> aspectClass, @Nonnull String tableName) {
+    SqlUpdate deletionSQL = _server.createSqlUpdate(SQLStatementUtils.deleteLocalRelationshipSQL(tableName, _useAspectColumnForRelationshipRemoval));
     deletionSQL.setParameter(CommonColumnName.SOURCE, source.toString());
+    if (_useAspectColumnForRelationshipRemoval) {
+      deletionSQL.setParameter(CommonColumnName.ASPECT, aspectClass.getCanonicalName());
+    }
+      batchCount = 0;
+      while (batchCount < MAX_BATCHES) {
+        try {
+          // Use the runInTransactionWithRetry method to handle retries in case of transaction failures
+          int rowsAffected = runInTransactionWithRetry(deletionSQL::execute, 3); // Retry up to 3 times in case of transient failures
+          batchCount++;
+
+          if (log.isDebugEnabled()) {
+            log.debug("Deleted {} rows in batch {}", rowsAffected, batchCount);
+          }
+
+          if (rowsAffected < BATCH_SIZE) {
+            // Exit loop if fewer than BATCH_SIZE rows were affected, indicating all rows are processed
+            break;
+          }
+
+          // Sleep for 1 millisecond to reduce load
+          Thread.sleep(1);
+        } catch (RetryLimitReached e) {
+          log.error("Error while executing batch deletion after {} batches and retries", batchCount, e);
+          throw new RuntimeException("Batch deletion failed due to retry limit", e);
+        } catch (InterruptedException e) {
+          Thread.currentThread().interrupt(); // Restore interrupted status
+          throw new RuntimeException("Batch deletion interrupted", e);
+        } catch (Exception e) {
+          log.error("Error while executing batch deletion after {} batches", batchCount, e);
+          throw new RuntimeException("Batch deletion failed", e);
+        }
+      }
+
+      if (batchCount >= MAX_BATCHES) {
+        log.warn(
+            "Reached maximum batch count of {}, consider increasing MAX_BATCH_COUNT or debugging the deletion logic.",
+            MAX_BATCHES);
+      }
+
+      if (log.isDebugEnabled()) {
+        log.info("Cleared relationships in {} batches", batchCount);
+      }
     deletionSQL.execute();
   }
 
