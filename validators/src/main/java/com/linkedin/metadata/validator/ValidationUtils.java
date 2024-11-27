@@ -229,7 +229,9 @@ public final class ValidationUtils {
     ValidationResult result = ValidateDataAgainstSchema.validate(model,
         new ValidationOptions(RequiredMode.CAN_BE_ABSENT_IF_HAS_DEFAULT, CoercionMode.NORMAL,
             UnrecognizedFieldMode.DISALLOW));
-    invalidSchema(result.getMessages().toString());
+    if (!result.isValid()) {
+      invalidSchema(result.getMessages().toString());
+    }
   }
 
 }
