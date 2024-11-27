@@ -405,6 +405,10 @@ public class EBeanDAOUtils {
         } else if (!(obj instanceof List) || ((List) obj).isEmpty() || !(((List) obj).get(0) instanceof RecordTemplate)) {
           return;
         }
+        // filter out all non-primitive, non-relationship, non-list fields
+        if (!(obj instanceof List)) {
+          return;
+        }
         List<RecordTemplate> relationshipsList = (List<RecordTemplate>) obj;
         ModelType modelType = parseModelTypeFromGmaAnnotation(relationshipsList.get(0));
         if (modelType == ModelType.RELATIONSHIP) {

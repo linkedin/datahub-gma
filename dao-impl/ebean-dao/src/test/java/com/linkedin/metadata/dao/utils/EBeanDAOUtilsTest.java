@@ -645,6 +645,7 @@ public class EBeanDAOUtilsTest {
     //     relationshipFoos -> [foo1, foo2]
     //     relationshipBars -> [bar1]
     //     moreRelationshipFoos -> not present
+    //     nonPrimitiveNonRelationshipField -> commonAspect2
     // }
     // expect:
     // [[foo1, foo2], [bar1]]
@@ -655,7 +656,8 @@ public class EBeanDAOUtilsTest {
         .setRelationshipFoo1(test3)
         // don't set relationshipFoo2 fields
         .setRelationshipFoos(relationshipFoos)
-        .setRelationshipBars(relationshipBars); // don't set moreRelationshipFoos field
+        .setRelationshipBars(relationshipBars) // don't set moreRelationshipFoos field
+        .setNonPrimitiveNonRelationshipField(new CommonAspect());
 
     results = EBeanDAOUtils.extractRelationshipsFromAspect(barWithRelationshipFields);
     assertEquals(2, results.size());

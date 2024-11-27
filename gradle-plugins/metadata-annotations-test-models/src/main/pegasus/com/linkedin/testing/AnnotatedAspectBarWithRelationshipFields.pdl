@@ -51,4 +51,9 @@ record AnnotatedAspectBarWithRelationshipFields {
    * For unit tests
    */
   moreRelationshipFoos: optional array[AnnotatedRelationshipFoo]
+
+  /**
+   * For unit tests
+   */
+  nonPrimitiveNonRelationshipField: optional CommonAspect
 }
