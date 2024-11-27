@@ -28,7 +28,6 @@ import com.linkedin.testing.AspectWithDefaultValue;
 import com.linkedin.testing.CommonAspect;
 import com.linkedin.testing.CommonAspectArray;
 import com.linkedin.testing.MapValueRecord;
-import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.BurgerUrn;
 import com.linkedin.testing.urn.FooUrn;
 import io.ebean.Ebean;
