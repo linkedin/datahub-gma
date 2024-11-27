@@ -48,6 +48,7 @@ import java.lang.reflect.Method;
 import java.net.URISyntaxException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -86,8 +87,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   private IEbeanLocalAccess<URN> _localAccess;
   private EbeanLocalRelationshipWriterDAO _localRelationshipWriterDAO;
   private LocalRelationshipBuilderRegistry _localRelationshipBuilderRegistry = null;
-
-  private RelationshipSource _relationshipSource = RelationshipSource.RELATIONSHIP_BUILDERS;
   private SchemaConfig _schemaConfig = SchemaConfig.OLD_SCHEMA_ONLY;
   private final EBeanDAOConfig _eBeanDAOConfig = new EBeanDAOConfig();
 
@@ -97,14 +96,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     DUAL_SCHEMA // Write to both the old and new tables and perform a comparison between values when reading
   }
 
-  /**
-   * Where to look for the relationship(s) for ingestion. Either extract the relationships from the aspect metadata or
-   * from the local relationship registry (legacy), which uses relationship builders.
-   */
-  public enum RelationshipSource {
-    ASPECT_METADATA, // Look at the aspect model and extract any relationship from its fields
-    RELATIONSHIP_BUILDERS // Use the relationship registry, which relies on relationship builders
-  }
+  // TODO: clean up once AIM is no longer using existing local relationships - they should make new relationship tables with the aspect column
+  private boolean _useAspectColumnForRelationshipRemoval = false;
 
   // Which approach to be used for record retrieval when inserting a new record
   // See GCN-38382
@@ -135,13 +128,12 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   /**
-   * Set where the relationships should be derived from during ingestion. Either from aspect models or from relationship
-   * builders. The default is relationship builders. This should only be used during DAO instantiation i.e. in the DAO factory.
-   * One limitation when setting this is that all aspects for a particular entity type must use the same relationship source config.
-   * @param relationshipSource {@link RelationshipSource ASPECT_METADATA or RELATIONSHIP_BUILDERS}
+   * Set a flag to indicate whether to use the aspect column for relationship removal. If set to true, only relationships from
+   * the same aspect class will be removed during ingestion or soft-deletion.
    */
-  public void setRelationshipSource(RelationshipSource relationshipSource) {
-    _relationshipSource = relationshipSource;
+  public void setUseAspectColumnForRelationshipRemoval(boolean useAspectColumnForRelationshipRemoval) {
+    _useAspectColumnForRelationshipRemoval = useAspectColumnForRelationshipRemoval;
+    _localRelationshipWriterDAO.setUseAspectColumnForRelationshipRemoval(useAspectColumnForRelationshipRemoval);
   }
 
   public void setOverwriteLatestVersionEnabled(boolean overwriteLatestVersionEnabled) {
@@ -599,16 +591,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       @Nullable ASPECT oldValue, @Nullable AuditStamp oldAuditStamp, @Nullable ASPECT newValue,
       @Nonnull AuditStamp newAuditStamp, boolean isSoftDeleted, @Nullable IngestionTrackingContext trackingContext,
       boolean isTestMode) {
-    // First, check that if the aspect is going to be soft-deleted that it does not have any relationships derived from it.
-    // We currently don't support soft-deleting aspects from which local relationships are derived via relationship builders.
-    if (newValue == null && _relationshipSource == RelationshipSource.RELATIONSHIP_BUILDERS
-          && _localRelationshipBuilderRegistry != null
-          && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
-      throw new UnsupportedOperationException(
-          String.format("Aspect %s cannot be soft-deleted because it has a local relationship builder registered.",
-              aspectClass.getCanonicalName()));
-    }
-
     // Save oldValue as the largest version + 1
     long largestVersion = 0;
     if ((isSoftDeleted || oldValue != null) && oldAuditStamp != null && _changeLogEnabled) {
@@ -647,17 +629,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       insert(urn, newValue, aspectClass, newAuditStamp, LATEST_VERSION, trackingContext, isTestMode);
     }
 
-    // If the aspect is to be soft deleted and we are deriving relationships from aspect metadata, remove any relationships
-    // associated with the previous aspect value.
-    if (newValue == null && _relationshipSource == RelationshipSource.ASPECT_METADATA && oldValue != null) {
-      List<RecordTemplate> relationships = extractRelationshipsFromAspect(oldValue).stream()
-          .flatMap(List::stream)
-          .collect(Collectors.toList());
-      _localRelationshipWriterDAO.removeRelationshipsV2(relationships, urn);
-    // Otherwise, add any local relationships that are derived from the aspect.
-    } else {
-      addRelationshipsIfAny(urn, newValue, aspectClass, isTestMode);
-    }
+    // This method will handle relationship ingestions and soft-deletions
+    handleRelationshipIngestion(urn, newValue, oldValue, aspectClass, isTestMode);
 
     return largestVersion;
   }
@@ -690,7 +663,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       }
       Optional<ASPECT> aspect = toRecordTemplate(aspectClass, results.get(0));
       if (aspect.isPresent()) {
-        return addRelationshipsIfAny(urn, aspect.get(), aspectClass, false);
+        return handleRelationshipIngestion(urn, aspect.get(), null, aspectClass, false);
       }
       return Collections.emptyList();
     }, 1);
@@ -879,34 +852,59 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   /**
    * If the aspect is associated with at least one relationship, upsert the relationship into the corresponding local
    * relationship table. Associated means that the aspect has a registered relationship build or it includes a relationship field.
+   * If the new value is null and the old value exists, the aspect is being soft-deleted so remove any existing relationships
+   * associated with that aspect.
+   * It will first try to find a registered relationship builder; if one doesn't exist or returns no relationship updates,
+   * try to find relationships from the aspect itself.
    * @param urn Urn of the metadata update
-   * @param aspect Aspect of the metadata update
+   * @param newValue new value of the aspect
+   * @param oldValue previous value of the aspect
    * @param aspectClass Aspect class of the metadata update
    * @param isTestMode Whether the test mode is enabled or not
-   * @return List of LocalRelationshipUpdates that were executed
+   * @return List of LocalRelationshipUpdates that were executed, or an empty list if soft-deleting relationships only
    */
-  public <ASPECT extends RecordTemplate, RELATIONSHIP extends RecordTemplate> List<LocalRelationshipUpdates> addRelationshipsIfAny(
-      @Nonnull URN urn, @Nullable ASPECT aspect, @Nonnull Class<ASPECT> aspectClass, boolean isTestMode) {
-    if (aspect == null) {
+  public <ASPECT extends RecordTemplate, RELATIONSHIP extends RecordTemplate> List<LocalRelationshipUpdates> handleRelationshipIngestion(
+      @Nonnull URN urn, @Nullable ASPECT newValue, @Nullable ASPECT oldValue, @Nonnull Class<ASPECT> aspectClass, boolean isTestMode) {
+    // Check if we're soft deleting newValue, which means we need to remove any relationships derived from oldValue
+    boolean isSoftDeletion = false;
+    if (newValue == null) {
+      if (oldValue == null) {
+        return Collections.emptyList();
+      }
+      isSoftDeletion = true;
+    }
+
+    // Get the relationships associated with the aspect. from newValue if inserting, from oldValue if soft-deleting.
+    ASPECT aspect = isSoftDeletion ? oldValue : newValue;
+    List<LocalRelationshipUpdates> localRelationshipUpdates = Collections.emptyList();
+    // Try to get relationships using relationship builders first. If there is not a relationship builder registered
+    // for the aspect class, try to get relationships from the aspect metadata instead. After most relationship models
+    // are using Model 2.0, switch the priority i.e. try to get the relationship from the aspect first before falling back
+    // on relationship builders.
+    // TODO: fix the gap where users can define new relationships in the aspect while still using graph builders to extract existing relationships
+    if (_localRelationshipBuilderRegistry != null && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
+      localRelationshipUpdates = _localRelationshipBuilderRegistry.getLocalRelationshipBuilder(aspect).buildRelationships(urn, aspect);
+      // default all relationship updates to use REMOVE_ALL_EDGES_FROM_SOURCE
+      localRelationshipUpdates.forEach(update -> update.setRemovalOption(BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE));
+    }
+    // If no relationship updates were found using relationship builders, try to get them via the aspect.
+    if (localRelationshipUpdates.isEmpty()) {
+      Map<Class<?>, Set<RELATIONSHIP>> allRelationships = EBeanDAOUtils.extractRelationshipsFromAspect(aspect);
+      localRelationshipUpdates = allRelationships.entrySet().stream()
+          .filter(entry -> !entry.getValue().isEmpty()) // ensure at least 1 relationship in sublist to avoid index out of bounds
+          .map(entry -> new LocalRelationshipUpdates(
+              Arrays.asList(entry.getValue().toArray()), entry.getKey(), BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE))
+          .collect(Collectors.toList());
+    }
+    // process relationship soft-deletion if applicable
+    if (isSoftDeletion) {
+      List<RELATIONSHIP> relationships = new ArrayList<>();
+      localRelationshipUpdates.forEach(localRelationshipUpdate -> relationships.addAll(localRelationshipUpdate.getRelationships()));
+      _localRelationshipWriterDAO.removeRelationships(urn, aspectClass, relationships);
       return Collections.emptyList();
     }
-    List<LocalRelationshipUpdates> localRelationshipUpdates = Collections.emptyList();
-    if (_relationshipSource == RelationshipSource.ASPECT_METADATA) {
-      List<List<RELATIONSHIP>> allRelationships = EBeanDAOUtils.extractRelationshipsFromAspect(aspect);
-      localRelationshipUpdates = allRelationships.stream()
-          .filter(relationships -> !relationships.isEmpty()) // ensure at least 1 relationship in sublist to avoid index out of bounds
-          .map(relationships -> new LocalRelationshipUpdates(
-            relationships, relationships.get(0).getClass(), BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE))
-          .collect(Collectors.toList());
-    } else if (_relationshipSource == RelationshipSource.RELATIONSHIP_BUILDERS) {
-      if (_localRelationshipBuilderRegistry != null && _localRelationshipBuilderRegistry.isRegistered(aspectClass)) {
-        localRelationshipUpdates = _localRelationshipBuilderRegistry.getLocalRelationshipBuilder(aspect).buildRelationships(urn, aspect);
-      }
-    } else {
-      throw new UnsupportedOperationException("Please ensure that the RelationshipSource enum is properly set using "
-          + "setRelationshipSource method.");
-    }
-    _localRelationshipWriterDAO.processLocalRelationshipUpdates(urn, localRelationshipUpdates, isTestMode);
+    // process relationship ingestion
+    _localRelationshipWriterDAO.processLocalRelationshipUpdates(urn, aspectClass, localRelationshipUpdates, isTestMode);
     return localRelationshipUpdates;
   }
 

@@ -16,8 +16,6 @@ import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.exception.ModelConversionException;
 import com.linkedin.metadata.validator.InvalidSchemaException;
 import com.linkedin.metadata.validator.ValidationUtils;
-import com.linkedin.restli.internal.server.response.ResponseUtils;
-import com.linkedin.restli.server.RestLiServiceException;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -74,9 +72,8 @@ public class RecordUtils {
   @Nonnull
   public static String toJsonString(@Nonnull RecordTemplate recordTemplate) {
     try {
-      DataMap dataWithDefaultValue = (DataMap) ResponseUtils.fillInDataDefault(recordTemplate.schema(), recordTemplate.data());
-      return DATA_TEMPLATE_CODEC.mapToString(dataWithDefaultValue);
-    } catch (RestLiServiceException | IOException e) {
+      return DATA_TEMPLATE_CODEC.mapToString(recordTemplate.data());
+    } catch (IOException e) {
       throw new ModelConversionException("Failed to serialize RecordTemplate: " + recordTemplate.toString(), e);
     }
   }

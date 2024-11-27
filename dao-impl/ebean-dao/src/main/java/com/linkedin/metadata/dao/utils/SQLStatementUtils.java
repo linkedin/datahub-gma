@@ -4,7 +4,6 @@ import com.google.common.escape.Escaper;
 import com.google.common.escape.Escapers;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
-import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
 import com.linkedin.metadata.query.AspectField;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.IndexFilter;
@@ -25,8 +24,8 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import org.apache.commons.lang.StringEscapeUtils;
 import org.javatuples.Pair;
 
-import static com.linkedin.metadata.dao.utils.SQLSchemaUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLIndexFilterUtils.*;
+import static com.linkedin.metadata.dao.utils.SQLSchemaUtils.*;
 
 
 /**
@@ -102,12 +101,15 @@ public class SQLStatementUtils {
       + "destination_type, lastmodifiedon, lastmodifiedby) VALUE (:metadata, :source, :destination, :source_type,"
       + " :destination_type, :lastmodifiedon, :lastmodifiedby)";
 
-  private static final String DELETE_BY_SOURCE = "UPDATE %s SET deleted_ts=NOW() WHERE source = :source AND deleted_ts IS NULL";
+  private static final String INSERT_LOCAL_RELATIONSHIP_WITH_ASPECT = "INSERT INTO %s (metadata, source, destination, source_type, "
+      + "destination_type, lastmodifiedon, lastmodifiedby, aspect) VALUE (:metadata, :source, :destination, :source_type,"
+      + " :destination_type, :lastmodifiedon, :lastmodifiedby, :aspect)";
 
-  private static final String DELETE_BY_DESTINATION = "UPDATE %s SET deleted_ts=NOW() WHERE destination = :destination AND deleted_ts IS NULL";
+  private static final String DELETE_BY_SOURCE = "UPDATE %s SET deleted_ts=NOW() "
+      + "WHERE source = :source AND deleted_ts IS NULL";
 
-  private static final String DELETE_BY_SOURCE_AND_DESTINATION = "UPDATE %s SET deleted_ts=NOW() WHERE destination = :destination"
-      + " AND source = :source AND deleted_ts IS NULL";
+  private static final String DELETE_BY_SOURCE_AND_ASPECT = "UPDATE %s SET deleted_ts=NOW() "
+      + "WHERE source = :source AND aspect = :aspect AND deleted_ts IS NULL";
 
   /**
    *  Filter query has pagination params in the existing APIs. To accommodate this, we use subquery to include total result counts in the query response.
@@ -322,8 +324,8 @@ public class SQLStatementUtils {
    * @param tableName Name of the table where the local relation metadata will be inserted.
    * @return SQL statement for inserting local relation.
    */
-  public static String insertLocalRelationshipSQL(String tableName) {
-    return String.format(INSERT_LOCAL_RELATIONSHIP, tableName);
+  public static String insertLocalRelationshipSQL(String tableName, boolean useAspectColumn) {
+    return useAspectColumn ? String.format(INSERT_LOCAL_RELATIONSHIP_WITH_ASPECT, tableName) : String.format(INSERT_LOCAL_RELATIONSHIP, tableName);
   }
 
   /**
@@ -337,16 +339,8 @@ public class SQLStatementUtils {
 
   @Nonnull
   @ParametersAreNonnullByDefault
-  public static String deleteLocalRelationshipSQL(final String tableName, final BaseGraphWriterDAO.RemovalOption removalOption) {
-    if (removalOption == BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE) {
-      return String.format(DELETE_BY_SOURCE, tableName);
-    } else if (removalOption == BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE_TO_DESTINATION) {
-      return String.format(DELETE_BY_SOURCE_AND_DESTINATION, tableName);
-    } else if (removalOption == BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_TO_DESTINATION) {
-      return String.format(DELETE_BY_DESTINATION, tableName);
-    }
-
-    throw new IllegalArgumentException(String.format("Removal option %s is not valid.", removalOption));
+  public static String deleteLocalRelationshipSQL(final String tableName, boolean useAspectColumn) {
+    return useAspectColumn ? String.format(DELETE_BY_SOURCE_AND_ASPECT, tableName) : String.format(DELETE_BY_SOURCE, tableName);
   }
 
   /**

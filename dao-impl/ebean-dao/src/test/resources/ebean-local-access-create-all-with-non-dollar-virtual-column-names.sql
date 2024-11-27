@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS metadata_relationship_belongsto (
     lastmodifiedon DATETIME(6) NOT NULL,
     lastmodifiedby VARCHAR(255) NOT NULL,
     deleted_ts DATETIME(6) DEFAULT NULL,
+    aspect VARCHAR(200) DEFAULT NULL, -- should be NOT NULL in production use cases
     PRIMARY KEY (id)
 );
 
@@ -80,6 +81,9 @@ ALTER TABLE metadata_entity_foo ADD a_aspectbar JSON;
 
 -- add foobar aspect to foo entity
 ALTER TABLE metadata_entity_foo ADD a_aspectfoobar JSON;
+
+-- add foobaz aspect to foo entity
+ALTER TABLE metadata_entity_foo ADD a_aspectfoobaz JSON;
 
 -- add foo aspect to burger entity
 ALTER TABLE metadata_entity_burger ADD a_aspectfoo JSON;

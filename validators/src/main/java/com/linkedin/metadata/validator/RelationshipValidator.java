@@ -80,18 +80,11 @@ public class RelationshipValidator {
     }
   }
 
-
   /**
-   * Validates a specific relationship model defined in com.linkedin.metadata.relationship.
+   * Validates a specific relationship model defined in com.linkedin.metadata.relationship. and cache the results.
    *
-   * @param schema schema for the model
-   */
-  public static void validateRelationshipSchema(@Nonnull RecordDataSchema schema) {
-    validateRelationshipSchema(schema, false);
-  }
-
-  /**
-   * Similar to {@link #validateRelationshipSchema(RecordDataSchema)} but take a {@link Class} instead and caches results.
+   * @param clazz class of the relationship model
+   * @param isRelationshipInV2 flag indicating whether or not the relationship model is v1 or v2
    */
   public static void validateRelationshipSchema(@Nonnull Class<? extends RecordTemplate> clazz, boolean isRelationshipInV2) {
     if (VALIDATED.contains(clazz)) {
@@ -100,13 +93,6 @@ public class RelationshipValidator {
 
     validateRelationshipSchema(ValidationUtils.getRecordSchema(clazz), isRelationshipInV2);
     VALIDATED.add(clazz);
-  }
-
-  /**
-   * Similar to {@link #validateRelationshipSchema(RecordDataSchema)} but take a {@link Class} instead and caches results.
-   */
-  public static void validateRelationshipSchema(@Nonnull Class<? extends RecordTemplate> clazz) {
-    validateRelationshipSchema(clazz, false);
   }
 
   /**

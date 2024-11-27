@@ -2,9 +2,8 @@ namespace com.linkedin.testing.localrelationship
 
 import com.linkedin.testing.BarUrn
 
-@gma.aspect.column.name = "aspectfoobar"
-record AspectFooBar {
+@gma.aspect.column.name = "aspectfoobaz"
+record AspectFooBaz {
   bars: optional array[BarUrn]
   belongsTos: optional array[BelongsToV2]
-  reportsTos: optional array[ReportsTo]
 }

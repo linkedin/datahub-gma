@@ -61,8 +61,6 @@ project.ext.externalDependency = [
     'mockito': 'org.mockito:mockito-core:4.11.0',
     'mockitoInline': 'org.mockito:mockito-inline:3.11.2',
     'mysql': 'mysql:mysql-connector-java:8.0.29',
-    'neo4jHarness': 'org.neo4j.test:neo4j-harness:3.4.11',
-    'neo4jJavaDriver': 'org.neo4j.driver:neo4j-java-driver:4.0.0',
     'parseqTest': 'com.linkedin.parseq:parseq-test-api:5.1.20',
     'postgresql': 'org.postgresql:postgresql:42.2.14',
     'reflections': 'org.reflections:reflections:0.9.11',

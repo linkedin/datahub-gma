@@ -1,10 +1,12 @@
 package com.linkedin.metadata.dao.utils;
 
 import com.google.common.io.Resources;
+import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.IntegerArray;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.StringArray;
 import com.linkedin.metadata.aspect.AuditedAspect;
+import com.linkedin.metadata.dao.BaseLocalDAO;
 import com.linkedin.metadata.dao.EbeanLocalAccess;
 import com.linkedin.metadata.dao.EbeanMetadataAspect;
 import com.linkedin.metadata.dao.ListResult;
@@ -22,8 +24,10 @@ import com.linkedin.testing.AnnotatedRelationshipBarArray;
 import com.linkedin.testing.AnnotatedRelationshipFoo;
 import com.linkedin.testing.AnnotatedRelationshipFooArray;
 import com.linkedin.testing.AspectFoo;
+import com.linkedin.testing.AspectWithDefaultValue;
 import com.linkedin.testing.CommonAspect;
 import com.linkedin.testing.CommonAspectArray;
+import com.linkedin.testing.MapValueRecord;
 import com.linkedin.testing.urn.BurgerUrn;
 import com.linkedin.testing.urn.FooUrn;
 import io.ebean.Ebean;
@@ -39,6 +43,8 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import javax.annotation.Nonnull;
 import org.testng.annotations.Test;
 
@@ -504,7 +510,26 @@ public class EBeanDAOUtilsTest {
 
     Method extractAspectJsonString = EBeanDAOUtils.class.getDeclaredMethod("extractAspectJsonString", String.class);
     extractAspectJsonString.setAccessible(true);
-    assertEquals("{\"lastmodifiedon\":\"1\",\"lastmodifiedby\":\"0\",\"aspect\":{\"value\":\"test\"}}", toJson);
+    assertEquals("{\"lastmodifiedon\":\"1\",\"aspect\":{\"value\":\"test\"},\"lastmodifiedby\":\"0\"}", toJson);
+    assertNotNull(RecordUtils.toRecordTemplate(AspectFoo.class, (String) extractAspectJsonString.invoke(EBeanDAOUtils.class, toJson)));
+  }
+
+  @Test
+  public void testToAndFromJsonWithDefaultValue() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
+    AuditedAspect auditedAspect = new AuditedAspect();
+    AspectWithDefaultValue defaultValueAspect = new AspectWithDefaultValue().setNestedValueWithDefault(new MapValueRecord());
+    BaseLocalDAO.validateAgainstSchemaAndFillinDefault(defaultValueAspect);
+    String actual = RecordUtils.toJsonString(defaultValueAspect);
+
+    auditedAspect.setLastmodifiedby("0");
+    auditedAspect.setLastmodifiedon("1");
+    auditedAspect.setAspect(RecordUtils.toJsonString(defaultValueAspect));
+    String toJson = EbeanLocalAccess.toJsonString(auditedAspect);
+
+    Method extractAspectJsonString = EBeanDAOUtils.class.getDeclaredMethod("extractAspectJsonString", String.class);
+    extractAspectJsonString.setAccessible(true);
+    assertEquals("{\"lastmodifiedon\":\"1\",\"aspect\":{\"nestedValueWithDefault\":{\"mapValueWithDefaultmap\":{}},"
+        + "\"valueWithDefault\":\"\"},\"lastmodifiedby\":\"0\"}", toJson);
     assertNotNull(RecordUtils.toRecordTemplate(AspectFoo.class, (String) extractAspectJsonString.invoke(EBeanDAOUtils.class, toJson)));
   }
 
@@ -579,7 +604,7 @@ public class EBeanDAOUtilsTest {
   }
 
   @Test
-  public void testExtractRelationshipsFromAspect() {
+  public void testExtractRelationshipsFromAspect() throws URISyntaxException {
     // case 1: aspect model does not contain any relationship typed fields
     // expected: return null
     AspectFoo foo = new AspectFoo();
@@ -592,10 +617,10 @@ public class EBeanDAOUtilsTest {
     AnnotatedAspectFooWithRelationshipField fooWithRelationshipField = new AnnotatedAspectFooWithRelationshipField()
         .setRelationshipFoo(relationshipFoos);
 
-    List<List<RecordTemplate>> results = EBeanDAOUtils.extractRelationshipsFromAspect(fooWithRelationshipField);
+    Map<Class<?>, Set<RecordTemplate>> results = EBeanDAOUtils.extractRelationshipsFromAspect(fooWithRelationshipField);
     assertEquals(1, results.size());
-    assertEquals(1, results.get(0).size());
-    assertEquals(relationshipFoo, results.get(0).get(0));
+    assertEquals(1, results.get(AnnotatedRelationshipFoo.class).size());
+    assertTrue(results.get(AnnotatedRelationshipFoo.class).contains(relationshipFoo));
 
     // case 3: aspect model contains only a null relationship type field
     // expected: return null
@@ -605,7 +630,10 @@ public class EBeanDAOUtilsTest {
     // case 4: aspect model contains multiple singleton and array-type relationship fields, some null and some non-null, as well as array fields
     //         containing non-Relationship objects
     // expected: return only the non-null relationships
-    relationshipFoos = new AnnotatedRelationshipFooArray(new AnnotatedRelationshipFoo(), new AnnotatedRelationshipFoo());
+    AnnotatedRelationshipFoo test1 = new AnnotatedRelationshipFoo().setDestination(Urn.createFromString("urn:li:test:1"));
+    AnnotatedRelationshipFoo test2 = new AnnotatedRelationshipFoo().setDestination(Urn.createFromString("urn:li:test:2"));
+    AnnotatedRelationshipFoo test3 = new AnnotatedRelationshipFoo().setDestination(Urn.createFromString("urn:li:test:3"));
+    relationshipFoos = new AnnotatedRelationshipFooArray(test1, test2);
     AnnotatedRelationshipBarArray relationshipBars = new AnnotatedRelationshipBarArray(new AnnotatedRelationshipBar());
     // given:
     // aspect = {
@@ -624,19 +652,18 @@ public class EBeanDAOUtilsTest {
         .setValue("abc")
         .setIntegers(new IntegerArray(1))
         .setNonRelationshipStructs(new CommonAspectArray(new CommonAspect()))
-        .setRelationshipFoo1(new AnnotatedRelationshipFoo())
+        .setRelationshipFoo1(test3)
         // don't set relationshipFoo2 fields
         .setRelationshipFoos(relationshipFoos)
         .setRelationshipBars(relationshipBars); // don't set moreRelationshipFoos field
 
     results = EBeanDAOUtils.extractRelationshipsFromAspect(barWithRelationshipFields);
-    assertEquals(3, results.size());
-    assertEquals(1, results.get(0).size()); // relationshipFoo1
-    assertEquals(2, results.get(1).size()); // relationshipFoos
-    assertEquals(1, results.get(2).size()); // relationshipBars
-    assertEquals(new AnnotatedRelationshipFoo(), results.get(0).get(0));
-    assertEquals(new AnnotatedRelationshipFoo(), results.get(1).get(0));
-    assertEquals(new AnnotatedRelationshipFoo(), results.get(1).get(1));
-    assertEquals(new AnnotatedRelationshipBar(), results.get(2).get(0));
+    assertEquals(2, results.size());
+    assertEquals(3, results.get(AnnotatedRelationshipFoo.class).size()); // relationshipFoo1 (1) + relationshipFoos (2)
+    assertEquals(1, results.get(AnnotatedRelationshipBar.class).size()); // relationshipBars
+    assertTrue(results.get(AnnotatedRelationshipFoo.class).contains(test1));
+    assertTrue(results.get(AnnotatedRelationshipFoo.class).contains(test2));
+    assertTrue(results.get(AnnotatedRelationshipFoo.class).contains(test3));
+    assertTrue(results.get(AnnotatedRelationshipBar.class).contains(new AnnotatedRelationshipBar()));
   }
 }

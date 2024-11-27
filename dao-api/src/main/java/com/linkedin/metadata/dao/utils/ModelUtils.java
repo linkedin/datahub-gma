@@ -875,7 +875,7 @@ public class ModelUtils {
    * @param relationship must be a valid relationship model defined in com.linkedin.metadata.relationship
    * @return boolean. True if the relationship is in MG model V2.
    */
-  public static <RELATIONSHIP extends RecordTemplate> boolean isRelationshipInV2(Class<? extends RecordTemplate> relationship) {
+  public static boolean isRelationshipInV2(Class<? extends RecordTemplate> relationship) {
     final RecordDataSchema schema = ValidationUtils.getRecordSchema(relationship);
     return isRelationshipInV2(schema);
   }
@@ -930,7 +930,9 @@ public class ModelUtils {
     try {
       final UnionTemplate unionTemplate = unionClass.newInstance();
       final UnionDataSchema unionDataSchema = (UnionDataSchema) unionTemplate.schema();
-      return unionDataSchema.getMembers().stream().map(UnionDataSchema.Member::getUnionMemberKey).collect(Collectors.toList());
+      return unionDataSchema.getMembers().stream().map(
+          member -> member.hasAlias() ? member.getType().getUnionMemberKey() : member.getUnionMemberKey()
+      ).collect(Collectors.toList());
     } catch (Exception e) {
       throw new RuntimeException(e);
     }

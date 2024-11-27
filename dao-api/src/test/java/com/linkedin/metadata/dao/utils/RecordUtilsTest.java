@@ -5,6 +5,7 @@ import com.linkedin.data.schema.PathSpec;
 import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.StringArray;
+import com.linkedin.metadata.dao.BaseLocalDAO;
 import com.linkedin.metadata.dao.exception.ModelConversionException;
 import com.linkedin.metadata.validator.InvalidSchemaException;
 import com.linkedin.metadata.validator.ValidationUtils;
@@ -62,7 +63,7 @@ public class RecordUtilsTest {
     AspectWithDefaultValue defaultValueAspect = new AspectWithDefaultValue().setNestedValueWithDefault(new MapValueRecord());
     String expected =
         loadJsonFromResource("defaultValueAspect.json").replaceAll("\\s+", "").replaceAll("\\n", "").replaceAll("\\r", "");
-
+    BaseLocalDAO.validateAgainstSchemaAndFillinDefault(defaultValueAspect);
     String actual = RecordUtils.toJsonString(defaultValueAspect);
 
     assertEquals(actual, expected);
