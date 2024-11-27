@@ -41,13 +41,4 @@ public class AssetValidator {
     validateAssetSchema(ValidationUtils.getRecordSchema(clazz));
     VALIDATED.add(clazz);
   }
-
-  /**
-   * Validates an asset, specifically ensuring that no fields are NOT a part of the defined schema.
-   *
-   * @param asset asset to validate
-   */
-  public static void validateAsset(@Nonnull RecordTemplate asset) {
-    ValidationUtils.validateAgainstSchema(asset);
-  }
 }
