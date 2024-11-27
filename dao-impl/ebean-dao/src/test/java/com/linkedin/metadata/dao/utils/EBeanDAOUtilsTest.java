@@ -28,6 +28,7 @@ import com.linkedin.testing.AspectWithDefaultValue;
 import com.linkedin.testing.CommonAspect;
 import com.linkedin.testing.CommonAspectArray;
 import com.linkedin.testing.MapValueRecord;
+import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.BurgerUrn;
 import com.linkedin.testing.urn.FooUrn;
 import io.ebean.Ebean;
@@ -645,6 +646,7 @@ public class EBeanDAOUtilsTest {
     //     relationshipFoos -> [foo1, foo2]
     //     relationshipBars -> [bar1]
     //     moreRelationshipFoos -> not present
+    //     nonPrimitiveNonRelationshipField -> barUrn
     // }
     // expect:
     // [[foo1, foo2], [bar1]]
@@ -655,7 +657,8 @@ public class EBeanDAOUtilsTest {
         .setRelationshipFoo1(test3)
         // don't set relationshipFoo2 fields
         .setRelationshipFoos(relationshipFoos)
-        .setRelationshipBars(relationshipBars); // don't set moreRelationshipFoos field
+        .setRelationshipBars(relationshipBars) // don't set moreRelationshipFoos field
+        .setNonPrimitiveNonRelationshipField(BarUrn.createFromString("urn:li:bar:1"));
 
     results = EBeanDAOUtils.extractRelationshipsFromAspect(barWithRelationshipFields);
     assertEquals(2, results.size());

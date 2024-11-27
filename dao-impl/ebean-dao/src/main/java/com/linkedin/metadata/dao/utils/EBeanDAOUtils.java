@@ -405,13 +405,11 @@ public class EBeanDAOUtils {
         } else if (!(obj instanceof List) || ((List) obj).isEmpty() || !(((List) obj).get(0) instanceof RecordTemplate)) {
           return;
         }
-        List<RecordTemplate> relationshipsList;
-        try {
-          relationshipsList = (List<RecordTemplate>) obj;
-        } catch (ClassCastException e) {
-          // if the field cannot be cast to a list, and it wasn't a RecordTemplate, skip since it cannot be a relationship
+        // filter out all non-primitive, non-relationship fields
+        if (!(obj instanceof List)) {
           return;
         }
+        List<RecordTemplate> relationshipsList = (List<RecordTemplate>) obj;
         ModelType modelType = parseModelTypeFromGmaAnnotation(relationshipsList.get(0));
         if (modelType == ModelType.RELATIONSHIP) {
           log.debug("Found {} relationships of type {} for field {} of aspect class {}.",
