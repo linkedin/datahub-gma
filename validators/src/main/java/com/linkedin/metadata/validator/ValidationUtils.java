@@ -220,10 +220,10 @@ public final class ValidationUtils {
    * Validates a model against its schema, useful for checking to make sure that a (curli) ingestion request's
    * fields are all valid fields of the model.
    *
-   * This is copied from BaseLocalDAO, which uses this for Aspect-level ingestion validation. This is meant for
-   * Asset-level validation.
+   * <p>This is copied from BaseLocalDAO, which uses this for Aspect-level ingestion validation. This is meant for
+   * Asset-level validation.</p>
    *
-   * Reference ticket: META-21242
+   * <p>Reference ticket: META-21242</p>
    */
   public static void validateAgainstSchema(@Nonnull RecordTemplate model) {
     ValidationResult result = ValidateDataAgainstSchema.validate(model,
