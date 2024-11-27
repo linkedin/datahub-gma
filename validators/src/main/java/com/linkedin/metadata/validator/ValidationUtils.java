@@ -46,6 +46,9 @@ public final class ValidationUtils {
 
   private static final Map<String, String> SOFT_DELETED_FIELD_METADATA = fieldMetadata(new SoftDeletedAspect().schema());
 
+  public static final ValidationOptions VALIDATION_OPTIONS =
+      new ValidationOptions(RequiredMode.CAN_BE_ABSENT_IF_HAS_DEFAULT, CoercionMode.NORMAL, UnrecognizedFieldMode.DISALLOW);
+
   private ValidationUtils() {
     // Util class
   }
@@ -226,11 +229,9 @@ public final class ValidationUtils {
    * <p>Reference ticket: META-21242</p>
    */
   public static void validateAgainstSchema(@Nonnull RecordTemplate model) {
-    ValidationResult result = ValidateDataAgainstSchema.validate(model,
-        new ValidationOptions(RequiredMode.CAN_BE_ABSENT_IF_HAS_DEFAULT, CoercionMode.NORMAL,
-            UnrecognizedFieldMode.DISALLOW));
+    ValidationResult result = ValidateDataAgainstSchema.validate(model, VALIDATION_OPTIONS);
     if (!result.isValid()) {
-      invalidSchema(result.getMessages().toString());
+      invalidSchema(String.valueOf(result.getMessages()));
     }
   }
 
