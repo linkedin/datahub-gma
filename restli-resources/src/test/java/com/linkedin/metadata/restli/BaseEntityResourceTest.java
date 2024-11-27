@@ -1428,6 +1428,32 @@ public class BaseEntityResourceTest extends BaseEngineTest {
   }
 
   @Test
+  public void testIngestAssetFailUnrecognizedField() {
+    // same setup as the previous test...
+    FooUrn urn = makeFooUrn(1);
+    EntityAsset asset = new EntityAsset();
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectBar bar = new AspectBar().setValue("bar");
+    asset.setUrn(urn);
+    asset.setFoo(foo);
+    asset.setBar(bar);
+    IngestionTrackingContext trackingContext = new IngestionTrackingContext();
+
+    // but now, we simulate adding in an unrecognized field, which encompasses 2 cases where silent failures can occur:
+    //   (1) curli calls with fields that are simply not a part of the model, these should error out!
+    //   (2) (java) client calls with a newer bump to metadata-models that contain NEW fields that are
+    //       not recognized by the server, these should also error out!
+
+    // set the datamap to contain an unrecognized field
+    asset.data().put("unrecognizedField", "unrecognizedValue");
+
+    IngestionParams ingestionParams1 = new IngestionParams().setTestMode(true);
+    ingestionParams1.setIngestionTrackingContext(trackingContext);
+
+    assertThrows(RestLiServiceException.class, () -> runAndWait(_internalResource.ingestAsset(asset, ingestionParams1)));
+  }
+
+  @Test
   public void testGetAsset() {
     FooUrn urn = makeFooUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");

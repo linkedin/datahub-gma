@@ -348,6 +348,28 @@ public class ModelUtilsTest {
   }
 
   @Test
+  public void testGetAspectsFromAssetFailUnrecognizedField() {
+    // same setup as the previous test...
+    EntityAsset asset = new EntityAsset();
+    AspectFoo expectedAspectFoo = new AspectFoo().setValue("foo");
+    AspectBar expectedAspectBar = new AspectBar().setValue("bar");
+    asset.setFoo(expectedAspectFoo);
+    asset.setBar(expectedAspectBar);
+
+    // but now, we simulate adding in an unrecognized field, which encompasses 2 cases where silent failures can occur:
+    //   (1) curli calls with fields that are simply not a part of the model, these should error out!
+    //   (2) (java) client calls with a newer bump to metadata-models that contain NEW fields that are
+    //       not recognized by the server, these should also error out!
+
+    // set the datamap to contain an unrecognized field
+    asset.data().put("unrecognizedField", "unrecognizedValue");
+
+    assertThrows(InvalidSchemaException.class, () -> {
+      ModelUtils.getAspectsFromAsset(asset);
+    });
+  }
+
+  @Test
   public void testGetAspectTypesFromAssetType() {
     List<Class<? extends RecordTemplate>> assetTypes = ModelUtils.getAspectTypesFromAssetType(BarAsset.class);
     assertEquals(assetTypes.size(), 1);

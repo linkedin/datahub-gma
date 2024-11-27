@@ -6,6 +6,12 @@ import com.linkedin.data.schema.ArrayDataSchema;
 import com.linkedin.data.schema.DataSchema;
 import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.schema.UnionDataSchema;
+import com.linkedin.data.schema.validation.CoercionMode;
+import com.linkedin.data.schema.validation.RequiredMode;
+import com.linkedin.data.schema.validation.UnrecognizedFieldMode;
+import com.linkedin.data.schema.validation.ValidateDataAgainstSchema;
+import com.linkedin.data.schema.validation.ValidationOptions;
+import com.linkedin.data.schema.validation.ValidationResult;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.aspect.SoftDeletedAspect;
@@ -39,6 +45,9 @@ public final class ValidationUtils {
       });
 
   private static final Map<String, String> SOFT_DELETED_FIELD_METADATA = fieldMetadata(new SoftDeletedAspect().schema());
+
+  public static final ValidationOptions VALIDATION_OPTIONS =
+      new ValidationOptions(RequiredMode.CAN_BE_ABSENT_IF_HAS_DEFAULT, CoercionMode.NORMAL, UnrecognizedFieldMode.DISALLOW);
 
   private ValidationUtils() {
     // Util class
@@ -209,4 +218,21 @@ public final class ValidationUtils {
   public static void throwNullFieldException(String field) {
     throw new NullFieldException(String.format("The '%s' field cannot be null.", field));
   }
+
+  /**
+   * Validates a model against its schema, useful for checking to make sure that a (curli) ingestion request's
+   * fields are all valid fields of the model.
+   *
+   * <p>This is copied from BaseLocalDAO, which uses this for Aspect-level ingestion validation. This is meant for
+   * Asset-level validation.</p>
+   *
+   * <p>Reference ticket: META-21242</p>
+   */
+  public static void validateAgainstSchema(@Nonnull RecordTemplate model) {
+    ValidationResult result = ValidateDataAgainstSchema.validate(model, VALIDATION_OPTIONS);
+    if (!result.isValid()) {
+      invalidSchema(String.valueOf(result.getMessages()));
+    }
+  }
+
 }

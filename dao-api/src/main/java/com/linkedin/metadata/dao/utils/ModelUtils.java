@@ -396,6 +396,7 @@ public class ModelUtils {
   @Nonnull
   public static <ASSET extends RecordTemplate> List<RecordTemplate> getAspectsFromAsset(@Nonnull ASSET asset) {
     AssetValidator.validateAssetSchema(asset.getClass());
+    ValidationUtils.validateAgainstSchema(asset);
     // TODO: cache the asset methods loading
     try {
       final List<RecordTemplate> aspects = new ArrayList<>();
