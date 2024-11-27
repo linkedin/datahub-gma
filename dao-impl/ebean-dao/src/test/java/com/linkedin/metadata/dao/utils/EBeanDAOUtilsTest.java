@@ -645,7 +645,7 @@ public class EBeanDAOUtilsTest {
     //     relationshipFoos -> [foo1, foo2]
     //     relationshipBars -> [bar1]
     //     moreRelationshipFoos -> not present
-    //     nonPrimitiveNonRelationshipField -> barUrn
+    //     nonPrimitiveNonRelationshipField -> commonAspect2
     // }
     // expect:
     // [[foo1, foo2], [bar1]]

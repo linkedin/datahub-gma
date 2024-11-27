@@ -405,7 +405,7 @@ public class EBeanDAOUtils {
         } else if (!(obj instanceof List) || ((List) obj).isEmpty() || !(((List) obj).get(0) instanceof RecordTemplate)) {
           return;
         }
-        // filter out all non-primitive, non-relationship fields
+        // filter out all non-primitive, non-relationship, non-list fields
         if (!(obj instanceof List)) {
           return;
         }
