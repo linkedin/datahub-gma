@@ -658,7 +658,7 @@ public class EBeanDAOUtilsTest {
         // don't set relationshipFoo2 fields
         .setRelationshipFoos(relationshipFoos)
         .setRelationshipBars(relationshipBars) // don't set moreRelationshipFoos field
-        .setNonPrimitiveNonRelationshipField(BarUrn.createFromString("urn:li:bar:1"));
+        .setNonPrimitiveNonRelationshipField(new CommonAspect());
 
     results = EBeanDAOUtils.extractRelationshipsFromAspect(barWithRelationshipFields);
     assertEquals(2, results.size());
