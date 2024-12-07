@@ -601,7 +601,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       // 2. write value of latest version (version = 0) as a new version
       // 3. update the latest version (version = 0) with the new value. If the value of latest version has been
       //    changed during this process, then rollback by throwing OptimisticLockException
-
       largestVersion = getNextVersion(urn, aspectClass);
       // TODO(yanyang) added for job-gms duplicity debug, throwaway afterwards
       if (log.isDebugEnabled()) {
@@ -618,7 +617,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
           new Timestamp(oldAuditStamp.getTime()), trackingContext, isTestMode);
     } else {
       // When for fresh ingestion or with changeLog disabled
-
       // TODO(yanyang) added for job-gms duplicity debug, throwaway afterwards
       if (log.isDebugEnabled()) {
         if ("AzkabanFlowInfo".equals(aspectClass.getSimpleName())) {
@@ -680,7 +678,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       @Nonnull Class<ASPECT> aspectClass, boolean isTestMode) {
 
     EbeanMetadataAspect result;
-    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY || _schemaConfig == SchemaConfig.DUAL_SCHEMA) {
       final String aspectName = ModelUtils.getAspectName(aspectClass);
       final PrimaryKey key = new PrimaryKey(urn.toString(), aspectName, LATEST_VERSION);
       if (_findMethodology == FindMethodology.DIRECT_SQL) {
@@ -696,7 +694,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         result = _server.find(EbeanMetadataAspect.class, key);
       }
     } else {
-      // for new schema or dual-schema, get latest data from new schema. (Resolving the read de-coupling issue)
+      // for new schema, get latest data from the new schema entity table. (Resolving the read de-coupling issue)
       final List<EbeanMetadataAspect> results =
           _localAccess.batchGetUnion(Collections.singletonList(new AspectKey<>(aspectClass, urn, LATEST_VERSION)), 1, 0,
               true, isTestMode);
@@ -801,9 +799,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     // ensure atomicity by running old schema update + new schema update in a transaction
 
     final SqlUpdate oldSchemaSqlUpdate;
-    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY || _schemaConfig == SchemaConfig.DUAL_SCHEMA) {
-      // In NEW_SCHEMA or DUAL_SCHEMA, since entity table is the SOT and the getLatest (oldTimestamp) is from the entity
-      // table, therefore, we will apply compare-and-set with oldTimestamp on entity table (addWithOptimisticLocking)
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+      // In NEW_SCHEMA, the entity table is the SOT and getLatest (oldTimestamp) reads from the entity
+      // table. Therefore, we will apply compare-and-set with oldTimestamp on entity table (addWithOptimisticLocking)
       // aspect table will apply regular update over (urn, aspect, version) primary key combination.
       oldSchemaSqlUpdate = assembleOldSchemaSqlUpdate(aspect, null);
       numOfUpdatedRows = runInTransactionWithRetry(() -> {
@@ -814,10 +812,17 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
             trackingContext, isTestMode);
       }, 1);
     } else {
-      // In OLD_SCHEMA mode since aspect table is the SOT and the getLatest (oldTimestamp) is from the aspect table
-      // therefore, we will apply compare-and-set with oldTimestamp on aspect table (assemblyOldSchemaSqlUpdate)
+      // In OLD_SCHEMA and DUAL_SCHEMA mode, the aspect table is the SOT and the getLatest (oldTimestamp) is from the aspect table.
+      // Therefore, we will apply compare-and-set with oldTimestamp on aspect table (assemblyOldSchemaSqlUpdate)
       oldSchemaSqlUpdate = assembleOldSchemaSqlUpdate(aspect, oldTimestamp);
-      numOfUpdatedRows = _server.execute(oldSchemaSqlUpdate);
+      numOfUpdatedRows = runInTransactionWithRetry(() -> {
+        // Additionally, in DUAL_SCHEMA mode: apply a regular update (no optimistic locking) to the entity table
+        if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
+          _localAccess.addWithOptimisticLocking(urn, (ASPECT) value, aspectClass, newAuditStamp, null,
+              trackingContext, isTestMode);
+        }
+        return _server.execute(oldSchemaSqlUpdate);
+      }, 1);
     }
     // If there is no single updated row, emit OptimisticLockException
     if (numOfUpdatedRows != 1) {
@@ -830,8 +835,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   protected <ASPECT extends RecordTemplate> void insert(@Nonnull URN urn, @Nullable RecordTemplate value,
       @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, long version,
       @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
-
-
     final EbeanMetadataAspect aspect = buildMetadataAspectBean(urn, value, aspectClass, auditStamp, version);
     if (_schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY && version == LATEST_VERSION) {
       // insert() could be called when updating log table (moving current versions into new history version)

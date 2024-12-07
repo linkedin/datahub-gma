@@ -2905,7 +2905,6 @@ public class EbeanLocalDAOTest {
     aspect.setCreatedBy("fooActor");
 
     if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
-
       // add aspect to the db
       _server.insert(aspect);
 
@@ -2918,32 +2917,64 @@ public class EbeanLocalDAOTest {
       dao.updateWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now + 100),
           0, new Timestamp(_now - 100), null, false);
 
-    } else if (_enableChangeLog) {
-      // either NEW or DUAL schema, whereas entity table is the SOT and aspect table is the log table
-
+    } else if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
+      // in DUAL SCHEMA, the aspect table is the SOT even though it also writes to the entity table
       // Given:
-      //  1. in NEW, DUAL schema mode
-      //  2. (foo:1, lastmodified(_now + 1), version=0) in aspect table (discrepancy)
-      //  3. (foo:1, lastmodified(_now)) in entity table
+      //  1. in DUAL SCHEMA mode
+      //  2. (foo:1, lastmodified(_now + 1)) in entity table (discrepancy)
+      //  3. (foo:1, lastmodified(_now), version=0) in aspect table
+
+      dao.insert(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now), 0, null, false);
+
+      // make inconsistent timestamp only on the entity table
+      dao.setSchemaConfig(SchemaConfig.NEW_SCHEMA_ONLY);
+      dao.setChangeLogEnabled(false);
+      dao.insert(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now + 1), 0, null, false);
+      dao.setChangeLogEnabled(true);
+      dao.setSchemaConfig(_schemaConfig);
+
+      // When: update with old timestamp matches the lastmodifiedon time in entity table
+      try {
+        fooAspect.setValue("bar");
+        dao.updateWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now + 1000L), 0,
+            new Timestamp(_now), null, false);
+      } catch (OptimisticLockException e) {
+        fail("Expect the update pass since the old timestamp matches the lastmodifiedon in aspect table");
+      }
+      // Expect: update succeed and the values are updated
+      BaseLocalDAO.AspectEntry<AspectFoo> result = dao.getLatest(fooUrn, AspectFoo.class, false);
+      assertEquals(result.getAspect().getValue(), "bar");
+      assertEquals(result.getExtraInfo().getAudit().getTime(), Long.valueOf(_now + 1000L)); // need to set by at least 1
+
+      // When: update with old timestamp does not match the lastmodifiedon in the aspect table
+      // Expect: OptimisticLockException.
+      dao.updateWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now + 400), 0,
+          new Timestamp(_now + 100), null, false);
+    } else if (_enableChangeLog) {
+      // either NEW SCHEMA, the entity table is the SOT and the aspect table is the log table
+      // Given:
+      //  1. in NEW SCHEMA mode
+      //  2. (foo:1, lastmodifiedon(_now + 1), version=0) in aspect table (discrepancy)
+      //  3. (foo:1, lastmodifiedon(_now)) in entity table
 
       dao.insert(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now), 0, null, false);
       // make inconsistent timestamp on aspect table
       aspect.setCreatedOn(new Timestamp(_now + 1));
       _server.update(aspect);
 
-      // When: update with old timestamp matches the lastmodified time in entity table
+      // When: update with old timestamp matches the lastmodifiedon time in entity table
       try {
         fooAspect.setValue("bar");
         dao.updateWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now + 200), 0,
             new Timestamp(_now), null, false);
       } catch (OptimisticLockException e) {
-        fail("Expect the update pass since the old timestamp matches the lastmodified in entity table");
+        fail("Expect the update pass since the old timestamp matches the lastmodifiedon in entity table");
       }
       // Expect: update succeed and the values are updated
       assertEquals(dao.getLatest(fooUrn, AspectFoo.class, false).getAspect().getValue(), "bar");
       assertEquals(dao.getLatest(fooUrn, AspectFoo.class, false).getExtraInfo().getAudit().getTime(), Long.valueOf(_now + 200L));
 
-      // When: update with old timestamp does not match the lastmodified in the entity table
+      // When: update with old timestamp does not match the lastmodifiedon in the entity table
       // Expect: OptimisticLockException.
       dao.updateWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now + 400), 0,
           new Timestamp(_now + 100), null, false);
