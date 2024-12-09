@@ -23,6 +23,12 @@ public class GraphUtils {
     if (relationships.isEmpty()) {
       return;
     }
+
+    // TODO: remove this temporary allow list after AIM no longer relies on ProducesLocalRelationshipBuilderFromFeatureDependencies
+    if (assetUrn != null && assetUrn.getEntityType().equals("mlFeatureVersion") && relationships.get(0).getClass().getSimpleName().equals("produces")) {
+      return;
+    }
+
     for (RecordTemplate relationship : relationships) {
       if (ModelUtils.isRelationshipInV2(relationship.schema())) {
         if (assetUrn == null) {
