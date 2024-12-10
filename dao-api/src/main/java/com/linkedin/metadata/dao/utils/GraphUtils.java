@@ -25,7 +25,7 @@ public class GraphUtils {
     }
 
     // TODO: remove this temporary allow list after AIM no longer relies on ProducesLocalRelationshipBuilderFromFeatureDependencies
-    if (assetUrn != null && assetUrn.getEntityType().equals("mlFeatureVersion") && relationships.get(0).getClass().getSimpleName().equals("produces")) {
+    if (assetUrn != null && assetUrn.getEntityType().equals("mlFeatureVersion") && relationships.get(0).getClass().getSimpleName().equals("Produces")) {
       return;
     }
 
