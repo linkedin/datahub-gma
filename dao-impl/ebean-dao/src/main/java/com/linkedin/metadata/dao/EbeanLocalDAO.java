@@ -1099,7 +1099,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     outputParams.add(version);
 
     return String.format("SELECT t.urn, t.aspect, t.version, t.metadata, t.createdOn, t.createdBy, t.createdFor "
-            + "FROM %s t WHERE urn = ? AND aspect = ? AND version = ?",
+            + "FROM %s t WHERE urn = ? AND aspect = ? AND version = ?" + "ORDER BY t.createdOn DESC LIMIT 1",
         EbeanMetadataAspect.class.getAnnotation(Table.class).name());
   }
 
