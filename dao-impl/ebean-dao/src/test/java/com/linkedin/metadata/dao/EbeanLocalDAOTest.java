@@ -3021,10 +3021,12 @@ public class EbeanLocalDAOTest {
     // fill in old schema
     FooUrn urn1 = new FooUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectFooBar fooBar = new AspectFooBar().setBars(new BarUrnArray(BarUrn.createFromString("urn:li:bar:1")));
     // this function only adds to old schema
-    String aspectName = AspectFoo.class.getCanonicalName();
-    EbeanMetadataAspect ema = getMetadata(urn1, aspectName, 0, foo);
-    _server.save(ema);
+    EbeanMetadataAspect ema1 = getMetadata(urn1, AspectFoo.class.getCanonicalName(), 0, foo);
+    _server.save(ema1);
+    EbeanMetadataAspect ema2 = getMetadata(urn1, AspectFooBar.class.getCanonicalName(), 0, fooBar);
+    _server.save(ema2);
 
     // check that there is nothing in the entity table right now
     if (_schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
@@ -3034,7 +3036,9 @@ public class EbeanLocalDAOTest {
 
     // perform the migration
     try {
+      dao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
       dao.updateEntityTables(urn1, AspectFoo.class);
+      dao.updateEntityTables(urn1, AspectFooBar.class);
       if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
         // expect an exception here since there is no new schema to update
         fail();
@@ -3052,7 +3056,14 @@ public class EbeanLocalDAOTest {
     assertEquals(result.size(), 1);
     assertEquals(result.get(0).get("urn"), "urn:li:foo:1");
     assertNotNull(result.get(0).get("a_aspectfoo"));
+    assertNotNull(result.get(0).get("a_aspectfoobar"));
     assertNull(result.get(0).get("a_aspectbar"));
+
+    // make sure relationships are ingested too
+    result = _server.createSqlQuery("SELECT * FROM metadata_relationship_belongsto").findList();
+    assertEquals(result.size(), 1);
+    assertEquals(result.get(0).get("source"), "urn:li:foo:1");
+    assertEquals(result.get(0).get("destination"), "urn:li:bar:1");
   }
 
   @Test
