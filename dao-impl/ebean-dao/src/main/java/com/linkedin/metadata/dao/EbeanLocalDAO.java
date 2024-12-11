@@ -640,13 +640,18 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
     PrimaryKey key = new PrimaryKey(urn.toString(), aspectClass.getCanonicalName(), LATEST_VERSION);
     runInTransactionWithRetry(() -> {
-      // use forUpdate() to lock the row during this transaction so that we can guarantee a consistent update
-      EbeanMetadataAspect result = _server.createQuery(EbeanMetadataAspect.class).setId(key).forUpdate().findOne();
+      // use forUpdate() to lock the row during this transaction so that we can guarantee a consistent update.
+      // order by createdon desc to get the latest value in the case where there are multiple results
+      EbeanMetadataAspect result = _server.createQuery(EbeanMetadataAspect.class).setId(key).orderBy().desc("createdon").forUpdate().findOne();
       if (result == null) {
         return null; // unused
       }
       AuditStamp auditStamp = makeAuditStamp(result);
-      _localAccess.add(urn, toRecordTemplate(aspectClass, result).orElse(null), aspectClass, auditStamp, null, false);
+      ASPECT aspect = toRecordTemplate(aspectClass, result).orElse(null);
+      _localAccess.add(urn, aspect, aspectClass, auditStamp, null, false);
+
+      // also insert any relationships associated with this aspect
+      handleRelationshipIngestion(urn, aspect, null, aspectClass, false);
       return null; // unused
     }, 1);
   }
