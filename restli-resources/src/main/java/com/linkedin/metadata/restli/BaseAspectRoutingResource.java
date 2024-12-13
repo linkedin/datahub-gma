@@ -441,6 +441,7 @@ public abstract class BaseAspectRoutingResource<
           getLocalDAO().rawAdd((URN) urn, aspect, auditStamp, trackingContext, ingestionParams);
         } catch (Exception exception) {
           log.error("Couldn't ingest routing aspect {} for {}", aspect.getClass().getSimpleName(), urn, exception);
+          throw exception;
         }
       } else {
         if (skipExtraProcessing) {
