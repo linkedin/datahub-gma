@@ -11,6 +11,7 @@ import com.linkedin.metadata.dao.BaseLocalDAO;
 import com.linkedin.metadata.dao.ListResult;
 import com.linkedin.metadata.dao.UrnAspectEntry;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
+import com.linkedin.metadata.dao.exception.ModelValidationException;
 import com.linkedin.metadata.dao.internal.BaseGraphWriterDAO;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
@@ -711,6 +712,18 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     assertEquals(snapshot.getUrn(), urn);
     assertEquals(snapshot.getAspects().size(), 1);
     assertEquals(snapshot.getAspects().get(0).getAspectFoo(), foo);
+  }
+
+  @Test
+  public void testGetSnapshotWithModelValidationException() {
+    FooUrn urn = makeFooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectKey<FooUrn, ? extends RecordTemplate> fooKey = new AspectKey<>(AspectFoo.class, urn, LATEST_VERSION);
+    Set<AspectKey<FooUrn, ? extends RecordTemplate>> aspectKeys = ImmutableSet.of(fooKey);
+    when(_mockLocalDAO.get(aspectKeys)).thenThrow(new ModelValidationException("model validation exception"));
+    String[] aspectNames = new String[]{ModelUtils.getAspectName(AspectFoo.class)};
+
+    assertThrows(RestLiServiceException.class, () -> runAndWait(_resource.getSnapshot(urn.toString(), aspectNames)));
   }
 
   @Test
@@ -1485,6 +1498,20 @@ public class BaseEntityResourceTest extends BaseEngineTest {
     assertEquals(asset.getBar(), bar);
     assertEquals(asset.getAspectFooBar(), fooBar);
     assertEquals(asset.getAspectAttributes(), attributes);
+  }
+
+  @Test
+  public void testGetAssetWithModelValidationException() {
+    FooUrn urn = makeFooUrn(1);
+
+    AspectKey<FooUrn, ? extends RecordTemplate> fooKey = new AspectKey<>(AspectFoo.class, urn, LATEST_VERSION);
+
+    Set<AspectKey<FooUrn, ? extends RecordTemplate>> aspectKeys =
+        ImmutableSet.of(fooKey);
+    when(_mockLocalDAO.get(aspectKeys)).thenThrow(new ModelValidationException("model validation exception"));
+
+    assertThrows(RestLiServiceException.class,
+        () -> runAndWait(_resource.getAsset(urn.toString(), new String[] { "com.linkedin.testing.AspectFoo" })));
   }
 
   @Test
