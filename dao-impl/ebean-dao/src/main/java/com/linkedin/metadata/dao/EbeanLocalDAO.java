@@ -804,6 +804,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       // We will also apply an optimistic locking update over (urn, aspect, version) primary key combination to avoid duplicate
       // key exceptions when the primary key includes createdon.
       EbeanMetadataAspect result = findLatestMetadataAspect(_server, urn, aspectClass);
+      if (result == null) {
+        throw new IllegalStateException("No entry from aspect table found even though one was expected. Urn: " + urn + ", Aspect class:" + aspectClass);
+      }
       oldSchemaSqlUpdate = assembleOldSchemaSqlUpdate(aspect, result.getCreatedOn());
       numOfUpdatedRows = runInTransactionWithRetry(() -> {
         // DUAL WRITE: 1) update aspect table, 2) update entity table.
