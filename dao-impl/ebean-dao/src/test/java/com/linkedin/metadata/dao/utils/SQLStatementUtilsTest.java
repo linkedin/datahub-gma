@@ -43,7 +43,7 @@ public class SQLStatementUtilsTest {
     String expectedSql =
         "INSERT INTO metadata_entity_foo (urn, a_urn, a_aspectfoo, lastmodifiedon, lastmodifiedby) VALUE (:urn, "
             + ":a_urn, :metadata, :lastmodifiedon, :lastmodifiedby) ON DUPLICATE KEY UPDATE a_aspectfoo = :metadata,"
-            + " lastmodifiedon = :lastmodifiedon;";
+            + " lastmodifiedon = :lastmodifiedon, a_urn = :a_urn;";
     assertEquals(SQLStatementUtils.createAspectUpsertSql(fooUrn, AspectFoo.class, true, false), expectedSql);
 
     expectedSql =
