@@ -7,6 +7,7 @@ import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.StringArray;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.AspectKey;
+import com.linkedin.metadata.dao.exception.ModelValidationException;
 import com.linkedin.metadata.dao.ingestion.AspectCallbackRegistry;
 import com.linkedin.metadata.dao.ingestion.AspectCallbackResponse;
 import com.linkedin.metadata.dao.ingestion.AspectCallbackRoutingClient;
@@ -143,8 +144,12 @@ public abstract class BaseAspectRoutingResource<
   public Task<SNAPSHOT> getSnapshot(@ActionParam(PARAM_URN) @Nonnull String urnString,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
     final URN urn = parseUrnParam(urnString);
-    return getSnapshot(urnString, aspectNames,
-        getResourceLix().testGetSnapshot(String.valueOf(urn), ModelUtils.getEntityType(urn)));
+    try {
+      return getSnapshot(urnString, aspectNames,
+          getResourceLix().testGetSnapshot(String.valueOf(urn), ModelUtils.getEntityType(urn)));
+    } catch (ModelValidationException e) {
+      throw RestliUtils.invalidArgumentsException(e.getMessage());
+    }
   }
 
   @Nonnull
@@ -202,27 +207,31 @@ public abstract class BaseAspectRoutingResource<
   @Override
   public Task<ASSET> getAsset(@ActionParam(PARAM_URN) @Nonnull String urnString,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
+    try {
+      return RestliUtils.toTask(() -> {
+        final URN urn = parseUrnParam(urnString);
+        final Set<Class<? extends RecordTemplate>> aspectClasses = parseAspectsParam(aspectNames, true);
 
-    return RestliUtils.toTask(() -> {
-      final URN urn = parseUrnParam(urnString);
-      final Set<Class<? extends RecordTemplate>> aspectClasses = parseAspectsParam(aspectNames, true);
-
-      if (!containsRoutingAspect(aspectClasses)) {
-        // Get snapshot from Local DAO.
-        final List<INTERNAL_ASPECT_UNION> aspectUnions = getInternalAspectsFromLocalDao(urn, aspectClasses);
-        return ModelUtils.newAsset(_assetClass, urn, aspectUnions);
-      } else {
-        final Set<Class<? extends RecordTemplate>> nonRoutingAspects = getNonRoutingAspects(aspectClasses);
-        final List<INTERNAL_ASPECT_UNION> aspectsFromLocalDao = getInternalAspectsFromLocalDao(urn, nonRoutingAspects);
-        final Set<Class<? extends RecordTemplate>> routingAspects = getRoutingAspects(aspectClasses);
-        final List<INTERNAL_ASPECT_UNION> aspectsFromGms = routingAspects.stream()
-            .map(routingAspect -> getInternalAspectsFromGms(urn, routingAspect))
-            .flatMap(List::stream)
-            .collect(Collectors.toList());
-        return ModelUtils.newAsset(_assetClass, urn,
-            Stream.concat(aspectsFromGms.stream(), aspectsFromLocalDao.stream()).collect(Collectors.toList()));
-      }
-    });
+        if (!containsRoutingAspect(aspectClasses)) {
+          // Get snapshot from Local DAO.
+          final List<INTERNAL_ASPECT_UNION> aspectUnions = getInternalAspectsFromLocalDao(urn, aspectClasses);
+          return ModelUtils.newAsset(_assetClass, urn, aspectUnions);
+        } else {
+          final Set<Class<? extends RecordTemplate>> nonRoutingAspects = getNonRoutingAspects(aspectClasses);
+          final List<INTERNAL_ASPECT_UNION> aspectsFromLocalDao =
+              getInternalAspectsFromLocalDao(urn, nonRoutingAspects);
+          final Set<Class<? extends RecordTemplate>> routingAspects = getRoutingAspects(aspectClasses);
+          final List<INTERNAL_ASPECT_UNION> aspectsFromGms = routingAspects.stream()
+              .map(routingAspect -> getInternalAspectsFromGms(urn, routingAspect))
+              .flatMap(List::stream)
+              .collect(Collectors.toList());
+          return ModelUtils.newAsset(_assetClass, urn,
+              Stream.concat(aspectsFromGms.stream(), aspectsFromLocalDao.stream()).collect(Collectors.toList()));
+        }
+      });
+    } catch (ModelValidationException e) {
+      throw RestliUtils.invalidArgumentsException(e.getMessage());
+    }
   }
 
   /**
