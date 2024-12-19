@@ -56,9 +56,12 @@ public class SQLStatementUtils {
       "INSERT INTO %s (urn, %s, lastmodifiedon, lastmodifiedby) VALUE (:urn, :metadata, :lastmodifiedon, :lastmodifiedby) "
           + "ON DUPLICATE KEY UPDATE %s = :metadata, lastmodifiedon = :lastmodifiedon;";
 
+  // Note: include a_urn in the duplicate key update for backfilling the a_urn column in updateEntityTables() if the column was
+  // added after data already exists in the entity table. Normally, a_urn never needs to get updated once it's set the first time.
+  // Note: this SQL should only be called if the urnExtraction flag is true (i.e. a_urn column exists)
   private static final String SQL_UPSERT_ASPECT_WITH_URN_TEMPLATE =
       "INSERT INTO %s (urn, a_urn, %s, lastmodifiedon, lastmodifiedby) VALUE (:urn, :a_urn, :metadata, :lastmodifiedon, :lastmodifiedby) "
-          + "ON DUPLICATE KEY UPDATE %s = :metadata, lastmodifiedon = :lastmodifiedon;";
+          + "ON DUPLICATE KEY UPDATE %s = :metadata, lastmodifiedon = :lastmodifiedon, a_urn = :a_urn;";
 
   // "JSON_EXTRACT(%s, '$.gma_deleted') IS NOT NULL" is used to exclude soft-deleted entity which has no lastmodifiedon.
   // for details, see the known limitations on https://github.com/linkedin/datahub-gma/pull/311. Same reason for
