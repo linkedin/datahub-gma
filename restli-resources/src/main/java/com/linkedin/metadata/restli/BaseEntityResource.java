@@ -11,6 +11,7 @@ import com.linkedin.metadata.dao.AspectKey;
 import com.linkedin.metadata.dao.BaseLocalDAO;
 import com.linkedin.metadata.dao.ListResult;
 import com.linkedin.metadata.dao.UrnAspectEntry;
+import com.linkedin.metadata.dao.exception.ModelValidationException;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.events.IngestionMode;
@@ -477,9 +478,13 @@ public abstract class BaseEntityResource<
   @Nonnull
   public Task<SNAPSHOT> getSnapshot(@ActionParam(PARAM_URN) @Nonnull String urnString,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
-    final URN urn = parseUrnParam(urnString);
-    return getSnapshot(urnString, aspectNames,
-        getResourceLix().testGetSnapshot(String.valueOf(urn), ModelUtils.getEntityType(urn)));
+    try {
+      final URN urn = parseUrnParam(urnString);
+      return getSnapshot(urnString, aspectNames,
+          getResourceLix().testGetSnapshot(String.valueOf(urn), ModelUtils.getEntityType(urn)));
+    } catch (ModelValidationException e) {
+      throw RestliUtils.invalidArgumentsException(e.getMessage());
+    }
   }
 
   @Deprecated
@@ -525,27 +530,30 @@ public abstract class BaseEntityResource<
   @Nonnull
   public Task<ASSET> getAsset(@ActionParam(PARAM_URN) @Nonnull String urnString,
       @ActionParam(PARAM_ASPECTS) @Optional @Nullable String[] aspectNames) {
+    try {
+      return RestliUtils.toTask(() -> {
+        final URN urn = parseUrnParam(urnString);
 
-    return RestliUtils.toTask(() -> {
-      final URN urn = parseUrnParam(urnString);
+        if (!getLocalDAO().exists(urn)) {
+          throw RestliUtils.resourceNotFoundException();
+        }
 
-      if (!getLocalDAO().exists(urn)) {
-        throw RestliUtils.resourceNotFoundException();
-      }
+        final Set<AspectKey<URN, ? extends RecordTemplate>> keys = parseAspectsParam(aspectNames, true).stream()
+            .map(aspectClass -> new AspectKey<>(aspectClass, urn, LATEST_VERSION))
+            .collect(Collectors.toSet());
 
-      final Set<AspectKey<URN, ? extends RecordTemplate>> keys = parseAspectsParam(aspectNames, true).stream()
-          .map(aspectClass -> new AspectKey<>(aspectClass, urn, LATEST_VERSION))
-          .collect(Collectors.toSet());
+        final List<UnionTemplate> aspects = getLocalDAO().get(keys)
+            .values()
+            .stream()
+            .filter(java.util.Optional::isPresent)
+            .map(aspect -> ModelUtils.newAspectUnion(_internalAspectUnionClass, aspect.get()))
+            .collect(Collectors.toList());
 
-      final List<UnionTemplate> aspects = getLocalDAO().get(keys)
-          .values()
-          .stream()
-          .filter(java.util.Optional::isPresent)
-          .map(aspect -> ModelUtils.newAspectUnion(_internalAspectUnionClass, aspect.get()))
-          .collect(Collectors.toList());
-
-      return ModelUtils.newAsset(_assetClass, urn, aspects);
-    });
+        return ModelUtils.newAsset(_assetClass, urn, aspects);
+      });
+    } catch (ModelValidationException e) {
+      throw RestliUtils.invalidArgumentsException(e.getMessage());
+    }
   }
 
   /**
