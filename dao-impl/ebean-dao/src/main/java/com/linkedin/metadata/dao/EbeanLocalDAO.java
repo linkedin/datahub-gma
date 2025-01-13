@@ -858,6 +858,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         if (e.getMessage() != null && e.getMessage().contains("Duplicate entry")) {
           // silently fail and log the error
           log.warn("Insert to metadata_aspect failed due to duplicate entry exception. Exception: {}", e.toString());
+        } else {
+          throw e;
         }
       }
     }
