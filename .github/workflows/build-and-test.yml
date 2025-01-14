@@ -24,14 +24,10 @@ jobs:
         uses: actions/setup-java@v1
         with:
           java-version: 1.8
-      - name: Add to source list
-        run: |
-          chmod +777 /etc/apt/sources.list.d/ubuntu-focal-sources.list
-          echo "deb http://security.ubuntu.com/ubuntu focal-security main universe" > /etc/apt/sources.list.d/ubuntu-focal-sources.list
       - name: Update package list
         run: sudo apt-get update
       - name: Install lib
-        run: sudo apt-get install libncurses5 libncurses5:i386
+        run: sudo apt-get install libncurses5
 
       - name: Gradle build (and test)
         run: ./gradlew build
