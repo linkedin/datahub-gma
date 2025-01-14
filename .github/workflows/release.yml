@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v2
         with:
@@ -17,7 +17,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install lib
-        run: sudo apt-get install libncurses6
+        run: sudo apt-get install libncurses5
 
       - name: Release
         uses: ./.github/actions/release
