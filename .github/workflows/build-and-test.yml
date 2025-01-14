@@ -25,9 +25,11 @@ jobs:
         with:
           java-version: 1.8
       - name: Update package list
-        run: sudo apt-get update
+        run: |
+          dpkg --add-architecture i386 && apt update
+          sudo apt-get update
       - name: Install lib
-        run: sudo apt-get install libncurses5
+        run: sudo apt-get install libncurses5 libncurses5:i386
 
       - name: Gradle build (and test)
         run: ./gradlew build
