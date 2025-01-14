@@ -17,7 +17,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v2
       - name: Set up JDK 1.8
@@ -25,7 +25,7 @@ jobs:
         with:
           java-version: 1.8
       - name: Install lib
-        run: sudo apt-get install libncurses6
+        run: sudo apt-get install libncurses5
 
       - name: Gradle build (and test)
         run: ./gradlew build
