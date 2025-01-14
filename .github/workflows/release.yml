@@ -17,7 +17,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install lib
-        run: sudo apt-get install libncurses5
+        run: sudo apt-get install libncurses6
 
       - name: Release
         uses: ./.github/actions/release
