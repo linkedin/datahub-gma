@@ -25,7 +25,9 @@ jobs:
         with:
           java-version: 1.8
       - name: Add to source list
-        run: echo "deb http://security.ubuntu.com/ubuntu focal-security main universe" > /etc/apt/sources.list.d/ubuntu-focal-sources.list
+        run: |
+          chmod +777 /etc/apt/sources.list.d/ubuntu-focal-sources.list
+          echo "deb http://security.ubuntu.com/ubuntu focal-security main universe" > /etc/apt/sources.list.d/ubuntu-focal-sources.list
       - name: Update package list
         run: sudo apt-get update
       - name: Install lib
