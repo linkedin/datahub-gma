@@ -73,13 +73,6 @@ public class EbeanLocalRelationshipQueryDAO {
   }
 
   /**
-   * Get the set of MG entity type names.
-   */
-  public Set<String> getMgEntityTypeNameSet() {
-    return _mgEntityTypeNameSet;
-  }
-
-  /**
    * Finds a list of entities of a specific type based on the given filter on the entity.
    * The SNAPSHOT class must be defined within com.linkedin.metadata.snapshot package in metadata-models.
    * This method is not supported in OLD_SCHEMA_ONLY mode.
@@ -487,13 +480,18 @@ public class EbeanLocalRelationshipQueryDAO {
   }
 
   /**
-   * Creates a set of MG entity type names by querying the database.
+   * Creates and return a set of MG entity type names by querying the database.
    */
-  public void initMgEntityTypeNameSet() {
-    final String sql = "SELECT table_name FROM information_schema.tables"
-        + " WHERE table_type = 'BASE TABLE' AND TABLE_SCHEMA=DATABASE() AND table_name LIKE 'metadata_entity_%'";
-    _mgEntityTypeNameSet = _server.createSqlQuery(sql).findList().stream()
-        .map(row -> row.getString("table_name").replace("metadata_entity_", ""))
-        .collect(Collectors.toSet());
+  public Set<String> initMgEntityTypeNameSet() {
+    if (_mgEntityTypeNameSet == null) {
+      final String sql = "SELECT table_name FROM information_schema.tables"
+          + " WHERE table_type = 'BASE TABLE' AND TABLE_SCHEMA=DATABASE() AND table_name LIKE 'metadata_entity_%'";
+      _mgEntityTypeNameSet = _server.createSqlQuery(sql)
+          .findList()
+          .stream()
+          .map(row -> row.getString("table_name").replace("metadata_entity_", ""))
+          .collect(Collectors.toSet());
+    }
+    return _mgEntityTypeNameSet;
   }
 }
