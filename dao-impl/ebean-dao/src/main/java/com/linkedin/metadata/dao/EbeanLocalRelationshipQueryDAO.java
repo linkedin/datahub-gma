@@ -73,6 +73,13 @@ public class EbeanLocalRelationshipQueryDAO {
   }
 
   /**
+   * Get the set of MG entity type names.
+   */
+  public Set<String> getMgEntityTypeNameSet() {
+    return _mgEntityTypeNameSet;
+  }
+
+  /**
    * Finds a list of entities of a specific type based on the given filter on the entity.
    * The SNAPSHOT class must be defined within com.linkedin.metadata.snapshot package in metadata-models.
    * This method is not supported in OLD_SCHEMA_ONLY mode.
