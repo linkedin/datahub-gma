@@ -251,11 +251,8 @@ public class EbeanLocalRelationshipQueryDAO {
       // there's no concept of MG entity or non-entity in old schema mode. always return false.
       return false;
     }
-    // there is some race condition, the local relationship db might not be ready when EbeanLocalRelationshipQueryDAO inits.
-    // so we can't init the _mgEntityTypeNameSet in constructor.
-    if (_mgEntityTypeNameSet == null) {
-      initMgEntityTypeNameSet();
-    }
+
+    initMgEntityTypeNameSet();
 
     return _mgEntityTypeNameSet.contains(StringUtils.lowerCase(entityType));
   }
@@ -483,6 +480,8 @@ public class EbeanLocalRelationshipQueryDAO {
    * Creates and return a set of MG entity type names by querying the database.
    */
   public Set<String> initMgEntityTypeNameSet() {
+    // there is some race condition, the local relationship db might not be ready when EbeanLocalRelationshipQueryDAO inits.
+    // so we can't init the _mgEntityTypeNameSet in constructor.
     if (_mgEntityTypeNameSet == null) {
       final String sql = "SELECT table_name FROM information_schema.tables"
           + " WHERE table_type = 'BASE TABLE' AND TABLE_SCHEMA=DATABASE() AND table_name LIKE 'metadata_entity_%'";
