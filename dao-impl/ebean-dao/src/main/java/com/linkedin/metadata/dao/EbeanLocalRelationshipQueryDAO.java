@@ -260,6 +260,7 @@ public class EbeanLocalRelationshipQueryDAO {
     return _mgEntityTypeNameSet.contains(StringUtils.lowerCase(entityType));
   }
 
+
   /**
    * Extracts the table name from an entity urn for MG entities. If entityUrn is not for MG entity, return null.
    * @param entityType String representing the type of entity (e.g. "dataset")
@@ -481,7 +482,7 @@ public class EbeanLocalRelationshipQueryDAO {
   /**
    * Creates a set of MG entity type names by querying the database.
    */
-  private void initMgEntityTypeNameSet() {
+  public void initMgEntityTypeNameSet() {
     final String sql = "SELECT table_name FROM information_schema.tables"
         + " WHERE table_type = 'BASE TABLE' AND TABLE_SCHEMA=DATABASE() AND table_name LIKE 'metadata_entity_%'";
     _mgEntityTypeNameSet = _server.createSqlQuery(sql).findList().stream()
