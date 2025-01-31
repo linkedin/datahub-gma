@@ -140,13 +140,13 @@ further denormalize the `Winner` table.
 
 # How to delete an entity?
 
-We purposely made all [metadata aspects](aspect.md) immutable, i.e. each edit results in a new version created with no
+We intentionally made all [metadata aspects](aspect.md) immutable, i.e. each edit results in a new version created with no
 easy way to remove a specific version. However, since the existance of an entity is determined by the existance of its
 associated metadata aspects, it seems that there's no easy way to delete an entity. In fact, this is echoed by the fact
 that [GMS](gms.md) doesn't actually provide any `DELETE` API!
 
 The main reason for choosing this append-only design is that a lot of metadata is valuable and irrecoverable once lost,
-e.g. information curated by human or a lineage produced by a one-off pipeline. Audit trial is also extremely imporatnt
+e.g. information curated by human or a lineage produced by a one-off pipeline. Audit trail is also extremely important
 when it comes to sensitive metadata such as privacy settings, access control etc. We really don't want to wipe out the
 metadata aspects thinking that the entity is no longer needed—to then regret the decision a year later.
 
@@ -154,6 +154,6 @@ Having said that, cluterring your catalog or graph with deleted entities is also
 confusion. To strike a balance, we decided to introduce a special
 [`Status`](https://github.com/linkedin/datahub/blob/master/metadata-models/src/main/pegasus/com/linkedin/common/Status.pdl)
 aspect to indicate if the entity is deleted or not. All aspects of an entity can now live forever, while the entity
-itself can be "soft deleted" by flipping a flag in the `Status` aspect. The flag is then repsected by the search index &
+itself can be "soft deleted" by flipping a flag in the `Status` aspect. The flag is then respected by the search index &
 graph builders when populating the indicies. To keep the storage space in check, one can even implement a garbage
 collector, which reguarly clears out aspects of entities that have been soft-deleted for a long time.
