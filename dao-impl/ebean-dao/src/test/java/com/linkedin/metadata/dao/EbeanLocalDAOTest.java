@@ -2540,13 +2540,16 @@ public class EbeanLocalDAOTest {
     verifyNoMoreInteractions(_mockProducer);
   }
 
-  @Test
-  public void testRemoveRelationshipsDuringAspectSoftDeletion() throws URISyntaxException {
-    EbeanLocalDAO<EntityAspectUnion, FooUrn> fooDao = createDao(FooUrn.class);
+  // common setup logic to the next two tests for relationship removal
+  private void setupAspectsAndRelationships(
+      FooUrn fooUrn,
+      EbeanLocalDAO<EntityAspectUnion, FooUrn> fooDao) throws URISyntaxException {
+    // necessary flag to prevent removal of existing same-type relationships in "another aspect"
+    fooDao.setUseAspectColumnForRelationshipRemoval(true);
+
     EbeanLocalDAO<EntityAspectUnion, BarUrn> barDao = createDao(BarUrn.class);
 
     // add an aspect (AspectFooBar) which includes BelongsTo relationships and ReportsTo relationships
-    FooUrn fooUrn = makeFooUrn(1);
     BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
     BelongsToV2 belongsTo1 = new BelongsToV2().setDestination(BelongsToV2.Destination.create(barUrn1.toString()));
     BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:2");
@@ -2565,6 +2568,23 @@ public class EbeanLocalDAOTest {
     barDao.add(barUrn2, new AspectFoo().setValue("2"), auditStamp);
     barDao.add(barUrn3, new AspectFoo().setValue("3"), auditStamp);
 
+    // add an aspect (AspectFooBaz) which includes BelongsTo relationships
+    BarUrn barUrn4 = BarUrn.createFromString("urn:li:bar:4");
+    BelongsToV2 belongsTo4 = new BelongsToV2().setDestination(BelongsToV2.Destination.create(barUrn4.toString()));
+    BelongsToV2Array belongsToArray2 = new BelongsToV2Array(belongsTo4);
+    AspectFooBaz aspectFooBaz = new AspectFooBaz().setBars(new BarUrnArray(barUrn4)).setBelongsTos(belongsToArray2);
+
+    fooDao.add(fooUrn, aspectFooBaz, auditStamp);
+    barDao.add(barUrn4, new AspectFoo().setValue("4"), auditStamp);
+  }
+
+  @Test
+  public void testRemoveRelationshipsDuringAspectSoftDeletion() throws URISyntaxException {
+    FooUrn fooUrn = makeFooUrn(1);
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> fooDao = createDao(FooUrn.class);
+
+    setupAspectsAndRelationships(fooUrn, fooDao);
+
     // Verify local relationships and entities are added.
     EbeanLocalRelationshipQueryDAO ebeanLocalRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server);
     ebeanLocalRelationshipQueryDAO.setSchemaConfig(_schemaConfig);
@@ -2573,7 +2593,7 @@ public class EbeanLocalDAOTest {
         ebeanLocalRelationshipQueryDAO.findRelationships(FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class,
             EMPTY_FILTER, BelongsToV2.class, OUTGOING_FILTER, 0, 10);
 
-    assertEquals(resultBelongsTos.size(), 3);
+    assertEquals(resultBelongsTos.size(), 4);
 
     List<ReportsTo> resultReportsTos =
         ebeanLocalRelationshipQueryDAO.findRelationships(FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class,
@@ -2593,6 +2613,57 @@ public class EbeanLocalDAOTest {
     resultBelongsTos = ebeanLocalRelationshipQueryDAO.findRelationships(FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class,
             EMPTY_FILTER, BelongsToV2.class, OUTGOING_FILTER, 0, 10);
 
+    // since we only deleted 1 of the 2 Aspects with BelongsTo relationships, we should still have 1 BelongsTo relationship
+    assertEquals(resultBelongsTos.size(), 1);
+
+    // check that the reportsTo relationship was soft deleted
+    resultReportsTos =
+        ebeanLocalRelationshipQueryDAO.findRelationships(FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class,
+            EMPTY_FILTER, ReportsTo.class, OUTGOING_FILTER, 0, 10);
+
+    assertEquals(resultReportsTos.size(), 0);
+
+    // check that the AspectFooBar aspect was soft deleted
+    Optional<AspectWithExtraInfo<AspectFooBar>> optionalAspect = fooDao.getWithExtraInfo(AspectFooBar.class, fooUrn, 0L);
+    assertFalse(optionalAspect.isPresent());
+  }
+
+  // basically a copy of the above test but makes use of the deleteMany() call
+  @Test
+  public void testDeleteManyWithRelationshipRemoval() throws URISyntaxException {
+    FooUrn fooUrn = makeFooUrn(1);
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> fooDao = createDao(FooUrn.class);
+
+    setupAspectsAndRelationships(fooUrn, fooDao);
+
+    // Verify local relationships and entities are added.
+    EbeanLocalRelationshipQueryDAO ebeanLocalRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server);
+    ebeanLocalRelationshipQueryDAO.setSchemaConfig(_schemaConfig);
+
+    List<BelongsToV2> resultBelongsTos =
+        ebeanLocalRelationshipQueryDAO.findRelationships(FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class,
+            EMPTY_FILTER, BelongsToV2.class, OUTGOING_FILTER, 0, 10);
+
+    assertEquals(resultBelongsTos.size(), 4);
+
+    List<ReportsTo> resultReportsTos =
+        ebeanLocalRelationshipQueryDAO.findRelationships(FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class,
+            EMPTY_FILTER, ReportsTo.class, OUTGOING_FILTER, 0, 10);
+
+    assertEquals(resultReportsTos.size(), 1);
+
+    AspectKey<FooUrn, AspectFooBar> key = new AspectKey<>(AspectFooBar.class, fooUrn, 0L);
+    List<EbeanMetadataAspect> aspects = fooDao.batchGetHelper(Collections.singletonList(key), 1, 0);
+
+    assertEquals(aspects.size(), 1);
+
+    // soft delete the AspectFooBar and AspectFooBaz aspects
+    fooDao.deleteMany(fooUrn, new HashSet<>(Arrays.asList(AspectFooBar.class, AspectFooBaz.class)), _dummyAuditStamp);
+
+    // check that the belongsTo relationships 1, 2, 3, and 4 were soft deleted
+    resultBelongsTos = ebeanLocalRelationshipQueryDAO.findRelationships(FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class,
+        EMPTY_FILTER, BelongsToV2.class, OUTGOING_FILTER, 0, 10);
+
     assertEquals(resultBelongsTos.size(), 0);
 
     // check that the reportsTo relationship was soft deleted
@@ -2605,6 +2676,10 @@ public class EbeanLocalDAOTest {
     // check that the AspectFooBar aspect was soft deleted
     Optional<AspectWithExtraInfo<AspectFooBar>> optionalAspect = fooDao.getWithExtraInfo(AspectFooBar.class, fooUrn, 0L);
     assertFalse(optionalAspect.isPresent());
+
+    // check that the AspectFooBaz aspect was soft deleted
+    Optional<AspectWithExtraInfo<AspectFooBaz>> optionalAspect2 = fooDao.getWithExtraInfo(AspectFooBaz.class, fooUrn, 0L);
+    assertFalse(optionalAspect2.isPresent());
   }
 
   @Test
