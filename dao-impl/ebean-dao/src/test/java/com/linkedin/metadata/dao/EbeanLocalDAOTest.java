@@ -2658,7 +2658,7 @@ public class EbeanLocalDAOTest {
     assertEquals(aspects.size(), 1);
 
     // soft delete the AspectFooBar and AspectFooBaz aspects
-    fooDao.deleteMany(fooUrn, Arrays.asList(AspectFooBar.class, AspectFooBaz.class), _dummyAuditStamp);
+    fooDao.deleteMany(fooUrn, new HashSet<>(Arrays.asList(AspectFooBar.class, AspectFooBaz.class)), _dummyAuditStamp);
 
     // check that the belongsTo relationships 1, 2, 3, and 4 were soft deleted
     resultBelongsTos = ebeanLocalRelationshipQueryDAO.findRelationships(FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class,
