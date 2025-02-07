@@ -812,6 +812,61 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
+   * Deletes the latest version of aspects for an entity. Aspects must be a supported aspect types in {@code ASPECT_UNION}
+   *
+   * <p>The new aspect will have an automatically assigned version number, which is guaranteed to be positive and
+   * monotonically increasing. Older versions of aspect will be purged automatically based on the retention setting.
+   *
+   * <p>Note that we do not support Post-update hooks while soft deleting an aspect
+   *
+   * Note that deletion is an atomic operation; either all aspects are deleted or none are.
+   *
+   * @param urn urn the URN for the entity the aspects are attached to
+   * @param aspectClasses aspectClasses of the aspects being deleted
+   * @param auditStamp the audit stamp of this action
+   * @param maxTransactionRetry maximum number of transaction retries before throwing an exception
+   */
+  public void deleteMany(@Nonnull URN urn,
+      @Nonnull List<Class<? extends RecordTemplate>> aspectClasses,
+      @Nonnull AuditStamp auditStamp,
+      int maxTransactionRetry) {
+    deleteMany(urn, aspectClasses, auditStamp, maxTransactionRetry, null);
+  }
+
+  /**
+   * Similar to {@link #deleteMany(Urn, List, AuditStamp, int)} but uses the default maximum transaction retry.
+   */
+  @Nonnull
+  public void deleteMany(@Nonnull URN urn, @Nonnull List<Class<? extends RecordTemplate>> aspectClasses,
+      @Nonnull AuditStamp auditStamp) {
+    deleteMany(urn, aspectClasses, auditStamp, DEFAULT_MAX_TRANSACTION_RETRY);
+  }
+
+  /**
+   * Same as above {@link #deleteMany(Urn, List, AuditStamp)} but with tracking context.
+   */
+  @Nonnull
+  public void deleteMany(@Nonnull URN urn, @Nonnull List<Class<? extends RecordTemplate>> aspectClasses,
+      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext) {
+    deleteMany(urn, aspectClasses, auditStamp, DEFAULT_MAX_TRANSACTION_RETRY, trackingContext);
+  }
+
+  /**
+   * Same as {@link #deleteMany(Urn, List, AuditStamp, int)} but with tracking context.
+   */
+  public void deleteMany(@Nonnull URN urn,
+      @Nonnull List<Class<? extends RecordTemplate>> aspectClasses,
+      @Nonnull AuditStamp auditStamp,
+      int maxTransactionRetry,
+      @Nullable IngestionTrackingContext trackingContext) {
+    // entire delete operation should be atomic
+    runInTransactionWithRetry(() -> {
+      aspectClasses.forEach(x -> delete(urn, x, auditStamp, maxTransactionRetry, trackingContext));
+      return null;
+    }, maxTransactionRetry);
+  }
+
+  /**
    * Deletes the latest version of aspect for an entity.
    *
    * <p>The new aspect will have an automatically assigned version number, which is guaranteed to be positive and
