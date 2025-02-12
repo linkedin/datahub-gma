@@ -913,7 +913,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   /**
    * Deletes the latest version of an aspect for an entity and returns the ***old value***.
    *
-   * Note that if the aspect is already null or deleted, the return value will be null. Mechanistically, upon a normal
+   * <p>Note that if the aspect is already null or deleted, the return value will be null. Mechanistically, upon a normal
    * "LIVE" ingestion, the deletion operation is skipped altogether.
    */
   @Nullable
