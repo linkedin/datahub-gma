@@ -2749,7 +2749,7 @@ public class EbeanLocalDAOTest {
     dao.add(urn, v0, _dummyAuditStamp);
 
     // attempt to delete an aspect that doesn't exist
-    AspectBaz foo = dao.deleteWithReturn(urn, AspectBaz.class, _dummyAuditStamp, 3, null);
+    AspectBar foo = dao.deleteWithReturn(urn, AspectBar.class, _dummyAuditStamp, 3, null);
     assertNull(foo);
   }
 
