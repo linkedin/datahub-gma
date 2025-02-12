@@ -2696,14 +2696,14 @@ public class EbeanLocalDAOTest {
 
     // check that the AspectFooBar content returned matches the pre-deletion content
     Optional<EntityAspectUnion> aspectFooBarDeleted = deletedAspects.stream()
-        .filter(aspect -> aspect.getAspectFooBar() != null)
+        .filter(EntityAspectUnion::isAspectFooBar)
         .findFirst();
     assertTrue(aspectFooBarDeleted.isPresent());
     assertEquals(aspectFooBarDeleted.get().getAspectFooBar(), aspectFooBar);
 
     // check that the AspectFooBaz content returned matches the pre-deletion content
     Optional<EntityAspectUnion> aspectFooBazDeleted = deletedAspects.stream()
-        .filter(aspect -> aspect.getAspectFooBaz() != null)
+        .filter(EntityAspectUnion::isAspectFooBaz)
         .findFirst();
     assertTrue(aspectFooBazDeleted.isPresent());
     assertEquals(aspectFooBazDeleted.get().getAspectFooBaz(), aspectFooBaz);
@@ -2767,6 +2767,62 @@ public class EbeanLocalDAOTest {
     // attempt to delete an aspect that has already been deleted
     AspectFoo fooAgain = dao.deleteWithReturn(urn, AspectFoo.class, _dummyAuditStamp, 3, null);
     assertNull(fooAgain);
+  }
+
+  @Test
+  public void testDeleteManyOnNonexistentAsset() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn urn = makeFooUrn(1);
+
+    Collection<EntityAspectUnion> deletionResults =
+        dao.deleteMany(urn, new HashSet<>(Collections.singletonList(AspectFoo.class)), _dummyAuditStamp, 3, null);
+
+    // make sure return collection is empty
+    assertEquals(deletionResults.size(), 0);
+  }
+
+  @Test
+  public void testDeleteManyOnNullAspect() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn urn = makeFooUrn(1);
+
+    // add aspect so the row exists in the entity table, but the column for other aspects will be empty
+    AspectFoo v0 = new AspectFoo().setValue("foo");
+    dao.add(urn, v0, _dummyAuditStamp);
+
+    // attempt to delete an aspect that doesn't exist
+    Collection<EntityAspectUnion> deletionResults =
+        dao.deleteMany(urn, new HashSet<>(Collections.singletonList(AspectBar.class)), _dummyAuditStamp, 3, null);
+
+    // make sure return collection is empty
+    assertEquals(deletionResults.size(), 0);
+  }
+
+  @Test
+  public void testDeleteManyOnAlreadyDeletedAspect() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn urn = makeFooUrn(1);
+    AspectFoo v0 = new AspectFoo().setValue("foo");
+    dao.add(urn, v0, _dummyAuditStamp);
+
+    // delete the aspect
+    Collection<EntityAspectUnion> deletionResults =
+        dao.deleteMany(urn, new HashSet<>(Collections.singletonList(AspectFoo.class)), _dummyAuditStamp, 3, null);
+    assertEquals(deletionResults.size(), 1);
+
+    // make sure that the content matches the original
+    Optional<EntityAspectUnion> aspectFooDeleted = deletionResults.stream()
+        .filter(EntityAspectUnion::isAspectFoo)
+        .findFirst();
+    assertTrue(aspectFooDeleted.isPresent());
+    assertEquals(aspectFooDeleted.get().getAspectFoo(), v0);
+
+    // attempt to delete an aspect that has already been deleted
+    Collection<EntityAspectUnion> deletionResultsAgain =
+        dao.deleteMany(urn, new HashSet<>(Collections.singletonList(AspectFoo.class)), _dummyAuditStamp, 3, null);
+
+    // make sure return collection is empty
+    assertEquals(deletionResultsAgain.size(), 0);
   }
 
   @Test

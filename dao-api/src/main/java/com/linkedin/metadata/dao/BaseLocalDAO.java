@@ -58,6 +58,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -829,7 +830,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param auditStamp the audit stamp of this action
    * @param maxTransactionRetry maximum number of transaction retries before throwing an exception
    * @return a collection of the deleted aspects (their value before deletion), each wrapped in an instance of {@link ASPECT_UNION}
+   *         If an aspect is already null or deleted, the return collection will not contain it whatsoever (it's "null").
    */
+  @Nonnull
   public Collection<ASPECT_UNION> deleteMany(@Nonnull URN urn,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses,
       @Nonnull AuditStamp auditStamp,
@@ -860,6 +863,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   /**
    * Same as {@link #deleteMany(Urn, Set, AuditStamp, int)} but with tracking context.
    */
+  @Nonnull
   public Collection<ASPECT_UNION> deleteMany(@Nonnull URN urn,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses,
       @Nonnull AuditStamp auditStamp,
@@ -872,7 +876,11 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
         .collect(Collectors.toList()), maxTransactionRetry);
 
     // package into ASPECT_UNION, this is logic performed in unwrapAddResultToUnion()
-    return results.stream().map(x -> ModelUtils.newEntityUnion(_aspectUnionClass, x)).collect(Collectors.toList());
+    // Aspect Union members are not allowed to be 'null' by convention (see ModelUtils' call tracing), so we must
+    // filter out all nulls from the results.
+    return results.stream()
+        .filter(Objects::nonNull)
+        .map(x -> ModelUtils.newEntityUnion(_aspectUnionClass, x)).collect(Collectors.toList());
   }
 
   /**
@@ -904,7 +912,11 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   /**
    * Deletes the latest version of an aspect for an entity and returns the ***old value***.
+   *
+   * Note that if the aspect is already null or deleted, the return value will be null. Mechanistically, upon a normal
+   * "LIVE" ingestion, the deletion operation is skipped altogether.
    */
+  @Nullable
   public <ASPECT extends RecordTemplate> ASPECT deleteWithReturn(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull AuditStamp auditStamp, int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext) {
 
