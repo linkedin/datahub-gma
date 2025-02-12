@@ -90,6 +90,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -2633,8 +2634,38 @@ public class EbeanLocalDAOTest {
   public void testDeleteManyWithRelationshipRemoval() throws URISyntaxException {
     FooUrn fooUrn = makeFooUrn(1);
     EbeanLocalDAO<EntityAspectUnion, FooUrn> fooDao = createDao(FooUrn.class);
+    // necessary flag to prevent removal of existing same-type relationships in "another aspect"
+    fooDao.setUseAspectColumnForRelationshipRemoval(true);
 
-    setupAspectsAndRelationships(fooUrn, fooDao);
+    EbeanLocalDAO<EntityAspectUnion, BarUrn> barDao = createDao(BarUrn.class);
+
+    // add an aspect (AspectFooBar) which includes BelongsTo relationships and ReportsTo relationships
+    BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
+    BelongsToV2 belongsTo1 = new BelongsToV2().setDestination(BelongsToV2.Destination.create(barUrn1.toString()));
+    BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:2");
+    BelongsToV2 belongsTo2 = new BelongsToV2().setDestination(BelongsToV2.Destination.create(barUrn2.toString()));
+    BarUrn barUrn3 = BarUrn.createFromString("urn:li:bar:3");
+    BelongsToV2 belongsTo3 = new BelongsToV2().setDestination(BelongsToV2.Destination.create(barUrn3.toString()));
+    BelongsToV2Array belongsToArray = new BelongsToV2Array(belongsTo1, belongsTo2, belongsTo3);
+    ReportsTo reportsTo = new ReportsTo().setSource(fooUrn).setDestination(barUrn1);
+    ReportsToArray reportsToArray = new ReportsToArray(reportsTo);
+    AspectFooBar aspectFooBar = new AspectFooBar()
+        .setBars(new BarUrnArray(barUrn1, barUrn2, barUrn3)).setBelongsTos(belongsToArray).setReportsTos(reportsToArray);
+    AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
+
+    fooDao.add(fooUrn, aspectFooBar, auditStamp);
+    barDao.add(barUrn1, new AspectFoo().setValue("1"), auditStamp);
+    barDao.add(barUrn2, new AspectFoo().setValue("2"), auditStamp);
+    barDao.add(barUrn3, new AspectFoo().setValue("3"), auditStamp);
+
+    // add an aspect (AspectFooBaz) which includes BelongsTo relationships
+    BarUrn barUrn4 = BarUrn.createFromString("urn:li:bar:4");
+    BelongsToV2 belongsTo4 = new BelongsToV2().setDestination(BelongsToV2.Destination.create(barUrn4.toString()));
+    BelongsToV2Array belongsToArray2 = new BelongsToV2Array(belongsTo4);
+    AspectFooBaz aspectFooBaz = new AspectFooBaz().setBars(new BarUrnArray(barUrn4)).setBelongsTos(belongsToArray2);
+
+    fooDao.add(fooUrn, aspectFooBaz, auditStamp);
+    barDao.add(barUrn4, new AspectFoo().setValue("4"), auditStamp);
 
     // Verify local relationships and entities are added.
     EbeanLocalRelationshipQueryDAO ebeanLocalRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server);
@@ -2658,7 +2689,24 @@ public class EbeanLocalDAOTest {
     assertEquals(aspects.size(), 1);
 
     // soft delete the AspectFooBar and AspectFooBaz aspects
-    fooDao.deleteMany(fooUrn, new HashSet<>(Arrays.asList(AspectFooBar.class, AspectFooBaz.class)), _dummyAuditStamp);
+    Collection<EntityAspectUnion> deletedAspects =
+        fooDao.deleteMany(fooUrn, new HashSet<>(Arrays.asList(AspectFooBar.class, AspectFooBaz.class)), _dummyAuditStamp);
+
+    assertEquals(deletedAspects.size(), 2);
+
+    // check that the AspectFooBar content returned matches the pre-deletion content
+    Optional<EntityAspectUnion> aspectFooBarDeleted = deletedAspects.stream()
+        .filter(aspect -> aspect.getAspectFooBar() != null)
+        .findFirst();
+    assertTrue(aspectFooBarDeleted.isPresent());
+    assertEquals(aspectFooBarDeleted.get().getAspectFooBar(), aspectFooBar);
+
+    // check that the AspectFooBaz content returned matches the pre-deletion content
+    Optional<EntityAspectUnion> aspectFooBazDeleted = deletedAspects.stream()
+        .filter(aspect -> aspect.getAspectFooBaz() != null)
+        .findFirst();
+    assertTrue(aspectFooBazDeleted.isPresent());
+    assertEquals(aspectFooBazDeleted.get().getAspectFooBaz(), aspectFooBaz);
 
     // check that the belongsTo relationships 1, 2, 3, and 4 were soft deleted
     resultBelongsTos = ebeanLocalRelationshipQueryDAO.findRelationships(FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class,
@@ -2680,6 +2728,45 @@ public class EbeanLocalDAOTest {
     // check that the AspectFooBaz aspect was soft deleted
     Optional<AspectWithExtraInfo<AspectFooBaz>> optionalAspect2 = fooDao.getWithExtraInfo(AspectFooBaz.class, fooUrn, 0L);
     assertFalse(optionalAspect2.isPresent());
+  }
+
+  @Test
+  public void testDeleteWithReturnOnNonexistentAsset() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn urn = makeFooUrn(1);
+
+    AspectFoo foo = dao.deleteWithReturn(urn, AspectFoo.class, _dummyAuditStamp, 3, null);
+    assertNull(foo);
+  }
+
+  @Test
+  public void testDeleteWithReturnOnNullAspect() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn urn = makeFooUrn(1);
+
+    // add aspect so the row exists in the entity table, but the column for other aspects will be empty
+    AspectFoo v0 = new AspectFoo().setValue("foo");
+    dao.add(urn, v0, _dummyAuditStamp);
+
+    // attempt to delete an aspect that doesn't exist
+    AspectBaz foo = dao.deleteWithReturn(urn, AspectBaz.class, _dummyAuditStamp, 3, null);
+    assertNull(foo);
+  }
+
+  @Test
+  public void testDeleteWithReturnOnAlreadyDeletedAspect() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn urn = makeFooUrn(1);
+    AspectFoo v0 = new AspectFoo().setValue("foo");
+    dao.add(urn, v0, _dummyAuditStamp);
+    AspectFoo foo = dao.deleteWithReturn(urn, AspectFoo.class, _dummyAuditStamp, 3, null);
+
+    // make sure that the content matches the original
+    assertEquals(foo, v0);
+
+    // attempt to delete an aspect that has already been deleted
+    AspectFoo fooAgain = dao.deleteWithReturn(urn, AspectFoo.class, _dummyAuditStamp, 3, null);
+    assertNull(fooAgain);
   }
 
   @Test
