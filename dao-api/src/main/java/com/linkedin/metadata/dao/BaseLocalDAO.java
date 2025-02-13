@@ -49,6 +49,7 @@ import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
 import java.sql.Timestamp;
 import java.time.Clock;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -57,6 +58,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -659,7 +661,10 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   private <ASPECT extends RecordTemplate> ASPECT_UNION unwrapAddResultToUnion(URN urn, AddResult<ASPECT> result,
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext) {
+    // handle post-update hooks and emit MAE + return the newValue
     ASPECT rawResult = unwrapAddResult(urn, result, auditStamp, trackingContext);
+
+    // package it into a union
     return ModelUtils.newEntityUnion(_aspectUnionClass, rawResult);
   }
 
@@ -817,53 +822,65 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * <p>The new aspect will have an automatically assigned version number, which is guaranteed to be positive and
    * monotonically increasing. Older versions of aspect will be purged automatically based on the retention setting.
    *
-   * <p>Note that we do not support Post-update hooks while soft deleting an aspect
+   * <p>Note that we do not currently support pre- or post- update hooks while soft deleting an aspect.
    *
    * @param urn urn the URN for the entity the aspects are attached to
    * @param aspectClasses Aspect Classes of the aspects being deleted, must be supported aspect types in {@code ASPECT_UNION}
    *                      Because Aspect Classes must be unique for a given Entity, we use a set to avoid duplicates.
    * @param auditStamp the audit stamp of this action
    * @param maxTransactionRetry maximum number of transaction retries before throwing an exception
+   * @return a collection of the deleted aspects (their value before deletion), each wrapped in an instance of {@link ASPECT_UNION}
+   *         If an aspect is already null or deleted, the return collection will not contain it whatsoever (it's "null").
    */
-  public void deleteMany(@Nonnull URN urn,
+  @Nonnull
+  public Collection<ASPECT_UNION> deleteMany(@Nonnull URN urn,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses,
       @Nonnull AuditStamp auditStamp,
       int maxTransactionRetry) {
-    deleteMany(urn, aspectClasses, auditStamp, maxTransactionRetry, null);
+    return deleteMany(urn, aspectClasses, auditStamp, maxTransactionRetry, null);
   }
 
   /**
    * Similar to {@link #deleteMany(Urn, Set, AuditStamp, int)} but uses the default maximum transaction retry.
    */
   @Nonnull
-  public void deleteMany(@Nonnull URN urn, @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses,
+  public Collection<ASPECT_UNION> deleteMany(
+      @Nonnull URN urn, @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses,
       @Nonnull AuditStamp auditStamp) {
-    deleteMany(urn, aspectClasses, auditStamp, DEFAULT_MAX_TRANSACTION_RETRY);
+    return deleteMany(urn, aspectClasses, auditStamp, DEFAULT_MAX_TRANSACTION_RETRY);
   }
 
   /**
    * Same as above {@link #deleteMany(Urn, Set, AuditStamp)} but with tracking context.
    */
   @Nonnull
-  public void deleteMany(@Nonnull URN urn, @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses,
+  public Collection<ASPECT_UNION> deleteMany(
+      @Nonnull URN urn, @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses,
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext) {
-    deleteMany(urn, aspectClasses, auditStamp, DEFAULT_MAX_TRANSACTION_RETRY, trackingContext);
+    return deleteMany(urn, aspectClasses, auditStamp, DEFAULT_MAX_TRANSACTION_RETRY, trackingContext);
   }
 
   /**
    * Same as {@link #deleteMany(Urn, Set, AuditStamp, int)} but with tracking context.
    */
-  public void deleteMany(@Nonnull URN urn,
+  @Nonnull
+  public Collection<ASPECT_UNION> deleteMany(@Nonnull URN urn,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses,
       @Nonnull AuditStamp auditStamp,
       int maxTransactionRetry,
       @Nullable IngestionTrackingContext trackingContext) {
 
     // entire delete operation should be atomic
-    runInTransactionWithRetry(() -> {
-      aspectClasses.forEach(x -> delete(urn, x, auditStamp, maxTransactionRetry, trackingContext));
-      return null;
-    }, maxTransactionRetry);
+    final Collection<RecordTemplate> results = runInTransactionWithRetry(() -> aspectClasses.stream()
+        .map(x -> deleteWithReturn(urn, x, auditStamp, maxTransactionRetry, trackingContext))
+        .collect(Collectors.toList()), maxTransactionRetry);
+
+    // package into ASPECT_UNION, this is logic performed in unwrapAddResultToUnion()
+    // Aspect Union members are not allowed to be 'null' by convention (see ModelUtils' call tracing), so we must
+    // filter out all nulls from the results.
+    return results.stream()
+        .filter(Objects::nonNull)
+        .map(x -> ModelUtils.newEntityUnion(_aspectUnionClass, x)).collect(Collectors.toList());
   }
 
   /**
@@ -890,16 +907,34 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    */
   public <ASPECT extends RecordTemplate> void delete(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull AuditStamp auditStamp, int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext) {
+    deleteWithReturn(urn, aspectClass, auditStamp, maxTransactionRetry, trackingContext);
+  }
+
+  /**
+   * Deletes the latest version of an aspect for an entity and returns the ***old value***.
+   *
+   * <p>Note that if the aspect is already null or deleted, the return value will be null. Mechanistically, upon a normal
+   * "LIVE" ingestion, the deletion operation is skipped altogether.
+   */
+  @Nullable
+  public <ASPECT extends RecordTemplate> ASPECT deleteWithReturn(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
+      @Nonnull AuditStamp auditStamp, int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext) {
 
     checkValidAspect(aspectClass);
 
-    runInTransactionWithRetry(() -> {
+    final AddResult<ASPECT> result = runInTransactionWithRetry(() -> {
       final AspectEntry<ASPECT> latest = getLatest(urn, aspectClass, false);
       final IngestionParams ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
       return addCommon(urn, latest, null, aspectClass, auditStamp, new DefaultEqualityTester<>(), trackingContext, ingestionParams);
     }, maxTransactionRetry);
 
+    return result.getOldValue();
+
     // TODO: add support for sending MAE for soft deleted aspects
+    // FY25H2 Note: When performing an Aspect UPDATE, unwrapAddResultToUnion() is called, which emits MAE and does post-update hooks.
+    //    When doing similar for DELETE, we should end up doing something similar, but specific to deletion.
+    //    We *could* modify the existing unwrapAddResultToUnion() to account for both cases and just reuse it completely,
+    //    but this might be confusing, so it might be best to make a deletion-specific version of that method.
   }
 
   /**
