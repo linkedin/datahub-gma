@@ -18,6 +18,7 @@ import com.linkedin.metadata.query.SortOrder;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.urn.BurgerUrn;
 import com.linkedin.testing.urn.FooUrn;
+import io.ebean.DuplicateKeyException;
 import io.ebean.Ebean;
 import io.ebean.EbeanServer;
 import io.ebean.SqlRow;
@@ -409,6 +410,28 @@ public class EbeanLocalAccessTest {
       assertTrue(_ebeanLocalAccessFoo.checkColumnExists("metadata_entity_foo", "i_aspectfoo$value"));
     } else {
       assertTrue(_ebeanLocalAccessFoo.checkColumnExists("metadata_entity_foo", "i_aspectfoo0value"));
+    }
+  }
+
+  @Test
+  public void testCreateNewAspect() {
+    FooUrn fooUrn = makeFooUrn(101);
+    AspectFoo aspectFoo = new AspectFoo().setValue("foo");
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+    int result = _ebeanLocalAccessFoo.create(fooUrn, aspectFoo, AspectFoo.class, auditStamp, null, false);
+    assertEquals(result, 1);
+  }
+
+  @Test
+  public void testCreateDuplicateAspect() {
+    FooUrn fooUrn = makeFooUrn(102);
+    AspectFoo aspectFoo = new AspectFoo().setValue("foo");
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+    _ebeanLocalAccessFoo.create(fooUrn, aspectFoo, AspectFoo.class, auditStamp, null, false);
+    try {
+      _ebeanLocalAccessFoo.create(fooUrn, aspectFoo, AspectFoo.class, auditStamp, null, false);
+    } catch (DuplicateKeyException duplicateKeyException) {
+      assert (duplicateKeyException.getMessage().contains("Duplicate entry"));
     }
   }
 }

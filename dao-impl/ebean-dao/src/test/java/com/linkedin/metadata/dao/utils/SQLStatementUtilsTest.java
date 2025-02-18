@@ -54,6 +54,15 @@ public class SQLStatementUtilsTest {
   }
 
   @Test
+  public void testCreateInsertAspectSql() {
+    FooUrn fooUrn = makeFooUrn(1);
+    String expectedSql =
+        "INSERT INTO metadata_entity_foo (urn, a_urn, a_aspectfoo, lastmodifiedon, lastmodifiedby) VALUE (:urn, "
+            + ":a_urn, :metadata, :lastmodifiedon, :lastmodifiedby);";
+    assertEquals(SQLStatementUtils.createAspectInsertSql(fooUrn, AspectFoo.class, false), expectedSql);
+  }
+
+  @Test
   public void testCreateAspectReadSql() {
     FooUrn fooUrn1 = makeFooUrn(1);
     FooUrn fooUrn2 = makeFooUrn(2);
