@@ -153,6 +153,59 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   }
 
   /**
+   * Create aspect from entity table.
+   *
+   * @param urn                      entity urn
+   * @param aspectValue              aspect value in {@link RecordTemplate}
+   * @param aspectClass              class of the aspect
+   * @param auditStamp               audit timestamp
+   * @param ingestionTrackingContext the ingestionTrackingContext of the MCE responsible for this update
+   * @param isTestMode               whether the test mode is enabled or not
+   * @return number of rows inserted or updated
+   */
+  @Override
+  public <ASPECT extends RecordTemplate> int create(@Nonnull URN urn, @Nullable ASPECT aspectValue,
+      @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp,
+      @Nullable IngestionTrackingContext ingestionTrackingContext, boolean isTestMode) {
+    final long timestamp = auditStamp.hasTime() ? auditStamp.getTime() : System.currentTimeMillis();
+    final String actor = auditStamp.hasActor() ? auditStamp.getActor().toString() : DEFAULT_ACTOR;
+    final String impersonator = auditStamp.hasImpersonator() ? auditStamp.getImpersonator().toString() : null;
+    final boolean urnExtraction = _urnPathExtractor != null && !(_urnPathExtractor instanceof EmptyPathExtractor);
+
+    final SqlUpdate sqlUpdate;
+    sqlUpdate = _server.createSqlUpdate(SQLStatementUtils.createAspectInsertSql(urn, aspectClass, isTestMode));
+
+    sqlUpdate.setParameter("urn", urn.toString())
+        .setParameter("lastmodifiedon", new Timestamp(timestamp).toString())
+        .setParameter("lastmodifiedby", actor);
+
+    // If a non-default UrnPathExtractor is provided, the user MUST specify in their schema generation scripts
+    // 'ALTER TABLE <table> ADD COLUMN a_urn JSON'.
+    if (urnExtraction) {
+      sqlUpdate.setParameter("a_urn", toJsonString(urn));
+    }
+
+    // newValue is null if aspect is to be soft-deleted.
+    if (aspectValue == null) {
+      return sqlUpdate.setParameter("metadata", DELETED_VALUE).execute();
+    }
+
+    AuditedAspect auditedAspect = new AuditedAspect()
+        .setAspect(RecordUtils.toJsonString(aspectValue))
+        .setCanonicalName(aspectClass.getCanonicalName())
+        .setLastmodifiedby(actor)
+        .setLastmodifiedon(new Timestamp(timestamp).toString())
+        .setCreatedfor(impersonator, SetMode.IGNORE_NULL);
+    if (ingestionTrackingContext != null) {
+      auditedAspect.setEmitTime(ingestionTrackingContext.getEmitTime(), SetMode.IGNORE_NULL);
+      auditedAspect.setEmitter(ingestionTrackingContext.getEmitter(), SetMode.IGNORE_NULL);
+    }
+
+    final String metadata = toJsonString(auditedAspect);
+    return sqlUpdate.setParameter("metadata", metadata).execute();
+  }
+
+  /**
    * Construct and execute a SQL statement as follows.
    * SELECT urn, aspect1, lastmodifiedon, lastmodifiedby FROM metadata_entity_foo WHERE urn = 'urn:1' AND JSON_EXTRACT(aspect1, '$.gma_deleted') IS NULL
    * UNION ALL

@@ -63,6 +63,11 @@ public class SQLStatementUtils {
       "INSERT INTO %s (urn, a_urn, %s, lastmodifiedon, lastmodifiedby) VALUE (:urn, :a_urn, :metadata, :lastmodifiedon, :lastmodifiedby) "
           + "ON DUPLICATE KEY UPDATE %s = :metadata, lastmodifiedon = :lastmodifiedon, a_urn = :a_urn;";
 
+  // Used to create an aspect without upsert behavior.
+  // If the db tabled already contains a row with a given urn, the insert will fail
+  private static final String SQL_INSERT_ASPECT_WITH_URN_TEMPLATE =
+      "INSERT INTO %s (urn, a_urn, %s, lastmodifiedon, lastmodifiedby) VALUE (:urn, :a_urn, :metadata, :lastmodifiedon, :lastmodifiedby);";
+
   // "JSON_EXTRACT(%s, '$.gma_deleted') IS NOT NULL" is used to exclude soft-deleted entity which has no lastmodifiedon.
   // for details, see the known limitations on https://github.com/linkedin/datahub-gma/pull/311. Same reason for
   // SQL_UPDATE_ASPECT_WITH_URN_TEMPLATE
@@ -236,6 +241,13 @@ public class SQLStatementUtils {
     final String tableName = isTestMode ? getTestTableName(urn) : getTableName(urn);
     final String columnName = getAspectColumnName(urn.getEntityType(), aspectClass);
     return String.format(urnExtraction ? SQL_UPSERT_ASPECT_WITH_URN_TEMPLATE : SQL_UPSERT_ASPECT_TEMPLATE, tableName, columnName, columnName);
+  }
+
+  public static <ASPECT extends RecordTemplate> String createAspectInsertSql(@Nonnull Urn urn,
+      @Nonnull Class<ASPECT> aspectClass, boolean isTestMode) {
+    final String tableName = isTestMode ? getTestTableName(urn) : getTableName(urn);
+    final String columnName = getAspectColumnName(urn.getEntityType(), aspectClass);
+    return String.format(SQL_INSERT_ASPECT_WITH_URN_TEMPLATE, tableName, columnName, columnName);
   }
 
   /**
