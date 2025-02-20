@@ -89,6 +89,13 @@ public class BaseLocalDAOTest {
     }
 
     @Override
+    protected <ASPECT extends RecordTemplate> long createNewAspect(@Nonnull FooUrn urn,
+        @Nonnull Class<ASPECT> aspectClass, @Nonnull ASPECT newEntry, @Nonnull AuditStamp newAuditStamp,
+        @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
+      return 0;
+    }
+
+    @Override
     public <ASPECT extends RecordTemplate> void updateEntityTables(@Nonnull FooUrn urn, @Nonnull Class<ASPECT> aspectClass) {
 
     }
@@ -671,6 +678,25 @@ public class BaseLocalDAOTest {
     _dummyLocalDAO.setAspectCallbackRegistry(aspectCallbackRegistry);
     BaseLocalDAO.AspectUpdateResult result = _dummyLocalDAO.aspectCallbackHelper(urn, foo, Optional.empty(), null);
     AspectFoo newAspect = (AspectFoo) result.getUpdatedAspect();
+    assertEquals(newAspect, bar);
+  }
+
+  @Test
+  public void testCreateAspectWithCallbacks() throws URISyntaxException {
+    // Setup test data
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectFoo bar = new AspectFoo().setValue("bar");
+
+    Map<AspectCallbackMapKey, AspectCallbackRoutingClient> aspectCallbackMap = new HashMap<>();
+    AspectCallbackMapKey aspectCallbackMapKey = new AspectCallbackMapKey(AspectFoo.class, urn.getEntityType());
+    aspectCallbackMap.put(aspectCallbackMapKey, new SampleAspectCallbackRoutingClient());
+
+    AspectCallbackRegistry aspectCallbackRegistry = new AspectCallbackRegistry(aspectCallbackMap);
+    _dummyLocalDAO.setAspectCallbackRegistry(aspectCallbackRegistry);
+    BaseLocalDAO.AddResult<AspectFoo>
+        result = _dummyLocalDAO.createAspectWithCallbacks(urn, foo, AspectFoo.class, _dummyAuditStamp, null, new IngestionParams().setTestMode(false));
+    AspectFoo newAspect = (AspectFoo) result.getNewValue();
     assertEquals(newAspect, bar);
   }
 

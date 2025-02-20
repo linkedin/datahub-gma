@@ -63,6 +63,7 @@ import javax.annotation.Nullable;
 import javax.persistence.OptimisticLockException;
 import javax.persistence.RollbackException;
 import javax.persistence.Table;
+import lombok.NonNull;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 
@@ -631,6 +632,19 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     handleRelationshipIngestion(urn, newValue, oldValue, aspectClass, isTestMode);
 
     return largestVersion;
+  }
+
+  @Override
+  protected <ASPECT extends RecordTemplate> long createNewAspect(@NonNull URN urn, @Nonnull Class<ASPECT> aspectClass,
+      @Nonnull ASPECT newEntry, @Nonnull AuditStamp newAuditStamp, @Nullable IngestionTrackingContext trackingContext,
+      boolean isTestMode) {
+    int numRows = runInTransactionWithRetry(() -> {
+      // Create the new aspect
+      return _localAccess.create(urn, newEntry, aspectClass, newAuditStamp, trackingContext, isTestMode);
+    }, 1);
+    // Handle relationship ingestion for the new aspect
+    handleRelationshipIngestion(urn, newEntry, null, aspectClass, isTestMode);
+    return numRows;
   }
 
   @Override

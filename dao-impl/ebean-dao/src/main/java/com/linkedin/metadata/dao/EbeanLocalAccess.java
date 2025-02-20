@@ -164,9 +164,18 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    * @return number of rows inserted or updated
    */
   @Override
-  public <ASPECT extends RecordTemplate> int create(@Nonnull URN urn, @Nullable ASPECT aspectValue,
-      @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp,
-      @Nullable IngestionTrackingContext ingestionTrackingContext, boolean isTestMode) {
+  public <ASPECT extends RecordTemplate> int create(
+      @Nonnull URN urn,
+      @Nullable ASPECT aspectValue,
+      @Nonnull Class<ASPECT> aspectClass,
+      @Nonnull AuditStamp auditStamp,
+      @Nullable IngestionTrackingContext ingestionTrackingContext,
+      boolean isTestMode) {
+
+    if (aspectValue == null) {
+      throw new IllegalArgumentException("Aspect value cannot be null");
+    }
+
     final long timestamp = auditStamp.hasTime() ? auditStamp.getTime() : System.currentTimeMillis();
     final String actor = auditStamp.hasActor() ? auditStamp.getActor().toString() : DEFAULT_ACTOR;
     final String impersonator = auditStamp.hasImpersonator() ? auditStamp.getImpersonator().toString() : null;
@@ -183,11 +192,6 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     // 'ALTER TABLE <table> ADD COLUMN a_urn JSON'.
     if (urnExtraction) {
       sqlUpdate.setParameter("a_urn", toJsonString(urn));
-    }
-
-    // newValue is null if aspect is to be soft-deleted.
-    if (aspectValue == null) {
-      return sqlUpdate.setParameter("metadata", DELETED_VALUE).execute();
     }
 
     AuditedAspect auditedAspect = new AuditedAspect()

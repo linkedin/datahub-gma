@@ -659,6 +659,34 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
         trackingContext, updateTuple.getIngestionParams());
   }
 
+  <ASPECT extends RecordTemplate> AddResult<ASPECT> createAspectWithCallbacks(@Nonnull URN urn,
+      @Nonnull ASPECT aspectValue, @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp,
+      @Nullable IngestionTrackingContext trackingContext, @Nonnull IngestionParams ingestionParams) {
+
+    AspectUpdateResult result = aspectCallbackHelper(urn, aspectValue, null, ingestionParams);
+    aspectValue = (ASPECT) result.getUpdatedAspect();
+    // skip the normal ingestion to the DAO
+    if (result.isSkipProcessing()) {
+      return null;
+    }
+
+    checkValidAspect(aspectValue.getClass());
+
+    validateAgainstSchemaAndFillinDefault(aspectValue);
+
+    // Invoke pre-update hooks, if any
+    if (_aspectPreUpdateHooksMap.containsKey(aspectClass)) {
+      for (final BiConsumer<Urn, RecordTemplate> hook : _aspectPreUpdateHooksMap.get(aspectClass)) {
+        hook.accept(urn, aspectValue);
+      }
+    }
+
+    long numRows = createNewAspect(urn, aspectClass, aspectValue, auditStamp, trackingContext, ingestionParams.isTestMode());
+    log.debug("Created aspect {} for urn {} with {} rows", aspectClass.getSimpleName(), urn, numRows);
+
+    return new AddResult<>(null, aspectValue, aspectClass);
+  }
+
   private <ASPECT extends RecordTemplate> ASPECT_UNION unwrapAddResultToUnion(URN urn, AddResult<ASPECT> result,
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext) {
     // handle post-update hooks and emit MAE + return the newValue
@@ -814,6 +842,21 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     // skip MAE producing and post update hook in test mode or if the result is null (no actual update with addCommon)
     return result == null ? null : (updateLambda.getIngestionParams().isTestMode() ? result.newValue
         : unwrapAddResult(urn, result, auditStamp, trackingContext));
+  }
+
+  @Nonnull
+  public <ASPECT extends RecordTemplate> ASPECT create(@Nonnull URN urn, @Nonnull ASPECT aspectValue,
+      @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, int maxTransactionRetry,
+      @Nullable IngestionTrackingContext trackingContext, @Nullable IngestionParams ingestionParams) {
+
+    checkValidAspect(aspectClass);
+
+    final AddResult<ASPECT> result = runInTransactionWithRetry(
+        () -> createAspectWithCallbacks(urn, aspectValue, aspectClass, auditStamp, trackingContext, ingestionParams),
+        maxTransactionRetry);
+
+    // skip MAE producing and post update hook in test mode or if the result is null (no actual update with addCommon)
+    return ingestionParams.isTestMode() ? result.newValue : unwrapAddResult(urn, result, auditStamp, trackingContext);
   }
 
   /**
@@ -1009,6 +1052,16 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     return rawAdd(urn, (Class<ASPECT>) newValue.getClass(), ignored -> newValue, auditStamp, trackingContext, nonNullIngestionParams);
   }
 
+  @Nonnull
+  public <ASPECT extends RecordTemplate> ASPECT create(@Nonnull URN urn, @NonNull ASPECT aspectValue,
+      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext,
+      @Nullable IngestionParams ingestionParams) {
+    final IngestionParams nonNullIngestionParams =
+        ingestionParams == null || !ingestionParams.hasTestMode() ? new IngestionParams().setIngestionMode(
+            IngestionMode.LIVE).setTestMode(false) : ingestionParams;
+    return create(urn, aspectValue, (Class<ASPECT>) aspectValue.getClass(), auditStamp, DEFAULT_MAX_TRANSACTION_RETRY, trackingContext, nonNullIngestionParams);
+  }
+
   /**
    * Similar to {@link #delete(Urn, Class, AuditStamp, int)} but uses the default maximum transaction retry.
    */
@@ -1060,6 +1113,10 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   protected abstract <ASPECT extends RecordTemplate> long saveLatest(@Nonnull URN urn,
       @Nonnull Class<ASPECT> aspectClass, @Nullable ASPECT oldEntry, @Nullable AuditStamp oldAuditStamp,
       @Nullable ASPECT newEntry, @Nonnull AuditStamp newAuditStamp, boolean isSoftDeleted,
+      @Nullable IngestionTrackingContext trackingContext, boolean isTestMode);
+
+  protected abstract <ASPECT extends RecordTemplate> long createNewAspect(@NonNull URN urn,
+      @Nonnull Class<ASPECT> aspectClass, @Nonnull ASPECT newEntry, @Nonnull AuditStamp newAuditStamp,
       @Nullable IngestionTrackingContext trackingContext, boolean isTestMode);
 
   /**
