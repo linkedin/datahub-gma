@@ -31,6 +31,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -156,25 +157,27 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    * Create aspect from entity table.
    *
    * @param urn                      entity urn
-   * @param aspectValue              aspect value in {@link RecordTemplate}
-   * @param aspectClass              class of the aspect
+   * @param aspectValues             list of aspect value in {@link RecordTemplate}
+   * @param aspectCreateLambdas      class of the aspect
    * @param auditStamp               audit timestamp
    * @param ingestionTrackingContext the ingestionTrackingContext of the MCE responsible for this update
    * @param isTestMode               whether the test mode is enabled or not
    * @return number of rows inserted or updated
    */
   @Override
-  public <ASPECT extends RecordTemplate> int create(
+  public <ASPECT_UNION extends RecordTemplate> int create(
       @Nonnull URN urn,
-      @Nullable ASPECT aspectValue,
-      @Nonnull Class<ASPECT> aspectClass,
+      @Nonnull List<? extends RecordTemplate> aspectValues,
+      @Nonnull List<BaseLocalDAO.AspectCreateLambda<? extends RecordTemplate>> aspectCreateLambdas,
       @Nonnull AuditStamp auditStamp,
       @Nullable IngestionTrackingContext ingestionTrackingContext,
       boolean isTestMode) {
 
-    if (aspectValue == null) {
-      throw new IllegalArgumentException("Aspect value cannot be null");
-    }
+    aspectValues.forEach(aspectValue -> {
+      if (aspectValue == null) {
+        throw new IllegalArgumentException("Aspect value cannot be null");
+      }
+    });
 
     final long timestamp = auditStamp.hasTime() ? auditStamp.getTime() : System.currentTimeMillis();
     final String actor = auditStamp.hasActor() ? auditStamp.getActor().toString() : DEFAULT_ACTOR;
@@ -182,7 +185,12 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     final boolean urnExtraction = _urnPathExtractor != null && !(_urnPathExtractor instanceof EmptyPathExtractor);
 
     final SqlUpdate sqlUpdate;
-    sqlUpdate = _server.createSqlUpdate(SQLStatementUtils.createAspectInsertSql(urn, aspectClass, isTestMode));
+
+    List<String> classNames = aspectCreateLambdas.stream()
+        .map(aspectCreateLamdba -> aspectCreateLamdba.getAspectClass().getCanonicalName())
+        .collect(Collectors.toList());
+
+    sqlUpdate = _server.createSqlUpdate(SQLStatementUtils.createAspectInsertSql(urn, classNames, isTestMode));
 
     sqlUpdate.setParameter("urn", urn.toString())
         .setParameter("lastmodifiedon", new Timestamp(timestamp).toString())
@@ -194,18 +202,23 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       sqlUpdate.setParameter("a_urn", toJsonString(urn));
     }
 
-    AuditedAspect auditedAspect = new AuditedAspect()
-        .setAspect(RecordUtils.toJsonString(aspectValue))
-        .setCanonicalName(aspectClass.getCanonicalName())
-        .setLastmodifiedby(actor)
-        .setLastmodifiedon(new Timestamp(timestamp).toString())
-        .setCreatedfor(impersonator, SetMode.IGNORE_NULL);
-    if (ingestionTrackingContext != null) {
-      auditedAspect.setEmitTime(ingestionTrackingContext.getEmitTime(), SetMode.IGNORE_NULL);
-      auditedAspect.setEmitter(ingestionTrackingContext.getEmitter(), SetMode.IGNORE_NULL);
+    List<String> auditedAspects = new ArrayList<>();
+
+    for (int i = 0; i < aspectValues.size(); i++) {
+      AuditedAspect auditedAspect = new AuditedAspect()
+          .setAspect(RecordUtils.toJsonString(aspectValues.get(i)))
+          .setCanonicalName(aspectCreateLambdas.get(i).getAspectClass().getCanonicalName())
+          .setLastmodifiedby(actor)
+          .setLastmodifiedon(new Timestamp(timestamp).toString())
+          .setCreatedfor(impersonator, SetMode.IGNORE_NULL);
+      if (ingestionTrackingContext != null) {
+        auditedAspect.setEmitTime(ingestionTrackingContext.getEmitTime(), SetMode.IGNORE_NULL);
+        auditedAspect.setEmitter(ingestionTrackingContext.getEmitter(), SetMode.IGNORE_NULL);
+      }
+      auditedAspects.add(toJsonString(auditedAspect));
     }
 
-    final String metadata = toJsonString(auditedAspect);
+    String metadata = String.join(",", auditedAspects);
     return sqlUpdate.setParameter("metadata", metadata).execute();
   }
 

@@ -243,11 +243,13 @@ public class SQLStatementUtils {
     return String.format(urnExtraction ? SQL_UPSERT_ASPECT_WITH_URN_TEMPLATE : SQL_UPSERT_ASPECT_TEMPLATE, tableName, columnName, columnName);
   }
 
-  public static <ASPECT extends RecordTemplate> String createAspectInsertSql(@Nonnull Urn urn,
-      @Nonnull Class<ASPECT> aspectClass, boolean isTestMode) {
+  public static String createAspectInsertSql(@Nonnull Urn urn,
+      @Nonnull List<String> aspectClassList, boolean isTestMode) {
     final String tableName = isTestMode ? getTestTableName(urn) : getTableName(urn);
-    final String columnName = getAspectColumnName(urn.getEntityType(), aspectClass);
-    return String.format(SQL_INSERT_ASPECT_WITH_URN_TEMPLATE, tableName, columnName, columnName);
+    List<String> aspectColumns = new ArrayList<>();
+    aspectClassList.forEach(aspectClassName -> aspectColumns.add(getAspectColumnName(urn.getEntityType(), aspectClassName)));
+    String columnList = String.join(", ", aspectColumns);
+    return String.format(SQL_INSERT_ASPECT_WITH_URN_TEMPLATE, tableName, columnList);
   }
 
   /**

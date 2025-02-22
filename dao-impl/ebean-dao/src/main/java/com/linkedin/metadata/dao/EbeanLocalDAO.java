@@ -634,17 +634,25 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     return largestVersion;
   }
 
+  /**
+   * Insert a new aspect record into the metadata_aspect table.
+   *
+   * @param urn                 entity urn
+   * @param aspectCreateLambdas aspect create lambdas
+   * @param aspectValues        aspect values
+   * @param newAuditStamp       audit stamp
+   * @param trackingContext     tracking context
+   * @param isTestMode          test mode
+   * @param <ASPECT_UNION>     aspect union type
+   * @return the number of rows inserted
+   */
   @Override
-  protected <ASPECT extends RecordTemplate> long createNewAspect(@NonNull URN urn, @Nonnull Class<ASPECT> aspectClass,
-      @Nonnull ASPECT newEntry, @Nonnull AuditStamp newAuditStamp, @Nullable IngestionTrackingContext trackingContext,
-      boolean isTestMode) {
-    int numRows = runInTransactionWithRetry(() -> {
-      // Create the new aspect
-      return _localAccess.create(urn, newEntry, aspectClass, newAuditStamp, trackingContext, isTestMode);
-    }, 1);
-    // Handle relationship ingestion for the new aspect
-    handleRelationshipIngestion(urn, newEntry, null, aspectClass, isTestMode);
-    return numRows;
+  protected <ASPECT_UNION extends RecordTemplate> int createNewAspect(@NonNull URN urn,
+      @Nonnull List<AspectCreateLambda<? extends RecordTemplate>> aspectCreateLambdas,
+      @Nonnull List<? extends RecordTemplate> aspectValues, @Nonnull AuditStamp newAuditStamp,
+      @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
+    return runInTransactionWithRetry(() ->
+        _localAccess.create(urn, aspectValues, aspectCreateLambdas, newAuditStamp, trackingContext, isTestMode), 1);
   }
 
   @Override
