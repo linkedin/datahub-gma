@@ -79,15 +79,6 @@ public class RecordUtils {
   }
 
   /**
-   * Serializes a list of {@link RecordTemplate} to JSON string.
-   * @param recordTemplates the list of record templates to serialize
-   * @return the JSON string serialized using {@link JacksonDataTemplateCodec}.
-   */
-  public static String toJsonString(@Nonnull List<RecordTemplate> recordTemplates) {
-    return recordTemplates.stream().map(RecordUtils::toJsonString).collect(Collectors.joining(","));
-  }
-
-  /**
    * Creates a {@link RecordTemplate} object from a serialized JSON string.
    *
    * @param type the type of {@link RecordTemplate} to create

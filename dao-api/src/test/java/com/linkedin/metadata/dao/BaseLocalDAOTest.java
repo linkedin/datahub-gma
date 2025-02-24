@@ -710,7 +710,7 @@ public class BaseLocalDAOTest {
     aspectValues.add(foo);
     aspectValues.add(bar);
 
-    FooUrn result = _dummyLocalDAO.createAspectWithCallbacks(urn, aspectValues, aspectCreateLambdas, _dummyAuditStamp, null);
+    FooUrn result = _dummyLocalDAO.createAspectsWithCallbacks(urn, aspectValues, aspectCreateLambdas, _dummyAuditStamp, null);
     assertEquals(result, urn);
   }
 

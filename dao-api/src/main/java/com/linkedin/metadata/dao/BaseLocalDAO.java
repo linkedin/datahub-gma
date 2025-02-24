@@ -691,7 +691,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @return the URN of the entity if the operation is successful, otherwise null
    * @param <ASPECT_UNION> must be a valid aspect union type defined in com.linkedin.metadata.aspect
    */
-  <ASPECT_UNION extends RecordTemplate> URN createAspectWithCallbacks(@Nonnull URN urn,
+  <ASPECT_UNION extends RecordTemplate> URN createAspectsWithCallbacks(@Nonnull URN urn,
       @Nonnull List<? extends RecordTemplate> aspectValues,
       @Nonnull List<AspectCreateLambda<? extends RecordTemplate>> aspectCreateLambdas,
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext) {
@@ -905,16 +905,12 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     aspectCreateLambdas.forEach(aspectCreateLambda -> checkValidAspect(aspectCreateLambda.getAspectClass()));
 
     // create aspects and process callbacks in a single transaction
-    final List<AddResult<ASPECT>> results = runInTransactionWithRetry(() -> {
-      List<AddResult<ASPECT>> createdAspects = new ArrayList<>();
-      createAspectWithCallbacks(urn, aspectValues, aspectCreateLambdas, auditStamp, trackingContext);
-      return createdAspects;
+    final URN createdUrn = runInTransactionWithRetry(() -> {
+      return createAspectsWithCallbacks(urn, aspectValues, aspectCreateLambdas, auditStamp, trackingContext);
       }, maxTransactionRetry
     );
 
-    results.stream().map(x -> unwrapAddResultToUnion(urn, x, auditStamp, trackingContext));
-
-    return urn;
+    return createdUrn;
   }
 
   /**
