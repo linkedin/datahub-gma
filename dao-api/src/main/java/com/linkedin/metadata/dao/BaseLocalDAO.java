@@ -905,12 +905,10 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     aspectCreateLambdas.forEach(aspectCreateLambda -> checkValidAspect(aspectCreateLambda.getAspectClass()));
 
     // create aspects and process callbacks in a single transaction
-    final URN createdUrn = runInTransactionWithRetry(() -> {
+    return runInTransactionWithRetry(() -> {
       return createAspectsWithCallbacks(urn, aspectValues, aspectCreateLambdas, auditStamp, trackingContext);
       }, maxTransactionRetry
     );
-
-    return createdUrn;
   }
 
   /**
