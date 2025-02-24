@@ -155,6 +155,10 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
   /**
    * Create aspect from entity table.
+   * By this point the callbacks are processed, and the aspect value is validated and ready to be written to database.
+   * Race condition on insert is handled at the query level. If the URN already exists, the insert will fail with
+   * Duplicate Key exception.
+   * All the aspects are inserted in a single query. If the query fails, none of the aspects will be inserted.
    *
    * @param urn                      entity urn
    * @param aspectValues             list of aspect value in {@link RecordTemplate}

@@ -177,7 +177,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     @Nonnull
     IngestionParams ingestionParams;
 
-    public AspectCreateLambda(ASPECT value) {
+    public AspectCreateLambda(@Nonnull ASPECT value) {
       this.aspectClass = (Class<ASPECT>) value.getClass();
       ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
     }
@@ -722,7 +722,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     boolean isTestModeFalseForAll = aspectCreateLambdas.stream().filter(aspectCreateLambda -> aspectCreateLambda.getIngestionParams().isTestMode()).collect(
           Collectors.toList()).isEmpty();
 
-    long numRows = createNewAspect(urn, aspectCreateLambdas, aspectValues, auditStamp, trackingContext, isTestModeFalseForAll);
+    int numRows = createNewAspect(urn, aspectCreateLambdas, aspectValues, auditStamp, trackingContext, isTestModeFalseForAll);
     return numRows > 0 ? urn : null;
   }
 

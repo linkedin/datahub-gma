@@ -63,7 +63,6 @@ import javax.annotation.Nullable;
 import javax.persistence.OptimisticLockException;
 import javax.persistence.RollbackException;
 import javax.persistence.Table;
-import lombok.NonNull;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 
@@ -647,7 +646,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * @return the number of rows inserted
    */
   @Override
-  protected <ASPECT_UNION extends RecordTemplate> int createNewAspect(@NonNull URN urn,
+  protected <ASPECT_UNION extends RecordTemplate> int createNewAspect(@Nonnull URN urn,
       @Nonnull List<AspectCreateLambda<? extends RecordTemplate>> aspectCreateLambdas,
       @Nonnull List<? extends RecordTemplate> aspectValues, @Nonnull AuditStamp newAuditStamp,
       @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
