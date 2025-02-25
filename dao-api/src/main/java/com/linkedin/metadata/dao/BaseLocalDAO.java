@@ -1105,7 +1105,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * Create an entity with multiple aspects.
+   * Create an entity with given list of aspects.
    * @param urn the URN for the entity the aspects are attached to
    * @param aspectValues the list of new aspect values to be added to the asset being created
    * @param auditStamp the audit stamp for the operation
