@@ -50,6 +50,7 @@ import static com.linkedin.metadata.dao.EbeanLocalDAO.*;
 import static com.linkedin.metadata.dao.utils.EBeanDAOUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLIndexFilterUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLSchemaUtils.*;
+import static com.linkedin.metadata.dao.utils.SQLStatementUtils.*;
 
 
 /**
@@ -150,6 +151,102 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
       final String metadata = toJsonString(auditedAspect);
       return sqlUpdate.setParameter("metadata", metadata).execute();
+  }
+
+  /**
+   * Create aspect from entity table.
+   * By this point the callbacks are processed, and the aspect value is validated and ready to be written to database.
+   * Race condition on insert is handled at the query level. If the URN already exists, the insert will fail with
+   * Duplicate Key exception.
+   * All the aspects are inserted in a single query. If the query fails, none of the aspects will be inserted.
+   *
+   * @param urn                      entity urn
+   * @param aspectValues             list of aspect value in {@link RecordTemplate}
+   * @param aspectCreateLambdas      class of the aspect
+   * @param auditStamp               audit timestamp
+   * @param ingestionTrackingContext the ingestionTrackingContext of the MCE responsible for this update
+   * @param isTestMode               whether the test mode is enabled or not
+   * @return number of rows inserted or updated
+   */
+  @Override
+  public <ASPECT_UNION extends RecordTemplate> int create(
+      @Nonnull URN urn,
+      @Nonnull List<? extends RecordTemplate> aspectValues,
+      @Nonnull List<BaseLocalDAO.AspectCreateLambda<? extends RecordTemplate>> aspectCreateLambdas,
+      @Nonnull AuditStamp auditStamp,
+      @Nullable IngestionTrackingContext ingestionTrackingContext,
+      boolean isTestMode) {
+
+    aspectValues.forEach(aspectValue -> {
+      if (aspectValue == null) {
+        throw new IllegalArgumentException("Aspect value cannot be null");
+      }
+    });
+
+    final long timestamp = auditStamp.hasTime() ? auditStamp.getTime() : System.currentTimeMillis();
+    final String actor = auditStamp.hasActor() ? auditStamp.getActor().toString() : DEFAULT_ACTOR;
+    final String impersonator = auditStamp.hasImpersonator() ? auditStamp.getImpersonator().toString() : null;
+    final boolean urnExtraction = _urnPathExtractor != null && !(_urnPathExtractor instanceof EmptyPathExtractor);
+
+    final SqlUpdate sqlUpdate;
+
+    List<String> classNames = aspectCreateLambdas.stream()
+        .map(aspectCreateLamdba -> aspectCreateLamdba.getAspectClass().getCanonicalName())
+        .collect(Collectors.toList());
+
+    // Create insert statement with variable number of aspect columns
+    // For example: INSERT INTO <table_name> (<columns>)
+    StringBuilder insertIntoSql = new StringBuilder(SQL_INSERT_INTO_ASPECT_WITH_URN);
+
+    // Create part of insert statement with variable number of aspect values
+    // For example: VALUES (<values>);
+    StringBuilder insertSqlValues = new StringBuilder(SQL_INSERT_ASPECT_VALUES_WITH_URN);
+
+    for (int i = 0; i < classNames.size(); i++) {
+      insertIntoSql.append(getAspectColumnName(urn.getEntityType(), classNames.get(i)));
+      // Add parameterization for aspect values
+      insertSqlValues.append(":aspect").append(i);
+      // Add comma if not the last column
+      if (i != classNames.size() - 1) {
+        insertIntoSql.append(", ");
+        insertSqlValues.append(", ");
+      }
+    }
+    insertIntoSql.append(CLOSING_BRACKET);
+    insertSqlValues.append(CLOSING_BRACKET_WITH_SEMICOLON);
+
+    // Build the final insert statement
+    // For example: INSERT INTO <table_name> (<columns>) VALUES (<values>);
+    String insertStatement = insertIntoSql.toString() + insertSqlValues.toString();
+    insertStatement = String.format(insertStatement, getTableName(urn));
+
+    sqlUpdate = _server.createSqlUpdate(insertStatement);
+
+    // Set parameters for each aspect value
+    for (int i = 0; i < aspectValues.size(); i++) {
+      AuditedAspect auditedAspect = new AuditedAspect()
+          .setAspect(RecordUtils.toJsonString(aspectValues.get(i)))
+          .setCanonicalName(aspectCreateLambdas.get(i).getAspectClass().getCanonicalName())
+          .setLastmodifiedby(actor)
+          .setLastmodifiedon(new Timestamp(timestamp).toString())
+          .setCreatedfor(impersonator, SetMode.IGNORE_NULL);
+      if (ingestionTrackingContext != null) {
+        auditedAspect.setEmitTime(ingestionTrackingContext.getEmitTime(), SetMode.IGNORE_NULL);
+        auditedAspect.setEmitter(ingestionTrackingContext.getEmitter(), SetMode.IGNORE_NULL);
+      }
+      sqlUpdate.setParameter("aspect" + i, toJsonString(auditedAspect));
+    }
+
+    // If a non-default UrnPathExtractor is provided, the user MUST specify in their schema generation scripts
+    // 'ALTER TABLE <table> ADD COLUMN a_urn JSON'.
+    if (urnExtraction) {
+      sqlUpdate.setParameter("a_urn", toJsonString(urn));
+    }
+    sqlUpdate.setParameter("urn", urn.toString())
+        .setParameter("lastmodifiedon", new Timestamp(timestamp).toString())
+        .setParameter("lastmodifiedby", actor);
+
+    return sqlUpdate.execute();
   }
 
   /**

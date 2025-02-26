@@ -2,6 +2,7 @@ package com.linkedin.metadata.dao;
 
 import com.google.common.io.Resources;
 import com.linkedin.common.AuditStamp;
+import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.urnpath.EmptyPathExtractor;
 import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
 import com.linkedin.metadata.dao.utils.FooUrnPathExtractor;
@@ -15,9 +16,11 @@ import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.query.IndexValue;
 import com.linkedin.metadata.query.SortOrder;
+import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.urn.BurgerUrn;
 import com.linkedin.testing.urn.FooUrn;
+import io.ebean.DuplicateKeyException;
 import io.ebean.Ebean;
 import io.ebean.EbeanServer;
 import io.ebean.SqlRow;
@@ -25,6 +28,7 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -410,5 +414,52 @@ public class EbeanLocalAccessTest {
     } else {
       assertTrue(_ebeanLocalAccessFoo.checkColumnExists("metadata_entity_foo", "i_aspectfoo0value"));
     }
+  }
+
+  @Test
+  public void testCreateNewAspect() {
+    FooUrn fooUrn = makeFooUrn(101);
+    AspectFoo aspectFoo = new AspectFoo().setValue("foo");
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+    List<RecordTemplate> aspectValues = new ArrayList<>();
+    aspectValues.add(aspectFoo);
+    List<BaseLocalDAO.AspectCreateLambda<? extends RecordTemplate>> aspectCreateLambdas = new ArrayList<>();
+    aspectCreateLambdas.add(new BaseLocalDAO.AspectCreateLambda(aspectFoo));
+    int result = _ebeanLocalAccessFoo.create(fooUrn, aspectValues, aspectCreateLambdas, auditStamp, null, false);
+    assertEquals(result, 1);
+  }
+
+  @Test
+  public void testCreateDuplicateAspect() {
+    FooUrn fooUrn = makeFooUrn(102);
+    AspectFoo aspectFoo = new AspectFoo().setValue("foo");
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+    List<RecordTemplate> aspectValues = new ArrayList<>();
+    aspectValues.add(aspectFoo);
+    List<BaseLocalDAO.AspectCreateLambda<? extends RecordTemplate>> aspectCreateLambdas = new ArrayList<>();
+    aspectCreateLambdas.add(new BaseLocalDAO.AspectCreateLambda(aspectFoo));
+    _ebeanLocalAccessFoo.create(fooUrn, aspectValues, aspectCreateLambdas, auditStamp, null, false);
+    try {
+      _ebeanLocalAccessFoo.create(fooUrn, aspectValues, aspectCreateLambdas, auditStamp, null, false);
+    } catch (DuplicateKeyException duplicateKeyException) {
+      assert (duplicateKeyException.getMessage().contains("Duplicate entry"));
+    }
+  }
+
+  @Test
+  public void testCreateMultipleAspect() {
+    FooUrn fooUrn = makeFooUrn(110);
+    AspectFoo aspectFoo = new AspectFoo().setValue("foo");
+    AspectBar aspectBar = new AspectBar().setValue("bar");
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+    List<RecordTemplate> aspectValues = new ArrayList<>();
+    aspectValues.add(aspectFoo);
+    aspectValues.add(aspectBar);
+    List<BaseLocalDAO.AspectCreateLambda<? extends RecordTemplate>> aspectCreateLambdas = new ArrayList<>();
+    aspectCreateLambdas.add(new BaseLocalDAO.AspectCreateLambda(aspectFoo));
+    aspectCreateLambdas.add(new BaseLocalDAO.AspectCreateLambda(aspectBar));
+    int numRowsCreated = _ebeanLocalAccessFoo.create(fooUrn, aspectValues, aspectCreateLambdas, auditStamp, null, false);
+    // Assert that 1 record is created for asset with FooUrn
+    assertEquals(numRowsCreated, 1);
   }
 }

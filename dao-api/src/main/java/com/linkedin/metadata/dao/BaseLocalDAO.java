@@ -161,6 +161,28 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     }
   }
 
+  /**
+   * Immutable class to hold the details of a Create to an aspect.
+   *
+   * <p>This class allows the wildcard capture in {@link #create(Urn, List, AuditStamp, IngestionTrackingContext, IngestionParams)}</p>
+   *
+   * @param <ASPECT> the type of the aspect being updated
+   */
+  @AllArgsConstructor
+  @Value
+  public static class AspectCreateLambda<ASPECT extends RecordTemplate> {
+    @Nonnull
+    Class<ASPECT> aspectClass;
+
+    @Nonnull
+    IngestionParams ingestionParams;
+
+    public AspectCreateLambda(@Nonnull ASPECT value) {
+      this.aspectClass = (Class<ASPECT>) value.getClass();
+      ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
+    }
+  }
+
   @Data
   @AllArgsConstructor
   protected static class AspectUpdateResult<ASPECT extends RecordTemplate> {
@@ -659,6 +681,51 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
         trackingContext, updateTuple.getIngestionParams());
   }
 
+  /**
+   * Adds a new version of an aspect for an entity and triggeers callbacks for all containing aspects if registered.
+   * @param urn the URN for the entity the aspect is attached to
+   * @param aspectValues the list new aspect value to be added to the asset being created
+   * @param aspectCreateLambdas the list of aspect create lambdas to be executed
+   * @param auditStamp the audit stamp for the operation
+   * @param trackingContext the tracking context for the operation
+   * @return the URN of the entity if the operation is successful, otherwise null
+   * @param <ASPECT_UNION> must be a valid aspect union type defined in com.linkedin.metadata.aspect
+   */
+  <ASPECT_UNION extends RecordTemplate> URN createAspectsWithCallbacks(@Nonnull URN urn,
+      @Nonnull List<? extends RecordTemplate> aspectValues,
+      @Nonnull List<AspectCreateLambda<? extends RecordTemplate>> aspectCreateLambdas,
+      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext) {
+
+    // process callbacks and check that all the aspects are valid
+    for (int i = 0; i < aspectValues.size(); i++) {
+      RecordTemplate aspectValue = aspectValues.get(i);
+      AspectCreateLambda<? extends RecordTemplate> createLambda = aspectCreateLambdas.get(i);
+      AspectUpdateResult result = aspectCallbackHelper(urn, aspectValue, null, createLambda.ingestionParams);
+      // skip the normal ingestion to the DAO
+      if (result.isSkipProcessing()) {
+        continue;
+      }
+      aspectValue = result.getUpdatedAspect();
+
+      checkValidAspect(createLambda.aspectClass);
+      validateAgainstSchemaAndFillinDefault(aspectValue);
+
+      // Invoke pre-update hooks, if any
+      if (_aspectPreUpdateHooksMap.containsKey(createLambda.aspectClass)) {
+        for (final BiConsumer<Urn, RecordTemplate> hook : _aspectPreUpdateHooksMap.get(createLambda.aspectClass)) {
+          hook.accept(urn, aspectValue);
+        }
+      }
+    }
+
+    // check if any the aspects are in test mode
+    boolean isTestModeFalseForAll = aspectCreateLambdas.stream().filter(aspectCreateLambda -> aspectCreateLambda.getIngestionParams().isTestMode()).collect(
+          Collectors.toList()).isEmpty();
+
+    int numRows = createNewAspect(urn, aspectCreateLambdas, aspectValues, auditStamp, trackingContext, isTestModeFalseForAll);
+    return numRows > 0 ? urn : null;
+  }
+
   private <ASPECT extends RecordTemplate> ASPECT_UNION unwrapAddResultToUnion(URN urn, AddResult<ASPECT> result,
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext) {
     // handle post-update hooks and emit MAE + return the newValue
@@ -814,6 +881,34 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     // skip MAE producing and post update hook in test mode or if the result is null (no actual update with addCommon)
     return result == null ? null : (updateLambda.getIngestionParams().isTestMode() ? result.newValue
         : unwrapAddResult(urn, result, auditStamp, trackingContext));
+  }
+
+  /**
+   * Add new aspects for an asset.
+   * @param urn the URN for the entity the aspects are attached to
+   * @param aspectValues the list of new aspect values to be added to the asset being created
+   * @param aspectCreateLambdas the list of aspect create lambdas to be executed
+   * @param auditStamp the audit stamp for the operation
+   * @param maxTransactionRetry the maximum number of times to retry the transaction
+   * @param trackingContext the tracking context for the operation
+   * @return the URN of the entity if the operation is successful, otherwise null
+   * @param <ASPECT> must be a supported aspect type in {@code ASPECT_UNION}
+   */
+  @Nonnull
+  public <ASPECT extends RecordTemplate> URN create(@Nonnull URN urn,
+      @Nonnull List<ASPECT> aspectValues,
+      @Nonnull List<AspectCreateLambda<? extends RecordTemplate>> aspectCreateLambdas,
+      @Nonnull AuditStamp auditStamp, int maxTransactionRetry,
+      @Nullable IngestionTrackingContext trackingContext) {
+
+    // check that all the aspects are valid
+    aspectCreateLambdas.forEach(aspectCreateLambda -> checkValidAspect(aspectCreateLambda.getAspectClass()));
+
+    // create aspects and process callbacks in a single transaction
+    return runInTransactionWithRetry(() -> {
+      return createAspectsWithCallbacks(urn, aspectValues, aspectCreateLambdas, auditStamp, trackingContext);
+      }, maxTransactionRetry
+    );
   }
 
   /**
@@ -1010,6 +1105,25 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
+   * Create an entity with given list of aspects.
+   * @param urn the URN for the entity the aspects are attached to
+   * @param aspectValues the list of new aspect values to be added to the asset being created
+   * @param auditStamp the audit stamp for the operation
+   * @param trackingContext the tracking context for the operation
+   * @param ingestionParams the ingestion parameters for the operation
+   * @return the URN of the entity if the operation is successful, otherwise null
+   */
+  @Nonnull
+  public URN create(@Nonnull URN urn, @Nonnull List<? extends RecordTemplate> aspectValues,
+      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext,
+      @Nullable IngestionParams ingestionParams) {
+    List<AspectCreateLambda<? extends RecordTemplate>> aspectCreateLambdas = aspectValues.stream()
+        .map(AspectCreateLambda::new)
+        .collect(Collectors.toList());
+    return create(urn, aspectValues, aspectCreateLambdas, auditStamp, DEFAULT_MAX_TRANSACTION_RETRY, trackingContext);
+  }
+
+  /**
    * Similar to {@link #delete(Urn, Class, AuditStamp, int)} but uses the default maximum transaction retry.
    */
   @Nonnull
@@ -1060,6 +1174,11 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   protected abstract <ASPECT extends RecordTemplate> long saveLatest(@Nonnull URN urn,
       @Nonnull Class<ASPECT> aspectClass, @Nullable ASPECT oldEntry, @Nullable AuditStamp oldAuditStamp,
       @Nullable ASPECT newEntry, @Nonnull AuditStamp newAuditStamp, boolean isSoftDeleted,
+      @Nullable IngestionTrackingContext trackingContext, boolean isTestMode);
+
+  protected abstract <ASPECT_UNION extends RecordTemplate> int createNewAspect(@NonNull URN urn,
+      @Nonnull List<AspectCreateLambda<? extends RecordTemplate>> aspectCreateLambdas,
+      @Nonnull List<? extends RecordTemplate> aspectValues, @Nonnull AuditStamp newAuditStamp,
       @Nullable IngestionTrackingContext trackingContext, boolean isTestMode);
 
   /**

@@ -32,6 +32,7 @@ import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.FooUrn;
 import java.net.URISyntaxException;
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -86,6 +87,14 @@ public class BaseLocalDAOTest {
         AuditStamp oldAuditStamp, ASPECT newEntry, AuditStamp newAuditStamp, boolean isSoftDeleted,
         @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
       return 0;
+    }
+
+    @Override
+    protected <ASPECT_UNION extends RecordTemplate> int createNewAspect(@Nonnull FooUrn urn,
+        @Nonnull List<AspectCreateLambda<? extends RecordTemplate>> aspectCreateLambdas,
+        @Nonnull List<? extends RecordTemplate> aspectValues, @Nonnull AuditStamp newAuditStamp,
+        @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
+      return aspectValues.size();
     }
 
     @Override
@@ -672,6 +681,37 @@ public class BaseLocalDAOTest {
     BaseLocalDAO.AspectUpdateResult result = _dummyLocalDAO.aspectCallbackHelper(urn, foo, Optional.empty(), null);
     AspectFoo newAspect = (AspectFoo) result.getUpdatedAspect();
     assertEquals(newAspect, bar);
+  }
+
+  @Test
+  public void testCreateAspectWithCallbacks() throws URISyntaxException {
+    // Setup test data
+    FooUrn urn = new FooUrn(1);
+    RecordTemplate foo = new AspectFoo().setValue("foo");
+    RecordTemplate bar = new AspectBar().setValue("bar");
+
+    BaseLocalDAO.AspectCreateLambda<RecordTemplate>
+        fooCreateLambda = new BaseLocalDAO.AspectCreateLambda<>(foo);
+    BaseLocalDAO.AspectCreateLambda<RecordTemplate>
+        barCreateLambda = new BaseLocalDAO.AspectCreateLambda<>(bar);
+
+    Map<AspectCallbackMapKey, AspectCallbackRoutingClient> aspectCallbackMap = new HashMap<>();
+    AspectCallbackMapKey aspectCallbackMapKey = new AspectCallbackMapKey(AspectFoo.class, urn.getEntityType());
+    aspectCallbackMap.put(aspectCallbackMapKey, new SampleAspectCallbackRoutingClient());
+
+    AspectCallbackRegistry aspectCallbackRegistry = new AspectCallbackRegistry(aspectCallbackMap);
+    _dummyLocalDAO.setAspectCallbackRegistry(aspectCallbackRegistry);
+
+    List<BaseLocalDAO.AspectCreateLambda<? extends RecordTemplate>> aspectCreateLambdas = new ArrayList<>();
+    aspectCreateLambdas.add(fooCreateLambda);
+    aspectCreateLambdas.add(barCreateLambda);
+
+    List<RecordTemplate> aspectValues = new ArrayList<>();
+    aspectValues.add(foo);
+    aspectValues.add(bar);
+
+    FooUrn result = _dummyLocalDAO.createAspectsWithCallbacks(urn, aspectValues, aspectCreateLambdas, _dummyAuditStamp, null);
+    assertEquals(result, urn);
   }
 
   @Test

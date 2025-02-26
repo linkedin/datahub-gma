@@ -54,6 +54,24 @@ public interface IEbeanLocalAccess<URN extends Urn> {
       @Nullable IngestionTrackingContext ingestionTrackingContext, boolean isTestMode);
 
   /**
+   * Create aspect from entity table.
+   *
+   * @param <ASPECT_UNION>           metadata aspect value
+   * @param urn                      entity urn
+   * @param aspectValues             aspect value in {@link RecordTemplate}
+   * @param aspectCreateLambdas      class of the aspect
+   * @param auditStamp               audit timestamp
+   * @param ingestionTrackingContext the ingestionTrackingContext of the MCE responsible for this update
+   * @param isTestMode               whether the test mode is enabled or not
+   * @return number of rows inserted or updated
+   */
+  <ASPECT_UNION extends RecordTemplate> int create(@Nonnull URN urn,
+      @Nonnull List<? extends RecordTemplate> aspectValues,
+      @Nonnull List<BaseLocalDAO.AspectCreateLambda<? extends RecordTemplate>> aspectCreateLambdas,
+      @Nonnull AuditStamp auditStamp,
+      @Nullable IngestionTrackingContext ingestionTrackingContext, boolean isTestMode);
+
+  /**
    * Get read aspects from entity table. This a new schema implementation for batchGetUnion() in {@link EbeanLocalDAO}
    * @param keys {@link AspectKey} to retrieve aspect metadata
    * @param keysCount pagination key count limit

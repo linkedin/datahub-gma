@@ -63,6 +63,16 @@ public class SQLStatementUtils {
       "INSERT INTO %s (urn, a_urn, %s, lastmodifiedon, lastmodifiedby) VALUE (:urn, :a_urn, :metadata, :lastmodifiedon, :lastmodifiedby) "
           + "ON DUPLICATE KEY UPDATE %s = :metadata, lastmodifiedon = :lastmodifiedon, a_urn = :a_urn;";
 
+  // INSERT prefix of the sql statement for inserting into metadata_aspect table with multiple aspects which will be combined with the VALUES suffix
+  public static final String SQL_INSERT_INTO_ASPECT_WITH_URN = "INSERT INTO %s (urn, a_urn, lastmodifiedon, lastmodifiedby,";
+  // VALUES suffix of the sql statement for inserting into metadata_aspect table with multiple aspects which will be combined with the INSERT prefix
+  public static final String SQL_INSERT_ASPECT_VALUES_WITH_URN = "VALUES (:urn, :a_urn, :lastmodifiedon, :lastmodifiedby,";
+  // closing bracket for the sql statement INSERT prefix
+  // e.g. INSERT INTO metadata_aspect (urn, a_urn, lastmodifiedon, lastmodifiedby)
+  public static final String CLOSING_BRACKET = ") ";
+  // closing bracket with semicolon for the sql statement VALUES suffix
+  // e.g. VALUES (:urn, :a_urn, :lastmodifiedon, :lastmodifiedby);
+  public static final String CLOSING_BRACKET_WITH_SEMICOLON = ");";
   // "JSON_EXTRACT(%s, '$.gma_deleted') IS NOT NULL" is used to exclude soft-deleted entity which has no lastmodifiedon.
   // for details, see the known limitations on https://github.com/linkedin/datahub-gma/pull/311. Same reason for
   // SQL_UPDATE_ASPECT_WITH_URN_TEMPLATE
