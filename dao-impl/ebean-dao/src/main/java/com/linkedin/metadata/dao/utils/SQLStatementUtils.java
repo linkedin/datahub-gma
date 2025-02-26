@@ -145,15 +145,6 @@ public class SQLStatementUtils {
   }
 
   /**
-   * Enclose a JSON string in single quotes and escape double quotes.
-   * @param json JSON string
-   * @return JSON string enclosed in single quotes
-   */
-  public static String encloseInSingleQuotes(String json) {
-    return "'" + json.replace("\"", "\\\"") + "'";
-  }
-
-  /**
    * Create entity exist SQL statement.
    * @param urn entity urn
    * @return entity exist sql

@@ -197,18 +197,32 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     // Create insert statement with variable number of aspect columns
     // For example: INSERT INTO <table_name> (<columns>)
     StringBuilder insertIntoSql = new StringBuilder(SQL_INSERT_INTO_ASPECT_WITH_URN);
-    for (String className: classNames) {
-      insertIntoSql.append(getAspectColumnName(urn.getEntityType(), className));
-      // Add comma if not the last column
-      if (!className.equals(classNames.get(classNames.size() - 1))) {
-        insertIntoSql.append(", ");
-      }
-    }
-    insertIntoSql.append(CLOSING_BRACKET);
 
     // Create part of insert statement with variable number of aspect values
     // For example: VALUES (<values>);
     StringBuilder insertSqlValues = new StringBuilder(SQL_INSERT_ASPECT_VALUES_WITH_URN);
+
+    for (int i = 0; i < classNames.size(); i++) {
+      insertIntoSql.append(getAspectColumnName(urn.getEntityType(), classNames.get(i)));
+      // Add parameterization for aspect values
+      insertSqlValues.append(":aspect").append(i);
+      // Add comma if not the last column
+      if (i != classNames.size() - 1) {
+        insertIntoSql.append(", ");
+        insertSqlValues.append(", ");
+      }
+    }
+    insertIntoSql.append(CLOSING_BRACKET);
+    insertSqlValues.append(CLOSING_BRACKET_WITH_SEMICOLON);
+
+    // Build the final insert statement
+    // For example: INSERT INTO <table_name> (<columns>) VALUES (<values>);
+    String insertStatement = insertIntoSql.toString() + insertSqlValues.toString();
+    insertStatement = String.format(insertStatement, getTableName(urn));
+
+    sqlUpdate = _server.createSqlUpdate(insertStatement);
+
+    // Set parameters for each aspect value
     for (int i = 0; i < aspectValues.size(); i++) {
       AuditedAspect auditedAspect = new AuditedAspect()
           .setAspect(RecordUtils.toJsonString(aspectValues.get(i)))
@@ -220,19 +234,9 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
         auditedAspect.setEmitTime(ingestionTrackingContext.getEmitTime(), SetMode.IGNORE_NULL);
         auditedAspect.setEmitter(ingestionTrackingContext.getEmitter(), SetMode.IGNORE_NULL);
       }
-      insertSqlValues.append(encloseInSingleQuotes(toJsonString(auditedAspect)));
-      if (i != aspectValues.size() - 1) {
-        insertSqlValues.append(", ");
-      }
+      sqlUpdate.setParameter("aspect" + i, toJsonString(auditedAspect));
     }
 
-    insertSqlValues.append(CLOSING_BRACKET_WITH_SEMICOLON);
-    // Build the final insert statement
-    // For example: INSERT INTO <table_name> (<columns>) VALUES (<values>);
-    String insertStatement = insertIntoSql.toString() + insertSqlValues.toString();
-    insertStatement = String.format(insertStatement, getTableName(urn));
-
-    sqlUpdate = _server.createSqlUpdate(insertStatement);
     // If a non-default UrnPathExtractor is provided, the user MUST specify in their schema generation scripts
     // 'ALTER TABLE <table> ADD COLUMN a_urn JSON'.
     if (urnExtraction) {
