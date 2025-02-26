@@ -54,26 +54,6 @@ public class SQLStatementUtilsTest {
   }
 
   @Test
-  public void testCreateInsertAspectSql() {
-    FooUrn fooUrn = makeFooUrn(1);
-    String expectedSql =
-        "INSERT INTO metadata_entity_foo (urn, a_urn, a_aspectfoo, lastmodifiedon, lastmodifiedby) VALUE (:urn, "
-            + ":a_urn, :metadata, :lastmodifiedon, :lastmodifiedby);";
-    assertEquals(SQLStatementUtils.createAspectInsertSql(fooUrn, new ArrayList<>(
-        Collections.singletonList(AspectFoo.class.getCanonicalName())), false), expectedSql);
-  }
-
-  @Test
-  public void testCreateInsertMultipleAspectSql() {
-    FooUrn fooUrn = makeFooUrn(1);
-    String expectedSql =
-        "INSERT INTO metadata_entity_foo (urn, a_urn, a_aspectfoo, a_aspectbar, lastmodifiedon, lastmodifiedby) VALUE (:urn, "
-            + ":a_urn, :metadata, :lastmodifiedon, :lastmodifiedby);";
-    ArrayList<String> classNames = new ArrayList<>(Arrays.asList(AspectFoo.class.getCanonicalName(), AspectBar.class.getCanonicalName()));
-    assertEquals(SQLStatementUtils.createAspectInsertSql(fooUrn, classNames, false), expectedSql);
-  }
-
-  @Test
   public void testCreateAspectReadSql() {
     FooUrn fooUrn1 = makeFooUrn(1);
     FooUrn fooUrn2 = makeFooUrn(2);

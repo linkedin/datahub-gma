@@ -31,7 +31,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -51,6 +50,7 @@ import static com.linkedin.metadata.dao.EbeanLocalDAO.*;
 import static com.linkedin.metadata.dao.utils.EBeanDAOUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLIndexFilterUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLSchemaUtils.*;
+import static com.linkedin.metadata.dao.utils.SQLStatementUtils.*;
 
 
 /**
@@ -194,20 +194,21 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
         .map(aspectCreateLamdba -> aspectCreateLamdba.getAspectClass().getCanonicalName())
         .collect(Collectors.toList());
 
-    sqlUpdate = _server.createSqlUpdate(SQLStatementUtils.createAspectInsertSql(urn, classNames, isTestMode));
-
-    sqlUpdate.setParameter("urn", urn.toString())
-        .setParameter("lastmodifiedon", new Timestamp(timestamp).toString())
-        .setParameter("lastmodifiedby", actor);
-
-    // If a non-default UrnPathExtractor is provided, the user MUST specify in their schema generation scripts
-    // 'ALTER TABLE <table> ADD COLUMN a_urn JSON'.
-    if (urnExtraction) {
-      sqlUpdate.setParameter("a_urn", toJsonString(urn));
+    // Create insert statement with variable number of aspect columns
+    // For example: INSERT INTO <table_name> (<columns>)
+    StringBuilder insertIntoSql = new StringBuilder(SQL_INSERT_INTO_ASPECT_WITH_URN);
+    for (String className: classNames) {
+      insertIntoSql.append(getAspectColumnName(urn.getEntityType(), className));
+      // Add comma if not the last column
+      if (!className.equals(classNames.get(classNames.size() - 1))) {
+        insertIntoSql.append(", ");
+      }
     }
+    insertIntoSql.append(CLOSING_BRACKET);
 
-    List<String> auditedAspects = new ArrayList<>();
-
+    // Create part of insert statement with variable number of aspect values
+    // For example: VALUES (<values>);
+    StringBuilder insertSqlValues = new StringBuilder(SQL_INSERT_ASPECT_VALUES_WITH_URN);
     for (int i = 0; i < aspectValues.size(); i++) {
       AuditedAspect auditedAspect = new AuditedAspect()
           .setAspect(RecordUtils.toJsonString(aspectValues.get(i)))
@@ -219,11 +220,29 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
         auditedAspect.setEmitTime(ingestionTrackingContext.getEmitTime(), SetMode.IGNORE_NULL);
         auditedAspect.setEmitter(ingestionTrackingContext.getEmitter(), SetMode.IGNORE_NULL);
       }
-      auditedAspects.add(toJsonString(auditedAspect));
+      insertSqlValues.append(encloseInSingleQuotes(toJsonString(auditedAspect)));
+      if (i != aspectValues.size() - 1) {
+        insertSqlValues.append(", ");
+      }
     }
 
-    String metadata = String.join(",", auditedAspects);
-    return sqlUpdate.setParameter("metadata", metadata).execute();
+    insertSqlValues.append(CLOSING_BRACKET_WITH_SEMICOLON);
+    // Build the final insert statement
+    // For example: INSERT INTO <table_name> (<columns>) VALUES (<values>);
+    String insertStatement = insertIntoSql.toString() + insertSqlValues.toString();
+    insertStatement = String.format(insertStatement, getTableName(urn));
+
+    sqlUpdate = _server.createSqlUpdate(insertStatement);
+    // If a non-default UrnPathExtractor is provided, the user MUST specify in their schema generation scripts
+    // 'ALTER TABLE <table> ADD COLUMN a_urn JSON'.
+    if (urnExtraction) {
+      sqlUpdate.setParameter("a_urn", toJsonString(urn));
+    }
+    sqlUpdate.setParameter("urn", urn.toString())
+        .setParameter("lastmodifiedon", new Timestamp(timestamp).toString())
+        .setParameter("lastmodifiedby", actor);
+
+    return sqlUpdate.execute();
   }
 
   /**

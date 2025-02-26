@@ -63,11 +63,16 @@ public class SQLStatementUtils {
       "INSERT INTO %s (urn, a_urn, %s, lastmodifiedon, lastmodifiedby) VALUE (:urn, :a_urn, :metadata, :lastmodifiedon, :lastmodifiedby) "
           + "ON DUPLICATE KEY UPDATE %s = :metadata, lastmodifiedon = :lastmodifiedon, a_urn = :a_urn;";
 
-  // Used to create an aspect without upsert behavior.
-  // If the db tabled already contains a row with a given urn, the insert will fail
-  private static final String SQL_INSERT_ASPECT_WITH_URN_TEMPLATE =
-      "INSERT INTO %s (urn, a_urn, %s, lastmodifiedon, lastmodifiedby) VALUE (:urn, :a_urn, :metadata, :lastmodifiedon, :lastmodifiedby);";
-
+  // INSERT prefix of the sql statement for inserting into metadata_aspect table with multiple aspects which will be combined with the VALUES suffix
+  public static final String SQL_INSERT_INTO_ASPECT_WITH_URN = "INSERT INTO %s (urn, a_urn, lastmodifiedon, lastmodifiedby,";
+  // VALUES suffix of the sql statement for inserting into metadata_aspect table with multiple aspects which will be combined with the INSERT prefix
+  public static final String SQL_INSERT_ASPECT_VALUES_WITH_URN = "VALUES (:urn, :a_urn, :lastmodifiedon, :lastmodifiedby,";
+  // closing bracket for the sql statement INSERT prefix
+  // e.g. INSERT INTO metadata_aspect (urn, a_urn, lastmodifiedon, lastmodifiedby)
+  public static final String CLOSING_BRACKET = ") ";
+  // closing bracket with semicolon for the sql statement VALUES suffix
+  // e.g. VALUES (:urn, :a_urn, :lastmodifiedon, :lastmodifiedby);
+  public static final String CLOSING_BRACKET_WITH_SEMICOLON = ");";
   // "JSON_EXTRACT(%s, '$.gma_deleted') IS NOT NULL" is used to exclude soft-deleted entity which has no lastmodifiedon.
   // for details, see the known limitations on https://github.com/linkedin/datahub-gma/pull/311. Same reason for
   // SQL_UPDATE_ASPECT_WITH_URN_TEMPLATE
@@ -137,6 +142,15 @@ public class SQLStatementUtils {
 
   private SQLStatementUtils() {
     // Util class
+  }
+
+  /**
+   * Enclose a JSON string in single quotes and escape double quotes.
+   * @param json JSON string
+   * @return JSON string enclosed in single quotes
+   */
+  public static String encloseInSingleQuotes(String json) {
+    return "'" + json.replace("\"", "\\\"") + "'";
   }
 
   /**
@@ -241,15 +255,6 @@ public class SQLStatementUtils {
     final String tableName = isTestMode ? getTestTableName(urn) : getTableName(urn);
     final String columnName = getAspectColumnName(urn.getEntityType(), aspectClass);
     return String.format(urnExtraction ? SQL_UPSERT_ASPECT_WITH_URN_TEMPLATE : SQL_UPSERT_ASPECT_TEMPLATE, tableName, columnName, columnName);
-  }
-
-  public static String createAspectInsertSql(@Nonnull Urn urn,
-      @Nonnull List<String> aspectClassList, boolean isTestMode) {
-    final String tableName = isTestMode ? getTestTableName(urn) : getTableName(urn);
-    List<String> aspectColumns = new ArrayList<>();
-    aspectClassList.forEach(aspectClassName -> aspectColumns.add(getAspectColumnName(urn.getEntityType(), aspectClassName)));
-    String columnList = String.join(", ", aspectColumns);
-    return String.format(SQL_INSERT_ASPECT_WITH_URN_TEMPLATE, tableName, columnList);
   }
 
   /**
