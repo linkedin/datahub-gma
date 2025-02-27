@@ -374,9 +374,12 @@ public class EbeanLocalRelationshipQueryDAO {
       String auditedAspectStr = sqlRow.getString(colName);
 
       if (auditedAspectStr != null) {
-        RecordTemplate aspect = RecordUtils.toRecordTemplate(ClassUtils.loadClass(aspectCanonicalName),
-            EBeanDAOUtils.extractAspectJsonString(auditedAspectStr));
-        aspects.add(ModelUtils.newAspectUnion(ModelUtils.getUnionClassFromSnapshot(snapshotClass), aspect));
+        String extractedAspectStr = EBeanDAOUtils.extractAspectJsonString(auditedAspectStr);
+        if (extractedAspectStr != null) {
+          RecordTemplate aspect = RecordUtils.toRecordTemplate(ClassUtils.loadClass(aspectCanonicalName),
+              extractedAspectStr);
+          aspects.add(ModelUtils.newAspectUnion(ModelUtils.getUnionClassFromSnapshot(snapshotClass), aspect));
+        }
       }
     }
 
