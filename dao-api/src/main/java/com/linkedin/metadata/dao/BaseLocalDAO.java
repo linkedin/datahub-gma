@@ -967,7 +967,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     // entire delete operation should be atomic
     final Collection<RecordTemplate> results = runInTransactionWithRetry(() -> aspectClasses.stream()
-        .map(x -> deleteWithReturn(urn, x, auditStamp, maxTransactionRetry, trackingContext))
+        .map(x -> delete(urn, x, auditStamp, maxTransactionRetry, trackingContext))
         .collect(Collectors.toList()), maxTransactionRetry);
 
     // package into ASPECT_UNION, this is logic performed in unwrapAddResultToUnion()
@@ -979,42 +979,35 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * Deletes the latest version of aspect for an entity.
+   * Deletes the latest version of an aspect for an entity and returns the ***old value***.
    *
    * <p>The new aspect will have an automatically assigned version number, which is guaranteed to be positive and
    * monotonically increasing. Older versions of aspect will be purged automatically based on the retention setting.
    *
-   * <p>Note that we do not support Post-update hooks while soft deleting an aspect
+   * <p>Note that we do not currently support pre- or post- update hooks while soft deleting an aspect.
+   *
+   * <p>Note that if the aspect is already null or deleted, the return value will be null. Mechanistically, upon a normal
+   * "LIVE" ingestion, the deletion operation is skipped altogether.
    *
    * @param urn urn the URN for the entity the aspect is attached to
    * @param aspectClass aspectClass of the aspect being saved
    * @param auditStamp the audit stamp of the previous latest aspect, null if new value is the first version
    * @param maxTransactionRetry maximum number of transaction retries before throwing an exception
    * @param <ASPECT> must be a supported aspect type in {@code ASPECT_UNION}
+   * @return the content of the aspect before deletion
    */
-  public <ASPECT extends RecordTemplate> void delete(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
+  @Nullable
+  public <ASPECT extends RecordTemplate> ASPECT delete(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull AuditStamp auditStamp, int maxTransactionRetry) {
-    delete(urn, aspectClass, auditStamp, maxTransactionRetry, null);
+    return delete(urn, aspectClass, auditStamp, maxTransactionRetry, null);
   }
 
   /**
    * Same as above {@link #delete(Urn, Class, AuditStamp, int)} but with tracking context.
    */
-  public <ASPECT extends RecordTemplate> void delete(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
-      @Nonnull AuditStamp auditStamp, int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext) {
-    deleteWithReturn(urn, aspectClass, auditStamp, maxTransactionRetry, trackingContext);
-  }
-
-  /**
-   * Deletes the latest version of an aspect for an entity and returns the ***old value***.
-   *
-   * <p>Note that if the aspect is already null or deleted, the return value will be null. Mechanistically, upon a normal
-   * "LIVE" ingestion, the deletion operation is skipped altogether.
-   */
   @Nullable
-  public <ASPECT extends RecordTemplate> ASPECT deleteWithReturn(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
+  public <ASPECT extends RecordTemplate> ASPECT delete(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull AuditStamp auditStamp, int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext) {
-
     checkValidAspect(aspectClass);
 
     final AddResult<ASPECT> result = runInTransactionWithRetry(() -> {
@@ -1126,19 +1119,19 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   /**
    * Similar to {@link #delete(Urn, Class, AuditStamp, int)} but uses the default maximum transaction retry.
    */
-  @Nonnull
-  public <ASPECT extends RecordTemplate> void delete(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
+  @Nullable
+  public <ASPECT extends RecordTemplate> ASPECT delete(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull AuditStamp auditStamp) {
-    delete(urn, aspectClass, auditStamp, null);
+    return delete(urn, aspectClass, auditStamp, null);
   }
 
   /**
    * Same as above {@link #delete(Urn, Class, AuditStamp)} but with tracking context.
    */
-  @Nonnull
-  public <ASPECT extends RecordTemplate> void delete(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
+  @Nullable
+  public <ASPECT extends RecordTemplate> ASPECT delete(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext) {
-    delete(urn, aspectClass, auditStamp, DEFAULT_MAX_TRANSACTION_RETRY, trackingContext);
+    return delete(urn, aspectClass, auditStamp, DEFAULT_MAX_TRANSACTION_RETRY, trackingContext);
   }
 
   private <ASPECT extends RecordTemplate> void applyRetention(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,

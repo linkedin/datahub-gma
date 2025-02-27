@@ -2735,7 +2735,7 @@ public class EbeanLocalDAOTest {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     FooUrn urn = makeFooUrn(1);
 
-    AspectFoo foo = dao.deleteWithReturn(urn, AspectFoo.class, _dummyAuditStamp, 3, null);
+    AspectFoo foo = dao.delete(urn, AspectFoo.class, _dummyAuditStamp, 3, null);
     assertNull(foo);
   }
 
@@ -2749,7 +2749,7 @@ public class EbeanLocalDAOTest {
     dao.add(urn, v0, _dummyAuditStamp);
 
     // attempt to delete an aspect that doesn't exist
-    AspectBar foo = dao.deleteWithReturn(urn, AspectBar.class, _dummyAuditStamp, 3, null);
+    AspectBar foo = dao.delete(urn, AspectBar.class, _dummyAuditStamp, 3, null);
     assertNull(foo);
   }
 
@@ -2759,13 +2759,13 @@ public class EbeanLocalDAOTest {
     FooUrn urn = makeFooUrn(1);
     AspectFoo v0 = new AspectFoo().setValue("foo");
     dao.add(urn, v0, _dummyAuditStamp);
-    AspectFoo foo = dao.deleteWithReturn(urn, AspectFoo.class, _dummyAuditStamp, 3, null);
+    AspectFoo foo = dao.delete(urn, AspectFoo.class, _dummyAuditStamp, 3, null);
 
     // make sure that the content matches the original
     assertEquals(foo, v0);
 
     // attempt to delete an aspect that has already been deleted
-    AspectFoo fooAgain = dao.deleteWithReturn(urn, AspectFoo.class, _dummyAuditStamp, 3, null);
+    AspectFoo fooAgain = dao.delete(urn, AspectFoo.class, _dummyAuditStamp, 3, null);
     assertNull(fooAgain);
   }
 
