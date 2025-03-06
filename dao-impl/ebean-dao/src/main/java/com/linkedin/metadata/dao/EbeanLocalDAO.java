@@ -958,7 +958,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
             + "LocalRelationshipUpdates: {}", urn, aspectClass, localRelationshipUpdates);
       }
     } else if (_noisyLogsEnabled) {
-      log.info("Was unable to find a registered relationship builder for urn: {}, aspectClass {}. Registry: {}", urn, aspectClass, _localRelationshipBuilderRegistry);
+      log.info("Was unable to find a registered relationship builder for urn: {}, aspectClass {}. Registry: {}",
+          urn, aspectClass, _localRelationshipBuilderRegistry);
     }
     // If no relationship updates were found using relationship builders, try to get them via the aspect.
     if (localRelationshipUpdates.isEmpty()) {
