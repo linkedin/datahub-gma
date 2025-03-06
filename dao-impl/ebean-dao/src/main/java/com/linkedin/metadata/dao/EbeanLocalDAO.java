@@ -953,10 +953,12 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       localRelationshipUpdates = _localRelationshipBuilderRegistry.getLocalRelationshipBuilder(aspect).buildRelationships(urn, aspect);
       // default all relationship updates to use REMOVE_ALL_EDGES_FROM_SOURCE
       localRelationshipUpdates.forEach(update -> update.setRemovalOption(BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE));
-      if (_noisyLogsEnabled) {
+      if (_noisyLogsEnabled && !localRelationshipUpdates.isEmpty()) {
         log.info("Was able to use relationship builders to extract relationships in handleRelationshipIngestion for urn: {}, aspectClass: {}. "
             + "LocalRelationshipUpdates: {}", urn, aspectClass, localRelationshipUpdates);
       }
+    } else if (_noisyLogsEnabled) {
+      log.info("Was unable to find a registered relationship builder for urn: {}, aspectClass {}. Registry: {}", urn, aspectClass, _localRelationshipBuilderRegistry);
     }
     // If no relationship updates were found using relationship builders, try to get them via the aspect.
     if (localRelationshipUpdates.isEmpty()) {
