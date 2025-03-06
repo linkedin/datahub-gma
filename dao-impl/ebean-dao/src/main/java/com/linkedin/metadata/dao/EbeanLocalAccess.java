@@ -196,11 +196,18 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
     // Create insert statement with variable number of aspect columns
     // For example: INSERT INTO <table_name> (<columns>)
-    StringBuilder insertIntoSql = new StringBuilder(SQL_INSERT_INTO_ASPECT_WITH_URN);
-
+    StringBuilder insertIntoSql = new StringBuilder();
     // Create part of insert statement with variable number of aspect values
     // For example: VALUES (<values>);
-    StringBuilder insertSqlValues = new StringBuilder(SQL_INSERT_ASPECT_VALUES_WITH_URN);
+    StringBuilder insertSqlValues = new StringBuilder();
+
+    if (urnExtraction) {
+      insertIntoSql.append(SQL_INSERT_INTO_ASSET_WITH_URN);
+      insertSqlValues.append(SQL_INSERT_ASSET_VALUES_WITH_URN);
+    } else {
+      insertIntoSql.append(SQL_INSERT_INTO_ASSET);
+      insertSqlValues.append(SQL_INSERT_ASSET_VALUES);
+    }
 
     for (int i = 0; i < classNames.size(); i++) {
       insertIntoSql.append(getAspectColumnName(urn.getEntityType(), classNames.get(i)));

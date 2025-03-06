@@ -54,6 +54,21 @@ public class SQLStatementUtilsTest {
   }
 
   @Test
+  public void testCreateInsertAspectSql() {
+    String expectedSql = "INSERT INTO %s (urn, a_urn, lastmodifiedon, lastmodifiedby,";
+    assertEquals(expectedSql, SQLStatementUtils.SQL_INSERT_INTO_ASSET_WITH_URN);
+
+    expectedSql = "VALUES (:urn, :a_urn, :lastmodifiedon, :lastmodifiedby,";
+    assertEquals(expectedSql, SQLStatementUtils.SQL_INSERT_ASSET_VALUES_WITH_URN);
+
+    expectedSql = "INSERT INTO %s (urn, lastmodifiedon, lastmodifiedby,";
+    assertEquals(expectedSql, SQLStatementUtils.SQL_INSERT_INTO_ASSET);
+
+    expectedSql = "VALUES (:urn, :lastmodifiedon, :lastmodifiedby,";
+    assertEquals(expectedSql, SQLStatementUtils.SQL_INSERT_ASSET_VALUES);
+  }
+
+  @Test
   public void testCreateAspectReadSql() {
     FooUrn fooUrn1 = makeFooUrn(1);
     FooUrn fooUrn2 = makeFooUrn(2);
