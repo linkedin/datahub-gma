@@ -99,6 +99,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   // TODO: clean up once AIM is no longer using existing local relationships - they should make new relationship tables with the aspect column
   private boolean _useAspectColumnForRelationshipRemoval = false;
 
+  private boolean _noisyLogsEnabled = false;
+
   // Which approach to be used for record retrieval when inserting a new record
   // See GCN-38382
   private FindMethodology _findMethodology = FindMethodology.UNIQUE_ID;
@@ -134,6 +136,14 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   public void setUseAspectColumnForRelationshipRemoval(boolean useAspectColumnForRelationshipRemoval) {
     _useAspectColumnForRelationshipRemoval = useAspectColumnForRelationshipRemoval;
     _localRelationshipWriterDAO.setUseAspectColumnForRelationshipRemoval(useAspectColumnForRelationshipRemoval);
+  }
+
+  /**
+   * Set a flag to indicate whether noisy info logs are enabled. Should only be used for debugging.
+   * @param noisyLogsEnabled whether the logs are enabled
+   */
+  public void setNoisyLogsEnabled(boolean noisyLogsEnabled) {
+    _noisyLogsEnabled = noisyLogsEnabled;
   }
 
   public void setOverwriteLatestVersionEnabled(boolean overwriteLatestVersionEnabled) {
@@ -681,13 +691,29 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       @Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass) {
     AspectKey<URN, ASPECT> key = new AspectKey<>(aspectClass, urn, LATEST_VERSION);
     return runInTransactionWithRetry(() -> {
+      if (_noisyLogsEnabled) {
+        log.info("Backfilling local relationships for urn: {}, aspectClass: {}", urn, aspectClass);
+      }
           List<EbeanMetadataAspect> results = batchGet(Collections.singleton(key), 1);
-      if (results.size() == 0) {
+      if (results.isEmpty()) {
+        if (_noisyLogsEnabled) {
+          log.info("Not backfilling any relationships because no aspect data was found for urn: {}, aspectClass: {}", urn, aspectClass);
+        }
         return new ArrayList<>();
+      }
+      if (_noisyLogsEnabled) {
+        log.info("Trying to convert aspect data from the entity table to a RecordTemplate for urn: {}, aspectClass: {}", urn, aspectClass);
       }
       Optional<ASPECT> aspect = toRecordTemplate(aspectClass, results.get(0));
       if (aspect.isPresent()) {
+        if (_noisyLogsEnabled) {
+          log.info("Successfully converted aspect data to a RecordTemplate for urn: {}, aspectClass: {}", urn, aspectClass);
+        }
         return handleRelationshipIngestion(urn, aspect.get(), null, aspectClass, false);
+      }
+      if (_noisyLogsEnabled) {
+        log.info("Not backfilling any relationships because aspect data was unable to be converted to a RecordTemplate "
+            + "for urn: {}, aspectClass: {}", urn, aspectClass);
       }
       return Collections.emptyList();
     }, 1);
@@ -906,6 +932,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     boolean isSoftDeletion = false;
     if (newValue == null) {
       if (oldValue == null) {
+        if (_noisyLogsEnabled) {
+          log.info("No relationships will be ingested since oldValue and newValue are both null in handleRelationshipIngestion "
+              + "for urn: {}, aspectClass: {}.", urn, aspectClass);
+        }
         return Collections.emptyList();
       }
       isSoftDeletion = true;
@@ -923,6 +953,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       localRelationshipUpdates = _localRelationshipBuilderRegistry.getLocalRelationshipBuilder(aspect).buildRelationships(urn, aspect);
       // default all relationship updates to use REMOVE_ALL_EDGES_FROM_SOURCE
       localRelationshipUpdates.forEach(update -> update.setRemovalOption(BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE));
+      if (_noisyLogsEnabled) {
+        log.info("Was able to use relationship builders to extract relationships in handleRelationshipIngestion for urn: {}, aspectClass: {}. "
+            + "LocalRelationshipUpdates: {}", urn, aspectClass, localRelationshipUpdates);
+      }
     }
     // If no relationship updates were found using relationship builders, try to get them via the aspect.
     if (localRelationshipUpdates.isEmpty()) {
@@ -932,16 +966,29 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
           .map(entry -> new LocalRelationshipUpdates(
               Arrays.asList(entry.getValue().toArray()), entry.getKey(), BaseGraphWriterDAO.RemovalOption.REMOVE_ALL_EDGES_FROM_SOURCE))
           .collect(Collectors.toList());
+      if (_noisyLogsEnabled) {
+        log.info("No relationship builder found or no relationships were extracted from the builder. Trying to get relationships "
+            + "directly from aspect metadata in handleRelationshipIngestion for urn: {}, aspectClass: {}. "
+            + "LocalRelationshipUpdates: {}", urn, aspectClass, localRelationshipUpdates);
+      }
     }
     // process relationship soft-deletion if applicable
     if (isSoftDeletion) {
       List<RELATIONSHIP> relationships = new ArrayList<>();
       localRelationshipUpdates.forEach(localRelationshipUpdate -> relationships.addAll(localRelationshipUpdate.getRelationships()));
+      if (_noisyLogsEnabled) {
+        log.info("Removing relationships because aspect is soft-deleted in handleRelationshipIngestion for urn: {}, aspectClass: {}. "
+            + "LocalRelationshipUpdates: {}", urn, aspectClass, localRelationshipUpdates);
+      }
       _localRelationshipWriterDAO.removeRelationships(urn, aspectClass, relationships);
       return Collections.emptyList();
     }
     // process relationship ingestion
     _localRelationshipWriterDAO.processLocalRelationshipUpdates(urn, aspectClass, localRelationshipUpdates, isTestMode);
+    if (_noisyLogsEnabled && !localRelationshipUpdates.isEmpty()) {
+      log.info("Relationships successfully ingested in handleRelationshipIngestion for urn: {}, aspectClass: {}. "
+          + "LocalRelationshipUpdates: {}", urn, aspectClass, localRelationshipUpdates);
+    }
     return localRelationshipUpdates;
   }
 
