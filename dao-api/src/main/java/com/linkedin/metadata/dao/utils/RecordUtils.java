@@ -79,6 +79,23 @@ public class RecordUtils {
   }
 
   /**
+   * Creates a {@link DataMap} object from a serialized JSON string.
+   * @param jsonString the JSON string serialized using {@link JacksonDataTemplateCodec}
+   * @return the created {@link DataMap}
+   */
+  public static DataMap toDataMap(@Nonnull String jsonString) {
+    final DataMap dataMap;
+
+    try {
+      dataMap = DATA_TEMPLATE_CODEC.stringToMap(jsonString);
+    } catch (IOException e) {
+      throw new ModelConversionException("Failed to deserialize DataMap: " + jsonString);
+    }
+
+    return dataMap;
+  }
+
+  /**
    * Creates a {@link RecordTemplate} object from a serialized JSON string.
    *
    * @param type the type of {@link RecordTemplate} to create
@@ -88,14 +105,7 @@ public class RecordUtils {
    */
   @Nonnull
   public static <T extends RecordTemplate> T toRecordTemplate(@Nonnull Class<T> type, @Nonnull String jsonString) {
-    DataMap dataMap;
-    try {
-      dataMap = DATA_TEMPLATE_CODEC.stringToMap(jsonString);
-    } catch (IOException e) {
-      throw new ModelConversionException("Failed to deserialize DataMap: " + jsonString);
-    }
-
-    return toRecordTemplate(type, dataMap);
+    return toRecordTemplate(type, toDataMap(jsonString));
   }
 
   /**
