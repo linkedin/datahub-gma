@@ -1,5 +1,6 @@
 package com.linkedin.metadata.dao;
 
+import com.linkedin.data.DataMap;
 import com.google.common.annotations.VisibleForTesting;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.UnionTemplate;
@@ -36,6 +37,9 @@ import org.javatuples.Pair;
  */
 @Slf4j
 public class EbeanLocalRelationshipQueryDAO {
+  public static final String RELATED_TO = "relatedTo";
+  public static final String SOURCE = "source";
+  public static final String METADATA = "metadata";
   private final EbeanServer _server;
   private final MultiHopsTraversalSqlGenerator _sqlGenerator;
 
@@ -222,6 +226,34 @@ public class EbeanLocalRelationshipQueryDAO {
       @Nullable String destinationEntityType, @Nullable LocalRelationshipFilter destinationEntityFilter,
       @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter,
       int offset, int count) {
+    List<SqlRow> sqlRows = findRelationshipsV2V3Core(
+        sourceEntityType, sourceEntityFilter, destinationEntityType, destinationEntityFilter,
+        relationshipType, relationshipFilter, offset, count);
+
+    return sqlRows.stream()
+        .map(row -> RecordUtils.toRecordTemplate(relationshipType, row.getString(METADATA)))
+        .collect(Collectors.toList());
+  }
+
+  /**
+   * Fetches a list of SqlRow of relationships of a specific type (Urn) based on the given filters if applicable.
+   *
+   * @param sourceEntityType type of source entity to query (e.g. "dataset")
+   * @param sourceEntityFilter the filter to apply to the source entity when querying (not applicable to non-MG entities)
+   * @param destinationEntityType type of destination entity to query (e.g. "dataset")
+   * @param destinationEntityFilter the filter to apply to the destination entity when querying (not applicable to non-MG entities)
+   * @param relationshipType the type of relationship to query
+   * @param relationshipFilter the filter to apply to relationship when querying
+   * @param offset the offset query should start at. Ignored if set to a negative value.
+   * @param count the maximum number of entities to return. Ignored if set to a non-positive value.
+   * @return A list of relationship records in SqlRow (col: source, destination, metadata, etc).
+   */
+  @Nonnull
+  public <RELATIONSHIP extends RecordTemplate> List<SqlRow> findRelationshipsV2V3Core(
+      @Nullable String sourceEntityType, @Nullable LocalRelationshipFilter sourceEntityFilter,
+      @Nullable String destinationEntityType, @Nullable LocalRelationshipFilter destinationEntityFilter,
+      @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter,
+      int offset, int count) {
     validateEntityTypeAndFilter(sourceEntityFilter, sourceEntityType);
     validateEntityTypeAndFilter(destinationEntityFilter, destinationEntityType);
     validateRelationshipFilter(relationshipFilter);
@@ -237,9 +269,84 @@ public class EbeanLocalRelationshipQueryDAO {
         destTableName, destinationEntityFilter,
         count, offset);
 
-    return _server.createSqlQuery(sql).findList().stream()
-        .map(row -> RecordUtils.toRecordTemplate(relationshipType, row.getString("metadata")))
+    return _server.createSqlQuery(sql).findList();
+  }
+
+  /**
+   * Finds a list of relationships of a specific type (Urn) based on the given filters if applicable.
+   * Similar to findRelationshipsV2, but this method wraps the relationship in a specific class provided by user.
+   * The intended use case is for MG internally with AssetRelationship, but since it is an open API, we are leaving room for extendability.
+   *
+   * @param sourceEntityType type of source entity to query (e.g. "dataset")
+   * @param sourceEntityFilter the filter to apply to the source entity when querying (not applicable to non-MG entities)
+   * @param destinationEntityType type of destination entity to query (e.g. "dataset")
+   * @param destinationEntityFilter the filter to apply to the destination entity when querying (not applicable to non-MG entities)
+   * @param relationshipType the type of relationship to query
+   * @param relationshipFilter the filter to apply to relationship when querying
+   * @param assetRelationshipClass the wrapper class for the relationship type
+   * @param wrapOptions options to wrap the relationship. Currently unused. Leaving it open for the future.
+   * @param offset the offset query should start at. Ignored if set to a negative value.
+   * @param count the maximum number of entities to return. Ignored if set to a non-positive value.
+   * @return A list of relationship records.
+   */
+  @Nonnull
+  public <ASSET_RELATIONSHIP extends RecordTemplate, RELATIONSHIP extends RecordTemplate> List<ASSET_RELATIONSHIP> findRelationshipsV3(
+      @Nullable String sourceEntityType, @Nullable LocalRelationshipFilter sourceEntityFilter,
+      @Nullable String destinationEntityType, @Nullable LocalRelationshipFilter destinationEntityFilter,
+      @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter,
+      @Nonnull Class<ASSET_RELATIONSHIP> assetRelationshipClass, @Nullable Map<String, Object> wrapOptions,
+      int offset, int count) {
+    if (wrapOptions == null) {
+      throw new IllegalArgumentException("Please check your use of the findRelationshipsV3 method. wrapOptions cannot be null.");
+    }
+
+    List<SqlRow> sqlRows = findRelationshipsV2V3Core(
+        sourceEntityType, sourceEntityFilter, destinationEntityType, destinationEntityFilter,
+        relationshipType, relationshipFilter, offset, count);
+
+    return sqlRows.stream()
+        .map(row -> createAssetRelationshipWrapperForRelationship(
+            relationshipType, assetRelationshipClass, row.getString(METADATA), row.getString(SOURCE), wrapOptions))
         .collect(Collectors.toList());
+  }
+
+  /**
+   * Wraps the relationship in a specific class provided by user.
+   * The intended use case is for MG internally with AssetRelationship, but since it is an open API, we are leaving room for extendability.
+   *
+   * @param relationshipType the type of relationship to query
+   * @param assetRelationshipClass the wrapper class for the relationship type. By default, AssetRelationship.
+   * @param metadata the metadata string which can be parsed into a relationship
+   * @param sourceUrn the source urn
+   * @param wrapOptions options to wrap the relationship. Currently unused. Leaving it open for the future.
+   * @return A wrapped relationship record.
+   */
+  @Nonnull
+  private <ASSET_RELATIONSHIP extends RecordTemplate, RELATIONSHIP extends RecordTemplate> ASSET_RELATIONSHIP createAssetRelationshipWrapperForRelationship(
+      @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull Class<ASSET_RELATIONSHIP> assetRelationshipClass,
+      @Nonnull String metadata, @Nonnull String sourceUrn, @Nullable Map<String, Object> wrapOptions) {
+    // TODO: if other type of ASSET_RELATIONSHIP is needed, we need to distinguish it with wrapOptions and handles differently.
+
+    // parse metadata json string into DataMap
+    final DataMap relationshipDataMap = RecordUtils.toDataMap(metadata);
+
+    final DataMap relatedToDataMap = new DataMap();
+    // e.g. "BelongsToV2" -> "belongsToV2"
+    final String relationshipName = decapitalize(relationshipType.getSimpleName());
+    relatedToDataMap.put(relationshipName, relationshipDataMap);
+
+    final DataMap dataMap = new DataMap();
+    dataMap.put(RELATED_TO, relatedToDataMap);
+    dataMap.put(SOURCE, sourceUrn);
+
+    return RecordUtils.toRecordTemplate(assetRelationshipClass, dataMap);
+  }
+
+  private static String decapitalize(String str) {
+    if (str == null || str.isEmpty()) {
+      return str;
+    }
+    return str.substring(0, 1).toLowerCase() + str.substring(1);
   }
 
   /**

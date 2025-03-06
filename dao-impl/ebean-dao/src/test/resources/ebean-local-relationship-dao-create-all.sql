@@ -1,4 +1,5 @@
 DROP TABLE IF EXISTS metadata_relationship_belongsto;
+DROP TABLE IF EXISTS metadata_relationship_belongstov2;
 DROP TABLE IF EXISTS metadata_relationship_reportsto;
 DROP TABLE IF EXISTS metadata_relationship_ownedby;
 DROP TABLE IF EXISTS metadata_relationship_pairswith;
@@ -9,6 +10,20 @@ DROP TABLE IF EXISTS metadata_entity_foo;
 DROP TABLE IF EXISTS metadata_entity_bar;
 
 CREATE TABLE IF NOT EXISTS metadata_relationship_belongsto (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    metadata LONGTEXT NOT NULL,
+    source VARCHAR(1000) NOT NULL,
+    source_type VARCHAR(100) NOT NULL,
+    destination VARCHAR(1000) NOT NULL,
+    destination_type VARCHAR(100) NOT NULL,
+    lastmodifiedon TIMESTAMP NOT NULL,
+    lastmodifiedby VARCHAR(255) NOT NULL,
+    deleted_ts DATETIME(6) DEFAULT NULL,
+    aspect VARCHAR(200) DEFAULT NULL, -- should be NOT NULL in production use cases
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS metadata_relationship_belongstov2 (
     id BIGINT NOT NULL AUTO_INCREMENT,
     metadata LONGTEXT NOT NULL,
     source VARCHAR(1000) NOT NULL,

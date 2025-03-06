@@ -1,0 +1,22 @@
+namespace com.linkedin.testing.localrelationship
+
+
+/**
+ * A union of all supported relationship types.
+ */
+record AssetRelationship {
+
+  /**
+   * Source asset urn in the relationship
+   */
+  source: optional string = ""
+
+  /**
+   * The union of specific relationship models, which contains the destination entity reference
+   * and other relationship specific attributes, such as lineageType in DownstreamOf relationship
+   */
+  relatedTo: optional union[
+    reportsTo: ReportsTo,
+    belongsToV2: BelongsToV2
+  ]
+}

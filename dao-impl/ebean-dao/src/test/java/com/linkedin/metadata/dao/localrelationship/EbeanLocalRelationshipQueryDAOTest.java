@@ -33,7 +33,9 @@ import com.linkedin.testing.BarSnapshot;
 import com.linkedin.testing.EntityAspectUnion;
 import com.linkedin.testing.EntityAspectUnionArray;
 import com.linkedin.testing.FooSnapshot;
+import com.linkedin.testing.localrelationship.AssetRelationship;
 import com.linkedin.testing.localrelationship.BelongsTo;
+import com.linkedin.testing.localrelationship.BelongsToV2;
 import com.linkedin.testing.localrelationship.ConsumeFrom;
 import com.linkedin.testing.localrelationship.EnvorinmentType;
 import com.linkedin.testing.localrelationship.OwnedBy;
@@ -49,6 +51,7 @@ import java.lang.reflect.Method;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -692,6 +695,100 @@ public class EbeanLocalRelationshipQueryDAOTest {
     actual = reportsToAlice.stream().map(reportsTo -> makeFooUrn(reportsTo.getSource().toString())).collect(Collectors.toSet());
     expected = ImmutableSet.of(bob, jack, lisa, rose, jenny);
     assertEquals(actual, expected);
+  }
+
+  @Test(dataProvider = "schemaConfig")
+  public void testFindRelationshipsV3WithRelationshipV1(EbeanLocalDAO.SchemaConfig schemaConfig) throws URISyntaxException {
+    FooUrn alice = new FooUrn(1);
+    FooUrn bob = new FooUrn(2);
+
+    // Add Alice, Bob and Jack into entity tables.
+    if (schemaConfig == EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY) {
+      _fooUrnEBeanLocalAccess.add(alice, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp(), null, false);
+      _fooUrnEBeanLocalAccess.add(bob, new AspectFoo().setValue("Bob"), AspectFoo.class, new AuditStamp(), null, false);
+    }
+
+    // Add Bob reports-to ALice relationship
+    ReportsTo bobReportsToAlice = new ReportsTo().setSource(bob).setDestination(alice);
+    _localRelationshipWriterDAO.addRelationships(bob, AspectFoo.class, Collections.singletonList(bobReportsToAlice), false);
+
+    // Find all reports-to relationship for Alice.
+    LocalRelationshipFilter destFilter;
+    if (schemaConfig == EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY) {
+      // old schema does not support non-urn field filters
+      LocalRelationshipCriterion oldSchemaFilterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create(alice.toString()),
+          Condition.EQUAL,
+          new UrnField());
+      destFilter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(oldSchemaFilterCriterion));
+    } else {
+      LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Alice"),
+          Condition.EQUAL,
+          new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+      destFilter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
+    }
+
+    _localRelationshipQueryDAO.setSchemaConfig(schemaConfig);
+
+    List<AssetRelationship> reportsToAlice = _localRelationshipQueryDAO.findRelationshipsV3(
+        null, null, "foo", destFilter,
+        ReportsTo.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
+        AssetRelationship.class, new HashMap<>(),
+        -1, -1);
+
+    AssetRelationship expected = reportsToAlice.get(0);
+    assertEquals(expected.getSource(), "urn:li:foo:2");
+
+    ReportsTo expectedReportsTo = expected.getRelatedTo().getReportsTo();
+
+    assertNotNull(expectedReportsTo);
+    assertEquals(expectedReportsTo.getSource().toString(), "urn:li:foo:2");
+    assertEquals(expectedReportsTo.getDestination().toString(), "urn:li:foo:1");
+  }
+
+  @Test(dataProvider = "schemaConfig")
+  public void testFindRelationshipsV3WithRelationshipV2(EbeanLocalDAO.SchemaConfig schemaConfig) throws URISyntaxException {
+    FooUrn owner = new FooUrn(1);
+    FooUrn car = new FooUrn(2);
+
+    // Add Alice, Bob and Jack into entity tables.
+    if (schemaConfig == EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY) {
+      _fooUrnEBeanLocalAccess.add(car, new AspectFoo().setValue("Car"), AspectFoo.class, new AuditStamp(), null, false);
+      _fooUrnEBeanLocalAccess.add(owner, new AspectFoo().setValue("Owner"), AspectFoo.class, new AuditStamp(), null, false);
+    }
+
+    // Add Bob reports-to ALice relationship
+    BelongsToV2 carBelongsToOwner = new BelongsToV2();
+    carBelongsToOwner.setDestination(BelongsToV2.Destination.create(owner.toString()));
+    _localRelationshipWriterDAO.addRelationships(car, AspectFoo.class, Collections.singletonList(carBelongsToOwner), false);
+
+    // Find all reports-to relationship for Alice.
+    LocalRelationshipFilter destFilter;
+    if (schemaConfig == EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY) {
+      // old schema does not support non-urn field filters
+      LocalRelationshipCriterion oldSchemaFilterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create(owner.toString()),
+          Condition.EQUAL,
+          new UrnField());
+      destFilter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(oldSchemaFilterCriterion));
+    } else {
+      LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Owner"),
+          Condition.EQUAL,
+          new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+      destFilter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
+    }
+
+    _localRelationshipQueryDAO.setSchemaConfig(schemaConfig);
+
+    List<AssetRelationship> belongsToOwner = _localRelationshipQueryDAO.findRelationshipsV3(
+        null, null, "foo", destFilter,
+        BelongsToV2.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
+        AssetRelationship.class, new HashMap<>(),
+        -1, -1);
+
+    AssetRelationship expected = belongsToOwner.get(0);
+    assertEquals(expected.getSource(), "urn:li:foo:2");
+
+    BelongsToV2 expectedBelongsToV2 = expected.getRelatedTo().getBelongsToV2();
+    assertEquals(expectedBelongsToV2.getDestination().getString(), owner.toString());
   }
 
   @Test
