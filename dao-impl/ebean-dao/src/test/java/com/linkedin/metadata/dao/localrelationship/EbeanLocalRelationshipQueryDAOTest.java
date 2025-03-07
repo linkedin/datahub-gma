@@ -53,6 +53,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.naming.OperationNotSupportedException;
@@ -62,6 +63,7 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Factory;
 import org.testng.annotations.Test;
 
+import static com.linkedin.metadata.dao.EbeanLocalRelationshipQueryDAO.*;
 import static com.linkedin.testing.TestUtils.*;
 import static org.testng.Assert.*;
 
@@ -729,10 +731,13 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     _localRelationshipQueryDAO.setSchemaConfig(schemaConfig);
 
+    Map<String, Object> wrapOptions = new HashMap<>();
+    wrapOptions.put(ASSET_RELATIONSHIP_TYPE, MG_INTERNAL_ASSET_RELATIONSHIP_TYPE);
+
     List<AssetRelationship> reportsToAlice = _localRelationshipQueryDAO.findRelationshipsV3(
         null, null, "foo", destFilter,
         ReportsTo.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
-        AssetRelationship.class, new HashMap<>(),
+        AssetRelationship.class, wrapOptions,
         -1, -1);
 
     AssetRelationship expected = reportsToAlice.get(0);
@@ -778,10 +783,13 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     _localRelationshipQueryDAO.setSchemaConfig(schemaConfig);
 
+    Map<String, Object> wrapOptions = new HashMap<>();
+    wrapOptions.put(ASSET_RELATIONSHIP_TYPE, MG_INTERNAL_ASSET_RELATIONSHIP_TYPE);
+
     List<AssetRelationship> belongsToOwner = _localRelationshipQueryDAO.findRelationshipsV3(
         null, null, "foo", destFilter,
         BelongsToV2.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
-        AssetRelationship.class, new HashMap<>(),
+        AssetRelationship.class, wrapOptions,
         -1, -1);
 
     AssetRelationship expected = belongsToOwner.get(0);

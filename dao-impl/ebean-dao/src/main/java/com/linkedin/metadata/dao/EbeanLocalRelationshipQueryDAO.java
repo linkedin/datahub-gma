@@ -40,6 +40,8 @@ public class EbeanLocalRelationshipQueryDAO {
   public static final String RELATED_TO = "relatedTo";
   public static final String SOURCE = "source";
   public static final String METADATA = "metadata";
+  public static final String ASSET_RELATIONSHIP_TYPE = "asset.relationship.type";
+  public static final String MG_INTERNAL_ASSET_RELATIONSHIP_TYPE = "AssetRelationship.proto";
   private final EbeanServer _server;
   private final MultiHopsTraversalSqlGenerator _sqlGenerator;
 
@@ -249,7 +251,7 @@ public class EbeanLocalRelationshipQueryDAO {
    * @return A list of relationship records in SqlRow (col: source, destination, metadata, etc).
    */
   @Nonnull
-  public <RELATIONSHIP extends RecordTemplate> List<SqlRow> findRelationshipsV2V3Core(
+  private <RELATIONSHIP extends RecordTemplate> List<SqlRow> findRelationshipsV2V3Core(
       @Nullable String sourceEntityType, @Nullable LocalRelationshipFilter sourceEntityFilter,
       @Nullable String destinationEntityType, @Nullable LocalRelationshipFilter destinationEntityFilter,
       @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter,
@@ -296,8 +298,9 @@ public class EbeanLocalRelationshipQueryDAO {
       @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter,
       @Nonnull Class<ASSET_RELATIONSHIP> assetRelationshipClass, @Nullable Map<String, Object> wrapOptions,
       int offset, int count) {
-    if (wrapOptions == null) {
-      throw new IllegalArgumentException("Please check your use of the findRelationshipsV3 method. wrapOptions cannot be null.");
+    if (wrapOptions == null || !wrapOptions.containsKey(ASSET_RELATIONSHIP_TYPE)
+        || !MG_INTERNAL_ASSET_RELATIONSHIP_TYPE.equals(wrapOptions.get(ASSET_RELATIONSHIP_TYPE))) {
+      throw new IllegalArgumentException("Please check your use of the findRelationshipsV3 method.");
     }
 
     List<SqlRow> sqlRows = findRelationshipsV2V3Core(
