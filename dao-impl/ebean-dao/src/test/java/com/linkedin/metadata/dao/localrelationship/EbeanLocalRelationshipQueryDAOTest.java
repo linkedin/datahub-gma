@@ -732,7 +732,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
     _localRelationshipQueryDAO.setSchemaConfig(schemaConfig);
 
     Map<String, Object> wrapOptions = new HashMap<>();
-    wrapOptions.put(ASSET_RELATIONSHIP_TYPE, MG_INTERNAL_ASSET_RELATIONSHIP_TYPE);
+    wrapOptions.put(RELATIONSHIP_RETURN_TYPE, MG_INTERNAL_ASSET_RELATIONSHIP_TYPE);
 
     List<AssetRelationship> reportsToAlice = _localRelationshipQueryDAO.findRelationshipsV3(
         null, null, "foo", destFilter,
@@ -784,7 +784,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
     _localRelationshipQueryDAO.setSchemaConfig(schemaConfig);
 
     Map<String, Object> wrapOptions = new HashMap<>();
-    wrapOptions.put(ASSET_RELATIONSHIP_TYPE, MG_INTERNAL_ASSET_RELATIONSHIP_TYPE);
+    wrapOptions.put(RELATIONSHIP_RETURN_TYPE, MG_INTERNAL_ASSET_RELATIONSHIP_TYPE);
 
     List<AssetRelationship> belongsToOwner = _localRelationshipQueryDAO.findRelationshipsV3(
         null, null, "foo", destFilter,

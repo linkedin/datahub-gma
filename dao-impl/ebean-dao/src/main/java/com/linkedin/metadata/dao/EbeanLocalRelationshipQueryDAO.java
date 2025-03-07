@@ -40,7 +40,7 @@ public class EbeanLocalRelationshipQueryDAO {
   public static final String RELATED_TO = "relatedTo";
   public static final String SOURCE = "source";
   public static final String METADATA = "metadata";
-  public static final String ASSET_RELATIONSHIP_TYPE = "relationship.return.type";
+  public static final String RELATIONSHIP_RETURN_TYPE = "relationship.return.type";
   public static final String MG_INTERNAL_ASSET_RELATIONSHIP_TYPE = "AssetRelationship.proto";
   private final EbeanServer _server;
   private final MultiHopsTraversalSqlGenerator _sqlGenerator;
@@ -298,8 +298,8 @@ public class EbeanLocalRelationshipQueryDAO {
       @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter,
       @Nonnull Class<ASSET_RELATIONSHIP> assetRelationshipClass, @Nullable Map<String, Object> wrapOptions,
       int offset, int count) {
-    if (wrapOptions == null || !wrapOptions.containsKey(ASSET_RELATIONSHIP_TYPE)
-        || !MG_INTERNAL_ASSET_RELATIONSHIP_TYPE.equals(wrapOptions.get(ASSET_RELATIONSHIP_TYPE))) {
+    if (wrapOptions == null || !wrapOptions.containsKey(RELATIONSHIP_RETURN_TYPE)
+        || !MG_INTERNAL_ASSET_RELATIONSHIP_TYPE.equals(wrapOptions.get(RELATIONSHIP_RETURN_TYPE))) {
       throw new IllegalArgumentException("Please check your use of the findRelationshipsV3 method.");
     }
 
