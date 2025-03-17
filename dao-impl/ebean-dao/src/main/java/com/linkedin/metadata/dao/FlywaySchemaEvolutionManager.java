@@ -1,24 +1,40 @@
 package com.linkedin.metadata.dao;
 
+import io.ebean.EbeanServer;
+import io.ebean.SqlRow;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.List;
 import java.util.Properties;
+import lombok.extern.slf4j.Slf4j;
+import net.sf.jsqlparser.JSQLParserException;
 import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.MigrationInfo;
+
+import static com.linkedin.metadata.dao.utils.SQLSchemaUtils.*;
+import static com.linkedin.metadata.dao.utils.SQLStatementUtils.*;
 
 
+@Slf4j
 public class FlywaySchemaEvolutionManager implements SchemaEvolutionManager {
   private static final String EVOLUTION_SCRIPTS_LOCATION = "script_directory";
   private static final String VERSION_TABLE = "version_table";
   private static final String CONFIG_FILE_TEMPLATE = "%s.conf";
   private static final String CONFIG_FILE_TEMPLATE2 = "%s-%s.conf";
   private static final String DISABLE_CLEAN = "disable_clean";
+  private static final long HIGH_RISK_THRESHOLD = 500_000L;
   private final Flyway _flyway;
+  private final EbeanServer _server;
+  private final String _databaseName;
 
-  public FlywaySchemaEvolutionManager(Config config) {
-    String databaseName = getDatabaseName(config);
+  public FlywaySchemaEvolutionManager(Config config, EbeanServer server) {
+    _server = server;
+    _databaseName = getDatabaseName(config);
     String serviceIdentifier = config.getServiceIdentifier();
     String configFileName = serviceIdentifier == null
-        ? String.format(CONFIG_FILE_TEMPLATE, databaseName) : String.format(CONFIG_FILE_TEMPLATE2, serviceIdentifier, databaseName);
+        ? String.format(CONFIG_FILE_TEMPLATE, _databaseName) : String.format(CONFIG_FILE_TEMPLATE2, serviceIdentifier, _databaseName);
     Properties configProp = new Properties();
 
     try (InputStream configFile = getClass().getClassLoader().getResourceAsStream(configFileName)) {
@@ -46,7 +62,37 @@ public class FlywaySchemaEvolutionManager implements SchemaEvolutionManager {
 
   @Override
   public void ensureSchemaUpToDate() {
-      _flyway.migrate();
+    //Retrieves the full set of infos about pending migrations, available locally, but not yet applied to the DB
+    MigrationInfo[] pendingMigrations = _flyway.info().pending();
+
+    for (MigrationInfo pendingMigration : pendingMigrations) {
+      try {
+        String sql = new String(Files.readAllBytes(Paths.get(pendingMigration.getPhysicalLocation())));
+        List<String> highRiskSQL = detectPotentialHighRiskSQL(sql);
+
+        for (String statement : highRiskSQL) {
+          String table = extractTableName(statement);
+          SqlRow sqlRow = _server.createSqlQuery(getEstimatedRowCount(_databaseName, table)).findOne();
+
+          if (sqlRow != null) {
+            long rowCount = sqlRow.getLong("table_rows");
+
+            if (rowCount > HIGH_RISK_THRESHOLD) {
+              log.error("Estimated row count {}. Apply SQL {} is high risk. Please work with MySQL team to get it applied", rowCount, statement);
+              return;
+            }
+          }
+        }
+
+      } catch (JSQLParserException e) {
+        log.error("Unable to parse the SQL script for potential high risk SQL. Please work with MySQL team to get it applied", e);
+        return;
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+    }
+
+    _flyway.migrate();
   }
 
   @Override

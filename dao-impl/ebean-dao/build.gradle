@@ -16,6 +16,7 @@ dependencies {
   compile externalDependency.jsonSimple
   compile externalDependency.log4j
 
+  implementation 'com.github.jsqlparser:jsqlparser:4.6'
   compileOnly externalDependency.ebeanAgent
   compileOnly externalDependency.lombok
 

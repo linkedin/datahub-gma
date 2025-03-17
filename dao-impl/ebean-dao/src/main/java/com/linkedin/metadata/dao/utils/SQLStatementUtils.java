@@ -141,11 +141,21 @@ public class SQLStatementUtils {
       String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby, (SELECT COUNT(urn) FROM %%s) as _total_count "
           + "FROM %%s WHERE %s LIMIT %%d OFFSET %%d", SOFT_DELETED_CHECK);
 
+  private static final String GET_ESTIMATED_COUNT = "select table_rows from information_schema.tables where "
+      + "table_schema = '%s' and table_name = '%s'";
+
   public static final String SOURCE = "source";
   public static final String DESTINATION = "destination";
 
   private SQLStatementUtils() {
     // Util class
+  }
+
+  /**
+   * Get estimated row count for a table.
+   */
+  public static String getEstimatedRowCount(String db, String table) {
+    return String.format(GET_ESTIMATED_COUNT, db, table);
   }
 
   /**

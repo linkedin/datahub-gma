@@ -8,9 +8,19 @@ import com.linkedin.metadata.aspect.AspectColumnMetadata;
 import com.linkedin.metadata.dao.GlobalAssetRegistry;
 import com.linkedin.metadata.dao.exception.MissingAnnotationException;
 import com.linkedin.metadata.dao.exception.ModelValidationException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import javax.annotation.Nonnull;
 import lombok.extern.slf4j.Slf4j;
+import net.sf.jsqlparser.JSQLParserException;
+import net.sf.jsqlparser.parser.CCJSqlParserUtil;
+import net.sf.jsqlparser.statement.Statement;
+import net.sf.jsqlparser.statement.alter.Alter;
+import net.sf.jsqlparser.statement.alter.AlterExpression;
+import net.sf.jsqlparser.statement.create.index.CreateIndex;
+import net.sf.jsqlparser.statement.create.table.CreateTable;
+import net.sf.jsqlparser.statement.drop.Drop;
 
 
 /**
@@ -250,5 +260,80 @@ public class SQLSchemaUtils {
       throw new MissingAnnotationException(
           String.format("Aspect %s should be annotated with @gma.aspect.column.name.", aspectCanonicalName), e);
     }
+  }
+
+  /**
+   * Given a sql script that has one or more SQL statements, detect all potentially high-risk SQL statements.
+   * @param sqlScript A string contains one or more SQL statements.
+   * @return A list of potentially high-risk SQL statements
+   * @throws JSQLParserException if the sql script cannot be properly parsed.
+   */
+  public static List<String> detectPotentialHighRiskSQL(String sqlScript) throws JSQLParserException {
+
+    // Split SQL into individual statements
+    String[] statements = sqlScript.split(";\\s*"); // Splits on semicolons.
+    List<String> potentialHighRiskSQL = new ArrayList<>();
+
+    for (String statement : statements) {
+      Statement sql = CCJSqlParserUtil.parse(statement);
+
+      if (sql instanceof CreateTable) {
+        log.info("Create table is generally low risk. SQL {}", statement);
+      } else if (sql instanceof Alter) {
+        Alter alterStatement = (Alter) sql;
+        List<AlterExpression> expressions = alterStatement.getAlterExpressions();
+
+        // Check if the statement is trying to alter table ... add index ...
+        // Note that alter table ... add column ... is considered low-risk though.
+        for (AlterExpression expression : expressions) {
+          if (expression.getIndex() != null) {
+            log.info("Add index to table is potentially high risk. SQL {}", statement);
+            potentialHighRiskSQL.add(statement);
+            break;
+          }
+        }
+
+      } else if (sql instanceof CreateIndex) {
+        log.info("Create index is potentially high risk. SQL {}", statement);
+        potentialHighRiskSQL.add(statement);
+      } else {
+        // catch all bucket. Any SQL that is not create table, create index, alter table is considered high-risk.
+        log.info("SQL is potentially high-risk {}", statement);
+        potentialHighRiskSQL.add(statement);
+      }
+    }
+
+    return potentialHighRiskSQL;
+  }
+
+  /**
+   * For a SQL statement, extract the table name used in the SQL.
+   * @param sql such as "alter table foo add index bar (abc);"
+   * @return The table name such as "foo"
+   * @throws JSQLParserException if the SQL statement is not one of the supported type.
+   */
+  public static String extractTableName(String sql) throws JSQLParserException {
+    Statement statement = CCJSqlParserUtil.parse(sql);
+
+    if (statement instanceof CreateTable) {
+
+      CreateTable createTable = (CreateTable) statement;
+      return createTable.getTable().getName();
+
+    } else if (statement instanceof Alter) {
+
+      Alter alterStatement = (Alter) statement;
+      return alterStatement.getTable().getName();
+
+    } else if (statement instanceof CreateIndex) {
+      CreateIndex createIndex = (CreateIndex) statement;
+      return createIndex.getTable().getName();
+
+    } else if (statement instanceof Drop) {
+      Drop dropStatement = (Drop) statement;
+      return  dropStatement.getName().getName();
+    }
+
+    throw new JSQLParserException("Unsupported statement type: " + statement.getClass().getName());
   }
 }
