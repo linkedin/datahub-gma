@@ -16,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import net.sf.jsqlparser.statement.Statement;
+import net.sf.jsqlparser.statement.Statements;
 import net.sf.jsqlparser.statement.alter.Alter;
 import net.sf.jsqlparser.statement.alter.AlterExpression;
 import net.sf.jsqlparser.statement.create.index.CreateIndex;
@@ -268,19 +269,18 @@ public class SQLSchemaUtils {
    * @return A list of potentially high-risk SQL statements
    * @throws JSQLParserException if the sql script cannot be properly parsed.
    */
+  @Nonnull
   public static List<String> detectPotentialHighRiskSQL(String sqlScript) throws JSQLParserException {
 
     // Split SQL into individual statements
-    String[] statements = sqlScript.split(";\\s*"); // Splits on semicolons.
     List<String> potentialHighRiskSQL = new ArrayList<>();
+    Statements sql = CCJSqlParserUtil.parseStatements(sqlScript);
 
-    for (String statement : statements) {
-      Statement sql = CCJSqlParserUtil.parse(statement);
-
-      if (sql instanceof CreateTable) {
+    for (Statement statement : sql.getStatements()) {
+      if (statement instanceof CreateTable) {
         log.info("Create table is generally low risk. SQL {}", statement);
-      } else if (sql instanceof Alter) {
-        Alter alterStatement = (Alter) sql;
+      } else if (statement instanceof Alter) {
+        Alter alterStatement = (Alter) statement;
         List<AlterExpression> expressions = alterStatement.getAlterExpressions();
 
         // Check if the statement is trying to alter table ... add index ...
@@ -288,18 +288,18 @@ public class SQLSchemaUtils {
         for (AlterExpression expression : expressions) {
           if (expression.getIndex() != null) {
             log.info("Add index to table is potentially high risk. SQL {}", statement);
-            potentialHighRiskSQL.add(statement);
+            potentialHighRiskSQL.add(statement.toString());
             break;
           }
         }
 
-      } else if (sql instanceof CreateIndex) {
+      } else if (statement instanceof CreateIndex) {
         log.info("Create index is potentially high risk. SQL {}", statement);
-        potentialHighRiskSQL.add(statement);
+        potentialHighRiskSQL.add(statement.toString());
       } else {
         // catch all bucket. Any SQL that is not create table, create index, alter table is considered high-risk.
         log.info("SQL is potentially high-risk {}", statement);
-        potentialHighRiskSQL.add(statement);
+        potentialHighRiskSQL.add(statement.toString());
       }
     }
 

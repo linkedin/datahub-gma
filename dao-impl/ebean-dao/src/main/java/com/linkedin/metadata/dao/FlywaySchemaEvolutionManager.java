@@ -24,7 +24,7 @@ public class FlywaySchemaEvolutionManager implements SchemaEvolutionManager {
   private static final String CONFIG_FILE_TEMPLATE = "%s.conf";
   private static final String CONFIG_FILE_TEMPLATE2 = "%s-%s.conf";
   private static final String DISABLE_CLEAN = "disable_clean";
-  private static final long HIGH_RISK_THRESHOLD = 500_000L;
+  private static final long HIGH_RISK_THRESHOLD = 2_000_000L;
   private final Flyway _flyway;
   private final EbeanServer _server;
   private final String _databaseName;
