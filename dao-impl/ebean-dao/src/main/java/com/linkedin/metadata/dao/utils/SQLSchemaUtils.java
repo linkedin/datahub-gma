@@ -272,7 +272,6 @@ public class SQLSchemaUtils {
   @Nonnull
   public static List<String> detectPotentialHighRiskSQL(String sqlScript) throws JSQLParserException {
 
-    // Split SQL into individual statements
     List<String> potentialHighRiskSQL = new ArrayList<>();
     Statements sql = CCJSqlParserUtil.parseStatements(sqlScript);
 
