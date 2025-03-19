@@ -30,14 +30,14 @@ public class FlywaySchemaEvolutionManagerTest {
         EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()).getDataSourceConfig().getCustomProperties().get("SERVICE_IDENTIFIER")
     );
 
-    _schemaEvolutionManager = new FlywaySchemaEvolutionManager(config);
+    _schemaEvolutionManager = new FlywaySchemaEvolutionManager(config, _server);
   }
 
   @Test
   public void testSchemaUpToDate() {
     _schemaEvolutionManager.clean();
 
-    // make sure table did not exists
+    // make sure table did not exist.
     assertFalse(checkTableExists("metadata_entity_foo"));
     assertFalse(checkTableExists("metadata_entity_bar"));
 

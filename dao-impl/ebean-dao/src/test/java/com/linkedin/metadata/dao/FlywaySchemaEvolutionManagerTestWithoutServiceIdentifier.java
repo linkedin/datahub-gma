@@ -35,7 +35,7 @@ public class FlywaySchemaEvolutionManagerTestWithoutServiceIdentifier {
         null
     );
 
-    _schemaEvolutionManager = new FlywaySchemaEvolutionManager(config);
+    _schemaEvolutionManager = new FlywaySchemaEvolutionManager(config, _server);
   }
 
   @Test
