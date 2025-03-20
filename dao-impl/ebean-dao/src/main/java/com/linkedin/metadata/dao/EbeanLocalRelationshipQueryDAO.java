@@ -270,7 +270,8 @@ public class EbeanLocalRelationshipQueryDAO {
         sourceTableName, sourceEntityFilter,
         destTableName, destinationEntityFilter,
         count, offset);
-
+    // Temporary log to help debug the slow SQL query
+    log.info("Executing SQL for GQS: {}", sql);
     return _server.createSqlQuery(sql).findList();
   }
 
