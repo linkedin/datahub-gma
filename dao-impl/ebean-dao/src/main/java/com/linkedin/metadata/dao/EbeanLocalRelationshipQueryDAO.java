@@ -270,7 +270,7 @@ public class EbeanLocalRelationshipQueryDAO {
         sourceTableName, sourceEntityFilter,
         destTableName, destinationEntityFilter,
         count, offset);
-
+    log.info("Executing SQL for GQS: {}", sql);
     return _server.createSqlQuery(sql).findList();
   }
 
