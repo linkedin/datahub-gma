@@ -723,6 +723,12 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
           Collectors.toList()).isEmpty();
 
     int numRows = createNewAspect(urn, aspectCreateLambdas, aspectValues, auditStamp, trackingContext, isTestModeFalseForAll);
+    for (RecordTemplate aspectValue : aspectValues) {
+      // For each aspect, we need to trigger emit MAE
+      // In new asset creation, old value is null
+      unwrapAddResult(urn, new AddResult<>(null, aspectValue, (Class<RecordTemplate>) aspectValue.getClass()),
+          auditStamp, trackingContext);
+    }
     return numRows > 0 ? urn : null;
   }
 
