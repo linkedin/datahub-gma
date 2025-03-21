@@ -712,6 +712,8 @@ public class BaseLocalDAOTest {
 
     FooUrn result = _dummyLocalDAO.createAspectsWithCallbacks(urn, aspectValues, aspectCreateLambdas, _dummyAuditStamp, null);
     assertEquals(result, urn);
+    verify(_mockEventProducer, times(2)).produceMetadataAuditEvent(urn, null, bar);
+    verify(_mockEventProducer, times(2)).produceAspectSpecificMetadataAuditEvent(urn, null, bar, _dummyAuditStamp, IngestionMode.LIVE);
   }
 
   @Test
