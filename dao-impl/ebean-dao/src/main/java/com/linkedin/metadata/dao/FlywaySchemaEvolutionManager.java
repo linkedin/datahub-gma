@@ -65,7 +65,6 @@ public class FlywaySchemaEvolutionManager implements SchemaEvolutionManager {
     //Retrieves the full set of infos about pending migrations, available locally, but not yet applied to the DB
     MigrationInfo[] pendingMigrations = _flyway.info().pending();
 
-
     for (MigrationInfo pendingMigration : pendingMigrations) {
       try {
         String location = _flyway.getConfiguration().getLocations()[0].getPath();
