@@ -1,13 +1,11 @@
 package com.linkedin.metadata.dao;
 
-import com.linkedin.util.FileUtil;
+import com.google.common.io.Resources;
 import io.ebean.EbeanServer;
 import io.ebean.SqlRow;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.util.List;
 import java.util.Properties;
 import lombok.extern.slf4j.Slf4j;
@@ -69,10 +67,9 @@ public class FlywaySchemaEvolutionManager implements SchemaEvolutionManager {
 
     for (MigrationInfo pendingMigration : pendingMigrations) {
       try {
-        List<File> file = FileUtil.listFiles(new File("."),
-            pathname -> pathname.getName().equals(pendingMigration.getScript()));
+        String location = _flyway.getConfiguration().getLocations()[0].getPath();
+        String sql = Resources.toString(Resources.getResource(location + "/" + pendingMigration.getScript()), StandardCharsets.UTF_8);
 
-        String sql = new String(Files.readAllBytes(file.get(0).toPath()), StandardCharsets.UTF_8);
         List<String> highRiskSQL = detectPotentialHighRiskSQL(sql);
 
         for (String statement : highRiskSQL) {
