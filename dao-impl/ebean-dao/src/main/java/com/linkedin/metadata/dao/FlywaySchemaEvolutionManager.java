@@ -64,6 +64,7 @@ public class FlywaySchemaEvolutionManager implements SchemaEvolutionManager {
    * Apply pending schema evolution to databases.
    * @param enableSchemaCheck If set to true, flyway will only apply the "low risk" DDL changes.
    */
+  @Override
   public void ensureSchemaUpToDate(boolean enableSchemaCheck) {
     if (!enableSchemaCheck) {
       _flyway.migrate();
@@ -102,11 +103,6 @@ public class FlywaySchemaEvolutionManager implements SchemaEvolutionManager {
       }
     }
 
-    _flyway.migrate();
-  }
-
-  @Override
-  public void ensureSchemaUpToDate() {
     _flyway.migrate();
   }
 
