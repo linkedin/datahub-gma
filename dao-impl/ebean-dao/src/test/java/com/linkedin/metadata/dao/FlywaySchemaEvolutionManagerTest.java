@@ -42,7 +42,7 @@ public class FlywaySchemaEvolutionManagerTest {
     assertFalse(checkTableExists("metadata_entity_bar"));
 
     // Execute the evolution scripts to bring schema up-to-date.
-    _schemaEvolutionManager.ensureSchemaUpToDate();
+    _schemaEvolutionManager.ensureSchemaUpToDate(true);
 
     // V1__create_foo_entity_table.sql create metadata_entity_foo table.
     assertTrue(checkTableExists("metadata_entity_foo"));
