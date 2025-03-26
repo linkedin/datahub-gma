@@ -89,8 +89,8 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     _urnPathExtractor = urnPathExtractor;
   }
 
-  public void ensureSchemaUpToDate() {
-    _schemaEvolutionManager.ensureSchemaUpToDate();
+  public void ensureSchemaUpToDate(boolean enabledSchemaCheck) {
+    _schemaEvolutionManager.ensureSchemaUpToDate(enabledSchemaCheck);
   }
 
   @Override
