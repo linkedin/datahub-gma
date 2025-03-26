@@ -700,7 +700,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     for (int i = 0; i < aspectValues.size(); i++) {
       RecordTemplate aspectValue = aspectValues.get(i);
       AspectCreateLambda<? extends RecordTemplate> createLambda = aspectCreateLambdas.get(i);
-      AspectUpdateResult result = aspectCallbackHelper(urn, aspectValue, null, createLambda.ingestionParams);
+      AspectUpdateResult result = aspectCallbackHelper(urn, aspectValue, null, createLambda.ingestionParams, auditStamp);
       // skip the normal ingestion to the DAO
       if (result.isSkipProcessing()) {
         continue;
