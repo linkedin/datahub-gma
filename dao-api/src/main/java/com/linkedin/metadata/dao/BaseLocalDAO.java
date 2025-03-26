@@ -658,7 +658,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     }
     // this will skip the pre/in update callbacks
     if (!isRawUpdate) {
-      AspectUpdateResult result = aspectCallbackHelper(urn, newValue, oldValue, updateTuple.getIngestionParams());
+      AspectUpdateResult result = aspectCallbackHelper(urn, newValue, oldValue, updateTuple.getIngestionParams(), auditStamp);
       newValue = (ASPECT) result.getUpdatedAspect();
       // skip the normal ingestion to the DAO
       if (result.isSkipProcessing()) {
@@ -1075,7 +1075,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   /**
    * Same as above {@link #add(Urn, RecordTemplate, AuditStamp)} but with tracking context.
    * Note: If you update the lambda function (ignored - newValue),
-   * make sure to update {@link #aspectCallbackHelper(Urn, RecordTemplate, Optional, IngestionParams)}as well
+   * make sure to update {@link #aspectCallbackHelper(Urn, RecordTemplate, Optional, IngestionParams, AuditStamp)}as well
    * to avoid any inconsistency between the lambda function and the add method.
    */
   @Nonnull
@@ -1920,12 +1920,12 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @return AspectUpdateResult which contains updated aspect value
    */
   protected <ASPECT extends RecordTemplate> AspectUpdateResult aspectCallbackHelper(URN urn, ASPECT newAspectValue,
-      Optional<ASPECT> oldAspectValue, IngestionParams ingestionParams) {
+      Optional<ASPECT> oldAspectValue, IngestionParams ingestionParams, AuditStamp auditStamp) {
 
     if (_aspectCallbackRegistry != null && _aspectCallbackRegistry.isRegistered(
         newAspectValue.getClass(), urn.getEntityType())) {
       AspectCallbackRoutingClient client = _aspectCallbackRegistry.getAspectCallbackRoutingClient(newAspectValue.getClass(), urn.getEntityType());
-      AspectCallbackResponse aspectCallbackResponse = client.routeAspectCallback(urn, newAspectValue, oldAspectValue, ingestionParams);
+      AspectCallbackResponse aspectCallbackResponse = client.routeAspectCallback(urn, newAspectValue, oldAspectValue, ingestionParams, auditStamp);
       ASPECT updatedAspect = (ASPECT) aspectCallbackResponse.getUpdatedAspect();
       log.info("Aspect callback routing completed in BaseLocalDao, urn: {}, updated aspect: {}", urn, updatedAspect);
       return new AspectUpdateResult(updatedAspect, client.isSkipProcessing());
