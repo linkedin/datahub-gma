@@ -743,6 +743,11 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   private <ASPECT extends RecordTemplate> ASPECT unwrapAddResult(URN urn, AddResult<ASPECT> result, @Nonnull AuditStamp auditStamp,
       @Nullable IngestionTrackingContext trackingContext) {
+    return unwrapAddResult(urn, result, auditStamp, trackingContext, false);
+  }
+
+  private <ASPECT extends RecordTemplate> ASPECT unwrapAddResult(URN urn, @Nonnull AddResult<ASPECT> result, @Nonnull AuditStamp auditStamp,
+      @Nullable IngestionTrackingContext trackingContext, boolean isDeletion) {
     if (trackingContext != null) {
       trackingContext.setBackfill(false); // reset backfill since MAE won't be a backfill event
     }
@@ -755,7 +760,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
         || (oldValue != null && newValue != null && equalityTester.equals(oldValue, newValue));
 
     // Invoke post-update hooks if there's any
-    if (_aspectPostUpdateHooksMap.containsKey(aspectClass)) {
+    // Note that we do NOT support post-update (or pre-update) hooks for deletion operations (yet). However, since
+    //   newValue can in theory be NULL outside of deletion operations, we need to check for that here.
+    if (_aspectPostUpdateHooksMap.containsKey(aspectClass) && !isDeletion) {
       _aspectPostUpdateHooksMap.get(aspectClass).forEach(hook -> hook.accept(urn, newValue));
     }
 
@@ -776,15 +783,16 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     if (_emitAspectSpecificAuditEvent) {
       if (_alwaysEmitAspectSpecificAuditEvent || !oldAndNewEqual) {
         if (_trackingProducer != null) {
-          _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, auditStamp,
+          _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, aspectClass, auditStamp,
               trackingContext, IngestionMode.LIVE);
         } else {
-          _producer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, auditStamp, IngestionMode.LIVE);
+          _producer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, aspectClass, auditStamp, IngestionMode.LIVE);
         }
       }
     }
 
-    return newValue;
+    // return the new value for updates and the old value for deletions
+    return isDeletion ? oldValue : newValue;
   }
 
   /**
@@ -1022,13 +1030,10 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       return addCommon(urn, latest, null, aspectClass, auditStamp, new DefaultEqualityTester<>(), trackingContext, ingestionParams);
     }, maxTransactionRetry);
 
-    return result.getOldValue();
-
     // TODO: add support for sending MAE for soft deleted aspects
     // FY25H2 Note: When performing an Aspect UPDATE, unwrapAddResultToUnion() is called, which emits MAE and does post-update hooks.
     //    When doing similar for DELETE, we should end up doing something similar, but specific to deletion.
-    //    We *could* modify the existing unwrapAddResultToUnion() to account for both cases and just reuse it completely,
-    //    but this might be confusing, so it might be best to make a deletion-specific version of that method.
+    return unwrapAddResult(urn, result, auditStamp, trackingContext, true);
   }
 
   /**
@@ -1588,9 +1593,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
         IngestionTrackingContext trackingContext = buildIngestionTrackingContext(
             TrackingUtils.getRandomUUID(), BACKFILL_EMITTER, System.currentTimeMillis());
 
-        _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, null, trackingContext, ingestionMode);
+        _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, aspect.getClass(), null, trackingContext, ingestionMode);
       } else {
-        _producer.produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, null, ingestionMode);
+        _producer.produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, aspect.getClass(), null, ingestionMode);
       }
     }
   }

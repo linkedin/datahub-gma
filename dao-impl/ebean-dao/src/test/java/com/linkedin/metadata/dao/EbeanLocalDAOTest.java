@@ -931,7 +931,8 @@ public class EbeanLocalDAOTest {
     Optional<AspectFoo> foo = dao.backfill(AspectFoo.class, urn);
 
     assertEquals(foo.get(), expected);
-    verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, expected, expected, null, IngestionMode.BOOTSTRAP);
+    verify(_mockProducer, times(1))
+        .produceAspectSpecificMetadataAuditEvent(urn, expected, expected, AspectFoo.class, null, IngestionMode.BOOTSTRAP);
     verifyNoMoreInteractions(_mockProducer);
   }
 
@@ -1017,7 +1018,8 @@ public class EbeanLocalDAOTest {
       for (Class<? extends RecordTemplate> clazz : aspects.get(urn).keySet()) {
         RecordTemplate aspect = aspects.get(urn).get(clazz);
         assertEquals(backfilledAspects.get(urn).get(clazz).get(), aspect);
-        verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, null, IngestionMode.BOOTSTRAP);
+        verify(_mockProducer, times(1))
+            .produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, clazz, null, IngestionMode.BOOTSTRAP);
       }
     }
     verifyNoMoreInteractions(_mockProducer);
@@ -1053,7 +1055,8 @@ public class EbeanLocalDAOTest {
       for (Class<? extends RecordTemplate> clazz : aspects.get(urn).keySet()) {
         assertTrue(backfilledAspects.get(urn.toString()).contains(getAspectName(clazz)));
         RecordTemplate metadata = aspects.get(urn).get(clazz);
-        verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, metadata, metadata, null, IngestionMode.BOOTSTRAP);
+        verify(_mockProducer, times(1))
+            .produceAspectSpecificMetadataAuditEvent(urn, metadata, metadata, clazz, null, IngestionMode.BOOTSTRAP);
       }
       assertFalse(backfilledAspects.get(urn.toString()).contains(getAspectName(AspectFooBar.class)));
     }
@@ -1090,7 +1093,8 @@ public class EbeanLocalDAOTest {
       for (Class<? extends RecordTemplate> clazz : aspects.get(urn).keySet()) {
         assertTrue(backfilledAspects.get(urn.toString()).contains(getAspectName(clazz)));
         RecordTemplate metadata = aspects.get(urn).get(clazz);
-        verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, metadata, metadata, null, IngestionMode.BOOTSTRAP);
+        verify(_mockProducer, times(1))
+            .produceAspectSpecificMetadataAuditEvent(urn, metadata, metadata, clazz, null, IngestionMode.BOOTSTRAP);
       }
       assertFalse(backfilledAspects.get(urn.toString()).contains(getAspectName(AspectBar.class)));
     }
@@ -1124,7 +1128,8 @@ public class EbeanLocalDAOTest {
       for (Class<? extends RecordTemplate> clazz : aspects.get(urn).keySet()) {
         assertTrue(backfilledAspects.get(urn.toString()).contains(getAspectName(clazz)));
         RecordTemplate metadata = aspects.get(urn).get(clazz);
-        verify(_mockProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, metadata, metadata, null, IngestionMode.BOOTSTRAP);
+        verify(_mockProducer, times(1))
+            .produceAspectSpecificMetadataAuditEvent(urn, metadata, metadata, clazz, null, IngestionMode.BOOTSTRAP);
       }
     }
     verifyNoMoreInteractions(_mockProducer);
@@ -2351,7 +2356,7 @@ public class EbeanLocalDAOTest {
     InOrder inOrder = inOrder(_mockProducer);
     inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, v1);
     inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, v1, v0);
-    // TODO: verify that MAE was produced with newValue set as null for soft deleted aspect
+    inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, v0, null);
     verifyNoMoreInteractions(_mockProducer);
   }
 
@@ -2536,8 +2541,8 @@ public class EbeanLocalDAOTest {
     InOrder inOrder = inOrder(_mockProducer);
     inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, v1);
     inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, v1, v0);
+    inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, v0, null);
     inOrder.verify(_mockProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
-    // TODO: verify that MAE was produced with newValue set as null for soft deleted aspect
     verifyNoMoreInteractions(_mockProducer);
   }
 
