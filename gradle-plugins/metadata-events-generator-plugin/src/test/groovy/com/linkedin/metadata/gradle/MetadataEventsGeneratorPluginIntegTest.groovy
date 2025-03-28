@@ -172,7 +172,7 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
         /**
          * Aspect of the TestAspect after the update.
          */
-        newValue: TestAspect
+        newValue: optional TestAspect
 
         /**
          * Change type.
@@ -304,7 +304,7 @@ class MetadataEventsGeneratorPluginIntegTest extends Specification {
         /**
          * Aspect of the TestTyperefAspect after the update.
          */
-        newValue: TestTyperefAspect
+        newValue: optional TestTyperefAspect
 
         /**
          * Change type.

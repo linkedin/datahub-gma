@@ -35,7 +35,7 @@ record MetadataAuditEvent {
   /**
    * Aspect of the @eventSpec.getShortValueType() after the update.
    */
-  newValue: @eventSpec.getShortValueType()
+  newValue: optional @eventSpec.getShortValueType()
 
   /**
    * Change type.
