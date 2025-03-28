@@ -210,7 +210,7 @@ public class EbeanGenericLocalDAOTest {
 
     // Expects _producer is called to emit a MAE.
     verify(_producer, times(1)).produceAspectSpecificMetadataAuditEvent(eq(fooUrn),
-        eq(null), eq(aspectFoo1), eq(makeAuditStamp("tester")), eq(null), eq(null));
+        eq(null), eq(aspectFoo1), eq(AspectFoo.class), eq(makeAuditStamp("tester")), eq(null), eq(null));
 
     // When there is existing metadata
     _genericLocalDAO.save(fooUrn, AspectFoo.class, RecordUtils.toJsonString(aspectFoo2),
@@ -218,7 +218,7 @@ public class EbeanGenericLocalDAOTest {
 
     // Expects _producer to emit MAE that has both new and old values.
     verify(_producer, times(1)).produceAspectSpecificMetadataAuditEvent(eq(fooUrn),
-        eq(aspectFoo1), eq(aspectFoo2), eq(makeAuditStamp("tester")), eq(null), eq(null));
+        eq(aspectFoo1), eq(aspectFoo2), eq(AspectFoo.class), eq(makeAuditStamp("tester")), eq(null), eq(null));
 
     verifyNoMoreInteractions(_producer);
   }
@@ -249,7 +249,7 @@ public class EbeanGenericLocalDAOTest {
         makeAuditStamp("tester"), null, null);
 
     verify(_producer, times(1)).produceAspectSpecificMetadataAuditEvent(eq(fooUrn),
-        eq(null), eq(aspectFoo), eq(makeAuditStamp("tester")), eq(null), eq(null));
+        eq(null), eq(aspectFoo), eq(AspectFoo.class), eq(makeAuditStamp("tester")), eq(null), eq(null));
 
     Optional<GenericLocalDAO.MetadataWithExtraInfo> metadata = _genericLocalDAO.queryLatest(fooUrn, AspectFoo.class);
 
@@ -267,7 +267,7 @@ public class EbeanGenericLocalDAOTest {
 
     // does not produce MAE for deletion
     verify(_producer, times(0)).produceAspectSpecificMetadataAuditEvent(eq(fooUrn),
-        any(), any(), any(), any(), any());
+        any(), any(), any(), any(), any(), any());
     verifyNoMoreInteractions(_producer);
   }
 
@@ -288,7 +288,7 @@ public class EbeanGenericLocalDAOTest {
 
     // does not produce MAE for deletion
     verify(_producer, times(0)).produceAspectSpecificMetadataAuditEvent(eq(fooUrn),
-        any(), any(), any(), any(), any());
+        any(), any(), any(), any(), any(), any());
     verifyNoMoreInteractions(_producer);
   }
 

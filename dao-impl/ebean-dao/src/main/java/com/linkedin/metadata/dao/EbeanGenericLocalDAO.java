@@ -104,7 +104,7 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
       if (!latest.isPresent()) {
         saveLatest(urn, aspectClass, newValue, null, auditStamp, null);
         if (!shouldSkipMAEUpdate(newValue)) {
-          _producer.produceAspectSpecificMetadataAuditEvent(urn, null, newValue, auditStamp, trackingContext, ingestionMode);
+          _producer.produceAspectSpecificMetadataAuditEvent(urn, null, newValue, aspectClass, auditStamp, trackingContext, ingestionMode);
         }
       } else {
         RecordTemplate currentValue = toRecordTemplate(aspectClass, latest.get().getAspect());
@@ -126,7 +126,7 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
         saveLatest(urn, aspectClass, newValue, currentValue, auditStamp, latest.get().getExtraInfo().getAudit());
 
         if (!shouldSkipMAEUpdate(newValue)) {
-          _producer.produceAspectSpecificMetadataAuditEvent(urn, currentValue, newValue, auditStamp, trackingContext, ingestionMode);
+          _producer.produceAspectSpecificMetadataAuditEvent(urn, currentValue, newValue, aspectClass, auditStamp, trackingContext, ingestionMode);
         }
       }
       return null;
@@ -215,7 +215,7 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
       IngestionTrackingContext trackingContext = buildIngestionTrackingContext(
             TrackingUtils.getRandomUUID(), BACKFILL_EMITTER, System.currentTimeMillis());
 
-      _producer.produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, null, trackingContext, ingestionMode);
+      _producer.produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, aspect.getClass(), null, trackingContext, ingestionMode);
     }
   }
 
