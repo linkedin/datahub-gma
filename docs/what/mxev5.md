@@ -162,7 +162,7 @@ import com.linkedin.identity.CorpUserInfo
     /**
      * Aspect of the CorpUserInfo after the update.
      */
-    newValue: CorpUserInfo
+    newValue: optional CorpUserInfo
 }
 ```
 

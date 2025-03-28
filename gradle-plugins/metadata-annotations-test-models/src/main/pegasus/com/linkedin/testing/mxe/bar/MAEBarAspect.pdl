@@ -44,7 +44,7 @@ record MAEBarAspect {
    */
   diffAnnotatedAspectBar: optional record AnnotatedAspectBarAudit {
     oldValue: optional AnnotatedAspectBar
-    newValue: AnnotatedAspectBar
+    newValue: optional AnnotatedAspectBar
     changeType: optional union[null, ChangeType] = null
   }
 
@@ -53,7 +53,7 @@ record MAEBarAspect {
    */
   diffAnotherAspectBar: optional record AnotherAspectBarAudit {
     oldValue: optional AnotherAspectBar
-    newValue: AnotherAspectBar
+    newValue: optional AnotherAspectBar
     changeType: optional union[null, ChangeType] = null
   }
 
