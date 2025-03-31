@@ -32,7 +32,7 @@ record MetadataAuditEvent {
   /**
    * Aspect of the AnnotatedAspectBar after the update.
    */
-  newValue: AnnotatedAspectBar
+  newValue: optional AnnotatedAspectBar
 
   /**
    * Change type.
