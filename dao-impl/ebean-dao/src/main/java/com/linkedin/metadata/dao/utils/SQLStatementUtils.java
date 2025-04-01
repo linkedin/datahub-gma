@@ -134,8 +134,20 @@ public class SQLStatementUtils {
       + " :destination_type, :lastmodifiedon, :lastmodifiedby)";
 
   private static final String INSERT_LOCAL_RELATIONSHIP_WITH_ASPECT = "INSERT INTO %s (metadata, source, destination, source_type, "
-      + "destination_type, lastmodifiedon, lastmodifiedby, aspect) VALUE (:metadata, :source, :destination, :source_type,"
+      + "destination_type, lastmodifiedon, lastmodifiedby, aspect) VALUES (:metadata, :source, :destination, :source_type,"
       + " :destination_type, :lastmodifiedon, :lastmodifiedby, :aspect)";
+
+  private static final String INSERT_LOCAL_RELATIONSHIPS = "INSERT INTO %s (metadata, source, destination, source_type, "
+      + "destination_type, lastmodifiedon, lastmodifiedby) VALUES ";
+
+  private static final String INSERT_LOCAL_RELATIONSHIPS_VALUES = "(:metadata%1$d, :source%1$d, :destination%1$d, :source_type%1$d,"
+      + " :destination_type%1$d, :lastmodifiedon, :lastmodifiedby)";
+
+  private static final String INSERT_LOCAL_RELATIONSHIPS_WITH_ASPECT = "INSERT INTO %s (metadata, source, destination, source_type, "
+      + "destination_type, lastmodifiedon, lastmodifiedby, aspect) VALUES ";
+
+  private static final String INSERT_LOCAL_RELATIONSHIPS_WITH_ASPECT_VALUES = "(:metadata%1$d, :source%1$d, :destination%1$d, :source_type%1$d,"
+      + " :destination_type%1$d, :lastmodifiedon, :lastmodifiedby, :aspect)";
 
   private static final String DELETE_BY_SOURCE = "UPDATE %s SET deleted_ts=NOW() "
       + "WHERE source = :source AND deleted_ts IS NULL";
@@ -388,12 +400,32 @@ public class SQLStatementUtils {
   }
 
   /**
-   * Generate "Create Statement SQL" for local relation.
+   * Generate the create SQL statement for inserting local relationships. There can be multiple relationships added in
+   * a single statement. The SQL generated should look like the following, where N is the number of relationships to insert:
+   *
+   * <p>
+   * INSERT INTO tableName (metadata, source, destination, source_type, destination_type, lastmodifiedon, lastmodifiedby, {aspect}) VALUES
+   * (:metadata0, :source0, :destination0, :source_type0, :destination_type0, :lastmodifiedon, :lastmodifiedby, {:aspect}),
+   * (:metadata1, :source1, :destination1, :source_type1, :destination_type1, :lastmodifiedon, :lastmodifiedby, {:aspect}),
+   * ...
+   * (:metadataN-1, :sourceN-1, :destinationN-1, :source_typeN-1, :destination_typeN-1, :lastmodifiedon, :lastmodifiedby, {:aspect})
+   * </p>
    * @param tableName Name of the table where the local relation metadata will be inserted.
+   * @param numRelationships Number of relationships to insert
+   * @param useAspectColumn Whether to populate the aspect column during relationship insertion
    * @return SQL statement for inserting local relation.
    */
-  public static String insertLocalRelationshipSQL(String tableName, boolean useAspectColumn) {
-    return useAspectColumn ? String.format(INSERT_LOCAL_RELATIONSHIP_WITH_ASPECT, tableName) : String.format(INSERT_LOCAL_RELATIONSHIP, tableName);
+  public static String insertLocalRelationshipSQL(String tableName, int numRelationships, boolean useAspectColumn) {
+    StringBuilder builder = new StringBuilder();
+    builder.append(useAspectColumn ? String.format(INSERT_LOCAL_RELATIONSHIPS_WITH_ASPECT, tableName) : String.format(INSERT_LOCAL_RELATIONSHIPS, tableName));
+    for (int i = 0; i < numRelationships; i++) {
+      builder.append(useAspectColumn ? String.format(INSERT_LOCAL_RELATIONSHIPS_WITH_ASPECT_VALUES, i) : String.format(INSERT_LOCAL_RELATIONSHIPS_VALUES, i));
+      if (i != numRelationships - 1) {
+        builder.append(',');
+      }
+    }
+
+    return builder.toString();
   }
 
   /**
