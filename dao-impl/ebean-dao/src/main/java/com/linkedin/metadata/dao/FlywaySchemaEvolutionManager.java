@@ -1,11 +1,11 @@
 package com.linkedin.metadata.dao;
 
+import com.google.common.io.Resources;
 import io.ebean.EbeanServer;
 import io.ebean.SqlRow;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Paths;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Properties;
 import lombok.extern.slf4j.Slf4j;
@@ -60,14 +60,25 @@ public class FlywaySchemaEvolutionManager implements SchemaEvolutionManager {
         .load();
   }
 
+  /**
+   * Apply pending schema evolution to databases.
+   * @param enableSchemaCheck If set to true, flyway will only apply the "low risk" DDL changes.
+   */
   @Override
-  public void ensureSchemaUpToDate() {
+  public void ensureSchemaUpToDate(boolean enableSchemaCheck) {
+    if (!enableSchemaCheck) {
+      _flyway.migrate();
+      return;
+    }
+
     //Retrieves the full set of infos about pending migrations, available locally, but not yet applied to the DB
     MigrationInfo[] pendingMigrations = _flyway.info().pending();
 
     for (MigrationInfo pendingMigration : pendingMigrations) {
       try {
-        String sql = new String(Files.readAllBytes(Paths.get(pendingMigration.getPhysicalLocation())));
+        String location = _flyway.getConfiguration().getLocations()[0].getPath();
+        String sql = Resources.toString(Resources.getResource(location + "/" + pendingMigration.getScript()), StandardCharsets.UTF_8);
+
         List<String> highRiskSQL = detectPotentialHighRiskSQL(sql);
 
         for (String statement : highRiskSQL) {

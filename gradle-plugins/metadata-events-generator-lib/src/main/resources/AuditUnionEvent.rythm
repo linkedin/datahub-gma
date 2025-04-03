@@ -49,7 +49,7 @@ record MAE@(eventSpec.getShortTyperefName()) {
    */
   diff@(SchemaGeneratorUtil.stripNamespace(valueType)): optional record @(SchemaGeneratorUtil.stripNamespace(valueType))Audit {
     oldValue: optional @(SchemaGeneratorUtil.stripNamespace(valueType))
-    newValue: @(SchemaGeneratorUtil.stripNamespace(valueType))
+    newValue: optional @(SchemaGeneratorUtil.stripNamespace(valueType))
     changeType: optional union[null, ChangeType] = null
   }
 

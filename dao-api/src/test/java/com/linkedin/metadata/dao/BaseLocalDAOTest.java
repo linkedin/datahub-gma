@@ -273,7 +273,8 @@ public class BaseLocalDAOTest {
     _dummyLocalDAO.add(urn, foo, _dummyAuditStamp);
 
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
-    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo, _dummyAuditStamp, IngestionMode.LIVE);
+    verify(_mockEventProducer, times(1))
+        .produceAspectSpecificMetadataAuditEvent(urn, null, foo, AspectFoo.class, _dummyAuditStamp, IngestionMode.LIVE);
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, foo, foo);
     verifyNoMoreInteractions(_mockEventProducer);
   }
@@ -292,9 +293,11 @@ public class BaseLocalDAOTest {
     _dummyLocalDAO.add(urn, foo2, auditStamp2);
 
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo1);
-    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo1, _dummyAuditStamp, IngestionMode.LIVE);
+    verify(_mockEventProducer, times(1))
+        .produceAspectSpecificMetadataAuditEvent(urn, null, foo1, AspectFoo.class, _dummyAuditStamp, IngestionMode.LIVE);
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, foo1, foo2);
-    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, foo1, foo2, auditStamp2, IngestionMode.LIVE);
+    verify(_mockEventProducer, times(1))
+        .produceAspectSpecificMetadataAuditEvent(urn, foo1, foo2, AspectFoo.class, auditStamp2, IngestionMode.LIVE);
     verifyNoMoreInteractions(_mockEventProducer);
   }
 
@@ -313,7 +316,8 @@ public class BaseLocalDAOTest {
     _dummyLocalDAO.add(urn, foo3, _dummyAuditStamp);
 
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo1);
-    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo1, _dummyAuditStamp, IngestionMode.LIVE);
+    verify(_mockEventProducer, times(1))
+        .produceAspectSpecificMetadataAuditEvent(urn, null, foo1, AspectFoo.class, _dummyAuditStamp, IngestionMode.LIVE);
     verifyNoMoreInteractions(_mockEventProducer);
   }
 
@@ -329,9 +333,11 @@ public class BaseLocalDAOTest {
     _dummyLocalDAO.delete(urn, AspectFoo.class, _dummyAuditStamp);
 
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
-    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, foo, _dummyAuditStamp, IngestionMode.LIVE);
-    // TODO: ensure MAE is produced with newValue set as null for soft deleted aspect
-    // verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, foo, null);
+    verify(_mockEventProducer, times(1))
+        .produceAspectSpecificMetadataAuditEvent(urn, null, foo, AspectFoo.class, _dummyAuditStamp, IngestionMode.LIVE);
+    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, foo, null);
+    verify(_mockEventProducer, times(1))
+        .produceAspectSpecificMetadataAuditEvent(urn, foo, null, AspectFoo.class, _dummyAuditStamp, IngestionMode.LIVE);
     verifyNoMoreInteractions(_mockEventProducer);
   }
 
@@ -356,9 +362,9 @@ public class BaseLocalDAOTest {
     verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
     verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, foo, foo);
     verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null,
-        foo, _dummyAuditStamp, mockTrackingContext, IngestionMode.LIVE);
+        foo, AspectFoo.class, _dummyAuditStamp, mockTrackingContext, IngestionMode.LIVE);
     verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, foo,
-        foo, _dummyAuditStamp, mockTrackingContext, IngestionMode.LIVE);
+        foo, AspectFoo.class, _dummyAuditStamp, mockTrackingContext, IngestionMode.LIVE);
     verifyNoMoreInteractions(_mockTrackingEventProducer);
   }
 
@@ -538,7 +544,7 @@ public class BaseLocalDAOTest {
 
     verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, oldFoo, oldFoo);
     verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(
-        urn, oldFoo, oldFoo, _dummyAuditStamp, ingestionTrackingContext, IngestionMode.LIVE);
+        urn, oldFoo, oldFoo, AspectFoo.class, _dummyAuditStamp, ingestionTrackingContext, IngestionMode.LIVE);
     verifyNoMoreInteractions(_mockTrackingEventProducer);
   }
 
@@ -596,7 +602,7 @@ public class BaseLocalDAOTest {
 
     verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, oldFoo, newFoo);
     verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(
-        urn, oldFoo, newFoo, _dummyAuditStamp, ingestionTrackingContext, IngestionMode.LIVE);
+        urn, oldFoo, newFoo, AspectFoo.class, _dummyAuditStamp, ingestionTrackingContext, IngestionMode.LIVE);
     verifyNoMoreInteractions(_mockTrackingEventProducer);
   }
 
@@ -629,7 +635,7 @@ public class BaseLocalDAOTest {
 
     verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, null, newFoo);
     verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(
-        urn, null, newFoo, _dummyAuditStamp, ingestionTrackingContext, IngestionMode.LIVE);
+        urn, null, newFoo, AspectFoo.class, _dummyAuditStamp, ingestionTrackingContext, IngestionMode.LIVE);
     verifyNoMoreInteractions(_mockTrackingEventProducer);
   }
 
@@ -654,13 +660,13 @@ public class BaseLocalDAOTest {
     dummyLocalDAO.add(urn, fooBar1, _dummyAuditStamp);
     verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, null, fooBar1);
     verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, fooBar1,
-        _dummyAuditStamp, null, IngestionMode.LIVE);
+        AspectFooBar.class, _dummyAuditStamp, null, IngestionMode.LIVE);
 
     AuditStamp auditStamp2 = makeAuditStamp("tester", 5678L);
     dummyLocalDAO.add(urn, fooBar2, auditStamp2);
     verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, fooBar1, mergedFooBar);
     verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, fooBar1, mergedFooBar,
-        auditStamp2, null, IngestionMode.LIVE);
+        AspectFooBar.class, auditStamp2, null, IngestionMode.LIVE);
 
     verifyNoMoreInteractions(_mockTrackingEventProducer);
   }
@@ -678,7 +684,7 @@ public class BaseLocalDAOTest {
 
     AspectCallbackRegistry aspectCallbackRegistry = new AspectCallbackRegistry(aspectCallbackMap);
     _dummyLocalDAO.setAspectCallbackRegistry(aspectCallbackRegistry);
-    BaseLocalDAO.AspectUpdateResult result = _dummyLocalDAO.aspectCallbackHelper(urn, foo, Optional.empty(), null);
+    BaseLocalDAO.AspectUpdateResult result = _dummyLocalDAO.aspectCallbackHelper(urn, foo, Optional.empty(), null, null);
     AspectFoo newAspect = (AspectFoo) result.getUpdatedAspect();
     assertEquals(newAspect, bar);
   }
@@ -712,6 +718,12 @@ public class BaseLocalDAOTest {
 
     FooUrn result = _dummyLocalDAO.createAspectsWithCallbacks(urn, aspectValues, aspectCreateLambdas, _dummyAuditStamp, null);
     assertEquals(result, urn);
+    verify(_mockEventProducer, times(2)).produceMetadataAuditEvent(urn, null, bar);
+    verify(_mockEventProducer, times(1))
+        .produceAspectSpecificMetadataAuditEvent(urn, null, bar, AspectFoo.class, _dummyAuditStamp, IngestionMode.LIVE);
+    verify(_mockEventProducer, times(1))
+        .produceAspectSpecificMetadataAuditEvent(urn, null, bar, AspectBar.class, _dummyAuditStamp, IngestionMode.LIVE);
+    verifyNoMoreInteractions(_mockEventProducer);
   }
 
   @Test
@@ -730,7 +742,8 @@ public class BaseLocalDAOTest {
     _dummyLocalDAO.add(urn, foo, _dummyAuditStamp);
 
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, bar);
-    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(urn, null, bar, _dummyAuditStamp, IngestionMode.LIVE);
+    verify(_mockEventProducer, times(1))
+        .produceAspectSpecificMetadataAuditEvent(urn, null, bar, AspectFoo.class, _dummyAuditStamp, IngestionMode.LIVE);
     verifyNoMoreInteractions(_mockEventProducer);
   }
 
@@ -747,7 +760,7 @@ public class BaseLocalDAOTest {
     _dummyLocalDAO.setAspectCallbackRegistry(aspectCallbackRegistry);
 
     // Call the add method
-    BaseLocalDAO.AspectUpdateResult result = _dummyLocalDAO.aspectCallbackHelper(urn, foo, Optional.empty(), null);
+    BaseLocalDAO.AspectUpdateResult result = _dummyLocalDAO.aspectCallbackHelper(urn, foo, Optional.empty(), null, null);
 
     // Verify that the result is the same as the input aspect since it's not registered
     assertEquals(result.getUpdatedAspect(), foo);

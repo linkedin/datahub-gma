@@ -47,7 +47,7 @@ public class FlywaySchemaEvolutionManagerTestWithoutServiceIdentifier {
     assertFalse(checkTableExists("my_another_version_table"));
 
     // Execute the evolution scripts to bring schema up-to-date.
-    _schemaEvolutionManager.ensureSchemaUpToDate();
+    _schemaEvolutionManager.ensureSchemaUpToDate(true);
 
     // V1__create_foobaz_entity_table.sql create metadata_entity_foobaz table.
     assertTrue(checkTableExists("metadata_entity_foobaz"));

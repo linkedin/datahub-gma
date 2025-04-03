@@ -23,19 +23,20 @@ public class DummyMetadataEventProducer<URN extends Urn>
 
   @Override
   public <ASPECT extends RecordTemplate> void produceSnapshotBasedMetadataChangeEvent(@Nonnull URN urn,
-      @Nonnull ASPECT newValue) {
+      @Nullable ASPECT newValue) {
     // Do nothing
   }
 
   @Override
   public <ASPECT extends RecordTemplate> void produceMetadataAuditEvent(@Nonnull URN urn, @Nullable ASPECT oldValue,
-      @Nonnull ASPECT newValue) {
+      @Nullable ASPECT newValue) {
     // Do nothing
   }
 
   @Override
   public <ASPECT extends RecordTemplate> void produceAspectSpecificMetadataAuditEvent(@Nonnull URN urn,
-      @Nullable ASPECT oldValue, @Nonnull ASPECT newValue, @Nullable AuditStamp auditStamp, @Nullable IngestionMode ingestionMode) {
+      @Nullable ASPECT oldValue, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
+      @Nullable AuditStamp auditStamp, @Nullable IngestionMode ingestionMode) {
     // Do nothing
   }
 

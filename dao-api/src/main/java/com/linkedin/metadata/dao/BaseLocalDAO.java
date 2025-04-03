@@ -658,7 +658,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     }
     // this will skip the pre/in update callbacks
     if (!isRawUpdate) {
-      AspectUpdateResult result = aspectCallbackHelper(urn, newValue, oldValue, updateTuple.getIngestionParams());
+      AspectUpdateResult result = aspectCallbackHelper(urn, newValue, oldValue, updateTuple.getIngestionParams(), auditStamp);
       newValue = (ASPECT) result.getUpdatedAspect();
       // skip the normal ingestion to the DAO
       if (result.isSkipProcessing()) {
@@ -700,7 +700,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     for (int i = 0; i < aspectValues.size(); i++) {
       RecordTemplate aspectValue = aspectValues.get(i);
       AspectCreateLambda<? extends RecordTemplate> createLambda = aspectCreateLambdas.get(i);
-      AspectUpdateResult result = aspectCallbackHelper(urn, aspectValue, Optional.empty(), createLambda.ingestionParams);
+      AspectUpdateResult result = aspectCallbackHelper(urn, aspectValue, Optional.empty(), createLambda.ingestionParams, auditStamp);
       // skip the normal ingestion to the DAO
       if (result.isSkipProcessing()) {
         continue;
@@ -723,6 +723,12 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
           Collectors.toList()).isEmpty();
 
     int numRows = createNewAspect(urn, aspectCreateLambdas, aspectValues, auditStamp, trackingContext, isTestModeFalseForAll);
+    for (RecordTemplate aspectValue : aspectValues) {
+      // For each aspect, we need to trigger emit MAE
+      // In new asset creation, old value is null
+      unwrapAddResult(urn, new AddResult<>(null, aspectValue, (Class<RecordTemplate>) aspectValue.getClass()),
+          auditStamp, trackingContext);
+    }
     return numRows > 0 ? urn : null;
   }
 
@@ -737,6 +743,11 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   private <ASPECT extends RecordTemplate> ASPECT unwrapAddResult(URN urn, AddResult<ASPECT> result, @Nonnull AuditStamp auditStamp,
       @Nullable IngestionTrackingContext trackingContext) {
+    return unwrapAddResult(urn, result, auditStamp, trackingContext, false);
+  }
+
+  private <ASPECT extends RecordTemplate> ASPECT unwrapAddResult(URN urn, @Nonnull AddResult<ASPECT> result, @Nonnull AuditStamp auditStamp,
+      @Nullable IngestionTrackingContext trackingContext, boolean isDeletion) {
     if (trackingContext != null) {
       trackingContext.setBackfill(false); // reset backfill since MAE won't be a backfill event
     }
@@ -749,7 +760,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
         || (oldValue != null && newValue != null && equalityTester.equals(oldValue, newValue));
 
     // Invoke post-update hooks if there's any
-    if (_aspectPostUpdateHooksMap.containsKey(aspectClass)) {
+    // Note that we do NOT support post-update (or pre-update) hooks for deletion operations (yet). However, since
+    //   newValue can in theory be NULL outside of deletion operations, we need to check for that here.
+    if (_aspectPostUpdateHooksMap.containsKey(aspectClass) && !isDeletion) {
       _aspectPostUpdateHooksMap.get(aspectClass).forEach(hook -> hook.accept(urn, newValue));
     }
 
@@ -770,15 +783,16 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     if (_emitAspectSpecificAuditEvent) {
       if (_alwaysEmitAspectSpecificAuditEvent || !oldAndNewEqual) {
         if (_trackingProducer != null) {
-          _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, auditStamp,
+          _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, aspectClass, auditStamp,
               trackingContext, IngestionMode.LIVE);
         } else {
-          _producer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, auditStamp, IngestionMode.LIVE);
+          _producer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, aspectClass, auditStamp, IngestionMode.LIVE);
         }
       }
     }
 
-    return newValue;
+    // return the new value for updates and the old value for deletions
+    return isDeletion ? oldValue : newValue;
   }
 
   /**
@@ -1016,13 +1030,10 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       return addCommon(urn, latest, null, aspectClass, auditStamp, new DefaultEqualityTester<>(), trackingContext, ingestionParams);
     }, maxTransactionRetry);
 
-    return result.getOldValue();
-
     // TODO: add support for sending MAE for soft deleted aspects
     // FY25H2 Note: When performing an Aspect UPDATE, unwrapAddResultToUnion() is called, which emits MAE and does post-update hooks.
     //    When doing similar for DELETE, we should end up doing something similar, but specific to deletion.
-    //    We *could* modify the existing unwrapAddResultToUnion() to account for both cases and just reuse it completely,
-    //    but this might be confusing, so it might be best to make a deletion-specific version of that method.
+    return unwrapAddResult(urn, result, auditStamp, trackingContext, true);
   }
 
   /**
@@ -1069,7 +1080,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   /**
    * Same as above {@link #add(Urn, RecordTemplate, AuditStamp)} but with tracking context.
    * Note: If you update the lambda function (ignored - newValue),
-   * make sure to update {@link #aspectCallbackHelper(Urn, RecordTemplate, Optional, IngestionParams)}as well
+   * make sure to update {@link #aspectCallbackHelper(Urn, RecordTemplate, Optional, IngestionParams, AuditStamp)}as well
    * to avoid any inconsistency between the lambda function and the add method.
    */
   @Nonnull
@@ -1582,9 +1593,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
         IngestionTrackingContext trackingContext = buildIngestionTrackingContext(
             TrackingUtils.getRandomUUID(), BACKFILL_EMITTER, System.currentTimeMillis());
 
-        _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, null, trackingContext, ingestionMode);
+        _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, aspect.getClass(), null, trackingContext, ingestionMode);
       } else {
-        _producer.produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, null, ingestionMode);
+        _producer.produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, aspect.getClass(), null, ingestionMode);
       }
     }
   }
@@ -1914,12 +1925,12 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @return AspectUpdateResult which contains updated aspect value
    */
   protected <ASPECT extends RecordTemplate> AspectUpdateResult aspectCallbackHelper(URN urn, ASPECT newAspectValue,
-      Optional<ASPECT> oldAspectValue, IngestionParams ingestionParams) {
+      Optional<ASPECT> oldAspectValue, IngestionParams ingestionParams, AuditStamp auditStamp) {
 
     if (_aspectCallbackRegistry != null && _aspectCallbackRegistry.isRegistered(
         newAspectValue.getClass(), urn.getEntityType())) {
       AspectCallbackRoutingClient client = _aspectCallbackRegistry.getAspectCallbackRoutingClient(newAspectValue.getClass(), urn.getEntityType());
-      AspectCallbackResponse aspectCallbackResponse = client.routeAspectCallback(urn, newAspectValue, oldAspectValue, ingestionParams);
+      AspectCallbackResponse aspectCallbackResponse = client.routeAspectCallback(urn, newAspectValue, oldAspectValue, ingestionParams, auditStamp);
       ASPECT updatedAspect = (ASPECT) aspectCallbackResponse.getUpdatedAspect();
       log.info("Aspect callback routing completed in BaseLocalDao, urn: {}, updated aspect: {}", urn, updatedAspect);
       return new AspectUpdateResult(updatedAspect, client.isSkipProcessing());
