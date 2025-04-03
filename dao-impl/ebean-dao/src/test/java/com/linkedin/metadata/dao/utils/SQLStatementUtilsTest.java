@@ -75,11 +75,20 @@ public class SQLStatementUtilsTest {
     Set<Urn> set = new HashSet<>();
     set.add(fooUrn1);
     set.add(fooUrn2);
+    //test when includedSoftDeleted is false
     String expectedSql =
-        "SELECT urn, a_aspectfoo, lastmodifiedon, lastmodifiedby FROM metadata_entity_foo WHERE urn = 'urn:li:foo:1' "
-            + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL UNION ALL SELECT urn, a_aspectfoo, lastmodifiedon, lastmodifiedby "
-            + "FROM metadata_entity_foo WHERE urn = 'urn:li:foo:2' AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL";
+        "SELECT urn, a_aspectfoo, lastmodifiedon, lastmodifiedby "
+            + "FROM metadata_entity_foo "
+            + "WHERE JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL "
+            + "AND urn IN ('urn:li:foo:1', 'urn:li:foo:2')";
     assertEquals(SQLStatementUtils.createAspectReadSql(AspectFoo.class, set, false, false), expectedSql);
+
+    //test when includedSoftDeleted is true
+    expectedSql =
+        "SELECT urn, a_aspectfoo, lastmodifiedon, lastmodifiedby "
+            + "FROM metadata_entity_foo "
+            + "WHERE urn IN ('urn:li:foo:1', 'urn:li:foo:2')";
+    assertEquals(SQLStatementUtils.createAspectReadSql(AspectFoo.class, set, true, false), expectedSql);
   }
 
   @Test
