@@ -82,7 +82,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   protected final EbeanServer _server;
   protected final Class<URN> _urnClass;
 
-  private int _queryKeysCount = 0;
+  private final static int DEFAULT_BATCH_SIZE = 50;
+  private int _queryKeysCount = DEFAULT_BATCH_SIZE;
   private IEbeanLocalAccess<URN> _localAccess;
   private EbeanLocalRelationshipWriterDAO _localRelationshipWriterDAO;
   private LocalRelationshipBuilderRegistry _localRelationshipBuilderRegistry = null;
@@ -1061,7 +1062,13 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       return Collections.emptyMap();
     }
 
-    final List<EbeanMetadataAspect> records = batchGet(keys, keys.size());
+    final List<EbeanMetadataAspect> records;
+
+    if (_queryKeysCount == 0) {
+      records = batchGet(keys, keys.size());
+    } else {
+      records = batchGet(keys, _queryKeysCount);
+    }
 
     // TODO: Improve this O(n^2) search
 
@@ -1124,13 +1131,18 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   /**
-   * Sets the max keys allowed for each single query.
+   * Sets the max keys allowed for each single query, not allowed more than the default batch size.
    */
   public void setQueryKeysCount(int keysCount) {
     if (keysCount < 0) {
       throw new IllegalArgumentException("Query keys count must be non-negative: " + keysCount);
+    } else if (keysCount > DEFAULT_BATCH_SIZE) {
+      log.warn("Setting query keys count greater than " + DEFAULT_BATCH_SIZE
+          + " may cause performance issues. Defaulting to " + DEFAULT_BATCH_SIZE + ".");
+      _queryKeysCount = DEFAULT_BATCH_SIZE;
+    } else {
+      _queryKeysCount = keysCount;
     }
-    _queryKeysCount = keysCount;
   }
 
   /**
