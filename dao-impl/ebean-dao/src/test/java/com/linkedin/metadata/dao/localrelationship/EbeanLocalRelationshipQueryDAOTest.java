@@ -1046,7 +1046,9 @@ public class EbeanLocalRelationshipQueryDAOTest {
     }
     // Prepare filter with a small number of values (< 200)
     List<String> urnValues = new ArrayList<>();
-    for (int i = 1; i <= 100; i++) urnValues.add("foo" + i);
+    for (int i = 1; i <= 100; i++) {
+      urnValues.add("foo" + i);
+    }
 
     LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create(new StringArray(urnValues)),
         Condition.IN,
@@ -1071,7 +1073,9 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     // Prepare filter with a large number of values (300 > 200)
     List<String> urnValues = new ArrayList<>();
-    for (int i = 1; i <= 300; i++) urnValues.add("foo" + i);
+    for (int i = 1; i <= 300; i++) {
+      urnValues.add("foo" + i);
+    }
 
     LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create(new StringArray(urnValues)),
         Condition.IN,
@@ -1096,7 +1100,9 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     // Prepare filter with a large number of values (500 > 200)
     List<String> urnValues = new ArrayList<>();
-    for (int i = 1; i <= 500; i++) urnValues.add("foo" + i);
+    for (int i = 1; i <= 500; i++) {
+      urnValues.add("foo" + i);
+    }
 
     LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create(new StringArray(urnValues)),
         Condition.IN,

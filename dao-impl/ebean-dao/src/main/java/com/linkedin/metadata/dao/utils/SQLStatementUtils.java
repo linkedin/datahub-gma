@@ -410,7 +410,7 @@ public class SQLStatementUtils {
   public static String whereClause(@Nonnull LocalRelationshipFilter filter,
       @Nonnull Map<Condition, String> supportedConditions, @Nullable String tablePrefix,
       boolean nonDollarVirtualColumnsEnabled) {
-    if (!filter.hasCriteria() || filter.getCriteria().size() == 0) {
+    if (!filter.hasCriteria() || filter.getCriteria().isEmpty()) {
       throw new IllegalArgumentException("Empty filter cannot construct where clause.");
     }
 
