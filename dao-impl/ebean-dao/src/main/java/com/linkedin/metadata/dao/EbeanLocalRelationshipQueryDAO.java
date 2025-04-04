@@ -13,6 +13,7 @@ import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
 import com.linkedin.metadata.dao.utils.SQLStatementUtils;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.LocalRelationshipCriterion;
+import com.linkedin.metadata.query.LocalRelationshipCriterionArray;
 import com.linkedin.metadata.query.LocalRelationshipFilter;
 import com.linkedin.metadata.query.RelationshipDirection;
 import io.ebean.EbeanServer;
@@ -42,6 +43,7 @@ public class EbeanLocalRelationshipQueryDAO {
   public static final String METADATA = "metadata";
   public static final String RELATIONSHIP_RETURN_TYPE = "relationship.return.type";
   public static final String MG_INTERNAL_ASSET_RELATIONSHIP_TYPE = "AssetRelationship.proto";
+  private static final int FILTER_BATCH_SIZE = 200;
   private final EbeanServer _server;
   private final MultiHopsTraversalSqlGenerator _sqlGenerator;
 
@@ -97,20 +99,28 @@ public class EbeanLocalRelationshipQueryDAO {
     }
     validateEntityFilter(filter, snapshotClass);
 
-    // Build SQL
-    final String tableName = SQLSchemaUtils.getTableName(ModelUtils.getUrnTypeFromSnapshot(snapshotClass));
-    final StringBuilder sqlBuilder = new StringBuilder();
-    sqlBuilder.append("SELECT * FROM ").append(tableName);
-    if (filter.hasCriteria() && filter.getCriteria().size() > 0) {
-      sqlBuilder.append(" WHERE ").append(SQLStatementUtils.whereClause(filter, SUPPORTED_CONDITIONS, null,
-          _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled()));
-    }
-    sqlBuilder.append(" ORDER BY urn LIMIT ").append(Math.max(1, count)).append(" OFFSET ").append(Math.max(0, offset));
+    List<LocalRelationshipCriterion> allCriteria = filter.getCriteria();
+    List<SNAPSHOT> allResults = new ArrayList<>();
 
-    // Execute SQL
-    return _server.createSqlQuery(sqlBuilder.toString()).findList().stream()
-        .map(sqlRow -> constructSnapshot(sqlRow, snapshotClass))
-        .collect(Collectors.toList());
+    for (int i = 0; i < allCriteria.size(); i += FILTER_BATCH_SIZE) {
+      List<LocalRelationshipCriterion> batch = allCriteria.subList(i, Math.min(i + FILTER_BATCH_SIZE, allCriteria.size()));
+      LocalRelationshipFilter batchFilter = new LocalRelationshipFilter()
+          .setCriteria(new LocalRelationshipCriterionArray(batch));
+
+      String tableName = SQLSchemaUtils.getTableName(ModelUtils.getUrnTypeFromSnapshot(snapshotClass));
+
+      String sqlBuilder =
+          "SELECT * FROM " + tableName + " WHERE " + SQLStatementUtils.whereClause(batchFilter, SUPPORTED_CONDITIONS,
+              null, _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled()) + " ORDER BY urn LIMIT " + Math.max(1, count)
+              + " OFFSET " + Math.max(0, offset);
+
+      List<SNAPSHOT> results = _server.createSqlQuery(sqlBuilder).findList().stream()
+          .map(row -> constructSnapshot(row, snapshotClass))
+          .collect(Collectors.toList());
+
+      allResults.addAll(results);
+    }
+    return allResults;
   }
 
   /**

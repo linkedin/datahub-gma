@@ -465,8 +465,6 @@ public class SQLStatementUtils {
     return String.join(" AND ", andClauses);
   }
 
-
-
   /**
    * Construct the where clause SQL from a filter when running in old schema mode. Assumes that all filters are applied on
    * urn fields, thus only the relationship table needs to be queried. Urn fields refers to the source or destination urn
