@@ -146,6 +146,7 @@ public class SQLStatementUtils {
 
   public static final String SOURCE = "source";
   public static final String DESTINATION = "destination";
+  private static final String RIGHT_PARENTHESIS = ")";
 
   private SQLStatementUtils() {
     // Util class
@@ -200,7 +201,7 @@ public class SQLStatementUtils {
         includeSoftDeleted ? SQL_READ_ASPECT_WITH_SOFT_DELETED_TEMPLATE : SQL_READ_ASPECT_TEMPLATE;
     stringBuilder.append(String.format(sqlTemplate, columnName, tableName, columnName));
     stringBuilder.append(urnList);
-    stringBuilder.append(CLOSING_BRACKET);
+    stringBuilder.append(RIGHT_PARENTHESIS);
     return stringBuilder.toString();
   }
 
