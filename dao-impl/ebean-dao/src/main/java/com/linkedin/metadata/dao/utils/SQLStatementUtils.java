@@ -89,7 +89,7 @@ public class SQLStatementUtils {
           + "WHERE urn = :urn and (JSON_EXTRACT(%s, '$.lastmodifiedon') = :oldTimestamp OR JSON_EXTRACT(%s, '$.gma_deleted') IS NOT NULL);";
 
   private static final String SQL_READ_ASPECT_TEMPLATE =
-      String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby FROM %%s WHERE urn = '%%s' AND %s", SOFT_DELETED_CHECK);
+      String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby FROM %%s WHERE %s AND urn IN (", SOFT_DELETED_CHECK);
 
   private static final String SQL_LIST_ASPECT_BY_URN_TEMPLATE =
       String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby, createdfor FROM %%s WHERE urn = '%%s' AND %s AND %s", NONNULL_CHECK, SOFT_DELETED_CHECK);
@@ -106,7 +106,7 @@ public class SQLStatementUtils {
           + "as _total_count FROM %%s WHERE %s LIMIT %%s OFFSET %%s", NONNULL_CHECK,  NONNULL_CHECK);
 
   private static final String SQL_READ_ASPECT_WITH_SOFT_DELETED_TEMPLATE =
-      "SELECT urn, %s, lastmodifiedon, lastmodifiedby FROM %s WHERE urn = '%s'";
+      "SELECT urn, %s, lastmodifiedon, lastmodifiedby FROM %s WHERE urn IN (";
 
   private static final String INDEX_GROUP_BY_CRITERION = "SELECT count(*) as COUNT, %s FROM %s";
 
@@ -146,6 +146,7 @@ public class SQLStatementUtils {
 
   public static final String SOURCE = "source";
   public static final String DESTINATION = "destination";
+  private static final String RIGHT_PARENTHESIS = ")";
 
   private SQLStatementUtils() {
     // Util class
@@ -173,11 +174,7 @@ public class SQLStatementUtils {
    * single aspect column in the metadata entity tables. The query includes a filter for filtering out soft-deleted aspects.
    *
    * <p>Example:
-   * SELECT urn, aspect1, lastmodifiedon, lastmodifiedby FROM metadata_entity_foo WHERE urn = 'urn:1' AND aspect1 != '{"gma_deleted":true}'
-   * UNION ALL
-   * SELECT urn, aspect1, lastmodifiedon, lastmodifiedby FROM metadata_entity_foo WHERE urn = 'urn:2' AND aspect1 != '{"gma_deleted":true}'
-   * UNION ALL
-   * SELECT urn, aspect1, lastmodifiedon, lastmodifiedby FROM metadata_entity_bar WHERE urn = 'urn:1' AND aspect1 != '{"gma_deleted":true}'
+   * SELECT urn, aspect1, lastmodifiedon, lastmodifiedby FROM metadata_entity_foo WHERE aspect1 != '{"gma_deleted":true}' AND urn IN ('urn:1', 'urn:2')
    * </p>
    * @param aspectClass aspect class to query for
    * @param urns a Set of Urns to query for
@@ -192,14 +189,19 @@ public class SQLStatementUtils {
     }
 
     StringBuilder stringBuilder = new StringBuilder();
-    List<String> selectStatements = urns.stream().map(urn -> {
-      final String tableName = isTestMode ? getTestTableName(urn) : getTableName(urn);
-      final String columnName = getAspectColumnName(urn.getEntityType(), aspectClass);
-      final String sqlTemplate =
-          includeSoftDeleted ? SQL_READ_ASPECT_WITH_SOFT_DELETED_TEMPLATE : SQL_READ_ASPECT_TEMPLATE;
-      return String.format(sqlTemplate, columnName, tableName, escapeReservedCharInUrn(urn.toString()), columnName);
-    }).collect(Collectors.toList());
-    stringBuilder.append(String.join(" UNION ALL ", selectStatements));
+
+    final Urn firstUrn = urns.iterator().next();
+    final String columnName = getAspectColumnName(firstUrn.getEntityType(), aspectClass);
+    final String tableName = isTestMode ? getTestTableName(firstUrn) : getTableName(firstUrn);
+    // Generate URN list for IN clause
+    String urnList = urns.stream()
+        .map(urn -> "'" + escapeReservedCharInUrn(urn.toString()) + "'")
+        .collect(Collectors.joining(", "));
+    final String sqlTemplate =
+        includeSoftDeleted ? SQL_READ_ASPECT_WITH_SOFT_DELETED_TEMPLATE : SQL_READ_ASPECT_TEMPLATE;
+    stringBuilder.append(String.format(sqlTemplate, columnName, tableName, columnName));
+    stringBuilder.append(urnList);
+    stringBuilder.append(RIGHT_PARENTHESIS);
     return stringBuilder.toString();
   }
 
