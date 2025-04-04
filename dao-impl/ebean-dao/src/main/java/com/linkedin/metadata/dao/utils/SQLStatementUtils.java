@@ -146,7 +146,6 @@ public class SQLStatementUtils {
 
   public static final String SOURCE = "source";
   public static final String DESTINATION = "destination";
-  private static final String RIGHT_PARENTHESIS = ")";
 
   private SQLStatementUtils() {
     // Util class
@@ -187,6 +186,7 @@ public class SQLStatementUtils {
     if (urns.size() == 0) {
       throw new IllegalArgumentException("Need at least 1 urn to query.");
     }
+
     StringBuilder stringBuilder = new StringBuilder();
 
     final Urn firstUrn = urns.iterator().next();
@@ -200,7 +200,7 @@ public class SQLStatementUtils {
         includeSoftDeleted ? SQL_READ_ASPECT_WITH_SOFT_DELETED_TEMPLATE : SQL_READ_ASPECT_TEMPLATE;
     stringBuilder.append(String.format(sqlTemplate, columnName, tableName, columnName));
     stringBuilder.append(urnList);
-    stringBuilder.append(RIGHT_PARENTHESIS);
+    stringBuilder.append(CLOSING_BRACKET);
     return stringBuilder.toString();
   }
 
