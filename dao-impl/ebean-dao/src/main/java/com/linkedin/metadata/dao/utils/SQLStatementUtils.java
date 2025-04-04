@@ -186,6 +186,7 @@ public class SQLStatementUtils {
     if (urns.size() == 0) {
       throw new IllegalArgumentException("Need at least 1 urn to query.");
     }
+
     StringBuilder stringBuilder = new StringBuilder();
 
     final Urn firstUrn = urns.iterator().next();
