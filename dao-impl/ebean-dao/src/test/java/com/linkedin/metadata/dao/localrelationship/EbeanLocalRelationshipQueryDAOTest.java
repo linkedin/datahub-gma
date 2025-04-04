@@ -60,6 +60,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.naming.OperationNotSupportedException;
+import org.mockito.ArgumentCaptor;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
@@ -1119,12 +1120,24 @@ public class EbeanLocalRelationshipQueryDAOTest {
     // Retrieve entities (this will trigger the batching and SQL executions)
     List<FooSnapshot> fooSnapshotList = _localRelationshipQueryDAO.findEntities(FooSnapshot.class, filter, 0, 10);
 
+    // Capture the query string
+    ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
     // Assertions
     assertEquals(fooSnapshotList.size(), 500); // All 500 entities should match
 
     // Verify how many times the query was executed
     // We expect the query to be executed multiple times due to batching (3 times for 500 values split into 3 batches)
-    verify(_server, times(3)).createSqlQuery(anyString());  // Verifies that the SQL query was executed 3 times for 3 batches
+    verify(_server, times(3)).createSqlQuery(captor.capture());
+
+    // Assert that the captured queries contain the correct number of values for each batch
+    List<String> capturedQueries = captor.getAllValues();
+    for (int i = 0; i < capturedQueries.size(); i++) {
+      String query = capturedQueries.get(i);
+      int start = i * 200 + 1;
+      int end = Math.min((i + 1) * 200, 500);  // Ensure we don't go beyond 500
+      String expectedRange = String.format("IN ('foo%d', 'foo%d', ..., 'foo%d')", start, start + 1, end);
+      assertTrue(query.contains(expectedRange));
+    }
   }
 
 }
