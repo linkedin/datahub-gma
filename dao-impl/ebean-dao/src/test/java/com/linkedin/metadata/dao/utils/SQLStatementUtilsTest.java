@@ -196,8 +196,8 @@ public class SQLStatementUtilsTest {
 
     LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion1, criterion2);
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, false), "urn='value1' OR urn='value2'");
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, true), "urn='value1' OR urn='value2'");
+    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, false), "urn IN ('value1', 'value2')");
+    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, true), "urn IN ('value1', 'value2')");
   }
 
   @Test
@@ -226,6 +226,7 @@ public class SQLStatementUtilsTest {
 
   @Test
   public void testWhereClauseMultiConditionMixedName() {
+    // Create criteria for each field
     LocalRelationshipCriterion.Field field1 = new LocalRelationshipCriterion.Field();
     field1.setUrnField(new UrnField());
     LocalRelationshipCriterion criterion1 = new LocalRelationshipCriterion()
@@ -254,12 +255,21 @@ public class SQLStatementUtilsTest {
         .setCondition(Condition.EQUAL)
         .setValue(LocalRelationshipValue.create("value4"));
 
+    // Group all criteria into a LocalRelationshipCriterionArray
     LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion1, criterion2, criterion3, criterion4);
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
-    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, false),
-        "(urn='value1' OR urn='value3') AND metadata$value='value4' AND i_aspectfoo$value='value2'");
+
+    // Generate SQL using whereClause method
+    String x = SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, false);
+    System.out.println(x);
+
+    // The urn field should use IN for multiple values
+    assertConditionsEqual(x,
+        "(urn IN 'value1', 'value3') AND metadata$value='value4' AND i_aspectfoo$value='value2'");
+
+    // Check for non-dollar virtual column case
     assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, true),
-        "(urn='value1' OR urn='value3') AND metadata0value='value4' AND i_aspectfoo0value='value2'");
+        "(urn IN 'value1', 'value3') AND metadata0value='value4' AND i_aspectfoo0value='value2'");
   }
 
   @Test
