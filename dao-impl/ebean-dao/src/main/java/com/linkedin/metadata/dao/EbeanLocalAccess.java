@@ -272,34 +272,22 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       boolean includeSoftDeleted, boolean isTestMode) {
 
     final int end = Math.min(aspectKeys.size(), position + keysCount);
-    final Map<String, Map<Class<ASPECT>, Set<Urn>>> keysToQueryMap = new HashMap<>();
+    final Map<Class<ASPECT>, Set<Urn>> keysToQueryMap = new HashMap<>();
     for (int index = position; index < end; index++) {
       final Urn entityUrn = aspectKeys.get(index).getUrn();
       final Class<ASPECT> aspectClass = (Class<ASPECT>) aspectKeys.get(index).getAspectClass();
-      final String entityType = entityUrn.getEntityType();
       if (checkColumnExists(isTestMode ? getTestTableName(entityUrn) : getTableName(entityUrn),
-          getAspectColumnName(entityType, aspectClass))) {
-        // Group by entity type and aspect class
-        keysToQueryMap
-            .computeIfAbsent(entityType, k -> new HashMap<>())  // For each entity type, create a new HashMap for aspects
-            .computeIfAbsent(aspectClass, k -> new HashSet<>()) // For each aspect class, create a new HashSet for URNs
-            .add(entityUrn);
+          getAspectColumnName(entityUrn.getEntityType(), aspectClass))) {
+        keysToQueryMap.computeIfAbsent(aspectClass, unused -> new HashSet<>()).add(entityUrn);
       }
     }
 
-    // Generate SQL statements for each entity type and aspect class combination
-    Map<String, Class<ASPECT>> selectStatements = new HashMap<>();
-    for (Map.Entry<String, Map<Class<ASPECT>, Set<Urn>>> entry : keysToQueryMap.entrySet()) {
-      Map<Class<ASPECT>, Set<Urn>> aspectMap = entry.getValue();
-      for (Map.Entry<Class<ASPECT>, Set<Urn>> aspectEntry : aspectMap.entrySet()) {
-        Class<ASPECT> aspectClass = aspectEntry.getKey();
-        Set<Urn> urns = aspectEntry.getValue();
-
-        // Generate SQL query for each aspect class with the associated URNs
-        String sqlQuery = SQLStatementUtils.createAspectReadSql(aspectClass, urns, includeSoftDeleted, isTestMode);
-        selectStatements.put(sqlQuery, aspectClass);
-      }
-    }
+    // each statement is for a single aspect class
+    Map<String, Class<ASPECT>> selectStatements = keysToQueryMap.entrySet()
+        .stream()
+        .collect(Collectors.toMap(
+            entry -> SQLStatementUtils.createAspectReadSql(entry.getKey(), entry.getValue(), includeSoftDeleted,
+                isTestMode), entry -> entry.getKey()));
 
     // consolidate/join the results
     final Map<SqlRow, Class<ASPECT>> sqlRows = new LinkedHashMap<>();
