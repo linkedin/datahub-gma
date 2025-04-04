@@ -426,26 +426,15 @@ public class SQLStatementUtils {
     List<String> andClauses = new ArrayList<>();
     for (Map.Entry<String, List<Pair<Condition, LocalRelationshipValue>>> entry : groupByField.entrySet()) {
       List<String> orClauses = new ArrayList<>();
-      boolean useInClause = entry.getKey().equals("urn") && entry.getValue().size() > 1; // Check if we're dealing with 'urn' and multiple values
-
-      if (useInClause) {
-        // If it's 'urn' and there are multiple values, use IN
-        List<String> values = new ArrayList<>();
-        for (Pair<Condition, LocalRelationshipValue> pair : entry.getValue()) {
-          values.add("'" + parseLocalRelationshipValue(pair.getValue1()) + "'");
-        }
-        orClauses.add(entry.getKey() + " IN (" + String.join(", ", values) + ")");
-      } else {
-        // Otherwise, use OR for individual conditions
-        for (Pair<Condition, LocalRelationshipValue> pair : entry.getValue()) {
-          if (pair.getValue0() == Condition.IN) {
-            if (!pair.getValue1().isArray()) {
-              throw new IllegalArgumentException("IN condition must be paired with array value");
-            }
-            orClauses.add(entry.getKey() + " IN " + parseLocalRelationshipValue(pair.getValue1()));
-          } else {
-            orClauses.add(entry.getKey() + supportedConditions.get(pair.getValue0()) + "'" + parseLocalRelationshipValue(pair.getValue1()) + "'");
+      for (Pair<Condition, LocalRelationshipValue> pair : entry.getValue()) {
+        if (pair.getValue0() == Condition.IN) {
+          if (!pair.getValue1().isArray()) {
+            throw new IllegalArgumentException("IN condition must be paired with array value");
           }
+          // Add parentheses around the values in the IN clause
+          orClauses.add(entry.getKey() + " IN (" + parseLocalRelationshipValue(pair.getValue1()) + ")");
+        } else {
+          orClauses.add(entry.getKey() + supportedConditions.get(pair.getValue0()) + "'" + parseLocalRelationshipValue(pair.getValue1()) + "'");
         }
       }
 
@@ -457,13 +446,15 @@ public class SQLStatementUtils {
     }
     if (andClauses.size() == 1) {
       String andClause = andClauses.get(0);
-      if (andClauses.get(0).startsWith("(")) {
+      if (andClause.startsWith("(")) {
         return andClause.substring(1, andClause.length() - 1);
       }
       return andClause;
     }
+
     return String.join(" AND ", andClauses);
   }
+
 
   /**
    * Construct the where clause SQL from a filter when running in old schema mode. Assumes that all filters are applied on
