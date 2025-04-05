@@ -411,51 +411,61 @@ public class SQLStatementUtils {
       @Nonnull Map<Condition, String> supportedConditions, @Nullable String tablePrefix,
       boolean nonDollarVirtualColumnsEnabled) {
 
+    // Ensure the filter contains criteria; throw exception if empty.
     if (!filter.hasCriteria() || filter.getCriteria().isEmpty()) {
       throw new IllegalArgumentException("Empty filter cannot construct where clause.");
     }
-    // Group the conditions by field.
+
+    // Group criteria by their respective field for more efficient processing
     Map<String, List<Pair<Condition, LocalRelationshipValue>>> groupByField = new HashMap<>();
     filter.getCriteria().forEach(criterion -> {
+      // Parse field based on the criterion and add to the corresponding group.
       String field = parseLocalRelationshipField(criterion, tablePrefix, nonDollarVirtualColumnsEnabled);
-      List<Pair<Condition, LocalRelationshipValue>> group = groupByField.getOrDefault(field, new ArrayList<>());
-      group.add(new Pair<>(criterion.getCondition(), criterion.getValue()));
-      groupByField.put(field, group);
+      groupByField.computeIfAbsent(field, k -> new ArrayList<>()).add(new Pair<>(criterion.getCondition(), criterion.getValue()));
     });
 
     List<String> andClauses = new ArrayList<>();
+
+    // Process each group of criteria for a specific field
     for (Map.Entry<String, List<Pair<Condition, LocalRelationshipValue>>> entry : groupByField.entrySet()) {
       String field = entry.getKey();
       List<Pair<Condition, LocalRelationshipValue>> pairs = entry.getValue();
 
-      List<String> equalValues = new ArrayList<>();
-      List<String> orClauses = new ArrayList<>();
+      List<String> equalValues = new ArrayList<>(); // To hold EQUAL conditions
+      List<String> orClauses = new ArrayList<>();   // To hold other conditions (IN or others)
 
+      // Process each pair of condition and value
       for (Pair<Condition, LocalRelationshipValue> pair : pairs) {
         Condition condition = pair.getValue0();
         LocalRelationshipValue value = pair.getValue1();
 
+        // Handle IN condition, which expects an array-like value
         if (condition == Condition.IN) {
           if (!value.isArray()) {
             throw new IllegalArgumentException("IN condition must be paired with array value");
           }
           orClauses.add(field + " IN (" + parseLocalRelationshipValue(value) + ")");
-        } else if (condition == Condition.EQUAL) {
+        }
+        // Handle EQUAL condition by collecting values for later IN conversion if needed
+        else if (condition == Condition.EQUAL) {
           equalValues.add("'" + parseLocalRelationshipValue(value) + "'");
-        } else {
-          orClauses.add(entry.getKey() + supportedConditions.get(pair.getValue0()) + "'" + parseLocalRelationshipValue(
-              pair.getValue1()) + "'");
+        }
+        // Handle any other conditions (non-IN, non-EQUAL)
+        else {
+          orClauses.add(field + supportedConditions.get(condition) + "'" + parseLocalRelationshipValue(value) + "'");
         }
       }
 
+      // If there are multiple EQUAL conditions, combine them with IN for more efficient querying
       if (!equalValues.isEmpty()) {
         if (equalValues.size() == 1) {
-          orClauses.add(field + "=" + equalValues.get(0));
+          orClauses.add(field + "=" + equalValues.get(0)); // Single EQUAL condition
         } else {
-          orClauses.add(field + " IN(" + String.join(",", equalValues) + ")");
+          orClauses.add(field + " IN(" + String.join(",", equalValues) + ")"); // Multiple EQUAL conditions as IN
         }
       }
 
+      // If only one OR clause is created, add it directly, else combine OR clauses
       if (orClauses.size() == 1) {
         andClauses.add(orClauses.get(0));
       } else {
@@ -463,16 +473,16 @@ public class SQLStatementUtils {
       }
     }
 
+    // If there's only one AND clause, return it directly (remove parentheses if necessary)
     if (andClauses.size() == 1) {
       String andClause = andClauses.get(0);
-      if (andClause.startsWith("(")) {
-        return andClause.substring(1, andClause.length() - 1);
-      }
-      return andClause;
+      return andClause.startsWith("(") ? andClause.substring(1, andClause.length() - 1) : andClause;
     }
 
+    // Join all AND clauses with 'AND' and return the result
     return String.join(" AND ", andClauses);
   }
+
 
 
   /**
