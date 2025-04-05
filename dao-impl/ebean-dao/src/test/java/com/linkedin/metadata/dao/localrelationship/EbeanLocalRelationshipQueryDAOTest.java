@@ -50,6 +50,7 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -1032,5 +1033,30 @@ public class EbeanLocalRelationshipQueryDAOTest {
       assertTrue(ex instanceof IllegalArgumentException);
       assertEquals(ex.getMessage(), "Relationship direction cannot be null or UNKNOWN.");
     }
+  }
+
+  @Test
+  public void testFindEntitiesWithHundredCriterion() throws URISyntaxException, OperationNotSupportedException {
+    // Ingest data
+    for (int i = 1; i <= 100; i++) {
+      _fooUrnEBeanLocalAccess.add(new FooUrn(i), new AspectFoo().setValue("foo" + i), AspectFoo.class, new AuditStamp(),
+          null, false);
+    }
+    // Prepare a list of 100 filter criteria
+    List<LocalRelationshipCriterion> criteriaList = new ArrayList<>();
+    for (int i = 1; i <= 100; i++) {
+      LocalRelationshipCriterion filterCriterion =
+          EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create(new StringArray("foo" + i)),
+              Condition.IN, new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+      criteriaList.add(filterCriterion);
+    }
+    // Apply filter with OR logic (all conditions combined with OR)
+    LocalRelationshipFilter filter =
+        new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(criteriaList));
+    // Retrieve entities (limit to 100 results for testing)
+    List<FooSnapshot> fooSnapshotList = _localRelationshipQueryDAO.findEntities(FooSnapshot.class, filter, 0, 100);
+
+    // Assertions
+    assertEquals(fooSnapshotList.size(), 100); // 100 entities should match the filter criteria
   }
 }
