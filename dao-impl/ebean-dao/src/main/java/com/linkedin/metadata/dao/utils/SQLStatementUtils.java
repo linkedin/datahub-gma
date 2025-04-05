@@ -443,7 +443,8 @@ public class SQLStatementUtils {
         } else if (condition == Condition.EQUAL) {
           equalValues.add("'" + parseLocalRelationshipValue(value) + "'");
         } else {
-          orClauses.add(entry.getKey() + supportedConditions.get(pair.getValue0()) + "'" + parseLocalRelationshipValue(pair.getValue1()) + "'");
+          orClauses.add(entry.getKey() + supportedConditions.get(pair.getValue0()) + "'" + parseLocalRelationshipValue(
+              pair.getValue1()) + "'");
         }
       }
 

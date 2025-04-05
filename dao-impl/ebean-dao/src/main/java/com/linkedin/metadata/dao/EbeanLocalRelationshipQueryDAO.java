@@ -103,15 +103,18 @@ public class EbeanLocalRelationshipQueryDAO {
     List<SNAPSHOT> allResults = new ArrayList<>();
 
     for (int i = 0; i < allCriteria.size(); i += FILTER_BATCH_SIZE) {
-      List<LocalRelationshipCriterion> batch = allCriteria.subList(i, Math.min(i + FILTER_BATCH_SIZE, allCriteria.size()));
-      LocalRelationshipFilter batchFilter = new LocalRelationshipFilter()
-          .setCriteria(new LocalRelationshipCriterionArray(batch));
+      List<LocalRelationshipCriterion> batch =
+          allCriteria.subList(i, Math.min(i + FILTER_BATCH_SIZE, allCriteria.size()));
+      LocalRelationshipFilter batchFilter =
+          new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(batch));
       String tableName = SQLSchemaUtils.getTableName(ModelUtils.getUrnTypeFromSnapshot(snapshotClass));
       String sqlBuilder =
           "SELECT * FROM " + tableName + " WHERE " + SQLStatementUtils.whereClause(batchFilter, SUPPORTED_CONDITIONS,
               null, _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled()) + " ORDER BY urn LIMIT " + Math.max(1, count)
               + " OFFSET " + Math.max(0, offset);
-      List<SNAPSHOT> results = _server.createSqlQuery(sqlBuilder).findList().stream()
+      List<SNAPSHOT> results = _server.createSqlQuery(sqlBuilder)
+          .findList()
+          .stream()
           .map(row -> constructSnapshot(row, snapshotClass))
           .collect(Collectors.toList());
       allResults.addAll(results);
