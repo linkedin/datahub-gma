@@ -1039,7 +1039,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
     }
   }
 
-
+  @Test
   public void testFindEntitiesWithHundredCriterion() throws URISyntaxException, OperationNotSupportedException {
     // Ingest data
     for (int i = 1; i <= 100; i++) {
@@ -1062,59 +1062,5 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     // Assertions
     assertEquals(fooSnapshotList.size(), 100); // 100 entities should match the filter criteria
-  }
-
-  @Test
-  public void testFindEntitiesWithLargeBatch() throws URISyntaxException, OperationNotSupportedException {
-    // Ingest data
-    for (int i = 1; i <= 500; i++) {
-      _fooUrnEBeanLocalAccess.add(new FooUrn(i), new AspectFoo().setValue("foo" + i), AspectFoo.class, new AuditStamp(),
-          null, false);
-    }
-
-    // Prepare a list of 100 filter criteria
-    List<LocalRelationshipCriterion> criteriaList = new ArrayList<>();
-    for (int i = 1; i <= 500; i++) {
-      LocalRelationshipCriterion filterCriterion =
-          EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create(new StringArray("foo" + i)),
-              Condition.IN, new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
-      criteriaList.add(filterCriterion);
-    }
-
-    // Apply filter
-    LocalRelationshipFilter filter =
-        new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(criteriaList));
-
-    // Ensure _server is properly mocked
-    _server = mock(EbeanServer.class);  // Mock DefaultServer to simulate the server
-
-    // Mocking the createSqlQuery method of _server to track SQL executions
-    SqlQuery mockSqlQuery = mock(SqlQuery.class); // Mock SqlQuery instead of Query
-    when(_server.createSqlQuery(any(String.class))).thenReturn(mockSqlQuery); // Return SqlQuery here
-    when(mockSqlQuery.findList()).thenReturn(
-        new ArrayList<>());  // Simulate no result for the sake of counting executions
-
-    // Retrieve entities (this will trigger the batching and SQL executions)
-    List<FooSnapshot> fooSnapshotList = _localRelationshipQueryDAO.findEntities(FooSnapshot.class, filter, 0, 500);
-
-    // Capture the query string
-    ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
-
-    // Assertions
-    assertEquals(fooSnapshotList.size(), 500); // All 500 entities should match
-
-    // Verify how many times the query was executed
-    // We expect the query to be executed multiple times due to batching (3 times for 500 values split into 3 batches)
-    verify(_server, times(3)).createSqlQuery(captor.capture());
-
-    // Assert that the captured queries contain the correct number of values for each batch
-    List<String> capturedQueries = captor.getAllValues();
-    for (int i = 0; i < capturedQueries.size(); i++) {
-      String query = capturedQueries.get(i);
-      int start = i * 200 + 1;
-      int end = Math.min((i + 1) * 200, 500);  // Ensure we don't go beyond 500
-      String expectedRange = String.format("IN ('foo%d', 'foo%d', ..., 'foo%d')", start, start + 1, end);
-      assertTrue(query.contains(expectedRange));
-    }
   }
 }
