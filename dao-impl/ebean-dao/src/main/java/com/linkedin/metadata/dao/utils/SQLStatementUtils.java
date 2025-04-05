@@ -410,10 +410,10 @@ public class SQLStatementUtils {
   public static String whereClause(@Nonnull LocalRelationshipFilter filter,
       @Nonnull Map<Condition, String> supportedConditions, @Nullable String tablePrefix,
       boolean nonDollarVirtualColumnsEnabled) {
+
     if (!filter.hasCriteria() || filter.getCriteria().isEmpty()) {
       throw new IllegalArgumentException("Empty filter cannot construct where clause.");
     }
-
     // Group the conditions by field.
     Map<String, List<Pair<Condition, LocalRelationshipValue>>> groupByField = new HashMap<>();
     filter.getCriteria().forEach(criterion -> {
@@ -425,16 +425,33 @@ public class SQLStatementUtils {
 
     List<String> andClauses = new ArrayList<>();
     for (Map.Entry<String, List<Pair<Condition, LocalRelationshipValue>>> entry : groupByField.entrySet()) {
+      String field = entry.getKey();
+      List<Pair<Condition, LocalRelationshipValue>> pairs = entry.getValue();
+
+      List<String> equalValues = new ArrayList<>();
       List<String> orClauses = new ArrayList<>();
-      for (Pair<Condition, LocalRelationshipValue> pair : entry.getValue()) {
-        if (pair.getValue0() == Condition.IN) {
-          if (!pair.getValue1().isArray()) {
+
+      for (Pair<Condition, LocalRelationshipValue> pair : pairs) {
+        Condition condition = pair.getValue0();
+        LocalRelationshipValue value = pair.getValue1();
+
+        if (condition == Condition.IN) {
+          if (!value.isArray()) {
             throw new IllegalArgumentException("IN condition must be paired with array value");
           }
-          // Add parentheses around the values in the IN clause
-          orClauses.add(entry.getKey() + " IN (" + parseLocalRelationshipValue(pair.getValue1()) + ")");
+          orClauses.add(field + " IN (" + parseLocalRelationshipValue(value) + ")");
+        } else if (condition == Condition.EQUAL) {
+          equalValues.add("'" + parseLocalRelationshipValue(value) + "'");
         } else {
           orClauses.add(entry.getKey() + supportedConditions.get(pair.getValue0()) + "'" + parseLocalRelationshipValue(pair.getValue1()) + "'");
+        }
+      }
+
+      if (!equalValues.isEmpty()) {
+        if (equalValues.size() == 1) {
+          orClauses.add(field + "=" + equalValues.get(0));
+        } else {
+          orClauses.add(field + " IN(" + String.join(",", equalValues) + ")");
         }
       }
 
@@ -444,6 +461,7 @@ public class SQLStatementUtils {
         andClauses.add("(" + String.join(" OR ", orClauses) + ")");
       }
     }
+
     if (andClauses.size() == 1) {
       String andClause = andClauses.get(0);
       if (andClause.startsWith("(")) {

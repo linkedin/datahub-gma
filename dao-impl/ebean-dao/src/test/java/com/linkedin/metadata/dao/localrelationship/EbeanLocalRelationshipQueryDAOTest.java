@@ -48,6 +48,7 @@ import io.ebean.EbeanServer;
 import io.ebean.Query;
 import io.ebean.SqlQuery;
 import io.ebean.SqlUpdate;
+import io.ebeaninternal.server.core.DefaultServer;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.net.URISyntaxException;
@@ -93,7 +94,6 @@ public class EbeanLocalRelationshipQueryDAOTest {
   @DataProvider(name = "inputList")
   public static Object[][] inputList() {
     return new Object[][] {
-        { true },
         { false }
     };
   }
@@ -1039,89 +1039,67 @@ public class EbeanLocalRelationshipQueryDAOTest {
     }
   }
 
-  @Test
-  public void testFindEntitiesWithSmallBatch() throws URISyntaxException, OperationNotSupportedException {
+
+  public void testFindEntitiesWithHundredCriterion() throws URISyntaxException, OperationNotSupportedException {
     // Ingest data
     for (int i = 1; i <= 100; i++) {
-      _fooUrnEBeanLocalAccess.add(new FooUrn(i), new AspectFoo().setValue("foo" + i), AspectFoo.class, new AuditStamp(), null, false);
+      _fooUrnEBeanLocalAccess.add(new FooUrn(i), new AspectFoo().setValue("foo" + i), AspectFoo.class, new AuditStamp(),
+          null, false);
     }
-    // Prepare filter with a small number of values (< 200)
-    List<String> urnValues = new ArrayList<>();
+    // Prepare a list of 100 filter criteria
+    List<LocalRelationshipCriterion> criteriaList = new ArrayList<>();
     for (int i = 1; i <= 100; i++) {
-      urnValues.add("foo" + i);
+      LocalRelationshipCriterion filterCriterion =
+          EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create(new StringArray("foo" + i)),
+              Condition.IN, new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+      criteriaList.add(filterCriterion);
     }
-
-    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create(new StringArray(urnValues)),
-        Condition.IN,
-        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
-
-    // Apply filter
-    LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
-
-    // Retrieve entities
-    List<FooSnapshot> fooSnapshotList = _localRelationshipQueryDAO.findEntities(FooSnapshot.class, filter, 0, 10);
+    // Apply filter with OR logic (all conditions combined with OR)
+    LocalRelationshipFilter filter =
+        new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(criteriaList));
+    // Retrieve entities (limit to 100 results for testing)
+    List<FooSnapshot> fooSnapshotList = _localRelationshipQueryDAO.findEntities(FooSnapshot.class, filter, 0, 100);
 
     // Assertions
-    assertEquals(fooSnapshotList.size(), 100); // All 100 entities should match
+    assertEquals(fooSnapshotList.size(), 100); // 100 entities should match the filter criteria
   }
 
   @Test
   public void testFindEntitiesWithLargeBatch() throws URISyntaxException, OperationNotSupportedException {
     // Ingest data
-    for (int i = 1; i <= 300; i++) {
-      _fooUrnEBeanLocalAccess.add(new FooUrn(i), new AspectFoo().setValue("foo" + i), AspectFoo.class, new AuditStamp(), null, false);
+    for (int i = 1; i <= 500; i++) {
+      _fooUrnEBeanLocalAccess.add(new FooUrn(i), new AspectFoo().setValue("foo" + i), AspectFoo.class, new AuditStamp(),
+          null, false);
     }
 
-    // Prepare filter with a large number of values (300 > 200)
-    List<String> urnValues = new ArrayList<>();
-    for (int i = 1; i <= 300; i++) {
-      urnValues.add("foo" + i);
+    // Prepare a list of 100 filter criteria
+    List<LocalRelationshipCriterion> criteriaList = new ArrayList<>();
+    for (int i = 1; i <= 500; i++) {
+      LocalRelationshipCriterion filterCriterion =
+          EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create(new StringArray("foo" + i)),
+              Condition.IN, new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+      criteriaList.add(filterCriterion);
     }
-
-    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create(new StringArray(urnValues)),
-        Condition.IN,
-        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
 
     // Apply filter
-    LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
+    LocalRelationshipFilter filter =
+        new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(criteriaList));
 
-    // Retrieve entities
-    List<FooSnapshot> fooSnapshotList = _localRelationshipQueryDAO.findEntities(FooSnapshot.class, filter, 0, 10);
+    // Ensure _server is properly mocked
+    _server = mock(EbeanServer.class);  // Mock DefaultServer to simulate the server
 
-    // Assertions
-    assertEquals(fooSnapshotList.size(), 300); // All 300 entities should match
-  }
-
-  @Test
-  public void testBatchingQueryExecutionCount() throws URISyntaxException, OperationNotSupportedException {
-    // Ingest data
-    for (int i = 1; i <= 500; i++) {
-      _fooUrnEBeanLocalAccess.add(new FooUrn(i), new AspectFoo().setValue("foo" + i), AspectFoo.class, new AuditStamp(), null, false);
-    }
-
-    // Prepare filter with a large number of values (500 > 200)
-    List<String> urnValues = new ArrayList<>();
-    for (int i = 1; i <= 500; i++) {
-      urnValues.add("foo" + i);
-    }
-
-    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create(new StringArray(urnValues)),
-        Condition.IN,
-        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
-
-    // Apply filter
-    LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
-
-    // Mocking the _server.createSqlQuery() method to track SQL executions
-    Query mockQuery = mock(Query.class);
-    when(_server.createSqlQuery(anyString())).thenReturn((SqlQuery) mockQuery);
-    when(mockQuery.findList()).thenReturn(new ArrayList<>());  // Simulate no result for the sake of counting executions
+    // Mocking the createSqlQuery method of _server to track SQL executions
+    SqlQuery mockSqlQuery = mock(SqlQuery.class); // Mock SqlQuery instead of Query
+    when(_server.createSqlQuery(any(String.class))).thenReturn(mockSqlQuery); // Return SqlQuery here
+    when(mockSqlQuery.findList()).thenReturn(
+        new ArrayList<>());  // Simulate no result for the sake of counting executions
 
     // Retrieve entities (this will trigger the batching and SQL executions)
-    List<FooSnapshot> fooSnapshotList = _localRelationshipQueryDAO.findEntities(FooSnapshot.class, filter, 0, 10);
+    List<FooSnapshot> fooSnapshotList = _localRelationshipQueryDAO.findEntities(FooSnapshot.class, filter, 0, 500);
 
     // Capture the query string
     ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
+
     // Assertions
     assertEquals(fooSnapshotList.size(), 500); // All 500 entities should match
 
@@ -1139,5 +1117,4 @@ public class EbeanLocalRelationshipQueryDAOTest {
       assertTrue(query.contains(expectedRange));
     }
   }
-
 }

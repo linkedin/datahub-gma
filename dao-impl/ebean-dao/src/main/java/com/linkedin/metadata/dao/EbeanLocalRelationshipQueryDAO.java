@@ -100,26 +100,30 @@ public class EbeanLocalRelationshipQueryDAO {
     validateEntityFilter(filter, snapshotClass);
 
     List<LocalRelationshipCriterion> allCriteria = filter.getCriteria();
+    System.out.println("allCriteria. = " + allCriteria);
     List<SNAPSHOT> allResults = new ArrayList<>();
 
     for (int i = 0; i < allCriteria.size(); i += FILTER_BATCH_SIZE) {
       List<LocalRelationshipCriterion> batch = allCriteria.subList(i, Math.min(i + FILTER_BATCH_SIZE, allCriteria.size()));
+      System.out.println("batch = " + batch);
       LocalRelationshipFilter batchFilter = new LocalRelationshipFilter()
           .setCriteria(new LocalRelationshipCriterionArray(batch));
-
+      System.out.println("batchFilter = " + batchFilter);
       String tableName = SQLSchemaUtils.getTableName(ModelUtils.getUrnTypeFromSnapshot(snapshotClass));
-
+      System.out.println("tableName = " + tableName);
       String sqlBuilder =
           "SELECT * FROM " + tableName + " WHERE " + SQLStatementUtils.whereClause(batchFilter, SUPPORTED_CONDITIONS,
               null, _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled()) + " ORDER BY urn LIMIT " + Math.max(1, count)
               + " OFFSET " + Math.max(0, offset);
-
+      System.out.println("sqlBuilder = " + sqlBuilder);
       List<SNAPSHOT> results = _server.createSqlQuery(sqlBuilder).findList().stream()
           .map(row -> constructSnapshot(row, snapshotClass))
           .collect(Collectors.toList());
-
+      System.out.println("results = " + results);
       allResults.addAll(results);
     }
+    System.out.println("allResults.size() = " + allResults.size());
+    System.out.println("allResults = " + allResults);
     return allResults;
   }
 
