@@ -421,7 +421,8 @@ public class SQLStatementUtils {
     filter.getCriteria().forEach(criterion -> {
       // Parse field based on the criterion and add to the corresponding group.
       String field = parseLocalRelationshipField(criterion, tablePrefix, nonDollarVirtualColumnsEnabled);
-      groupByField.computeIfAbsent(field, k -> new ArrayList<>()).add(new Pair<>(criterion.getCondition(), criterion.getValue()));
+      groupByField.computeIfAbsent(field, k -> new ArrayList<>())
+          .add(new Pair<>(criterion.getCondition(), criterion.getValue()));
     });
 
     List<String> andClauses = new ArrayList<>();
@@ -445,13 +446,11 @@ public class SQLStatementUtils {
             throw new IllegalArgumentException("IN condition must be paired with array value");
           }
           orClauses.add(field + " IN (" + parseLocalRelationshipValue(value) + ")");
-        }
-        // Handle EQUAL condition by collecting values for later IN conversion if needed
-        else if (condition == Condition.EQUAL) {
+        } else if (condition == Condition.EQUAL) {
+          // Handle EQUAL condition by collecting values for later IN conversion if needed
           equalValues.add("'" + parseLocalRelationshipValue(value) + "'");
-        }
-        // Handle any other conditions (non-IN, non-EQUAL)
-        else {
+        } else {
+          // Handle any other conditions (non-IN, non-EQUAL)
           orClauses.add(field + supportedConditions.get(condition) + "'" + parseLocalRelationshipValue(value) + "'");
         }
       }
@@ -482,8 +481,6 @@ public class SQLStatementUtils {
     // Join all AND clauses with 'AND' and return the result
     return String.join(" AND ", andClauses);
   }
-
-
 
   /**
    * Construct the where clause SQL from a filter when running in old schema mode. Assumes that all filters are applied on
