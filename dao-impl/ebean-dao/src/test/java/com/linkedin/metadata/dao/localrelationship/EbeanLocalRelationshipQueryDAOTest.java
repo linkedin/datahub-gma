@@ -66,7 +66,6 @@ import org.testng.annotations.Test;
 
 import static com.linkedin.metadata.dao.EbeanLocalRelationshipQueryDAO.*;
 import static com.linkedin.testing.TestUtils.*;
-import static org.mockito.Mockito.*;
 import static org.testng.Assert.*;
 
 
@@ -90,6 +89,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
   @DataProvider(name = "inputList")
   public static Object[][] inputList() {
     return new Object[][] {
+        { true },
         { false }
     };
   }
