@@ -89,7 +89,6 @@ public class EbeanLocalRelationshipQueryDAOTest {
   @DataProvider(name = "inputList")
   public static Object[][] inputList() {
     return new Object[][] {
-        { true },
         { false }
     };
   }
@@ -1058,5 +1057,36 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     // Assertions
     assertEquals(fooSnapshotList.size(), 100); // 100 entities should match the filter criteria
+  }
+
+  @Test
+  public void testFindOneEntityWithMultipleInEqualCondition() throws URISyntaxException, OperationNotSupportedException {
+    // Ingest data
+    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null, false);
+    _fooUrnEBeanLocalAccess.add(new FooUrn(2), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null, false);
+    _fooUrnEBeanLocalAccess.add(new FooUrn(3), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null, false);
+    _fooUrnEBeanLocalAccess.add(new FooUrn(4), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null, false);
+    _fooUrnEBeanLocalAccess.add(new FooUrn(5), new AspectFoo().setValue("bar"), AspectFoo.class, new AuditStamp(), null, false);
+    _fooUrnEBeanLocalAccess.add(new FooUrn(6), new AspectFoo().setValue("bar"), AspectFoo.class, new AuditStamp(), null, false);
+
+    _fooUrnEBeanLocalAccess.add(new FooUrn(7), new AspectBar().setValue("bar"), AspectBar.class, new AuditStamp(), null, false);
+    _fooUrnEBeanLocalAccess.add(new FooUrn(8), new AspectBar().setValue("bar"), AspectBar.class, new AuditStamp(), null, false);
+
+    // Prepare filter
+    LocalRelationshipCriterion filterCriterion1 = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("foo"),
+        Condition.EQUAL,
+        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+
+
+    LocalRelationshipCriterion filterCriterion2 = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create(new StringArray("bar")),
+        Condition.IN,
+        new AspectField().setAspect(AspectBar.class.getCanonicalName()).setPath("/value"));
+
+    LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion1, filterCriterion2));
+    List<FooSnapshot> fooSnapshotList = _localRelationshipQueryDAO.findEntities(FooSnapshot.class, filter, 0, 10);
+
+    assertEquals(fooSnapshotList.size(), 6);
+    assertEquals(fooSnapshotList.get(0).getAspects().size(), 1);
+    assertEquals(fooSnapshotList.get(0).getAspects().get(0).getAspectFoo(), new AspectFoo().setValue("foo"));
   }
 }

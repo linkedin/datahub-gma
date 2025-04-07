@@ -11,6 +11,7 @@ import com.linkedin.metadata.dao.utils.MultiHopsTraversalSqlGenerator;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
 import com.linkedin.metadata.dao.utils.SQLStatementUtils;
+import com.linkedin.metadata.query.AspectField;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.LocalRelationshipCriterion;
 import com.linkedin.metadata.query.LocalRelationshipCriterionArray;
@@ -102,23 +103,59 @@ public class EbeanLocalRelationshipQueryDAO {
     List<LocalRelationshipCriterion> allCriteria = filter.getCriteria();
     List<SNAPSHOT> allResults = new ArrayList<>();
 
-    for (int i = 0; i < allCriteria.size(); i += FILTER_BATCH_SIZE) {
-      List<LocalRelationshipCriterion> batch =
-          allCriteria.subList(i, Math.min(i + FILTER_BATCH_SIZE, allCriteria.size()));
-      LocalRelationshipFilter batchFilter =
-          new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(batch));
-      String tableName = SQLSchemaUtils.getTableName(ModelUtils.getUrnTypeFromSnapshot(snapshotClass));
-      String sqlBuilder =
-          "SELECT * FROM " + tableName + " WHERE " + SQLStatementUtils.whereClause(batchFilter, SUPPORTED_CONDITIONS,
-              null, _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled()) + " ORDER BY urn LIMIT " + Math.max(1, count)
-              + " OFFSET " + Math.max(0, offset);
-      List<SNAPSHOT> results = _server.createSqlQuery(sqlBuilder)
-          .findList()
-          .stream()
-          .map(row -> constructSnapshot(row, snapshotClass))
-          .collect(Collectors.toList());
-      allResults.addAll(results);
+    Map<LocalRelationshipCriterion.Field, List<LocalRelationshipCriterion>> inEqualGrouped = new HashMap<>();
+    List<LocalRelationshipCriterion> otherCriteria = new ArrayList<>();
+
+    System.out.println("filter: " + filter);
+
+    // Group criteria by field for batch processing
+    for (LocalRelationshipCriterion criterion : allCriteria) {
+      if (criterion.getCondition() == Condition.EQUAL || criterion.getCondition() == Condition.IN) {
+        LocalRelationshipCriterion.Field key = criterion.getField();
+        System.out.println("key: " + key);
+        inEqualGrouped.computeIfAbsent(key, k -> new ArrayList<>()).add(criterion);
+      } else {
+        otherCriteria.add(criterion); // not batchable, include as-is
+      }
     }
+
+    System.out.println("allCriteria: " + allCriteria);
+    System.out.println("inEqualGrouped: " + inEqualGrouped);
+
+    for (Map.Entry<LocalRelationshipCriterion.Field, List<LocalRelationshipCriterion>> entry : inEqualGrouped.entrySet()) {
+      List<LocalRelationshipCriterion> criteriaGroup = entry.getValue();
+
+      for (int i = 0; i < criteriaGroup.size(); i += FILTER_BATCH_SIZE) {
+        List<LocalRelationshipCriterion> batchedGroup =
+            criteriaGroup.subList(i, Math.min(i + FILTER_BATCH_SIZE, criteriaGroup.size()));
+
+        List<LocalRelationshipCriterion> fullBatch = new ArrayList<>();
+        fullBatch.addAll(batchedGroup);
+        fullBatch.addAll(otherCriteria); // Always include the non-batchable ones
+
+        LocalRelationshipFilter batchFilter =
+            new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(fullBatch));
+
+        String tableName = SQLSchemaUtils.getTableName(ModelUtils.getUrnTypeFromSnapshot(snapshotClass));
+        System.out.println("tableName: " + tableName);
+        System.out.println("batchFilter: " + batchFilter);
+        String sqlBuilder =
+            "SELECT * FROM " + tableName + " WHERE " +
+                SQLStatementUtils.whereClause(batchFilter, SUPPORTED_CONDITIONS, null,
+                    _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled()) +
+                " ORDER BY urn LIMIT " + Math.max(1, count) +
+                " OFFSET " + Math.max(0, offset);
+
+        List<SNAPSHOT> results = _server.createSqlQuery(sqlBuilder)
+            .findList()
+            .stream()
+            .map(row -> constructSnapshot(row, snapshotClass))
+            .collect(Collectors.toList());
+
+        allResults.addAll(results);
+      }
+    }
+
     return allResults;
   }
 
