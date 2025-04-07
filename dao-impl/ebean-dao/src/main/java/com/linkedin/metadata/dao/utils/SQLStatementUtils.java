@@ -431,8 +431,8 @@ public class SQLStatementUtils {
       String field = entry.getKey();
       List<Pair<Condition, LocalRelationshipValue>> pairs = entry.getValue();
 
-      List<String> equalValues = new ArrayList<>(); // To hold EQUAL conditions
-      List<String> orClauses = new ArrayList<>();   // To hold other conditions (IN or others)
+      List<String> equalValues = new ArrayList<>(); // To hold criteria with equal conditions
+      List<String> orClauses = new ArrayList<>();   // To hold criteria with other conditions
 
       // Process each pair of condition and value
       for (Pair<Condition, LocalRelationshipValue> pair : pairs) {

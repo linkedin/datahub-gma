@@ -11,7 +11,6 @@ import com.linkedin.metadata.dao.utils.MultiHopsTraversalSqlGenerator;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
 import com.linkedin.metadata.dao.utils.SQLStatementUtils;
-import com.linkedin.metadata.query.AspectField;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.LocalRelationshipCriterion;
 import com.linkedin.metadata.query.LocalRelationshipCriterionArray;
@@ -132,11 +131,11 @@ public class EbeanLocalRelationshipQueryDAO {
 
         String tableName = SQLSchemaUtils.getTableName(ModelUtils.getUrnTypeFromSnapshot(snapshotClass));
         String sqlBuilder =
-            "SELECT * FROM " + tableName + " WHERE " +
-                SQLStatementUtils.whereClause(batchFilter, SUPPORTED_CONDITIONS, null,
-                    _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled()) +
-                " ORDER BY urn LIMIT " + Math.max(1, count) +
-                " OFFSET " + Math.max(0, offset);
+            "SELECT * FROM " + tableName + " WHERE "
+                + SQLStatementUtils.whereClause(batchFilter, SUPPORTED_CONDITIONS, null,
+                    _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled())
+                + " ORDER BY urn LIMIT " + Math.max(1, count)
+                + " OFFSET " + Math.max(0, offset);
 
         List<SNAPSHOT> results = _server.createSqlQuery(sqlBuilder)
             .findList()

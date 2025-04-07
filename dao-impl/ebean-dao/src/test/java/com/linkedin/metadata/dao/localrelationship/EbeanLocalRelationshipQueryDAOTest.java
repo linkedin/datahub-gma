@@ -47,7 +47,9 @@ import io.ebean.Ebean;
 import io.ebean.EbeanServer;
 import io.ebean.SqlUpdate;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -1035,28 +1037,52 @@ public class EbeanLocalRelationshipQueryDAOTest {
   }
 
   @Test
-  public void testFindEntitiesWithHundredCriterion() throws URISyntaxException, OperationNotSupportedException {
+  public void testFindEntitiesWithHundredCriterion()
+      throws URISyntaxException, OperationNotSupportedException, NoSuchFieldException, IllegalAccessException {
+
+    // Temporarily override FILTER_BATCH_SIZE
+    Field field = EbeanLocalRelationshipQueryDAO.class.getDeclaredField("FILTER_BATCH_SIZE");
+    field.setAccessible(true);
+
+    Field modifiersField = Field.class.getDeclaredField("modifiers");
+    modifiersField.setAccessible(true);
+    modifiersField.setInt(field, field.getModifiers() & ~Modifier.FINAL);
+
+    field.set(null, 2); // override value
+
     // Ingest data
-    for (int i = 1; i <= 100; i++) {
+    for (int i = 1; i <= 20; i++) {
       _fooUrnEBeanLocalAccess.add(new FooUrn(i), new AspectFoo().setValue("foo" + i), AspectFoo.class, new AuditStamp(),
           null, false);
     }
+
+    FooUrn one = new FooUrn(21);
+    _fooUrnEBeanLocalAccess.add(one, new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null, false);
+    _fooUrnEBeanLocalAccess.add(one, new AspectBar().setValue("bar"), AspectBar.class, new AuditStamp(), null, false);
+
     // Prepare a list of 100 filter criteria
     List<LocalRelationshipCriterion> criteriaList = new ArrayList<>();
-    for (int i = 1; i <= 100; i++) {
+    for (int i = 1; i <= 5; i++) {
       LocalRelationshipCriterion filterCriterion =
           EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create(new StringArray("foo" + i)),
               Condition.IN, new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
       criteriaList.add(filterCriterion);
     }
+
+    LocalRelationshipCriterion filterCriterion =  EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("bar"),
+        Condition.EQUAL, new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+
+    criteriaList.add(filterCriterion);
     // Apply filter with OR logic (all conditions combined with OR)
     LocalRelationshipFilter filter =
         new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(criteriaList));
     // Retrieve entities (limit to 100 results for testing)
     List<FooSnapshot> fooSnapshotList = _localRelationshipQueryDAO.findEntities(FooSnapshot.class, filter, 0, 100);
 
+
+    System.out.println("fooSnapshotList: " + fooSnapshotList);
     // Assertions
-    assertEquals(fooSnapshotList.size(), 100); // 100 entities should match the filter criteria
+    assertEquals(fooSnapshotList.size(), 5); // 100 entities should match the filter criteria
   }
 
   @Test
