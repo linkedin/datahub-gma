@@ -106,21 +106,15 @@ public class EbeanLocalRelationshipQueryDAO {
     Map<LocalRelationshipCriterion.Field, List<LocalRelationshipCriterion>> inEqualGrouped = new HashMap<>();
     List<LocalRelationshipCriterion> otherCriteria = new ArrayList<>();
 
-    System.out.println("filter: " + filter);
-
     // Group criteria by field for batch processing
     for (LocalRelationshipCriterion criterion : allCriteria) {
       if (criterion.getCondition() == Condition.EQUAL || criterion.getCondition() == Condition.IN) {
         LocalRelationshipCriterion.Field key = criterion.getField();
-        System.out.println("key: " + key);
         inEqualGrouped.computeIfAbsent(key, k -> new ArrayList<>()).add(criterion);
       } else {
         otherCriteria.add(criterion); // not batchable, include as-is
       }
     }
-
-    System.out.println("allCriteria: " + allCriteria);
-    System.out.println("inEqualGrouped: " + inEqualGrouped);
 
     for (Map.Entry<LocalRelationshipCriterion.Field, List<LocalRelationshipCriterion>> entry : inEqualGrouped.entrySet()) {
       List<LocalRelationshipCriterion> criteriaGroup = entry.getValue();
@@ -137,8 +131,6 @@ public class EbeanLocalRelationshipQueryDAO {
             new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(fullBatch));
 
         String tableName = SQLSchemaUtils.getTableName(ModelUtils.getUrnTypeFromSnapshot(snapshotClass));
-        System.out.println("tableName: " + tableName);
-        System.out.println("batchFilter: " + batchFilter);
         String sqlBuilder =
             "SELECT * FROM " + tableName + " WHERE " +
                 SQLStatementUtils.whereClause(batchFilter, SUPPORTED_CONDITIONS, null,
