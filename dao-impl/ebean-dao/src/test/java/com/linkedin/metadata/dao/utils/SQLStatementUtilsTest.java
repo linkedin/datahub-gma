@@ -275,7 +275,7 @@ public class SQLStatementUtilsTest {
     LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion1, criterion2, criterion3, criterion4);
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
 
-    assertConditionsEqual( SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, false),
+    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, false),
         "(urn IN ('value1', 'value3')) AND metadata$value='value4' AND i_aspectfoo$value='value2'");
 
     // Check for non-dollar virtual column case

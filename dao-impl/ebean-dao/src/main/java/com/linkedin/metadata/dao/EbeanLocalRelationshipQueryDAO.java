@@ -23,7 +23,6 @@ import io.ebean.SqlRow;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -101,7 +100,6 @@ public class EbeanLocalRelationshipQueryDAO {
       throw new OperationNotSupportedException("findEntities is not supported in OLD_SCHEMA_MODE");
     }
     validateEntityFilter(filter, snapshotClass);
-    final int BATCH_SIZE = 200;
     List<SNAPSHOT> finalResults = new ArrayList<>();
 
     List<LocalRelationshipCriterion> inCriteria = new ArrayList<>();
@@ -128,8 +126,8 @@ public class EbeanLocalRelationshipQueryDAO {
     LocalRelationshipCriterion target = inCriteria.get(0);
     List<String> allValues = target.getValue().getArray();
 
-    for (int i = 0; i < allValues.size(); i += BATCH_SIZE) {
-      List<String> subValues = allValues.subList(i, Math.min(i + BATCH_SIZE, allValues.size()));
+    for (int i = 0; i < allValues.size(); i += FILTER_BATCH_SIZE) {
+      List<String> subValues = allValues.subList(i, Math.min(i + FILTER_BATCH_SIZE, allValues.size()));
 
       // Rebuild the IN criterion using the current sublist
       LocalRelationshipCriterion batchedCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(
@@ -157,6 +155,14 @@ public class EbeanLocalRelationshipQueryDAO {
     return finalResults;
   }
 
+  /**
+   * Runs a SQL query to find entities based on the given filter and creates a list of snapshots.
+   * @param filter the filter to apply when querying.
+   * @param snapshotClass the snapshot class to query.
+   * @param offset the offset the query should start at. Ignored if set to a negative value.
+   * @param count the maximum number of entities to return. Ignored if set to a non-positive value.
+   * @return A list of entity records of class SNAPSHOT.
+   */
   private <SNAPSHOT extends RecordTemplate> List<SNAPSHOT> runAndCreateWhereQuery(
       @Nonnull LocalRelationshipFilter filter,
       @Nonnull Class<SNAPSHOT> snapshotClass,
