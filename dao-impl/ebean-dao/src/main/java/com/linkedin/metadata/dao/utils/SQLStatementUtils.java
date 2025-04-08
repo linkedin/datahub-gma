@@ -416,6 +416,8 @@ public class SQLStatementUtils {
       throw new IllegalArgumentException("Empty filter cannot construct where clause.");
     }
 
+    System.out.println("whereClause: " + filter.getCriteria());
+
     // Group criteria by their respective field for more efficient processing
     Map<String, List<Pair<Condition, LocalRelationshipValue>>> groupByField = new HashMap<>();
     filter.getCriteria().forEach(criterion -> {
@@ -458,7 +460,8 @@ public class SQLStatementUtils {
         if (equalValues.size() == 1) {
           orClauses.add(field + "=" + "'" + equalValues.get(0) + "'"); // Single EQUAL condition
         } else {
-          orClauses.add(field + " IN (" + equalValues.stream().map(v -> "'" + v + "'").collect(Collectors.joining(", ")) + ")"); // Multiple EQUAL conditions as IN
+          orClauses.add(field + " IN (" + equalValues.stream().map(v -> "'" + v + "'").collect(Collectors.joining(", "))
+              + ")"); // Multiple EQUAL conditions as IN
         }
       }
 

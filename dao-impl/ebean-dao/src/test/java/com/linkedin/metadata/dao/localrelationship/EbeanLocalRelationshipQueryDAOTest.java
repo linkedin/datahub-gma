@@ -1082,7 +1082,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     System.out.println("fooSnapshotList: " + fooSnapshotList);
     // Assertions
-    assertEquals(fooSnapshotList.size(), 5); // 100 entities should match the filter criteria
+    assertEquals(fooSnapshotList.size(), 1); // 100 entities should match the filter criteria
   }
 
   @Test

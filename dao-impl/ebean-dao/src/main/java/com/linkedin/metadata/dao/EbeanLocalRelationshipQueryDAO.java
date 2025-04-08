@@ -3,6 +3,7 @@ package com.linkedin.metadata.dao;
 import com.linkedin.data.DataMap;
 import com.google.common.annotations.VisibleForTesting;
 import com.linkedin.data.template.RecordTemplate;
+import com.linkedin.data.template.StringArray;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.utils.ClassUtils;
 import com.linkedin.metadata.dao.utils.EBeanDAOUtils;
@@ -15,12 +16,14 @@ import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.LocalRelationshipCriterion;
 import com.linkedin.metadata.query.LocalRelationshipCriterionArray;
 import com.linkedin.metadata.query.LocalRelationshipFilter;
+import com.linkedin.metadata.query.LocalRelationshipValue;
 import com.linkedin.metadata.query.RelationshipDirection;
 import io.ebean.EbeanServer;
 import io.ebean.SqlRow;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -107,11 +110,10 @@ public class EbeanLocalRelationshipQueryDAO {
 
     // Group criteria by field for batch processing
     for (LocalRelationshipCriterion criterion : allCriteria) {
-      if (criterion.getCondition() == Condition.EQUAL || criterion.getCondition() == Condition.IN) {
-        LocalRelationshipCriterion.Field key = criterion.getField();
-        inEqualGrouped.computeIfAbsent(key, k -> new ArrayList<>()).add(criterion);
+      if (criterion.getCondition() == Condition.IN) {
+        inEqualGrouped.computeIfAbsent(criterion.getField(), k -> new ArrayList<>()).add(criterion);
       } else {
-        otherCriteria.add(criterion); // not batchable, include as-is
+        otherCriteria.add(criterion);
       }
     }
 
@@ -122,9 +124,31 @@ public class EbeanLocalRelationshipQueryDAO {
         List<LocalRelationshipCriterion> batchedGroup =
             criteriaGroup.subList(i, Math.min(i + FILTER_BATCH_SIZE, criteriaGroup.size()));
 
+        // Merge values for this field into one criterion
+        Set<String> mergedValues = new HashSet<>();
+        for (LocalRelationshipCriterion c : batchedGroup) {
+          if (c.getCondition() == Condition.IN) {
+            StringArray array = c.getValue().getArray();
+            if (array != null) {
+              mergedValues.addAll(array);
+            } else if (c.getValue().getString() != null) {
+              mergedValues.add(c.getValue().getString());
+            }
+          } else if (c.getCondition() == Condition.EQUAL) {
+            mergedValues.add(c.getValue().getString());
+          }
+        }
+
+        LocalRelationshipCriterion mergedCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(
+            LocalRelationshipValue.create(new StringArray(new ArrayList<>(mergedValues))),
+            Condition.IN,
+            entry.getKey().getAspectField()
+        );
+
+        // Combine with other criteria (e.g., bar = 'bar')
         List<LocalRelationshipCriterion> fullBatch = new ArrayList<>();
-        fullBatch.addAll(batchedGroup);
-        fullBatch.addAll(otherCriteria); // Always include the non-batchable ones
+        fullBatch.add(mergedCriterion);
+        fullBatch.addAll(otherCriteria); // AND logic
 
         LocalRelationshipFilter batchFilter =
             new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(fullBatch));
@@ -133,9 +157,11 @@ public class EbeanLocalRelationshipQueryDAO {
         String sqlBuilder =
             "SELECT * FROM " + tableName + " WHERE "
                 + SQLStatementUtils.whereClause(batchFilter, SUPPORTED_CONDITIONS, null,
-                    _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled())
+                _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled())
                 + " ORDER BY urn LIMIT " + Math.max(1, count)
                 + " OFFSET " + Math.max(0, offset);
+
+        System.out.println("SQL: " + sqlBuilder);
 
         List<SNAPSHOT> results = _server.createSqlQuery(sqlBuilder)
             .findList()
