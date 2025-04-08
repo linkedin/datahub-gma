@@ -101,79 +101,89 @@ public class EbeanLocalRelationshipQueryDAO {
       throw new OperationNotSupportedException("findEntities is not supported in OLD_SCHEMA_MODE");
     }
     validateEntityFilter(filter, snapshotClass);
+    final int BATCH_SIZE = 200;
+    List<SNAPSHOT> finalResults = new ArrayList<>();
 
-    List<LocalRelationshipCriterion> allCriteria = filter.getCriteria();
-    List<SNAPSHOT> allResults = new ArrayList<>();
-
-    Map<LocalRelationshipCriterion.Field, List<LocalRelationshipCriterion>> inEqualGrouped = new HashMap<>();
+    List<LocalRelationshipCriterion> inCriteria = new ArrayList<>();
     List<LocalRelationshipCriterion> otherCriteria = new ArrayList<>();
 
-    // Group criteria by field for batch processing
-    for (LocalRelationshipCriterion criterion : allCriteria) {
-      if (criterion.getCondition() == Condition.IN) {
-        inEqualGrouped.computeIfAbsent(criterion.getField(), k -> new ArrayList<>()).add(criterion);
+    for (LocalRelationshipCriterion c : filter.getCriteria()) {
+      if (c.getCondition() == Condition.IN && c.getValue().getArray() != null) {
+        inCriteria.add(c);
       } else {
-        otherCriteria.add(criterion);
+        otherCriteria.add(c);
       }
     }
-
-    for (Map.Entry<LocalRelationshipCriterion.Field, List<LocalRelationshipCriterion>> entry : inEqualGrouped.entrySet()) {
-      List<LocalRelationshipCriterion> criteriaGroup = entry.getValue();
-
-      for (int i = 0; i < criteriaGroup.size(); i += FILTER_BATCH_SIZE) {
-        List<LocalRelationshipCriterion> batchedGroup =
-            criteriaGroup.subList(i, Math.min(i + FILTER_BATCH_SIZE, criteriaGroup.size()));
-
-        // Merge values for this field into one criterion
-        Set<String> mergedValues = new HashSet<>();
-        for (LocalRelationshipCriterion c : batchedGroup) {
-          if (c.getCondition() == Condition.IN) {
-            StringArray array = c.getValue().getArray();
-            if (array != null) {
-              mergedValues.addAll(array);
-            } else if (c.getValue().getString() != null) {
-              mergedValues.add(c.getValue().getString());
-            }
-          } else if (c.getCondition() == Condition.EQUAL) {
-            mergedValues.add(c.getValue().getString());
-          }
-        }
-
-        LocalRelationshipCriterion mergedCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(
-            LocalRelationshipValue.create(new StringArray(new ArrayList<>(mergedValues))),
-            Condition.IN,
-            entry.getKey().getAspectField()
-        );
-
-        // Combine with other criteria (e.g., bar = 'bar')
-        List<LocalRelationshipCriterion> fullBatch = new ArrayList<>();
-        fullBatch.add(mergedCriterion);
-        fullBatch.addAll(otherCriteria); // AND logic
-
-        LocalRelationshipFilter batchFilter =
-            new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(fullBatch));
-
-        String tableName = SQLSchemaUtils.getTableName(ModelUtils.getUrnTypeFromSnapshot(snapshotClass));
-        String sqlBuilder =
-            "SELECT * FROM " + tableName + " WHERE "
-                + SQLStatementUtils.whereClause(batchFilter, SUPPORTED_CONDITIONS, null,
-                _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled())
-                + " ORDER BY urn LIMIT " + Math.max(1, count)
-                + " OFFSET " + Math.max(0, offset);
-
-        System.out.println("SQL: " + sqlBuilder);
-
-        List<SNAPSHOT> results = _server.createSqlQuery(sqlBuilder)
-            .findList()
-            .stream()
-            .map(row -> constructSnapshot(row, snapshotClass))
-            .collect(Collectors.toList());
-
-        allResults.addAll(results);
-      }
+    // If no IN criteria found, just run one query normally
+    if (inCriteria.isEmpty()) {
+      return runAndCreateWhereQuery(filter, snapshotClass, offset, count);
     }
 
-    return allResults;
+    // Sort IN criteria by size descending
+    inCriteria.sort((a, b) ->
+        Integer.compare(b.getValue().getArray().size(), a.getValue().getArray().size())
+    );
+
+    // Pick the one with the largest array
+    LocalRelationshipCriterion target = inCriteria.get(0);
+    List<String> allValues = target.getValue().getArray();
+
+    for (int i = 0; i < allValues.size(); i += BATCH_SIZE) {
+      List<String> subValues = allValues.subList(i, Math.min(i + BATCH_SIZE, allValues.size()));
+
+      // Rebuild the IN criterion using the current sublist
+      LocalRelationshipCriterion batchedCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(
+          LocalRelationshipValue.create(new StringArray(subValues)),
+          Condition.IN,
+          target.getField().getAspectField()
+      );
+
+      List<LocalRelationshipCriterion> mergedCriteria = new ArrayList<>(otherCriteria);
+
+      // Add all other IN criteria except the one we're batching
+      for (int j = 1; j < inCriteria.size(); j++) {
+        mergedCriteria.add(inCriteria.get(j));
+      }
+
+      mergedCriteria.add(batchedCriterion);
+
+      LocalRelationshipFilter batchedFilter = new LocalRelationshipFilter()
+          .setCriteria(new LocalRelationshipCriterionArray(mergedCriteria));
+
+      List<SNAPSHOT> partial = runAndCreateWhereQuery(batchedFilter, snapshotClass, offset, count);
+      finalResults.addAll(partial);
+    }
+
+    return finalResults;
+  }
+
+  private <SNAPSHOT extends RecordTemplate> List<SNAPSHOT> runAndCreateWhereQuery(
+      @Nonnull LocalRelationshipFilter filter,
+      @Nonnull Class<SNAPSHOT> snapshotClass,
+      int offset,
+      int count
+  ) {
+    final String tableName = SQLSchemaUtils.getTableName(ModelUtils.getUrnTypeFromSnapshot(snapshotClass));
+    final StringBuilder sqlBuilder = new StringBuilder();
+
+    sqlBuilder.append("SELECT * FROM ").append(tableName);
+    if (filter.hasCriteria() && !filter.getCriteria().isEmpty()) {
+      sqlBuilder.append(" WHERE ")
+          .append(SQLStatementUtils.whereClause(
+              filter,
+              SUPPORTED_CONDITIONS,
+              null,
+              _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled()
+          ));
+    }
+    sqlBuilder.append(" ORDER BY urn LIMIT ")
+        .append(Math.max(1, count))
+        .append(" OFFSET ")
+        .append(Math.max(0, offset));
+    // Execute the query
+    return _server.createSqlQuery(sqlBuilder.toString()).findList().stream()
+        .map(sqlRow -> constructSnapshot(sqlRow, snapshotClass))
+        .collect(Collectors.toList());
   }
 
   /**

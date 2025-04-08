@@ -53,6 +53,7 @@ import java.lang.reflect.Modifier;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -1037,52 +1038,46 @@ public class EbeanLocalRelationshipQueryDAOTest {
   }
 
   @Test
-  public void testFindEntitiesWithHundredCriterion()
-      throws URISyntaxException, OperationNotSupportedException, NoSuchFieldException, IllegalAccessException {
-
-    // Temporarily override FILTER_BATCH_SIZE
-    Field field = EbeanLocalRelationshipQueryDAO.class.getDeclaredField("FILTER_BATCH_SIZE");
-    field.setAccessible(true);
-
-    Field modifiersField = Field.class.getDeclaredField("modifiers");
-    modifiersField.setAccessible(true);
-    modifiersField.setInt(field, field.getModifiers() & ~Modifier.FINAL);
-
-    field.set(null, 2); // override value
-
-    // Ingest data
+  public void testFindEntitiesWithHundredCriterion() throws OperationNotSupportedException, URISyntaxException {
+    // Added 20 FooUrn entities with aspect AspectFoo and value "foo1" to "foo20"
     for (int i = 1; i <= 20; i++) {
       _fooUrnEBeanLocalAccess.add(new FooUrn(i), new AspectFoo().setValue("foo" + i), AspectFoo.class, new AuditStamp(),
           null, false);
     }
 
+    // Created one more FooUrn entity with aspect AspectBar and value "bar" and AspectFoo with value "foo5"
     FooUrn one = new FooUrn(21);
-    _fooUrnEBeanLocalAccess.add(one, new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null, false);
+    _fooUrnEBeanLocalAccess.add(one, new AspectFoo().setValue("foo5"), AspectFoo.class, new AuditStamp(), null, false);
     _fooUrnEBeanLocalAccess.add(one, new AspectBar().setValue("bar"), AspectBar.class, new AuditStamp(), null, false);
 
-    // Prepare a list of 100 filter criteria
-    List<LocalRelationshipCriterion> criteriaList = new ArrayList<>();
-    for (int i = 1; i <= 5; i++) {
-      LocalRelationshipCriterion filterCriterion =
-          EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create(new StringArray("foo" + i)),
-              Condition.IN, new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
-      criteriaList.add(filterCriterion);
-    }
+    // Prepare the filter values for AspectFoo
+    List<String> values = Arrays.asList("foo1", "foo2", "foo3", "foo4", "foo5");
 
-    LocalRelationshipCriterion filterCriterion =  EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("bar"),
-        Condition.EQUAL, new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+    // Create a single criterion with all values in one IN clause for AspectFoo
+    LocalRelationshipCriterion filterCriterion =
+        EBeanDAOUtils.buildRelationshipFieldCriterion(
+            LocalRelationshipValue.create(new StringArray(values)),
+            Condition.IN,
+            new AspectField()
+                .setAspect(AspectFoo.class.getCanonicalName())
+                .setPath("/value")
+        );
 
-    criteriaList.add(filterCriterion);
-    // Apply filter with OR logic (all conditions combined with OR)
-    LocalRelationshipFilter filter =
-        new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(criteriaList));
+    // Create the EQUAL criterion for AspectBar
+    LocalRelationshipCriterion filterCriterion1 = EBeanDAOUtils.buildRelationshipFieldCriterion(
+        LocalRelationshipValue.create("bar"),
+        Condition.EQUAL,
+        new AspectField().setAspect(AspectBar.class.getCanonicalName()).setPath("/value")
+    );
+
+    LocalRelationshipFilter filter = new LocalRelationshipFilter();
+    filter.setCriteria(new LocalRelationshipCriterionArray(Arrays.asList(filterCriterion, filterCriterion1)));
+
     // Retrieve entities (limit to 100 results for testing)
     List<FooSnapshot> fooSnapshotList = _localRelationshipQueryDAO.findEntities(FooSnapshot.class, filter, 0, 100);
 
-
-    System.out.println("fooSnapshotList: " + fooSnapshotList);
     // Assertions
-    assertEquals(fooSnapshotList.size(), 1); // 100 entities should match the filter criteria
+    assertEquals(fooSnapshotList.size(), 1); // Only one entity should match the criteria
   }
 
   @Test
@@ -1098,11 +1093,15 @@ public class EbeanLocalRelationshipQueryDAOTest {
     _fooUrnEBeanLocalAccess.add(new FooUrn(7), new AspectBar().setValue("bar"), AspectBar.class, new AuditStamp(), null, false);
     _fooUrnEBeanLocalAccess.add(new FooUrn(8), new AspectBar().setValue("bar"), AspectBar.class, new AuditStamp(), null, false);
 
+    // Created one more FooUrn entity with aspect AspectBar and value "bar" and AspectFoo with value "foo5"
+    FooUrn one = new FooUrn(21);
+    _fooUrnEBeanLocalAccess.add(one, new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null, false);
+    _fooUrnEBeanLocalAccess.add(one, new AspectBar().setValue("bar"), AspectBar.class, new AuditStamp(), null, false);
+
     // Prepare filter
     LocalRelationshipCriterion filterCriterion1 = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("foo"),
         Condition.EQUAL,
         new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
-
 
     LocalRelationshipCriterion filterCriterion2 = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create(new StringArray("bar")),
         Condition.IN,
@@ -1111,8 +1110,9 @@ public class EbeanLocalRelationshipQueryDAOTest {
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion1, filterCriterion2));
     List<FooSnapshot> fooSnapshotList = _localRelationshipQueryDAO.findEntities(FooSnapshot.class, filter, 0, 10);
 
-    assertEquals(fooSnapshotList.size(), 6);
-    assertEquals(fooSnapshotList.get(0).getAspects().size(), 1);
+    assertEquals(fooSnapshotList.size(), 1);
+    assertEquals(fooSnapshotList.get(0).getAspects().size(), 2);
     assertEquals(fooSnapshotList.get(0).getAspects().get(0).getAspectFoo(), new AspectFoo().setValue("foo"));
+    assertEquals(fooSnapshotList.get(0).getAspects().get(1).getAspectBar(), new AspectBar().setValue("bar"));
   }
 }

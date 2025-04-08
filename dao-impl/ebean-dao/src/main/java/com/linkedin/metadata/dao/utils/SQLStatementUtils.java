@@ -416,8 +416,6 @@ public class SQLStatementUtils {
       throw new IllegalArgumentException("Empty filter cannot construct where clause.");
     }
 
-    System.out.println("whereClause: " + filter.getCriteria());
-
     // Group criteria by their respective field for more efficient processing
     Map<String, List<Pair<Condition, LocalRelationshipValue>>> groupByField = new HashMap<>();
     filter.getCriteria().forEach(criterion -> {
