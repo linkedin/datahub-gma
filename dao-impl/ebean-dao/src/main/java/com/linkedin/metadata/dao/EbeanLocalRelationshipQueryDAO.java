@@ -114,7 +114,11 @@ public class EbeanLocalRelationshipQueryDAO {
 
     // Iterate through the criteria and split them into IN criteria and other criteria
     for (LocalRelationshipCriterion c : filter.getCriteria()) {
-      if (c.getCondition() == Condition.IN && c.getValue().getArray() != null) {
+      if (c.getCondition() == Condition.IN) {
+        // Check if the IN criterion has a valid value
+        if (!c.getValue().isArray() || c.getValue().getArray() == null) {
+          throw new IllegalArgumentException("IN condition must have a non-null array value.");
+        }
         inCriteria.add(c);
       } else {
         otherCriteria.add(c);

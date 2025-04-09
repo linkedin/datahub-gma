@@ -411,7 +411,6 @@ public class SQLStatementUtils {
       @Nonnull Map<Condition, String> supportedConditions, @Nullable String tablePrefix,
       boolean nonDollarVirtualColumnsEnabled) {
 
-    System.out.println("whereClause: " + filter);
 
     // Ensure the filter contains criteria; throw exception if empty.
     if (!filter.hasCriteria() || filter.getCriteria().isEmpty()) {
@@ -426,7 +425,6 @@ public class SQLStatementUtils {
       groupByField.computeIfAbsent(field, k -> new ArrayList<>())
           .add(new Pair<>(criterion.getCondition(), criterion.getValue()));
     });
-    System.out.println("groupByField: " + groupByField.toString());
 
     List<String> andClauses = new ArrayList<>();
 
