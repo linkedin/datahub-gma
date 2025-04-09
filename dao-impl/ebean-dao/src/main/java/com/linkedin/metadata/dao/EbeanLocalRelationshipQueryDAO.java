@@ -121,7 +121,6 @@ public class EbeanLocalRelationshipQueryDAO {
         otherCriteria.add(c);
       }
     }
-    System.out.println("IN criteria size: " + inCriteria.size());
     // If no IN criteria are present, simply execute a normal query
     if (inCriteria.isEmpty()) {
       return runAndCreateWhereQuery(filter, snapshotClass, offset, count);
@@ -131,14 +130,11 @@ public class EbeanLocalRelationshipQueryDAO {
 
     // Get the largest IN criterion (first after sorting)
     LocalRelationshipCriterion largestInCriterion = inCriteria.get(0);
-    System.out.println("Largest IN criterion size: " + largestInCriterion.getValue().getArray().size());
-    System.out.println("Largest IN criterion: " + largestInCriterion);
     List<String> allValues = largestInCriterion.getValue().getArray();
     // Process in batches, with each batch having a maximum size defined by FILTER_BATCH_SIZE
     for (int i = 0; i < allValues.size(); i += FILTER_BATCH_SIZE) {
       // Sublist of values for this batch
       List<String> subValues = allValues.subList(i, Math.min(i + FILTER_BATCH_SIZE, allValues.size()));
-      System.out.println("Batching IN criterion with size: " + subValues.size());
       // Rebuild the IN criterion with the current batch of values
       LocalRelationshipCriterion batchedInCriterion =
           EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create(new StringArray(subValues)),
@@ -179,7 +175,6 @@ public class EbeanLocalRelationshipQueryDAO {
               _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled()));
     }
     sqlBuilder.append(" ORDER BY urn LIMIT ").append(Math.max(1, count)).append(" OFFSET ").append(Math.max(0, offset));
-    System.out.println("SQL: " + sqlBuilder);
     return _server.createSqlQuery(sqlBuilder.toString())
         .findList()
         .stream()
