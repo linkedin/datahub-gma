@@ -568,7 +568,8 @@ public class SQLStatementUtils {
           .collect(Collectors.joining(", ")) + ")";
     }
     if (localRelationshipValue.isString()) {
-      return localRelationshipValue.getString();
+      // Escape SQL special characters here to avoid SQL injection
+      return StringEscapeUtils.escapeSql(localRelationshipValue.getString());
     }
     throw new IllegalArgumentException("Unrecognized field value");
   }
