@@ -90,6 +90,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
   @DataProvider(name = "inputList")
   public static Object[][] inputList() {
     return new Object[][] {
+        { true },
         { false }
     };
   }

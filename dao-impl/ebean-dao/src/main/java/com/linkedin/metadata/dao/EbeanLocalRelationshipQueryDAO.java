@@ -97,7 +97,6 @@ public class EbeanLocalRelationshipQueryDAO {
   public <SNAPSHOT extends RecordTemplate> List<SNAPSHOT> findEntities(@Nonnull Class<SNAPSHOT> snapshotClass,
       @Nonnull LocalRelationshipFilter filter, int offset, int count) throws OperationNotSupportedException {
 
-    System.out.println(FILTER_BATCH_SIZE);
     // Check schema configuration and throw an exception if using the old schema mode
     if (_schemaConfig == EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY) {
       throw new OperationNotSupportedException("findEntities is not supported in OLD_SCHEMA_MODE");
@@ -208,7 +207,6 @@ public class EbeanLocalRelationshipQueryDAO {
         .append(" OFFSET ")
         .append(Math.max(0, offset));  // Ensure offset is non-negative
 
-    System.out.println(sqlBuilder.toString());
     // Execute the query and return the results as a list of snapshots
     return _server.createSqlQuery(sqlBuilder.toString()).findList().stream()
         .map(sqlRow -> constructSnapshot(sqlRow, snapshotClass))  // Map each row to a snapshot

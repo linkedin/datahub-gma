@@ -209,10 +209,8 @@ public class SQLStatementUtilsTest {
     LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion1, criterion2);
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
     String expected = "urn IN ('value1', 'value2')";
-    String actual = SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.IN, "IN"), null, false);
-    System.out.println(actual);
     assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.IN, "IN"), null, false), expected);
-    //assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.IN, "IN"), null, true), expected);
+    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.IN, "IN"), null, true), expected);
   }
 
   @Test
@@ -296,10 +294,10 @@ public class SQLStatementUtilsTest {
     LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion1, criterion2, criterion3, criterion4);
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
 
-    String actual = SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, false);
-    System.out.println("output:" + actual);
+    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, false),
+        "(urn IN ('value1', 'value3')) AND metadata$value='value4' AND i_aspectfoo$value='value2'");
 
-    assertConditionsEqual(actual,
+    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, true),
         "(urn IN ('value1', 'value3')) AND metadata$value='value4' AND i_aspectfoo$value='value2'");
 
   }
