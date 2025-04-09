@@ -410,8 +410,6 @@ public class SQLStatementUtils {
   public static String whereClause(@Nonnull LocalRelationshipFilter filter,
       @Nonnull Map<Condition, String> supportedConditions, @Nullable String tablePrefix,
       boolean nonDollarVirtualColumnsEnabled) {
-
-
     // Ensure the filter contains criteria; throw exception if empty.
     if (!filter.hasCriteria() || filter.getCriteria().isEmpty()) {
       throw new IllegalArgumentException("Empty filter cannot construct where clause.");
@@ -496,8 +494,6 @@ public class SQLStatementUtils {
     // Join all AND clauses with 'AND' and return the result
     return String.join(" AND ", andClauses);
   }
-
-
 
   /**
    * Construct the where clause SQL from a filter when running in old schema mode. Assumes that all filters are applied on
