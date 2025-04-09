@@ -298,7 +298,7 @@ public class SQLStatementUtilsTest {
         "(urn IN ('value1', 'value3')) AND metadata$value='value4' AND i_aspectfoo$value='value2'");
 
     assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, true),
-        "(urn IN ('value1', 'value3')) AND metadata$value='value4' AND i_aspectfoo$value='value2'");
+        "(urn IN ('value1', 'value3')) AND metadata0value='value4' AND i_aspectfoo0value='value2'");
 
   }
 
