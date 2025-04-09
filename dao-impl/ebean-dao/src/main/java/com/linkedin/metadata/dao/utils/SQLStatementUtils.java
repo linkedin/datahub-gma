@@ -411,6 +411,8 @@ public class SQLStatementUtils {
       @Nonnull Map<Condition, String> supportedConditions, @Nullable String tablePrefix,
       boolean nonDollarVirtualColumnsEnabled) {
 
+    System.out.println("whereClause: " + filter);
+
     // Ensure the filter contains criteria; throw exception if empty.
     if (!filter.hasCriteria() || filter.getCriteria().isEmpty()) {
       throw new IllegalArgumentException("Empty filter cannot construct where clause.");
@@ -424,6 +426,8 @@ public class SQLStatementUtils {
       groupByField.computeIfAbsent(field, k -> new ArrayList<>())
           .add(new Pair<>(criterion.getCondition(), criterion.getValue()));
     });
+    System.out.println("groupByField: " + groupByField.toString());
+
     List<String> andClauses = new ArrayList<>();
 
     // Process each group of criteria for a specific field
@@ -432,18 +436,22 @@ public class SQLStatementUtils {
       List<Pair<Condition, LocalRelationshipValue>> pairs = entry.getValue();
 
       List<String> equalValues = new ArrayList<>(); // To hold criteria with equal conditions
+      List<String> inValues = new ArrayList<>();    // To accumulate values for IN conditions
       List<String> orClauses = new ArrayList<>();   // To hold criteria with other conditions
 
       // Process each pair of condition and value
       for (Pair<Condition, LocalRelationshipValue> pair : pairs) {
         Condition condition = pair.getValue0();
         LocalRelationshipValue value = pair.getValue1();
+
         // Handle IN condition, which expects an array-like value
         if (condition == Condition.IN) {
           if (!value.isArray()) {
             throw new IllegalArgumentException("IN condition must be paired with array value");
           }
-          orClauses.add(field + " IN " + parseLocalRelationshipValue(value));
+          // Assuming value.getArray() returns a StringArray, we need to convert it to a List<String>
+          List<String> inValueList = value.getArray(); // Convert StringArray to List<String>
+          inValues.addAll(inValueList); // Add the values to inValues list
         } else if (condition == Condition.EQUAL) {
           // Handle EQUAL condition by collecting values for later IN conversion if needed
           equalValues.add(parseLocalRelationshipValue(value));
@@ -453,13 +461,23 @@ public class SQLStatementUtils {
         }
       }
 
-      // If there are multiple EQUAL conditions, combine them with IN for more efficient querying
+      // If there are multiple IN conditions, combine them into one IN clause
+      if (!inValues.isEmpty()) {
+        // Create a single IN clause from all values in the inValues list
+        orClauses.add(field + " IN (" + inValues.stream()
+            .map(v -> "'" + v + "'")
+            .collect(Collectors.joining(", ")) + ")");
+      }
+
+      // If there are multiple EQUAL conditions, combine them into a single IN clause
       if (!equalValues.isEmpty()) {
         if (equalValues.size() == 1) {
           orClauses.add(field + "=" + "'" + equalValues.get(0) + "'"); // Single EQUAL condition
         } else {
-          orClauses.add(field + " IN (" + equalValues.stream().map(v -> "'" + v + "'").collect(Collectors.joining(", "))
-              + ")"); // Multiple EQUAL conditions as IN
+          // Combine multiple EQUAL conditions as an IN clause
+          orClauses.add(field + " IN (" + equalValues.stream()
+              .map(v -> "'" + v + "'")
+              .collect(Collectors.joining(", ")) + ")");
         }
       }
 
@@ -480,6 +498,8 @@ public class SQLStatementUtils {
     // Join all AND clauses with 'AND' and return the result
     return String.join(" AND ", andClauses);
   }
+
+
 
   /**
    * Construct the where clause SQL from a filter when running in old schema mode. Assumes that all filters are applied on

@@ -47,6 +47,7 @@ import io.ebean.Ebean;
 import io.ebean.EbeanServer;
 import io.ebean.SqlUpdate;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
@@ -1083,7 +1084,8 @@ public class EbeanLocalRelationshipQueryDAOTest {
    * Same as {@link #testFindEntitiesWithSingleInCondition} but with multiple IN conditions.
    */
   @Test
-  public void testFindEntitiesWithMultipleInConditions() throws OperationNotSupportedException, URISyntaxException {
+  public void testFindEntitiesWithMultipleInConditions()
+      throws OperationNotSupportedException, URISyntaxException, NoSuchFieldException, IllegalAccessException {
     // Added 20 FooUrn entities with aspect AspectFoo and value "foo1" to "foo20"
     for (int i = 1; i <= 20; i++) {
       _fooUrnEBeanLocalAccess.add(new FooUrn(i), new AspectFoo().setValue("foo" + i), AspectFoo.class, new AuditStamp(),
