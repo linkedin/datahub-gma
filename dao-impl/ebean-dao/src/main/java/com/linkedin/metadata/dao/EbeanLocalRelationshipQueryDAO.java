@@ -20,6 +20,7 @@ import com.linkedin.metadata.query.LocalRelationshipValue;
 import com.linkedin.metadata.query.RelationshipDirection;
 import io.ebean.EbeanServer;
 import io.ebean.SqlRow;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -30,6 +31,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.naming.OperationNotSupportedException;
+import javax.persistence.PersistenceException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringUtils;
 import org.javatuples.Pair;
@@ -46,6 +48,8 @@ public class EbeanLocalRelationshipQueryDAO {
   public static final String RELATIONSHIP_RETURN_TYPE = "relationship.return.type";
   public static final String MG_INTERNAL_ASSET_RELATIONSHIP_TYPE = "AssetRelationship.proto";
   private static final int FILTER_BATCH_SIZE = 200;
+  private static final String FORCE_IDX_ON_DESTINATION = " FORCE INDEX (idx_destination_deleted_ts) ";
+  private static final String DESTINATION_FIELD =  "destination";
   private final EbeanServer _server;
   private final MultiHopsTraversalSqlGenerator _sqlGenerator;
 
@@ -273,7 +277,9 @@ public class EbeanLocalRelationshipQueryDAO {
         count,
         offset);
 
-    return _server.createSqlQuery(sql).findList().stream()
+    List<SqlRow> rows = executeSqlWithIndexCheck(sql, relationshipTableName);
+
+    return rows.stream()
         .map(row -> RecordUtils.toRecordTemplate(relationshipType, row.getString("metadata")))
         .collect(Collectors.toList());
   }
@@ -341,9 +347,8 @@ public class EbeanLocalRelationshipQueryDAO {
         count, offset);
     // Temporary log to help debug the slow SQL query
     log.info("Executing SQL for GQS: {}", sql);
-    return _server.createSqlQuery(sql).findList();
+    return executeSqlWithIndexCheck(sql, relationshipTableName);
   }
-
   /**
    * Finds a list of relationships of a specific type (Urn) based on the given filters if applicable.
    * Similar to findRelationshipsV2, but this method wraps the relationship in a specific class provided by user.
@@ -606,6 +611,15 @@ public class EbeanLocalRelationshipQueryDAO {
         validateEntityFilterOnlyOneUrn(destinationEntityFilter);
         // non-mg entity case, applying dest filter on relationship table
         filters.add(new Pair<>(destinationEntityFilter, "rt"));
+      } else if (!relationshipFilter.getCriteria().isEmpty()) {
+        //TODO: Add a safeguard to check if the FORCE_IDX_ON_DESTINATION is present in the table, we can check once on bootup and then caching the result
+        // Check if any relationship-level filter is on "destination"
+        for (LocalRelationshipCriterion criterion : relationshipFilter.getCriteria()) {
+          if (DESTINATION_FIELD.equals(criterion.getField())) {
+            sqlBuilder.append(FORCE_IDX_ON_DESTINATION);
+            break;
+          }
+        }
       }
 
       if (sourceTableName != null) {
@@ -654,7 +668,6 @@ public class EbeanLocalRelationshipQueryDAO {
         sqlBuilder.append(" OFFSET ").append(offset);
       }
     }
-
     return sqlBuilder.toString();
   }
 
@@ -675,4 +688,24 @@ public class EbeanLocalRelationshipQueryDAO {
     }
     return _mgEntityTypeNameSet;
   }
+
+  private List<SqlRow> executeSqlWithIndexCheck(String sql, String relationshipTableName) {
+    try {
+      return _server.createSqlQuery(sql).findList();
+    } catch (PersistenceException e) {
+      Throwable cause = e.getCause();
+      if (cause instanceof SQLException && cause.getMessage() != null
+          && cause.getMessage().contains("doesn't exist in table")) {
+        String errorMsg = String.format(
+            "Missing index when querying table '%s'. "
+                + "Make sure FORCE INDEX targets like idx_destination_deleted_ts or idx_source_deleted_ts are created.",
+            relationshipTableName);
+        log.error(errorMsg);
+        throw new IllegalStateException(errorMsg, e);
+      }
+
+      throw new RuntimeException("Failed to execute SQL query for relationships", e);
+    }
+  }
+
 }
