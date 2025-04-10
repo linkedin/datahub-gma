@@ -612,6 +612,7 @@ public class EbeanLocalRelationshipQueryDAO {
         // non-mg entity case, applying dest filter on relationship table
         filters.add(new Pair<>(destinationEntityFilter, "rt"));
       } else if (!relationshipFilter.getCriteria().isEmpty()) {
+        //TODO: Add a safeguard to check if the FORCE_IDX_ON_DESTINATION is present in the table, we can check once on bootup and then caching the result
         // Check if any relationship-level filter is on "destination"
         for (LocalRelationshipCriterion criterion : relationshipFilter.getCriteria()) {
           if (DESTINATION_FIELD.equals(criterion.getField())) {
