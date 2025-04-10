@@ -664,7 +664,6 @@ public class EbeanLocalRelationshipQueryDAO {
         sqlBuilder.append(" OFFSET ").append(offset);
       }
     }
-    System.out.println("Generated SQL: " + sqlBuilder);
     return sqlBuilder.toString();
   }
 
