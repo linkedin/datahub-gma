@@ -48,7 +48,7 @@ public class EbeanLocalRelationshipQueryDAO {
   public static final String RELATIONSHIP_RETURN_TYPE = "relationship.return.type";
   public static final String MG_INTERNAL_ASSET_RELATIONSHIP_TYPE = "AssetRelationship.proto";
   private static final int FILTER_BATCH_SIZE = 200;
-  private static final String FORCE_IDX_ON_DESTINATION = " FORCE INDEX (idx_comp_dest_del_ts) ";
+  private static final String FORCE_IDX_ON_DESTINATION = " FORCE INDEX (idx_destination_deleted_ts) ";
   private static final String DESTINATION_FIELD =  "destination";
   private final EbeanServer _server;
   private final MultiHopsTraversalSqlGenerator _sqlGenerator;
@@ -694,12 +694,11 @@ public class EbeanLocalRelationshipQueryDAO {
       return _server.createSqlQuery(sql).findList();
     } catch (PersistenceException e) {
       Throwable cause = e.getCause();
-      if (cause instanceof SQLException && cause.getMessage() != null &&
-          cause.getMessage().contains("doesn't exist in table")) {
-
+      if (cause instanceof SQLException && cause.getMessage() != null
+          && cause.getMessage().contains("doesn't exist in table")) {
         String errorMsg = String.format(
-            "Missing index when querying table '%s'. " +
-                "Make sure FORCE INDEX targets like idx_destination_deleted_ts or idx_source_deleted_ts are created.",
+            "Missing index when querying table '%s'. "
+                + "Make sure FORCE INDEX targets like idx_destination_deleted_ts or idx_source_deleted_ts are created.",
             relationshipTableName);
         log.error(errorMsg);
         throw new IllegalStateException(errorMsg, e);
