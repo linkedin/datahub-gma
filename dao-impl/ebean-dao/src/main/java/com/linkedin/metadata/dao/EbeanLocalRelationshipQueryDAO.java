@@ -46,8 +46,8 @@ public class EbeanLocalRelationshipQueryDAO {
   public static final String RELATIONSHIP_RETURN_TYPE = "relationship.return.type";
   public static final String MG_INTERNAL_ASSET_RELATIONSHIP_TYPE = "AssetRelationship.proto";
   private static final int FILTER_BATCH_SIZE = 200;
-  private static final String FORCE_IDX_ON_SOURCE = " FORCE INDEX (idx_source_deleted_ts) ";
   private static final String FORCE_IDX_ON_DESTINATION = " FORCE INDEX (idx_comp_dest_del_ts) ";
+  private static final String DESTINATION_FIELD =  "destination";
   private final EbeanServer _server;
   private final MultiHopsTraversalSqlGenerator _sqlGenerator;
 
@@ -611,7 +611,7 @@ public class EbeanLocalRelationshipQueryDAO {
       } else if (!relationshipFilter.getCriteria().isEmpty()) {
         // Check if any relationship-level filter is on "destination"
         for (LocalRelationshipCriterion criterion : relationshipFilter.getCriteria()) {
-          if ("destination".equals(criterion.getField())) {
+          if (DESTINATION_FIELD.equals(criterion.getField())) {
             sqlBuilder.append(FORCE_IDX_ON_DESTINATION);
             break;
           }
