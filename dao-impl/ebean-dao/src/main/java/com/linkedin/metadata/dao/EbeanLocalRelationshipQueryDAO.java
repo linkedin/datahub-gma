@@ -20,6 +20,7 @@ import com.linkedin.metadata.query.LocalRelationshipValue;
 import com.linkedin.metadata.query.RelationshipDirection;
 import io.ebean.EbeanServer;
 import io.ebean.SqlRow;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -30,6 +31,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.naming.OperationNotSupportedException;
+import javax.persistence.PersistenceException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringUtils;
 import org.javatuples.Pair;
@@ -275,7 +277,9 @@ public class EbeanLocalRelationshipQueryDAO {
         count,
         offset);
 
-    return _server.createSqlQuery(sql).findList().stream()
+    List<SqlRow> rows = executeSqlWithIndexCheck(sql, relationshipTableName);
+
+    return rows.stream()
         .map(row -> RecordUtils.toRecordTemplate(relationshipType, row.getString("metadata")))
         .collect(Collectors.toList());
   }
@@ -343,9 +347,8 @@ public class EbeanLocalRelationshipQueryDAO {
         count, offset);
     // Temporary log to help debug the slow SQL query
     log.info("Executing SQL for GQS: {}", sql);
-    return _server.createSqlQuery(sql).findList();
+    return executeSqlWithIndexCheck(sql, relationshipTableName);
   }
-
   /**
    * Finds a list of relationships of a specific type (Urn) based on the given filters if applicable.
    * Similar to findRelationshipsV2, but this method wraps the relationship in a specific class provided by user.
@@ -684,4 +687,25 @@ public class EbeanLocalRelationshipQueryDAO {
     }
     return _mgEntityTypeNameSet;
   }
+
+  private List<SqlRow> executeSqlWithIndexCheck(String sql, String relationshipTableName) {
+    try {
+      return _server.createSqlQuery(sql).findList();
+    } catch (PersistenceException e) {
+      Throwable cause = e.getCause();
+      if (cause instanceof SQLException && cause.getMessage() != null &&
+          cause.getMessage().contains("doesn't exist in table")) {
+
+        String errorMsg = String.format(
+            "Missing index when querying table '%s'. " +
+                "Make sure FORCE INDEX targets like idx_destination_deleted_ts or idx_source_deleted_ts are created.",
+            relationshipTableName);
+        log.error(errorMsg);
+        throw new IllegalStateException(errorMsg, e);
+      }
+
+      throw new RuntimeException("Failed to execute SQL query for relationships", e);
+    }
+  }
+
 }
