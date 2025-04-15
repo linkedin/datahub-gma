@@ -2,6 +2,7 @@ package com.linkedin.metadata.dao.utils;
 
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
+import com.linkedin.data.template.StringArray;
 import com.linkedin.metadata.query.AspectField;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.IndexCriterion;
@@ -179,6 +180,40 @@ public class SQLStatementUtilsTest {
   }
 
   @Test
+  public void testWhereClauseSingleINCondition() {
+    LocalRelationshipCriterion.Field field = new LocalRelationshipCriterion.Field();
+    field.setUrnField(new UrnField());
+    StringArray values = new StringArray("value1");
+    LocalRelationshipCriterion criterion = new LocalRelationshipCriterion()
+        .setField(field)
+        .setCondition(Condition.IN)
+        .setValue(LocalRelationshipValue.create(values));
+    LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion);
+    LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
+    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.IN, "IN"), null, false), "urn IN ('value1')");
+    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.IN, "IN"), null, true), "urn IN ('value1')");
+  }
+
+  @Test
+  public void testWhereClauseMultipleINCondition() {
+    LocalRelationshipCriterion.Field field = new LocalRelationshipCriterion.Field();
+    field.setUrnField(new UrnField());
+    LocalRelationshipCriterion criterion1 = new LocalRelationshipCriterion()
+        .setField(field)
+        .setCondition(Condition.IN)
+        .setValue(LocalRelationshipValue.create(new StringArray("value1")));
+    LocalRelationshipCriterion criterion2 = new LocalRelationshipCriterion()
+        .setField(field)
+        .setCondition(Condition.IN)
+        .setValue(LocalRelationshipValue.create(new StringArray("value2")));
+    LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion1, criterion2);
+    LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
+    String expected = "urn IN ('value1', 'value2')";
+    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.IN, "IN"), null, false), expected);
+    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.IN, "IN"), null, true), expected);
+  }
+
+  @Test
   public void testWhereClauseMultiConditionSameName() {
     LocalRelationshipCriterion.Field field1 = new LocalRelationshipCriterion.Field();
     field1.setUrnField(new UrnField());
@@ -259,17 +294,12 @@ public class SQLStatementUtilsTest {
     LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion1, criterion2, criterion3, criterion4);
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
 
-    // Generate SQL using whereClause method
-    String x = SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, false);
-    System.out.println(x);
+    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, false),
+        "(urn IN ('value1', 'value3')) AND metadata$value='value4' AND i_aspectfoo$value='value2'");
 
-    // The urn field should use IN for multiple values
-    assertConditionsEqual(x,
-        "(urn IN 'value1', 'value3') AND metadata$value='value4' AND i_aspectfoo$value='value2'");
-
-    // Check for non-dollar virtual column case
     assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, true),
-        "(urn IN 'value1', 'value3') AND metadata0value='value4' AND i_aspectfoo0value='value2'");
+        "(urn IN ('value1', 'value3')) AND metadata0value='value4' AND i_aspectfoo0value='value2'");
+
   }
 
   @Test
@@ -322,16 +352,17 @@ public class SQLStatementUtilsTest {
     LocalRelationshipCriterionArray criteria2 = new LocalRelationshipCriterionArray(criterion5, criterion6);
     LocalRelationshipFilter filter2 = new LocalRelationshipFilter().setCriteria(criteria2);
 
+    String actual = SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), false, new Pair<>(filter1, "foo"),
+        new Pair<>(filter2, "bar"));
     //test for multi filters with dollar virtual columns names
-    assertConditionsEqual(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), false, new Pair<>(filter1, "foo"),
-            new Pair<>(filter2, "bar")), "(foo.i_aspectfoo$value='value2' AND (foo.urn='value1' OR foo.urn='value3') "
-            + "AND foo.metadata$value='value4') AND (bar.urn='value1' OR bar.urn='value2')"
+    assertConditionsEqual(actual, "(foo.i_aspectfoo$value='value2' AND (foo.urn IN ('value1', 'value3')) "
+            + "AND foo.metadata$value='value4') AND (bar.urn IN ('value1', 'value2'))"
         );
 
     //test for multi filters with non dollar virtual columns names
     assertConditionsEqual(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), true, new Pair<>(filter1, "foo"),
-            new Pair<>(filter2, "bar")), "(foo.i_aspectfoo0value='value2' AND (foo.urn='value1' OR foo.urn='value3') "
-            + "AND foo.metadata0value='value4') AND (bar.urn='value1' OR bar.urn='value2')"
+            new Pair<>(filter2, "bar")), "(foo.i_aspectfoo0value='value2' AND (foo.urn IN ('value1', 'value3')) "
+            + "AND foo.metadata0value='value4') AND (bar.urn IN ('value1', 'value2'))"
         );
   }
 
