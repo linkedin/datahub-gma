@@ -3,7 +3,6 @@ package com.linkedin.metadata.dao;
 import com.linkedin.data.DataMap;
 import com.google.common.annotations.VisibleForTesting;
 import com.linkedin.data.template.RecordTemplate;
-import com.linkedin.data.template.StringArray;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.utils.ClassUtils;
 import com.linkedin.metadata.dao.utils.EBeanDAOUtils;
@@ -14,9 +13,7 @@ import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
 import com.linkedin.metadata.dao.utils.SQLStatementUtils;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.LocalRelationshipCriterion;
-import com.linkedin.metadata.query.LocalRelationshipCriterionArray;
 import com.linkedin.metadata.query.LocalRelationshipFilter;
-import com.linkedin.metadata.query.LocalRelationshipValue;
 import com.linkedin.metadata.query.RelationshipDirection;
 import io.ebean.EbeanServer;
 import io.ebean.SqlRow;
@@ -105,17 +102,15 @@ public class EbeanLocalRelationshipQueryDAO {
     }
     validateEntityFilter(filter, snapshotClass);
 
-    // Build SQL
     final String tableName = SQLSchemaUtils.getTableName(ModelUtils.getUrnTypeFromSnapshot(snapshotClass));
     final StringBuilder sqlBuilder = new StringBuilder();
     sqlBuilder.append("SELECT * FROM ").append(tableName);
-    if (filter.hasCriteria() && filter.getCriteria().size() > 0) {
+    if (filter.hasCriteria() && !filter.getCriteria().isEmpty()) {
       sqlBuilder.append(" WHERE ").append(SQLStatementUtils.whereClause(filter, SUPPORTED_CONDITIONS, null,
           _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled()));
     }
     sqlBuilder.append(" ORDER BY urn LIMIT ").append(Math.max(1, count)).append(" OFFSET ").append(Math.max(0, offset));
 
-    // Execute SQL
     return _server.createSqlQuery(sqlBuilder.toString()).findList().stream()
         .map(sqlRow -> constructSnapshot(sqlRow, snapshotClass))
         .collect(Collectors.toList());
