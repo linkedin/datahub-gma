@@ -100,88 +100,23 @@ public class EbeanLocalRelationshipQueryDAO {
   @Nonnull
   public <SNAPSHOT extends RecordTemplate> List<SNAPSHOT> findEntities(@Nonnull Class<SNAPSHOT> snapshotClass,
       @Nonnull LocalRelationshipFilter filter, int offset, int count) throws OperationNotSupportedException {
-
-    // Check schema configuration and throw an exception if using the old schema mode
     if (_schemaConfig == EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY) {
       throw new OperationNotSupportedException("findEntities is not supported in OLD_SCHEMA_MODE");
     }
     validateEntityFilter(filter, snapshotClass);
-    // List to hold the final results after processing all batches
-    List<SNAPSHOT> finalResults = new ArrayList<>();
 
-    // Separate IN criteria and other criteria for processing
-    List<LocalRelationshipCriterion> inCriteria = new ArrayList<>();
-    List<LocalRelationshipCriterion> otherCriteria = new ArrayList<>();
-
-    // Iterate through the criteria and split them into IN criteria and other criteria
-    for (LocalRelationshipCriterion c : filter.getCriteria()) {
-      if (c.getCondition() == Condition.IN) {
-        // Check if the IN criterion has a valid value
-        if (!c.getValue().isArray() || c.getValue().getArray() == null) {
-          throw new IllegalArgumentException("IN condition must have a non-null array value.");
-        }
-        inCriteria.add(c);
-      } else {
-        otherCriteria.add(c);
-      }
-    }
-    // If no IN criteria are present, simply execute a normal query
-    if (inCriteria.isEmpty()) {
-      return runAndCreateWhereQuery(filter, snapshotClass, offset, count);
-    }
-    // Sort IN criteria by size (descending order), prioritize the largest set
-    inCriteria.sort((a, b) -> Integer.compare(b.getValue().getArray().size(), a.getValue().getArray().size()));
-
-    // Get the largest IN criterion (first after sorting)
-    LocalRelationshipCriterion largestInCriterion = inCriteria.get(0);
-    List<String> allValues = largestInCriterion.getValue().getArray();
-    // Process in batches, with each batch having a maximum size defined by FILTER_BATCH_SIZE
-    for (int i = 0; i < allValues.size(); i += FILTER_BATCH_SIZE) {
-      // Sublist of values for this batch
-      List<String> subValues = allValues.subList(i, Math.min(i + FILTER_BATCH_SIZE, allValues.size()));
-      // Rebuild the IN criterion with the current batch of values
-      LocalRelationshipCriterion batchedInCriterion =
-          EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create(new StringArray(subValues)),
-              Condition.IN, largestInCriterion.getField().getAspectField());
-      // Merge other criteria and the current batched IN criterion
-      List<LocalRelationshipCriterion> mergedCriteria = new ArrayList<>(otherCriteria);
-      mergedCriteria.add(batchedInCriterion);
-      // Include the remaining IN criteria (excluding the largest one, which is batched)
-      for (int j = 1; j < inCriteria.size(); j++) {
-        mergedCriteria.add(inCriteria.get(j));
-      }
-      // Create a new filter with the merged criteria
-      LocalRelationshipFilter batchedFilter =
-          new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(mergedCriteria));
-      List<SNAPSHOT> partialResults = runAndCreateWhereQuery(batchedFilter, snapshotClass, offset, count);
-      finalResults.addAll(partialResults);
-    }
-    return finalResults;
-  }
-
-  /**
-   * Runs the SQL query based on the given filter and snapshot class, and returns the results as a list of snapshots.
-   * @param filter the filter to apply when querying the database.
-   * @param snapshotClass the snapshot class representing the entity type to retrieve.
-   * @param offset the offset for pagination.
-   * @param count the maximum number of records to return.
-   * @return a list of snapshot entities matching the filter criteria.
-   */
-  @VisibleForTesting
-  public <SNAPSHOT extends RecordTemplate> List<SNAPSHOT> runAndCreateWhereQuery(
-      @Nonnull LocalRelationshipFilter filter, @Nonnull Class<SNAPSHOT> snapshotClass, int offset, int count) {
+    // Build SQL
     final String tableName = SQLSchemaUtils.getTableName(ModelUtils.getUrnTypeFromSnapshot(snapshotClass));
-    StringBuilder sqlBuilder = new StringBuilder();
+    final StringBuilder sqlBuilder = new StringBuilder();
     sqlBuilder.append("SELECT * FROM ").append(tableName);
-    if (filter.hasCriteria() && !filter.getCriteria().isEmpty()) {
-      sqlBuilder.append(" WHERE ")
-          .append(SQLStatementUtils.whereClause(filter, SUPPORTED_CONDITIONS, null,
-              _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled()));
+    if (filter.hasCriteria() && filter.getCriteria().size() > 0) {
+      sqlBuilder.append(" WHERE ").append(SQLStatementUtils.whereClause(filter, SUPPORTED_CONDITIONS, null,
+          _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled()));
     }
     sqlBuilder.append(" ORDER BY urn LIMIT ").append(Math.max(1, count)).append(" OFFSET ").append(Math.max(0, offset));
-    return _server.createSqlQuery(sqlBuilder.toString())
-        .findList()
-        .stream()
+
+    // Execute SQL
+    return _server.createSqlQuery(sqlBuilder.toString()).findList().stream()
         .map(sqlRow -> constructSnapshot(sqlRow, snapshotClass))
         .collect(Collectors.toList());
   }

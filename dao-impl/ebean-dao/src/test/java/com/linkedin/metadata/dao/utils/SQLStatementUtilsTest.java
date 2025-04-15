@@ -352,10 +352,9 @@ public class SQLStatementUtilsTest {
     LocalRelationshipCriterionArray criteria2 = new LocalRelationshipCriterionArray(criterion5, criterion6);
     LocalRelationshipFilter filter2 = new LocalRelationshipFilter().setCriteria(criteria2);
 
-    String actual = SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), false, new Pair<>(filter1, "foo"),
-        new Pair<>(filter2, "bar"));
     //test for multi filters with dollar virtual columns names
-    assertConditionsEqual(actual, "(foo.i_aspectfoo$value='value2' AND (foo.urn IN ('value1', 'value3')) "
+    assertConditionsEqual(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), false, new Pair<>(filter1, "foo"),
+            new Pair<>(filter2, "bar")), "(foo.i_aspectfoo$value='value2' AND (foo.urn IN ('value1', 'value3')) "
             + "AND foo.metadata$value='value4') AND (bar.urn IN ('value1', 'value2'))"
         );
 
