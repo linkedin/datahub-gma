@@ -238,7 +238,7 @@ public class SQLStatementUtils {
    */
   public static <ASPECT extends RecordTemplate> String createListAspectWithPaginationSql(@Nonnull Class<ASPECT> aspectClass,
       String entityType, boolean includeSoftDeleted, int start, int pageSize) {
-    final String tableName = SQLSchemaUtils.getTableName(entityType);
+    final String tableName = getTableName(entityType);
     final String columnName = getAspectColumnName(entityType, aspectClass);
     if (includeSoftDeleted) {
       return String.format(SQL_LIST_ASPECT_WITH_PAGINATION_WITH_SOFT_DELETED_TEMPLATE, columnName, tableName,

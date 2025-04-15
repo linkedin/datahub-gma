@@ -42,6 +42,7 @@ public class EbeanLocalRelationshipQueryDAO {
   public static final String METADATA = "metadata";
   public static final String RELATIONSHIP_RETURN_TYPE = "relationship.return.type";
   public static final String MG_INTERNAL_ASSET_RELATIONSHIP_TYPE = "AssetRelationship.proto";
+  private static final int FILTER_BATCH_SIZE = 200;
   private final EbeanServer _server;
   private final MultiHopsTraversalSqlGenerator _sqlGenerator;
 
