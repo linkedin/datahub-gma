@@ -545,7 +545,8 @@ public class EbeanLocalRelationshipQueryDAO {
         //TODO: Add a safeguard to check if the FORCE_IDX_ON_DESTINATION is present in the table, we can check once on bootup and then caching the result
         // Check if any relationship-level filter is on "destination"
         for (LocalRelationshipCriterion criterion : relationshipFilter.getCriteria()) {
-          if (DESTINATION_FIELD.equals(criterion.getField())) {
+          LocalRelationshipCriterion.Field field = criterion.getField();
+          if (field.getUrnField() != null && DESTINATION_FIELD.equals(field.getUrnField().getName())) {
             sqlBuilder.append(FORCE_IDX_ON_DESTINATION);
             break;
           }
