@@ -519,7 +519,7 @@ public class EbeanLocalRelationshipQueryDAO {
    * @param offset                  offset to start from. If < 0, will start from 0.
    */
   @Nonnull
-  protected String buildFindRelationshipSQL(
+  private String buildFindRelationshipSQL(
       @Nonnull final String relationshipTableName, @Nonnull final LocalRelationshipFilter relationshipFilter,
       @Nullable final String sourceTableName, @Nullable final LocalRelationshipFilter sourceEntityFilter,
       @Nullable final String destTableName, @Nullable final LocalRelationshipFilter destinationEntityFilter,
