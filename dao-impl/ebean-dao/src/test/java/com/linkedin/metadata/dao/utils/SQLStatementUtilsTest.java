@@ -208,7 +208,7 @@ public class SQLStatementUtilsTest {
         .setValue(LocalRelationshipValue.create(new StringArray("value2")));
     LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion1, criterion2);
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
-    String expected = "urn IN ('value1', 'value2')";
+    String expected = "urn='value1' OR urn='value2'";
     assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.IN, "IN"), null, false), expected);
     assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.IN, "IN"), null, true), expected);
   }
