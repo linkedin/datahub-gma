@@ -231,8 +231,8 @@ public class SQLStatementUtilsTest {
 
     LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion1, criterion2);
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, false), "urn IN ('value1', 'value2')");
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, true), "urn IN ('value1', 'value2')");
+    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, false), "urn='value1' OR urn='value2'");
+    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, true), "urn='value1' OR urn='value2'");
   }
 
   @Test
@@ -295,10 +295,10 @@ public class SQLStatementUtilsTest {
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
 
     assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, false),
-        "(urn IN ('value1', 'value3')) AND metadata$value='value4' AND i_aspectfoo$value='value2'");
+        "(urn='value1' OR urn='value3') AND metadata$value='value4' AND i_aspectfoo$value='value2'");
 
     assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, true),
-        "(urn IN ('value1', 'value3')) AND metadata0value='value4' AND i_aspectfoo0value='value2'");
+        "(urn='value1' OR urn='value3') AND metadata0value='value4' AND i_aspectfoo0value='value2'");
 
   }
 
@@ -354,15 +354,15 @@ public class SQLStatementUtilsTest {
 
     //test for multi filters with dollar virtual columns names
     assertConditionsEqual(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), false, new Pair<>(filter1, "foo"),
-            new Pair<>(filter2, "bar")), "(foo.i_aspectfoo$value='value2' AND (foo.urn IN ('value1', 'value3')) "
-            + "AND foo.metadata$value='value4') AND (bar.urn IN ('value1', 'value2'))"
-        );
+        new Pair<>(filter2, "bar")), "(foo.i_aspectfoo$value='value2' AND (foo.urn='value1' OR foo.urn='value3') "
+        + "AND foo.metadata$value='value4') AND (bar.urn='value1' OR bar.urn='value2')"
+    );
 
     //test for multi filters with non dollar virtual columns names
     assertConditionsEqual(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), true, new Pair<>(filter1, "foo"),
-            new Pair<>(filter2, "bar")), "(foo.i_aspectfoo0value='value2' AND (foo.urn IN ('value1', 'value3')) "
-            + "AND foo.metadata0value='value4') AND (bar.urn IN ('value1', 'value2'))"
-        );
+        new Pair<>(filter2, "bar")), "(foo.i_aspectfoo0value='value2' AND (foo.urn='value1' OR foo.urn='value3') "
+        + "AND foo.metadata0value='value4') AND (bar.urn='value1' OR bar.urn='value2')"
+    );
   }
 
   @Test
