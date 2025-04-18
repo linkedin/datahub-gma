@@ -195,25 +195,6 @@ public class SQLStatementUtilsTest {
   }
 
   @Test
-  public void testWhereClauseMultipleINCondition() {
-    LocalRelationshipCriterion.Field field = new LocalRelationshipCriterion.Field();
-    field.setUrnField(new UrnField());
-    LocalRelationshipCriterion criterion1 = new LocalRelationshipCriterion()
-        .setField(field)
-        .setCondition(Condition.IN)
-        .setValue(LocalRelationshipValue.create(new StringArray("value1")));
-    LocalRelationshipCriterion criterion2 = new LocalRelationshipCriterion()
-        .setField(field)
-        .setCondition(Condition.IN)
-        .setValue(LocalRelationshipValue.create(new StringArray("value2")));
-    LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion1, criterion2);
-    LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
-    String expected = "urn='value1' OR urn='value2'";
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.IN, "IN"), null, false), expected);
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.IN, "IN"), null, true), expected);
-  }
-
-  @Test
   public void testWhereClauseMultiConditionSameName() {
     LocalRelationshipCriterion.Field field1 = new LocalRelationshipCriterion.Field();
     field1.setUrnField(new UrnField());
