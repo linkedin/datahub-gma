@@ -582,7 +582,6 @@ public class EbeanLocalRelationshipQueryDAO {
         sqlBuilder.append(includeNonCurrentRelationships ? " WHERE " : " AND ").append(whereClause);
       }
     } else if (_schemaConfig == EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY) {
-      sqlBuilder.append("WHERE rt.deleted_ts IS NULL");
       StringBuilder whereClauseBuilder = new StringBuilder();
       if (!includeNonCurrentRelationships) {
         whereClauseBuilder.append("rt.deleted_ts IS NULL");
