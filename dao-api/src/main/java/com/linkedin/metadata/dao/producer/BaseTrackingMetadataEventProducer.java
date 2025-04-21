@@ -4,6 +4,7 @@ import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.UnionTemplate;
+import com.linkedin.metadata.events.ChangeType;
 import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import javax.annotation.Nonnull;
@@ -33,4 +34,9 @@ public abstract class BaseTrackingMetadataEventProducer<SNAPSHOT extends RecordT
   public abstract <ASPECT extends RecordTemplate> void produceAspectSpecificMetadataAuditEvent(@Nonnull URN urn,
       @Nullable ASPECT oldValue, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
       @Nullable AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext, @Nullable IngestionMode ingestionMode);
+
+  public abstract <ASPECT extends RecordTemplate> void produceAspectSpecificMetadataAuditEvent(@Nonnull URN urn,
+      @Nullable ASPECT oldValue, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
+      @Nullable AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext, @Nullable IngestionMode ingestionMode,
+      @Nonnull ChangeType changeType);
 }

@@ -13,4 +13,9 @@ enum ChangeType {
    * delete the latest version of metadata, if it exists
    */
   DELETE
+
+  /**
+   * delete entire metadata for the entity, if it exists
+   */
+   DELETE_ALL
 }

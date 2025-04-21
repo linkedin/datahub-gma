@@ -30,8 +30,10 @@ import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
@@ -461,5 +463,14 @@ public class EbeanLocalAccessTest {
     int numRowsCreated = _ebeanLocalAccessFoo.create(fooUrn, aspectValues, aspectCreateLambdas, auditStamp, null, false);
     // Assert that 1 record is created for asset with FooUrn
     assertEquals(numRowsCreated, 1);
+  }
+
+  @Test
+  public void testDeleteAll() {
+    FooUrn fooUrn = makeFooUrn(201);
+    Set<Class<? extends RecordTemplate>> aspectsClasses = new HashSet<>();
+    aspectsClasses.add(AspectFoo.class);
+    int numRowsDeleted = _ebeanLocalAccessFoo.deleteAll(fooUrn, false);
+    assertEquals(numRowsDeleted, 1);
   }
 }

@@ -38,6 +38,7 @@ import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.tracking.TrackingUtils;
 import com.linkedin.metadata.dao.urnpath.UrnPathExtractor;
 import com.linkedin.metadata.dao.utils.ModelUtils;
+import com.linkedin.metadata.events.ChangeType;
 import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.internal.IngestionParams;
@@ -126,6 +127,12 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   static class AddResult<ASPECT extends RecordTemplate> {
     ASPECT oldValue;
     ASPECT newValue;
+    Class<ASPECT> klass;
+  }
+
+  @Value
+  static class DeleteResult<ASPECT extends RecordTemplate> {
+    ASPECT oldValue;
     Class<ASPECT> klass;
   }
 
@@ -795,6 +802,25 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     return isDeletion ? oldValue : newValue;
   }
 
+  private <ASPECT extends RecordTemplate> ASPECT unwrapDeleteResult(Urn urn, @Nonnull DeleteResult<ASPECT> result,
+      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext, ChangeType changeType) {
+
+    final ASPECT oldValue = result.getOldValue();
+
+    if (_emitAspectSpecificAuditEvent) {
+      // For delete operation, the new value is always null
+      if (_trackingProducer != null) {
+        _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, null, result.getKlass(), auditStamp,
+            trackingContext, IngestionMode.LIVE, changeType);
+      } else {
+        _producer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, null, result.getKlass(), auditStamp,
+            IngestionMode.LIVE, changeType);
+      }
+    }
+
+    return oldValue;
+  }
+
   /**
    * Adds a new version of aspect for an entity.
    *
@@ -923,6 +949,123 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       return createAspectsWithCallbacks(urn, aspectValues, aspectCreateLambdas, auditStamp, trackingContext);
       }, maxTransactionRetry
     );
+  }
+
+  /**
+   * The common method that can be used for both: deletion of aspects and entity.
+   *
+   * @param urn                 the URN for the entity the aspects are attached to
+   * @param aspectClasses       Aspect Classes of the aspects being deleted, must be supported aspect types in
+   *                            {@code ASPECT_UNION}
+   * @param auditStamp          the audit stamp of this action
+   * @param trackingContext     the tracking context for the operation
+   * @param ingestionParams     ingestion parameters
+   * @param deleteAll           if true, delete the entire asset, else mark aspects as deleted iteratively in a
+   *                            transaction
+   * @param maxTransactionRetry maximum number of transaction retries before throwing an exception
+   * @return a collection of the deleted aspects (their value before deletion), each wrapped in an instance of
+   * {@link ASPECT_UNION}
+   */
+  protected Collection<ASPECT_UNION> deleteCommon(@Nonnull URN urn,
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses,
+      @Nonnull AuditStamp auditStamp, int maxTransactionRetry,
+      @Nullable IngestionTrackingContext trackingContext,
+      @Nullable IngestionParams ingestionParams,
+      boolean deleteAll) {
+
+    // TODO: Handle pre-deletion callbacks if any
+
+    // If deleteAll is true, delete entire asset, else mark aspects as deleted iteratively in a transaction
+    if (deleteAll) {
+      Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>
+          results = cleanUp(urn, aspectClasses, auditStamp, maxTransactionRetry, trackingContext, ingestionParams.isTestMode());
+      Collection<RecordTemplate> deletedAspects = new ArrayList<>();
+      results.forEach((key, value) -> {
+        DeleteResult deleteResult = new DeleteResult(value.get(), key);
+        deletedAspects.add(unwrapDeleteResult(urn, deleteResult, auditStamp, trackingContext, ChangeType.DELETE_ALL));
+      });
+
+      return deletedAspects.stream()
+          .filter(Objects::nonNull)
+          .map(x -> ModelUtils.newEntityUnion(_aspectUnionClass, x)).collect(Collectors.toList());
+    }
+    else {
+      // TODO: delete aspects implementation can be moved here instead of in addCommon()
+      // Add common method should be used only for create and update
+      return Collections.emptyList();
+    }
+
+    //TODO: Handle post-ingestion callbacks if any
+  }
+
+  /**
+   * Delete asset and all its aspects atomically.
+   * @param urn the URN for the entity the aspects are attached to
+   * @param aspectClasses Aspect Classes of the aspects being deleted, must be supported aspect types in {@code ASPECT_UNION}
+   * @param auditStamp the audit stamp of this action
+   * @return a collection of the deleted aspects (their value before deletion), each wrapped in an instance of {@link ASPECT_UNION}
+   */
+  @Nonnull
+  public Collection<ASPECT_UNION> deleteAll(@Nonnull URN urn,
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses,
+      @Nonnull AuditStamp auditStamp) {
+    return deleteAll(urn, aspectClasses, auditStamp, DEFAULT_MAX_TRANSACTION_RETRY);
+  }
+
+  /**
+   * Same as {@link #deleteAll(Urn, Set, AuditStamp)} but with max transaction retry.
+   * @param urn the URN for the entity the aspects are attached to
+   * @param aspectClasses Aspect Classes of the aspects being deleted, must be supported aspect types in {@code ASPECT_UNION}
+   * @param auditStamp the audit stamp of this action
+   * @param maxTransactionRetry maximum number of transaction retries before throwing an exception
+   * @return a collection of the deleted aspects (their value before deletion), each wrapped in an instance of {@link ASPECT_UNION}
+   */
+  @Nonnull
+  public Collection<ASPECT_UNION> deleteAll(@Nonnull URN urn,
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses,
+      @Nonnull AuditStamp auditStamp,
+      int maxTransactionRetry) {
+    return deleteAll(urn, aspectClasses, auditStamp, maxTransactionRetry, null);
+  }
+
+  /**
+   * Same as {@link #deleteAll(Urn, Set, AuditStamp, int)} but with tracking context.
+   * @param urn the URN for the entity the aspects are attached to
+   * @param aspectClasses Aspect Classes of the aspects being deleted, must be supported aspect types in {@code ASPECT_UNION}
+   * @param auditStamp the audit stamp of this action
+   * @param maxTransactionRetry maximum number of transaction retries before throwing an exception
+   * @param trackingContext the tracking context for the operation
+   * @return a collection of the deleted aspects (their value before deletion), each wrapped in an instance of {@link ASPECT_UNION}
+   */
+  @Nonnull
+  public Collection<ASPECT_UNION> deleteAll(@Nonnull URN urn,
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses,
+      @Nonnull AuditStamp auditStamp,
+      int maxTransactionRetry,
+      @Nullable IngestionTrackingContext trackingContext) {
+    return deleteAll(urn, aspectClasses, auditStamp, maxTransactionRetry, trackingContext, null);
+  }
+
+  /**
+   * Same as {@link #deleteAll(Urn, Set, AuditStamp, int, IngestionTrackingContext)} but with ingestion parameters.
+   * @param urn the URN for the entity the aspects are attached to
+   * @param aspectClasses  Aspect Classes of the aspects being deleted, must be supported aspect types in {@code ASPECT_UNION}
+   * @param auditStamp the audit stamp of this action
+   * @param maxTransactionRetry maximum number of transaction retries before throwing an exception
+   * @param trackingContext the tracking context for the operation
+   * @param ingestionParams ingestion parameters
+   * @return a collection of the deleted aspects (their value before deletion), each wrapped in an instance of {@link ASPECT_UNION}
+   */
+  @Nonnull
+  public Collection<ASPECT_UNION> deleteAll(@Nonnull URN urn,
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses,
+      @Nonnull AuditStamp auditStamp,
+      int maxTransactionRetry,
+      @Nullable IngestionTrackingContext trackingContext,
+      @Nullable IngestionParams ingestionParams) {
+    IngestionParams nonNullIngestionParams = ingestionParams == null ?
+        new IngestionParams().setIngestionMode(IngestionMode.LIVE).setTestMode(false) : ingestionParams;
+    return deleteCommon(urn, aspectClasses, auditStamp, maxTransactionRetry, trackingContext, nonNullIngestionParams, true);
   }
 
   /**
@@ -1184,6 +1327,10 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nonnull List<AspectCreateLambda<? extends RecordTemplate>> aspectCreateLambdas,
       @Nonnull List<? extends RecordTemplate> aspectValues, @Nonnull AuditStamp newAuditStamp,
       @Nullable IngestionTrackingContext trackingContext, boolean isTestMode);
+
+  protected abstract Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> cleanUp(@Nonnull URN urn,
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nullable AuditStamp auditStamp,
+      int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext, boolean isTestMode);
 
   /**
    * Saves the new value of an aspect to entity tables. This is used when backfilling metadata from the old schema to

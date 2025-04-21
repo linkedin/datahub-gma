@@ -49,6 +49,7 @@ import java.net.URISyntaxException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -669,6 +670,21 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
     return runInTransactionWithRetry(() ->
         _localAccess.create(urn, aspectValues, aspectCreateLambdas, newAuditStamp, trackingContext, isTestMode), 1);
+  }
+
+  @Override
+  protected Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> cleanUp(@Nonnull URN urn,
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nullable AuditStamp auditStamp,
+      int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
+    if (!exists(urn)) {
+      return null;
+    }
+    Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> deletedAspects =
+        get(aspectClasses, Collections.singleton(urn)).get(urn);
+    return runInTransactionWithRetry(() -> {
+      _localAccess.deleteAll(urn, isTestMode);
+      return deletedAspects;
+    }, maxTransactionRetry);
   }
 
   @Override

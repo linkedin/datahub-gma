@@ -86,6 +86,14 @@ public interface IEbeanLocalAccess<URN extends Urn> {
       int keysCount, int position, boolean includeSoftDeleted, boolean isTestMode);
 
   /**
+   * Delete all aspects + urn for the given urn.
+   * @param urn {@link Urn} for the entity
+   * @param isTestMode whether the operation is in test mode or not
+   * @return number of rows deleted
+   */
+  int deleteAll(@Nonnull URN urn, boolean isTestMode);
+
+  /**
    * Returns list of urns that satisfy the given filter conditions.
    *
    * <p>Results are ordered by the order criterion but defaults to sorting lexicographically by the string
