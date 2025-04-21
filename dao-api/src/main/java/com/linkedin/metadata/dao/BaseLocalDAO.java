@@ -988,8 +988,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       return deletedAspects.stream()
           .filter(Objects::nonNull)
           .map(x -> ModelUtils.newEntityUnion(_aspectUnionClass, x)).collect(Collectors.toList());
-    }
-    else {
+    } else {
       // TODO: delete aspects implementation can be moved here instead of in addCommon()
       // Add common method should be used only for create and update
       return Collections.emptyList();
@@ -1063,8 +1062,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       int maxTransactionRetry,
       @Nullable IngestionTrackingContext trackingContext,
       @Nullable IngestionParams ingestionParams) {
-    IngestionParams nonNullIngestionParams = ingestionParams == null ?
-        new IngestionParams().setIngestionMode(IngestionMode.LIVE).setTestMode(false) : ingestionParams;
+    IngestionParams nonNullIngestionParams = ingestionParams == null
+        ? new IngestionParams().setIngestionMode(IngestionMode.LIVE).setTestMode(false) : ingestionParams;
     return deleteCommon(urn, aspectClasses, auditStamp, maxTransactionRetry, trackingContext, nonNullIngestionParams, true);
   }
 

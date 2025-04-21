@@ -30,10 +30,8 @@ import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
@@ -468,8 +466,14 @@ public class EbeanLocalAccessTest {
   @Test
   public void testDeleteAll() {
     FooUrn fooUrn = makeFooUrn(201);
-    Set<Class<? extends RecordTemplate>> aspectsClasses = new HashSet<>();
-    aspectsClasses.add(AspectFoo.class);
+    AspectFoo aspectFoo = new AspectFoo().setValue("foo");
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+    List<RecordTemplate> aspectValues = new ArrayList<>();
+    aspectValues.add(aspectFoo);
+    List<BaseLocalDAO.AspectCreateLambda<? extends RecordTemplate>> aspectCreateLambdas = new ArrayList<>();
+    aspectCreateLambdas.add(new BaseLocalDAO.AspectCreateLambda(aspectFoo));
+    int createResult = _ebeanLocalAccessFoo.create(fooUrn, aspectValues, aspectCreateLambdas, auditStamp, null, false);
+    assertEquals(createResult, 1);
     int numRowsDeleted = _ebeanLocalAccessFoo.deleteAll(fooUrn, false);
     assertEquals(numRowsDeleted, 1);
   }
