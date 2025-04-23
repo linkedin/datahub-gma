@@ -48,19 +48,6 @@ public interface AspectCallbackRoutingClient<ASPECT extends RecordTemplate> {
   }
 
   /**
-   * A method that routes the delete request to the appropriate custom API.
-   * @param urn the urn of the asset
-   * @param existingAspectValue the existing aspect value
-   * @param ingestionParams the ingestionParams of current update
-   * @param auditStamp the auditStamp of current request
-   * @return AspectCallbackResponse containing the updated aspect
-   */
-  default AspectCallbackResponse<ASPECT> routeAspectCallback(Urn urn, ASPECT existingAspectValue,
-      IngestionParams ingestionParams, AuditStamp auditStamp) {
-    return null;
-  }
-
-  /**
    * A method that returns whether to skip processing further ingestion.
    * @return true if the ingestion should be skipped, false otherwise
    */

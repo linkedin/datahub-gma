@@ -70,6 +70,17 @@ public class SQLStatementUtilsTest {
   }
 
   @Test
+  public void testDeleteAssetSql() {
+    FooUrn fooUrn = makeFooUrn(1);
+    // isTestMode=true
+    String expectedSql = "DELETE FROM metadata_entity_foo_test WHERE urn = :urn";
+    assertEquals(SQLStatementUtils.createDeleteAssetSql(fooUrn, true), expectedSql);
+    // isTestMode=false
+    expectedSql = "DELETE FROM metadata_entity_foo WHERE urn = :urn";
+    assertEquals(SQLStatementUtils.createDeleteAssetSql(fooUrn, false), expectedSql);
+  }
+
+  @Test
   public void testCreateAspectReadSql() {
     FooUrn fooUrn1 = makeFooUrn(1);
     FooUrn fooUrn2 = makeFooUrn(2);

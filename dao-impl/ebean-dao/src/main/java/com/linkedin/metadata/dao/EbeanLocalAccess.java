@@ -309,7 +309,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    */
   @Override
   public int deleteAll(@Nonnull URN urn, boolean isTestMode) {
-    final String deleteSqlStatement = SQLStatementUtils.createDeleteSql(urn, isTestMode);
+    final String deleteSqlStatement = SQLStatementUtils.createDeleteAssetSql(urn, isTestMode);
     final SqlUpdate sqlUpdate = _server.createSqlUpdate(deleteSqlStatement);
     sqlUpdate.setParameter("urn", urn.toString());
     return sqlUpdate.execute();

@@ -672,14 +672,18 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Override
-  protected Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> cleanUp(@Nonnull URN urn,
+  protected Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> permanentDelete(@Nonnull URN urn,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nullable AuditStamp auditStamp,
       int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
+    // If the table does not have the URN, return empty map. Nothing to delete here.
     if (!exists(urn)) {
-      return null;
+      return Collections.emptyMap();
     }
+    // If the table has the URN, get the asset record, including all the aspects.
+    // This will be used to delete to return deleted record info in the API.
     Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> deletedAspects =
         get(aspectClasses, Collections.singleton(urn)).get(urn);
+    // Perform deletion using urn and return the previously retrieved record.
     return runInTransactionWithRetry(() -> {
       _localAccess.deleteAll(urn, isTestMode);
       return deletedAspects;

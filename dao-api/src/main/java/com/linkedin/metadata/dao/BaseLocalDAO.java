@@ -978,7 +978,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     // If deleteAll is true, delete entire asset, else mark aspects as deleted iteratively in a transaction
     if (deleteAll) {
       Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>
-          results = cleanUp(urn, aspectClasses, auditStamp, maxTransactionRetry, trackingContext, ingestionParams.isTestMode());
+          results = permanentDelete(urn, aspectClasses, auditStamp, maxTransactionRetry, trackingContext, ingestionParams.isTestMode());
       Collection<RecordTemplate> deletedAspects = new ArrayList<>();
       results.forEach((key, value) -> {
         DeleteResult deleteResult = new DeleteResult(value.get(), key);
@@ -1327,7 +1327,17 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nonnull List<? extends RecordTemplate> aspectValues, @Nonnull AuditStamp newAuditStamp,
       @Nullable IngestionTrackingContext trackingContext, boolean isTestMode);
 
-  protected abstract Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> cleanUp(@Nonnull URN urn,
+  /**
+   * Permanently deletes the entity from the table.
+   * @param urn the URN for the entity the aspect is attached to
+   * @param aspectClasses Aspect Classes of the aspects being deleted, must be supported aspect types in {@code ASPECT_UNION}
+   * @param auditStamp the audit stamp of this action
+   * @param maxTransactionRetry maximum number of transaction retries before throwing an exception
+   * @param trackingContext the tracking context for the operation
+   * @param isTestMode whether the test mode is enabled or not
+   * @return a map of the deleted aspects (their value before deletion), each wrapped in an instance of {@link ASPECT_UNION}
+   */
+  protected abstract Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> permanentDelete(@Nonnull URN urn,
       @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nullable AuditStamp auditStamp,
       int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext, boolean isTestMode);
 

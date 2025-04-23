@@ -272,7 +272,7 @@ public class SQLStatementUtils {
    * @param isTestMode whether the test mode is enabled or not
    * @return delete sql
    */
-  public static <ASPECT extends RecordTemplate> String createDeleteSql(@Nonnull Urn urn, boolean isTestMode) {
+  public static <ASPECT extends RecordTemplate> String createDeleteAssetSql(@Nonnull Urn urn, boolean isTestMode) {
     final String tableName = isTestMode ? getTestTableName(urn) : getTableName(urn);
     return String.format(SQL_DELETE_ASSET_WITH_URN, tableName);
   }

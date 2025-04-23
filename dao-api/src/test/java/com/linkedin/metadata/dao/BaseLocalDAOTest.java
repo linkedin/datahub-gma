@@ -101,7 +101,7 @@ public class BaseLocalDAOTest {
     }
 
     @Override
-    protected Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> cleanUp(@Nonnull FooUrn urn,
+    protected Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> permanentDelete(@Nonnull FooUrn urn,
         @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nullable AuditStamp auditStamp,
         int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
       Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> result = new HashMap<>();
