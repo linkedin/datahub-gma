@@ -5,6 +5,7 @@ import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.utils.ModelUtils;
+import com.linkedin.metadata.events.ChangeType;
 import com.linkedin.metadata.events.IngestionMode;
 import java.util.List;
 import javax.annotation.Nonnull;
@@ -66,6 +67,21 @@ public abstract class BaseMetadataEventProducer<SNAPSHOT extends RecordTemplate,
   public abstract <ASPECT extends RecordTemplate> void produceAspectSpecificMetadataAuditEvent(@Nonnull URN urn,
       @Nullable ASPECT oldValue, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
       @Nullable AuditStamp auditStamp, @Nullable IngestionMode ingestionMode);
+
+  /**
+   * Produces an aspect specific Metadata Audit Event (MAE) after a metadata aspect is updated for an entity with Change type.
+   * @param urn {@link Urn} of the entity
+   * @param oldValue the value prior to the update, or null if there's none.
+   * @param newValue the value after the update
+   * @param aspectClass the class of ASPECT
+   * @param auditStamp {@link AuditStamp} containing version auditing information for the metadata change
+   * @param ingestionMode {@link IngestionMode} of the change
+   * @param changeType {@link ChangeType} of the change
+   * @param <ASPECT> must be a supported aspect type in {@code ASPECT_UNION}
+   */
+  public abstract <ASPECT extends RecordTemplate> void produceAspectSpecificMetadataAuditEvent(@Nonnull URN urn,
+      @Nullable ASPECT oldValue, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
+      @Nullable AuditStamp auditStamp, @Nullable IngestionMode ingestionMode, ChangeType changeType);
 
   /**
    * Produce Metadata Graph search metrics inside SearchDAO.

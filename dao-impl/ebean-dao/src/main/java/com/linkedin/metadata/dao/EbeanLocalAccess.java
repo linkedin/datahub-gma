@@ -299,6 +299,22 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     return EBeanDAOUtils.readSqlRows(sqlRows);
   }
 
+  /**
+   * Delete all aspects + urn for the given urn.
+   * By this time pre-deletion hooks should be processed.
+   * Old values are not needed for delete, But should be retrieved and used for in post-update hooks if needed.
+   * @param urn {@link Urn} for the entity
+   * @param isTestMode whether the operation is in test mode or not
+   * @return number of rows deleted.
+   */
+  @Override
+  public int deleteAll(@Nonnull URN urn, boolean isTestMode) {
+    final String deleteSqlStatement = SQLStatementUtils.createDeleteAssetSql(urn, isTestMode);
+    final SqlUpdate sqlUpdate = _server.createSqlUpdate(deleteSqlStatement);
+    sqlUpdate.setParameter("urn", urn.toString());
+    return sqlUpdate.execute();
+  }
+
   @Override
   public List<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       @Nullable URN lastUrn, int pageSize) {
