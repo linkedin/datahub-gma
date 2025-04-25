@@ -413,20 +413,24 @@ public class EbeanLocalDAOTest {
 
   @Test
   public void testPermanentDelete() {
-    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
-    FooUrn urn = makeFooUrn(1);
-    AspectFoo foo = new AspectFoo().setValue("foo");
-    IngestionParams ingestionParams = new IngestionParams().setTestMode(false);
-    dao.setAlwaysEmitAuditEvent(false);
-    dao.setAlwaysEmitAspectSpecificAuditEvent(false);
-    Set<Class<? extends RecordTemplate>> aspectClasses = new HashSet<>();
-    aspectClasses.add(AspectFoo.class);
-    dao.add(urn, foo, _dummyAuditStamp, null, ingestionParams);
-    BaseLocalDAO.AspectEntry<AspectFoo> aspectFooEntry = dao.getLatest(urn, AspectFoo.class, false);
-    assertEquals(aspectFooEntry.getAspect().getValue(), "foo");
-    assert (dao.get(AspectFoo.class, urn).isPresent());
-    Collection<EntityAspectUnion> results = dao.deleteAll(urn, aspectClasses, _dummyAuditStamp);
-    assertEquals(results.size(), 1);
+    // DELETE ALL is not supported in the old schema, so do not run this test for old schema.
+    if (_schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
+      EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+      FooUrn urn = makeFooUrn(1);
+      AspectFoo foo = new AspectFoo().setValue("foo");
+      IngestionParams ingestionParams = new IngestionParams().setTestMode(false);
+      IngestionTrackingContext context = new IngestionTrackingContext().setEmitter("testEmitter");
+      dao.setAlwaysEmitAuditEvent(false);
+      dao.setAlwaysEmitAspectSpecificAuditEvent(false);
+      Set<Class<? extends RecordTemplate>> aspectClasses = new HashSet<>();
+      aspectClasses.add(AspectFoo.class);
+      dao.add(urn, foo, _dummyAuditStamp, null, ingestionParams);
+      BaseLocalDAO.AspectEntry<AspectFoo> aspectFooEntry = dao.getLatest(urn, AspectFoo.class, false);
+      assertEquals(aspectFooEntry.getAspect().getValue(), "foo");
+      assert (dao.get(AspectFoo.class, urn).isPresent());
+      Collection<EntityAspectUnion> results = dao.deleteAll(urn, aspectClasses, _dummyAuditStamp);
+      assertEquals(results.size(), 1);
+    }
   }
 
   @Test
