@@ -72,7 +72,7 @@ public class SQLStatementUtils {
   // VALUES suffix of the sql statement for inserting into metadata_aspect table with multiple aspects which will be combined with the INSERT prefix
   public static final String SQL_INSERT_ASSET_VALUES = "VALUES (:urn, :lastmodifiedon, :lastmodifiedby,";
   // Delete prefix of the sql statement for deleting from metadata_aspect table
-  public static final String SQL_DELETE_ASSET_WITH_URN = "DELETE FROM %s WHERE urn = :urn";
+  public static final String SQL_DELETE_ASSET_WITH_URN = "DELETE FROM %s WHERE urn = '%s'";
   // closing bracket for the sql statement INSERT prefix
   // e.g. INSERT INTO metadata_aspect (urn, a_urn, lastmodifiedon, lastmodifiedby)
   public static final String CLOSING_BRACKET = ") ";
@@ -274,7 +274,7 @@ public class SQLStatementUtils {
    */
   public static <ASPECT extends RecordTemplate> String createDeleteAssetSql(@Nonnull Urn urn, boolean isTestMode) {
     final String tableName = isTestMode ? getTestTableName(urn) : getTableName(urn);
-    return String.format(SQL_DELETE_ASSET_WITH_URN, tableName);
+    return String.format(SQL_DELETE_ASSET_WITH_URN, tableName, urn);
   }
 
   /**

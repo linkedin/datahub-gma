@@ -412,6 +412,35 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
+  public void testPermanentDelete() {
+    // DELETE ALL is not supported in the old schema.
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+      // First add a record to db
+      EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+      FooUrn urn = makeFooUrn(1);
+      AspectFoo foo = new AspectFoo().setValue("foo");
+      IngestionParams ingestionParams = new IngestionParams().setTestMode(false);
+      dao.setAlwaysEmitAuditEvent(false);
+      dao.setAlwaysEmitAspectSpecificAuditEvent(false);
+      Set<Class<? extends RecordTemplate>> aspectClasses = new HashSet<>();
+      aspectClasses.add(AspectFoo.class);
+      dao.add(urn, foo, _dummyAuditStamp, null, ingestionParams);
+      // Verify the record was added
+      BaseLocalDAO.AspectEntry<AspectFoo> aspectFooEntry = dao.getLatest(urn, AspectFoo.class, false);
+      assertEquals(aspectFooEntry.getAspect().getValue(), "foo");
+      assertNotNull(dao.get(AspectFoo.class, urn).get());
+      // Delete the record permanently
+      Collection<EntityAspectUnion> results = dao.deleteAll(urn, aspectClasses, _dummyAuditStamp);
+      assertEquals(results.size(), 1);
+      EntityAspectUnion deletedAspect = results.iterator().next();
+      assertEquals(deletedAspect.getAspectFoo().getValue(), "foo");
+      // Verify the record was deleted and no longer exists in db
+      BaseLocalDAO.AspectEntry<AspectFoo> aspectFooEntryDeleted = dao.getLatest(urn, AspectFoo.class, false);
+      assertNull(aspectFooEntryDeleted.getAspect());
+    }
+  }
+
+  @Test
   public void testAddWithIngestionAnnotation() throws URISyntaxException {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     FooUrn urn = makeFooUrn(1);
