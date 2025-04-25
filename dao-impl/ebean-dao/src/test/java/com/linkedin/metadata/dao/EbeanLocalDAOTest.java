@@ -413,23 +413,30 @@ public class EbeanLocalDAOTest {
 
   @Test
   public void testPermanentDelete() {
-    // DELETE ALL is not supported in the old schema, so do not run this test for old schema.
-    if (_schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
+    // DELETE ALL is not supported in the old schema.
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+      // First add a record to db
       EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
       FooUrn urn = makeFooUrn(1);
       AspectFoo foo = new AspectFoo().setValue("foo");
       IngestionParams ingestionParams = new IngestionParams().setTestMode(false);
-      IngestionTrackingContext context = new IngestionTrackingContext().setEmitter("testEmitter");
       dao.setAlwaysEmitAuditEvent(false);
       dao.setAlwaysEmitAspectSpecificAuditEvent(false);
       Set<Class<? extends RecordTemplate>> aspectClasses = new HashSet<>();
       aspectClasses.add(AspectFoo.class);
       dao.add(urn, foo, _dummyAuditStamp, null, ingestionParams);
+      // Verify the record was added
       BaseLocalDAO.AspectEntry<AspectFoo> aspectFooEntry = dao.getLatest(urn, AspectFoo.class, false);
       assertEquals(aspectFooEntry.getAspect().getValue(), "foo");
-      assert (dao.get(AspectFoo.class, urn).isPresent());
+      assertNotNull(dao.get(AspectFoo.class, urn).get());
+      // Delete the record permanently
       Collection<EntityAspectUnion> results = dao.deleteAll(urn, aspectClasses, _dummyAuditStamp);
       assertEquals(results.size(), 1);
+      EntityAspectUnion deletedAspect = results.iterator().next();
+      assertEquals(deletedAspect.getAspectFoo().getValue(), "foo");
+      // Verify the record was deleted and no longer exists in db
+      BaseLocalDAO.AspectEntry<AspectFoo> aspectFooEntryDeleted = dao.getLatest(urn, AspectFoo.class, false);
+      assertNull(aspectFooEntryDeleted.getAspect());
     }
   }
 
