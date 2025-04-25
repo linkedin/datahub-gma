@@ -73,10 +73,10 @@ public class SQLStatementUtilsTest {
   public void testDeleteAssetSql() {
     FooUrn fooUrn = makeFooUrn(1);
     // isTestMode=true
-    String expectedSql = "DELETE FROM metadata_entity_foo_test WHERE urn = :urn";
+    String expectedSql = "DELETE FROM metadata_entity_foo_test WHERE urn = '" + fooUrn + "'";
     assertEquals(SQLStatementUtils.createDeleteAssetSql(fooUrn, true), expectedSql);
     // isTestMode=false
-    expectedSql = "DELETE FROM metadata_entity_foo WHERE urn = :urn";
+    expectedSql = "DELETE FROM metadata_entity_foo WHERE urn = '" + fooUrn + "'";
     assertEquals(SQLStatementUtils.createDeleteAssetSql(fooUrn, false), expectedSql);
   }
 

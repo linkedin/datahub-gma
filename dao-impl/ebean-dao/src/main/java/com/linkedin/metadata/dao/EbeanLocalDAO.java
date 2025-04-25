@@ -681,8 +681,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
     // If the table has the URN, get the asset record, including all the aspects.
     // This will be used to delete to return deleted record info in the API.
-    Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> deletedAspects =
-        get(aspectClasses, Collections.singleton(urn)).get(urn);
+    Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> deletedAspects = new HashMap<>();
+    aspectClasses.forEach(aspectClass -> deletedAspects.put(aspectClass, Optional.ofNullable(getLatest(urn, aspectClass, isTestMode).getAspect())));
     // Perform deletion using urn and return the previously retrieved record.
     return runInTransactionWithRetry(() -> {
       _localAccess.deleteAll(urn, isTestMode);
