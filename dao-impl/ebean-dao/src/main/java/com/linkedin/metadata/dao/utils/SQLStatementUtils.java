@@ -72,7 +72,11 @@ public class SQLStatementUtils {
   // VALUES suffix of the sql statement for inserting into metadata_aspect table with multiple aspects which will be combined with the INSERT prefix
   public static final String SQL_INSERT_ASSET_VALUES = "VALUES (:urn, :lastmodifiedon, :lastmodifiedby,";
   // Delete prefix of the sql statement for deleting from metadata_aspect table
+<<<<<<< HEAD
   public static final String SQL_DELETE_ASSET_WITH_URN = "DELETE FROM %s WHERE urn = '%s'";
+=======
+  public static final String SQL_DELETE_ASSET_WITH_URN = "DELETE FROM %s WHERE urn = :urn";
+>>>>>>> master
   // closing bracket for the sql statement INSERT prefix
   // e.g. INSERT INTO metadata_aspect (urn, a_urn, lastmodifiedon, lastmodifiedby)
   public static final String CLOSING_BRACKET = ") ";
@@ -423,77 +427,47 @@ public class SQLStatementUtils {
   public static String whereClause(@Nonnull LocalRelationshipFilter filter,
       @Nonnull Map<Condition, String> supportedConditions, @Nullable String tablePrefix,
       boolean nonDollarVirtualColumnsEnabled) {
-    if (!filter.hasCriteria() || filter.getCriteria().isEmpty()) {
+    if (!filter.hasCriteria() || filter.getCriteria().size() == 0) {
       throw new IllegalArgumentException("Empty filter cannot construct where clause.");
     }
-    // Group criteria by their respective field for more efficient processing
+
+    // Group the conditions by field.
     Map<String, List<Pair<Condition, LocalRelationshipValue>>> groupByField = new HashMap<>();
     filter.getCriteria().forEach(criterion -> {
-      // Parse field based on the criterion and add to the corresponding group.
       String field = parseLocalRelationshipField(criterion, tablePrefix, nonDollarVirtualColumnsEnabled);
-      groupByField.computeIfAbsent(field, k -> new ArrayList<>())
-          .add(new Pair<>(criterion.getCondition(), criterion.getValue()));
+      List<Pair<Condition, LocalRelationshipValue>> group = groupByField.getOrDefault(field, new ArrayList<>());
+      group.add(new Pair<>(criterion.getCondition(), criterion.getValue()));
+      groupByField.put(field, group);
     });
+
     List<String> andClauses = new ArrayList<>();
-    // Process each group of criteria for a specific field
     for (Map.Entry<String, List<Pair<Condition, LocalRelationshipValue>>> entry : groupByField.entrySet()) {
-      String field = entry.getKey();
-      List<Pair<Condition, LocalRelationshipValue>> pairs = entry.getValue();
-
-      List<String> equalValues = new ArrayList<>(); // To hold criteria with equal conditions
-      List<String> inValues = new ArrayList<>();    // To accumulate values for IN conditions
-      List<String> orClauses = new ArrayList<>();   // To hold criteria with other conditions
-
-      // Process each pair of condition and value
-      for (Pair<Condition, LocalRelationshipValue> pair : pairs) {
-        Condition condition = pair.getValue0();
-        LocalRelationshipValue value = pair.getValue1();
-
-        // Handle IN condition, which expects an array-like value
-        if (condition == Condition.IN) {
-          if (!value.isArray()) {
+      List<String> orClauses = new ArrayList<>();
+      for (Pair<Condition, LocalRelationshipValue> pair : entry.getValue()) {
+        if (pair.getValue0() == Condition.IN) {
+          if (!pair.getValue1().isArray()) {
             throw new IllegalArgumentException("IN condition must be paired with array value");
           }
-          // Assuming value.getArray() returns a StringArray, we need to convert it to a List<String>
-          List<String> inValueList = value.getArray(); // Convert StringArray to List<String>
-          inValues.addAll(inValueList); // Add the values to inValues list
-        } else if (condition == Condition.EQUAL) {
-          // Handle EQUAL condition by collecting values for later IN conversion if needed
-          equalValues.add(parseLocalRelationshipValue(value));
+          orClauses.add(entry.getKey() + " IN " +  parseLocalRelationshipValue(pair.getValue1()));
         } else {
-          // Handle any other conditions (non-IN, non-EQUAL)
-          orClauses.add(field + supportedConditions.get(condition) + "'" + parseLocalRelationshipValue(value) + "'");
+          orClauses.add(entry.getKey() + supportedConditions.get(pair.getValue0()) + "'" + parseLocalRelationshipValue(pair.getValue1()) + "'");
         }
       }
-      // If there are multiple IN conditions, combine them into one IN clause
-      if (!inValues.isEmpty()) {
-        // Create a single IN clause from all values in the inValues list
-        orClauses.add(
-            field + " IN (" + inValues.stream().map(v -> "'" + v + "'").collect(Collectors.joining(", ")) + ")");
-      }
-      // If there are multiple EQUAL conditions, combine them into a single IN clause
-      if (!equalValues.isEmpty()) {
-        if (equalValues.size() == 1) {
-          orClauses.add(field + "=" + "'" + equalValues.get(0) + "'"); // Single EQUAL condition
-        } else {
-          // Combine multiple EQUAL conditions as an IN clause
-          orClauses.add(
-              field + " IN (" + equalValues.stream().map(v -> "'" + v + "'").collect(Collectors.joining(", ")) + ")");
-        }
-      }
-      // If only one OR clause is created, add it directly, else combine OR clauses
+
       if (orClauses.size() == 1) {
         andClauses.add(orClauses.get(0));
       } else {
         andClauses.add("(" + String.join(" OR ", orClauses) + ")");
       }
     }
-    // If there's only one AND clause, return it directly (remove parentheses if necessary)
     if (andClauses.size() == 1) {
       String andClause = andClauses.get(0);
-      return andClause.startsWith("(") ? andClause.substring(1, andClause.length() - 1) : andClause;
+      if (andClauses.get(0).startsWith("(")) {
+        return andClause.substring(1, andClause.length() - 1);
+      }
+      return andClause;
     }
-    // Join all AND clauses with 'AND' and return the result
+
     return String.join(" AND ", andClauses);
   }
 
@@ -577,13 +551,14 @@ public class SQLStatementUtils {
    */
   private static String parseLocalRelationshipValue(@Nonnull final LocalRelationshipValue localRelationshipValue) {
     if (localRelationshipValue.isArray()) {
-      return "(" + localRelationshipValue.getArray().stream().map(s -> "'" + StringEscapeUtils.escapeSql(s) + "'")
+      return  "(" + localRelationshipValue.getArray().stream().map(s -> "'" + StringEscapeUtils.escapeSql(s) + "'")
           .collect(Collectors.joining(", ")) + ")";
     }
+
     if (localRelationshipValue.isString()) {
-      // Escape SQL special characters here to avoid SQL injection
-      return StringEscapeUtils.escapeSql(localRelationshipValue.getString());
+      return localRelationshipValue.getString();
     }
+
     throw new IllegalArgumentException("Unrecognized field value");
   }
 }

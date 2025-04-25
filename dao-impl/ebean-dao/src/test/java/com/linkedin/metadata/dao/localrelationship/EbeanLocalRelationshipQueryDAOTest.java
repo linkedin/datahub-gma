@@ -16,6 +16,7 @@ import com.linkedin.metadata.dao.IEbeanLocalAccess;
 import com.linkedin.metadata.dao.urnpath.EmptyPathExtractor;
 import com.linkedin.metadata.dao.utils.EBeanDAOUtils;
 import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
+import com.linkedin.metadata.dao.utils.RelationshipLookUpContext;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
 import com.linkedin.metadata.dao.utils.SQLStatementUtils;
 import com.linkedin.metadata.query.AspectField;
@@ -59,7 +60,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.naming.OperationNotSupportedException;
-import org.mockito.Mockito;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
@@ -91,6 +91,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
   @DataProvider(name = "inputList")
   public static Object[][] inputList() {
     return new Object[][] {
+        { true },
         { false }
     };
   }
@@ -363,7 +364,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
     List<ReportsTo> reportsToAlice = _localRelationshipQueryDAO.findRelationshipsV2(
         null, null, "foo", destFilter,
         ReportsTo.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
-        -1, -1);
+        -1, -1, new RelationshipLookUpContext());
 
     // Asserts
     assertEquals(reportsToAlice.size(), 2);
@@ -380,7 +381,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
     reportsToAlice = _localRelationshipQueryDAO.findRelationshipsV2(
         null, null, "foo", destFilter,
         ReportsTo.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
-        -1, -1);
+        -1, -1, new RelationshipLookUpContext());
 
     // Expect: only bob reports to Alice
     assertEquals(reportsToAlice.size(), 1);
@@ -435,7 +436,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
     List<ConsumeFrom> consumeFromSamza = _localRelationshipQueryDAO.findRelationshipsV2("bar", filterUrn, "foo", null,
         ConsumeFrom.class,
         new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
-        -1, -1);
+        -1, -1, new RelationshipLookUpContext());
 
     assertEquals(consumeFromSamza.size(), 2); // Because Samza consumes from 1. kafka and 2. restli
 
@@ -444,13 +445,13 @@ public class EbeanLocalRelationshipQueryDAOTest {
       LocalRelationshipCriterion filterRelationshipCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(
           LocalRelationshipValue.create("NEARLINE"), Condition.EQUAL, new RelationshipField().setPath("/environment"));
 
-    LocalRelationshipFilter filterRelationship = new LocalRelationshipFilter().setCriteria(
-        new LocalRelationshipCriterionArray(filterRelationshipCriterion)).setDirection(RelationshipDirection.OUTGOING);
+      LocalRelationshipFilter filterRelationship = new LocalRelationshipFilter().setCriteria(
+          new LocalRelationshipCriterionArray(filterRelationshipCriterion)).setDirection(RelationshipDirection.OUTGOING);
 
-    List<ConsumeFrom> consumeFromSamzaInNearline = _localRelationshipQueryDAO.findRelationshipsV2("bar", filterUrn, "foo", null,
-        ConsumeFrom.class,
-        filterRelationship,
-        -1, -1);
+      List<ConsumeFrom> consumeFromSamzaInNearline = _localRelationshipQueryDAO.findRelationshipsV2("bar", filterUrn, "foo", null,
+          ConsumeFrom.class,
+          filterRelationship,
+          -1, -1, new RelationshipLookUpContext());
 
       // Assert
       assertEquals(consumeFromSamzaInNearline.size(), 1); // Because Samza only consumes kafka in NEARLINE.
@@ -516,7 +517,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
     // test owned by of crew1 can be found
     List<OwnedBy> ownedByCrew1 = _localRelationshipQueryDAO.findRelationshipsV2(null, null, "crew", filterUrn,
         OwnedBy.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
-        -1, -1);
+        -1, -1, new RelationshipLookUpContext());
 
     assertEquals(ownedByCrew1.size(), 3);
 
@@ -530,7 +531,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
     // test owned by of crew2 can be found
     List<OwnedBy> ownedByCrew2 = _localRelationshipQueryDAO.findRelationshipsV2(null, null, "crew", filterUrn2,
         OwnedBy.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
-        -1, -1);
+        -1, -1, new RelationshipLookUpContext());
 
     assertEquals(ownedByCrew2.size(), 2);
   }
@@ -584,7 +585,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
     // test owned by of crew can be filtered by source entity, e.g. only include kafka
     List<OwnedBy> ownedByCrew1 = _localRelationshipQueryDAO.findRelationshipsV2("foo", filterUrn1, "crew", filterUrn,
         OwnedBy.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
-        -1, -1);
+        -1, -1, new RelationshipLookUpContext());
 
     assertEquals(ownedByCrew1.size(), 1);
   }
@@ -610,7 +611,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
     assertThrows(IllegalArgumentException.class, () -> {
       _localRelationshipQueryDAO.findRelationshipsV2("foo", filterUrn1, "crew", filterUrn,
           OwnedBy.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
-          -1, -1);
+          -1, -1, new RelationshipLookUpContext());
     });
   }
 
@@ -673,7 +674,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
     List<ReportsTo> reportsToAlice = _localRelationshipQueryDAO.findRelationshipsV2(
         null, null, "foo", filter,
         ReportsTo.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
-        -1, 3);
+        -1, 3, new RelationshipLookUpContext());
 
     // Asserts only 3 reports-to relationships are returned
     assertEquals(reportsToAlice.size(), 3);
@@ -681,7 +682,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
     reportsToAlice = _localRelationshipQueryDAO.findRelationshipsV2(
         null, null, "foo", filter,
         ReportsTo.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
-        2, 10);
+        2, 10, new RelationshipLookUpContext());
 
     // Asserts 3 returns, and the content starts from the 3rd report (Lisa)
     assertEquals(reportsToAlice.size(), 3);
@@ -692,7 +693,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
     reportsToAlice = _localRelationshipQueryDAO.findRelationshipsV2(
         null, null, "foo", filter,
         ReportsTo.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
-        2, -1);
+        2, -1, new RelationshipLookUpContext());
 
     // Asserts 5 returns, because offset cannot be applied when count isn't specified.
     assertEquals(reportsToAlice.size(), 5);
@@ -740,7 +741,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
         null, null, "foo", destFilter,
         ReportsTo.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
         AssetRelationship.class, wrapOptions,
-        -1, -1);
+        -1, -1, new RelationshipLookUpContext());
 
     AssetRelationship expected = reportsToAlice.get(0);
     assertEquals(expected.getSource(), "urn:li:foo:2");
@@ -792,7 +793,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
         null, null, "foo", destFilter,
         BelongsToV2.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
         AssetRelationship.class, wrapOptions,
-        -1, -1);
+        -1, -1, new RelationshipLookUpContext());
 
     AssetRelationship expected = belongsToOwner.get(0);
     assertEquals(expected.getSource(), "urn:li:foo:2");
@@ -1119,65 +1120,5 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     // Assertions
     assertEquals(fooSnapshotList.size(), 1); // Only one entity should match the criteria
-  }
-
-  @Test
-  public void testFindEntitiesBatchingMechanism() throws URISyntaxException, OperationNotSupportedException {
-    EbeanLocalRelationshipQueryDAO spyDao = Mockito.spy(_localRelationshipQueryDAO);
-
-    // Added 300 FooUrn entities with aspect AspectFoo and value "foo1" to "foo300"
-    for (int i = 1; i <= 300; i++) {
-      _fooUrnEBeanLocalAccess.add(new FooUrn(i), new AspectFoo().setValue("foo" + i), AspectFoo.class, new AuditStamp(),
-          null, false);
-    }
-
-    // Created one more FooUrn entity with aspect AspectBar with value "bar" and AspectFoo with value "foo5"
-    FooUrn one = new FooUrn(301);
-    _fooUrnEBeanLocalAccess.add(one, new AspectFoo().setValue("foo5"), AspectFoo.class, new AuditStamp(), null, false);
-    _fooUrnEBeanLocalAccess.add(one, new AspectBar().setValue("bar"), AspectBar.class, new AuditStamp(), null, false);
-
-    // Created one more FooUrn entity with aspect AspectBar with value "bar" and AspectFoo with value "foo6"
-    FooUrn two = new FooUrn(302);
-    _fooUrnEBeanLocalAccess.add(two, new AspectFoo().setValue("foo6"), AspectFoo.class, new AuditStamp(), null, false);
-    _fooUrnEBeanLocalAccess.add(two, new AspectBar().setValue("bar"), AspectBar.class, new AuditStamp(), null, false);
-
-    List<LocalRelationshipCriterion> criteriaList = new ArrayList<>();
-    List<String> allValues = new ArrayList<>();
-    for (int i = 1; i <= 202; i++) {
-      allValues.add("foo" + i);
-    }
-    criteriaList.add(
-        EBeanDAOUtils.buildRelationshipFieldCriterion(
-            LocalRelationshipValue.create(new StringArray(allValues)),
-            Condition.IN,
-            new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value")
-        )
-    );
-
-    // Create the EQUAL criterion for AspectBar
-    criteriaList.add(EBeanDAOUtils.buildRelationshipFieldCriterion(
-        LocalRelationshipValue.create("bar"),
-        Condition.EQUAL,
-        new AspectField().setAspect(AspectBar.class.getCanonicalName()).setPath("/value")
-    ));
-
-    LocalRelationshipFilter filter = new LocalRelationshipFilter();
-    filter.setCriteria(new LocalRelationshipCriterionArray(criteriaList));
-
-    // Retrieve entities (limit to 400 results for testing)
-    List<FooSnapshot> fooSnapshotList = spyDao.findEntities(FooSnapshot.class, filter, 0, 400);
-
-    // Assertions
-    assertEquals(fooSnapshotList.size(), 2);
-
-    // Verify the number of times runAndCreateWhereQuery was called
-    // The method should be called twice,
-    // once with 200 criteria(i_aspectfoo$value IN ('foo1', 'foo2', ..., 'foo200)) and once with 2 criteria (i_aspectfoo$value IN ('foo201', 'foo202'))
-    Mockito.verify(spyDao, Mockito.times(2)).runAndCreateWhereQuery(
-        Mockito.any(LocalRelationshipFilter.class),
-        Mockito.eq(FooSnapshot.class),
-        Mockito.anyInt(),
-        Mockito.anyInt()
-    );
   }
 }

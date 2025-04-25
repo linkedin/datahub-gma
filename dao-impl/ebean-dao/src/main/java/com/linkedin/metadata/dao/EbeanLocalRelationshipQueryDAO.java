@@ -3,20 +3,18 @@ package com.linkedin.metadata.dao;
 import com.linkedin.data.DataMap;
 import com.google.common.annotations.VisibleForTesting;
 import com.linkedin.data.template.RecordTemplate;
-import com.linkedin.data.template.StringArray;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.utils.ClassUtils;
 import com.linkedin.metadata.dao.utils.EBeanDAOUtils;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.MultiHopsTraversalSqlGenerator;
 import com.linkedin.metadata.dao.utils.RecordUtils;
+import com.linkedin.metadata.dao.utils.RelationshipLookUpContext;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
 import com.linkedin.metadata.dao.utils.SQLStatementUtils;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.LocalRelationshipCriterion;
-import com.linkedin.metadata.query.LocalRelationshipCriterionArray;
 import com.linkedin.metadata.query.LocalRelationshipFilter;
-import com.linkedin.metadata.query.LocalRelationshipValue;
 import com.linkedin.metadata.query.RelationshipDirection;
 import io.ebean.EbeanServer;
 import io.ebean.SqlRow;
@@ -100,88 +98,21 @@ public class EbeanLocalRelationshipQueryDAO {
   @Nonnull
   public <SNAPSHOT extends RecordTemplate> List<SNAPSHOT> findEntities(@Nonnull Class<SNAPSHOT> snapshotClass,
       @Nonnull LocalRelationshipFilter filter, int offset, int count) throws OperationNotSupportedException {
-
-    // Check schema configuration and throw an exception if using the old schema mode
     if (_schemaConfig == EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY) {
       throw new OperationNotSupportedException("findEntities is not supported in OLD_SCHEMA_MODE");
     }
     validateEntityFilter(filter, snapshotClass);
-    // List to hold the final results after processing all batches
-    List<SNAPSHOT> finalResults = new ArrayList<>();
 
-    // Separate IN criteria and other criteria for processing
-    List<LocalRelationshipCriterion> inCriteria = new ArrayList<>();
-    List<LocalRelationshipCriterion> otherCriteria = new ArrayList<>();
-
-    // Iterate through the criteria and split them into IN criteria and other criteria
-    for (LocalRelationshipCriterion c : filter.getCriteria()) {
-      if (c.getCondition() == Condition.IN) {
-        // Check if the IN criterion has a valid value
-        if (!c.getValue().isArray() || c.getValue().getArray() == null) {
-          throw new IllegalArgumentException("IN condition must have a non-null array value.");
-        }
-        inCriteria.add(c);
-      } else {
-        otherCriteria.add(c);
-      }
-    }
-    // If no IN criteria are present, simply execute a normal query
-    if (inCriteria.isEmpty()) {
-      return runAndCreateWhereQuery(filter, snapshotClass, offset, count);
-    }
-    // Sort IN criteria by size (descending order), prioritize the largest set
-    inCriteria.sort((a, b) -> Integer.compare(b.getValue().getArray().size(), a.getValue().getArray().size()));
-
-    // Get the largest IN criterion (first after sorting)
-    LocalRelationshipCriterion largestInCriterion = inCriteria.get(0);
-    List<String> allValues = largestInCriterion.getValue().getArray();
-    // Process in batches, with each batch having a maximum size defined by FILTER_BATCH_SIZE
-    for (int i = 0; i < allValues.size(); i += FILTER_BATCH_SIZE) {
-      // Sublist of values for this batch
-      List<String> subValues = allValues.subList(i, Math.min(i + FILTER_BATCH_SIZE, allValues.size()));
-      // Rebuild the IN criterion with the current batch of values
-      LocalRelationshipCriterion batchedInCriterion =
-          EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create(new StringArray(subValues)),
-              Condition.IN, largestInCriterion.getField().getAspectField());
-      // Merge other criteria and the current batched IN criterion
-      List<LocalRelationshipCriterion> mergedCriteria = new ArrayList<>(otherCriteria);
-      mergedCriteria.add(batchedInCriterion);
-      // Include the remaining IN criteria (excluding the largest one, which is batched)
-      for (int j = 1; j < inCriteria.size(); j++) {
-        mergedCriteria.add(inCriteria.get(j));
-      }
-      // Create a new filter with the merged criteria
-      LocalRelationshipFilter batchedFilter =
-          new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(mergedCriteria));
-      List<SNAPSHOT> partialResults = runAndCreateWhereQuery(batchedFilter, snapshotClass, offset, count);
-      finalResults.addAll(partialResults);
-    }
-    return finalResults;
-  }
-
-  /**
-   * Runs the SQL query based on the given filter and snapshot class, and returns the results as a list of snapshots.
-   * @param filter the filter to apply when querying the database.
-   * @param snapshotClass the snapshot class representing the entity type to retrieve.
-   * @param offset the offset for pagination.
-   * @param count the maximum number of records to return.
-   * @return a list of snapshot entities matching the filter criteria.
-   */
-  @VisibleForTesting
-  public <SNAPSHOT extends RecordTemplate> List<SNAPSHOT> runAndCreateWhereQuery(
-      @Nonnull LocalRelationshipFilter filter, @Nonnull Class<SNAPSHOT> snapshotClass, int offset, int count) {
     final String tableName = SQLSchemaUtils.getTableName(ModelUtils.getUrnTypeFromSnapshot(snapshotClass));
-    StringBuilder sqlBuilder = new StringBuilder();
+    final StringBuilder sqlBuilder = new StringBuilder();
     sqlBuilder.append("SELECT * FROM ").append(tableName);
     if (filter.hasCriteria() && !filter.getCriteria().isEmpty()) {
-      sqlBuilder.append(" WHERE ")
-          .append(SQLStatementUtils.whereClause(filter, SUPPORTED_CONDITIONS, null,
-              _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled()));
+      sqlBuilder.append(" WHERE ").append(SQLStatementUtils.whereClause(filter, SUPPORTED_CONDITIONS, null,
+          _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled()));
     }
     sqlBuilder.append(" ORDER BY urn LIMIT ").append(Math.max(1, count)).append(" OFFSET ").append(Math.max(0, offset));
-    return _server.createSqlQuery(sqlBuilder.toString())
-        .findList()
-        .stream()
+
+    return _server.createSqlQuery(sqlBuilder.toString()).findList().stream()
         .map(sqlRow -> constructSnapshot(sqlRow, snapshotClass))
         .collect(Collectors.toList());
   }
@@ -232,6 +163,14 @@ public class EbeanLocalRelationshipQueryDAO {
     return results;
   }
 
+  public <SRC_SNAPSHOT extends RecordTemplate, DEST_SNAPSHOT extends RecordTemplate, RELATIONSHIP extends RecordTemplate> List<RELATIONSHIP> findRelationships(
+      @Nullable Class<SRC_SNAPSHOT> sourceEntityClass, @Nonnull LocalRelationshipFilter sourceEntityFilter,
+      @Nullable Class<DEST_SNAPSHOT> destinationEntityClass, @Nonnull LocalRelationshipFilter destinationEntityFilter,
+      @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter, int offset, int count) {
+    return findRelationships(sourceEntityClass, sourceEntityFilter, destinationEntityClass, destinationEntityFilter, relationshipType,
+        relationshipFilter, offset, count, new RelationshipLookUpContext());
+  }
+
   /**
    * Finds a list of relationships of a specific type based on the given filters.
    * The SRC_SNAPSHOT and DEST_SNAPSHOT class must be defined within com.linkedin.metadata.snapshot package in metadata-models.
@@ -250,7 +189,8 @@ public class EbeanLocalRelationshipQueryDAO {
   public <SRC_SNAPSHOT extends RecordTemplate, DEST_SNAPSHOT extends RecordTemplate, RELATIONSHIP extends RecordTemplate> List<RELATIONSHIP> findRelationships(
       @Nullable Class<SRC_SNAPSHOT> sourceEntityClass, @Nonnull LocalRelationshipFilter sourceEntityFilter,
       @Nullable Class<DEST_SNAPSHOT> destinationEntityClass, @Nonnull LocalRelationshipFilter destinationEntityFilter,
-      @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter, int offset, int count) {
+      @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter, int offset,
+      int count, RelationshipLookUpContext relationshipLookUpContext) {
     validateEntityFilter(sourceEntityFilter, sourceEntityClass);
     validateEntityFilter(destinationEntityFilter, destinationEntityClass);
     validateRelationshipFilter(relationshipFilter);
@@ -275,7 +215,7 @@ public class EbeanLocalRelationshipQueryDAO {
         destTableName,
         destinationEntityFilter,
         count,
-        offset);
+        offset, relationshipLookUpContext);
 
     List<SqlRow> rows = executeSqlWithIndexCheck(sql, relationshipTableName);
 
@@ -283,7 +223,6 @@ public class EbeanLocalRelationshipQueryDAO {
         .map(row -> RecordUtils.toRecordTemplate(relationshipType, row.getString("metadata")))
         .collect(Collectors.toList());
   }
-
   /**
    * Finds a list of relationships of a specific type (Urn) based on the given filters if applicable.
    *
@@ -302,10 +241,10 @@ public class EbeanLocalRelationshipQueryDAO {
       @Nullable String sourceEntityType, @Nullable LocalRelationshipFilter sourceEntityFilter,
       @Nullable String destinationEntityType, @Nullable LocalRelationshipFilter destinationEntityFilter,
       @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter,
-      int offset, int count) {
+      int offset, int count, RelationshipLookUpContext relationshipLookUpContext) {
     List<SqlRow> sqlRows = findRelationshipsV2V3Core(
         sourceEntityType, sourceEntityFilter, destinationEntityType, destinationEntityFilter,
-        relationshipType, relationshipFilter, offset, count);
+        relationshipType, relationshipFilter, offset, count, relationshipLookUpContext);
 
     return sqlRows.stream()
         .map(row -> RecordUtils.toRecordTemplate(relationshipType, row.getString(METADATA)))
@@ -330,7 +269,7 @@ public class EbeanLocalRelationshipQueryDAO {
       @Nullable String sourceEntityType, @Nullable LocalRelationshipFilter sourceEntityFilter,
       @Nullable String destinationEntityType, @Nullable LocalRelationshipFilter destinationEntityFilter,
       @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter,
-      int offset, int count) {
+      int offset, int count, RelationshipLookUpContext relationshipLookUpContext) {
     validateEntityTypeAndFilter(sourceEntityFilter, sourceEntityType);
     validateEntityTypeAndFilter(destinationEntityFilter, destinationEntityType);
     validateRelationshipFilter(relationshipFilter);
@@ -344,7 +283,7 @@ public class EbeanLocalRelationshipQueryDAO {
         relationshipTableName, relationshipFilter,
         sourceTableName, sourceEntityFilter,
         destTableName, destinationEntityFilter,
-        count, offset);
+        count, offset, relationshipLookUpContext);
     // Temporary log to help debug the slow SQL query
     log.info("Executing SQL for GQS: {}", sql);
     return executeSqlWithIndexCheck(sql, relationshipTableName);
@@ -372,7 +311,7 @@ public class EbeanLocalRelationshipQueryDAO {
       @Nullable String destinationEntityType, @Nullable LocalRelationshipFilter destinationEntityFilter,
       @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter,
       @Nonnull Class<ASSET_RELATIONSHIP> assetRelationshipClass, @Nullable Map<String, Object> wrapOptions,
-      int offset, int count) {
+      int offset, int count, RelationshipLookUpContext relationshipLookUpContext) {
     if (wrapOptions == null || !wrapOptions.containsKey(RELATIONSHIP_RETURN_TYPE)
         || !MG_INTERNAL_ASSET_RELATIONSHIP_TYPE.equals(wrapOptions.get(RELATIONSHIP_RETURN_TYPE))) {
       throw new IllegalArgumentException("Please check your use of the findRelationshipsV3 method.");
@@ -380,7 +319,7 @@ public class EbeanLocalRelationshipQueryDAO {
 
     List<SqlRow> sqlRows = findRelationshipsV2V3Core(
         sourceEntityType, sourceEntityFilter, destinationEntityType, destinationEntityFilter,
-        relationshipType, relationshipFilter, offset, count);
+        relationshipType, relationshipFilter, offset, count, relationshipLookUpContext);
 
     return sqlRows.stream()
         .map(row -> createAssetRelationshipWrapperForRelationship(
@@ -593,8 +532,9 @@ public class EbeanLocalRelationshipQueryDAO {
       @Nonnull final String relationshipTableName, @Nonnull final LocalRelationshipFilter relationshipFilter,
       @Nullable final String sourceTableName, @Nullable final LocalRelationshipFilter sourceEntityFilter,
       @Nullable final String destTableName, @Nullable final LocalRelationshipFilter destinationEntityFilter,
-      int limit, int offset) {
+      int limit, int offset, RelationshipLookUpContext relationshipLookUpContext) {
 
+    boolean includeNonCurrentRelationships = relationshipLookUpContext.isIncludeNonCurrentRelationships();
     StringBuilder sqlBuilder = new StringBuilder();
     sqlBuilder.append("SELECT rt.* FROM ").append(relationshipTableName).append(" rt ");
 
@@ -615,7 +555,8 @@ public class EbeanLocalRelationshipQueryDAO {
         //TODO: Add a safeguard to check if the FORCE_IDX_ON_DESTINATION is present in the table, we can check once on bootup and then caching the result
         // Check if any relationship-level filter is on "destination"
         for (LocalRelationshipCriterion criterion : relationshipFilter.getCriteria()) {
-          if (DESTINATION_FIELD.equals(criterion.getField())) {
+          LocalRelationshipCriterion.Field field = criterion.getField();
+          if (field.getUrnField() != null && DESTINATION_FIELD.equals(field.getUrnField().getName())) {
             sqlBuilder.append(FORCE_IDX_ON_DESTINATION);
             break;
           }
@@ -630,7 +571,9 @@ public class EbeanLocalRelationshipQueryDAO {
         }
       }
 
-      sqlBuilder.append("WHERE rt.deleted_ts is NULL");
+      if (!includeNonCurrentRelationships) {
+        sqlBuilder.append("WHERE rt.deleted_ts is NULL");
+      }
 
       filters.add(new Pair<>(relationshipFilter, "rt"));
 
@@ -639,22 +582,32 @@ public class EbeanLocalRelationshipQueryDAO {
           filters.toArray(new Pair[filters.size()]));
 
       if (whereClause != null) {
-        sqlBuilder.append(" AND ").append(whereClause);
+        sqlBuilder.append(includeNonCurrentRelationships ? " WHERE " : " AND ").append(whereClause);
       }
     } else if (_schemaConfig == EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY) {
-      sqlBuilder.append("WHERE rt.deleted_ts IS NULL");
+      StringBuilder whereClauseBuilder = new StringBuilder();
+      if (!includeNonCurrentRelationships) {
+        whereClauseBuilder.append("rt.deleted_ts IS NULL");
+      }
       if (sourceEntityFilter != null) {
         validateEntityFilterOnlyOneUrn(sourceEntityFilter);
         if (sourceEntityFilter.hasCriteria() && sourceEntityFilter.getCriteria().size() > 0) {
-          sqlBuilder.append(
+          whereClauseBuilder.append(
               SQLStatementUtils.whereClauseOldSchema(SUPPORTED_CONDITIONS, sourceEntityFilter.getCriteria(), SQLStatementUtils.SOURCE));
         }
       }
       if (destinationEntityFilter != null) {
         validateEntityFilterOnlyOneUrn(destinationEntityFilter);
         if (destinationEntityFilter.hasCriteria() && destinationEntityFilter.getCriteria().size() > 0) {
-          sqlBuilder.append(
+          whereClauseBuilder.append(
               SQLStatementUtils.whereClauseOldSchema(SUPPORTED_CONDITIONS, destinationEntityFilter.getCriteria(), SQLStatementUtils.DESTINATION));
+        }
+      }
+      if (whereClauseBuilder.length() != 0) {
+        if (includeNonCurrentRelationships) {
+          sqlBuilder.append("WHERE ").append(whereClauseBuilder.toString().replaceFirst("^AND\\s+", ""));
+        } else {
+          sqlBuilder.append("WHERE ").append(whereClauseBuilder);
         }
       }
     } else {
