@@ -981,8 +981,11 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
           results = permanentDelete(urn, aspectClasses, auditStamp, maxTransactionRetry, trackingContext, ingestionParams.isTestMode());
       Collection<RecordTemplate> deletedAspects = new ArrayList<>();
       results.forEach((key, value) -> {
-        DeleteResult deleteResult = new DeleteResult(value.get(), key);
-        deletedAspects.add(unwrapDeleteResult(urn, deleteResult, auditStamp, trackingContext, ChangeType.DELETE_ALL));
+        // Check if aspect value present to avoid null pointer exception
+        if (value.isPresent()) {
+          DeleteResult deleteResult = new DeleteResult(value.get(), key);
+          deletedAspects.add(unwrapDeleteResult(urn, deleteResult, auditStamp, trackingContext, ChangeType.DELETE_ALL));
+        }
       });
 
       return deletedAspects.stream()
