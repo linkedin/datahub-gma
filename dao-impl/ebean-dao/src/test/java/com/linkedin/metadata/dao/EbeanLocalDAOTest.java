@@ -474,6 +474,39 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
+  public void testPermanentDeleteWithDeletedAspects() {
+    // DELETE ALL is not supported in the old schema.
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+      // First add a record to db
+      EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+      FooUrn urn = makeFooUrn(1);
+      AspectFoo foo = new AspectFoo().setValue("foo");
+      IngestionParams ingestionParams = new IngestionParams().setTestMode(false);
+      dao.setAlwaysEmitAuditEvent(false);
+      dao.setAlwaysEmitAspectSpecificAuditEvent(false);
+      dao.add(urn, foo, _dummyAuditStamp, null, ingestionParams);
+      // Verify the record was added: Foo aspect
+      BaseLocalDAO.AspectEntry<AspectFoo> aspectFooEntry = dao.getLatest(urn, AspectFoo.class, false);
+      assertEquals(aspectFooEntry.getAspect().getValue(), "foo");
+      assertNotNull(dao.get(AspectFoo.class, urn).get());
+      // Delete the aspect foo using the delete method. (no usage of delete for aspect delete. NOT deleteAll here)
+      dao.delete(urn, AspectFoo.class, _dummyAuditStamp);
+      // Verify the record was deleted and no longer exists in db
+      BaseLocalDAO.AspectEntry<AspectFoo> aspectFooEntryDeleted = dao.getLatest(urn, AspectFoo.class, false);
+      assertNull(aspectFooEntryDeleted.getAspect());
+      // Delete the record: provide 2 aspect class in the list of aspects, BOTH aspects do not exist
+      Set<Class<? extends RecordTemplate>> aspectClasses = new HashSet<>();
+      // 2 aspects to be deleted: AspectFoo and AspectBar
+      aspectClasses.add(AspectFoo.class);
+      aspectClasses.add(AspectBar.class);
+      Collection<EntityAspectUnion> results = dao.deleteAll(urn, aspectClasses, _dummyAuditStamp);
+      // None of the aspects existed so, we should get 0 result
+      // No exception should be thrown
+      assertEquals(results.size(), 0);
+    }
+  }
+
+  @Test
   public void testAddWithIngestionAnnotation() throws URISyntaxException {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     FooUrn urn = makeFooUrn(1);
