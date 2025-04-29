@@ -81,7 +81,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     _urnClass = urnClass;
     _urnPathExtractor = urnPathExtractor;
     _entityType = ModelUtils.getEntityTypeFromUrnClass(_urnClass);
-    _schemaEvolutionManager = createSchemaEvolutionManager(serverConfig, server);
+    _schemaEvolutionManager = createSchemaEvolutionManager(serverConfig);
     _nonDollarVirtualColumnsEnabled = nonDollarVirtualColumnsEnabled;
   }
 
@@ -89,8 +89,8 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     _urnPathExtractor = urnPathExtractor;
   }
 
-  public void ensureSchemaUpToDate(boolean enabledSchemaCheck) {
-    _schemaEvolutionManager.ensureSchemaUpToDate(enabledSchemaCheck);
+  public void ensureSchemaUpToDate() {
+    _schemaEvolutionManager.ensureSchemaUpToDate();
   }
 
   @Override
@@ -608,7 +608,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   }
 
   @Nonnull
-  private SchemaEvolutionManager createSchemaEvolutionManager(@Nonnull ServerConfig serverConfig, @Nonnull EbeanServer server) {
+  private SchemaEvolutionManager createSchemaEvolutionManager(@Nonnull ServerConfig serverConfig) {
     String identifier = serverConfig.getDataSourceConfig().getCustomProperties() != null
         ? serverConfig.getDataSourceConfig().getCustomProperties().getOrDefault(SERVICE_IDENTIFIER, null)
         : null;
@@ -618,7 +618,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
         serverConfig.getDataSourceConfig().getUsername(),
         identifier);
 
-    return new FlywaySchemaEvolutionManager(config, server);
+    return new FlywaySchemaEvolutionManager(config);
   }
 
   /**
