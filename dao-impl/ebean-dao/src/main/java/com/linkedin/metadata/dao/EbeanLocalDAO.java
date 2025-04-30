@@ -1102,7 +1102,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         .collect(Collectors.toMap(Function.identity(), key -> records.stream()
             .filter(record -> matchKeys(key, record.getKey()))
             .findFirst()
-            .flatMap(record -> includeSoftDeleted ? toRecordTemplateIncludeSoftDelete(key.getAspectClass(), record)
+            .flatMap(record -> includeSoftDeleted ? (Optional<RecordTemplate>) toRecordTemplateIncludeSoftDelete(key.getAspectClass(), record)
                 : (Optional<RecordTemplate>) toRecordTemplate(key.getAspectClass(), record))));
   }
 
@@ -1481,7 +1481,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Nonnull
-  static <ASPECT extends RecordTemplate> Optional<RecordTemplate> toRecordTemplateIncludeSoftDelete(
+  static <ASPECT extends RecordTemplate> Optional<? extends RecordTemplate> toRecordTemplateIncludeSoftDelete(
       @Nonnull Class<ASPECT> aspectClass, @Nonnull EbeanMetadataAspect aspect) {
     if (isSoftDeletedAspect(aspect)) {
       return Optional.of(RecordUtils.toRecordTemplate(SoftDeletedAspect.class, aspect.getMetadata()));

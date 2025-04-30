@@ -270,7 +270,7 @@ public class EBeanDAOUtils {
       ebeanMetadataAspect.setCreatedBy(sqlRow.getString("lastmodifiedby"));  // TODO: add support for deletion metadata
       ebeanMetadataAspect.setCreatedOn(sqlRow.getTimestamp("lastmodifiedon"));  // TODO: add support for deletion metadata
       ebeanMetadataAspect.setCreatedFor(sqlRow.getString("createdfor"));  // TODO: add support for deletion metadata
-      ebeanMetadataAspect.setMetadata(extractAspectJsonString(sqlRow.getString(columnName)));
+      ebeanMetadataAspect.setMetadata(sqlRow.getString(columnName));
     } else {
       AuditedAspect auditedAspect = RecordUtils.toRecordTemplate(AuditedAspect.class, sqlRow.getString(columnName));
       primaryKey = new EbeanMetadataAspect.PrimaryKey(urn, auditedAspect.getCanonicalName(), LATEST_VERSION);
