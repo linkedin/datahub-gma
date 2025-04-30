@@ -8,6 +8,7 @@ import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.UnionTemplate;
+import com.linkedin.metadata.aspect.SoftDeletedAspect;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.builder.LocalRelationshipBuilderRegistry;
 import com.linkedin.metadata.dao.exception.ModelConversionException;
@@ -791,7 +792,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
     final ExtraInfo extraInfo = toExtraInfo(latest);
 
-    if (isSoftDeletedAspect(latest, aspectClass)) {
+    if (isSoftDeletedAspect(latest)) {
       return new AspectEntry<>(null, extraInfo, true);
     }
 
@@ -1077,6 +1078,12 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Nonnull
   public Map<AspectKey<URN, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> get(
       @Nonnull Set<AspectKey<URN, ? extends RecordTemplate>> keys) {
+    return get(keys, false);
+  }
+
+  @Nonnull
+  public Map<AspectKey<URN, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> get(
+      @Nonnull Set<AspectKey<URN, ? extends RecordTemplate>> keys, boolean includeSoftDeleted) {
     if (keys.isEmpty()) {
       return Collections.emptyMap();
     }
@@ -1095,7 +1102,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         .collect(Collectors.toMap(Function.identity(), key -> records.stream()
             .filter(record -> matchKeys(key, record.getKey()))
             .findFirst()
-            .flatMap(record -> toRecordTemplate(key.getAspectClass(), record))));
+            .flatMap(record -> includeSoftDeleted ? toRecordTemplateIncludeSoftDelete(key.getAspectClass(), record)
+                : (Optional<RecordTemplate>) toRecordTemplate(key.getAspectClass(), record))));
   }
 
   @Override
@@ -1259,14 +1267,14 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
 
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
-      return _localAccess.batchGetUnion(keys, keysCount, position, false, false);
+      return _localAccess.batchGetUnion(keys, keysCount, position, true, false);
     }
 
     if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
       // Compare results from both new and old schemas
       final List<EbeanMetadataAspect> resultsOldSchema = batchGetUnion(keys, keysCount, position);
       final List<EbeanMetadataAspect> resultsNewSchema =
-          _localAccess.batchGetUnion(keys, keysCount, position, false, false);
+          _localAccess.batchGetUnion(keys, keysCount, position, false, false);  // TODO: should soft-deleted aspects be included?
       EBeanDAOUtils.compareResults(resultsOldSchema, resultsNewSchema, "batchGet");
       return resultsOldSchema;
     }
@@ -1466,8 +1474,17 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Nonnull
   static <ASPECT extends RecordTemplate> Optional<ASPECT> toRecordTemplate(@Nonnull Class<ASPECT> aspectClass,
       @Nonnull EbeanMetadataAspect aspect) {
-    if (isSoftDeletedAspect(aspect, aspectClass)) {
+    if (isSoftDeletedAspect(aspect)) {
       return Optional.empty();
+    }
+    return Optional.of(RecordUtils.toRecordTemplate(aspectClass, aspect.getMetadata()));
+  }
+
+  @Nonnull
+  static <ASPECT extends RecordTemplate> Optional<RecordTemplate> toRecordTemplateIncludeSoftDelete(
+      @Nonnull Class<ASPECT> aspectClass, @Nonnull EbeanMetadataAspect aspect) {
+    if (isSoftDeletedAspect(aspect)) {
+      return Optional.of(RecordUtils.toRecordTemplate(SoftDeletedAspect.class, aspect.getMetadata()));
     }
     return Optional.of(RecordUtils.toRecordTemplate(aspectClass, aspect.getMetadata()));
   }
@@ -1475,7 +1492,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Nonnull
   static <ASPECT extends RecordTemplate> Optional<AspectWithExtraInfo<ASPECT>> toRecordTemplateWithExtraInfo(
       @Nonnull Class<ASPECT> aspectClass, @Nonnull EbeanMetadataAspect aspect) {
-    if (aspect.getMetadata() == null || isSoftDeletedAspect(aspect, aspectClass)) {
+    if (aspect.getMetadata() == null || isSoftDeletedAspect(aspect)) {
       return Optional.empty();
     }
     final ExtraInfo extraInfo = toExtraInfo(aspect);

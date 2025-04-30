@@ -179,19 +179,24 @@ public class EBeanDAOUtils {
    * Checks whether the aspect record has been soft deleted.
    *
    * @param aspect aspect value
-   * @param aspectClass the type of the aspect
    * @return boolean representing whether the aspect record has been soft deleted
    */
-  public static <ASPECT extends RecordTemplate> boolean isSoftDeletedAspect(@Nonnull EbeanMetadataAspect aspect,
-      @Nonnull Class<ASPECT> aspectClass) {
+  public static boolean isSoftDeletedAspect(@Nonnull EbeanMetadataAspect aspect) {
     // Convert metadata string to record template object
-    final RecordTemplate metadataRecord = RecordUtils.toRecordTemplate(aspectClass, aspect.getMetadata());
-    return metadataRecord.equals(DELETED_METADATA);
+    try {
+      SoftDeletedAspect attemptToCastToSDA = RecordUtils.toRecordTemplate(SoftDeletedAspect.class, aspect.getMetadata());
+      return attemptToCastToSDA.hasGma_deleted() && attemptToCastToSDA.isGma_deleted();
+    } catch (Exception e) {
+      return false;
+    }
   }
 
 
   /**
    * Read {@link SqlRow} list into a {@link EbeanMetadataAspect} list.
+   * Currently only in use by AIM.
+   * Note this cannot read deleted metadata.
+   *
    * @param sqlRows list of {@link SqlRow}
    * @return list of {@link EbeanMetadataAspect}
    * @deprecated This method has been deprecated, use {@link #readSqlRow(SqlRow, Class)} instead.
@@ -239,6 +244,10 @@ public class EBeanDAOUtils {
 
   /**
    * Read EbeanMetadataAspect from {@link SqlRow}.
+   * Note that if the Aspect is (soft) deleted and the DB is on the NEW SCHEMA, the creation metadata will be
+   * associated with the *whole row*, not the individual aspect. There is currently no metadata stored for the deletion
+   * of aspects.
+   *
    * @param sqlRow {@link SqlRow}
    * @param aspectClass aspect class
    * @param <ASPECT> aspect type
@@ -258,10 +267,10 @@ public class EBeanDAOUtils {
     }
     if (isSoftDeletedAspect(sqlRow, columnName)) {
       primaryKey = new EbeanMetadataAspect.PrimaryKey(urn, aspectClass.getCanonicalName(), LATEST_VERSION);
-      ebeanMetadataAspect.setCreatedBy(sqlRow.getString("lastmodifiedby"));
-      ebeanMetadataAspect.setCreatedOn(sqlRow.getTimestamp("lastmodifiedon"));
-      ebeanMetadataAspect.setCreatedFor(sqlRow.getString("createdfor"));
-      ebeanMetadataAspect.setMetadata(DELETED_VALUE);
+      ebeanMetadataAspect.setCreatedBy(sqlRow.getString("lastmodifiedby"));  // TODO: add support for deletion metadata
+      ebeanMetadataAspect.setCreatedOn(sqlRow.getTimestamp("lastmodifiedon"));  // TODO: add support for deletion metadata
+      ebeanMetadataAspect.setCreatedFor(sqlRow.getString("createdfor"));  // TODO: add support for deletion metadata
+      ebeanMetadataAspect.setMetadata(extractAspectJsonString(sqlRow.getString(columnName)));
     } else {
       AuditedAspect auditedAspect = RecordUtils.toRecordTemplate(AuditedAspect.class, sqlRow.getString(columnName));
       primaryKey = new EbeanMetadataAspect.PrimaryKey(urn, auditedAspect.getCanonicalName(), LATEST_VERSION);

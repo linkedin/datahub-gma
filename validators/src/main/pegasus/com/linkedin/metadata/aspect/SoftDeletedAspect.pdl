@@ -9,4 +9,9 @@ record SoftDeletedAspect {
    * Flag to indicate if the aspect is soft deleted in GMA
    */
   gma_deleted: boolean
+
+  /**
+   * The deleted content of the aspect
+   */
+  gma_deleted_content: AuditedAspect
 }

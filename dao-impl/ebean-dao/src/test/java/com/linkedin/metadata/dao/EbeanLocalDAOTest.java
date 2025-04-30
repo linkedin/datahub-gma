@@ -2337,7 +2337,7 @@ public class EbeanLocalDAOTest {
 
     // latest version of metadata should be null
     EbeanMetadataAspect aspect = getMetadata(urn, aspectName, 0);
-    assertTrue(isSoftDeletedAspect(aspect, AspectFoo.class));
+    assertTrue(isSoftDeletedAspect(aspect));
     Optional<AspectFoo> fooOptional = dao.get(AspectFoo.class, urn);
     assertFalse(fooOptional.isPresent());
 
@@ -2523,7 +2523,7 @@ public class EbeanLocalDAOTest {
     if (dao.isChangeLogEnabled()) {
       // version=3 should correspond to soft deleted metadata
       EbeanMetadataAspect aspect = getMetadata(urn, aspectName, 3);
-      assertTrue(isSoftDeletedAspect(aspect, AspectFoo.class));
+      assertTrue(isSoftDeletedAspect(aspect));
       fooOptional = dao.get(AspectFoo.class, urn, 3);
       assertFalse(fooOptional.isPresent());
 
