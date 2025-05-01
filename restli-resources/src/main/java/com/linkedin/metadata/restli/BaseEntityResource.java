@@ -392,7 +392,7 @@ public abstract class BaseEntityResource<
     return RestliUtils.toTask(() -> {
       final URN urn = (URN) ModelUtils.getUrnFromSnapshot(snapshot);
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
-      ModelUtils.getAspectsFromSnapshot(snapshot).forEach(aspect -> {
+      ModelUtils.getAspectsFromSnapshot(snapshot).stream().forEach(aspect -> {
         if (!aspectsToIgnore.contains(aspect.getClass())) {
           // Write to primary
           getLocalDAO().add(urn, aspect, auditStamp, trackingContext, ingestionParams);
