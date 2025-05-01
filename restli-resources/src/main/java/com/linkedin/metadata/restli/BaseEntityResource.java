@@ -386,9 +386,8 @@ public abstract class BaseEntityResource<
    */
   @Nonnull
   protected Task<Void> ingestInternal(@Nonnull SNAPSHOT snapshot,
-      @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore,
-      @Nullable IngestionTrackingContext trackingContext,
-      @Nullable IngestionParams ingestionParams) {
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore, @Nullable IngestionTrackingContext trackingContext,
+      @Nullable IngestionParams ingestionParams)  {
 
     return RestliUtils.toTask(() -> {
       final URN urn = (URN) ModelUtils.getUrnFromSnapshot(snapshot);
