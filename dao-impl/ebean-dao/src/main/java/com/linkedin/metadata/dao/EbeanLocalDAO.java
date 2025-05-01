@@ -1081,6 +1081,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     return get(keys, false);
   }
 
+  @Override
   @Nonnull
   public Map<AspectKey<URN, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> get(
       @Nonnull Set<AspectKey<URN, ? extends RecordTemplate>> keys, boolean includeSoftDeleted) {

@@ -17,6 +17,7 @@ import com.linkedin.metadata.annotations.AspectIngestionAnnotationArray;
 import com.linkedin.metadata.annotations.Mode;
 import com.linkedin.metadata.annotations.UrnFilter;
 import com.linkedin.metadata.annotations.UrnFilterArray;
+import com.linkedin.metadata.aspect.SoftDeletedAspect;
 import com.linkedin.metadata.backfill.BackfillMode;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.equality.DefaultEqualityTester;
@@ -38,6 +39,7 @@ import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.tracking.TrackingUtils;
 import com.linkedin.metadata.dao.urnpath.UrnPathExtractor;
 import com.linkedin.metadata.dao.utils.ModelUtils;
+import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.events.ChangeType;
 import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.events.IngestionTrackingContext;
@@ -1668,7 +1670,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
         aspectClasses == null ? getValidAspectTypes(_aspectUnionClass) : aspectClasses;
     checkValidAspects(aspectToBackfill);
     final Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> urnToAspects =
-        get(aspectToBackfill, urns);
+        get(aspectToBackfill, urns, true);
     urnToAspects.forEach((urn, aspects) -> {
       aspects.forEach((aspectClass, aspect) -> aspect.ifPresent(value -> backfill(mode, value, urn)));
     });
@@ -1741,6 +1743,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   private <ASPECT extends RecordTemplate> void backfill(@Nonnull BackfillMode mode, @Nonnull ASPECT aspect,
       @Nonnull URN urn) {
 
+    RecordTemplate oldValue = probeSoftDeletedValue(aspect);
+
     if (mode == BackfillMode.MAE_ONLY
         || mode == BackfillMode.BACKFILL_ALL
         || mode == BackfillMode.BACKFILL_INCLUDING_LIVE_INDEX) {
@@ -1749,9 +1753,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
         IngestionTrackingContext trackingContext = buildIngestionTrackingContext(
             TrackingUtils.getRandomUUID(), BACKFILL_EMITTER, System.currentTimeMillis());
 
-        _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, aspect.getClass(), null, trackingContext, ingestionMode);
+        _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, aspect, aspect.getClass(), null, trackingContext, ingestionMode);
       } else {
-        _producer.produceAspectSpecificMetadataAuditEvent(urn, aspect, aspect, aspect.getClass(), null, ingestionMode);
+        _producer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, aspect, aspect.getClass(), null, ingestionMode);
       }
     }
   }
@@ -1877,6 +1881,38 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nonnull Class<ASPECT> aspectClass, @Nonnull URN urn) {
     return getWithExtraInfo(aspectClass, urn, LATEST_VERSION);
   }
+
+  /**
+   * Similar to {@link com.linkedin.metadata.dao.BaseReadDAO}'s {@link #get(Set, Set)} but includes a flag to be able to
+   * retrieve SoftDeletedAspect entries as well.
+   *
+   * <p>This is currently used to parse soft-deleted metadata in order to backfill the search index for deleted items.
+   *
+   * <p>This is not advised for general use cases since deleted metadata will be returned.
+   *
+   * @param aspectClasses the set of aspect classes to retrieve
+   * @param urns the set of URNs to retrieve
+   * @param includeSoftDeleted whether to include soft deleted aspects
+   * @return a map of URN to a map of aspect class to the corresponding aspect value
+   */
+  @Nonnull
+  public Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> get(
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nonnull Set<URN> urns, boolean includeSoftDeleted) {
+    final Set<AspectKey<URN, ? extends RecordTemplate>> keys = getKeysForLatestVersion(urns, aspectClasses);
+
+    final Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> results = new HashMap<>();
+    get(keys, includeSoftDeleted).forEach((key, value) -> {
+      final URN urn = key.getUrn();
+      results.putIfAbsent(urn, new HashMap<>());
+      results.get(urn).put(key.getAspectClass(), value);
+    });
+
+    return results;
+  }
+
+  @Nonnull
+  public abstract Map<AspectKey<URN, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> get(
+      @Nonnull Set<AspectKey<URN, ? extends RecordTemplate>> keys, boolean includeSoftDeleted);
 
   /**
    * Generates a new string ID that's guaranteed to be globally unique.
@@ -2092,5 +2128,17 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       return new AspectUpdateResult(updatedAspect, client.isSkipProcessing());
     }
     return new AspectUpdateResult(newAspectValue, false);
+  }
+
+  @VisibleForTesting
+  @Nonnull
+  protected <ASPECT extends RecordTemplate> RecordTemplate probeSoftDeletedValue(@Nonnull ASPECT aspect) {
+    if (aspect instanceof SoftDeletedAspect) {
+      SoftDeletedAspect softDeletedAspect = (SoftDeletedAspect) aspect;
+      String aspectContent = softDeletedAspect.getGma_deleted_content().getAspect();
+      String aspectClassName = softDeletedAspect.getGma_deleted_content().getCanonicalName();
+      return RecordUtils.toRecordTemplate(aspectClassName, aspectContent);
+    }
+    return aspect;
   }
 }

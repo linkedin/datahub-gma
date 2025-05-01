@@ -229,6 +229,13 @@ public class BaseLocalDAOTest {
 
     @Override
     @Nonnull
+    public Map<AspectKey<FooUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> get(
+        Set<AspectKey<FooUrn, ? extends RecordTemplate>> aspectKeys, boolean includeSoftDeleted) {
+      return Collections.emptyMap();
+    }
+
+    @Override
+    @Nonnull
     public Map<AspectKey<FooUrn, ? extends RecordTemplate>, AspectWithExtraInfo<? extends RecordTemplate>> getWithExtraInfo(
         @Nonnull Set<AspectKey<FooUrn, ? extends RecordTemplate>> keys) {
       return Collections.emptyMap();

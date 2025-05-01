@@ -152,6 +152,18 @@ public class RecordUtils {
   }
 
   /**
+   * The string-only version of the toRecordTemplate methods.
+   *
+   * @param className FQCN of the record class extending RecordTemplate
+   * @param jsonString a JSON string serialized using {@link JacksonDataTemplateCodec}
+   * @return the created {@link RecordTemplate}
+   */
+  @Nonnull
+  public static RecordTemplate toRecordTemplate(@Nonnull String className, @Nonnull String jsonString) {
+    return toRecordTemplate(className, toDataMap(jsonString));
+  }
+
+  /**
    * Gets the aspect from the aspect class.
    *
    * @param aspectClass the aspect class
