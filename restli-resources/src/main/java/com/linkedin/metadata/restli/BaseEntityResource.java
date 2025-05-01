@@ -167,6 +167,11 @@ public abstract class BaseEntityResource<
   @Nonnull
   protected abstract BaseLocalDAO<INTERNAL_ASPECT_UNION, URN> getLocalDAO();
 
+  @Nullable
+  protected BaseLocalDAO<INTERNAL_ASPECT_UNION, URN> getShadowLocalDAO() {
+    return null; // override in resource class only if needed
+  }
+
   /**
    * Creates an URN from its string representation.
    */
@@ -381,14 +386,22 @@ public abstract class BaseEntityResource<
    */
   @Nonnull
   protected Task<Void> ingestInternal(@Nonnull SNAPSHOT snapshot,
-      @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore, @Nullable IngestionTrackingContext trackingContext,
+      @Nonnull Set<Class<? extends RecordTemplate>> aspectsToIgnore,
+      @Nullable IngestionTrackingContext trackingContext,
       @Nullable IngestionParams ingestionParams) {
+
     return RestliUtils.toTask(() -> {
       final URN urn = (URN) ModelUtils.getUrnFromSnapshot(snapshot);
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
-      ModelUtils.getAspectsFromSnapshot(snapshot).stream().forEach(aspect -> {
+      ModelUtils.getAspectsFromSnapshot(snapshot).forEach(aspect -> {
         if (!aspectsToIgnore.contains(aspect.getClass())) {
+          // Write to primary
           getLocalDAO().add(urn, aspect, auditStamp, trackingContext, ingestionParams);
+          final BaseLocalDAO<INTERNAL_ASPECT_UNION, URN> shadowDao = getShadowLocalDAO();
+          // dual-write to shadow
+          if (shadowDao != null) {
+            shadowDao.add(urn, aspect, auditStamp, trackingContext, ingestionParams);
+          }
         }
       });
       return null;
@@ -413,6 +426,11 @@ public abstract class BaseEntityResource<
       ModelUtils.getAspectsFromSnapshot(snapshot).stream().forEach(aspect -> {
         if (!aspectsToIgnore.contains(aspect.getClass())) {
           getLocalDAO().rawAdd(urn, aspect, auditStamp, trackingContext, ingestionParams);
+          final BaseLocalDAO<INTERNAL_ASPECT_UNION, URN> shadowDao = getShadowLocalDAO();
+          // dual-write to shadow
+          if (shadowDao != null) {
+            shadowDao.add(urn, aspect, auditStamp, trackingContext, ingestionParams);
+          }
         }
       });
       return null;
@@ -438,6 +456,11 @@ public abstract class BaseEntityResource<
       ModelUtils.getAspectsFromAsset(asset).stream().forEach(aspect -> {
         if (!aspectsToIgnore.contains(aspect.getClass())) {
           getLocalDAO().add(urn, aspect, auditStamp, ingestionTrackingContext, ingestionParams);
+          final BaseLocalDAO<INTERNAL_ASPECT_UNION, URN> shadowDao = getShadowLocalDAO();
+          // dual-write to shadow
+          if (shadowDao != null) {
+            shadowDao.add(urn, aspect, auditStamp, ingestionTrackingContext, ingestionParams);
+          }
         }
       });
       return null;
@@ -463,6 +486,11 @@ public abstract class BaseEntityResource<
       ModelUtils.getAspectsFromAsset(asset).stream().forEach(aspect -> {
         if (!aspectsToIgnore.contains(aspect.getClass())) {
           getLocalDAO().rawAdd(urn, aspect, auditStamp, ingestionTrackingContext, ingestionParams);
+          final BaseLocalDAO<INTERNAL_ASPECT_UNION, URN> shadowDao = getShadowLocalDAO();
+          // dual-write to shadow
+          if (shadowDao != null) {
+            shadowDao.add(urn, aspect, auditStamp, ingestionTrackingContext, ingestionParams);
+          }
         }
       });
       return null;
