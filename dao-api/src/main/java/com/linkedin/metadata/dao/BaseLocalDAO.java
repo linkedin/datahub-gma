@@ -22,7 +22,6 @@ import com.linkedin.metadata.backfill.BackfillMode;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.equality.DefaultEqualityTester;
 import com.linkedin.metadata.dao.equality.EqualityTester;
-import com.linkedin.metadata.dao.exception.InvalidMetadataType;
 import com.linkedin.metadata.dao.exception.ModelValidationException;
 import com.linkedin.metadata.dao.ingestion.AspectCallbackResponse;
 import com.linkedin.metadata.dao.ingestion.BaseLambdaFunction;

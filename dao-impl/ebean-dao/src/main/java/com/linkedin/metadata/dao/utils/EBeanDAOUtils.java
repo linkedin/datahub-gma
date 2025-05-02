@@ -180,8 +180,8 @@ public class EBeanDAOUtils {
    */
   public static boolean isSoftDeletedAspect(@Nonnull EbeanMetadataAspect aspect) {
     try {
-      RecordUtils.toRecordTemplate(SoftDeletedAspect.class, aspect.getMetadata());
-      return true;
+      SoftDeletedAspect softDeletedAspect = RecordUtils.toRecordTemplate(SoftDeletedAspect.class, aspect.getMetadata());
+      return softDeletedAspect.hasGma_deleted();
     } catch (Exception e) {
       return false;
     }
@@ -298,8 +298,8 @@ public class EBeanDAOUtils {
    */
   public static boolean isSoftDeletedAspect(@Nonnull SqlRow sqlRow, @Nonnull String columnName) {
     try {
-      RecordUtils.toRecordTemplate(SoftDeletedAspect.class, sqlRow.getString(columnName));
-      return true;
+      SoftDeletedAspect softDeletedAspect = RecordUtils.toRecordTemplate(SoftDeletedAspect.class, sqlRow.getString(columnName));
+      return softDeletedAspect.hasGma_deleted();
     } catch (Exception e) {
       return false;
     }
