@@ -176,21 +176,16 @@ public class EBeanDAOUtils {
   }
 
   /**
-   * Checks whether the aspect record has been soft deleted.
-   *
-   * @param aspect aspect value
-   * @return boolean representing whether the aspect record has been soft deleted
+   * Same as {@link #isSoftDeletedAspect(SqlRow, String)}, but for {@link EbeanMetadataAspect}.
    */
   public static boolean isSoftDeletedAspect(@Nonnull EbeanMetadataAspect aspect) {
-    // Convert metadata string to record template object
     try {
-      SoftDeletedAspect attemptToCastToSDA = RecordUtils.toRecordTemplate(SoftDeletedAspect.class, aspect.getMetadata());
-      return attemptToCastToSDA.hasGma_deleted() && attemptToCastToSDA.isGma_deleted();
+      RecordUtils.toRecordTemplate(SoftDeletedAspect.class, aspect.getMetadata());
+      return true;
     } catch (Exception e) {
       return false;
     }
   }
-
 
   /**
    * Read {@link SqlRow} list into a {@link EbeanMetadataAspect} list.
@@ -244,7 +239,8 @@ public class EBeanDAOUtils {
 
   /**
    * Read EbeanMetadataAspect from {@link SqlRow}.
-   * Note that if the Aspect is (soft) deleted and the DB is on the NEW SCHEMA, the creation metadata will be
+   *
+   * <p>Note that if the Aspect is (soft) deleted and the DB is on the NEW SCHEMA, the creation metadata will be
    * associated with the *whole row*, not the individual aspect. There is currently no metadata stored for the deletion
    * of aspects.
    *
@@ -287,14 +283,23 @@ public class EBeanDAOUtils {
 
   /**
    * Checks whether the entity table record has been soft deleted.
+   *
+   * <p>NOTE: the ability to cast the aspect to a {@link SoftDeletedAspect} is sufficient to determine
+   * whether the aspect has been soft-deleted. This is because there are NO current use cases where we
+   * store a SoftDeletedAspect with the flag set to anything other than "true".
+   *
+   * <p>This "shallow check" is necessary because many usages of checking soft-deletion are followed by
+   * a deserialization call to {@link RecordUtils#toRecordTemplate(Class, String)}, which will fail if
+   * we try to deserialize a SoftDeletedAspect -- to another Aspect Type -- with the flag set to "false".
+   *
    * @param sqlRow {@link SqlRow} result from MySQL server
    * @param columnName column name of entity table
    * @return boolean representing whether the aspect record has been soft deleted
    */
   public static boolean isSoftDeletedAspect(@Nonnull SqlRow sqlRow, @Nonnull String columnName) {
     try {
-      SoftDeletedAspect aspect = RecordUtils.toRecordTemplate(SoftDeletedAspect.class, sqlRow.getString(columnName));
-      return aspect.hasGma_deleted() && aspect.isGma_deleted();
+      RecordUtils.toRecordTemplate(SoftDeletedAspect.class, sqlRow.getString(columnName));
+      return true;
     } catch (Exception e) {
       return false;
     }

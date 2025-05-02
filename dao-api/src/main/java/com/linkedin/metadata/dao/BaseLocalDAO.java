@@ -22,6 +22,7 @@ import com.linkedin.metadata.backfill.BackfillMode;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.equality.DefaultEqualityTester;
 import com.linkedin.metadata.dao.equality.EqualityTester;
+import com.linkedin.metadata.dao.exception.InvalidMetadataType;
 import com.linkedin.metadata.dao.exception.ModelValidationException;
 import com.linkedin.metadata.dao.ingestion.AspectCallbackResponse;
 import com.linkedin.metadata.dao.ingestion.BaseLambdaFunction;
@@ -61,6 +62,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -1743,7 +1745,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   private <ASPECT extends RecordTemplate> void backfill(@Nonnull BackfillMode mode, @Nonnull ASPECT aspect,
       @Nonnull URN urn) {
 
-    RecordTemplate oldValue = probeSoftDeletedValue(aspect);
+    RecordTemplate oldValue = probeSoftDeletedValue(aspect, urn.toString());
 
     if (mode == BackfillMode.MAE_ONLY
         || mode == BackfillMode.BACKFILL_ALL
@@ -2132,13 +2134,19 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   @VisibleForTesting
   @Nonnull
-  protected <ASPECT extends RecordTemplate> RecordTemplate probeSoftDeletedValue(@Nonnull ASPECT aspect) {
+  protected static <ASPECT extends RecordTemplate> RecordTemplate probeSoftDeletedValue(
+      @Nonnull ASPECT aspect, @Nonnull String urn) {
     if (aspect instanceof SoftDeletedAspect) {
       SoftDeletedAspect softDeletedAspect = (SoftDeletedAspect) aspect;
-      String aspectContent = softDeletedAspect.getGma_deleted_content().getAspect();
-      String aspectClassName = softDeletedAspect.getGma_deleted_content().getCanonicalName();
-      return RecordUtils.toRecordTemplate(aspectClassName, aspectContent);
+      if (!softDeletedAspect.hasGma_deleted_content()) {
+        throw new NoSuchElementException(
+            String.format("SoftDeletedAspect found for urn <%s> does not have gma_deleted_content field, cannot be backfilled.", urn));
+      }
+      return RecordUtils.toRecordTemplate(
+          softDeletedAspect.getGma_deleted_content().getCanonicalName(),
+          softDeletedAspect.getGma_deleted_content().getAspect());
     }
+    // if not a soft deleted aspect, return the original aspect as-is
     return aspect;
   }
 }

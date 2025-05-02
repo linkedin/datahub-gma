@@ -4,6 +4,8 @@ import com.linkedin.common.AuditStamp;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.UnionTemplate;
+import com.linkedin.metadata.aspect.AuditedAspect;
+import com.linkedin.metadata.aspect.SoftDeletedAspect;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.ingestion.AspectCallbackMapKey;
 import com.linkedin.metadata.dao.ingestion.AspectCallbackRoutingClient;
@@ -41,6 +43,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -808,5 +811,29 @@ public class BaseLocalDAOTest {
 
     // Verify that the result is the same as the input aspect since it's not registered
     assertEquals(result.getUpdatedAspect(), foo);
+  }
+
+  @Test
+  public void testProbeSoftDeletedValue() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+
+    // bypass (non-soft-deleted) pathway
+    AspectBar barExpected = new AspectBar().setValue("foo");
+    RecordTemplate fooActual = BaseLocalDAO.probeSoftDeletedValue(barExpected, urn.toString());
+    assertEquals(fooActual, barExpected);
+
+    // missing gma_deleted_content pathway
+    SoftDeletedAspect softDeletedAspectExpected = new SoftDeletedAspect();
+    assertThrows(NoSuchElementException.class,
+        () -> BaseLocalDAO.probeSoftDeletedValue(softDeletedAspectExpected, urn.toString()));
+
+    // ideal soft-delete pathway
+    AuditedAspect softDeletedContent = new AuditedAspect();
+    softDeletedContent.setAspect("{\"value\": \"foo\"}");
+    softDeletedContent.setCanonicalName("com.linkedin.testing.AspectBar");
+
+    softDeletedAspectExpected.setGma_deleted_content(softDeletedContent);
+    RecordTemplate softDeletedAspectIdealActual = BaseLocalDAO.probeSoftDeletedValue(softDeletedAspectExpected, urn.toString());
+    assertEquals(softDeletedAspectIdealActual, barExpected);
   }
 }

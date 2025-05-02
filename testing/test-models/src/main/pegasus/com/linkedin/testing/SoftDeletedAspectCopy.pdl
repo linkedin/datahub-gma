@@ -15,5 +15,5 @@ record SoftDeletedAspectCopy {
   /**
    * The deleted content of the aspect
    */
-  gma_deleted_content: AuditedAspect
+  gma_deleted_content: optional AuditedAspect
 }
