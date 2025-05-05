@@ -50,7 +50,6 @@ project.ext.externalDependency = [
     'jacksonDataBind': 'com.fasterxml.jackson.core:jackson-databind:2.17.2',
     'javatuples': 'org.javatuples:javatuples:1.2',
     'jsonSimple': 'com.googlecode.json-simple:json-simple:1.1.1',
-    'jsql': 'com.github.jsqlparser:jsqlparser:4.6',
     'junitJupiterApi': "org.junit.jupiter:junit-jupiter-api:$junitJupiterVersion",
     'junitJupiterParams': "org.junit.jupiter:junit-jupiter-params:$junitJupiterVersion",
     'junitJupiterEngine': "org.junit.jupiter:junit-jupiter-engine:$junitJupiterVersion",

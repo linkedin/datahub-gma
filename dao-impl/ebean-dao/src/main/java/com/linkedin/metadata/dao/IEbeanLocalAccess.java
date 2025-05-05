@@ -181,5 +181,5 @@ public interface IEbeanLocalAccess<URN extends Urn> {
   /**
    * Ensure table schemas are up-to-date according to db evolution scripts.
    */
-  void ensureSchemaUpToDate(boolean enableSchemaCheck);
+  void ensureSchemaUpToDate();
 }

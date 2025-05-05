@@ -12,7 +12,7 @@ public interface SchemaEvolutionManager {
    * Ensure database schema is up-to-date based on the evolution scripts defined in /db/evolution.
    * It has no effect if schema is already up-to-date.
    */
-  void ensureSchemaUpToDate(boolean enableSchemaCheck);
+  void ensureSchemaUpToDate();
 
   /**
    * Drop all the DB objects created for tracking schema evolution.
