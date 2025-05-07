@@ -65,11 +65,6 @@ public class RelationshipValidator {
       }
       // include "pairings" annotation
       validatePairings(schema);
-      // includes only primitive types
-      ValidationUtils.fieldsUsingInvalidType(schema, ValidationUtils.PRIMITIVE_TYPES).forEach(field -> {
-        ValidationUtils.invalidSchema("Relationship '%s' contains a field '%s' that makes use of a disallowed type '%s'.",
-            className, field.getName(), field.getType().getType());
-      });
     } else {
       // include "destination" field of UNION field
       if (!ValidationUtils.schemaHasExactlyOneSuchField(schema,
