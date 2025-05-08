@@ -668,7 +668,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       AspectUpdateResult result = aspectCallbackHelper(urn, newValue, oldValue, updateTuple.getIngestionParams(), auditStamp);
       newValue = (ASPECT) result.getUpdatedAspect();
       // skip the normal ingestion to the DAO
-      if (result.isSkipProcessing()) {
+      if (newValue == null || result.isSkipProcessing()) {
         return null;
       }
     }
