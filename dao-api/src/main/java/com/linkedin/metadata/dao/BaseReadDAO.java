@@ -8,7 +8,6 @@ import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.validator.AspectValidator;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -78,13 +77,7 @@ public abstract class BaseReadDAO<ASPECT_UNION extends UnionTemplate, URN extend
   public Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> get(
       @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nonnull Set<URN> urns) {
 
-
-    final Set<AspectKey<URN, ? extends RecordTemplate>> keys = new HashSet<>();
-    for (URN urn : urns) {
-      for (Class<? extends RecordTemplate> aspect : aspectClasses) {
-        keys.add(new AspectKey<>(aspect, urn, LATEST_VERSION));
-      }
-    }
+    final Set<AspectKey<URN, ? extends RecordTemplate>> keys = getKeysForLatestVersion(urns, aspectClasses);
 
     final Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> results = new HashMap<>();
     get(keys).entrySet().forEach(entry -> {
@@ -133,5 +126,12 @@ public abstract class BaseReadDAO<ASPECT_UNION extends UnionTemplate, URN extend
 
   protected void checkValidAspects(@Nonnull Set<Class<? extends RecordTemplate>> aspectClasses) {
     aspectClasses.forEach(aspectClass -> checkValidAspect(aspectClass));
+  }
+
+  protected Set<AspectKey<URN, ? extends RecordTemplate>> getKeysForLatestVersion(
+      @Nonnull Set<URN> urns, @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses) {
+    return urns.stream()
+        .flatMap(urn -> aspectClasses.stream().map(aspectClass -> new AspectKey<>(aspectClass, urn, LATEST_VERSION)))
+        .collect(Collectors.toSet());
   }
 }

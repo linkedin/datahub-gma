@@ -82,6 +82,9 @@ public class RecordUtilsTest {
 
     assertEquals(actual2.getClass(), AspectFoo.class);
     assertEquals(actual2, expected);
+
+    RecordTemplate actual3 = RecordUtils.toRecordTemplate("com.linkedin.testing.AspectFoo", jsonString);
+    assertEquals(actual3, expected);
   }
 
   @Test(expectedExceptions = ModelConversionException.class)

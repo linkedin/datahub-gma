@@ -58,6 +58,9 @@ import static org.testng.AssertJUnit.assertNotNull;
 
 public class EBeanDAOUtilsTest {
 
+  final static String SOFT_DELETED_ASPECT_WITH_DELETED_CONTENT = "{\"gma_deleted\": true,"
+      + "\"gma_deleted_content\": {\"aspect\": \"{removed: false}\", \"canonicalName\": \"com.linkedin.common.Status\","
+      + "\"lastmodifiedon\": \"0L\", \"lastmodifiedby\": \"urn:li:tester\"}}";
 
   @Nonnull
   private String readSQLfromFile(@Nonnull String resourcePath) {
@@ -573,6 +576,34 @@ public class EBeanDAOUtilsTest {
 
     when(sqlRow.getString("a_aspectbaz")).thenReturn("{\"random_value\": \"baz\"}");
     assertFalse(EBeanDAOUtils.isSoftDeletedAspect(sqlRow, "a_aspectbaz"));
+
+    // NOTE how this is should return "true"; see the explanation in the method javadoc
+    when(sqlRow.getString("a_aspectqux")).thenReturn("{\"gma_deleted\": false}");
+    assertTrue(EBeanDAOUtils.isSoftDeletedAspect(sqlRow, "a_aspectqux"));
+
+    when(sqlRow.getString("a_aspectbax")).thenReturn(SOFT_DELETED_ASPECT_WITH_DELETED_CONTENT);
+    assertTrue(EBeanDAOUtils.isSoftDeletedAspect(sqlRow, "a_aspectbax"));
+  }
+
+  @Test
+  public void testIsSoftDeletedAspectEbeanMetadataAspect() {
+    EbeanMetadataAspect ebeanMetadataAspect = new EbeanMetadataAspect();
+
+    ebeanMetadataAspect.setMetadata("{\"gma_deleted\": true}");
+    assertTrue(EBeanDAOUtils.isSoftDeletedAspect(ebeanMetadataAspect));
+
+    ebeanMetadataAspect.setMetadata(SOFT_DELETED_ASPECT_WITH_DELETED_CONTENT);
+    assertTrue(EBeanDAOUtils.isSoftDeletedAspect(ebeanMetadataAspect));
+
+    // NOTE how this is should return "true"; see the explanation in the method javadoc
+    ebeanMetadataAspect.setMetadata("{\"gma_deleted\": false}");
+    assertTrue(EBeanDAOUtils.isSoftDeletedAspect(ebeanMetadataAspect));
+
+    ebeanMetadataAspect.setMetadata("{\"aspect\": {\"value\": \"bar\"}, \"lastmodifiedby\": \"urn:li:tester\"}");
+    assertFalse(EBeanDAOUtils.isSoftDeletedAspect(ebeanMetadataAspect));
+
+    ebeanMetadataAspect.setMetadata("{\"random_value\": \"baz\"}");
+    assertFalse(EBeanDAOUtils.isSoftDeletedAspect(ebeanMetadataAspect));
   }
 
   @Test
