@@ -170,7 +170,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
    */
   private <ASPECT extends RecordTemplate, RELATIONSHIP extends RecordTemplate> void addRelationshipGroup(@Nullable Urn urn,
       @Nonnull Class<ASPECT> aspectClass, @Nonnull final List<RELATIONSHIP> relationshipGroup, boolean isTestMode) {
-    if (relationshipGroup.size() == 0) {
+    if (relationshipGroup.isEmpty()) {
       return;
     }
 
@@ -184,28 +184,32 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
 
     long now = Instant.now().toEpochMilli();
 
-    for (RELATIONSHIP relationship : relationshipGroup) {
+    // Set up the general insertion update with static parameters set (lastmodifiedon, lastmodifiedby, {aspect})
+    SqlUpdate sqlUpdate = _server.createSqlUpdate(SQLStatementUtils.insertLocalRelationshipSQL(
+        isTestMode ? SQLSchemaUtils.getTestRelationshipTableName(firstRelationship)
+            : SQLSchemaUtils.getRelationshipTableName(firstRelationship), relationshipGroup.size(), _useAspectColumnForRelationshipRemoval))
+        .setParameter(CommonColumnName.LAST_MODIFIED_ON, new Timestamp(now))
+        .setParameter(CommonColumnName.LAST_MODIFIED_BY, DEFAULT_ACTOR);
+    if (_useAspectColumnForRelationshipRemoval) {
+      sqlUpdate.setParameter(CommonColumnName.ASPECT, aspectClass.getCanonicalName());
+    }
+
+    // For each relationship, set the "values" to insert
+    for (int i = 0; i < relationshipGroup.size(); i++) {
+      RELATIONSHIP relationship = relationshipGroup.get(i);
       // Relationship model V2 doesn't include source urn, it needs to be passed in.
       // For relationship model V1, this given urn can be source urn or destination urn.
       // For relationship model V2, this given urn can only be source urn.
       Urn source = GraphUtils.getSourceUrnBasedOnRelationshipVersion(relationship, urn);
       Urn destination = getDestinationUrnFromRelationship(relationship);
 
-      SqlUpdate sqlUpdate = _server.createSqlUpdate(SQLStatementUtils.insertLocalRelationshipSQL(
-              isTestMode ? SQLSchemaUtils.getTestRelationshipTableName(relationship)
-                  : SQLSchemaUtils.getRelationshipTableName(relationship), _useAspectColumnForRelationshipRemoval))
-          .setParameter(CommonColumnName.METADATA, RecordUtils.toJsonString(relationship))
-          .setParameter(CommonColumnName.SOURCE_TYPE, source.getEntityType())
-          .setParameter(CommonColumnName.DESTINATION_TYPE, destination.getEntityType())
-          .setParameter(CommonColumnName.SOURCE, source.toString())
-          .setParameter(CommonColumnName.DESTINATION, destination.toString())
-          .setParameter(CommonColumnName.LAST_MODIFIED_ON, new Timestamp(now))
-          .setParameter(CommonColumnName.LAST_MODIFIED_BY, DEFAULT_ACTOR);
-      if (_useAspectColumnForRelationshipRemoval) {
-        sqlUpdate.setParameter(CommonColumnName.ASPECT, aspectClass.getCanonicalName());
-      }
-      sqlUpdate.execute();
+      sqlUpdate.setParameter(CommonColumnName.METADATA + i, RecordUtils.toJsonString(relationship))
+          .setParameter(CommonColumnName.SOURCE_TYPE + i, source.getEntityType())
+          .setParameter(CommonColumnName.DESTINATION_TYPE + i, destination.getEntityType())
+          .setParameter(CommonColumnName.SOURCE + i, source.toString())
+          .setParameter(CommonColumnName.DESTINATION + i, destination.toString());
     }
+    sqlUpdate.execute();
   }
 
   /**
