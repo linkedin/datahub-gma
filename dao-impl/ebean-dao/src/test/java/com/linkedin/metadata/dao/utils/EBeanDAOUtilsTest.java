@@ -721,6 +721,7 @@ public class EBeanDAOUtilsTest {
     assertEquals(softDeletedAspect.getGma_deleted_content().getCanonicalName(), "com.linkedin.testing.AspectFoo");
     assertEquals(softDeletedAspect.getGma_deleted_content().getAspect(), RecordUtils.toJsonString(fooAspect));
     assertEquals(softDeletedAspect.getGma_deleted_content().getLastmodifiedon(), timestamp.toString());
+    assertEquals(softDeletedAspect.getGma_deleted_content().getLastmodifiedby(), EBeanDAOUtils.UNSET_STRING_PLACEHOLDER);
 
     // edge case: null oldvalue, oldtimetstamp is irrelevant
     SoftDeletedAspect softDeletedAspect2 = EBeanDAOUtils.createSoftDeletedAspect(AspectFoo.class, null, timestamp);
@@ -732,6 +733,7 @@ public class EBeanDAOUtilsTest {
     assertTrue(softDeletedAspect.isGma_deleted());
     assertEquals(softDeletedAspect3.getGma_deleted_content().getCanonicalName(), "com.linkedin.testing.AspectFoo");
     assertEquals(softDeletedAspect3.getGma_deleted_content().getAspect(), RecordUtils.toJsonString(fooAspect));
-    assertFalse(softDeletedAspect3.getGma_deleted_content().hasLastmodifiedon());
+    assertEquals(softDeletedAspect3.getGma_deleted_content().getLastmodifiedon(), EBeanDAOUtils.UNSET_STRING_PLACEHOLDER);
+    assertEquals(softDeletedAspect3.getGma_deleted_content().getLastmodifiedby(), EBeanDAOUtils.UNSET_STRING_PLACEHOLDER);
   }
 }

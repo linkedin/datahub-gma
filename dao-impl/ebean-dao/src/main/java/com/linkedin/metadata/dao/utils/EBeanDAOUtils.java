@@ -1,6 +1,5 @@
 package com.linkedin.metadata.dao.utils;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.template.DataTemplateUtil;
@@ -61,6 +60,7 @@ public class EBeanDAOUtils {
   private static final RecordTemplate DELETED_METADATA = new SoftDeletedAspect().setGma_deleted(true);
   public static final String DELETED_VALUE = RecordUtils.toJsonString(DELETED_METADATA);
   private static final long LATEST_VERSION = 0L;
+  public static final String UNSET_STRING_PLACEHOLDER = "NOT_SET";
 
   private EBeanDAOUtils() {
     // Utils class
@@ -439,6 +439,8 @@ public class EBeanDAOUtils {
    * many fields available for us to "recreate" it; below is all we can access without performing yet another DB READ.
    * In the future, if this is a gap for un-delete support, we can consider (heavy) refactoring of these pathways.
    *
+   * <p>Note that in order to adhere to Pegasus-defined schema, we need to ensure that "required" fields are set.
+   *
    * @param aspectClass the class of the aspect
    * @param oldValue the old value of the aspect
    * @param oldTimestamp the timestamp of the old value
@@ -451,10 +453,9 @@ public class EBeanDAOUtils {
     if (oldValue != null) {
       final AuditedAspect auditedAspect = new AuditedAspect()
           .setCanonicalName(aspectClass.getCanonicalName())
-          .setAspect(RecordUtils.toJsonString(oldValue));
-      if (oldTimestamp != null) {
-        auditedAspect.setLastmodifiedon(oldTimestamp.toString());
-      }
+          .setAspect(RecordUtils.toJsonString(oldValue))
+          .setLastmodifiedon(oldTimestamp != null ? oldTimestamp.toString() : UNSET_STRING_PLACEHOLDER)
+          .setLastmodifiedby(UNSET_STRING_PLACEHOLDER);
       softDeletedAspect.setGma_deleted_content(auditedAspect);
     }
     return softDeletedAspect;
