@@ -586,6 +586,10 @@ public class EBeanDAOUtilsTest {
 
     when(sqlRow.getString("a_aspectbax")).thenReturn(SOFT_DELETED_ASPECT_WITH_DELETED_CONTENT);
     assertTrue(EBeanDAOUtils.isSoftDeletedAspect(sqlRow, "a_aspectbax"));
+
+    when(sqlRow.getString("a_aspectbazz"))
+        .thenReturn("input that should fail being able to serialize as a RecordTemplate entirely");
+    assertFalse(EBeanDAOUtils.isSoftDeletedAspect(sqlRow, "a_aspectbazz"));
   }
 
   @Test
@@ -606,6 +610,9 @@ public class EBeanDAOUtilsTest {
     assertFalse(EBeanDAOUtils.isSoftDeletedAspect(ebeanMetadataAspect));
 
     ebeanMetadataAspect.setMetadata("{\"random_value\": \"baz\"}");
+    assertFalse(EBeanDAOUtils.isSoftDeletedAspect(ebeanMetadataAspect));
+
+    ebeanMetadataAspect.setMetadata("input that should fail being able to serialize as a RecordTemplate entirely");
     assertFalse(EBeanDAOUtils.isSoftDeletedAspect(ebeanMetadataAspect));
   }
 

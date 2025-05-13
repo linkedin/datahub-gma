@@ -221,10 +221,10 @@ public final class ValidationUtils {
 
   /**
    * Validates a model against its schema, useful for checking to make sure that a (curli) ingestion request's
-   * fields are all valid fields of the model.
+   * fields are all valid fields of the model: unrecognized fields should be disallowed.
    *
    * <p>This is copied from BaseLocalDAO, which uses this for Aspect-level ingestion validation. This is meant for
-   * Asset-level validation.</p>
+   * Asset-level validation but can be used generally as well.</p>
    *
    * <p>Reference ticket: META-21242</p>
    */

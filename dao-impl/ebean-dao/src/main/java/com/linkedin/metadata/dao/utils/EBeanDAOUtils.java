@@ -1,5 +1,6 @@
 package com.linkedin.metadata.dao.utils;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.template.DataTemplateUtil;
@@ -19,6 +20,7 @@ import com.linkedin.metadata.query.LocalRelationshipCriterion;
 import com.linkedin.metadata.query.LocalRelationshipValue;
 import com.linkedin.metadata.query.RelationshipField;
 import com.linkedin.metadata.query.UrnField;
+import com.linkedin.metadata.validator.ValidationUtils;
 import io.ebean.EbeanServer;
 import io.ebean.SqlRow;
 import java.lang.reflect.InvocationTargetException;
@@ -176,19 +178,6 @@ public class EBeanDAOUtils {
   }
 
   /**
-   * Same as {@link #isSoftDeletedAspect(SqlRow, String)}, but for {@link EbeanMetadataAspect}.
-   */
-  public static boolean isSoftDeletedAspect(@Nonnull EbeanMetadataAspect aspect) {
-    try {
-      SoftDeletedAspect softDeletedAspect = RecordUtils.toRecordTemplate(SoftDeletedAspect.class, aspect.getMetadata());
-      return softDeletedAspect.hasGma_deleted();
-    } catch (Exception e) {
-      return false;
-    }
-  }
-
-
-  /**
    * Read {@link SqlRow} list into a {@link EbeanMetadataAspect} list.
    * @param sqlRows list of {@link SqlRow}
    * @return list of {@link EbeanMetadataAspect}
@@ -275,13 +264,14 @@ public class EBeanDAOUtils {
   }
 
   /**
-   * Checks whether the entity table record has been soft deleted.
+   * Checks whether a record is Soft Deleted.
    *
-   * <p>NOTE: the ability to cast the aspect to a {@link SoftDeletedAspect} is sufficient to determine
-   * whether the aspect has been soft-deleted. This is because there are NO current use cases where we
-   * store a SoftDeletedAspect with the flag set to anything other than "true".
+   * <p>NOTE: Since soft deleted aspects are modeled as a specific aspect type -- SoftDeletedAspect -- the ability
+   * to cast the aspect to a {@link SoftDeletedAspect} is sufficient to determine whether the aspect *is* Soft Deleted.
+   * In other words, there are no current use cases where we store a SoftDeletedAspect with the `gma_deleted` flag set to
+   * anything other than "true".
    *
-   * <p>This "shallow check" is necessary because many usages of checking soft-deletion are followed by
+   * <p>This validation approach is necessary because many usages of checking soft-deletion are followed by
    * a deserialization call to {@link RecordUtils#toRecordTemplate(Class, String)}, which will fail if
    * we try to deserialize a SoftDeletedAspect -- to another Aspect Type -- with the flag set to "false".
    *
@@ -290,9 +280,21 @@ public class EBeanDAOUtils {
    * @return boolean representing whether the aspect record has been soft deleted
    */
   public static boolean isSoftDeletedAspect(@Nonnull SqlRow sqlRow, @Nonnull String columnName) {
+    return isSoftDeletedAspect(sqlRow.getString(columnName));
+  }
+
+  /**
+   * Same as {@link #isSoftDeletedAspect(SqlRow, String)}, but for {@link EbeanMetadataAspect}.
+   */
+  public static boolean isSoftDeletedAspect(@Nonnull EbeanMetadataAspect aspect) {
+    return isSoftDeletedAspect(aspect.getMetadata());
+  }
+
+  private static boolean isSoftDeletedAspect(@Nonnull String metadata) {
     try {
-      SoftDeletedAspect softDeletedAspect = RecordUtils.toRecordTemplate(SoftDeletedAspect.class, sqlRow.getString(columnName));
-      return softDeletedAspect.hasGma_deleted();
+      SoftDeletedAspect softDeletedAspect = RecordUtils.toRecordTemplate(SoftDeletedAspect.class, metadata);
+      ValidationUtils.validateAgainstSchema(softDeletedAspect);
+      return true;
     } catch (Exception e) {
       return false;
     }
