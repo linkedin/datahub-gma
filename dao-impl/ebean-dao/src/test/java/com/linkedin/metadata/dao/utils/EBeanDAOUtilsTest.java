@@ -6,6 +6,7 @@ import com.linkedin.data.template.IntegerArray;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.StringArray;
 import com.linkedin.metadata.aspect.AuditedAspect;
+import com.linkedin.metadata.aspect.SoftDeletedAspect;
 import com.linkedin.metadata.dao.BaseLocalDAO;
 import com.linkedin.metadata.dao.EbeanLocalAccess;
 import com.linkedin.metadata.dao.EbeanMetadataAspect;
@@ -52,12 +53,14 @@ import static com.linkedin.testing.TestUtils.*;
 import static org.mockito.Mockito.*;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
-import static org.testng.AssertJUnit.assertEquals;
-import static org.testng.AssertJUnit.assertNotNull;
+import static org.testng.AssertJUnit.*;
 
 
 public class EBeanDAOUtilsTest {
 
+  final static String SOFT_DELETED_ASPECT_WITH_DELETED_CONTENT = "{\"gma_deleted\": true,"
+      + "\"gma_deleted_content\": {\"aspect\": \"{removed: false}\", \"canonicalName\": \"com.linkedin.common.Status\","
+      + "\"lastmodifiedon\": \"0L\", \"lastmodifiedby\": \"urn:li:tester\"}}";
 
   @Nonnull
   private String readSQLfromFile(@Nonnull String resourcePath) {
@@ -573,6 +576,37 @@ public class EBeanDAOUtilsTest {
 
     when(sqlRow.getString("a_aspectbaz")).thenReturn("{\"random_value\": \"baz\"}");
     assertFalse(EBeanDAOUtils.isSoftDeletedAspect(sqlRow, "a_aspectbaz"));
+
+    when(sqlRow.getString("a_aspectbaz")).thenReturn("{\"random_value\": \"baz\"}");
+    assertFalse(EBeanDAOUtils.isSoftDeletedAspect(sqlRow, "a_aspectbaz"));
+
+    // NOTE how this is should return "true"; see the explanation in the method javadoc
+    when(sqlRow.getString("a_aspectqux")).thenReturn("{\"gma_deleted\": false}");
+    assertTrue(EBeanDAOUtils.isSoftDeletedAspect(sqlRow, "a_aspectqux"));
+
+    when(sqlRow.getString("a_aspectbax")).thenReturn(SOFT_DELETED_ASPECT_WITH_DELETED_CONTENT);
+    assertTrue(EBeanDAOUtils.isSoftDeletedAspect(sqlRow, "a_aspectbax"));
+  }
+
+  @Test
+  public void testIsSoftDeletedAspectEbeanMetadataAspect() {
+    EbeanMetadataAspect ebeanMetadataAspect = new EbeanMetadataAspect();
+
+    ebeanMetadataAspect.setMetadata("{\"gma_deleted\": true}");
+    assertTrue(EBeanDAOUtils.isSoftDeletedAspect(ebeanMetadataAspect));
+
+    ebeanMetadataAspect.setMetadata(SOFT_DELETED_ASPECT_WITH_DELETED_CONTENT);
+    assertTrue(EBeanDAOUtils.isSoftDeletedAspect(ebeanMetadataAspect));
+
+    // NOTE how this is should return "true"; see the explanation in the method javadoc
+    ebeanMetadataAspect.setMetadata("{\"gma_deleted\": false}");
+    assertTrue(EBeanDAOUtils.isSoftDeletedAspect(ebeanMetadataAspect));
+
+    ebeanMetadataAspect.setMetadata("{\"aspect\": {\"value\": \"bar\"}, \"lastmodifiedby\": \"urn:li:tester\"}");
+    assertFalse(EBeanDAOUtils.isSoftDeletedAspect(ebeanMetadataAspect));
+
+    ebeanMetadataAspect.setMetadata("{\"random_value\": \"baz\"}");
+    assertFalse(EBeanDAOUtils.isSoftDeletedAspect(ebeanMetadataAspect));
   }
 
   @Test
@@ -667,5 +701,23 @@ public class EBeanDAOUtilsTest {
     assertTrue(results.get(AnnotatedRelationshipFoo.class).contains(test2));
     assertTrue(results.get(AnnotatedRelationshipFoo.class).contains(test3));
     assertTrue(results.get(AnnotatedRelationshipBar.class).contains(new AnnotatedRelationshipBar()));
+  }
+
+  @Test
+  public void testCreateSoftDeletedAspect() {
+    // ideal case: nonnull oldvalue and oldtimestamp
+    AspectFoo fooAspect = new AspectFoo().setValue("foo");
+    Timestamp timestamp = new Timestamp(0L);
+
+    SoftDeletedAspect softDeletedAspect = EBeanDAOUtils.createSoftDeletedAspect(AspectFoo.class, fooAspect, timestamp);
+    assertTrue(softDeletedAspect.isGma_deleted());
+    assertEquals(softDeletedAspect.getGma_deleted_content().getCanonicalName(), "com.linkedin.testing.AspectFoo");
+    assertEquals(softDeletedAspect.getGma_deleted_content().getAspect(), RecordUtils.toJsonString(fooAspect));
+    assertEquals(softDeletedAspect.getGma_deleted_content().getLastmodifiedon(), timestamp.toString());
+
+    // edge case: null oldvalue
+    SoftDeletedAspect softDeletedAspect2 = EBeanDAOUtils.createSoftDeletedAspect(AspectFoo.class, null, timestamp);
+    assertTrue(softDeletedAspect.isGma_deleted());
+    assertNull(softDeletedAspect2.getGma_deleted_content());
   }
 }

@@ -22,7 +22,7 @@ public interface IEbeanLocalAccess<URN extends Urn> {
   void setUrnPathExtractor(@Nonnull UrnPathExtractor<URN> urnPathExtractor);
 
   /**
-   * Upsert aspect into entity table.
+   * Upsert aspect into entity table (without Optimistic Locking).
    *
    * @param <ASPECT>                 metadata aspect value
    * @param urn                      entity urn
@@ -37,10 +37,32 @@ public interface IEbeanLocalAccess<URN extends Urn> {
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext ingestionTrackingContext, boolean isTestMode);
 
   /**
+   * Same as {@link #add(Urn, RecordTemplate, Class, AuditStamp, IngestionTrackingContext, boolean)} but takes into
+   * account the old value of the aspect.
+   *
+   * <p>TODO: Consider whether to deprecate the no-OldValue version of this method to avoid confusion.
+   * The only use case of the OldValue at the moment is to support soft-deletion (on the new schema).
+   *
+   * @param <ASPECT>                 metadata aspect value
+   * @param urn                      entity urn
+   * @param oldValue                 old aspect value in {@link RecordTemplate}
+   * @param newValue                 aspect value in {@link RecordTemplate}
+   * @param aspectClass              class of the aspect
+   * @param auditStamp               audit timestamp
+   * @param ingestionTrackingContext the ingestionTrackingContext of the MCE responsible for this update
+   * @param isTestMode               whether the test mode is enabled or not
+   * @return number of rows inserted or updated
+   */
+  <ASPECT extends RecordTemplate> int addWithOldValue(@Nonnull URN urn, @Nullable ASPECT oldValue, @Nullable ASPECT newValue,
+      @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext ingestionTrackingContext,
+      boolean isTestMode);
+
+  /**
    * Update aspect on entity table with optimistic locking. (compare-and-update on oldTimestamp).
    *
    * @param <ASPECT>                 metadata aspect value
    * @param urn                      entity urn
+   * @param oldValue                 old aspect value in {@link RecordTemplate}
    * @param newValue                 aspect value in {@link RecordTemplate}
    * @param aspectClass              class of the aspect
    * @param auditStamp               audit timestamp
@@ -49,7 +71,7 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * @param isTestMode               whether the test mode is enabled or not
    * @return number of rows inserted or updated
    */
-  <ASPECT extends RecordTemplate> int addWithOptimisticLocking(@Nonnull URN urn, @Nullable ASPECT newValue,
+  <ASPECT extends RecordTemplate> int addWithOptimisticLocking(@Nonnull URN urn, @Nullable ASPECT oldValue, @Nullable ASPECT newValue,
       @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, @Nullable Timestamp oldTimestamp,
       @Nullable IngestionTrackingContext ingestionTrackingContext, boolean isTestMode);
 
