@@ -39,7 +39,7 @@ import static com.linkedin.metadata.restli.RestliConstants.*;
 
 
 /**
- * This resource is intended to be used as top level resousce, instead of a sub resource.
+ * This resource is intended to be used as top level resource, instead of a sub resource.
  * For sub-resource please use {@link BaseVersionedAspectResource}
  *
  * @param <URN> must be a valid {@link Urn} type
@@ -79,6 +79,12 @@ public abstract class BaseAspectV2Resource<
   protected abstract BaseLocalDAO<ASPECT_UNION, URN> getLocalDAO();
 
   /**
+   *
+   * @return {@link BaseLocalDAO} for shadowing the aspect.
+   */
+  protected abstract BaseLocalDAO<ASPECT_UNION, URN> getLocalShadowDAO();
+
+  /**
    * Get the ASPECT associated with URN.
    */
   @RestMethod.Get
@@ -112,6 +118,10 @@ public abstract class BaseAspectV2Resource<
     return RestliUtils.toTask(() -> {
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
       getLocalDAO().add(urn, aspect, auditStamp);
+      BaseLocalDAO<ASPECT_UNION, URN> shadowLocalDao = getLocalShadowDAO();
+      if (shadowLocalDao != null) {
+        shadowLocalDao.add(urn, aspect, auditStamp);
+      }
       return new CreateResponse(HttpStatus.S_201_CREATED);
     });
   }
@@ -123,6 +133,10 @@ public abstract class BaseAspectV2Resource<
     return RestliUtils.toTask(() -> {
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
       getLocalDAO().add(urn, aspect, auditStamp, trackingContext, ingestionParams);
+      BaseLocalDAO<ASPECT_UNION, URN> shadowLocalDao = getLocalShadowDAO();
+      if (shadowLocalDao != null) {
+        shadowLocalDao.add(urn, aspect, auditStamp, trackingContext, ingestionParams);
+      }
       return new CreateResponse(HttpStatus.S_201_CREATED);
     });
   }
@@ -138,6 +152,10 @@ public abstract class BaseAspectV2Resource<
     return RestliUtils.toTask(() -> {
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
       final ASPECT newValue = getLocalDAO().add(urn, _aspectClass, createLambda, auditStamp);
+      BaseLocalDAO<ASPECT_UNION, URN> shadowLocalDao = getLocalShadowDAO();
+      if (shadowLocalDao != null) {
+        shadowLocalDao.add(urn, _aspectClass, createLambda, auditStamp);
+      }
       return new CreateKVResponse<>(urn, newValue);
     });
   }

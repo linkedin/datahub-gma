@@ -72,6 +72,12 @@ public abstract class BaseVersionedAspectResource<URN extends Urn, ASPECT_UNION 
   protected abstract BaseLocalDAO<ASPECT_UNION, URN> getLocalDAO();
 
   /**
+   *
+   * @return {@link BaseLocalDAO} for shadowing the aspect.
+   */
+  protected abstract BaseLocalDAO<ASPECT_UNION, URN> getLocalShadowDAO();
+
+  /**
    * Constructs an entity-specific {@link Urn} based on the entity's {@link PathKeys}.
    */
   @Nonnull
@@ -109,6 +115,10 @@ public abstract class BaseVersionedAspectResource<URN extends Urn, ASPECT_UNION 
       final URN urn = getUrn(getContext().getPathKeys());
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
       getLocalDAO().add(urn, aspect, auditStamp);
+      BaseLocalDAO<ASPECT_UNION, URN> shadowLocalDao = getLocalShadowDAO();
+      if (shadowLocalDao != null) {
+        shadowLocalDao.add(urn, aspect, auditStamp);
+      }
       return new CreateResponse(HttpStatus.S_201_CREATED);
     });
   }
@@ -139,6 +149,10 @@ public abstract class BaseVersionedAspectResource<URN extends Urn, ASPECT_UNION 
       final URN urn = getUrn(getContext().getPathKeys());
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
       getLocalDAO().add(urn, aspectClass, createLambda, auditStamp);
+      BaseLocalDAO<ASPECT_UNION, URN> shadowLocalDao = getLocalShadowDAO();
+      if (shadowLocalDao != null) {
+        shadowLocalDao.add(urn, aspectClass, createLambda, auditStamp);
+      }
       return new CreateResponse(HttpStatus.S_201_CREATED);
     });
   }
@@ -156,6 +170,10 @@ public abstract class BaseVersionedAspectResource<URN extends Urn, ASPECT_UNION 
       final URN urn = getUrn(getContext().getPathKeys());
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
       final ASPECT newValue = getLocalDAO().add(urn, aspectClass, createLambda, auditStamp);
+      BaseLocalDAO<ASPECT_UNION, URN> shadowLocalDao = getLocalShadowDAO();
+      if (shadowLocalDao != null) {
+        shadowLocalDao.add(urn, aspectClass, createLambda, auditStamp);
+      }
       return new CreateKVResponse<>(LATEST_VERSION, newValue);
     });
   }
