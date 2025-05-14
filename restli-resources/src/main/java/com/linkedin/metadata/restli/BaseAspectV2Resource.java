@@ -82,7 +82,9 @@ public abstract class BaseAspectV2Resource<
    *
    * @return {@link BaseLocalDAO} for shadowing the aspect.
    */
-  protected abstract BaseLocalDAO<ASPECT_UNION, URN> getLocalShadowDAO();
+  protected BaseLocalDAO<ASPECT_UNION, URN> getLocalShadowDAO() {
+    return null;
+  }
 
   /**
    * Get the ASPECT associated with URN.

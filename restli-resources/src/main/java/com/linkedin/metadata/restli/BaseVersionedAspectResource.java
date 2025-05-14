@@ -75,7 +75,9 @@ public abstract class BaseVersionedAspectResource<URN extends Urn, ASPECT_UNION 
    *
    * @return {@link BaseLocalDAO} for shadowing the aspect.
    */
-  protected abstract BaseLocalDAO<ASPECT_UNION, URN> getLocalShadowDAO();
+  protected BaseLocalDAO<ASPECT_UNION, URN> getLocalShadowDAO() {
+    return null;
+  }
 
   /**
    * Constructs an entity-specific {@link Urn} based on the entity's {@link PathKeys}.
