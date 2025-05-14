@@ -137,6 +137,10 @@ public abstract class BaseVersionedAspectResource<URN extends Urn, ASPECT_UNION 
       final URN urn = getUrn(getContext().getPathKeys());
       final AuditStamp auditStamp = getAuditor().requestAuditStamp(getContext().getRawRequestContext());
       getLocalDAO().delete(urn, this._aspectClass, auditStamp);
+      BaseLocalDAO<ASPECT_UNION, URN> shadowLocalDao = getLocalShadowDAO();
+      if (shadowLocalDao != null) {
+        shadowLocalDao.delete(urn, this._aspectClass, auditStamp);
+      }
       return new UpdateResponse(HttpStatus.S_200_OK);
     });
   }
