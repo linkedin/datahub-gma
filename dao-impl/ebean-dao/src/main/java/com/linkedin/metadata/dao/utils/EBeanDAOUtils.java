@@ -19,6 +19,7 @@ import com.linkedin.metadata.query.LocalRelationshipCriterion;
 import com.linkedin.metadata.query.LocalRelationshipValue;
 import com.linkedin.metadata.query.RelationshipField;
 import com.linkedin.metadata.query.UrnField;
+import com.linkedin.metadata.validator.ValidationUtils;
 import io.ebean.EbeanServer;
 import io.ebean.SqlRow;
 import java.lang.reflect.InvocationTargetException;
@@ -59,6 +60,7 @@ public class EBeanDAOUtils {
   private static final RecordTemplate DELETED_METADATA = new SoftDeletedAspect().setGma_deleted(true);
   public static final String DELETED_VALUE = RecordUtils.toJsonString(DELETED_METADATA);
   private static final long LATEST_VERSION = 0L;
+  public static final String UNSET_STRING_PLACEHOLDER = "NOT_SET";
 
   private EBeanDAOUtils() {
     // Utils class
@@ -176,21 +178,6 @@ public class EBeanDAOUtils {
   }
 
   /**
-   * Checks whether the aspect record has been soft deleted.
-   *
-   * @param aspect aspect value
-   * @param aspectClass the type of the aspect
-   * @return boolean representing whether the aspect record has been soft deleted
-   */
-  public static <ASPECT extends RecordTemplate> boolean isSoftDeletedAspect(@Nonnull EbeanMetadataAspect aspect,
-      @Nonnull Class<ASPECT> aspectClass) {
-    // Convert metadata string to record template object
-    final RecordTemplate metadataRecord = RecordUtils.toRecordTemplate(aspectClass, aspect.getMetadata());
-    return metadataRecord.equals(DELETED_METADATA);
-  }
-
-
-  /**
    * Read {@link SqlRow} list into a {@link EbeanMetadataAspect} list.
    * @param sqlRows list of {@link SqlRow}
    * @return list of {@link EbeanMetadataAspect}
@@ -277,15 +264,37 @@ public class EBeanDAOUtils {
   }
 
   /**
-   * Checks whether the entity table record has been soft deleted.
+   * Checks whether a record is Soft Deleted.
+   *
+   * <p>NOTE: Since soft deleted aspects are modeled as a specific aspect type -- SoftDeletedAspect -- the ability
+   * to cast the aspect to a {@link SoftDeletedAspect} is sufficient to determine whether the aspect *is* Soft Deleted.
+   * In other words, there are no current use cases where we store a SoftDeletedAspect with the `gma_deleted` flag set to
+   * anything other than "true".
+   *
+   * <p>This validation approach is necessary because many usages of checking soft-deletion are followed by
+   * a deserialization call to {@link RecordUtils#toRecordTemplate(Class, String)}, which will fail if
+   * we try to deserialize a SoftDeletedAspect -- to another Aspect Type -- with the flag set to "false".
+   *
    * @param sqlRow {@link SqlRow} result from MySQL server
    * @param columnName column name of entity table
    * @return boolean representing whether the aspect record has been soft deleted
    */
   public static boolean isSoftDeletedAspect(@Nonnull SqlRow sqlRow, @Nonnull String columnName) {
+    return isSoftDeletedAspect(sqlRow.getString(columnName));
+  }
+
+  /**
+   * Same as {@link #isSoftDeletedAspect(SqlRow, String)}, but for {@link EbeanMetadataAspect}.
+   */
+  public static boolean isSoftDeletedAspect(@Nonnull EbeanMetadataAspect aspect) {
+    return isSoftDeletedAspect(aspect.getMetadata());
+  }
+
+  private static boolean isSoftDeletedAspect(@Nonnull String metadata) {
     try {
-      SoftDeletedAspect aspect = RecordUtils.toRecordTemplate(SoftDeletedAspect.class, sqlRow.getString(columnName));
-      return aspect.hasGma_deleted() && aspect.isGma_deleted();
+      SoftDeletedAspect softDeletedAspect = RecordUtils.toRecordTemplate(SoftDeletedAspect.class, metadata);
+      ValidationUtils.validateAgainstSchema(softDeletedAspect);
+      return true;
     } catch (Exception e) {
       return false;
     }
@@ -421,6 +430,35 @@ public class EBeanDAOUtils {
       }
     });
     return relationshipMap;
+  }
+
+  /**
+   * Create a soft deleted aspect with the given old value and timestamp.
+   *
+   * <p>NOTE: Because current write pathways for soft-deletion do not query for the full AuditedAspect, we do not have
+   * many fields available for us to "recreate" it; below is all we can access without performing yet another DB READ.
+   * In the future, if this is a gap for un-delete support, we can consider (heavy) refactoring of these pathways.
+   *
+   * <p>Note that in order to adhere to Pegasus-defined schema, we need to ensure that "required" fields are set.
+   *
+   * @param aspectClass the class of the aspect
+   * @param oldValue the old value of the aspect
+   * @param oldTimestamp the timestamp of the old value
+   * @return a SoftDeletedAspect with the given old value and timestamp
+   */
+  @Nonnull
+  public static <ASPECT extends RecordTemplate> SoftDeletedAspect createSoftDeletedAspect(
+      @Nonnull Class<ASPECT> aspectClass, @Nullable ASPECT oldValue, @Nullable Timestamp oldTimestamp) {
+    final SoftDeletedAspect softDeletedAspect = new SoftDeletedAspect().setGma_deleted(true);
+    if (oldValue != null) {
+      final AuditedAspect auditedAspect = new AuditedAspect()
+          .setCanonicalName(aspectClass.getCanonicalName())
+          .setAspect(RecordUtils.toJsonString(oldValue))
+          .setLastmodifiedon(oldTimestamp != null ? oldTimestamp.toString() : UNSET_STRING_PLACEHOLDER)
+          .setLastmodifiedby(UNSET_STRING_PLACEHOLDER);
+      softDeletedAspect.setGma_deleted_content(auditedAspect);
+    }
+    return softDeletedAspect;
   }
 
   // Using the GmaAnnotationParser, extract the model type from the @gma.model annotation on any models.
