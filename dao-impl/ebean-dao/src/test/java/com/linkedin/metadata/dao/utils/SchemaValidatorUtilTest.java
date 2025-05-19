@@ -67,4 +67,15 @@ public class SchemaValidatorUtilTest {
     }
   }
 
+  @Test
+  public void testCheckIndexExists() {
+    assertFalse(validator.indexExists("metadata_entity_foo", "i_aspect_not_exist"));
+
+    if (!ebeanConfig.isNonDollarVirtualColumnsEnabled()) {
+      assertTrue(validator.indexExists("metadata_entity_foo", "i_aspectfoo$value"));
+    } else {
+      assertTrue(validator.indexExists("metadata_entity_foo", "i_aspectfoo0value"));
+    }
+  }
+
 }
