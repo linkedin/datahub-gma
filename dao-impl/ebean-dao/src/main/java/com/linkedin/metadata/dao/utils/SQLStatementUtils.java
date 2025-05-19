@@ -112,8 +112,6 @@ public class SQLStatementUtils {
 
   private static final String INDEX_GROUP_BY_CRITERION = "SELECT count(*) as COUNT, %s FROM %s";
 
-  private static final String SQL_GET_ALL_COLUMNS =
-      "SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = database() AND TABLE_NAME = '%s'";
   private static final String SQL_URN_EXIST_TEMPLATE = "SELECT urn FROM %s WHERE urn = '%s'";
 
   private static final String INSERT_LOCAL_RELATIONSHIP = "INSERT INTO %s (metadata, source, destination, source_type, "
@@ -342,9 +340,6 @@ public class SQLStatementUtils {
     return sb.toString();
   }
 
-  public static String getAllColumnForTable(String tableName) {
-    return String.format(SQL_GET_ALL_COLUMNS, tableName);
-  }
 
   /**
    * Create aspect browse SQL statement.

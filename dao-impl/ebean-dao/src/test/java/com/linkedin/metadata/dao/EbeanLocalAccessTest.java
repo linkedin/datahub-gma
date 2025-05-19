@@ -405,18 +405,6 @@ public class EbeanLocalAccessTest {
   }
 
   @Test
-  public void testCheckColumnExists() {
-    assertTrue(_ebeanLocalAccessFoo.checkColumnExists("metadata_entity_foo", "a_aspectfoo"));
-    assertFalse(_ebeanLocalAccessFoo.checkColumnExists("metadata_entity_foo", "a_aspect_not_exist"));
-    assertFalse(_ebeanLocalAccessFoo.checkColumnExists("metadata_entity_notexist", "a_aspectfoo"));
-    if (!_ebeanConfig.isNonDollarVirtualColumnsEnabled()) {
-      assertTrue(_ebeanLocalAccessFoo.checkColumnExists("metadata_entity_foo", "i_aspectfoo$value"));
-    } else {
-      assertTrue(_ebeanLocalAccessFoo.checkColumnExists("metadata_entity_foo", "i_aspectfoo0value"));
-    }
-  }
-
-  @Test
   public void testCreateNewAspect() {
     FooUrn fooUrn = makeFooUrn(101);
     AspectFoo aspectFoo = new AspectFoo().setValue("foo");
