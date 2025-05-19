@@ -102,8 +102,8 @@ CREATE INDEX i_aspectfoo$value ON metadata_entity_foo (urn(50), i_aspectfoo$valu
 -- create index for index column
 CREATE INDEX i_aspectbar$value ON metadata_entity_foo (urn(50), i_aspectbar$value);
 
---create index for column a_aspectbar
-CREATE INDEX idx_aspect_bar ON metadata_entity_foo(a_aspectbar);
+--create index on metadata_relationship_belongsto table
+CREATE INDEX idx_destination_deleted_ts ON metadata_relationship_belongsto(deleted_ts, destination);
 
 
 -- create index idx_long_val on metadata_index (aspect,path(50),longval,urn(50));
