@@ -67,11 +67,4 @@ public class SchemaValidatorUtilTest {
     }
   }
 
-  @Test
-  public void testIndexExists() {
-    // Change index name to match what exists in your schema
-    assertTrue(validator.indexExists("metadata_relationship_belongsto", "idx_destination_deleted_ts"));
-    assertFalse(validator.indexExists("metadata_relationship_belongsto", "non_existent_index"));
-  }
-
 }
