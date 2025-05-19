@@ -2,7 +2,6 @@ package com.linkedin.metadata.dao.utils;
 
 import com.google.common.io.Resources;
 import com.linkedin.metadata.dao.EBeanDAOConfig;
-import com.linkedin.metadata.dao.EbeanLocalAccessTest;
 import io.ebean.Ebean;
 import io.ebean.EbeanServer;
 import java.io.IOException;
