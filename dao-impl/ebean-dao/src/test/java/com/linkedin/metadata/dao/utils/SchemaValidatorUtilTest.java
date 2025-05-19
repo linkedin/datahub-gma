@@ -43,15 +43,14 @@ public class SchemaValidatorUtilTest {
 
   @BeforeMethod
   public void setupTest() throws IOException {
-    if (!ebeanConfig.isNonDollarVirtualColumnsEnabled()) {
-      server.execute(Ebean.createSqlUpdate(
-          Resources.toString(Resources.getResource("ebean-local-access-create-all.sql"), StandardCharsets.UTF_8)));
-    } else {
-      server.execute(Ebean.createSqlUpdate(Resources.toString(
-          Resources.getResource("ebean-local-access-create-all-with-non-dollar-virtual-column-names.sql"),
-          StandardCharsets.UTF_8)));
-    }
-    validator = new SchemaValidatorUtil(server); // Instantiate validator
+    String sqlFile = !ebeanConfig.isNonDollarVirtualColumnsEnabled()
+        ? "ebean-local-access-create-all.sql"
+        : "ebean-local-access-create-all-with-non-dollar-virtual-column-names.sql";
+
+    server.execute(Ebean.createSqlUpdate(
+        Resources.toString(Resources.getResource(sqlFile), StandardCharsets.UTF_8)));
+
+    validator = new SchemaValidatorUtil(server);
   }
 
   @Test
