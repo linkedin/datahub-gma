@@ -98,7 +98,7 @@ public class SQLIndexFilterUtils {
     List<String> sqlFilters = new ArrayList<>();
 
     if (indexFilter == null || !indexFilter.hasCriteria()) {
-      return "";
+      return "WHERE deleted_ts IS NULL ";
     }
 
     for (IndexCriterion indexCriterion : indexFilter.getCriteria()) {
@@ -120,9 +120,9 @@ public class SQLIndexFilterUtils {
     }
 
     if (sqlFilters.isEmpty()) {
-      return "";
+      return "WHERE deleted_ts IS NULL ";
     } else {
-      return "WHERE " + String.join("\nAND ", sqlFilters);
+      return "WHERE deleted_ts IS NULL \nAND " + String.join("\nAND ", sqlFilters);
     }
   }
 
