@@ -485,7 +485,7 @@ public class SQLStatementUtilsTest {
   }
 
   @Test
-  public void testParseIndexFilter_skipsMissingVirtualColumn() {
+  public void testParseIndexFilterSkipsMissingVirtualColumn() {
     SchemaValidatorUtil mockValidator1 = mock(SchemaValidatorUtil.class);
     when(mockValidator1.columnExists(anyString(), anyString())).thenReturn(false); // Simulate missing column
 
@@ -500,7 +500,7 @@ public class SQLStatementUtilsTest {
   }
 
   @Test
-  public void testCreateFilterSql_withValidAndInvalidColumns() {
+  public void testCreateFilterSqlWithValidAndInvalidColumns() {
     SchemaValidatorUtil mockValidator1 = mock(SchemaValidatorUtil.class);
     when(mockValidator1.columnExists(anyString(), contains("value"))).thenReturn(true);
     when(mockValidator1.columnExists(anyString(), contains("invalid"))).thenReturn(false);
@@ -517,7 +517,7 @@ public class SQLStatementUtilsTest {
   }
 
   @Test
-  public void testCreateGroupBySql_skipsIfGroupColumnMissing() {
+  public void testCreateGroupBySqlSkipsIfGroupColumnMissing() {
     EbeanServer mockServer = mock(EbeanServer.class);
     SchemaValidatorUtil validator = new SchemaValidatorUtil(mockServer);
 
