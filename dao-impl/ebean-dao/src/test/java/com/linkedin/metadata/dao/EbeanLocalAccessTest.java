@@ -306,7 +306,7 @@ public class EbeanLocalAccessTest {
   }
 
   @Test
-  public void testCountAggregate_skipsMissingColumn() throws Exception {
+  public void testCountAggregateSkipsMissingColumn() throws Exception {
     // Given: a valid group by criterion
     IndexFilter indexFilter = new IndexFilter();
     IndexCriterion indexCriterion =
