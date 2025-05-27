@@ -21,6 +21,7 @@ import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.BarAsset;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.FooUrn;
+import io.ebean.EbeanServer;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -481,5 +482,56 @@ public class SQLStatementUtilsTest {
 
     aspectField.setAsset(BarAsset.class.getCanonicalName());
     assertEquals(SQLStatementUtils.getAssetType(aspectField), BarUrn.ENTITY_TYPE);
+  }
+
+  @Test
+  public void testParseIndexFilter_skipsMissingVirtualColumn() {
+    SchemaValidatorUtil mockValidator1 = mock(SchemaValidatorUtil.class);
+    when(mockValidator1.columnExists(anyString(), anyString())).thenReturn(false); // Simulate missing column
+
+    IndexFilter indexFilter = new IndexFilter();
+    IndexCriterion criterion = SQLIndexFilterUtils.createIndexCriterion(
+        AspectFoo.class, "value", Condition.EQUAL, IndexValue.create("bar")
+    );
+    indexFilter.setCriteria(new IndexCriterionArray(criterion));
+
+    String result = SQLIndexFilterUtils.parseIndexFilter("foo", indexFilter, false, mockValidator1);
+    assertEquals(result, "", "Expected WHERE clause to be skipped when column is missing.");
+  }
+
+  @Test
+  public void testCreateFilterSql_withValidAndInvalidColumns() {
+    SchemaValidatorUtil mockValidator1 = mock(SchemaValidatorUtil.class);
+    when(mockValidator1.columnExists(anyString(), contains("value"))).thenReturn(true);
+    when(mockValidator1.columnExists(anyString(), contains("invalid"))).thenReturn(false);
+
+    IndexFilter indexFilter = new IndexFilter();
+    indexFilter.setCriteria(new IndexCriterionArray(
+        SQLIndexFilterUtils.createIndexCriterion(AspectFoo.class, "value", Condition.EQUAL, IndexValue.create("val")),
+        SQLIndexFilterUtils.createIndexCriterion(AspectFoo.class, "invalid", Condition.EQUAL, IndexValue.create("val2"))
+    ));
+
+    String sql = SQLStatementUtils.createFilterSql("foo", indexFilter, true, false, mockValidator1);
+    assertTrue(sql.contains("i_aspectfoo$value = 'val'"), "Should contain valid column condition");
+    assertFalse(sql.contains("invalid"), "Should skip invalid column");
+  }
+
+  @Test
+  public void testCreateGroupBySql_skipsIfGroupColumnMissing() {
+    EbeanServer mockServer = mock(EbeanServer.class);
+    SchemaValidatorUtil validator = new SchemaValidatorUtil(mockServer);
+
+    // Create a spy so we can override only columnExists
+    SchemaValidatorUtil spyValidator = spy(validator);
+    doReturn(false).when(spyValidator).columnExists(anyString(), contains("value"));
+
+    IndexFilter indexFilter = new IndexFilter();
+    IndexGroupByCriterion groupBy = new IndexGroupByCriterion();
+    groupBy.setAspect(AspectFoo.class.getCanonicalName());
+    groupBy.setPath("/value");
+
+    // Since column doesn't exist, we expect the caller (e.g., EbeanLocalAccess) to return empty map — test that in EbeanLocalAccessTest
+    String groupSql = SQLStatementUtils.createGroupBySql("foo", indexFilter, groupBy, false, spyValidator);
+    assertFalse(groupSql.contains("GROUP BY"), "Should not attempt group-by on missing column");
   }
 }
