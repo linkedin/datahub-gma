@@ -18,6 +18,7 @@ import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.query.IndexValue;
 import com.linkedin.metadata.query.SortOrder;
 import com.linkedin.testing.AspectBar;
+import com.linkedin.testing.AspectBaz;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.urn.BurgerUrn;
 import com.linkedin.testing.urn.FooUrn;
@@ -139,6 +140,19 @@ public class EbeanLocalAccessTest {
 
     // Expect: get AspectFoo from urn:li:foo:9999 returns empty result
     assertTrue(ebeanMetadataAspectList.isEmpty());
+  }
+
+  @Test
+  public void testGetAspectWhenColumnMissing() throws Exception {
+    // Given: a valid URN for which the aspect column does not exist
+    FooUrn fooUrn = makeFooUrn(0);
+    AspectKey<FooUrn, AspectBaz> missingAspectKey = new AspectKey<>(AspectBaz.class, fooUrn, 0L);
+
+    List<EbeanMetadataAspect> result = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(missingAspectKey), 1000, 0, false, false);
+    // Expect: the result is empty since the column does not exist
+    // Then: expect it to be silently skipped (no exception) and return empty result
+    assertNotNull(result);
+    assertTrue("Expected empty result when aspect column is missing", result.isEmpty());
   }
 
   @Test

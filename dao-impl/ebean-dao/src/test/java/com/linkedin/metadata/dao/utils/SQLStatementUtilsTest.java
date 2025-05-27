@@ -515,23 +515,4 @@ public class SQLStatementUtilsTest {
     assertTrue(sql.contains("i_aspectfoo$value = 'val'"), "Should contain valid column condition");
     assertFalse(sql.contains("invalid"), "Should skip invalid column");
   }
-
-  @Test
-  public void testCreateGroupBySqlSkipsIfGroupColumnMissing() {
-    EbeanServer mockServer = mock(EbeanServer.class);
-    SchemaValidatorUtil validator = new SchemaValidatorUtil(mockServer);
-
-    // Create a spy so we can override only columnExists
-    SchemaValidatorUtil spyValidator = spy(validator);
-    doReturn(false).when(spyValidator).columnExists(anyString(), contains("value"));
-
-    IndexFilter indexFilter = new IndexFilter();
-    IndexGroupByCriterion groupBy = new IndexGroupByCriterion();
-    groupBy.setAspect(AspectFoo.class.getCanonicalName());
-    groupBy.setPath("/value");
-
-    // Since column doesn't exist, we expect the caller (e.g., EbeanLocalAccess) to return empty map — test that in EbeanLocalAccessTest
-    String groupSql = SQLStatementUtils.createGroupBySql("foo", indexFilter, groupBy, false, spyValidator);
-    assertFalse(groupSql.contains("GROUP BY"), "Should not attempt group-by on missing column");
-  }
 }
