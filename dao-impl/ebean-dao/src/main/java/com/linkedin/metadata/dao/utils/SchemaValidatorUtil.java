@@ -60,6 +60,15 @@ public class SchemaValidatorUtil {
   }
 
   /**
+   * Clears all caches, including indexCache, columnCache, missingColumnCache, and missingIndexCache.
+   * Useful for testing.
+   */
+  public void clearCaches() {
+    indexCache.invalidateAll();
+    missingColumnCache.invalidateAll();
+  }
+
+  /**
    * Checks whether the given column exists in the specified table.
    * Uses positive (columnCache) and negative (missingColumnCache) caching to avoid
    * repeated queries to information_schema. Auto-refreshes after TTL expiry.

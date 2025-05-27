@@ -101,11 +101,18 @@ public class EbeanLocalAccessTest {
     }
   }
 
+  @BeforeMethod
+  public void resetValidatorInstance() throws Exception {
+    Field validatorField = _ebeanLocalAccessFoo.getClass().getDeclaredField("validator");
+    validatorField.setAccessible(true);
+    SchemaValidatorUtil freshValidator = new SchemaValidatorUtil(_server);
+    validatorField.set(_ebeanLocalAccessFoo, freshValidator);
+  }
+
   @Test
   public void testGetAspect() {
 
     // Given: metadata_entity_foo table with fooUrns from 0 ~ 99
-
     FooUrn fooUrn = makeFooUrn(0);
     AspectKey<FooUrn, AspectFoo> aspectKey = new AspectKey(AspectFoo.class, fooUrn, 0L);
 
@@ -307,7 +314,9 @@ public class EbeanLocalAccessTest {
 
   @Test
   public void testCountAggregateSkipsMissingColumn() throws Exception {
-    // Given: a valid group by criterion
+    // Given: metadata_entity_foo table with fooUrns from 0 ~ 99
+
+    // Given: a valid group by criterion filter value = 25
     IndexFilter indexFilter = new IndexFilter();
     IndexCriterion indexCriterion =
         SQLIndexFilterUtils.createIndexCriterion(AspectFoo.class, "value", Condition.EQUAL, IndexValue.create(25));
@@ -335,6 +344,8 @@ public class EbeanLocalAccessTest {
   }
 
 
+
+
   @Test
   public void testEscapeSpecialCharInUrn() {
     AspectFoo aspectFoo = new AspectFoo().setValue("test");
@@ -346,7 +357,7 @@ public class EbeanLocalAccessTest {
 
     AspectKey aspectKey1 = new AspectKey(AspectFoo.class, johnsBurgerUrn1, 0L);
     List<EbeanMetadataAspect> ebeanMetadataAspectList = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey1), 1, 0, false, false);
-    assertEquals(1, ebeanMetadataAspectList.size());
+    assertEquals(ebeanMetadataAspectList.size(), 1  );
     assertEquals(ebeanMetadataAspectList.get(0).getKey().getUrn(), johnsBurgerUrn1.toString());
 
     // Double quote is a special char in SQL.
@@ -355,7 +366,7 @@ public class EbeanLocalAccessTest {
 
     AspectKey aspectKey2 = new AspectKey(AspectFoo.class, johnsBurgerUrn2, 0L);
     ebeanMetadataAspectList = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey2), 1, 0, false, false);
-    assertEquals(1, ebeanMetadataAspectList.size());
+    assertEquals(ebeanMetadataAspectList.size(), 1);
     assertEquals(ebeanMetadataAspectList.get(0).getKey().getUrn(), johnsBurgerUrn2.toString());
 
     // Backslash is a special char in SQL.
@@ -364,7 +375,7 @@ public class EbeanLocalAccessTest {
 
     AspectKey aspectKey3 = new AspectKey(AspectFoo.class, johnsBurgerUrn3, 0L);
     ebeanMetadataAspectList = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey3), 1, 0, false, false);
-    assertEquals(1, ebeanMetadataAspectList.size());
+    assertEquals(ebeanMetadataAspectList.size(), 1);
     assertEquals(ebeanMetadataAspectList.get(0).getKey().getUrn(), johnsBurgerUrn3.toString());
   }
 
