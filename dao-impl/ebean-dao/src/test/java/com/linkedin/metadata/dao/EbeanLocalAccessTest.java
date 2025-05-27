@@ -357,7 +357,7 @@ public class EbeanLocalAccessTest {
 
     AspectKey aspectKey1 = new AspectKey(AspectFoo.class, johnsBurgerUrn1, 0L);
     List<EbeanMetadataAspect> ebeanMetadataAspectList = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey1), 1, 0, false, false);
-    assertEquals(ebeanMetadataAspectList.size(), 1  );
+    assertEquals(ebeanMetadataAspectList.size(), 1);
     assertEquals(ebeanMetadataAspectList.get(0).getKey().getUrn(), johnsBurgerUrn1.toString());
 
     // Double quote is a special char in SQL.
