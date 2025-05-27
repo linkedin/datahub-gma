@@ -8,6 +8,7 @@ import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
 import com.linkedin.metadata.dao.utils.FooUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLIndexFilterUtils;
+import com.linkedin.metadata.dao.utils.SchemaValidatorUtil;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
@@ -25,6 +26,7 @@ import io.ebean.Ebean;
 import io.ebean.EbeanServer;
 import io.ebean.SqlRow;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
@@ -40,6 +42,7 @@ import org.testng.annotations.Test;
 
 import static com.linkedin.common.AuditStamps.*;
 import static com.linkedin.testing.TestUtils.*;
+import static org.mockito.Mockito.*;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.AssertJUnit.assertFalse;
@@ -301,6 +304,36 @@ public class EbeanLocalAccessTest {
     // Expect: there are 2 counts for value 25
     assertEquals(countMap.get("25"), Long.valueOf(2));
   }
+
+  @Test
+  public void testCountAggregate_skipsMissingColumn() throws Exception {
+    // Given: a valid group by criterion
+    IndexFilter indexFilter = new IndexFilter();
+    IndexCriterion indexCriterion =
+        SQLIndexFilterUtils.createIndexCriterion(AspectFoo.class, "value", Condition.EQUAL, IndexValue.create(25));
+    indexFilter.setCriteria(new IndexCriterionArray(indexCriterion));
+
+    IndexGroupByCriterion groupByCriterion = new IndexGroupByCriterion();
+    groupByCriterion.setPath("/value");
+    groupByCriterion.setAspect(AspectFoo.class.getCanonicalName());
+
+    // Spy on validator to simulate column missing
+    SchemaValidatorUtil validatorSpy = spy(new SchemaValidatorUtil(_server));
+    doReturn(false).when(validatorSpy).columnExists(anyString(), anyString());
+
+    // Inject the spy into _ebeanLocalAccessFoo
+    Field validatorField = _ebeanLocalAccessFoo.getClass().getDeclaredField("validator");
+    validatorField.setAccessible(true);
+    validatorField.set(_ebeanLocalAccessFoo, validatorSpy);
+
+    // When: countAggregate is called
+    Map<String, Long> result = _ebeanLocalAccessFoo.countAggregate(indexFilter, groupByCriterion);
+
+    // Then: expect empty result
+    assertNotNull(result, "Expected non-null result even when group-by column is missing");
+    assertTrue("Expected empty map when group-by column is missing", result.isEmpty());
+  }
+
 
   @Test
   public void testEscapeSpecialCharInUrn() {
