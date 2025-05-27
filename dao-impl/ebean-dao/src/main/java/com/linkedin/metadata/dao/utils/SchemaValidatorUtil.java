@@ -2,6 +2,7 @@ package com.linkedin.metadata.dao.utils;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.google.common.annotations.VisibleForTesting;
 import io.ebean.EbeanServer;
 import io.ebean.SqlRow;
 import java.util.HashSet;
@@ -63,7 +64,8 @@ public class SchemaValidatorUtil {
    * Clears all caches, including indexCache, columnCache, missingColumnCache, and missingIndexCache.
    * Useful for testing.
    */
-  public void clearCaches() {
+  @VisibleForTesting
+  void clearCaches() {
     indexCache.invalidateAll();
     missingColumnCache.invalidateAll();
   }
