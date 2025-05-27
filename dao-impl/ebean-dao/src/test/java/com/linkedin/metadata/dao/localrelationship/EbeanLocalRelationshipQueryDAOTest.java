@@ -758,18 +758,18 @@ public class EbeanLocalRelationshipQueryDAOTest {
     FooUrn owner = new FooUrn(1);
     FooUrn car = new FooUrn(2);
 
-    // Add Alice, Bob and Jack into entity tables.
+    // Add car and owner into entity tables.
     if (schemaConfig == EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY) {
       _fooUrnEBeanLocalAccess.add(car, new AspectFoo().setValue("Car"), AspectFoo.class, new AuditStamp(), null, false);
       _fooUrnEBeanLocalAccess.add(owner, new AspectFoo().setValue("Owner"), AspectFoo.class, new AuditStamp(), null, false);
     }
 
-    // Add Bob reports-to ALice relationship
+    // Add car belongs-to owner relationship
     BelongsToV2 carBelongsToOwner = new BelongsToV2();
     carBelongsToOwner.setDestination(BelongsToV2.Destination.create(owner.toString()));
     _localRelationshipWriterDAO.addRelationships(car, AspectFoo.class, Collections.singletonList(carBelongsToOwner), false);
 
-    // Find all reports-to relationship for Alice.
+    // Find all belongs-to relationship for owner.
     LocalRelationshipFilter destFilter;
     if (schemaConfig == EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY) {
       // old schema does not support non-urn field filters
@@ -794,6 +794,58 @@ public class EbeanLocalRelationshipQueryDAOTest {
         BelongsToV2.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
         AssetRelationship.class, wrapOptions,
         -1, -1, new RelationshipLookUpContext());
+
+    AssetRelationship expected = belongsToOwner.get(0);
+    assertEquals(expected.getSource(), "urn:li:foo:2");
+
+    BelongsToV2 expectedBelongsToV2 = expected.getRelatedTo().getBelongsToV2();
+    assertEquals(expectedBelongsToV2.getDestination().getString(), owner.toString());
+  }
+
+  @Test(dataProvider = "schemaConfig")
+  public void testFindRelationshipsV3WithRelationshipV2WithHistory(EbeanLocalDAO.SchemaConfig schemaConfig) throws URISyntaxException {
+    FooUrn owner = new FooUrn(1);
+    FooUrn car = new FooUrn(2);
+
+    // Add car and owner into entity tables.
+    if (schemaConfig == EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY) {
+      _fooUrnEBeanLocalAccess.add(car, new AspectFoo().setValue("Car"), AspectFoo.class, new AuditStamp(), null, false);
+      _fooUrnEBeanLocalAccess.add(owner, new AspectFoo().setValue("Owner"), AspectFoo.class, new AuditStamp(), null, false);
+    }
+
+    // Add car belongs-to owner relationship
+    BelongsToV2 carBelongsToOwner = new BelongsToV2();
+    carBelongsToOwner.setDestination(BelongsToV2.Destination.create(owner.toString()));
+    _localRelationshipWriterDAO.addRelationships(car, AspectFoo.class, Collections.singletonList(carBelongsToOwner), false);
+
+    // IMPORTANT: remove the relationship so that we can test history.
+    _localRelationshipWriterDAO.removeRelationships(car, AspectFoo.class, Collections.singletonList(carBelongsToOwner));
+
+    // Find all belongs-to relationship for owner.
+    LocalRelationshipFilter destFilter;
+    if (schemaConfig == EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY) {
+      // old schema does not support non-urn field filters
+      LocalRelationshipCriterion oldSchemaFilterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create(owner.toString()),
+          Condition.EQUAL,
+          new UrnField());
+      destFilter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(oldSchemaFilterCriterion));
+    } else {
+      LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Owner"),
+          Condition.EQUAL,
+          new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+      destFilter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
+    }
+
+    _localRelationshipQueryDAO.setSchemaConfig(schemaConfig);
+
+    Map<String, Object> wrapOptions = new HashMap<>();
+    wrapOptions.put(RELATIONSHIP_RETURN_TYPE, MG_INTERNAL_ASSET_RELATIONSHIP_TYPE);
+
+    List<AssetRelationship> belongsToOwner = _localRelationshipQueryDAO.findRelationshipsV3(
+        null, null, "foo", destFilter,
+        BelongsToV2.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
+        AssetRelationship.class, wrapOptions,
+        -1, -1, new RelationshipLookUpContext(true));
 
     AssetRelationship expected = belongsToOwner.get(0);
     assertEquals(expected.getSource(), "urn:li:foo:2");

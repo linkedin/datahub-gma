@@ -522,6 +522,16 @@ public class EbeanLocalRelationshipQueryDAO {
    * INNER JOIN source_entity_table st ON st.urn = rt.sourceEntityUrn
    * WHERE destination entity filters AND source entity filters AND relationship filters</p>
    *
+   * <p> or if relationshipLookUpContext.isIncludeNonCurrentRelationships is true </p>
+   *
+   * <p>SELECT * FROM (
+   * SELECT rt.*, ROW_NUMBER() OVER (PARTITION BY rt.source, rt.metadata, rt.destination ORDER BY rt.lastmodifiedon DESC) AS row_num
+   * FROM relationship_table rt
+   * INNER JOIN destination_entity_table dt ON dt.urn = rt.destinationEntityUrn
+   * INNER JOIN source_entity_table st ON st.urn = rt.sourceEntityUrn
+   * WHERE destination entity filters AND source entity filters AND relationship filters)
+   * ranked_rows WHERE row_num = 1</p>
+   *
    * @param relationshipTableName   relationship table name
    * @param relationshipFilter      filter on relationship
    * @param sourceTableName         source entity table name
@@ -541,7 +551,23 @@ public class EbeanLocalRelationshipQueryDAO {
 
     boolean includeNonCurrentRelationships = relationshipLookUpContext.isIncludeNonCurrentRelationships();
     StringBuilder sqlBuilder = new StringBuilder();
-    sqlBuilder.append("SELECT rt.* FROM ").append(relationshipTableName).append(" rt ");
+
+    if (includeNonCurrentRelationships) {
+      sqlBuilder.append("SELECT * FROM (");
+    }
+
+    sqlBuilder.append("SELECT rt.*");
+
+    if (includeNonCurrentRelationships) {
+      final boolean isNonDollarVirtualColumnsEnabled = _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled();
+      final String metadataTypeColName = isNonDollarVirtualColumnsEnabled ? "metadata0type" : "metadata$type";
+      final boolean hasMetadataTypeCol = columnExists(relationshipTableName, metadataTypeColName);
+
+      final String metadataCol = hasMetadataTypeCol ? metadataTypeColName : "rt.metadata";
+      sqlBuilder.append(", ROW_NUMBER() OVER (PARTITION BY rt.source, rt." + metadataCol + ", rt.destination ORDER BY rt.lastmodifiedon DESC) AS row_num");
+    }
+
+    sqlBuilder.append(" FROM ").append(relationshipTableName).append(" rt ");
 
     List<Pair<LocalRelationshipFilter, String>> filters = new ArrayList<>();
 
@@ -612,7 +638,8 @@ public class EbeanLocalRelationshipQueryDAO {
       }
       if (whereClauseBuilder.length() != 0) {
         if (includeNonCurrentRelationships) {
-          sqlBuilder.append("WHERE ").append(whereClauseBuilder.toString().replaceFirst("^AND\\s+", ""));
+          String where = whereClauseBuilder.toString().replaceFirst("\\s*AND\\s+", "");
+          sqlBuilder.append("WHERE ").append(where);
         } else {
           sqlBuilder.append("WHERE ").append(whereClauseBuilder);
         }
@@ -628,7 +655,25 @@ public class EbeanLocalRelationshipQueryDAO {
         sqlBuilder.append(" OFFSET ").append(offset);
       }
     }
+
+    if (includeNonCurrentRelationships) {
+      sqlBuilder.append(") ranked_rows WHERE row_num = 1");
+    }
+
     return sqlBuilder.toString();
+  }
+
+  private boolean columnExists(@Nonnull String tableName, @Nonnull String columnName) {
+    final String sql = "SELECT 1 FROM information_schema.columns "
+        + "WHERE table_name = :tableName AND column_name = :columnName "
+        + "AND table_schema = DATABASE() LIMIT 1";
+
+    final List<SqlRow> rows = _server.createSqlQuery(sql)
+        .setParameter("tableName", tableName)
+        .setParameter("columnName", columnName)
+        .findList();
+
+    return !rows.isEmpty();
   }
 
   /**
