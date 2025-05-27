@@ -329,7 +329,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       int start, int pageSize) {
     final SqlQuery sqlQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, start, pageSize);
     final List<SqlRow> sqlRows = sqlQuery.findList();
-    if (sqlRows.size() == 0) {
+    if (sqlRows.isEmpty()) {
       final List<SqlRow> totalCountResults = createFilterSqlQuery(indexFilter, indexSortCriterion, 0, DEFAULT_PAGE_SIZE).findList();
       final int actualTotalCount = totalCountResults.isEmpty() ? 0 : totalCountResults.get(0).getInteger("_total_count");
       return toListResult(actualTotalCount, start, pageSize);
@@ -437,7 +437,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     }
 
     // now run the actual GROUP BY query
-    final String groupBySql = SQLStatementUtils.createGroupBySql(_entityType, indexFilter, indexGroupByCriterion, _nonDollarVirtualColumnsEnabled);
+    final String groupBySql = SQLStatementUtils.createGroupBySql(_entityType, indexFilter, indexGroupByCriterion, _nonDollarVirtualColumnsEnabled, validator);
     final SqlQuery sqlQuery = _server.createSqlQuery(groupBySql);
     final List<SqlRow> sqlRows = sqlQuery.findList();
     Map<String, Long> resultMap = new HashMap<>();
@@ -464,7 +464,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   private SqlQuery createFilterSqlQuery(@Nullable IndexFilter indexFilter,
       @Nullable IndexSortCriterion indexSortCriterion, int offset, int pageSize) {
     StringBuilder filterSql = new StringBuilder();
-    filterSql.append(SQLStatementUtils.createFilterSql(_entityType, indexFilter, true, _nonDollarVirtualColumnsEnabled));
+    filterSql.append(SQLStatementUtils.createFilterSql(_entityType, indexFilter, true, _nonDollarVirtualColumnsEnabled, validator));
     filterSql.append("\n");
     filterSql.append(parseSortCriteria(_entityType, indexSortCriterion, _nonDollarVirtualColumnsEnabled));
     filterSql.append(String.format(" LIMIT %d", Math.max(pageSize, 0)));
@@ -478,7 +478,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   private SqlQuery createFilterSqlQuery(@Nullable IndexFilter indexFilter,
       @Nullable IndexSortCriterion indexSortCriterion, @Nullable URN lastUrn, int pageSize) {
     StringBuilder filterSql = new StringBuilder();
-    filterSql.append(SQLStatementUtils.createFilterSql(_entityType, indexFilter, false, _nonDollarVirtualColumnsEnabled));
+    filterSql.append(SQLStatementUtils.createFilterSql(_entityType, indexFilter, false, _nonDollarVirtualColumnsEnabled, validator));
 
     if (lastUrn != null) {
       // because createFilterSql will only include a WHERE clause if there are non-urn filters, we need to make sure

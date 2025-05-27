@@ -300,9 +300,10 @@ public class SQLStatementUtils {
    * @param nonDollarVirtualColumnsEnabled  true if virtual column does not contain $, false otherwise
    * @return translated SQL where statement
    */
-  public static String createFilterSql(String entityType, @Nullable IndexFilter indexFilter, boolean hasTotalCount, boolean nonDollarVirtualColumnsEnabled) {
+  public static String createFilterSql(String entityType, @Nullable IndexFilter indexFilter, boolean hasTotalCount, boolean nonDollarVirtualColumnsEnabled,
+      @Nonnull SchemaValidatorUtil schemaValidator) {
     final String tableName = getTableName(entityType);
-    String whereClause = parseIndexFilter(entityType, indexFilter, nonDollarVirtualColumnsEnabled);
+    String whereClause = parseIndexFilter(entityType, indexFilter, nonDollarVirtualColumnsEnabled, schemaValidator);
     String totalCountSql = String.format("SELECT COUNT(urn) FROM %s %s", tableName, whereClause);
     StringBuilder sb = new StringBuilder();
 
@@ -326,7 +327,7 @@ public class SQLStatementUtils {
    * @return translated group by SQL
    */
   public static String createGroupBySql(String entityType, @Nullable IndexFilter indexFilter,
-      @Nonnull IndexGroupByCriterion indexGroupByCriterion, boolean nonDollarVirtualColumnsEnabled) {
+      @Nonnull IndexGroupByCriterion indexGroupByCriterion, boolean nonDollarVirtualColumnsEnabled, @Nonnull SchemaValidatorUtil schemaValidator) {
     final String tableName = getTableName(entityType);
     final String columnName =
         getGeneratedColumnName(entityType, indexGroupByCriterion.getAspect(), indexGroupByCriterion.getPath(),
@@ -334,7 +335,7 @@ public class SQLStatementUtils {
     StringBuilder sb = new StringBuilder();
     sb.append(String.format(INDEX_GROUP_BY_CRITERION, columnName, tableName));
     sb.append("\n");
-    sb.append(parseIndexFilter(entityType, indexFilter, nonDollarVirtualColumnsEnabled));
+    sb.append(parseIndexFilter(entityType, indexFilter, nonDollarVirtualColumnsEnabled, schemaValidator));
     sb.append("\nGROUP BY ");
     sb.append(columnName);
     return sb.toString();

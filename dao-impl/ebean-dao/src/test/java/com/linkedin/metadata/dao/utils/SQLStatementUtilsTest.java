@@ -29,14 +29,24 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.javatuples.Pair;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import static com.linkedin.metadata.dao.utils.SQLSchemaUtils.*;
 import static com.linkedin.testing.TestUtils.*;
+import static org.mockito.Mockito.*;
 import static org.testng.Assert.*;
 
 
 public class SQLStatementUtilsTest {
+
+  private static SchemaValidatorUtil mockValidator;
+
+  @BeforeClass
+  public void setupValidator() {
+    mockValidator = mock(SchemaValidatorUtil.class);
+    when(mockValidator.columnExists(anyString(), anyString())).thenReturn(true);
+  }
 
   @Test
   public void testCreateUpsertAspectSql() {
@@ -119,7 +129,7 @@ public class SQLStatementUtilsTest {
     indexCriterionArray.add(indexCriterion2);
     indexFilter.setCriteria(indexCriterionArray);
 
-    String sql1 = SQLStatementUtils.createFilterSql("foo", indexFilter, true, false);
+    String sql1 = SQLStatementUtils.createFilterSql("foo", indexFilter, true, false, mockValidator);
     String expectedSql1 = "SELECT *, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE a_aspectfoo IS NOT NULL\n"
         + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo$value >= 25\n"
         + "AND a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
@@ -130,7 +140,7 @@ public class SQLStatementUtilsTest {
 
     assertEquals(sql1, expectedSql1);
 
-    String sql2 = SQLStatementUtils.createFilterSql("foo", indexFilter, true, true);
+    String sql2 = SQLStatementUtils.createFilterSql("foo", indexFilter, true, true, mockValidator);
     String expectedSql2 = "SELECT *, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE a_aspectfoo IS NOT NULL\n"
         + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo0value >= 25\n"
         + "AND a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
@@ -161,14 +171,14 @@ public class SQLStatementUtilsTest {
     indexGroupByCriterion.setAspect(AspectFoo.class.getCanonicalName());
     indexGroupByCriterion.setPath("/value");
 
-    String sql1 = SQLStatementUtils.createGroupBySql("foo", indexFilter, indexGroupByCriterion, false);
+    String sql1 = SQLStatementUtils.createGroupBySql("foo", indexFilter, indexGroupByCriterion, false, mockValidator);
     assertEquals(sql1, "SELECT count(*) as COUNT, i_aspectfoo$value FROM metadata_entity_foo\n"
         + "WHERE a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
         + "AND i_aspectfoo$value >= 25\n" + "AND a_aspectfoo IS NOT NULL\n"
         + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo$value < 50\n"
         + "GROUP BY i_aspectfoo$value");
 
-    String sql2 = SQLStatementUtils.createGroupBySql("foo", indexFilter, indexGroupByCriterion, true);
+    String sql2 = SQLStatementUtils.createGroupBySql("foo", indexFilter, indexGroupByCriterion, true, mockValidator);
     assertEquals(sql2, "SELECT count(*) as COUNT, i_aspectfoo0value FROM metadata_entity_foo\n"
         + "WHERE a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
         + "AND i_aspectfoo0value >= 25\n" + "AND a_aspectfoo IS NOT NULL\n"
