@@ -67,7 +67,9 @@ public class SchemaValidatorUtil {
   @VisibleForTesting
   void clearCaches() {
     indexCache.invalidateAll();
+    columnCache.invalidateAll();
     missingColumnCache.invalidateAll();
+    missingIndexCache.invalidateAll();
   }
 
   /**
