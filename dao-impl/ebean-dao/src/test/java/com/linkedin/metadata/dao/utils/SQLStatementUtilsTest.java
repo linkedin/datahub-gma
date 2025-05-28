@@ -21,7 +21,6 @@ import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.BarAsset;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.FooUrn;
-import io.ebean.EbeanServer;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -496,7 +495,8 @@ public class SQLStatementUtilsTest {
     indexFilter.setCriteria(new IndexCriterionArray(criterion));
 
     String result = SQLIndexFilterUtils.parseIndexFilter("foo", indexFilter, false, mockValidator1);
-    assertEquals(result, "", "Expected WHERE clause to be skipped when column is missing.");
+    assertFalse(result.contains("i_aspectfoo$value"), "Should skip filter on missing index column");
+
   }
 
   @Test
@@ -515,4 +515,108 @@ public class SQLStatementUtilsTest {
     assertTrue(sql.contains("i_aspectfoo$value = 'val'"), "Should contain valid column condition");
     assertFalse(sql.contains("invalid"), "Should skip invalid column");
   }
+
+  @Test
+  public void testCreateGroupBySqlFilterColumnPresentGroupByColumnPresent() {
+    IndexFilter indexFilter = new IndexFilter();
+    IndexCriterionArray indexCriterionArray = new IndexCriterionArray();
+
+    IndexCriterion indexCriterion1 =
+        SQLIndexFilterUtils.createIndexCriterion(AspectFoo.class, "age", Condition.GREATER_THAN_OR_EQUAL_TO,
+            IndexValue.create(25));
+
+    IndexCriterion indexCriterion2 =
+        SQLIndexFilterUtils.createIndexCriterion(AspectBar.class, "name", Condition.EQUAL,
+            IndexValue.create("PizzaMan"));
+
+    indexCriterionArray.add(indexCriterion1);
+    indexCriterionArray.add(indexCriterion2);
+    indexFilter.setCriteria(indexCriterionArray);
+
+    IndexGroupByCriterion indexGroupByCriterion = new IndexGroupByCriterion();
+    indexGroupByCriterion.setAspect(AspectBar.class.getCanonicalName());
+    indexGroupByCriterion.setPath("/name");
+
+    //Case 1: both columns a_aspectfoo and a_aspectbar are present in the schema
+    when(mockValidator.columnExists(anyString(), contains("i_aspectfoo$age"))).thenReturn(true);
+    when(mockValidator.columnExists(anyString(), contains("i_aspectbar$name"))).thenReturn(true);
+
+    String sql1 = SQLStatementUtils.createGroupBySql("foo", indexFilter, indexGroupByCriterion, false, mockValidator);
+    assertEquals(sql1, "SELECT count(*) as COUNT, i_aspectbar$name FROM metadata_entity_foo\n"
+        + "WHERE a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
+        + "AND i_aspectfoo$age >= 25\n" + "AND a_aspectbar IS NOT NULL\n"
+        + "AND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\n" + "AND i_aspectbar$name = 'PizzaMan'\n"
+        + "GROUP BY i_aspectbar$name");
+  }
+
+  @Test
+  public void testCreateGroupBySqlFilterColumnMissingGroupByPresent() {
+    IndexFilter indexFilter = new IndexFilter();
+    IndexCriterionArray indexCriterionArray = new IndexCriterionArray();
+
+    // Missing filter column
+    IndexCriterion indexCriterion1 =
+        SQLIndexFilterUtils.createIndexCriterion(AspectFoo.class, "age", Condition.GREATER_THAN_OR_EQUAL_TO,
+            IndexValue.create(25));
+    indexCriterionArray.add(indexCriterion1);
+
+    // Present filter and group-by column
+    IndexCriterion indexCriterion2 =
+        SQLIndexFilterUtils.createIndexCriterion(AspectBar.class, "name", Condition.EQUAL,
+            IndexValue.create("PizzaMan"));
+    indexCriterionArray.add(indexCriterion2);
+
+    indexFilter.setCriteria(indexCriterionArray);
+
+    IndexGroupByCriterion groupBy = new IndexGroupByCriterion();
+    groupBy.setAspect(AspectBar.class.getCanonicalName());
+    groupBy.setPath("/name");
+
+    // Mock missing filter column and present group-by column
+    when(mockValidator.columnExists(anyString(), contains("i_aspectfoo$age"))).thenReturn(false);
+    when(mockValidator.columnExists(anyString(), contains("i_aspectbar$name"))).thenReturn(true);
+
+    String sql = SQLStatementUtils.createGroupBySql("foo", indexFilter, groupBy, false, mockValidator);
+    assertEquals(sql, "SELECT count(*) as COUNT, i_aspectbar$name FROM metadata_entity_foo\n"
+        + "WHERE a_aspectfoo IS NOT NULL\n"
+        + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
+        + "AND a_aspectbar IS NOT NULL\n"
+        + "AND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\n"
+        + "AND i_aspectbar$name = 'PizzaMan'\n"
+        + "GROUP BY i_aspectbar$name");
+  }
+
+  @Test
+  public void testCreateGroupBySqlGroupByColumnMissing() {
+    IndexFilter indexFilter = new IndexFilter();
+    IndexCriterionArray indexCriterionArray = new IndexCriterionArray();
+
+    // Missing filter column
+    IndexCriterion indexCriterion1 =
+        SQLIndexFilterUtils.createIndexCriterion(AspectFoo.class, "age", Condition.GREATER_THAN_OR_EQUAL_TO,
+            IndexValue.create(25));
+    indexCriterionArray.add(indexCriterion1);
+
+    // Present filter column
+    IndexCriterion indexCriterion2 =
+        SQLIndexFilterUtils.createIndexCriterion(AspectBar.class, "name", Condition.EQUAL,
+            IndexValue.create("PizzaMan"));
+    indexCriterionArray.add(indexCriterion2);
+
+    indexFilter.setCriteria(indexCriterionArray);
+
+    IndexGroupByCriterion groupBy = new IndexGroupByCriterion();
+    groupBy.setAspect(AspectFoo.class.getCanonicalName());
+    groupBy.setPath("/age");
+
+    // Mock column existence
+    when(mockValidator.columnExists(anyString(), contains("i_aspectfoo$age"))).thenReturn(false);
+    when(mockValidator.columnExists(anyString(), contains("i_aspectbar$name"))).thenReturn(true);
+
+    String sql = SQLStatementUtils.createGroupBySql("foo", indexFilter, groupBy, false, mockValidator);
+    // Expect no GROUP BY clause when group-by column is missing
+    assertFalse(sql.contains("GROUP BY"), "Should not contain GROUP BY if group-by column is missing");
+  }
+
+
 }

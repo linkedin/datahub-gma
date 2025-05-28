@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringEscapeUtils;
 import org.javatuples.Pair;
 
@@ -31,6 +32,7 @@ import static com.linkedin.metadata.dao.utils.SQLSchemaUtils.*;
 /**
  * SQL statement util class to generate executable SQL query / execution statements.
  */
+@Slf4j
 public class SQLStatementUtils {
   private static final Escaper URN_ESCAPER = Escapers.builder()
       .addEscape('\'', "''")
@@ -332,6 +334,11 @@ public class SQLStatementUtils {
     final String columnName =
         getGeneratedColumnName(entityType, indexGroupByCriterion.getAspect(), indexGroupByCriterion.getPath(),
             nonDollarVirtualColumnsEnabled);
+    // Check if the column exists in the schema
+    if (!schemaValidator.columnExists(tableName, columnName)) {
+      log.warn("Skipping group-by: column '{}' not found in table '{}'", columnName, tableName);
+      return ""; // skip query generation
+    }
     StringBuilder sb = new StringBuilder();
     sb.append(String.format(INDEX_GROUP_BY_CRITERION, columnName, tableName));
     sb.append("\n");
