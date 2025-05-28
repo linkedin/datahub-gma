@@ -27,7 +27,7 @@ public class SchemaValidatorUtil {
   // - expireAfterWrite(10 minutes): Ensures that newly added indexes (e.g., via Pretzel) are picked up automatically
   //   without requiring a service restart. After 10 minutes, the next request will trigger a DB refresh.
   // - maximumSize(1000): Limits cache memory footprint by retaining entries for up to 1000 distinct tables.
-  //   Least recently used entries are evicted when the size limit is reached.`
+  //   Least recently used entries are evicted when the size limit is reached.
   private final Cache<String, Set<String>> indexCache = Caffeine.newBuilder()
       .expireAfterWrite(10, TimeUnit.MINUTES)
       .maximumSize(1000)
