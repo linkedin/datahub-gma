@@ -468,7 +468,7 @@ public abstract class BaseAspectRoutingResource<
         } else {
           getLocalDAO().add((URN) urn, aspect, auditStamp, trackingContext, ingestionParams);
           if (shadowLocalDao != null) {
-            shadowLocalDao.rawAdd((URN) urn, aspect, auditStamp, trackingContext, ingestionParams);
+            shadowLocalDao.add((URN) urn, aspect, auditStamp, trackingContext, ingestionParams);
           }
         }
       }
