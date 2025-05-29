@@ -1261,6 +1261,22 @@ public class EbeanLocalRelationshipQueryDAOTest {
   }
 
   @Test
+  public void testBuildFindRelationshipSQLWithHistoryWithRelationshipWithSubtype() {
+    String sql = _localRelationshipQueryDAO.buildFindRelationshipSQL("metadata_relationship_belongstov2",
+        new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
+        "source_table_name", null, "destination_table_name", null,
+        -1, -1, new RelationshipLookUpContext(true));
+
+    assertEquals(sql,
+        "SELECT * FROM ("
+            + "SELECT rt.*, ROW_NUMBER() OVER (PARTITION BY rt.source"
+            + (", rt.metadata" + (_eBeanDAOConfig.isNonDollarVirtualColumnsEnabled() ? "0" : "$") + "type")
+            + ", rt.destination ORDER BY rt.lastmodifiedon DESC) AS row_num "
+            + "FROM metadata_relationship_belongstov2 rt INNER JOIN destination_table_name dt ON dt.urn=rt.destination "
+            + "INNER JOIN source_table_name st ON st.urn=rt.source ) ranked_rows WHERE row_num = 1");
+  }
+
+  @Test
   public void testBuildFindRelationshipSQLWithHistoryWithSource() {
     LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Alice"),
         Condition.EQUAL,
@@ -1302,9 +1318,10 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
   @Test
   public void testBuildFindRelationshipSQLWithHistoryWithSourceAndDestination() {
-    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Alice"),
-        Condition.EQUAL,
-        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(
+            LocalRelationshipValue.create("urn:li:foo:4"),
+            Condition.EQUAL,
+            new UrnField());
     LocalRelationshipFilter srcFilter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
 
     LocalRelationshipCriterion filterCriterion2 = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Bob"),
@@ -1324,6 +1341,6 @@ public class EbeanLocalRelationshipQueryDAOTest {
             + "SELECT rt.*, ROW_NUMBER() OVER (PARTITION BY rt.source, rt.destination ORDER BY rt.lastmodifiedon DESC) AS row_num "
             + "FROM relationship_table_name rt INNER JOIN destination_table_name dt ON dt.urn=rt.destination "
             + "INNER JOIN source_table_name st ON st.urn=rt.source  WHERE (dt.i_aspectfoo" + virtualColumnDelimiter
-            + "value='Bob') AND (st.i_aspectfoo" + virtualColumnDelimiter + "value='Alice')) ranked_rows WHERE row_num = 1");
+            + "value='Bob') AND (st.urn='urn:li:foo:4')) ranked_rows WHERE row_num = 1");
   }
 }

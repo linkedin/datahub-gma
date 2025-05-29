@@ -58,6 +58,7 @@ public class EbeanLocalRelationshipQueryDAO {
   private Set<String> _mgEntityTypeNameSet;
   private EbeanLocalDAO.SchemaConfig _schemaConfig = EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY;
   private SchemaValidatorUtil _schemaValidatorUtil;
+  private final Map<String, Boolean> _colmunnExistsCache = new HashMap<>();
 
   public EbeanLocalRelationshipQueryDAO(EbeanServer server, EBeanDAOConfig eBeanDAOConfig) {
     _server = server;
@@ -525,7 +526,7 @@ public class EbeanLocalRelationshipQueryDAO {
    * <p> or if relationshipLookUpContext.isIncludeNonCurrentRelationships is true </p>
    *
    * <p>SELECT * FROM (
-   * SELECT rt.*, ROW_NUMBER() OVER (PARTITION BY rt.source, rt.destination ORDER BY rt.lastmodifiedon DESC) AS row_num
+   * SELECT rt.*, ROW_NUMBER() OVER (PARTITION BY rt.source, rt.metadata$type, rt.destination ORDER BY rt.lastmodifiedon DESC) AS row_num
    * FROM relationship_table rt
    * INNER JOIN destination_entity_table dt ON dt.urn = rt.destinationEntityUrn
    * INNER JOIN source_entity_table st ON st.urn = rt.sourceEntityUrn
@@ -560,7 +561,13 @@ public class EbeanLocalRelationshipQueryDAO {
     sqlBuilder.append("SELECT rt.*");
 
     if (includeNonCurrentRelationships) {
-      sqlBuilder.append(", ROW_NUMBER() OVER (PARTITION BY rt.source, rt.destination ORDER BY rt.lastmodifiedon DESC) AS row_num");
+      final boolean isNonDollarVirtualColumnsEnabled = _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled();
+      final String metadataTypeColName = isNonDollarVirtualColumnsEnabled ? "metadata0type" : "metadata$type";
+      final boolean hasMetadataTypeCol = metadataTypeColumnExists(relationshipTableName, metadataTypeColName);
+
+      sqlBuilder.append(", ROW_NUMBER() OVER (PARTITION BY rt.source")
+          .append(hasMetadataTypeCol ? ", rt." + metadataTypeColName : "")
+          .append(", rt.destination ORDER BY rt.lastmodifiedon DESC) AS row_num");
     }
 
     sqlBuilder.append(" FROM ").append(relationshipTableName).append(" rt ");
@@ -657,6 +664,29 @@ public class EbeanLocalRelationshipQueryDAO {
     }
 
     return sqlBuilder.toString();
+  }
+
+  private boolean metadataTypeColumnExists(@Nonnull String tableName, @Nonnull String columnName) {
+    if (_colmunnExistsCache.containsKey(tableName + columnName)) {
+      return _colmunnExistsCache.get(tableName + columnName);
+    }
+
+    final boolean exists = columnExists(tableName, columnName);
+    _colmunnExistsCache.put(tableName + columnName, exists);
+    return exists;
+  }
+
+  private boolean columnExists(@Nonnull String tableName, @Nonnull String columnName) {
+    final String sql = "SELECT 1 FROM information_schema.columns "
+        + "WHERE table_name = :tableName AND column_name = :columnName "
+        + "AND table_schema = DATABASE() LIMIT 1";
+
+    final List<SqlRow> rows = _server.createSqlQuery(sql)
+        .setParameter("tableName", tableName)
+        .setParameter("columnName", columnName)
+        .findList();
+
+    return !rows.isEmpty();
   }
 
   /**
