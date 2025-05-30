@@ -39,18 +39,6 @@ public class SchemaValidatorUtil {
       .maximumSize(1000)
       .build();
 
-  // Negative cache: table:column → true (missing columns)
-  private final Cache<String, Boolean> missingColumnCache = Caffeine.newBuilder()
-      .expireAfterWrite(1, TimeUnit.MINUTES)
-      .maximumSize(1000)
-      .build();
-
-  // Negative cache: table:index → true (missing indexes)
-  private final Cache<String, Boolean> missingIndexCache = Caffeine.newBuilder()
-      .expireAfterWrite(1, TimeUnit.MINUTES)
-      .maximumSize(1000)
-      .build();
-
   private static final String SQL_GET_ALL_COLUMNS =
       "SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = database() AND TABLE_NAME = '%s'";
   private static final String SQL_GET_ALL_INDEXES =
@@ -68,14 +56,11 @@ public class SchemaValidatorUtil {
   void clearCaches() {
     indexCache.invalidateAll();
     columnCache.invalidateAll();
-    missingColumnCache.invalidateAll();
-    missingIndexCache.invalidateAll();
   }
+
 
   /**
    * Checks whether the given column exists in the specified table.
-   * Uses positive (columnCache) and negative (missingColumnCache) caching to avoid
-   * repeated queries to information_schema. Auto-refreshes after TTL expiry.
    *
    * @param tableName  Table name
    * @param columnName Column name
@@ -84,34 +69,17 @@ public class SchemaValidatorUtil {
   public boolean columnExists(@Nonnull String tableName, @Nonnull String columnName) {
     String lowerTable = tableName.toLowerCase();
     String lowerColumn = columnName.toLowerCase();
-    String columnKey = lowerTable + ":" + lowerColumn;
 
-    // Check negative cache
-    if (Boolean.TRUE.equals(missingColumnCache.getIfPresent(columnKey))) {
-      log.warn("Cache miss (negative hit): column '{}' not found in table '{}'", columnName, tableName);
-      return false;
-    }
-
-    // Try to fetch from column cache or load if missing
     Set<String> columns = columnCache.get(lowerTable, tbl -> {
       log.info("Refreshing column cache for table '{}'", tbl);
       return loadColumns(tbl);
     });
 
-    if (columns != null && columns.contains(lowerColumn)) {
-      return true;
-    }
-
-    log.warn("Column '{}' not found in table '{}'. Adding to negative cache.", columnName, tableName);
-    missingColumnCache.put(columnKey, true);
-    return false;
+    return columns.contains(lowerColumn);
   }
-
 
   /**
    * Checks whether the given index exists in the specified table.
-   * Uses positive (indexCache) and negative (missingIndexCache) caching to avoid
-   * repeated queries to information_schema. Auto-refreshes after TTL expiry.
    *
    * @param tableName Table name
    * @param indexName Index name
@@ -120,29 +88,14 @@ public class SchemaValidatorUtil {
   public boolean indexExists(@Nonnull String tableName, @Nonnull String indexName) {
     String lowerTable = tableName.toLowerCase();
     String lowerIndex = indexName.toLowerCase();
-    String indexKey = lowerTable + ":" + lowerIndex;
 
-    // Check negative cache
-    if (Boolean.TRUE.equals(missingIndexCache.getIfPresent(indexKey))) {
-      log.warn("Negative cache hit: index '{}' not found in table '{}'", indexName, tableName);
-      return false;
-    }
-
-    // Try to fetch from index cache or load if missing
     Set<String> indexes = indexCache.get(lowerTable, tbl -> {
       log.info("Refreshing index cache for table '{}'", tbl);
       return loadIndexes(tbl);
     });
 
-    if (indexes != null && indexes.contains(lowerIndex)) {
-      return true;
-    }
-
-    log.warn("Index '{}' not found in table '{}'. Adding to negative cache.", indexName, tableName);
-    missingIndexCache.put(indexKey, true);
-    return false;
+    return indexes.contains(lowerIndex);
   }
-
 
   /**
    * Loads all columns for the given table from information_schema.
