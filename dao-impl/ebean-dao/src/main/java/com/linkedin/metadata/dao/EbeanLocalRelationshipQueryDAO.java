@@ -12,6 +12,7 @@ import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.RelationshipLookUpContext;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
 import com.linkedin.metadata.dao.utils.SQLStatementUtils;
+import com.linkedin.metadata.dao.utils.SchemaValidatorUtil;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.LocalRelationshipCriterion;
 import com.linkedin.metadata.query.LocalRelationshipFilter;
@@ -46,6 +47,7 @@ public class EbeanLocalRelationshipQueryDAO {
   public static final String RELATIONSHIP_RETURN_TYPE = "relationship.return.type";
   public static final String MG_INTERNAL_ASSET_RELATIONSHIP_TYPE = "AssetRelationship.proto";
   private static final int FILTER_BATCH_SIZE = 200;
+  private static final String IDX_DESTINATION_DELETED_TS = "idx_destination_deleted_ts";
   private static final String FORCE_IDX_ON_DESTINATION = " FORCE INDEX (idx_destination_deleted_ts) ";
   private static final String DESTINATION_FIELD =  "destination";
   private final EbeanServer _server;
@@ -55,17 +57,20 @@ public class EbeanLocalRelationshipQueryDAO {
 
   private Set<String> _mgEntityTypeNameSet;
   private EbeanLocalDAO.SchemaConfig _schemaConfig = EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY;
+  private SchemaValidatorUtil _schemaValidatorUtil;
 
   public EbeanLocalRelationshipQueryDAO(EbeanServer server, EBeanDAOConfig eBeanDAOConfig) {
     _server = server;
     _eBeanDAOConfig = eBeanDAOConfig;
     _sqlGenerator = new MultiHopsTraversalSqlGenerator(SUPPORTED_CONDITIONS);
+    _schemaValidatorUtil = new SchemaValidatorUtil(server);
   }
 
   public EbeanLocalRelationshipQueryDAO(EbeanServer server) {
     _server = server;
     _eBeanDAOConfig = new EBeanDAOConfig();
     _sqlGenerator = new MultiHopsTraversalSqlGenerator(SUPPORTED_CONDITIONS);
+    _schemaValidatorUtil = new SchemaValidatorUtil(server);
   }
 
   static final Map<Condition, String> SUPPORTED_CONDITIONS =
@@ -552,12 +557,14 @@ public class EbeanLocalRelationshipQueryDAO {
         // non-mg entity case, applying dest filter on relationship table
         filters.add(new Pair<>(destinationEntityFilter, "rt"));
       } else if (!relationshipFilter.getCriteria().isEmpty()) {
-        //TODO: Add a safeguard to check if the FORCE_IDX_ON_DESTINATION is present in the table, we can check once on bootup and then caching the result
-        // Check if any relationship-level filter is on "destination"
+        // Apply FORCE INDEX if destination field is being filtered, and the index exists
         for (LocalRelationshipCriterion criterion : relationshipFilter.getCriteria()) {
           LocalRelationshipCriterion.Field field = criterion.getField();
           if (field.getUrnField() != null && DESTINATION_FIELD.equals(field.getUrnField().getName())) {
-            sqlBuilder.append(FORCE_IDX_ON_DESTINATION);
+            // Check if index exists on 'destination' before applying FORCE INDEX
+            if (_schemaValidatorUtil.indexExists(relationshipTableName, IDX_DESTINATION_DELETED_TS)) {
+              sqlBuilder.append(FORCE_IDX_ON_DESTINATION);
+            }
             break;
           }
         }

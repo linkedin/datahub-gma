@@ -12,6 +12,7 @@ import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
 import com.linkedin.metadata.dao.utils.SQLStatementUtils;
+import com.linkedin.metadata.dao.utils.SchemaValidatorUtil;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.ExtraInfoArray;
@@ -74,6 +75,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   // key: table_name,
   // value: Set(column1, column2, column3 ...)
   private final Map<String, Set<String>> tableColumns = new ConcurrentHashMap<>();
+  private final SchemaValidatorUtil validator;
 
   public EbeanLocalAccess(EbeanServer server, ServerConfig serverConfig, @Nonnull Class<URN> urnClass,
       UrnPathExtractor<URN> urnPathExtractor, boolean nonDollarVirtualColumnsEnabled) {
@@ -83,6 +85,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     _entityType = ModelUtils.getEntityTypeFromUrnClass(_urnClass);
     _schemaEvolutionManager = createSchemaEvolutionManager(serverConfig);
     _nonDollarVirtualColumnsEnabled = nonDollarVirtualColumnsEnabled;
+    validator = new SchemaValidatorUtil(server);
   }
 
   public void setUrnPathExtractor(@Nonnull UrnPathExtractor<URN> urnPathExtractor) {
@@ -276,7 +279,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     for (int index = position; index < end; index++) {
       final Urn entityUrn = aspectKeys.get(index).getUrn();
       final Class<ASPECT> aspectClass = (Class<ASPECT>) aspectKeys.get(index).getAspectClass();
-      if (checkColumnExists(isTestMode ? getTestTableName(entityUrn) : getTableName(entityUrn),
+      if (validator.columnExists(isTestMode ? getTestTableName(entityUrn) : getTableName(entityUrn),
           getAspectColumnName(entityUrn.getEntityType(), aspectClass))) {
         keysToQueryMap.computeIfAbsent(aspectClass, unused -> new HashSet<>()).add(entityUrn);
       }
@@ -326,7 +329,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       int start, int pageSize) {
     final SqlQuery sqlQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, start, pageSize);
     final List<SqlRow> sqlRows = sqlQuery.findList();
-    if (sqlRows.size() == 0) {
+    if (sqlRows.isEmpty()) {
       final List<SqlRow> totalCountResults = createFilterSqlQuery(indexFilter, indexSortCriterion, 0, DEFAULT_PAGE_SIZE).findList();
       final int actualTotalCount = totalCountResults.isEmpty() ? 0 : totalCountResults.get(0).getInteger("_total_count");
       return toListResult(actualTotalCount, start, pageSize);
@@ -428,13 +431,13 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
         getGeneratedColumnName(_entityType, indexGroupByCriterion.getAspect(), indexGroupByCriterion.getPath(),
             _nonDollarVirtualColumnsEnabled);
     // first, check for existence of the column we want to GROUP BY
-    if (!checkColumnExists(tableName, groupByColumn)) {
+    if (!validator.columnExists(tableName, groupByColumn)) {
       // if we are trying to GROUP BY the results on a column that does not exist, just return an empty map
       return Collections.emptyMap();
     }
 
     // now run the actual GROUP BY query
-    final String groupBySql = SQLStatementUtils.createGroupBySql(_entityType, indexFilter, indexGroupByCriterion, _nonDollarVirtualColumnsEnabled);
+    final String groupBySql = SQLStatementUtils.createGroupBySql(_entityType, indexFilter, indexGroupByCriterion, _nonDollarVirtualColumnsEnabled, validator);
     final SqlQuery sqlQuery = _server.createSqlQuery(groupBySql);
     final List<SqlRow> sqlRows = sqlQuery.findList();
     Map<String, Long> resultMap = new HashMap<>();
@@ -461,7 +464,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   private SqlQuery createFilterSqlQuery(@Nullable IndexFilter indexFilter,
       @Nullable IndexSortCriterion indexSortCriterion, int offset, int pageSize) {
     StringBuilder filterSql = new StringBuilder();
-    filterSql.append(SQLStatementUtils.createFilterSql(_entityType, indexFilter, true, _nonDollarVirtualColumnsEnabled));
+    filterSql.append(SQLStatementUtils.createFilterSql(_entityType, indexFilter, true, _nonDollarVirtualColumnsEnabled, validator));
     filterSql.append("\n");
     filterSql.append(parseSortCriteria(_entityType, indexSortCriterion, _nonDollarVirtualColumnsEnabled));
     filterSql.append(String.format(" LIMIT %d", Math.max(pageSize, 0)));
@@ -475,7 +478,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   private SqlQuery createFilterSqlQuery(@Nullable IndexFilter indexFilter,
       @Nullable IndexSortCriterion indexSortCriterion, @Nullable URN lastUrn, int pageSize) {
     StringBuilder filterSql = new StringBuilder();
-    filterSql.append(SQLStatementUtils.createFilterSql(_entityType, indexFilter, false, _nonDollarVirtualColumnsEnabled));
+    filterSql.append(SQLStatementUtils.createFilterSql(_entityType, indexFilter, false, _nonDollarVirtualColumnsEnabled, validator));
 
     if (lastUrn != null) {
       // because createFilterSql will only include a WHERE clause if there are non-urn filters, we need to make sure
@@ -619,23 +622,6 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
         identifier);
 
     return new FlywaySchemaEvolutionManager(config);
-  }
-
-  /**
-   * Check column exists in table.
-   */
-  public boolean checkColumnExists(@Nonnull String tableName, @Nonnull String columnName) {
-    // Fetch table columns on very first read and cache it in tableColumns
-    if (!tableColumns.containsKey(tableName)) {
-      final List<SqlRow> rows = _server.createSqlQuery(SQLStatementUtils.getAllColumnForTable(tableName)).findList();
-      Set<String> columns = new HashSet<>();
-      for (SqlRow row : rows) {
-        columns.add(row.getString("COLUMN_NAME").toLowerCase());
-      }
-      tableColumns.put(tableName, columns);
-    }
-
-    return tableColumns.get(tableName).contains(columnName.toLowerCase());
   }
 
   /**
