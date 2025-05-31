@@ -179,3 +179,7 @@ ALTER TABLE metadata_entity_bar ADD COLUMN i_aspectfoo$value VARCHAR(255)
 -- add new virtual column 'value' to relationship table
 ALTER TABLE metadata_relationship_consumefrom ADD COLUMN metadata$environment VARCHAR(255)
     GENERATED ALWAYS AS (JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.environment')));
+
+-- add new index virtual column 'type'
+ALTER TABLE metadata_relationship_belongstov2 ADD COLUMN `metadata$type` VARCHAR(255)
+    GENERATED ALWAYS AS (JSON_UNQUOTE(JSON_EXTRACT(`metadata`, '$.type')));

@@ -758,18 +758,18 @@ public class EbeanLocalRelationshipQueryDAOTest {
     FooUrn owner = new FooUrn(1);
     FooUrn car = new FooUrn(2);
 
-    // Add Alice, Bob and Jack into entity tables.
+    // Add car and owner into entity tables.
     if (schemaConfig == EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY) {
       _fooUrnEBeanLocalAccess.add(car, new AspectFoo().setValue("Car"), AspectFoo.class, new AuditStamp(), null, false);
       _fooUrnEBeanLocalAccess.add(owner, new AspectFoo().setValue("Owner"), AspectFoo.class, new AuditStamp(), null, false);
     }
 
-    // Add Bob reports-to ALice relationship
+    // Add car belongs-to owner relationship
     BelongsToV2 carBelongsToOwner = new BelongsToV2();
     carBelongsToOwner.setDestination(BelongsToV2.Destination.create(owner.toString()));
     _localRelationshipWriterDAO.addRelationships(car, AspectFoo.class, Collections.singletonList(carBelongsToOwner), false);
 
-    // Find all reports-to relationship for Alice.
+    // Find all belongs-to relationship for owner.
     LocalRelationshipFilter destFilter;
     if (schemaConfig == EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY) {
       // old schema does not support non-urn field filters
@@ -794,6 +794,58 @@ public class EbeanLocalRelationshipQueryDAOTest {
         BelongsToV2.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
         AssetRelationship.class, wrapOptions,
         -1, -1, new RelationshipLookUpContext());
+
+    AssetRelationship expected = belongsToOwner.get(0);
+    assertEquals(expected.getSource(), "urn:li:foo:2");
+
+    BelongsToV2 expectedBelongsToV2 = expected.getRelatedTo().getBelongsToV2();
+    assertEquals(expectedBelongsToV2.getDestination().getString(), owner.toString());
+  }
+
+  @Test(dataProvider = "schemaConfig")
+  public void testFindRelationshipsV3WithRelationshipV2WithHistory(EbeanLocalDAO.SchemaConfig schemaConfig) throws URISyntaxException {
+    FooUrn owner = new FooUrn(1);
+    FooUrn car = new FooUrn(2);
+
+    // Add car and owner into entity tables.
+    if (schemaConfig == EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY) {
+      _fooUrnEBeanLocalAccess.add(car, new AspectFoo().setValue("Car"), AspectFoo.class, new AuditStamp(), null, false);
+      _fooUrnEBeanLocalAccess.add(owner, new AspectFoo().setValue("Owner"), AspectFoo.class, new AuditStamp(), null, false);
+    }
+
+    // Add car belongs-to owner relationship
+    BelongsToV2 carBelongsToOwner = new BelongsToV2();
+    carBelongsToOwner.setDestination(BelongsToV2.Destination.create(owner.toString()));
+    _localRelationshipWriterDAO.addRelationships(car, AspectFoo.class, Collections.singletonList(carBelongsToOwner), false);
+
+    // IMPORTANT: remove the relationship so that we can test history.
+    _localRelationshipWriterDAO.removeRelationships(car, AspectFoo.class, Collections.singletonList(carBelongsToOwner));
+
+    // Find all belongs-to relationship for owner.
+    LocalRelationshipFilter destFilter;
+    if (schemaConfig == EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY) {
+      // old schema does not support non-urn field filters
+      LocalRelationshipCriterion oldSchemaFilterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create(owner.toString()),
+          Condition.EQUAL,
+          new UrnField());
+      destFilter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(oldSchemaFilterCriterion));
+    } else {
+      LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Owner"),
+          Condition.EQUAL,
+          new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+      destFilter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
+    }
+
+    _localRelationshipQueryDAO.setSchemaConfig(schemaConfig);
+
+    Map<String, Object> wrapOptions = new HashMap<>();
+    wrapOptions.put(RELATIONSHIP_RETURN_TYPE, MG_INTERNAL_ASSET_RELATIONSHIP_TYPE);
+
+    List<AssetRelationship> belongsToOwner = _localRelationshipQueryDAO.findRelationshipsV3(
+        null, null, "foo", destFilter,
+        BelongsToV2.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
+        AssetRelationship.class, wrapOptions,
+        -1, -1, new RelationshipLookUpContext(true));
 
     AssetRelationship expected = belongsToOwner.get(0);
     assertEquals(expected.getSource(), "urn:li:foo:2");
@@ -1120,5 +1172,175 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     // Assertions
     assertEquals(fooSnapshotList.size(), 1); // Only one entity should match the criteria
+  }
+
+  @Test
+  public void testBuildFindRelationshipSQL() {
+    String sql = _localRelationshipQueryDAO.buildFindRelationshipSQL("relationship_table_name",
+        new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
+        "source_table_name", null, "destination_table_name", null,
+        -1, -1, new RelationshipLookUpContext());
+
+    assertEquals(sql,
+        "SELECT rt.* FROM relationship_table_name rt INNER JOIN destination_table_name dt ON dt.urn=rt.destination "
+        + "INNER JOIN source_table_name st ON st.urn=rt.source WHERE rt.deleted_ts is NULL");
+  }
+
+  @Test
+  public void testBuildFindRelationshipSQLWithSource() {
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Alice"),
+        Condition.EQUAL,
+        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+    LocalRelationshipFilter srcFilter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
+
+    String sql = _localRelationshipQueryDAO.buildFindRelationshipSQL("relationship_table_name",
+        new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
+        "source_table_name", srcFilter, "destination_table_name", null,
+        -1, -1, new RelationshipLookUpContext());
+
+    assertEquals(sql,
+        "SELECT rt.* FROM relationship_table_name rt INNER JOIN destination_table_name dt ON dt.urn=rt.destination "
+            + "INNER JOIN source_table_name st ON st.urn=rt.source WHERE rt.deleted_ts is NULL AND st.i_aspectfoo"
+            + (_eBeanDAOConfig.isNonDollarVirtualColumnsEnabled() ? "0" : "$") + "value='Alice'");
+  }
+
+  @Test
+  public void testBuildFindRelationshipSQLWithDestination() {
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Alice"),
+        Condition.EQUAL,
+        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+    LocalRelationshipFilter destFilter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
+
+    String sql = _localRelationshipQueryDAO.buildFindRelationshipSQL("relationship_table_name",
+        new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
+        "source_table_name", null, "destination_table_name", destFilter,
+        -1, -1, new RelationshipLookUpContext());
+
+    assertEquals(sql,
+        "SELECT rt.* FROM relationship_table_name rt INNER JOIN destination_table_name dt ON dt.urn=rt.destination "
+            + "INNER JOIN source_table_name st ON st.urn=rt.source WHERE rt.deleted_ts is NULL AND dt.i_aspectfoo"
+            + (_eBeanDAOConfig.isNonDollarVirtualColumnsEnabled() ? "0" : "$") + "value='Alice'");
+  }
+
+  @Test
+  public void testBuildFindRelationshipSQLWithSourceAndDestination() {
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Alice"),
+        Condition.EQUAL,
+        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+    LocalRelationshipFilter srcFilter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
+
+    LocalRelationshipCriterion filterCriterion2 = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Bob"),
+        Condition.EQUAL,
+        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+    LocalRelationshipFilter destFilter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion2));
+
+    String sql = _localRelationshipQueryDAO.buildFindRelationshipSQL("relationship_table_name",
+        new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
+        "source_table_name", srcFilter, "destination_table_name", destFilter,
+        -1, -1, new RelationshipLookUpContext());
+
+    char virtualColumnDelimiter = _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled() ? '0' : '$';
+    assertEquals(sql,
+        "SELECT rt.* FROM relationship_table_name rt INNER JOIN destination_table_name dt ON dt.urn=rt.destination "
+            + "INNER JOIN source_table_name st ON st.urn=rt.source WHERE rt.deleted_ts is NULL AND (dt.i_aspectfoo"
+            + virtualColumnDelimiter + "value='Bob') AND (st.i_aspectfoo" + virtualColumnDelimiter + "value='Alice')");
+  }
+
+  @Test
+  public void testBuildFindRelationshipSQLWithHistory() {
+    String sql = _localRelationshipQueryDAO.buildFindRelationshipSQL("relationship_table_name",
+        new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
+        "source_table_name", null, "destination_table_name", null,
+        -1, -1, new RelationshipLookUpContext(true));
+
+    assertEquals(sql,
+        "SELECT * FROM ("
+            + "SELECT rt.*, ROW_NUMBER() OVER (PARTITION BY rt.source, rt.destination ORDER BY rt.lastmodifiedon DESC) AS row_num "
+            + "FROM relationship_table_name rt INNER JOIN destination_table_name dt ON dt.urn=rt.destination "
+            + "INNER JOIN source_table_name st ON st.urn=rt.source ) ranked_rows WHERE row_num = 1");
+  }
+
+  @Test
+  public void testBuildFindRelationshipSQLWithHistoryWithRelationshipWithSubtype() {
+    String sql = _localRelationshipQueryDAO.buildFindRelationshipSQL("metadata_relationship_belongstov2",
+        new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
+        "source_table_name", null, "destination_table_name", null,
+        -1, -1, new RelationshipLookUpContext(true));
+
+    assertEquals(sql,
+        "SELECT * FROM ("
+            + "SELECT rt.*, ROW_NUMBER() OVER (PARTITION BY rt.source"
+            + (", rt.metadata" + (_eBeanDAOConfig.isNonDollarVirtualColumnsEnabled() ? "0" : "$") + "type")
+            + ", rt.destination ORDER BY rt.lastmodifiedon DESC) AS row_num "
+            + "FROM metadata_relationship_belongstov2 rt INNER JOIN destination_table_name dt ON dt.urn=rt.destination "
+            + "INNER JOIN source_table_name st ON st.urn=rt.source ) ranked_rows WHERE row_num = 1");
+  }
+
+  @Test
+  public void testBuildFindRelationshipSQLWithHistoryWithSource() {
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Alice"),
+        Condition.EQUAL,
+        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+    LocalRelationshipFilter srcFilter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
+
+    String sql = _localRelationshipQueryDAO.buildFindRelationshipSQL("relationship_table_name",
+        new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
+        "source_table_name", srcFilter, "destination_table_name", null,
+        -1, -1, new RelationshipLookUpContext(true));
+
+    assertEquals(sql,
+        "SELECT * FROM ("
+            + "SELECT rt.*, ROW_NUMBER() OVER (PARTITION BY rt.source, rt.destination ORDER BY rt.lastmodifiedon DESC) AS row_num "
+            + "FROM relationship_table_name rt INNER JOIN destination_table_name dt ON dt.urn=rt.destination "
+            + "INNER JOIN source_table_name st ON st.urn=rt.source  WHERE st.i_aspectfoo"
+            + (_eBeanDAOConfig.isNonDollarVirtualColumnsEnabled() ? "0" : "$") + "value='Alice') ranked_rows WHERE row_num = 1");
+  }
+
+  @Test
+  public void testBuildFindRelationshipSQLWithHistoryWithDestination() {
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Alice"),
+        Condition.EQUAL,
+        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+    LocalRelationshipFilter destFilter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
+
+    String sql = _localRelationshipQueryDAO.buildFindRelationshipSQL("relationship_table_name",
+        new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
+        "source_table_name", null, "destination_table_name", destFilter,
+        -1, -1, new RelationshipLookUpContext(true));
+
+    assertEquals(sql,
+        "SELECT * FROM ("
+            + "SELECT rt.*, ROW_NUMBER() OVER (PARTITION BY rt.source, rt.destination ORDER BY rt.lastmodifiedon DESC) AS row_num "
+            + "FROM relationship_table_name rt INNER JOIN destination_table_name dt ON dt.urn=rt.destination "
+            + "INNER JOIN source_table_name st ON st.urn=rt.source  WHERE dt.i_aspectfoo"
+            + (_eBeanDAOConfig.isNonDollarVirtualColumnsEnabled() ? "0" : "$") + "value='Alice') ranked_rows WHERE row_num = 1");
+  }
+
+  @Test
+  public void testBuildFindRelationshipSQLWithHistoryWithSourceAndDestination() {
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(
+            LocalRelationshipValue.create("urn:li:foo:4"),
+            Condition.EQUAL,
+            new UrnField());
+    LocalRelationshipFilter srcFilter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
+
+    LocalRelationshipCriterion filterCriterion2 = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Bob"),
+        Condition.EQUAL,
+        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+    LocalRelationshipFilter destFilter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion2));
+
+    String sql = _localRelationshipQueryDAO.buildFindRelationshipSQL("relationship_table_name",
+        new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
+        "source_table_name", srcFilter, "destination_table_name", destFilter,
+        -1, -1, new RelationshipLookUpContext(true));
+
+    char virtualColumnDelimiter = _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled() ? '0' : '$';
+
+    assertEquals(sql,
+        "SELECT * FROM ("
+            + "SELECT rt.*, ROW_NUMBER() OVER (PARTITION BY rt.source, rt.destination ORDER BY rt.lastmodifiedon DESC) AS row_num "
+            + "FROM relationship_table_name rt INNER JOIN destination_table_name dt ON dt.urn=rt.destination "
+            + "INNER JOIN source_table_name st ON st.urn=rt.source  WHERE (dt.i_aspectfoo" + virtualColumnDelimiter
+            + "value='Bob') AND (st.urn='urn:li:foo:4')) ranked_rows WHERE row_num = 1");
   }
 }
