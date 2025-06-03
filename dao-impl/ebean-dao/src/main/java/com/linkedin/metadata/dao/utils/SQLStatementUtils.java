@@ -38,6 +38,8 @@ public class SQLStatementUtils {
 
   public static final String SOFT_DELETED_CHECK = "JSON_EXTRACT(%s, '$.gma_deleted') IS NULL"; // true when not soft deleted
 
+  public static final String DELETED_TS_IS_NULL_CHECK = "deleted_ts IS NULL"; // true when the deleted_ts is NULL, meaning the record is not soft deleted
+
   public static final String NONNULL_CHECK = "%s IS NOT NULL"; // true when the value of aspect_column is not NULL
 
   // Build manual SQL update query to enable optimistic locking on a given column
