@@ -558,7 +558,7 @@ public class SQLStatementUtilsTest {
         + "WHERE a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
         + "AND i_aspectfoo$age >= 25\n" + "AND a_aspectbar IS NOT NULL\n"
         + "AND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\n" + "AND i_aspectbar$name = 'PizzaMan'\n"
-        + "GROUP BY i_aspectbar$name");
+        + "AND deleted_ts IS NULL\n" + "GROUP BY i_aspectbar$name");
   }
 
   @Test
@@ -595,6 +595,7 @@ public class SQLStatementUtilsTest {
         + "AND a_aspectbar IS NOT NULL\n"
         + "AND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\n"
         + "AND i_aspectbar$name = 'PizzaMan'\n"
+        + "AND deleted_ts IS NULL\n"
         + "GROUP BY i_aspectbar$name");
   }
 

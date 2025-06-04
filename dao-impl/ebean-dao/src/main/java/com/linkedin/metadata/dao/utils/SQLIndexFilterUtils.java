@@ -111,27 +111,19 @@ public class SQLIndexFilterUtils {
           sqlFilters.add(String.format(SOFT_DELETED_CHECK, aspectColumn));
         }
 
-    for (IndexCriterion indexCriterion : indexFilter.getCriteria()) {
-      final String aspect = indexCriterion.getAspect();
-      if (!isUrn(aspect)) {
-        // if aspect is not urn, then check aspect is not soft deleted and is not null
-        final String aspectColumn = getAspectColumnName(entityType, indexCriterion.getAspect());
-        sqlFilters.add(aspectColumn + " IS NOT NULL");
-        sqlFilters.add(String.format(SOFT_DELETED_CHECK, aspectColumn));
-      }
-
-      final IndexPathParams pathParams = indexCriterion.getPathParams(GetMode.NULL);
-      if (pathParams != null) {
-        validateConditionAndValue(indexCriterion);
-        final Condition condition = pathParams.getCondition();
-        final String indexColumn = getGeneratedColumnName(entityType, aspect, pathParams.getPath(), nonDollarVirtualColumnsEnabled);
-        final String tableName = SQLSchemaUtils.getTableName(entityType);
-        // New: Skip filter if column doesn't exist
-        if (!schemaValidator.columnExists(tableName, indexColumn)) {
-          log.warn("Skipping filter: virtual column '{}' not found in table '{}'", indexColumn, tableName);
-          continue;
+        final IndexPathParams pathParams = indexCriterion.getPathParams(GetMode.NULL);
+        if (pathParams != null) {
+          validateConditionAndValue(indexCriterion);
+          final Condition condition = pathParams.getCondition();
+          final String indexColumn = getGeneratedColumnName(entityType, aspect, pathParams.getPath(), nonDollarVirtualColumnsEnabled);
+          final String tableName = SQLSchemaUtils.getTableName(entityType);
+          // New: Skip filter if column doesn't exist
+          if (!schemaValidator.columnExists(tableName, indexColumn)) {
+            log.warn("Skipping filter: virtual column '{}' not found in table '{}'", indexColumn, tableName);
+            continue;
+          }
+          sqlFilters.add(parseSqlFilter(indexColumn, condition, pathParams.getValue()));
         }
-        sqlFilters.add(parseSqlFilter(indexColumn, condition, pathParams.getValue()));
       }
     }
 
