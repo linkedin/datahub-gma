@@ -147,3 +147,7 @@ ALTER TABLE metadata_entity_bar ADD a_aspectfoo JSON;
 
 -- add foo aspect to burger entity
 ALTER TABLE metadata_entity_burger ADD a_aspectfoo JSON;
+
+-- add new index virtual column 'type'
+ALTER TABLE metadata_relationship_belongstov2 ADD COLUMN `metadata0type` VARCHAR(255)
+    GENERATED ALWAYS AS (JSON_UNQUOTE(JSON_EXTRACT(`metadata`, '$.type')));

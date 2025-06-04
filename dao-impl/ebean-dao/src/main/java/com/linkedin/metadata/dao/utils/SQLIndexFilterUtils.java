@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringEscapeUtils;
 
 import static com.linkedin.metadata.dao.utils.SQLSchemaUtils.*;
@@ -24,6 +25,7 @@ import static com.linkedin.metadata.dao.utils.SQLStatementUtils.*;
 /**
  * Condition SQL script utils based on {@link IndexFilter}.
  */
+@Slf4j
 public class SQLIndexFilterUtils {
 
   private SQLIndexFilterUtils() {
@@ -90,11 +92,12 @@ public class SQLIndexFilterUtils {
   /**
    * Parse {@link IndexFilter} into MySQL syntax.
    * @param entityType entity type from the Urn
-   * @param indexFilter                    index filter
+   * @param indexFilter index filter
    * @param nonDollarVirtualColumnsEnabled whether to enable non-dollar virtual columns
    * @return translated SQL condition expression, e.g. WHERE ...
    */
-  public static String parseIndexFilter(@Nonnull String entityType, @Nullable IndexFilter indexFilter, boolean nonDollarVirtualColumnsEnabled) {
+  public static String parseIndexFilter(@Nonnull String entityType, @Nullable IndexFilter indexFilter,
+      boolean nonDollarVirtualColumnsEnabled, @Nonnull SchemaValidatorUtil schemaValidator) {
     List<String> sqlFilters = new ArrayList<>();
 
     // Process index filter criteria if present
@@ -108,13 +111,27 @@ public class SQLIndexFilterUtils {
           sqlFilters.add(String.format(SOFT_DELETED_CHECK, aspectColumn));
         }
 
-        final IndexPathParams pathParams = indexCriterion.getPathParams(GetMode.NULL);
-        if (pathParams != null) {
-          validateConditionAndValue(indexCriterion);
-          final Condition condition = pathParams.getCondition();
-          final String indexColumn = getGeneratedColumnName(entityType, aspect, pathParams.getPath(), nonDollarVirtualColumnsEnabled);
-          sqlFilters.add(parseSqlFilter(indexColumn, condition, pathParams.getValue()));
+    for (IndexCriterion indexCriterion : indexFilter.getCriteria()) {
+      final String aspect = indexCriterion.getAspect();
+      if (!isUrn(aspect)) {
+        // if aspect is not urn, then check aspect is not soft deleted and is not null
+        final String aspectColumn = getAspectColumnName(entityType, indexCriterion.getAspect());
+        sqlFilters.add(aspectColumn + " IS NOT NULL");
+        sqlFilters.add(String.format(SOFT_DELETED_CHECK, aspectColumn));
+      }
+
+      final IndexPathParams pathParams = indexCriterion.getPathParams(GetMode.NULL);
+      if (pathParams != null) {
+        validateConditionAndValue(indexCriterion);
+        final Condition condition = pathParams.getCondition();
+        final String indexColumn = getGeneratedColumnName(entityType, aspect, pathParams.getPath(), nonDollarVirtualColumnsEnabled);
+        final String tableName = SQLSchemaUtils.getTableName(entityType);
+        // New: Skip filter if column doesn't exist
+        if (!schemaValidator.columnExists(tableName, indexColumn)) {
+          log.warn("Skipping filter: virtual column '{}' not found in table '{}'", indexColumn, tableName);
+          continue;
         }
+        sqlFilters.add(parseSqlFilter(indexColumn, condition, pathParams.getValue()));
       }
     }
 
