@@ -40,6 +40,8 @@ public class SQLStatementUtils {
 
   public static final String SOFT_DELETED_CHECK = "JSON_EXTRACT(%s, '$.gma_deleted') IS NULL"; // true when not soft deleted
 
+  public static final String DELETED_TS_IS_NULL_CHECK = "deleted_ts IS NULL"; // true when the deleted_ts is NULL, meaning the record is not soft deleted
+
   public static final String NONNULL_CHECK = "%s IS NOT NULL"; // true when the value of aspect_column is not NULL
 
   // Build manual SQL update query to enable optimistic locking on a given column
@@ -114,7 +116,10 @@ public class SQLStatementUtils {
 
   private static final String INDEX_GROUP_BY_CRITERION = "SELECT count(*) as COUNT, %s FROM %s";
 
-  private static final String SQL_URN_EXIST_TEMPLATE = "SELECT urn FROM %s WHERE urn = '%s'";
+  private static final String SQL_GET_ALL_COLUMNS =
+      "SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = database() AND TABLE_NAME = '%s'";
+      
+  private static final String SQL_URN_EXIST_TEMPLATE = "SELECT urn FROM %s WHERE urn = '%s' AND deleted_ts IS NULL";
 
   private static final String INSERT_LOCAL_RELATIONSHIP = "INSERT INTO %s (metadata, source, destination, source_type, "
       + "destination_type, lastmodifiedon, lastmodifiedby) VALUE (:metadata, :source, :destination, :source_type,"

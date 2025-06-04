@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS metadata_entity_foo (
     lastmodifiedon TIMESTAMP NOT NULL,
     lastmodifiedby VARCHAR(255) NOT NULL,
     createdfor VARCHAR(255),
+    deleted_ts datetime(6) DEFAULT NULL,
     CONSTRAINT pk_metadata_entity_foo PRIMARY KEY (urn)
 );
 
@@ -21,6 +22,7 @@ CREATE TABLE IF NOT EXISTS metadata_entity_bar (
     lastmodifiedon TIMESTAMP NOT NULL,
     lastmodifiedby VARCHAR(255) NOT NULL,
     createdfor VARCHAR(255),
+    deleted_ts datetime(6) DEFAULT NULL,
     CONSTRAINT pk_metadata_entity_bar PRIMARY KEY (urn)
 );
 
@@ -30,6 +32,7 @@ CREATE TABLE IF NOT EXISTS metadata_entity_burger (
     lastmodifiedon TIMESTAMP NOT NULL,
     lastmodifiedby VARCHAR(255) NOT NULL,
     createdfor VARCHAR(255),
+    deleted_ts datetime(6) DEFAULT NULL,
     CONSTRAINT pk_metadata_entity_burger PRIMARY KEY (urn)
 );
 

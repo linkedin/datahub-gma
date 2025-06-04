@@ -481,15 +481,9 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     filterSql.append(SQLStatementUtils.createFilterSql(_entityType, indexFilter, false, _nonDollarVirtualColumnsEnabled, validator));
 
     if (lastUrn != null) {
-      // because createFilterSql will only include a WHERE clause if there are non-urn filters, we need to make sure
-      // that we add a WHERE if it wasn't added already.
+      // because createFilterSql will always include a WHERE clause to filter by deleted_ts is NULL
+      // We will append the lastUrn condition to the WHERE clause with AND operator.
       String operator = "AND";
-
-      if (indexFilter == null
-          || !indexFilter.hasCriteria()
-          || indexFilter.getCriteria().stream().allMatch(criteria -> isUrn(criteria.getAspect()))) {
-        operator = "WHERE";
-      }
 
       filterSql.append(String.format(" %s URN > '%s'", operator, lastUrn));
     }

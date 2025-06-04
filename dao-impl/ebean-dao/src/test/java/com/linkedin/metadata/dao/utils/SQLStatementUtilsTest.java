@@ -133,10 +133,11 @@ public class SQLStatementUtilsTest {
     String expectedSql1 = "SELECT *, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE a_aspectfoo IS NOT NULL\n"
         + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo$value >= 25\n"
         + "AND a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
-        + "AND i_aspectfoo$value < 50) as _total_count FROM metadata_entity_foo\n" + "WHERE a_aspectfoo IS NOT NULL\n"
-        + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo$value >= 25\n"
-        + "AND a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
-        + "AND i_aspectfoo$value < 50";
+        + "AND i_aspectfoo$value < 50\n" + "AND deleted_ts IS NULL)" + " as _total_count FROM metadata_entity_foo\n"
+        + "WHERE a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
+        + "AND i_aspectfoo$value >= 25\n" + "AND a_aspectfoo IS NOT NULL\n"
+        + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
+        + "AND i_aspectfoo$value < 50\n" + "AND deleted_ts IS NULL";
 
     assertEquals(sql1, expectedSql1);
 
@@ -144,10 +145,11 @@ public class SQLStatementUtilsTest {
     String expectedSql2 = "SELECT *, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE a_aspectfoo IS NOT NULL\n"
         + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo0value >= 25\n"
         + "AND a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
-        + "AND i_aspectfoo0value < 50) as _total_count FROM metadata_entity_foo\n" + "WHERE a_aspectfoo IS NOT NULL\n"
-        + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo0value >= 25\n"
-        + "AND a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
-        + "AND i_aspectfoo0value < 50";
+        + "AND i_aspectfoo0value < 50\n" + "AND deleted_ts IS NULL)" + " as _total_count FROM metadata_entity_foo\n"
+        + "WHERE a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
+        + "AND i_aspectfoo0value >= 25\n" + "AND a_aspectfoo IS NOT NULL\n"
+        + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
+        + "AND i_aspectfoo0value < 50\n" + "AND deleted_ts IS NULL";
 
     assertEquals(sql2, expectedSql2);
   }
@@ -176,14 +178,14 @@ public class SQLStatementUtilsTest {
         + "WHERE a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
         + "AND i_aspectfoo$value >= 25\n" + "AND a_aspectfoo IS NOT NULL\n"
         + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo$value < 50\n"
-        + "GROUP BY i_aspectfoo$value");
+        + "AND deleted_ts IS NULL\n" + "GROUP BY i_aspectfoo$value");
 
     String sql2 = SQLStatementUtils.createGroupBySql("foo", indexFilter, indexGroupByCriterion, true, mockValidator);
     assertEquals(sql2, "SELECT count(*) as COUNT, i_aspectfoo0value FROM metadata_entity_foo\n"
         + "WHERE a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
         + "AND i_aspectfoo0value >= 25\n" + "AND a_aspectfoo IS NOT NULL\n"
         + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo0value < 50\n"
-        + "GROUP BY i_aspectfoo0value");
+        + "AND deleted_ts IS NULL\n" + "GROUP BY i_aspectfoo0value");
   }
 
   @Test
@@ -484,6 +486,16 @@ public class SQLStatementUtilsTest {
   }
 
   @Test
+  public void testExistsSql() {
+    FooUrn fooUrn =  makeFooUrn(1);
+    String expectedSql = "SELECT urn "
+        + "FROM metadata_entity_foo "
+        + "WHERE urn = 'urn:li:foo:1' "
+        + "AND deleted_ts IS NULL";
+    assertConditionsEqual(SQLStatementUtils.createExistSql(fooUrn), expectedSql);
+  }
+
+  @Test
   public void testParseIndexFilterSkipsMissingVirtualColumn() {
     SchemaValidatorUtil mockValidator1 = mock(SchemaValidatorUtil.class);
     when(mockValidator1.columnExists(anyString(), anyString())).thenReturn(false); // Simulate missing column
@@ -546,7 +558,7 @@ public class SQLStatementUtilsTest {
         + "WHERE a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
         + "AND i_aspectfoo$age >= 25\n" + "AND a_aspectbar IS NOT NULL\n"
         + "AND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\n" + "AND i_aspectbar$name = 'PizzaMan'\n"
-        + "GROUP BY i_aspectbar$name");
+        + "AND deleted_ts IS NULL\n" + "GROUP BY i_aspectbar$name");
   }
 
   @Test
@@ -583,6 +595,7 @@ public class SQLStatementUtilsTest {
         + "AND a_aspectbar IS NOT NULL\n"
         + "AND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\n"
         + "AND i_aspectbar$name = 'PizzaMan'\n"
+        + "AND deleted_ts IS NULL\n"
         + "GROUP BY i_aspectbar$name");
   }
 
