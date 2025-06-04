@@ -1150,7 +1150,7 @@ public abstract class BaseEntityResource<
     final Map<URN, List<UnionTemplate>> urnAspectsMap =
         urns.stream().collect(Collectors.toMap(Function.identity(), urn -> new ArrayList<>()));
 
-    if (getShadowLocalDAO() == null) {
+    if (getShadowReadLocalDAO() == null) {
       if (isInternalModelsEnabled) {
         getLocalDAO().get(keys)
             .forEach((key, aspect) -> aspect.ifPresent(metadata -> urnAspectsMap.get(key.getUrn())
@@ -1162,20 +1162,15 @@ public abstract class BaseEntityResource<
       }
       return urnAspectsMap;
     } else {
-      return getUrnAspectMapFromShadowDao(urns, aspectClasses, isInternalModelsEnabled);
+      return getUrnAspectMapFromShadowDao(urns, keys, isInternalModelsEnabled);
     }
   }
 
   @Nonnull
   private Map<URN, List<UnionTemplate>> getUrnAspectMapFromShadowDao(
       @Nonnull Collection<URN> urns,
-      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses,
+      @Nonnull Set<AspectKey<URN, ? extends RecordTemplate>> keys,
       boolean isInternalModelsEnabled) {
-
-    // Construct keys for latest versions of all aspects
-    final Set<AspectKey<URN, ? extends RecordTemplate>> keys = urns.stream()
-        .flatMap(urn -> aspectClasses.stream().map(clazz -> new AspectKey<>(clazz, urn, LATEST_VERSION)))
-        .collect(Collectors.toSet());
 
     Map<AspectKey<URN, ? extends RecordTemplate>, java.util.Optional<? extends RecordTemplate>> localResults =
         getLocalDAO().get(keys);
