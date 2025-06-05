@@ -87,7 +87,7 @@ public class BaseLocalDAOTest {
 
     @Override
     protected <ASPECT extends RecordTemplate> long saveLatest(FooUrn urn, Class<ASPECT> aspectClass, ASPECT oldEntry,
-        AuditStamp oldAuditStamp, ASPECT newEntry, AuditStamp newAuditStamp, boolean isSoftDeleted,
+        AuditStamp optimisticLockAuditStamp, ASPECT newEntry, AuditStamp newAuditStamp, boolean isSoftDeleted,
         @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
       return 0;
     }
