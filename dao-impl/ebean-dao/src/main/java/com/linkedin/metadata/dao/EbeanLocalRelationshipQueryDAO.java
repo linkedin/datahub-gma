@@ -12,6 +12,7 @@ import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.RelationshipLookUpContext;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
 import com.linkedin.metadata.dao.utils.SQLStatementUtils;
+import com.linkedin.metadata.dao.utils.SchemaValidatorUtil;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.LocalRelationshipCriterion;
 import com.linkedin.metadata.query.LocalRelationshipFilter;
@@ -46,6 +47,7 @@ public class EbeanLocalRelationshipQueryDAO {
   public static final String RELATIONSHIP_RETURN_TYPE = "relationship.return.type";
   public static final String MG_INTERNAL_ASSET_RELATIONSHIP_TYPE = "AssetRelationship.proto";
   private static final int FILTER_BATCH_SIZE = 200;
+  private static final String IDX_DESTINATION_DELETED_TS = "idx_destination_deleted_ts";
   private static final String FORCE_IDX_ON_DESTINATION = " FORCE INDEX (idx_destination_deleted_ts) ";
   private static final String DESTINATION_FIELD =  "destination";
   private final EbeanServer _server;
@@ -55,17 +57,20 @@ public class EbeanLocalRelationshipQueryDAO {
 
   private Set<String> _mgEntityTypeNameSet;
   private EbeanLocalDAO.SchemaConfig _schemaConfig = EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY;
+  private SchemaValidatorUtil _schemaValidatorUtil;
 
   public EbeanLocalRelationshipQueryDAO(EbeanServer server, EBeanDAOConfig eBeanDAOConfig) {
     _server = server;
     _eBeanDAOConfig = eBeanDAOConfig;
     _sqlGenerator = new MultiHopsTraversalSqlGenerator(SUPPORTED_CONDITIONS);
+    _schemaValidatorUtil = new SchemaValidatorUtil(server);
   }
 
   public EbeanLocalRelationshipQueryDAO(EbeanServer server) {
     _server = server;
     _eBeanDAOConfig = new EBeanDAOConfig();
     _sqlGenerator = new MultiHopsTraversalSqlGenerator(SUPPORTED_CONDITIONS);
+    _schemaValidatorUtil = new SchemaValidatorUtil(server);
   }
 
   static final Map<Condition, String> SUPPORTED_CONDITIONS =
@@ -517,6 +522,16 @@ public class EbeanLocalRelationshipQueryDAO {
    * INNER JOIN source_entity_table st ON st.urn = rt.sourceEntityUrn
    * WHERE destination entity filters AND source entity filters AND relationship filters</p>
    *
+   * <p> or if relationshipLookUpContext.isIncludeNonCurrentRelationships is true </p>
+   *
+   * <p>SELECT * FROM (
+   * SELECT rt.*, ROW_NUMBER() OVER (PARTITION BY rt.source, rt.metadata$type, rt.destination ORDER BY rt.lastmodifiedon DESC) AS row_num
+   * FROM relationship_table rt
+   * INNER JOIN destination_entity_table dt ON dt.urn = rt.destinationEntityUrn
+   * INNER JOIN source_entity_table st ON st.urn = rt.sourceEntityUrn
+   * WHERE destination entity filters AND source entity filters AND relationship filters)
+   * ranked_rows WHERE row_num = 1</p>
+   *
    * @param relationshipTableName   relationship table name
    * @param relationshipFilter      filter on relationship
    * @param sourceTableName         source entity table name
@@ -524,19 +539,37 @@ public class EbeanLocalRelationshipQueryDAO {
    * @param destTableName           destination entity table name. Always null if building relationship with non-mg
    *                                entity.
    * @param destinationEntityFilter filter on destination entity.
-   * @param limit                   max number of records to return. If < 0, will return all records.
-   * @param offset                  offset to start from. If < 0, will start from 0.
+   * @param limit                   max number of records to return. If less than 0, will return all records.
+   * @param offset                  offset to start from. If less than 0, will start from 0.
    */
   @Nonnull
-  private String buildFindRelationshipSQL(
-      @Nonnull final String relationshipTableName, @Nonnull final LocalRelationshipFilter relationshipFilter,
-      @Nullable final String sourceTableName, @Nullable final LocalRelationshipFilter sourceEntityFilter,
-      @Nullable final String destTableName, @Nullable final LocalRelationshipFilter destinationEntityFilter,
-      int limit, int offset, RelationshipLookUpContext relationshipLookUpContext) {
+  @VisibleForTesting
+  public String buildFindRelationshipSQL(@Nonnull final String relationshipTableName,
+      @Nonnull final LocalRelationshipFilter relationshipFilter, @Nullable final String sourceTableName,
+      @Nullable final LocalRelationshipFilter sourceEntityFilter, @Nullable final String destTableName,
+      @Nullable final LocalRelationshipFilter destinationEntityFilter, int limit, int offset,
+      RelationshipLookUpContext relationshipLookUpContext) {
 
     boolean includeNonCurrentRelationships = relationshipLookUpContext.isIncludeNonCurrentRelationships();
     StringBuilder sqlBuilder = new StringBuilder();
-    sqlBuilder.append("SELECT rt.* FROM ").append(relationshipTableName).append(" rt ");
+
+    if (includeNonCurrentRelationships) {
+      sqlBuilder.append("SELECT * FROM (");
+    }
+
+    sqlBuilder.append("SELECT rt.*");
+
+    if (includeNonCurrentRelationships) {
+      final boolean isNonDollarVirtualColumnsEnabled = _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled();
+      final String metadataTypeColName = isNonDollarVirtualColumnsEnabled ? "metadata0type" : "metadata$type";
+      final boolean hasMetadataTypeCol = _schemaValidatorUtil.columnExists(relationshipTableName, metadataTypeColName);
+
+      sqlBuilder.append(", ROW_NUMBER() OVER (PARTITION BY rt.source")
+          .append(hasMetadataTypeCol ? ", rt." + metadataTypeColName : "")
+          .append(", rt.destination ORDER BY rt.lastmodifiedon DESC) AS row_num");
+    }
+
+    sqlBuilder.append(" FROM ").append(relationshipTableName).append(" rt ");
 
     List<Pair<LocalRelationshipFilter, String>> filters = new ArrayList<>();
 
@@ -552,12 +585,14 @@ public class EbeanLocalRelationshipQueryDAO {
         // non-mg entity case, applying dest filter on relationship table
         filters.add(new Pair<>(destinationEntityFilter, "rt"));
       } else if (!relationshipFilter.getCriteria().isEmpty()) {
-        //TODO: Add a safeguard to check if the FORCE_IDX_ON_DESTINATION is present in the table, we can check once on bootup and then caching the result
-        // Check if any relationship-level filter is on "destination"
+        // Apply FORCE INDEX if destination field is being filtered, and the index exists
         for (LocalRelationshipCriterion criterion : relationshipFilter.getCriteria()) {
           LocalRelationshipCriterion.Field field = criterion.getField();
           if (field.getUrnField() != null && DESTINATION_FIELD.equals(field.getUrnField().getName())) {
-            sqlBuilder.append(FORCE_IDX_ON_DESTINATION);
+            // Check if index exists on 'destination' before applying FORCE INDEX
+            if (_schemaValidatorUtil.indexExists(relationshipTableName, IDX_DESTINATION_DELETED_TS)) {
+              sqlBuilder.append(FORCE_IDX_ON_DESTINATION);
+            }
             break;
           }
         }
@@ -605,7 +640,8 @@ public class EbeanLocalRelationshipQueryDAO {
       }
       if (whereClauseBuilder.length() != 0) {
         if (includeNonCurrentRelationships) {
-          sqlBuilder.append("WHERE ").append(whereClauseBuilder.toString().replaceFirst("^AND\\s+", ""));
+          String where = whereClauseBuilder.toString().replaceFirst("\\s*AND\\s+", "");
+          sqlBuilder.append("WHERE ").append(where);
         } else {
           sqlBuilder.append("WHERE ").append(whereClauseBuilder);
         }
@@ -621,6 +657,11 @@ public class EbeanLocalRelationshipQueryDAO {
         sqlBuilder.append(" OFFSET ").append(offset);
       }
     }
+
+    if (includeNonCurrentRelationships) {
+      sqlBuilder.append(") ranked_rows WHERE row_num = 1");
+    }
+
     return sqlBuilder.toString();
   }
 

@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringEscapeUtils;
 import org.javatuples.Pair;
 
@@ -31,12 +32,15 @@ import static com.linkedin.metadata.dao.utils.SQLSchemaUtils.*;
 /**
  * SQL statement util class to generate executable SQL query / execution statements.
  */
+@Slf4j
 public class SQLStatementUtils {
   private static final Escaper URN_ESCAPER = Escapers.builder()
       .addEscape('\'', "''")
       .addEscape('\\', "\\\\").build();
 
   public static final String SOFT_DELETED_CHECK = "JSON_EXTRACT(%s, '$.gma_deleted') IS NULL"; // true when not soft deleted
+
+  public static final String DELETED_TS_IS_NULL_CHECK = "deleted_ts IS NULL"; // true when the deleted_ts is NULL, meaning the record is not soft deleted
 
   public static final String NONNULL_CHECK = "%s IS NOT NULL"; // true when the value of aspect_column is not NULL
 
@@ -114,7 +118,8 @@ public class SQLStatementUtils {
 
   private static final String SQL_GET_ALL_COLUMNS =
       "SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = database() AND TABLE_NAME = '%s'";
-  private static final String SQL_URN_EXIST_TEMPLATE = "SELECT urn FROM %s WHERE urn = '%s'";
+      
+  private static final String SQL_URN_EXIST_TEMPLATE = "SELECT urn FROM %s WHERE urn = '%s' AND deleted_ts IS NULL";
 
   private static final String INSERT_LOCAL_RELATIONSHIP = "INSERT INTO %s (metadata, source, destination, source_type, "
       + "destination_type, lastmodifiedon, lastmodifiedby) VALUE (:metadata, :source, :destination, :source_type,"
@@ -302,9 +307,10 @@ public class SQLStatementUtils {
    * @param nonDollarVirtualColumnsEnabled  true if virtual column does not contain $, false otherwise
    * @return translated SQL where statement
    */
-  public static String createFilterSql(String entityType, @Nullable IndexFilter indexFilter, boolean hasTotalCount, boolean nonDollarVirtualColumnsEnabled) {
+  public static String createFilterSql(String entityType, @Nullable IndexFilter indexFilter, boolean hasTotalCount, boolean nonDollarVirtualColumnsEnabled,
+      @Nonnull SchemaValidatorUtil schemaValidator) {
     final String tableName = getTableName(entityType);
-    String whereClause = parseIndexFilter(entityType, indexFilter, nonDollarVirtualColumnsEnabled);
+    String whereClause = parseIndexFilter(entityType, indexFilter, nonDollarVirtualColumnsEnabled, schemaValidator);
     String totalCountSql = String.format("SELECT COUNT(urn) FROM %s %s", tableName, whereClause);
     StringBuilder sb = new StringBuilder();
 
@@ -328,23 +334,25 @@ public class SQLStatementUtils {
    * @return translated group by SQL
    */
   public static String createGroupBySql(String entityType, @Nullable IndexFilter indexFilter,
-      @Nonnull IndexGroupByCriterion indexGroupByCriterion, boolean nonDollarVirtualColumnsEnabled) {
+      @Nonnull IndexGroupByCriterion indexGroupByCriterion, boolean nonDollarVirtualColumnsEnabled, @Nonnull SchemaValidatorUtil schemaValidator) {
     final String tableName = getTableName(entityType);
     final String columnName =
         getGeneratedColumnName(entityType, indexGroupByCriterion.getAspect(), indexGroupByCriterion.getPath(),
             nonDollarVirtualColumnsEnabled);
+    // Check if the column exists in the schema
+    if (!schemaValidator.columnExists(tableName, columnName)) {
+      log.warn("Skipping group-by: column '{}' not found in table '{}'", columnName, tableName);
+      return ""; // skip query generation
+    }
     StringBuilder sb = new StringBuilder();
     sb.append(String.format(INDEX_GROUP_BY_CRITERION, columnName, tableName));
     sb.append("\n");
-    sb.append(parseIndexFilter(entityType, indexFilter, nonDollarVirtualColumnsEnabled));
+    sb.append(parseIndexFilter(entityType, indexFilter, nonDollarVirtualColumnsEnabled, schemaValidator));
     sb.append("\nGROUP BY ");
     sb.append(columnName);
     return sb.toString();
   }
 
-  public static String getAllColumnForTable(String tableName) {
-    return String.format(SQL_GET_ALL_COLUMNS, tableName);
-  }
 
   /**
    * Create aspect browse SQL statement.

@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS metadata_entity_foo (
     lastmodifiedon TIMESTAMP NOT NULL,
     lastmodifiedby VARCHAR(255) NOT NULL,
     createdfor VARCHAR(255),
+    deleted_ts datetime(6) DEFAULT NULL,
     CONSTRAINT pk_metadata_entity_foo PRIMARY KEY (urn)
 );
 
@@ -23,6 +24,7 @@ CREATE TABLE IF NOT EXISTS metadata_entity_foo_test (
     lastmodifiedon TIMESTAMP NOT NULL,
     lastmodifiedby VARCHAR(255) NOT NULL,
     createdfor VARCHAR(255),
+    deleted_ts datetime(6) DEFAULT NULL,
     CONSTRAINT pk_metadata_entity_foo_test PRIMARY KEY (urn)
 );
 
@@ -32,6 +34,7 @@ CREATE TABLE IF NOT EXISTS metadata_entity_bar (
     lastmodifiedon TIMESTAMP NOT NULL,
     lastmodifiedby VARCHAR(255) NOT NULL,
     createdfor VARCHAR(255),
+    deleted_ts datetime(6) DEFAULT NULL,
     CONSTRAINT pk_metadata_entity_bar PRIMARY KEY (urn)
 );
 
@@ -41,6 +44,7 @@ CREATE TABLE IF NOT EXISTS metadata_entity_burger (
     lastmodifiedon TIMESTAMP NOT NULL,
     lastmodifiedby VARCHAR(255) NOT NULL,
     createdfor VARCHAR(255),
+    deleted_ts datetime(6) DEFAULT NULL,
     CONSTRAINT pk_metadata_entity_burger PRIMARY KEY (urn)
 );
 
@@ -143,3 +147,7 @@ ALTER TABLE metadata_entity_bar ADD a_aspectfoo JSON;
 
 -- add baz aspect to burger entity
 ALTER TABLE metadata_entity_burger ADD a_aspectfoo JSON;
+
+-- add new index virtual column 'type'
+ALTER TABLE metadata_relationship_belongstov2 ADD COLUMN `metadata$type` VARCHAR(255)
+    GENERATED ALWAYS AS (JSON_UNQUOTE(JSON_EXTRACT(`metadata`, '$.type')));

@@ -8,6 +8,7 @@ import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
 import com.linkedin.metadata.dao.utils.FooUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLIndexFilterUtils;
+import com.linkedin.metadata.dao.utils.SchemaValidatorUtil;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
@@ -17,6 +18,7 @@ import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.query.IndexValue;
 import com.linkedin.metadata.query.SortOrder;
 import com.linkedin.testing.AspectBar;
+import com.linkedin.testing.AspectBaz;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.urn.BurgerUrn;
 import com.linkedin.testing.urn.FooUrn;
@@ -25,6 +27,7 @@ import io.ebean.Ebean;
 import io.ebean.EbeanServer;
 import io.ebean.SqlRow;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
@@ -40,6 +43,7 @@ import org.testng.annotations.Test;
 
 import static com.linkedin.common.AuditStamps.*;
 import static com.linkedin.testing.TestUtils.*;
+import static org.mockito.Mockito.*;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.AssertJUnit.assertFalse;
@@ -98,11 +102,18 @@ public class EbeanLocalAccessTest {
     }
   }
 
+  @BeforeMethod
+  public void resetValidatorInstance() throws Exception {
+    Field validatorField = _ebeanLocalAccessFoo.getClass().getDeclaredField("validator");
+    validatorField.setAccessible(true);
+    SchemaValidatorUtil freshValidator = new SchemaValidatorUtil(_server);
+    validatorField.set(_ebeanLocalAccessFoo, freshValidator);
+  }
+
   @Test
   public void testGetAspect() {
 
     // Given: metadata_entity_foo table with fooUrns from 0 ~ 99
-
     FooUrn fooUrn = makeFooUrn(0);
     AspectKey<FooUrn, AspectFoo> aspectKey = new AspectKey(AspectFoo.class, fooUrn, 0L);
 
@@ -129,6 +140,19 @@ public class EbeanLocalAccessTest {
 
     // Expect: get AspectFoo from urn:li:foo:9999 returns empty result
     assertTrue(ebeanMetadataAspectList.isEmpty());
+  }
+
+  @Test
+  public void testGetAspectWhenColumnMissing() throws Exception {
+    // Given: a valid URN for which the aspect column does not exist
+    FooUrn fooUrn = makeFooUrn(0);
+    AspectKey<FooUrn, AspectBaz> missingAspectKey = new AspectKey<>(AspectBaz.class, fooUrn, 0L);
+
+    List<EbeanMetadataAspect> result = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(missingAspectKey), 1000, 0, false, false);
+    // Expect: the result is empty since the column does not exist
+    // Then: expect it to be silently skipped (no exception) and return empty result
+    assertNotNull(result);
+    assertTrue("Expected empty result when aspect column is missing", result.isEmpty());
   }
 
   @Test
@@ -303,6 +327,40 @@ public class EbeanLocalAccessTest {
   }
 
   @Test
+  public void testCountAggregateSkipsMissingColumn() throws Exception {
+    // Given: metadata_entity_foo table with fooUrns from 0 ~ 99
+
+    // Given: a valid group by criterion filter value = 25
+    IndexFilter indexFilter = new IndexFilter();
+    IndexCriterion indexCriterion =
+        SQLIndexFilterUtils.createIndexCriterion(AspectFoo.class, "value", Condition.EQUAL, IndexValue.create(25));
+    indexFilter.setCriteria(new IndexCriterionArray(indexCriterion));
+
+    IndexGroupByCriterion groupByCriterion = new IndexGroupByCriterion();
+    groupByCriterion.setPath("/value");
+    groupByCriterion.setAspect(AspectFoo.class.getCanonicalName());
+
+    // Spy on validator to simulate column missing
+    SchemaValidatorUtil validatorSpy = spy(new SchemaValidatorUtil(_server));
+    doReturn(false).when(validatorSpy).columnExists(anyString(), anyString());
+
+    // Inject the spy into _ebeanLocalAccessFoo
+    Field validatorField = _ebeanLocalAccessFoo.getClass().getDeclaredField("validator");
+    validatorField.setAccessible(true);
+    validatorField.set(_ebeanLocalAccessFoo, validatorSpy);
+
+    // When: countAggregate is called
+    Map<String, Long> result = _ebeanLocalAccessFoo.countAggregate(indexFilter, groupByCriterion);
+
+    // Then: expect empty result
+    assertNotNull(result, "Expected non-null result even when group-by column is missing");
+    assertTrue("Expected empty map when group-by column is missing", result.isEmpty());
+  }
+
+
+
+
+  @Test
   public void testEscapeSpecialCharInUrn() {
     AspectFoo aspectFoo = new AspectFoo().setValue("test");
     AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
@@ -313,7 +371,7 @@ public class EbeanLocalAccessTest {
 
     AspectKey aspectKey1 = new AspectKey(AspectFoo.class, johnsBurgerUrn1, 0L);
     List<EbeanMetadataAspect> ebeanMetadataAspectList = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey1), 1, 0, false, false);
-    assertEquals(1, ebeanMetadataAspectList.size());
+    assertEquals(ebeanMetadataAspectList.size(), 1);
     assertEquals(ebeanMetadataAspectList.get(0).getKey().getUrn(), johnsBurgerUrn1.toString());
 
     // Double quote is a special char in SQL.
@@ -322,7 +380,7 @@ public class EbeanLocalAccessTest {
 
     AspectKey aspectKey2 = new AspectKey(AspectFoo.class, johnsBurgerUrn2, 0L);
     ebeanMetadataAspectList = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey2), 1, 0, false, false);
-    assertEquals(1, ebeanMetadataAspectList.size());
+    assertEquals(ebeanMetadataAspectList.size(), 1);
     assertEquals(ebeanMetadataAspectList.get(0).getKey().getUrn(), johnsBurgerUrn2.toString());
 
     // Backslash is a special char in SQL.
@@ -331,7 +389,7 @@ public class EbeanLocalAccessTest {
 
     AspectKey aspectKey3 = new AspectKey(AspectFoo.class, johnsBurgerUrn3, 0L);
     ebeanMetadataAspectList = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey3), 1, 0, false, false);
-    assertEquals(1, ebeanMetadataAspectList.size());
+    assertEquals(ebeanMetadataAspectList.size(), 1);
     assertEquals(ebeanMetadataAspectList.get(0).getKey().getUrn(), johnsBurgerUrn3.toString());
   }
 
@@ -402,18 +460,6 @@ public class EbeanLocalAccessTest {
         _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0, true, false);
     assertFalse(ebeanMetadataAspectList.isEmpty());
     assertEquals(fooUrn.toString(), ebeanMetadataAspectList.get(0).getKey().getUrn());
-  }
-
-  @Test
-  public void testCheckColumnExists() {
-    assertTrue(_ebeanLocalAccessFoo.checkColumnExists("metadata_entity_foo", "a_aspectfoo"));
-    assertFalse(_ebeanLocalAccessFoo.checkColumnExists("metadata_entity_foo", "a_aspect_not_exist"));
-    assertFalse(_ebeanLocalAccessFoo.checkColumnExists("metadata_entity_notexist", "a_aspectfoo"));
-    if (!_ebeanConfig.isNonDollarVirtualColumnsEnabled()) {
-      assertTrue(_ebeanLocalAccessFoo.checkColumnExists("metadata_entity_foo", "i_aspectfoo$value"));
-    } else {
-      assertTrue(_ebeanLocalAccessFoo.checkColumnExists("metadata_entity_foo", "i_aspectfoo0value"));
-    }
   }
 
   @Test

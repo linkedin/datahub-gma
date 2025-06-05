@@ -7,6 +7,7 @@ import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.StringArray;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.AspectKey;
+import com.linkedin.metadata.dao.BaseLocalDAO;
 import com.linkedin.metadata.dao.exception.ModelValidationException;
 import com.linkedin.metadata.dao.ingestion.AspectCallbackRegistry;
 import com.linkedin.metadata.dao.ingestion.AspectCallbackResponse;
@@ -422,6 +423,7 @@ public abstract class BaseAspectRoutingResource<
       IngestionTrackingContext trackingContext, IngestionParams ingestionParams, AuditStamp auditStamp,
       boolean skipExtraProcessing) {
     if (!aspectsToIgnore.contains(aspect.getClass())) {
+      BaseLocalDAO<INTERNAL_ASPECT_UNION, URN> shadowLocalDao = getShadowLocalDAO();
       if (getAspectRoutingGmsClientManager().hasRegistered(aspect.getClass())) {
         try {
           // get the updated aspect if there is a preupdate routing lambda registered
@@ -448,6 +450,10 @@ public abstract class BaseAspectRoutingResource<
           // the value of param skipExtraProcessing since any pre-update lambdas would have already been executed
           // in the code above.
           getLocalDAO().rawAdd((URN) urn, aspect, auditStamp, trackingContext, ingestionParams);
+          // if there is a shadow local DAO, also call rawAdd on it to write it to the shadow db
+          if (shadowLocalDao != null) {
+            shadowLocalDao.rawAdd((URN) urn, aspect, auditStamp, trackingContext, ingestionParams);
+          }
         } catch (Exception exception) {
           log.error("Couldn't ingest routing aspect {} for {}", aspect.getClass().getSimpleName(), urn, exception);
           throw exception;
@@ -456,8 +462,14 @@ public abstract class BaseAspectRoutingResource<
         if (skipExtraProcessing) {
           // call a simple version of BaseLocalDAO::add which skips pre-update lambdas.
           getLocalDAO().rawAdd((URN) urn, aspect, auditStamp, trackingContext, ingestionParams);
+          if (shadowLocalDao != null) {
+            shadowLocalDao.rawAdd((URN) urn, aspect, auditStamp, trackingContext, ingestionParams);
+          }
         } else {
           getLocalDAO().add((URN) urn, aspect, auditStamp, trackingContext, ingestionParams);
+          if (shadowLocalDao != null) {
+            shadowLocalDao.add((URN) urn, aspect, auditStamp, trackingContext, ingestionParams);
+          }
         }
       }
     }

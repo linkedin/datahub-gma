@@ -10,12 +10,23 @@ import com.linkedin.metadata.query.SortOrder;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.urn.FooUrn;
 import java.net.URISyntaxException;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.*;
 import static org.testng.Assert.*;
 
 
 public class SQLIndexFilterUtilsTest {
+
+  private static SchemaValidatorUtil mockValidator;
+
+  @BeforeClass
+  public void setupValidator() {
+    mockValidator = mock(SchemaValidatorUtil.class);
+    when(mockValidator.columnExists(anyString(), anyString())).thenReturn(true);
+  }
 
   @Test
   public void testParseSortCriteria() throws URISyntaxException {
@@ -48,12 +59,12 @@ public class SQLIndexFilterUtilsTest {
     indexCriterionArray.add(indexCriterion);
     indexFilter.setCriteria(indexCriterionArray);
 
-    String sql = SQLIndexFilterUtils.parseIndexFilter(FooUrn.ENTITY_TYPE, indexFilter, false);
+    String sql = SQLIndexFilterUtils.parseIndexFilter(FooUrn.ENTITY_TYPE, indexFilter, false, mockValidator);
     assertEquals(sql,
-        "WHERE a_aspectfoo IS NOT NULL\nAND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\nAND i_aspectfoo$id < 12");
+        "WHERE a_aspectfoo IS NOT NULL\nAND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\nAND i_aspectfoo$id < 12\nAND deleted_ts IS NULL");
 
-    sql = SQLIndexFilterUtils.parseIndexFilter(FooUrn.ENTITY_TYPE, indexFilter, true);
+    sql = SQLIndexFilterUtils.parseIndexFilter(FooUrn.ENTITY_TYPE, indexFilter, true, mockValidator);
     assertEquals(sql,
-        "WHERE a_aspectfoo IS NOT NULL\nAND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\nAND i_aspectfoo0id < 12");
+        "WHERE a_aspectfoo IS NOT NULL\nAND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\nAND i_aspectfoo0id < 12\nAND deleted_ts IS NULL");
   }
 }
