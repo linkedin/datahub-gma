@@ -1,0 +1,17 @@
+namespace pegasus.com.linkedin.metadata.events
+
+/**
+ * eTag used for atomic aspect updating
+ */
+record IngestionAspectETag {
+
+  /**
+   * aspect FQCN
+   */
+  aspect_name: optional string = ""
+
+  /**
+   * e.g. timestamp used for optimistic locking when writing new aspect value
+   */
+  eTag: optional long = 0
+}
