@@ -602,8 +602,10 @@ public abstract class BaseAspectRoutingResource<
                 key.getUrn(), key.getAspectClass().getSimpleName(), local.get(), shadow.get());
             valueToUse = local.get();
           } else if (shadow.isPresent()) {
+            log.warn("Only shadow value present for URN {} and aspect {}", key.getUrn(), key.getAspectClass().getSimpleName());
             valueToUse = shadow.get();
           } else if (local.isPresent()) {
+            log.info("Only local value present for URN {} and aspect {}. Using local.", key.getUrn(), key.getAspectClass().getSimpleName());
             valueToUse = local.get();
           }
 
