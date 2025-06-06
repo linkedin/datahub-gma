@@ -13,7 +13,22 @@ record SoftDeletedAspectCopy {
   gma_deleted: boolean
 
   /**
-   * The deleted content of the aspect
+   * The deleted content (oldValue) of the aspect
    */
-  gma_deleted_content: optional AuditedAspect
+  deletedContent: optional string
+
+  /**
+   * The canonical class name of the aspect.
+   */
+  canonicalName: optional string
+
+  /**
+   * Audit timestamp to track when this aspect was deleted.
+   */
+  deletedTimestamp: optional string
+
+  /**
+   * Audit information to track who deleted this aspect.
+   */
+  deletedBy: optional string
 }

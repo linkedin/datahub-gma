@@ -878,8 +878,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         // DUAL WRITE: 1) update aspect table, 2) update entity table.
         // Note: when cold-archive is enabled, this method: updateWithOptimisticLocking will not be called.
         _server.execute(oldSchemaSqlUpdate);
-        // oldValue set to NULL: only used for soft-delete, not supported for GMS's that use metadata_aspect
-        return _localAccess.addWithOptimisticLocking(urn, null, (ASPECT) value, aspectClass, newAuditStamp, oldTimestamp,
+        return _localAccess.addWithOptimisticLocking(urn, (ASPECT) value, aspectClass, newAuditStamp, oldTimestamp,
             trackingContext, isTestMode);
       }, 1);
     } else {
@@ -889,8 +888,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       numOfUpdatedRows = runInTransactionWithRetry(() -> {
         // Additionally, in DUAL_SCHEMA mode: apply a regular update (no optimistic locking) to the entity table
         if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
-          // oldValue set to NULL: only used for soft-delete, not supported for GMS's that use metadata_aspect
-          _localAccess.addWithOptimisticLocking(urn, null, (ASPECT) value, aspectClass, newAuditStamp, null,
+          _localAccess.addWithOptimisticLocking(urn, (ASPECT) value, aspectClass, newAuditStamp, null,
               trackingContext, isTestMode);
         }
         return _server.execute(oldSchemaSqlUpdate);

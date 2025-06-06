@@ -15,7 +15,26 @@ record SoftDeletedAspect {
   gma_deleted: boolean
 
   /**
-   * The deleted content of the aspect
+   * The deleted content (oldValue) of the aspect.
+   * Marked as optional for backwards compatibility with existing Deleted Aspects.
    */
-  gma_deleted_content: optional AuditedAspect
+  deletedContent: optional string
+
+  /**
+   * The canonical class name of the aspect.
+   * Marked as optional for backwards compatibility with existing Deleted Aspects.
+   */
+  canonicalName: optional string
+
+  /**
+   * Audit timestamp to track when this aspect was deleted.
+   * Marked as optional for backwards compatibility with existing Deleted Aspects.
+   */
+  deletedTimestamp: optional string
+
+  /**
+   * Audit information to track who deleted this aspect.
+   * Marked as optional for backwards compatibility with existing Deleted Aspects.
+   */
+  deletedBy: optional string
 }

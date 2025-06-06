@@ -62,7 +62,6 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    *
    * @param <ASPECT>                 metadata aspect value
    * @param urn                      entity urn
-   * @param oldValue                 old aspect value in {@link RecordTemplate}
    * @param newValue                 aspect value in {@link RecordTemplate}
    * @param aspectClass              class of the aspect
    * @param auditStamp               audit timestamp
@@ -71,7 +70,7 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * @param isTestMode               whether the test mode is enabled or not
    * @return number of rows inserted or updated
    */
-  <ASPECT extends RecordTemplate> int addWithOptimisticLocking(@Nonnull URN urn, @Nullable ASPECT oldValue, @Nullable ASPECT newValue,
+  <ASPECT extends RecordTemplate> int addWithOptimisticLocking(@Nonnull URN urn, @Nullable ASPECT newValue,
       @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, @Nullable Timestamp oldTimestamp,
       @Nullable IngestionTrackingContext ingestionTrackingContext, boolean isTestMode);
 

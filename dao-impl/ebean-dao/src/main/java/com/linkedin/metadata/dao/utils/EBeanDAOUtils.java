@@ -435,30 +435,23 @@ public class EBeanDAOUtils {
   /**
    * Create a soft deleted aspect with the given old value and timestamp.
    *
-   * <p>NOTE: Because current write pathways for soft-deletion do not query for the full AuditedAspect, we do not have
-   * many fields available for us to "recreate" it; below is all we can access without performing yet another DB READ.
-   * In the future, if this is a gap for un-delete support, we can consider (heavy) refactoring of these pathways.
-   *
-   * <p>Note that in order to adhere to Pegasus-defined schema, we need to ensure that "required" fields are set.
-   *
    * @param aspectClass the class of the aspect
    * @param oldValue the old value of the aspect
-   * @param oldTimestamp the timestamp of the old value
+   * @param deletedTimestamp the timestamp of the old value
+   * @param deletedBy the user who deleted the aspect
    * @return a SoftDeletedAspect with the given old value and timestamp
    */
   @Nonnull
   public static <ASPECT extends RecordTemplate> SoftDeletedAspect createSoftDeletedAspect(
-      @Nonnull Class<ASPECT> aspectClass, @Nullable ASPECT oldValue, @Nullable Timestamp oldTimestamp) {
-    final SoftDeletedAspect softDeletedAspect = new SoftDeletedAspect().setGma_deleted(true);
+      @Nonnull Class<ASPECT> aspectClass, @Nullable ASPECT oldValue, @Nonnull Timestamp deletedTimestamp, @Nonnull String deletedBy) {
+    SoftDeletedAspect sda = new SoftDeletedAspect().setGma_deleted(true)
+        .setCanonicalName(aspectClass.getCanonicalName())
+        .setDeletedTimestamp(deletedTimestamp.toString())
+        .setDeletedBy(deletedBy);
     if (oldValue != null) {
-      final AuditedAspect auditedAspect = new AuditedAspect()
-          .setCanonicalName(aspectClass.getCanonicalName())
-          .setAspect(RecordUtils.toJsonString(oldValue))
-          .setLastmodifiedon(oldTimestamp != null ? oldTimestamp.toString() : UNSET_STRING_PLACEHOLDER)
-          .setLastmodifiedby(UNSET_STRING_PLACEHOLDER);
-      softDeletedAspect.setGma_deleted_content(auditedAspect);
+      sda.setDeletedContent(RecordUtils.toJsonString(oldValue));
     }
-    return softDeletedAspect;
+    return sda;
   }
 
   // Using the GmaAnnotationParser, extract the model type from the @gma.model annotation on any models.
