@@ -564,7 +564,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     return new AddResult<>(oldValue, newValue, aspectClass);
   }
 
-  private static <ASPECT extends RecordTemplate> AuditStamp extractOptimisticLockForAspectFromIngestionParamsIfPossible(
+  @VisibleForTesting
+  protected  <ASPECT extends RecordTemplate> AuditStamp extractOptimisticLockForAspectFromIngestionParamsIfPossible(
       @Nullable IngestionParams ingestionParams, @Nonnull Class<ASPECT> aspectClass) {
     if (ingestionParams == null) {
       return null;
@@ -576,7 +577,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     if (ingestionAspectETags != null) {
       for (IngestionAspectETag ingestionAspectETag: ingestionAspectETags) {
-        if (aspectClass.getSimpleName().equals(ingestionAspectETag.getAspect_name()) && ingestionAspectETag.getETag() != null) {
+        if (aspectClass.getSimpleName().equalsIgnoreCase(ingestionAspectETag.getAspect_name())
+            && ingestionAspectETag.getETag() != null) {
           optimisticLockAuditStamp = new AuditStamp();
           optimisticLockAuditStamp.setTime(ingestionAspectETag.getETag());
           break;
