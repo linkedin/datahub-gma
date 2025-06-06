@@ -60,7 +60,6 @@ public class EBeanDAOUtils {
   private static final RecordTemplate DELETED_METADATA = new SoftDeletedAspect().setGma_deleted(true);
   public static final String DELETED_VALUE = RecordUtils.toJsonString(DELETED_METADATA);
   private static final long LATEST_VERSION = 0L;
-  public static final String UNSET_STRING_PLACEHOLDER = "NOT_SET";
 
   private EBeanDAOUtils() {
     // Utils class
@@ -434,6 +433,9 @@ public class EBeanDAOUtils {
 
   /**
    * Create a soft deleted aspect with the given old value and timestamp.
+   *
+   * TODO: Make oldValue @Nonnull once the Old Schema is completed deprecated OR if old schema write pathways are
+   * refactored to be able to process (retrieve and then write) the old value.
    *
    * @param aspectClass the class of the aspect
    * @param oldValue the old value of the aspect
