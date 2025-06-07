@@ -567,11 +567,53 @@ public abstract class BaseAspectRoutingResource<
         .map(aspectClass -> new AspectKey<>(aspectClass, urn, LATEST_VERSION))
         .collect(Collectors.toSet());
 
-    return getLocalDAO().get(keys)
-        .values()
-        .stream()
-        .filter(java.util.Optional::isPresent)
-        .map(aspect -> ModelUtils.newAspectUnion(_internalAspectUnionClass, aspect.get()))
+    if (getShadowReadLocalDAO() == null) {
+      return getLocalDAO().get(keys)
+          .values()
+          .stream()
+          .filter(java.util.Optional::isPresent)
+          .map(aspect -> ModelUtils.newAspectUnion(_internalAspectUnionClass, aspect.get()))
+          .collect(Collectors.toList());
+    }
+    return getInternalAspectsWithShadowComparison(keys);
+  }
+
+  /**
+   * Get internal aspect values from shadow DAO for specified aspect keys.
+   * This method is used to retrieve aspects from shadow DAO when the local DAO does not have the shadow read capability.
+   * @param keys Aspect keys to be retrieved from shadow DAO
+   * @return A list of internal aspects.
+   */
+  private List<INTERNAL_ASPECT_UNION> getInternalAspectsWithShadowComparison(Set<AspectKey<URN, ? extends RecordTemplate>> keys) {
+
+    Map<AspectKey<URN, ? extends RecordTemplate>, java.util.Optional<? extends RecordTemplate>> localResults =
+        getLocalDAO().get(keys);
+    Map<AspectKey<URN, ? extends RecordTemplate>, java.util.Optional<? extends RecordTemplate>> shadowResults =
+        getShadowReadLocalDAO().get(keys);
+
+    return keys.stream()
+        .map(key -> {
+          java.util.Optional<? extends RecordTemplate> local = localResults.getOrDefault(key, java.util.Optional.empty());
+          java.util.Optional<? extends RecordTemplate> shadow = shadowResults.getOrDefault(key, java.util.Optional.empty());
+
+          RecordTemplate valueToUse = null;
+          if (shadow.isPresent() && local.isPresent() && !Objects.equals(local.get(), shadow.get())) {
+            log.warn("Aspect mismatch for URN {} and aspect {}: local = {}, shadow = {}",
+                key.getUrn(), key.getAspectClass().getSimpleName(), local.get(), shadow.get());
+            valueToUse = local.get();
+          } else if (shadow.isPresent()) {
+            log.warn("Only shadow value present for URN {} and aspect {}", key.getUrn(), key.getAspectClass().getSimpleName());
+            valueToUse = shadow.get();
+          } else if (local.isPresent()) {
+            log.info("Only local value present for URN {} and aspect {}. Using local.", key.getUrn(), key.getAspectClass().getSimpleName());
+            valueToUse = local.get();
+          }
+
+          return valueToUse != null
+              ? ModelUtils.newAspectUnion(_internalAspectUnionClass, valueToUse)
+              : null;
+        })
+        .filter(Objects::nonNull)
         .collect(Collectors.toList());
   }
 

@@ -48,11 +48,13 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import lombok.extern.slf4j.Slf4j;
 
 import static com.linkedin.metadata.dao.BaseReadDAO.*;
 import static com.linkedin.metadata.dao.utils.IngestionUtils.*;
@@ -73,6 +75,7 @@ import static com.linkedin.metadata.restli.RestliConstants.*;
  * @param <INTERNAL_ASPECT_UNION> must be a valid internal aspect union type supported by the internal snapshot
  * @param <ASSET> must be a valid asset type defined in com.linkedin.metadata.asset
  */
+@Slf4j
 public abstract class BaseEntityResource<
     // @formatter:off
     KEY,
@@ -169,6 +172,11 @@ public abstract class BaseEntityResource<
 
   @Nullable
   protected BaseLocalDAO<INTERNAL_ASPECT_UNION, URN> getShadowLocalDAO() {
+    return null; // override in resource class only if needed
+  }
+
+  @Nullable
+  protected BaseLocalDAO<INTERNAL_ASPECT_UNION, URN> getShadowReadLocalDAO() {
     return null; // override in resource class only if needed
   }
 
@@ -1142,17 +1150,69 @@ public abstract class BaseEntityResource<
     final Map<URN, List<UnionTemplate>> urnAspectsMap =
         urns.stream().collect(Collectors.toMap(Function.identity(), urn -> new ArrayList<>()));
 
-    if (isInternalModelsEnabled) {
-      getLocalDAO().get(keys)
-          .forEach((key, aspect) -> aspect.ifPresent(metadata -> urnAspectsMap.get(key.getUrn())
-              .add(ModelUtils.newAspectUnion(_internalAspectUnionClass, metadata))));
+    if (getShadowReadLocalDAO() == null) {
+      if (isInternalModelsEnabled) {
+        getLocalDAO().get(keys)
+            .forEach((key, aspect) -> aspect.ifPresent(metadata -> urnAspectsMap.get(key.getUrn())
+                .add(ModelUtils.newAspectUnion(_internalAspectUnionClass, metadata))));
+      } else {
+        getLocalDAO().get(keys)
+            .forEach((key, aspect) -> aspect.ifPresent(metadata -> urnAspectsMap.get(key.getUrn())
+                .add(ModelUtils.newAspectUnion(_aspectUnionClass, metadata))));
+      }
+      return urnAspectsMap;
     } else {
-      getLocalDAO().get(keys)
-          .forEach((key, aspect) -> aspect.ifPresent(
-              metadata -> urnAspectsMap.get(key.getUrn()).add(ModelUtils.newAspectUnion(_aspectUnionClass, metadata))));
+      return getUrnAspectMapFromShadowDao(urns, keys, isInternalModelsEnabled);
     }
+  }
+
+  @Nonnull
+  private Map<URN, List<UnionTemplate>> getUrnAspectMapFromShadowDao(
+      @Nonnull Collection<URN> urns,
+      @Nonnull Set<AspectKey<URN, ? extends RecordTemplate>> keys,
+      boolean isInternalModelsEnabled) {
+
+    Map<AspectKey<URN, ? extends RecordTemplate>, java.util.Optional<? extends RecordTemplate>> localResults =
+        getLocalDAO().get(keys);
+
+    BaseLocalDAO<INTERNAL_ASPECT_UNION, URN> shadowDao = getShadowReadLocalDAO();
+    Map<AspectKey<URN, ? extends RecordTemplate>, java.util.Optional<? extends RecordTemplate>> shadowResults =
+        shadowDao.get(keys);
+
+    final Map<URN, List<UnionTemplate>> urnAspectsMap =
+        urns.stream().collect(Collectors.toMap(Function.identity(), urn -> new ArrayList<>()));
+
+    keys.forEach(key -> {
+      java.util.Optional<? extends RecordTemplate> localValue = localResults.getOrDefault(key, java.util.Optional.empty());
+      java.util.Optional<? extends RecordTemplate> shadowValue = shadowResults.getOrDefault(key, java.util.Optional.empty());
+
+      RecordTemplate valueToUse = null;
+
+      if (localValue.isPresent() && shadowValue.isPresent()) {
+        if (!Objects.equals(localValue.get(), shadowValue.get())) {
+          log.warn("Aspect mismatch for URN {} and aspect {}: local = {}, shadow = {}",
+              key.getUrn(), key.getAspectClass().getSimpleName(),
+              localValue.get(), shadowValue.get());
+          valueToUse = localValue.get(); // fallback to local if there's mismatch
+        } else {
+          valueToUse = shadowValue.get(); // match → use shadow
+        }
+      } else if (shadowValue.isPresent()) {
+        valueToUse = shadowValue.get();
+      } else if (localValue.isPresent()) {
+        valueToUse = localValue.get();
+      }
+
+      if (valueToUse != null) {
+        urnAspectsMap.get(key.getUrn()).add(ModelUtils.newAspectUnion(
+            (Class<? extends ASPECT_UNION>) (isInternalModelsEnabled ? _internalAspectUnionClass : _aspectUnionClass),
+            valueToUse));
+      }
+    });
+
     return urnAspectsMap;
   }
+
 
   @Nonnull
   private SNAPSHOT newSnapshot(@Nonnull URN urn, @Nonnull List<UnionTemplate> aspects) {
