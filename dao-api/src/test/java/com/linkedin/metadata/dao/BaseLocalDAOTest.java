@@ -818,4 +818,25 @@ public class BaseLocalDAOTest {
 
     assertEquals(result.getTime(), Long.valueOf(1234L));
   }
+
+  @Test
+  public void testExtractOptimisticLockForAspectFromIngestionParamsIfPossibleIngestionParamsIsNull() {
+    AuditStamp result = _dummyLocalDAO.extractOptimisticLockForAspectFromIngestionParamsIfPossible(null, AspectFoo.class);
+
+    assertNull(result);
+  }
+
+  @Test
+  public void testExtractOptimisticLockForAspectFromIngestionParamsIfPossibleAspectNameDoesntMatch() {
+    IngestionAspectETag ingestionAspectETag = new IngestionAspectETag();
+    ingestionAspectETag.setAspect_name("aspectBar");
+    ingestionAspectETag.setETag(1234L);
+
+    IngestionParams ingestionParams = new IngestionParams();
+    ingestionParams.setIngestionETags(new IngestionAspectETagArray(ingestionAspectETag));
+
+    AuditStamp result = _dummyLocalDAO.extractOptimisticLockForAspectFromIngestionParamsIfPossible(ingestionParams, AspectFoo.class);
+
+    assertNull(result);
+  }
 }
