@@ -6,7 +6,7 @@ namespace pegasus.com.linkedin.metadata.events
 record IngestionAspectETag {
 
   /**
-   * aspect FQCN
+   * aspect field name, e.g. "status"
    */
   aspect_name: optional string = ""
 

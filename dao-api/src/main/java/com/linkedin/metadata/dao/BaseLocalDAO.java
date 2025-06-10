@@ -76,6 +76,8 @@ import lombok.Data;
 import lombok.NonNull;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
+import pegasus.com.linkedin.metadata.events.IngestionAspectETag;
+import pegasus.com.linkedin.metadata.events.IngestionAspectETagArray;
 
 import static com.linkedin.metadata.dao.utils.IngestionUtils.*;
 import static com.linkedin.metadata.dao.utils.ModelUtils.*;
@@ -484,7 +486,6 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     _emitAuditEvent = emitAuditEvent;
   }
 
-
   /**
    * Logic common to both {@link #add(Urn, Class, Function, AuditStamp)} and {@link #delete(Urn, Class, AuditStamp, int)} methods.
    *
@@ -549,15 +550,42 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       return new AddResult<>(oldValue, oldValue, aspectClass);
     }
 
+    final AuditStamp optimisticLockAuditStamp = extractOptimisticLockForAspectFromIngestionParamsIfPossible(ingestionParams, aspectClass);
+
     // Save the newValue as the latest version
     long largestVersion =
-        saveLatest(urn, aspectClass, oldValue, oldAuditStamp, newValue, auditStamp, latest.isSoftDeleted,
-            trackingContext, ingestionParams.isTestMode());
+        saveLatest(urn, aspectClass, oldValue,
+            optimisticLockAuditStamp != null ? optimisticLockAuditStamp : oldAuditStamp,
+            newValue, auditStamp, latest.isSoftDeleted, trackingContext, ingestionParams.isTestMode());
 
     // Apply retention policy
     applyRetention(urn, aspectClass, getRetention(aspectClass), largestVersion);
 
     return new AddResult<>(oldValue, newValue, aspectClass);
+  }
+
+  @VisibleForTesting
+  protected  <ASPECT extends RecordTemplate> AuditStamp extractOptimisticLockForAspectFromIngestionParamsIfPossible(
+      @Nullable IngestionParams ingestionParams, @Nonnull Class<ASPECT> aspectClass) {
+    if (ingestionParams == null) {
+      return null;
+    }
+
+    AuditStamp optimisticLockAuditStamp = null;
+
+    final IngestionAspectETagArray ingestionAspectETags = ingestionParams.getIngestionETags();
+
+    if (ingestionAspectETags != null) {
+      for (IngestionAspectETag ingestionAspectETag: ingestionAspectETags) {
+        if (aspectClass.getSimpleName().equalsIgnoreCase(ingestionAspectETag.getAspect_name())
+            && ingestionAspectETag.getETag() != null) {
+          optimisticLockAuditStamp = new AuditStamp();
+          optimisticLockAuditStamp.setTime(ingestionAspectETag.getETag());
+          break;
+        }
+      }
+    }
+    return optimisticLockAuditStamp;
   }
 
   /**
@@ -1313,7 +1341,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param urn the URN for the entity the aspect is attached to
    * @param aspectClass the aspectClass of the aspect being saved
    * @param oldEntry {@link RecordTemplate} of the previous latest value of aspect, null if new value is the first version
-   * @param oldAuditStamp the audit stamp of the previous latest aspect, null if new value is the first version
+   * @param optimisticLockAuditStamp the audit stamp of the previous latest aspect, null if new value is the first version. Used for optimistic locking.
    * @param newEntry {@link RecordTemplate} of the new latest value of aspect
    * @param newAuditStamp the audit stamp for the operation
    * @param isSoftDeleted flag to indicate if the previous latest value of aspect was soft deleted
@@ -1321,7 +1349,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @return the largest version
    */
   protected abstract <ASPECT extends RecordTemplate> long saveLatest(@Nonnull URN urn,
-      @Nonnull Class<ASPECT> aspectClass, @Nullable ASPECT oldEntry, @Nullable AuditStamp oldAuditStamp,
+      @Nonnull Class<ASPECT> aspectClass, @Nullable ASPECT oldEntry, @Nullable AuditStamp optimisticLockAuditStamp,
       @Nullable ASPECT newEntry, @Nonnull AuditStamp newAuditStamp, boolean isSoftDeleted,
       @Nullable IngestionTrackingContext trackingContext, boolean isTestMode);
 

@@ -598,12 +598,12 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   @Override
   protected <ASPECT extends RecordTemplate> long saveLatest(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
-      @Nullable ASPECT oldValue, @Nullable AuditStamp oldAuditStamp, @Nullable ASPECT newValue,
+      @Nullable ASPECT oldValue, @Nullable AuditStamp optimisticLockAuditStamp, @Nullable ASPECT newValue,
       @Nonnull AuditStamp newAuditStamp, boolean isSoftDeleted, @Nullable IngestionTrackingContext trackingContext,
       boolean isTestMode) {
     // Save oldValue as the largest version + 1
     long largestVersion = 0;
-    if ((isSoftDeleted || oldValue != null) && oldAuditStamp != null && _changeLogEnabled) {
+    if ((isSoftDeleted || oldValue != null) && optimisticLockAuditStamp != null && _changeLogEnabled) {
       // When saving on entity which has history version (including being soft deleted), and changeLog is enabled,
       // the saveLatest will process the following steps:
 
@@ -620,11 +620,11 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       }
       // Move latest version to historical version by insert a new record only if we are not overwriting the latest version.
       if (!_overwriteLatestVersionEnabled) {
-        insert(urn, oldValue, aspectClass, oldAuditStamp, largestVersion, trackingContext, isTestMode);
+        insert(urn, oldValue, aspectClass, optimisticLockAuditStamp, largestVersion, trackingContext, isTestMode);
       }
       // update latest version
       updateWithOptimisticLocking(urn, newValue, aspectClass, newAuditStamp, LATEST_VERSION,
-          new Timestamp(oldAuditStamp.getTime()), trackingContext, isTestMode);
+          new Timestamp(optimisticLockAuditStamp.getTime()), trackingContext, isTestMode);
     } else {
       // When for fresh ingestion or with changeLog disabled
       // TODO(yanyang) added for job-gms duplicity debug, throwaway afterwards
