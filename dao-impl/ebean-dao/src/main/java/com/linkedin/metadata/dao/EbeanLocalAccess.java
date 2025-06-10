@@ -113,7 +113,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       @Nonnull AuditStamp auditStamp,
       @Nullable IngestionTrackingContext ingestionTrackingContext,
       boolean isTestMode) {
-    return addWithOptimisticLocking(urn, oldValue, newValue, aspectClass, auditStamp, null, ingestionTrackingContext, isTestMode);
+    return updateWithOptimisticLocking(urn, oldValue, newValue, aspectClass, auditStamp, null, ingestionTrackingContext, isTestMode);
   }
 
   @Override
