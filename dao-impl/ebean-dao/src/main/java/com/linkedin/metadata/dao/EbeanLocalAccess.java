@@ -125,10 +125,10 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       @Nullable Timestamp oldTimestamp,
       @Nullable IngestionTrackingContext ingestionTrackingContext,
       boolean isTestMode) {
-    return addWithOptimisticLocking(urn, null, newValue, aspectClass, auditStamp, oldTimestamp, ingestionTrackingContext, isTestMode);
+    return updateWithOptimisticLocking(urn, null, newValue, aspectClass, auditStamp, oldTimestamp, ingestionTrackingContext, isTestMode);
   }
 
-  private <ASPECT extends RecordTemplate> int addWithOptimisticLocking(
+  private <ASPECT extends RecordTemplate> int updateWithOptimisticLocking(
       @Nonnull URN urn,
       @Nullable ASPECT oldValue,
       @Nullable ASPECT newValue,

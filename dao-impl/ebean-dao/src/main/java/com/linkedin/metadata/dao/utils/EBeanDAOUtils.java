@@ -293,7 +293,7 @@ public class EBeanDAOUtils {
     try {
       SoftDeletedAspect softDeletedAspect = RecordUtils.toRecordTemplate(SoftDeletedAspect.class, metadata);
       ValidationUtils.validateAgainstSchema(softDeletedAspect);
-      return true;
+      return softDeletedAspect.hasGma_deleted() && softDeletedAspect.isGma_deleted();
     } catch (Exception e) {
       return false;
     }
@@ -446,14 +446,14 @@ public class EBeanDAOUtils {
   @Nonnull
   public static <ASPECT extends RecordTemplate> SoftDeletedAspect createSoftDeletedAspect(
       @Nonnull Class<ASPECT> aspectClass, @Nullable ASPECT oldValue, @Nonnull Timestamp deletedTimestamp, @Nonnull String deletedBy) {
-    SoftDeletedAspect sda = new SoftDeletedAspect().setGma_deleted(true)
+    SoftDeletedAspect softDeletedAspect = new SoftDeletedAspect().setGma_deleted(true)
         .setCanonicalName(aspectClass.getCanonicalName())
         .setDeletedTimestamp(deletedTimestamp.toString())
         .setDeletedBy(deletedBy);
     if (oldValue != null) {
-      sda.setDeletedContent(RecordUtils.toJsonString(oldValue));
+      softDeletedAspect.setDeletedContent(RecordUtils.toJsonString(oldValue));
     }
-    return sda;
+    return softDeletedAspect;
   }
 
   // Using the GmaAnnotationParser, extract the model type from the @gma.model annotation on any models.

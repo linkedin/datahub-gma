@@ -634,7 +634,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         }
       }
 
-      insertWithOldValue(urn, oldValue, newValue, aspectClass, newAuditStamp, LATEST_VERSION, trackingContext, isTestMode);
+      insert(urn, oldValue, newValue, aspectClass, newAuditStamp, LATEST_VERSION, trackingContext, isTestMode);
     }
 
     // This method will handle relationship ingestions and soft-deletions
@@ -905,7 +905,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   protected <ASPECT extends RecordTemplate> void insert(@Nonnull URN urn, @Nullable RecordTemplate value,
       @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, long version,
       @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
-    insertWithOldValue(urn, null, value, aspectClass, auditStamp, version, trackingContext, isTestMode);
+    insert(urn, null, value, aspectClass, auditStamp, version, trackingContext, isTestMode);
   }
 
   /**
@@ -925,7 +925,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * @param trackingContext     tracking context
    * @param isTestMode          test mode
    */
-  protected <ASPECT extends RecordTemplate> void insertWithOldValue(@Nonnull URN urn, @Nullable RecordTemplate oldValue,
+  protected <ASPECT extends RecordTemplate> void insert(@Nonnull URN urn, @Nullable RecordTemplate oldValue,
       @Nullable RecordTemplate newValue, @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, long version,
       @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
     final EbeanMetadataAspect aspect = buildMetadataAspectBean(urn, newValue, aspectClass, auditStamp, version);
