@@ -102,14 +102,16 @@ public class SQLStatementUtilsTest {
         "SELECT urn, a_aspectfoo, lastmodifiedon, lastmodifiedby "
             + "FROM metadata_entity_foo "
             + "WHERE JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL "
-            + "AND urn IN ('urn:li:foo:1', 'urn:li:foo:2')";
+            + "AND urn IN ('urn:li:foo:1', 'urn:li:foo:2') "
+            + "AND deleted_ts IS NULL";
     assertEquals(SQLStatementUtils.createAspectReadSql(AspectFoo.class, set, false, false), expectedSql);
 
     //test when includedSoftDeleted is true
     expectedSql =
         "SELECT urn, a_aspectfoo, lastmodifiedon, lastmodifiedby "
             + "FROM metadata_entity_foo "
-            + "WHERE urn IN ('urn:li:foo:1', 'urn:li:foo:2')";
+            + "WHERE urn IN ('urn:li:foo:1', 'urn:li:foo:2') "
+            + "AND deleted_ts IS NULL";
     assertEquals(SQLStatementUtils.createAspectReadSql(AspectFoo.class, set, true, false), expectedSql);
   }
 
