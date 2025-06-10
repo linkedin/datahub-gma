@@ -270,9 +270,9 @@ public class EBeanDAOUtils {
    * In other words, there are no current use cases where we store a SoftDeletedAspect with the `gma_deleted` flag set to
    * anything other than "true".
    *
-   * <p>This validation approach is necessary because many usages of checking soft-deletion are followed by
-   * a deserialization call to {@link RecordUtils#toRecordTemplate(Class, String)}, which will fail if
-   * we try to deserialize a SoftDeletedAspect -- to another Aspect Type -- with the flag set to "false".
+   * <p>While the validation implemented additionally checks for the setting of the flag, NOTE that some usages of checking
+   * soft-deletion are followed by a deserialization call to {@link RecordUtils#toRecordTemplate(Class, String)}, which
+   * will fail when we try to deserialize a SoftDeletedAspect -- to another Aspect Type -- with the flag set to "false".
    *
    * @param sqlRow {@link SqlRow} result from MySQL server
    * @param columnName column name of entity table
