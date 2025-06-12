@@ -123,7 +123,6 @@ public abstract class BaseVersionedAspectResource<URN extends Urn, ASPECT_UNION 
         log.warn("Aspect mismatch for URN {}, version {}: local = {}, shadow = {}", urn, version, local, shadow);
         return local; // fallback to primary
       } else {
-        log.info("Aspect match for URN {}, version {}", urn, version);
         return shadow;
       }
     } else if (shadowOpt.isPresent()) {
@@ -166,7 +165,6 @@ public abstract class BaseVersionedAspectResource<URN extends Urn, ASPECT_UNION 
       return new CollectionResult<>(localValues, localResult.getMetadata()); // Fallback to local
     }
 
-    log.info("Match in getAllWithMetadata for URN {}", urn);
     return new CollectionResult<>(shadowValues, shadowResult.getMetadata());
   }
 
