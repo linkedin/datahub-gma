@@ -741,10 +741,8 @@ public abstract class BaseEntityResource<
   private Task<BackfillResult> backfillRelationshipTables(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
       @ActionParam(PARAM_ASPECTS) @Nonnull String[] aspectNames, boolean isInternalModelsEnabled) {
 
-    if (getShadowLocalDAO() != null) {
-      // Delegate to shadow method if Shadow DAO is available
-      return backfillShadowRelationshipTables(urns, aspectNames, isInternalModelsEnabled);
-    }
+    // Use the shadow DAO if it exists, otherwise use the local DAO. It's a temporary solution for EGG migration.
+    BaseLocalDAO<INTERNAL_ASPECT_UNION, URN> dao = getShadowLocalDAO() != null ? getShadowLocalDAO() : getLocalDAO();
 
     final BackfillResult backfillResult = new BackfillResult()
         .setEntities(new BackfillResultEntityArray())
@@ -752,46 +750,7 @@ public abstract class BaseEntityResource<
 
     for (String urn : urns) {
       for (Class<? extends RecordTemplate> aspect : parseAspectsParam(aspectNames, isInternalModelsEnabled)) {
-        getLocalDAO().backfillLocalRelationships(parseUrnParam(urn), aspect).forEach(relationshipUpdates -> {
-          relationshipUpdates.getRelationships().forEach(relationship -> {
-            try {
-              Urn source = (Urn) relationship.getClass().getMethod("getSource").invoke(relationship);
-              Urn dest = (Urn) relationship.getClass().getMethod("getDestination").invoke(relationship);
-              BackfillResultRelationship backfillResultRelationship = new BackfillResultRelationship()
-                  .setSource(source)
-                  .setDestination(dest)
-                  .setRemovalOption(relationshipUpdates.getRemovalOption().name())
-                  .setRelationship(relationship.getClass().getSimpleName());
-
-              backfillResult.getRelationships().add(backfillResultRelationship);
-            } catch (ReflectiveOperationException e) {
-              throw new RuntimeException(e);
-            }
-          });
-        });
-      }
-    }
-
-    return RestliUtils.toTask(() -> backfillResult);
-  }
-
-  /**
-   * Backfill the shadow relationship tables from entity table. It's a temporary solution for EGG migration.
-   * @param urns
-   * @param aspectNames
-   * @param isInternalModelsEnabled
-   * @return
-   */
-  private Task<BackfillResult> backfillShadowRelationshipTables(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
-      @ActionParam(PARAM_ASPECTS) @Nonnull String[] aspectNames, boolean isInternalModelsEnabled) {
-
-    final BackfillResult backfillResult = new BackfillResult()
-        .setEntities(new BackfillResultEntityArray())
-        .setRelationships(new BackfillResultRelationshipArray());
-
-    for (String urn : urns) {
-      for (Class<? extends RecordTemplate> aspect : parseAspectsParam(aspectNames, isInternalModelsEnabled)) {
-        getShadowLocalDAO().backfillLocalRelationships(parseUrnParam(urn), aspect).forEach(relationshipUpdates -> {
+        dao.backfillLocalRelationships(parseUrnParam(urn), aspect).forEach(relationshipUpdates -> {
           relationshipUpdates.getRelationships().forEach(relationship -> {
             try {
               Urn source = (Urn) relationship.getClass().getMethod("getSource").invoke(relationship);
