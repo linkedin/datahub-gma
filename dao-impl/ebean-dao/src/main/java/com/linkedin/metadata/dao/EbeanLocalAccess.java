@@ -104,8 +104,33 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   }
 
   @Override
+  @Transactional
+  public <ASPECT extends RecordTemplate> int addWithOldValue(
+      @Nonnull URN urn,
+      @Nullable ASPECT oldValue,
+      @Nullable ASPECT newValue,
+      @Nonnull Class<ASPECT> aspectClass,
+      @Nonnull AuditStamp auditStamp,
+      @Nullable IngestionTrackingContext ingestionTrackingContext,
+      boolean isTestMode) {
+    return updateWithOptimisticLocking(urn, oldValue, newValue, aspectClass, auditStamp, null, ingestionTrackingContext, isTestMode);
+  }
+
+  @Override
   public <ASPECT extends RecordTemplate> int addWithOptimisticLocking(
       @Nonnull URN urn,
+      @Nullable ASPECT newValue,
+      @Nonnull Class<ASPECT> aspectClass,
+      @Nonnull AuditStamp auditStamp,
+      @Nullable Timestamp oldTimestamp,
+      @Nullable IngestionTrackingContext ingestionTrackingContext,
+      boolean isTestMode) {
+    return updateWithOptimisticLocking(urn, null, newValue, aspectClass, auditStamp, oldTimestamp, ingestionTrackingContext, isTestMode);
+  }
+
+  private <ASPECT extends RecordTemplate> int updateWithOptimisticLocking(
+      @Nonnull URN urn,
+      @Nullable ASPECT oldValue,
       @Nullable ASPECT newValue,
       @Nonnull Class<ASPECT> aspectClass,
       @Nonnull AuditStamp auditStamp,
@@ -136,9 +161,18 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       sqlUpdate.setParameter("a_urn", toJsonString(urn));
     }
 
-    // newValue is null if aspect is to be soft-deleted.
+    // newValue is null if aspect is to be (soft-)deleted.
     if (newValue == null) {
-      return sqlUpdate.setParameter("metadata", DELETED_VALUE).execute();
+      if (oldValue == null) {
+        // Shouldn't happen: shouldn't run delete() on an already-null/deleted aspect, or if calling to soft-delete, should
+        // pass in the old value.
+        // Since Old Schema logic that calls this method does NOT have access to the old value (without significant refactoring)
+        // we make the decision to log a warning and proceed with the soft-deletion with an empty "deletedContent" value.
+        log.warn(String.format(
+            "OldValue should not be null when NewValue is null (soft-deletion). Urn: <%s> and aspect: <%s>", urn, aspectClass));
+      }
+      return sqlUpdate.setParameter("metadata", RecordUtils.toJsonString(
+          createSoftDeletedAspect(aspectClass, oldValue, new Timestamp(timestamp), actor))).execute();
     }
 
     AuditedAspect auditedAspect = new AuditedAspect()
@@ -152,8 +186,8 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       auditedAspect.setEmitter(ingestionTrackingContext.getEmitter(), SetMode.IGNORE_NULL);
     }
 
-      final String metadata = toJsonString(auditedAspect);
-      return sqlUpdate.setParameter("metadata", metadata).execute();
+    final String metadata = toJsonString(auditedAspect);
+    return sqlUpdate.setParameter("metadata", metadata).execute();
   }
 
   /**
