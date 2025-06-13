@@ -776,7 +776,7 @@ public abstract class BaseEntityResource<
   }
 
   /**
-   * Backfill the shadow relationship tables from entity table.
+   * Backfill the shadow relationship tables from entity table. It's a temporary solution for EGG migration.
    * @param urns
    * @param aspectNames
    * @param isInternalModelsEnabled
