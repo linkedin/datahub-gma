@@ -740,6 +740,12 @@ public abstract class BaseEntityResource<
 
   private Task<BackfillResult> backfillRelationshipTables(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
       @ActionParam(PARAM_ASPECTS) @Nonnull String[] aspectNames, boolean isInternalModelsEnabled) {
+
+    if (getShadowLocalDAO() != null) {
+      // Delegate to shadow method if Shadow DAO is available
+      return backfillShadowRelationshipTables(urns, aspectNames, isInternalModelsEnabled);
+    }
+
     final BackfillResult backfillResult = new BackfillResult()
         .setEntities(new BackfillResultEntityArray())
         .setRelationships(new BackfillResultRelationshipArray());
@@ -747,6 +753,45 @@ public abstract class BaseEntityResource<
     for (String urn : urns) {
       for (Class<? extends RecordTemplate> aspect : parseAspectsParam(aspectNames, isInternalModelsEnabled)) {
         getLocalDAO().backfillLocalRelationships(parseUrnParam(urn), aspect).forEach(relationshipUpdates -> {
+          relationshipUpdates.getRelationships().forEach(relationship -> {
+            try {
+              Urn source = (Urn) relationship.getClass().getMethod("getSource").invoke(relationship);
+              Urn dest = (Urn) relationship.getClass().getMethod("getDestination").invoke(relationship);
+              BackfillResultRelationship backfillResultRelationship = new BackfillResultRelationship()
+                  .setSource(source)
+                  .setDestination(dest)
+                  .setRemovalOption(relationshipUpdates.getRemovalOption().name())
+                  .setRelationship(relationship.getClass().getSimpleName());
+
+              backfillResult.getRelationships().add(backfillResultRelationship);
+            } catch (ReflectiveOperationException e) {
+              throw new RuntimeException(e);
+            }
+          });
+        });
+      }
+    }
+
+    return RestliUtils.toTask(() -> backfillResult);
+  }
+
+  /**
+   * Backfill the shadow relationship tables from entity table.
+   * @param urns
+   * @param aspectNames
+   * @param isInternalModelsEnabled
+   * @return
+   */
+  private Task<BackfillResult> backfillShadowRelationshipTables(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
+      @ActionParam(PARAM_ASPECTS) @Nonnull String[] aspectNames, boolean isInternalModelsEnabled) {
+
+    final BackfillResult backfillResult = new BackfillResult()
+        .setEntities(new BackfillResultEntityArray())
+        .setRelationships(new BackfillResultRelationshipArray());
+
+    for (String urn : urns) {
+      for (Class<? extends RecordTemplate> aspect : parseAspectsParam(aspectNames, isInternalModelsEnabled)) {
+        getShadowLocalDAO().backfillLocalRelationships(parseUrnParam(urn), aspect).forEach(relationshipUpdates -> {
           relationshipUpdates.getRelationships().forEach(relationship -> {
             try {
               Urn source = (Urn) relationship.getClass().getMethod("getSource").invoke(relationship);
