@@ -740,13 +740,17 @@ public abstract class BaseEntityResource<
 
   private Task<BackfillResult> backfillRelationshipTables(@ActionParam(PARAM_URNS) @Nonnull String[] urns,
       @ActionParam(PARAM_ASPECTS) @Nonnull String[] aspectNames, boolean isInternalModelsEnabled) {
+
+    // Use the shadow DAO if it exists, otherwise use the local DAO. It's a temporary solution for EGG migration.
+    BaseLocalDAO<INTERNAL_ASPECT_UNION, URN> dao = getShadowLocalDAO() != null ? getShadowLocalDAO() : getLocalDAO();
+
     final BackfillResult backfillResult = new BackfillResult()
         .setEntities(new BackfillResultEntityArray())
         .setRelationships(new BackfillResultRelationshipArray());
 
     for (String urn : urns) {
       for (Class<? extends RecordTemplate> aspect : parseAspectsParam(aspectNames, isInternalModelsEnabled)) {
-        getLocalDAO().backfillLocalRelationships(parseUrnParam(urn), aspect).forEach(relationshipUpdates -> {
+        dao.backfillLocalRelationships(parseUrnParam(urn), aspect).forEach(relationshipUpdates -> {
           relationshipUpdates.getRelationships().forEach(relationship -> {
             try {
               Urn source = (Urn) relationship.getClass().getMethod("getSource").invoke(relationship);
