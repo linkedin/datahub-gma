@@ -1171,10 +1171,8 @@ public abstract class BaseEntityResource<
   }
 
   @Nonnull
-  private Map<URN, List<UnionTemplate>> getUrnAspectMapFromShadowDao(
-      @Nonnull Collection<URN> urns,
-      @Nonnull Set<AspectKey<URN, ? extends RecordTemplate>> keys,
-      boolean isInternalModelsEnabled) {
+  private Map<URN, List<UnionTemplate>> getUrnAspectMapFromShadowDao(@Nonnull Collection<URN> urns,
+      @Nonnull Set<AspectKey<URN, ? extends RecordTemplate>> keys, boolean isInternalModelsEnabled) {
 
     Map<AspectKey<URN, ? extends RecordTemplate>, java.util.Optional<? extends RecordTemplate>> localResults =
         getLocalDAO().get(keys);
@@ -1187,33 +1185,34 @@ public abstract class BaseEntityResource<
         urns.stream().collect(Collectors.toMap(Function.identity(), urn -> new ArrayList<>()));
 
     keys.forEach(key -> {
-      java.util.Optional<? extends RecordTemplate> localValue = localResults.getOrDefault(key, java.util.Optional.empty());
-      java.util.Optional<? extends RecordTemplate> shadowValue = shadowResults.getOrDefault(key, java.util.Optional.empty());
+      java.util.Optional<? extends RecordTemplate> localValue =
+          localResults.getOrDefault(key, java.util.Optional.empty());
+      java.util.Optional<? extends RecordTemplate> shadowValue =
+          shadowResults.getOrDefault(key, java.util.Optional.empty());
 
       RecordTemplate valueToUse = null;
 
       if (localValue.isPresent() && shadowValue.isPresent()) {
         if (!Objects.equals(localValue.get(), shadowValue.get())) {
-          log.warn("Aspect mismatch for URN {} and aspect {}: local = {}, shadow = {}",
-              key.getUrn(), key.getAspectClass().getSimpleName(),
-              localValue.get(), shadowValue.get());
+          log.warn("Aspect mismatch for URN {} and aspect {}: local = {}, shadow = {}", key.getUrn(),
+              key.getAspectClass().getSimpleName(), localValue.get(), shadowValue.get());
           valueToUse = localValue.get(); // fallback to local if there's mismatch
         } else {
           valueToUse = shadowValue.get(); // match → use shadow
         }
       } else if (shadowValue.isPresent()) {
-        log.warn("Only shadow value present for URN {} and aspect {}",
-            key.getUrn(), key.getAspectClass().getSimpleName());
-        valueToUse = shadowValue.get();
+        log.warn("Only shadow value present for URN {} and aspect {}. Skipping shadow-only data.", key.getUrn(),
+            key.getAspectClass().getSimpleName());
       } else if (localValue.isPresent()) {
-        log.info("Only local value present for URN {} and aspect {}. Using local.",
-            key.getUrn(), key.getAspectClass().getSimpleName());
+        log.warn("Only local value present for URN {} and aspect {}. Using local.", key.getUrn(),
+            key.getAspectClass().getSimpleName());
         valueToUse = localValue.get();
       }
       if (valueToUse != null) {
-        urnAspectsMap.get(key.getUrn()).add(ModelUtils.newAspectUnion(
-            (Class<? extends ASPECT_UNION>) (isInternalModelsEnabled ? _internalAspectUnionClass : _aspectUnionClass),
-            valueToUse));
+        urnAspectsMap.get(key.getUrn())
+            .add(ModelUtils.newAspectUnion(
+                (Class<? extends ASPECT_UNION>) (isInternalModelsEnabled ? _internalAspectUnionClass
+                    : _aspectUnionClass), valueToUse));
       }
     });
 
