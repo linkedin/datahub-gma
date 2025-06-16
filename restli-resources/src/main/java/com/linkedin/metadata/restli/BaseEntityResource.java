@@ -1187,10 +1187,8 @@ public abstract class BaseEntityResource<
         urns.stream().collect(Collectors.toMap(Function.identity(), urn -> new ArrayList<>()));
 
     keys.forEach(key -> {
-      java.util.Optional<? extends RecordTemplate> localValue =
-          localResults.getOrDefault(key, java.util.Optional.empty());
-      java.util.Optional<? extends RecordTemplate> shadowValue =
-          shadowResults.getOrDefault(key, java.util.Optional.empty());
+      java.util.Optional<? extends RecordTemplate> localValue = localResults.getOrDefault(key, java.util.Optional.empty());
+      java.util.Optional<? extends RecordTemplate> shadowValue = shadowResults.getOrDefault(key, java.util.Optional.empty());
 
       RecordTemplate valueToUse = null;
 
