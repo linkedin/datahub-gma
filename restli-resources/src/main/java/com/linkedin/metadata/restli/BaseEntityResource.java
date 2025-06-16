@@ -1194,19 +1194,20 @@ public abstract class BaseEntityResource<
 
       if (localValue.isPresent() && shadowValue.isPresent()) {
         if (!Objects.equals(localValue.get(), shadowValue.get())) {
-          log.warn("Aspect mismatch for URN {} and aspect {}: local = {}, shadow = {}",
-              key.getUrn(), key.getAspectClass().getSimpleName(),
-              localValue.get(), shadowValue.get());
+          log.warn("Aspect mismatch for URN {} and aspect {}",
+              key.getUrn(), key.getAspectClass().getSimpleName());
           valueToUse = localValue.get(); // fallback to local if there's mismatch
         } else {
           valueToUse = shadowValue.get(); // match → use shadow
         }
       } else if (shadowValue.isPresent()) {
-        valueToUse = shadowValue.get();
+        log.warn("Only shadow value present for URN {} and aspect {}. Skipping shadow-only data.", key.getUrn(),
+            key.getAspectClass().getSimpleName());
       } else if (localValue.isPresent()) {
+        log.warn("Only local value present for URN {} and aspect {}. Using local.", key.getUrn(),
+            key.getAspectClass().getSimpleName());
         valueToUse = localValue.get();
       }
-
       if (valueToUse != null) {
         urnAspectsMap.get(key.getUrn()).add(ModelUtils.newAspectUnion(
             (Class<? extends ASPECT_UNION>) (isInternalModelsEnabled ? _internalAspectUnionClass : _aspectUnionClass),

@@ -120,16 +120,13 @@ public abstract class BaseVersionedAspectResource<URN extends Urn, ASPECT_UNION 
       ASPECT shadow = shadowOpt.get();
 
       if (!Objects.equals(local, shadow)) {
-        log.warn("Aspect mismatch for URN {}, version {}: local = {}, shadow = {}", urn, version, local, shadow);
-        return local; // fallback to primary
-      } else {
-        return shadow;
+        log.warn("Aspect mismatch for URN {}, version {}", urn, version);
       }
+      return local;
     } else if (shadowOpt.isPresent()) {
-      log.warn("Only shadow has value for URN {}, version {}", urn, version);
-      return shadowOpt.get();
+      log.warn("Only shadow has value for URN {}, version {}. Skipping shadow-only data.", urn, version);
     } else if (localOpt.isPresent()) {
-      log.info("Only local has value for URN {}, version {}", urn, version);
+      log.warn("Only local has value for URN {}, version {}", urn, version);
       return localOpt.get();
     }
     throw RestliUtils.resourceNotFoundException();
@@ -161,8 +158,9 @@ public abstract class BaseVersionedAspectResource<URN extends Urn, ASPECT_UNION 
     List<ASPECT> shadowValues = shadowResult.getValues();
 
     if (!Objects.equals(localValues, shadowValues)) {
-      log.warn("Mismatch in getAllWithMetadata for URN {}: local = {}, shadow = {}", urn, localValues, shadowValues);
-      return new CollectionResult<>(localValues, localResult.getMetadata()); // Fallback to local
+      log.warn("Mismatch in getAllWithMetadata for URN {}: local size = {}, shadow size = {}. Falling back to local.",
+          urn, localValues.size(), shadowValues.size());
+      return new CollectionResult<>(localValues, localResult.getMetadata()); // fallback
     }
 
     return new CollectionResult<>(shadowValues, shadowResult.getMetadata());
