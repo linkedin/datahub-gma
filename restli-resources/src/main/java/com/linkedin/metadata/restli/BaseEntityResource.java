@@ -1194,8 +1194,9 @@ public abstract class BaseEntityResource<
 
       if (localValue.isPresent() && shadowValue.isPresent()) {
         if (!Objects.equals(localValue.get(), shadowValue.get())) {
-          log.warn("Aspect mismatch for URN {} and aspect {}: local = {}, shadow = {}", key.getUrn(),
-              key.getAspectClass().getSimpleName(), localValue.get(), shadowValue.get());
+          log.warn("Aspect mismatch for URN {} and aspect {}: local = {}, shadow = {}",
+              key.getUrn(), key.getAspectClass().getSimpleName(),
+              localValue.get(), shadowValue.get());
           valueToUse = localValue.get(); // fallback to local if there's mismatch
         } else {
           valueToUse = shadowValue.get(); // match → use shadow
