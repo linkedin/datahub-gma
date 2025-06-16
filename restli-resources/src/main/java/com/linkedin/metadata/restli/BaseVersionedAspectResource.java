@@ -120,7 +120,7 @@ public abstract class BaseVersionedAspectResource<URN extends Urn, ASPECT_UNION 
       ASPECT shadow = shadowOpt.get();
 
       if (!Objects.equals(local, shadow)) {
-        log.warn("Aspect mismatch for URN {}, version {}: local = {}, shadow = {}", urn, version, local, shadow);
+        log.warn("Aspect mismatch for URN {}, version {}", urn, version);
         return local; // fallback to primary
       } else {
         return shadow;
