@@ -1171,8 +1171,10 @@ public abstract class BaseEntityResource<
   }
 
   @Nonnull
-  private Map<URN, List<UnionTemplate>> getUrnAspectMapFromShadowDao(@Nonnull Collection<URN> urns,
-      @Nonnull Set<AspectKey<URN, ? extends RecordTemplate>> keys, boolean isInternalModelsEnabled) {
+  private Map<URN, List<UnionTemplate>> getUrnAspectMapFromShadowDao(
+      @Nonnull Collection<URN> urns,
+      @Nonnull Set<AspectKey<URN, ? extends RecordTemplate>> keys,
+      boolean isInternalModelsEnabled) {
 
     Map<AspectKey<URN, ? extends RecordTemplate>, java.util.Optional<? extends RecordTemplate>> localResults =
         getLocalDAO().get(keys);
