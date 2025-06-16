@@ -1202,11 +1202,14 @@ public abstract class BaseEntityResource<
           valueToUse = shadowValue.get(); // match → use shadow
         }
       } else if (shadowValue.isPresent()) {
+        log.warn("Only shadow value present for URN {} and aspect {}",
+            key.getUrn(), key.getAspectClass().getSimpleName());
         valueToUse = shadowValue.get();
       } else if (localValue.isPresent()) {
+        log.info("Only local value present for URN {} and aspect {}. Using local.",
+            key.getUrn(), key.getAspectClass().getSimpleName());
         valueToUse = localValue.get();
       }
-
       if (valueToUse != null) {
         urnAspectsMap.get(key.getUrn()).add(ModelUtils.newAspectUnion(
             (Class<? extends ASPECT_UNION>) (isInternalModelsEnabled ? _internalAspectUnionClass : _aspectUnionClass),
