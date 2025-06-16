@@ -121,14 +121,12 @@ public abstract class BaseVersionedAspectResource<URN extends Urn, ASPECT_UNION 
 
       if (!Objects.equals(local, shadow)) {
         log.warn("Aspect mismatch for URN {}, version {}", urn, version);
-        return local; // fallback to primary
-      } else {
-        return shadow;
       }
+      return local;
     } else if (shadowOpt.isPresent()) {
       log.warn("Only shadow has value for URN {}, version {}. Skipping shadow-only data.", urn, version);
     } else if (localOpt.isPresent()) {
-      log.info("Only local has value for URN {}, version {}", urn, version);
+      log.warn("Only local has value for URN {}, version {}", urn, version);
       return localOpt.get();
     }
     throw RestliUtils.resourceNotFoundException();
