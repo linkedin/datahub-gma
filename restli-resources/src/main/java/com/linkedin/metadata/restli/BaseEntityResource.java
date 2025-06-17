@@ -568,7 +568,7 @@ public abstract class BaseEntityResource<
       return RestliUtils.toTask(() -> {
         final URN urn = parseUrnParam(urnString);
 
-        if(getShadowReadLocalDAO() == null) {
+        if (getShadowReadLocalDAO() == null) {
           if (!getLocalDAO().exists(urn)) {
             throw RestliUtils.resourceNotFoundException();
           }
