@@ -120,6 +120,10 @@ public abstract class BaseAspectRoutingResource<
       // If entity only has routing aspect, resourceNotFoundException will be thrown.
       final URN urn = toUrn(id);
       if (!getLocalDAO().exists(urn)) {
+        if (getShadowReadLocalDAO() != null && getShadowReadLocalDAO().exists(urn)) {
+          // If the entity exists in shadow DAO, we can return an empty value.
+          log.warn("Entity {} exists in shadow DAO but not in local DAO. Ignoring shadow-only data.", urn);
+        }
         throw RestliUtils.resourceNotFoundException(String.format("Cannot find entity {%s} from Master GMS.", urn));
       }
       final Set<Class<? extends RecordTemplate>> nonRoutingAspects = getNonRoutingAspects(aspectClasses);

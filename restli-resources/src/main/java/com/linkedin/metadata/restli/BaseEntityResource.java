@@ -568,27 +568,81 @@ public abstract class BaseEntityResource<
       return RestliUtils.toTask(() -> {
         final URN urn = parseUrnParam(urnString);
 
-        if (!getLocalDAO().exists(urn)) {
-          throw RestliUtils.resourceNotFoundException();
+        if(getShadowReadLocalDAO() == null) {
+          if (!getLocalDAO().exists(urn)) {
+            throw RestliUtils.resourceNotFoundException();
+          }
+
+          final Set<AspectKey<URN, ? extends RecordTemplate>> keys = parseAspectsParam(aspectNames, true).stream()
+              .map(aspectClass -> new AspectKey<>(aspectClass, urn, LATEST_VERSION))
+              .collect(Collectors.toSet());
+
+          final List<UnionTemplate> aspects = getLocalDAO().get(keys)
+              .values()
+              .stream()
+              .filter(java.util.Optional::isPresent)
+              .map(aspect -> ModelUtils.newAspectUnion(_internalAspectUnionClass, aspect.get()))
+              .collect(Collectors.toList());
+
+          return ModelUtils.newAsset(_assetClass, urn, aspects);
         }
-
-        final Set<AspectKey<URN, ? extends RecordTemplate>> keys = parseAspectsParam(aspectNames, true).stream()
-            .map(aspectClass -> new AspectKey<>(aspectClass, urn, LATEST_VERSION))
-            .collect(Collectors.toSet());
-
-        final List<UnionTemplate> aspects = getLocalDAO().get(keys)
-            .values()
-            .stream()
-            .filter(java.util.Optional::isPresent)
-            .map(aspect -> ModelUtils.newAspectUnion(_internalAspectUnionClass, aspect.get()))
-            .collect(Collectors.toList());
-
-        return ModelUtils.newAsset(_assetClass, urn, aspects);
+        return getAssetWithShadowComparison(urn, aspectNames);
       });
     } catch (ModelValidationException e) {
       throw RestliUtils.invalidArgumentsException(e.getMessage());
     }
   }
+
+  private ASSET getAssetWithShadowComparison(@Nonnull URN urn, @Nullable String[] aspectNames) {
+
+    if (!getLocalDAO().exists(urn)) {
+      if (getShadowReadLocalDAO().exists(urn)) {
+        log.warn("Entity {} exists in shadow DAO but not in local DAO. Ignoring shadow-only data.", urn);
+      }
+      throw RestliUtils.resourceNotFoundException();
+    }
+
+    final Set<AspectKey<URN, ? extends RecordTemplate>> keys = parseAspectsParam(aspectNames, true).stream()
+        .map(aspectClass -> new AspectKey<>(aspectClass, urn, LATEST_VERSION))
+        .collect(Collectors.toSet());
+
+    Map<AspectKey<URN, ? extends RecordTemplate>, java.util.Optional<? extends RecordTemplate>> localResults =
+        getLocalDAO().get(keys);
+    Map<AspectKey<URN, ? extends RecordTemplate>, java.util.Optional<? extends RecordTemplate>> shadowResults =
+        getShadowReadLocalDAO().get(keys);
+
+    List<UnionTemplate> aspects = new ArrayList<>();
+
+    for (AspectKey<URN, ? extends RecordTemplate> key : keys) {
+      java.util.Optional<? extends RecordTemplate> local = localResults.getOrDefault(key, java.util.Optional.empty());
+      java.util.Optional<? extends RecordTemplate> shadow = shadowResults.getOrDefault(key, java.util.Optional.empty());
+
+      RecordTemplate valueToUse = null;
+
+      if (local.isPresent() && shadow.isPresent()) {
+        if (!Objects.equals(local.get(), shadow.get())) {
+          log.warn("Aspect mismatch for URN {} and aspect {}: local = {}, shadow = {}", urn,
+              key.getAspectClass().getSimpleName(), local.get(), shadow.get());
+        }
+        valueToUse = shadow.get(); // match → prefer shadow
+      } else if (shadow.isPresent()) {
+        log.warn("Only shadow value present for URN {} and aspect {}. Skipping shadow-only data.",
+            urn, key.getAspectClass().getSimpleName());
+        // shadow-only → skip
+      } else if (local.isPresent()) {
+        log.warn("Only local value present for URN {} and aspect {}. Using local.",
+            urn, key.getAspectClass().getSimpleName());
+        valueToUse = local.get();
+      }
+
+      if (valueToUse != null) {
+        aspects.add(ModelUtils.newAspectUnion(_internalAspectUnionClass, valueToUse));
+      }
+    }
+
+    return ModelUtils.newAsset(_assetClass, urn, aspects);
+  }
+
 
   /**
    * An action method for emitting MAE backfill messages for an entity.
