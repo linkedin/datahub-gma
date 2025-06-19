@@ -16,7 +16,6 @@ import com.linkedin.metadata.dao.retention.TimeBasedRetention;
 import com.linkedin.metadata.dao.retention.VersionBasedRetention;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.urnpath.EmptyPathExtractor;
-import com.linkedin.metadata.events.ChangeType;
 import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.internal.IngestionParams;
@@ -35,10 +34,8 @@ import java.net.URISyntaxException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -95,7 +92,7 @@ public class BaseLocalDAOTest {
     }
 
     @Override
-    protected <ASPECT_UNION extends RecordTemplate> int createNewAspect(@Nonnull FooUrn urn,
+    protected <ASPECT_UNION extends RecordTemplate> int createNewAssetWithAspects(@Nonnull FooUrn urn,
         @Nonnull List<AspectCreateLambda<? extends RecordTemplate>> aspectCreateLambdas,
         @Nonnull List<? extends RecordTemplate> aspectValues, @Nonnull AuditStamp newAuditStamp,
         @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
@@ -103,13 +100,9 @@ public class BaseLocalDAOTest {
     }
 
     @Override
-    protected Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> permanentDelete(@Nonnull FooUrn urn,
-        @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nullable AuditStamp auditStamp,
-        int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
-      Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> result = new HashMap<>();
-      result.put(AspectFoo.class, Optional.of(new AspectFoo().setValue("foo")));
-      result.put(AspectBar.class, Optional.of(new AspectBar().setValue("bar")));
-      return result;
+    protected int permanentDelete(@Nonnull FooUrn urn, boolean isTestMode) {
+      // 1 aspect is deleted: 1 row in table
+      return 1;
     }
 
     @Override
@@ -738,30 +731,6 @@ public class BaseLocalDAOTest {
         .produceAspectSpecificMetadataAuditEvent(urn, null, bar, AspectFoo.class, _dummyAuditStamp, IngestionMode.LIVE);
     verify(_mockEventProducer, times(1))
         .produceAspectSpecificMetadataAuditEvent(urn, null, bar, AspectBar.class, _dummyAuditStamp, IngestionMode.LIVE);
-    verifyNoMoreInteractions(_mockEventProducer);
-  }
-
-  @Test
-  public void testDeleteAll() throws URISyntaxException {
-    // Set-up test data
-    FooUrn urn = new FooUrn(1);
-    RecordTemplate foo = new AspectFoo().setValue("foo");
-    RecordTemplate bar = new AspectBar().setValue("bar");
-
-    Set<Class<? extends RecordTemplate>> aspectsClasses = new HashSet<>();
-    aspectsClasses.add(AspectFoo.class);
-    aspectsClasses.add(AspectBar.class);
-
-    Collection<EntityAspectUnion> results = _dummyLocalDAO.deleteAll(urn, aspectsClasses, _dummyAuditStamp);
-    assertEquals(results.size(), 2);
-    results.forEach(result -> {
-      assertNotNull(result);
-      assertTrue(result.isAspectBar() || result.isAspectFoo());
-    });
-    verify(_mockEventProducer, times(1))
-        .produceAspectSpecificMetadataAuditEvent(urn, foo, null, AspectFoo.class, _dummyAuditStamp, IngestionMode.LIVE, ChangeType.DELETE_ALL);
-    verify(_mockEventProducer, times(1))
-        .produceAspectSpecificMetadataAuditEvent(urn, bar, null, AspectBar.class, _dummyAuditStamp, IngestionMode.LIVE, ChangeType.DELETE_ALL);
     verifyNoMoreInteractions(_mockEventProducer);
   }
 
