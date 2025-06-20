@@ -1262,9 +1262,10 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nullable IngestionParams ingestionParams) {
     IngestionParams nonNullIngestionParams = ingestionParams == null ?
         new IngestionParams().setIngestionMode(IngestionMode.LIVE) : ingestionParams;
-    final IngestionParams nonNullIngestionParamsWithTestMode =
-        !nonNullIngestionParams.hasTestMode() ? nonNullIngestionParams.setTestMode(false) : nonNullIngestionParams;
-    return add(urn, (Class<ASPECT>) newValue.getClass(), ignored -> newValue, auditStamp, trackingContext, nonNullIngestionParamsWithTestMode);
+    final IngestionParams nonNullIngestionParamsWithTestMode = !nonNullIngestionParams.hasTestMode() ?
+        nonNullIngestionParams.setTestMode(false) : nonNullIngestionParams;
+    return add(urn, (Class<ASPECT>) newValue.getClass(), ignored -> newValue, auditStamp, trackingContext,
+        nonNullIngestionParamsWithTestMode);
   }
 
   /**
@@ -1278,9 +1279,10 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nullable IngestionParams ingestionParams) {
     IngestionParams nonNullIngestionParams = ingestionParams == null ?
         new IngestionParams().setIngestionMode(IngestionMode.LIVE) : ingestionParams;
-    final IngestionParams nonNullIngestionParamsWithTestMode =
-        !nonNullIngestionParams.hasTestMode() ? nonNullIngestionParams.setTestMode(false) : nonNullIngestionParams;
-    return rawAdd(urn, (Class<ASPECT>) newValue.getClass(), ignored -> newValue, auditStamp, trackingContext, nonNullIngestionParamsWithTestMode);
+    final IngestionParams nonNullIngestionParamsWithTestMode = !nonNullIngestionParams.hasTestMode() ?
+        nonNullIngestionParams.setTestMode(false) : nonNullIngestionParams;
+    return rawAdd(urn, (Class<ASPECT>) newValue.getClass(), ignored -> newValue, auditStamp, trackingContext,
+        nonNullIngestionParamsWithTestMode);
   }
 
   /**
