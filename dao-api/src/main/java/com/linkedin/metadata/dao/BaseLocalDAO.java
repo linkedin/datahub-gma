@@ -548,7 +548,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     final AuditStamp optimisticLockAuditStamp = extractOptimisticLockForAspectFromIngestionParamsIfPossible(ingestionParams, aspectClass);
 
     // Logic determines whether an update to aspect should be persisted.
-    if (!shouldUpdateAspect(ingestionParams.getIngestionMode(), urn, oldValue, newValue, aspectClass, auditStamp, equalityTester, oldAuditStamp, optimisticLockAuditStamp)) {
+    if (!shouldUpdateAspect(ingestionParams.getIngestionMode(), urn, oldValue, newValue, aspectClass, auditStamp, equalityTester,
+        oldAuditStamp, optimisticLockAuditStamp)) {
       return new AddResult<>(oldValue, oldValue, aspectClass);
     }
 
@@ -2034,12 +2035,13 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * Returns true if we should skip writing newValue(when new timestamp is older than latest timestamp)
+   * Returns true if we should skip writing newValue(when etag timestamp is older than latest timestamp).
    */
-  private boolean aspectTimestampSkipWrite(@Nullable AuditStamp newValue, @Nullable AuditStamp oldValue) {
-    return oldValue != null && newValue != null
-        && oldValue.hasTime() && newValue.hasTime()
-        && newValue.getTime() < oldValue.getTime();
+  @VisibleForTesting
+  protected boolean aspectTimestampSkipWrite(@Nullable AuditStamp eTagValue, @Nullable AuditStamp oldValue) {
+    return oldValue != null && eTagValue != null
+        && oldValue.hasTime() && eTagValue.hasTime()
+        && eTagValue.getTime() < oldValue.getTime();
   }
 
   /**
@@ -2047,7 +2049,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    */
   private <ASPECT extends RecordTemplate> boolean shouldUpdateAspect(IngestionMode ingestionMode, URN urn, ASPECT oldValue,
       ASPECT newValue, Class<ASPECT> aspectClass, AuditStamp auditStamp, EqualityTester<ASPECT> equalityTester,
-      AuditStamp oldValueAuditStamp, AuditStamp newValueAuditStamp) {
+      AuditStamp oldValueAuditStamp, AuditStamp eTagAuditStamp) {
 
     final boolean oldAndNewEqual = (oldValue == null && newValue == null) || (oldValue != null && newValue != null && equalityTester.equals(
         oldValue, newValue));
@@ -2057,8 +2059,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     Mode mode = annotation == null || !annotation.hasMode() ? Mode.DEFAULT : annotation.getMode();
 
     final boolean shouldSkipBasedOnValueVersionAuditStamp =
-        oldAndNewEqual || aspectVersionSkipWrite(newValue, oldValue) || aspectTimestampSkipWrite(newValueAuditStamp,
-            oldValueAuditStamp);
+        oldAndNewEqual || aspectVersionSkipWrite(newValue, oldValue) || aspectTimestampSkipWrite(eTagAuditStamp, oldValueAuditStamp);
 
     // Skip saving for the following scenarios
     if (mode != Mode.FORCE_UPDATE
