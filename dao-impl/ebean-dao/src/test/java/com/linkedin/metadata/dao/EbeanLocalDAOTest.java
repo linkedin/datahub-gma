@@ -513,11 +513,12 @@ public class EbeanLocalDAOTest {
       EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
       FooUrn urn = makeFooUrn(1000);
       RecordTemplate foo = new AspectFoo().setValue("foo_testing_create_after_soft_delete");
+      RecordTemplate bar = new AspectBar().setValue("bar_testing_create_after_soft_delete");
       IngestionParams ingestionParams = new IngestionParams().setTestMode(false);
       dao.setAlwaysEmitAuditEvent(false);
       dao.setAlwaysEmitAspectSpecificAuditEvent(false);
       // At this time, there was no previous record for this urn, so we can create the asset with aspect foo
-      FooUrn createdUrn = dao.create(urn, ImmutableList.of(foo), _dummyAuditStamp, null, ingestionParams);
+      FooUrn createdUrn = dao.create(urn, ImmutableList.of(foo, bar), _dummyAuditStamp, null, ingestionParams);
       assertEquals(createdUrn, urn);
 
 

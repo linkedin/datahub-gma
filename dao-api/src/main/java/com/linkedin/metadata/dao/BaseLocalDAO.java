@@ -1051,7 +1051,6 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     final Map<Class<?>, RecordTemplate> results = new HashMap<>();
     runInTransactionWithRetry(() -> {
-      Map<Class<?>, RecordTemplate> deletedAspects = new HashMap<>();
         aspectClasses.forEach(aspectClass -> {
           try {
             RecordTemplate deletedAspect = delete(urn, aspectClass, auditStamp, maxTransactionRetry, trackingContext);
