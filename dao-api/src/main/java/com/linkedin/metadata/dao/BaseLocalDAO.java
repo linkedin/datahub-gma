@@ -545,12 +545,12 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       }
     }
 
+    final AuditStamp optimisticLockAuditStamp = extractOptimisticLockForAspectFromIngestionParamsIfPossible(ingestionParams, aspectClass);
+
     // Logic determines whether an update to aspect should be persisted.
-    if (!shouldUpdateAspect(ingestionParams.getIngestionMode(), urn, oldValue, newValue, aspectClass, auditStamp, equalityTester)) {
+    if (!shouldUpdateAspect(ingestionParams.getIngestionMode(), urn, oldValue, newValue, aspectClass, auditStamp, equalityTester, oldAuditStamp, optimisticLockAuditStamp)) {
       return new AddResult<>(oldValue, oldValue, aspectClass);
     }
-
-    final AuditStamp optimisticLockAuditStamp = extractOptimisticLockForAspectFromIngestionParamsIfPossible(ingestionParams, aspectClass);
 
     // Save the newValue as the latest version
     long largestVersion =
@@ -1261,8 +1261,10 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext,
       @Nullable IngestionParams ingestionParams) {
     final IngestionParams nonNullIngestionParams =
-        ingestionParams == null || !ingestionParams.hasTestMode() ? new IngestionParams().setIngestionMode(
-            IngestionMode.LIVE).setTestMode(false) : ingestionParams;
+        ingestionParams == null ? new IngestionParams().setIngestionMode(IngestionMode.LIVE).setTestMode(false) : ingestionParams;
+    if (!nonNullIngestionParams.hasTestMode()) {
+      nonNullIngestionParams.setTestMode(false);
+    }
     return add(urn, (Class<ASPECT>) newValue.getClass(), ignored -> newValue, auditStamp, trackingContext, nonNullIngestionParams);
   }
 
@@ -2032,10 +2034,20 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
+   * Returns true if we should skip writing newValue(when new timestamp is older than latest timestamp)
+   */
+  private boolean aspectTimestampSkipWrite(@Nullable AuditStamp newValue, @Nullable AuditStamp oldValue) {
+    return oldValue != null && newValue != null
+        && oldValue.hasTime() && newValue.hasTime()
+        && newValue.getTime() < oldValue.getTime();
+  }
+
+  /**
    * The logic determines if we will update the aspect.
    */
   private <ASPECT extends RecordTemplate> boolean shouldUpdateAspect(IngestionMode ingestionMode, URN urn, ASPECT oldValue,
-      ASPECT newValue, Class<ASPECT> aspectClass, AuditStamp auditStamp, EqualityTester<ASPECT> equalityTester) {
+      ASPECT newValue, Class<ASPECT> aspectClass, AuditStamp auditStamp, EqualityTester<ASPECT> equalityTester,
+      AuditStamp oldValueAuditStamp, AuditStamp newValueAuditStamp) {
 
     final boolean oldAndNewEqual = (oldValue == null && newValue == null) || (oldValue != null && newValue != null && equalityTester.equals(
         oldValue, newValue));
@@ -2044,10 +2056,15 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     AspectIngestionAnnotation annotation = findIngestionAnnotationForEntity(ingestionAnnotations, urn);
     Mode mode = annotation == null || !annotation.hasMode() ? Mode.DEFAULT : annotation.getMode();
 
+    final boolean shouldSkipBasedOnValueVersionAuditStamp =
+        oldAndNewEqual || aspectVersionSkipWrite(newValue, oldValue) || aspectTimestampSkipWrite(newValueAuditStamp,
+            oldValueAuditStamp);
+
     // Skip saving for the following scenarios
     if (mode != Mode.FORCE_UPDATE
         && ingestionMode != IngestionMode.LIVE_OVERRIDE // ensure that the new metadata received is skippable (i.e. not marked as a forced write).
-        && (oldAndNewEqual || aspectVersionSkipWrite(newValue, oldValue))) { // values are equal or newValue ver < oldValue ver
+        && shouldSkipBasedOnValueVersionAuditStamp) {
+      // values are equal or newValue ver < oldValue ver or newValue timestamp older than oldValue timestamp
       return false;
     }
 
@@ -2085,7 +2102,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       }
     }
 
-    return !(oldAndNewEqual || aspectVersionSkipWrite(newValue, oldValue));
+    return !shouldSkipBasedOnValueVersionAuditStamp;
   }
 
   /**
