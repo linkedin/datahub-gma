@@ -512,8 +512,8 @@ public class EbeanLocalDAOTest {
       // First add a record to db
       EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
       FooUrn urn = makeFooUrn(1000);
-      RecordTemplate foo = new AspectFoo().setValue("foo_testing_create_after_soft_delete");
-      RecordTemplate bar = new AspectBar().setValue("bar_testing_create_after_soft_delete");
+      RecordTemplate foo = new AspectFoo().setValue("foo_testing_create_after_soft_delete_1");
+      RecordTemplate bar = new AspectBar().setValue("bar_testing_create_after_soft_delete_1");
       IngestionParams ingestionParams = new IngestionParams().setTestMode(false);
       dao.setAlwaysEmitAuditEvent(false);
       dao.setAlwaysEmitAspectSpecificAuditEvent(false);
@@ -524,25 +524,37 @@ public class EbeanLocalDAOTest {
 
       // Verify the record was added: Foo aspect
       BaseLocalDAO.AspectEntry<AspectFoo> aspectFooEntry = dao.getLatest(urn, AspectFoo.class, false);
-      // Verify Create using get API and checking the contents of response
+      // Verify Create using get API and checking the contents of response for Aspect Foo
       Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> getAspectFooEntryMap = dao.get(ImmutableSet.of(AspectFoo.class), urn);
       assert (getAspectFooEntryMap.get(AspectFoo.class).isPresent());
       assert (!aspectFooEntry.isSoftDeleted());
       assertNotNull(dao.get(AspectFoo.class, urn).get());
       assert (getAspectFooEntryMap.get(AspectFoo.class).get().equals(foo));
-      assertEquals(aspectFooEntry.getAspect().getValue(), "foo_testing_create_after_soft_delete");
+      assertEquals(aspectFooEntry.getAspect().getValue(), "foo_testing_create_after_soft_delete_1");
+      // Verify the record was added: Bar aspect
+      BaseLocalDAO.AspectEntry<AspectBar> aspectBarEntry = dao.getLatest(urn, AspectBar.class, false);
+      // Verify Create using get API and checking the contents of response or Aspect Bar
+      Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> getAspectBarEntryMap = dao.get(ImmutableSet.of(AspectBar.class), urn);
+      assert (getAspectBarEntryMap.get(AspectBar.class).isPresent());
+      assert (!aspectBarEntry.isSoftDeleted());
+      assertNotNull(dao.get(AspectBar.class, urn).get());
+      assert (getAspectBarEntryMap.get(AspectBar.class).get().equals(bar));
+      assertEquals(aspectBarEntry.getAspect().getValue(), "bar_testing_create_after_soft_delete_1");
+
 
       // Delete the asset with aspect foo using the delete method - using deleteAll since we are deleting Asset.
-      Collection<EntityAspectUnion> deletedAsset = dao.deleteAll(urn, Collections.singleton(AspectFoo.class), _dummyAuditStamp);
-      assertEquals(deletedAsset.size(), 1);
-      // dao.exists() should return false after URN is marked for deletetion
+      Collection<EntityAspectUnion> deletedAsset = dao.deleteAll(urn, ImmutableSet.of(AspectFoo.class, AspectBar.class), _dummyAuditStamp);
+      assertEquals(deletedAsset.size(), 2);
+      // dao.exists() should return false after URN is marked for deletion
       assert (!dao.exists(urn));
       // Verify the record was deleted and no longer exists in db
-      Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>  aspectFooEntryDeleted = dao.get(ImmutableSet.of(AspectFoo.class), urn);
+      Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> aspectFooEntryDeleted = dao.get(ImmutableSet.of(AspectFoo.class), urn);
       assert (!aspectFooEntryDeleted.get(AspectFoo.class).isPresent());
+      Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> aspectBarEntryDeleted = dao.get(ImmutableSet.of(AspectBar.class), urn);
+      assert (!aspectBarEntryDeleted.get(AspectBar.class).isPresent());
 
       // try creating again with same urn, should not throw an exception
-      RecordTemplate newFoo = new AspectFoo().setValue("foo_testing_create_after_soft_delete");
+      RecordTemplate newFoo = new AspectFoo().setValue("foo_testing_create_after_soft_delete_2");
       FooUrn newCreatedUrn = dao.create(urn, ImmutableList.of(newFoo), _dummyAuditStamp, null, ingestionParams);
       assertEquals(newCreatedUrn, urn);
 
@@ -552,10 +564,13 @@ public class EbeanLocalDAOTest {
       Optional<AspectFoo> aspectNewFooEntry = getNewAspectFooEntryMap.get(AspectFoo.class).map(aspect -> (AspectFoo) aspect);
       assert (aspectNewFooEntry.isPresent());
       assertNotNull(dao.get(AspectFoo.class, urn).get());
-      assert (getNewAspectFooEntryMap.get(AspectFoo.class).get().equals(foo));
-      assertEquals(aspectNewFooEntry.get().getValue(), "foo_testing_create_after_soft_delete");
+      assert (getNewAspectFooEntryMap.get(AspectFoo.class).get().equals(newFoo));
+      assertEquals(aspectNewFooEntry.get().getValue(), "foo_testing_create_after_soft_delete_2");
       BaseLocalDAO.AspectEntry<AspectFoo>  newAspectFooGetLatestEntry = dao.getLatest(urn, AspectFoo.class, false);
       assert (!newAspectFooGetLatestEntry.isSoftDeleted());
+      // Verify bar aspect was not created (previously deleted and not accessible with get)
+      Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> getNewAspectBarEntryMap = dao.get(ImmutableSet.of(AspectBar.class), urn);
+      assert (!getNewAspectBarEntryMap.get(AspectBar.class).isPresent());
 
       assertNotNull(dao.get(AspectFoo.class, urn).get());
     }
