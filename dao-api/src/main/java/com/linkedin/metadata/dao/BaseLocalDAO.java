@@ -1260,10 +1260,12 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull ASPECT newValue,
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext,
       @Nullable IngestionParams ingestionParams) {
-    final IngestionParams nonNullIngestionParams =
-        ingestionParams == null || !ingestionParams.hasTestMode() ? new IngestionParams().setIngestionMode(
-            IngestionMode.LIVE).setTestMode(false) : ingestionParams;
-    return add(urn, (Class<ASPECT>) newValue.getClass(), ignored -> newValue, auditStamp, trackingContext, nonNullIngestionParams);
+    IngestionParams nonNullIngestionParams = ingestionParams == null
+        ? new IngestionParams().setIngestionMode(IngestionMode.LIVE) : ingestionParams;
+    final IngestionParams nonNullIngestionParamsWithTestMode = !nonNullIngestionParams.hasTestMode()
+        ? nonNullIngestionParams.setTestMode(false) : nonNullIngestionParams;
+    return add(urn, (Class<ASPECT>) newValue.getClass(), ignored -> newValue, auditStamp, trackingContext,
+        nonNullIngestionParamsWithTestMode);
   }
 
   /**
@@ -1275,10 +1277,12 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   public <ASPECT extends RecordTemplate> ASPECT rawAdd(@Nonnull URN urn, @Nonnull ASPECT newValue,
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext,
       @Nullable IngestionParams ingestionParams) {
-    final IngestionParams nonNullIngestionParams =
-        ingestionParams == null || !ingestionParams.hasTestMode() ? new IngestionParams().setIngestionMode(
-            IngestionMode.LIVE).setTestMode(false) : ingestionParams;
-    return rawAdd(urn, (Class<ASPECT>) newValue.getClass(), ignored -> newValue, auditStamp, trackingContext, nonNullIngestionParams);
+    IngestionParams nonNullIngestionParams = ingestionParams == null
+        ? new IngestionParams().setIngestionMode(IngestionMode.LIVE) : ingestionParams;
+    final IngestionParams nonNullIngestionParamsWithTestMode = !nonNullIngestionParams.hasTestMode()
+        ? nonNullIngestionParams.setTestMode(false) : nonNullIngestionParams;
+    return rawAdd(urn, (Class<ASPECT>) newValue.getClass(), ignored -> newValue, auditStamp, trackingContext,
+        nonNullIngestionParamsWithTestMode);
   }
 
   /**
