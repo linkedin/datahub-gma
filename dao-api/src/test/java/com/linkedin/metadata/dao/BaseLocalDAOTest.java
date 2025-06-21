@@ -839,4 +839,62 @@ public class BaseLocalDAOTest {
 
     assertNull(result);
   }
+
+  @Test
+  public void testAspectTimestampSkipWriteValid() {
+    AuditStamp oldAuditStamp = makeAuditStamp("susActor", 123L);
+    AuditStamp eTagAuditStamp = makeAuditStamp("susActor", 199L);
+
+    // valid, should not skip
+    assertEquals(_dummyLocalDAO.aspectTimestampSkipWrite(eTagAuditStamp, oldAuditStamp), false);
+  }
+
+  @Test
+  public void testAspectTimestampSkipWriteInvalid() {
+    AuditStamp oldAuditStamp = makeAuditStamp("susActor", 123L);
+    AuditStamp eTagAuditStamp = makeAuditStamp("susActor", 100L);
+
+    // invalid, should skip
+    assertEquals(_dummyLocalDAO.aspectTimestampSkipWrite(eTagAuditStamp, oldAuditStamp), true);
+  }
+
+  @Test
+  public void testAspectTimestampSkipWriteValidETagIsNull() {
+    AuditStamp oldAuditStamp = makeAuditStamp("susActor", 123L);
+
+    // valid, should not skip
+    assertEquals(_dummyLocalDAO.aspectTimestampSkipWrite(null, oldAuditStamp), false);
+  }
+
+  @Test
+  public void testAspectTimestampSkipWriteValidETagIsEmpty() {
+    AuditStamp oldAuditStamp = makeAuditStamp("susActor", 123L);
+    AuditStamp eTagAuditStamp = new AuditStamp();
+
+    // valid, should not skip
+    assertEquals(_dummyLocalDAO.aspectTimestampSkipWrite(eTagAuditStamp, oldAuditStamp), false);
+  }
+
+  @Test
+  public void testAspectTimestampSkipWriteValidOldIsNull() {
+    AuditStamp newAuditStamp = makeAuditStamp("susActor", 123L);
+
+    // valid, should not skip
+    assertEquals(_dummyLocalDAO.aspectTimestampSkipWrite(newAuditStamp, null), false);
+  }
+
+  @Test
+  public void testAspectTimestampSkipWriteValidOldIsEmpty() {
+    AuditStamp oldAuditStamp = new AuditStamp();
+    AuditStamp newAuditStamp = makeAuditStamp("susActor", 123L);
+
+    // invalid, should skip
+    assertEquals(_dummyLocalDAO.aspectTimestampSkipWrite(newAuditStamp, oldAuditStamp), false);
+  }
+
+  @Test
+  public void testAspectTimestampSkipWriteInvalidBothIsNull() {
+    // invalid, should skip
+    assertEquals(_dummyLocalDAO.aspectTimestampSkipWrite(null, null), false);
+  }
 }
