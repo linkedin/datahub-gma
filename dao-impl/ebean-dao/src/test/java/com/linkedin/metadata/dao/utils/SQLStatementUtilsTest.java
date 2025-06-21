@@ -54,13 +54,13 @@ public class SQLStatementUtilsTest {
     String expectedSql =
         "INSERT INTO metadata_entity_foo (urn, a_urn, a_aspectfoo, lastmodifiedon, lastmodifiedby) VALUE (:urn, "
             + ":a_urn, :metadata, :lastmodifiedon, :lastmodifiedby) ON DUPLICATE KEY UPDATE a_aspectfoo = :metadata,"
-            + " lastmodifiedon = :lastmodifiedon, a_urn = :a_urn;";
+            + " lastmodifiedon = :lastmodifiedon, a_urn = :a_urn, deleted_ts = NULL;";
     assertEquals(SQLStatementUtils.createAspectUpsertSql(fooUrn, AspectFoo.class, true, false), expectedSql);
 
     expectedSql =
         "INSERT INTO metadata_entity_foo (urn, a_aspectfoo, lastmodifiedon, lastmodifiedby) VALUE (:urn, "
             + ":metadata, :lastmodifiedon, :lastmodifiedby) ON DUPLICATE KEY UPDATE a_aspectfoo = :metadata,"
-            + " lastmodifiedon = :lastmodifiedon;";
+            + " lastmodifiedon = :lastmodifiedon, deleted_ts = NULL;";
     assertEquals(SQLStatementUtils.createAspectUpsertSql(fooUrn, AspectFoo.class, false, false), expectedSql);
   }
 
@@ -77,17 +77,22 @@ public class SQLStatementUtilsTest {
 
     expectedSql = "VALUES (:urn, :lastmodifiedon, :lastmodifiedby,";
     assertEquals(expectedSql, SQLStatementUtils.SQL_INSERT_ASSET_VALUES);
+
+    // expectedSql = "ON DUPLICATE KEY UPDATE deleted_ts = "
+    //     + "IF(deleted_TS IS NULL, CAST('DuplicateKeyException' AS UNSIGNED), NULL);";
+    // assertEquals(expectedSql, SQLStatementUtils.DELETED_TS_CHECK_FOR_CREATE);
   }
 
   @Test
   public void testDeleteAssetSql() {
     FooUrn fooUrn = makeFooUrn(1);
+    // UPDATE %s SET deleted_ts = NOW() WHERE urn = '%s';
     // isTestMode=true
-    String expectedSql = "DELETE FROM metadata_entity_foo_test WHERE urn = '" + fooUrn + "'";
-    assertEquals(SQLStatementUtils.createDeleteAssetSql(fooUrn, true), expectedSql);
+    String expectedSql = "UPDATE metadata_entity_foo_test SET deleted_ts = NOW() WHERE urn = '" + fooUrn + "';";
+    assertEquals(SQLStatementUtils.createSoftDeleteAssetSql(fooUrn, true), expectedSql);
     // isTestMode=false
-    expectedSql = "DELETE FROM metadata_entity_foo WHERE urn = '" + fooUrn + "'";
-    assertEquals(SQLStatementUtils.createDeleteAssetSql(fooUrn, false), expectedSql);
+    expectedSql = "UPDATE metadata_entity_foo SET deleted_ts = NOW() WHERE urn = '" + fooUrn + "';";
+    assertEquals(SQLStatementUtils.createSoftDeleteAssetSql(fooUrn, false), expectedSql);
   }
 
   @Test
@@ -443,7 +448,7 @@ public class SQLStatementUtilsTest {
         "UPDATE metadata_entity_foo SET a_aspectfoo = :metadata, a_urn = :a_urn, lastmodifiedon = :lastmodifiedon, "
             + "lastmodifiedby = :lastmodifiedby WHERE urn = :urn and (JSON_EXTRACT(a_aspectfoo, '$.lastmodifiedon') = "
             + ":oldTimestamp OR JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NOT NULL);";
-    assertEquals(SQLStatementUtils.createAspectUpdateWithOptimisticLockSql(fooUrn, AspectFoo.class, true, false),
+    assertEquals(SQLStatementUtils.createAspectUpdateWithOptimisticLockSql(fooUrn, AspectFoo.class, true, false, false),
         expectedSql);
 
     expectedSql =
@@ -451,7 +456,7 @@ public class SQLStatementUtilsTest {
             + ":lastmodifiedby WHERE urn = :urn and (JSON_EXTRACT(a_aspectfoo, '$.lastmodifiedon') = :oldTimestamp "
             + "OR JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NOT NULL);";
     assertEquals(
-        SQLStatementUtils.createAspectUpdateWithOptimisticLockSql(fooUrn, AspectFoo.class, false, false),
+        SQLStatementUtils.createAspectUpdateWithOptimisticLockSql(fooUrn, AspectFoo.class, false, false, false),
         expectedSql);
   }
 

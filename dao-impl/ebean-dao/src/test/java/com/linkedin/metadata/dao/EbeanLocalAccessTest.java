@@ -22,7 +22,6 @@ import com.linkedin.testing.AspectBaz;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.urn.BurgerUrn;
 import com.linkedin.testing.urn.FooUrn;
-import io.ebean.DuplicateKeyException;
 import io.ebean.Ebean;
 import io.ebean.EbeanServer;
 import io.ebean.SqlRow;
@@ -358,8 +357,6 @@ public class EbeanLocalAccessTest {
   }
 
 
-
-
   @Test
   public void testEscapeSpecialCharInUrn() {
     AspectFoo aspectFoo = new AspectFoo().setValue("test");
@@ -476,7 +473,7 @@ public class EbeanLocalAccessTest {
   }
 
   @Test
-  public void testCreateDuplicateAspect() {
+  public void testCreateDuplicateAsset() {
     FooUrn fooUrn = makeFooUrn(102);
     AspectFoo aspectFoo = new AspectFoo().setValue("foo");
     AuditStamp auditStamp = makeAuditStamp("actor", _now);
@@ -487,8 +484,8 @@ public class EbeanLocalAccessTest {
     _ebeanLocalAccessFoo.create(fooUrn, aspectValues, aspectCreateLambdas, auditStamp, null, false);
     try {
       _ebeanLocalAccessFoo.create(fooUrn, aspectValues, aspectCreateLambdas, auditStamp, null, false);
-    } catch (DuplicateKeyException duplicateKeyException) {
-      assert (duplicateKeyException.getMessage().contains("Duplicate entry"));
+    } catch (Exception duplicateKeyException) {
+      assert (duplicateKeyException.getMessage().contains("DuplicateKeyException"));
     }
   }
 
@@ -520,7 +517,7 @@ public class EbeanLocalAccessTest {
     aspectCreateLambdas.add(new BaseLocalDAO.AspectCreateLambda(aspectFoo));
     int createResult = _ebeanLocalAccessFoo.create(fooUrn, aspectValues, aspectCreateLambdas, auditStamp, null, false);
     assertEquals(createResult, 1);
-    int numRowsDeleted = _ebeanLocalAccessFoo.deleteAll(fooUrn, false);
+    int numRowsDeleted = _ebeanLocalAccessFoo.softDeleteAsset(fooUrn, false);
     assertEquals(numRowsDeleted, 1);
   }
 }

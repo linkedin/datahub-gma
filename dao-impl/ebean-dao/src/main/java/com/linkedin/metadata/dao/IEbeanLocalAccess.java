@@ -47,11 +47,12 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * @param oldTimestamp             old time stamp for optimistic lock checking
    * @param ingestionTrackingContext the ingestionTrackingContext of the MCE responsible for calling this update
    * @param isTestMode               whether the test mode is enabled or not
+   * @param softDeleteOverwrite      whether to overwrite soft deleted aspects marked with $gma_deleted
    * @return number of rows inserted or updated
    */
   <ASPECT extends RecordTemplate> int addWithOptimisticLocking(@Nonnull URN urn, @Nullable ASPECT newValue,
       @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, @Nullable Timestamp oldTimestamp,
-      @Nullable IngestionTrackingContext ingestionTrackingContext, boolean isTestMode);
+      @Nullable IngestionTrackingContext ingestionTrackingContext, boolean isTestMode, boolean softDeleteOverwrite);
 
   /**
    * Create aspect from entity table.
@@ -87,11 +88,12 @@ public interface IEbeanLocalAccess<URN extends Urn> {
 
   /**
    * Delete all aspects + urn for the given urn.
-   * @param urn {@link Urn} for the entity
+   *
+   * @param urn        {@link Urn} for the entity
    * @param isTestMode whether the operation is in test mode or not
    * @return number of rows deleted
    */
-  int deleteAll(@Nonnull URN urn, boolean isTestMode);
+  int softDeleteAsset(@Nonnull URN urn, boolean isTestMode);
 
   /**
    * Returns list of urns that satisfy the given filter conditions.

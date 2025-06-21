@@ -100,7 +100,8 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   @Transactional
   public <ASPECT extends RecordTemplate> int add(@Nonnull URN urn, @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext ingestionTrackingContext, boolean isTestMode) {
-    return addWithOptimisticLocking(urn, newValue, aspectClass, auditStamp, null, ingestionTrackingContext, isTestMode);
+    return addWithOptimisticLocking(urn, newValue, aspectClass, auditStamp, null, ingestionTrackingContext,
+        isTestMode, true);
   }
 
   @Override
@@ -111,7 +112,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       @Nonnull AuditStamp auditStamp,
       @Nullable Timestamp oldTimestamp,
       @Nullable IngestionTrackingContext ingestionTrackingContext,
-      boolean isTestMode) {
+      boolean isTestMode, boolean softDeleteOverwrite) {
 
     final long timestamp = auditStamp.hasTime() ? auditStamp.getTime() : System.currentTimeMillis();
     final String actor = auditStamp.hasActor() ? auditStamp.getActor().toString() : DEFAULT_ACTOR;
@@ -121,7 +122,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     final SqlUpdate sqlUpdate;
     if (oldTimestamp != null) {
       sqlUpdate = _server.createSqlUpdate(
-          SQLStatementUtils.createAspectUpdateWithOptimisticLockSql(urn, aspectClass, urnExtraction, isTestMode));
+          SQLStatementUtils.createAspectUpdateWithOptimisticLockSql(urn, aspectClass, urnExtraction, isTestMode, softDeleteOverwrite));
       sqlUpdate.setParameter("oldTimestamp", oldTimestamp.toString());
     } else {
       sqlUpdate = _server.createSqlUpdate(SQLStatementUtils.createAspectUpsertSql(urn, aspectClass, urnExtraction, isTestMode));
@@ -223,11 +224,25 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       }
     }
     insertIntoSql.append(CLOSING_BRACKET);
-    insertSqlValues.append(CLOSING_BRACKET_WITH_SEMICOLON);
+    insertSqlValues.append(CLOSING_BRACKET);
+
+    // Construct  DELETED_TS_CHECK_FOR_CREATE String
+    StringBuilder deletedTsCheckForCreate = new StringBuilder();
+    deletedTsCheckForCreate.append(DELETED_TS_DUPLICATE_KEY_CHECK);
+    for (int i = 0; i < classNames.size(); i++) {
+      deletedTsCheckForCreate.append(getAspectColumnName(urn.getEntityType(), classNames.get(i)));
+      deletedTsCheckForCreate.append(" = :aspect").append(i);
+      if (i != classNames.size() - 1) {
+        deletedTsCheckForCreate.append(", ");
+      }
+    }
+    deletedTsCheckForCreate.append(DELETED_TS_CONDITIONAL_VALUE_SET);
 
     // Build the final insert statement
     // For example: INSERT INTO <table_name> (<columns>) VALUES (<values>);
-    String insertStatement = insertIntoSql.toString() + insertSqlValues.toString();
+    String insertStatement = insertIntoSql.toString() + insertSqlValues.toString() + deletedTsCheckForCreate.toString();
+
+
     insertStatement = String.format(insertStatement, getTableName(urn));
 
     sqlUpdate = _server.createSqlUpdate(insertStatement);
@@ -246,6 +261,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       }
       sqlUpdate.setParameter("aspect" + i, toJsonString(auditedAspect));
     }
+
 
     // If a non-default UrnPathExtractor is provided, the user MUST specify in their schema generation scripts
     // 'ALTER TABLE <table> ADD COLUMN a_urn JSON'.
@@ -303,16 +319,17 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   }
 
   /**
-   * Delete all aspects + urn for the given urn.
-   * By this time pre-deletion hooks should be processed.
-   * Old values are not needed for delete, But should be retrieved and used for in post-update hooks if needed.
-   * @param urn {@link Urn} for the entity
+   * Delete all aspects + urn for the given urn. By this time pre-deletion hooks should be processed. Old values are not
+   * needed for delete, But should be retrieved and used for in post-update hooks if needed.
+   *
+   * @param urn        {@link Urn} for the entity
    * @param isTestMode whether the operation is in test mode or not
    * @return number of rows deleted.
    */
   @Override
-  public int deleteAll(@Nonnull URN urn, boolean isTestMode) {
-    final String deleteSqlStatement = SQLStatementUtils.createDeleteAssetSql(urn, isTestMode);
+  public int softDeleteAsset(@Nonnull URN urn, boolean isTestMode) {
+    // Update this to mark deleted_TS to NOW based on URN
+    final String deleteSqlStatement = SQLStatementUtils.createSoftDeleteAssetSql(urn, isTestMode);
     return _server.createSqlUpdate(deleteSqlStatement).execute();
   }
 

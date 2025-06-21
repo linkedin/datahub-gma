@@ -656,31 +656,24 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * @return the number of rows inserted
    */
   @Override
-  protected <ASPECT_UNION extends RecordTemplate> int createNewAspect(@Nonnull URN urn,
+  protected <ASPECT_UNION extends RecordTemplate> int createNewAssetWithAspects(@Nonnull URN urn,
       @Nonnull List<AspectCreateLambda<? extends RecordTemplate>> aspectCreateLambdas,
       @Nonnull List<? extends RecordTemplate> aspectValues, @Nonnull AuditStamp newAuditStamp,
       @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
     return runInTransactionWithRetry(() ->
+        // do a get to ensure the urn does not already exist
+        // if exists and deletedTs is null, then throw an exception
+        // if exists and deletedTs is not null, then update the deletedTs to null and create records
         _localAccess.create(urn, aspectValues, aspectCreateLambdas, newAuditStamp, trackingContext, isTestMode), 1);
   }
 
   @Override
-  protected Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> permanentDelete(@Nonnull URN urn,
-      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nullable AuditStamp auditStamp,
-      int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
+  protected int permanentDelete(@Nonnull URN urn, boolean isTestMode) {
     // If the table does not have the URN, return empty map. Nothing to delete here.
     if (!exists(urn)) {
-      return Collections.emptyMap();
+      return 0;
     }
-    // If the table has the URN, get the asset record, including all the aspects.
-    // This will be used to delete to return deleted record info in the API.
-    Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> deletedAspects = new HashMap<>();
-    aspectClasses.forEach(aspectClass -> deletedAspects.put(aspectClass, Optional.ofNullable(getLatest(urn, aspectClass, isTestMode).getAspect())));
-    // Perform deletion using urn and return the previously retrieved record.
-    return runInTransactionWithRetry(() -> {
-      _localAccess.deleteAll(urn, isTestMode);
-      return deletedAspects;
-    }, maxTransactionRetry);
+    return _localAccess.softDeleteAsset(urn, isTestMode);
   }
 
   @Override
@@ -879,7 +872,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         // Note: when cold-archive is enabled, this method: updateWithOptimisticLocking will not be called.
         _server.execute(oldSchemaSqlUpdate);
         return _localAccess.addWithOptimisticLocking(urn, (ASPECT) value, aspectClass, newAuditStamp, oldTimestamp,
-            trackingContext, isTestMode);
+            trackingContext, isTestMode, true);
       }, 1);
     } else {
       // In OLD_SCHEMA and DUAL_SCHEMA mode, the aspect table is the SOT and the getLatest (oldTimestamp) is from the aspect table.
@@ -889,7 +882,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         // Additionally, in DUAL_SCHEMA mode: apply a regular update (no optimistic locking) to the entity table
         if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
           _localAccess.addWithOptimisticLocking(urn, (ASPECT) value, aspectClass, newAuditStamp, null,
-              trackingContext, isTestMode);
+              trackingContext, isTestMode, false);
         }
         return _server.execute(oldSchemaSqlUpdate);
       }, 1);
