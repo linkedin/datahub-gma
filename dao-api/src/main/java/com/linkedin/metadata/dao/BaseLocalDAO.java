@@ -76,8 +76,6 @@ import lombok.Data;
 import lombok.NonNull;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
-import pegasus.com.linkedin.metadata.events.IngestionAspectETag;
-import pegasus.com.linkedin.metadata.events.IngestionAspectETagArray;
 
 import static com.linkedin.metadata.dao.utils.IngestionUtils.*;
 import static com.linkedin.metadata.dao.utils.ModelUtils.*;

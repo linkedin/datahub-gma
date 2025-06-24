@@ -52,8 +52,6 @@ import org.mockito.stubbing.OngoingStubbing;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
-import pegasus.com.linkedin.metadata.events.IngestionAspectETag;
-import pegasus.com.linkedin.metadata.events.IngestionAspectETagArray;
 
 import static com.linkedin.common.AuditStamps.*;
 import static org.mockito.Mockito.*;
