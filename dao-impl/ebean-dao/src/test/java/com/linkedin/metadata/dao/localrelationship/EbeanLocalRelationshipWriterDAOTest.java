@@ -1,5 +1,6 @@
 package com.linkedin.metadata.dao.localrelationship;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.io.Resources;
 import com.linkedin.metadata.dao.EbeanLocalRelationshipWriterDAO;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
@@ -17,6 +18,8 @@ import io.ebean.Ebean;
 import io.ebean.EbeanServer;
 import io.ebean.SqlRow;
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -317,6 +320,45 @@ public class EbeanLocalRelationshipWriterDAOTest {
     // Clean up
     _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_pairswith"));
   }
+
+  @Test
+  public void testAddRelationships() throws URISyntaxException, ReflectiveOperationException {
+    _localRelationshipWriterDAO.setUseAspectColumnForRelationshipRemoval(_useAspectColumnForRelationshipRemoval);
+
+    BarUrn barUrn = BarUrn.createFromString("urn:li:bar:123");
+    FooUrn fooUrn123 = FooUrn.createFromString("urn:li:foo:123");
+    FooUrn fooUrn456 = FooUrn.createFromString("urn:li:foo:456");
+    FooUrn fooUrn789 = FooUrn.createFromString("urn:li:foo:789");
+    PairsWith pairsWith1 = new PairsWith().setSource(barUrn).setDestination(fooUrn123);
+    PairsWith pairsWith2 = new PairsWith().setSource(barUrn).setDestination(fooUrn456);
+    PairsWith pairsWith3 = new PairsWith().setSource(barUrn).setDestination(fooUrn789);
+
+    List<PairsWith> relationshipsToInsert = ImmutableList.of(pairsWith1, pairsWith2, pairsWith3);
+
+    // set INSERT_BATCH_SIZE from 1000 to 2 for testing purposes
+    Field field = _localRelationshipWriterDAO.getClass().getDeclaredField("INSERT_BATCH_SIZE");
+    field.setAccessible(true); // ignore private keyword
+    Field modifiersField = Field.class.getDeclaredField("modifiers");
+    modifiersField.setAccessible(true);
+    modifiersField.setInt(field, field.getModifiers() & ~Modifier.FINAL); // remove the 'final' modifier
+    field.set(null, 2); // use null bc of static context
+
+    _localRelationshipWriterDAO.addRelationships(barUrn, AspectFooBar.class, relationshipsToInsert, false);
+
+    // After processing verification - all 3 relationships should be ingested
+    List<SqlRow> all = _server.createSqlQuery("select * from metadata_relationship_pairswith where deleted_ts is null").findList();
+    assertEquals(all.size(), 3); // Total number of edges is 1
+    assertEquals(all.get(0).getString("source"), barUrn.toString());
+    assertEquals(all.get(0).getString("destination"), fooUrn123.toString());
+    assertEquals(all.get(1).getString("source"), barUrn.toString());
+    assertEquals(all.get(1).getString("destination"), fooUrn456.toString());
+    assertEquals(all.get(2).getString("source"), barUrn.toString());
+    assertEquals(all.get(2).getString("destination"), fooUrn789.toString());
+
+    // Clean up
+    _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_pairswith"));
+  }
+
 
   @Test
   public void testRemoveRelationshipsSameAspectDifferentNamespace() throws URISyntaxException {
