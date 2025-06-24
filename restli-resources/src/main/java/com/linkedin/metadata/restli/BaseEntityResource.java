@@ -235,6 +235,9 @@ public abstract class BaseEntityResource<
     return RestliUtils.toTask(() -> {
       final URN urn = toUrn(id);
       if (!getLocalDAO().exists(urn)) {
+        if (getShadowReadLocalDAO() != null && getShadowReadLocalDAO().exists(urn)) {
+          log.warn("Entity {} exists in shadow DAO but not in local DAO. Ignoring shadow-only data.", urn);
+        }
         throw RestliUtils.resourceNotFoundException();
       }
       final VALUE value =
