@@ -162,7 +162,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
   }
 
   /**
-   * Add the given list of relationships to the local relationship tables.
+   * Add the given list of relationships to the local relationship tables in batches.
    * @param urn the source urn to be used for the relationships. Optional for Relationship V1.
    *            Needed for Relationship V2 because source is not included in the relationshipV2 metadata.
    * @param aspectClass class of the aspect from which these relationships are extracted from
@@ -185,6 +185,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
 
     long now = Instant.now().toEpochMilli();
 
+    // Insert in batches with 1000 values per insert statement
     int numBatches = (relationshipGroup.size() + INSERT_BATCH_SIZE - 1) / INSERT_BATCH_SIZE;
     for (int i = 0; i < numBatches; i++) {
       int numRelationships = Math.min(INSERT_BATCH_SIZE, relationshipGroup.size() - i * INSERT_BATCH_SIZE);
@@ -199,7 +200,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
         sqlUpdate.setParameter(CommonColumnName.ASPECT, aspectClass.getCanonicalName());
       }
 
-      // For each relationship, set the "values" to insert
+      // For each relationship in the batch, set the "values" to insert
       for (int j = 0; j < numRelationships; j++) {
         RELATIONSHIP relationship = relationshipGroup.get(j);
         // Relationship model V2 doesn't include source urn, it needs to be passed in.
@@ -214,6 +215,8 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
             .setParameter(CommonColumnName.SOURCE + j, source.toString())
             .setParameter(CommonColumnName.DESTINATION + j, destination.toString());
       }
+
+      // Execute the batch insert
       sqlUpdate.execute();
     }
   }
