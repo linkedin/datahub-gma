@@ -600,6 +600,14 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     return result;
   }
 
+  /**
+   * Extracts the optimistic lock for a specific aspect from the ingestion parameters if possible.
+   * @param ingestionParams the ingestion parameters containing the aspects and their eTags
+   * @param aspectClass aspect class
+   * @param urn asset urn
+   * @return the optimistic lock {@link AuditStamp} if it exists, otherwise null (i.e. if the aspect is not present in the ingestion params).
+   * @param <ASPECT> the aspect type
+   */
   @Override
   @Nullable
   public <ASPECT extends RecordTemplate> AuditStamp extractOptimisticLockForAspectFromIngestionParamsIfPossible(
@@ -615,9 +623,15 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     if (ingestionAspectETags != null) {
       for (IngestionAspectETag ingestionAspectETag: ingestionAspectETags) {
 
-        final String aspectAlias = SQLSchemaUtils.getColumnName(urn.getEntityType(), aspectClass.getCanonicalName());
+        final String aspectAlias;
 
-        if (aspectAlias.equalsIgnoreCase(ingestionAspectETag.getAspect_name()) && ingestionAspectETag.getETag() != null) {
+        try {
+          aspectAlias = SQLSchemaUtils.getColumnName(urn.getEntityType(), aspectClass.getCanonicalName());
+        } catch (Exception e) {
+          continue;
+        }
+
+        if (aspectAlias != null && aspectAlias.equalsIgnoreCase(ingestionAspectETag.getAspect_name()) && ingestionAspectETag.getETag() != null) {
           optimisticLockAuditStamp = new AuditStamp();
           optimisticLockAuditStamp.setTime(ingestionAspectETag.getETag());
           break;
