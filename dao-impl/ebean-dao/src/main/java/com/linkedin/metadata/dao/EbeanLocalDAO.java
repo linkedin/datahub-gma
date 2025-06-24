@@ -601,8 +601,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Override
+  @Nullable
   public <ASPECT extends RecordTemplate> AuditStamp extractOptimisticLockForAspectFromIngestionParamsIfPossible(
-      @Nullable IngestionParams ingestionParams, @Nonnull Class<ASPECT> aspectClass, URN urn) {
+      @Nullable IngestionParams ingestionParams, @Nonnull Class<ASPECT> aspectClass, @Nonnull URN urn) {
     if (ingestionParams == null) {
       return null;
     }

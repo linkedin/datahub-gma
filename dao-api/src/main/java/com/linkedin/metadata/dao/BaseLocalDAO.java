@@ -571,7 +571,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   @VisibleForTesting
   @Nullable
   public <ASPECT extends RecordTemplate> AuditStamp extractOptimisticLockForAspectFromIngestionParamsIfPossible(
-      @Nullable IngestionParams ingestionParams, @Nonnull Class<ASPECT> aspectClass, URN urn) {
+      @Nullable IngestionParams ingestionParams, @Nonnull Class<ASPECT> aspectClass, @Nonnull URN urn) {
     return null;
   }
 
