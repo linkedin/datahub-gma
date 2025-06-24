@@ -545,7 +545,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       }
     }
 
-    final AuditStamp optimisticLockAuditStamp = extractOptimisticLockForAspectFromIngestionParamsIfPossible(ingestionParams, aspectClass);
+    final AuditStamp optimisticLockAuditStamp = extractOptimisticLockForAspectFromIngestionParamsIfPossible(ingestionParams, aspectClass, urn);
 
     // Logic determines whether an update to aspect should be persisted.
     if (!shouldUpdateAspect(ingestionParams.getIngestionMode(), urn, oldValue, newValue, aspectClass, auditStamp, equalityTester,
@@ -565,28 +565,14 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     return new AddResult<>(oldValue, newValue, aspectClass);
   }
 
+  /**
+   * Implemented in EbeanLocalDAO.
+   */
   @VisibleForTesting
-  protected  <ASPECT extends RecordTemplate> AuditStamp extractOptimisticLockForAspectFromIngestionParamsIfPossible(
-      @Nullable IngestionParams ingestionParams, @Nonnull Class<ASPECT> aspectClass) {
-    if (ingestionParams == null) {
-      return null;
-    }
-
-    AuditStamp optimisticLockAuditStamp = null;
-
-    final IngestionAspectETagArray ingestionAspectETags = ingestionParams.getIngestionETags();
-
-    if (ingestionAspectETags != null) {
-      for (IngestionAspectETag ingestionAspectETag: ingestionAspectETags) {
-        if (aspectClass.getSimpleName().equalsIgnoreCase(ingestionAspectETag.getAspect_name())
-            && ingestionAspectETag.getETag() != null) {
-          optimisticLockAuditStamp = new AuditStamp();
-          optimisticLockAuditStamp.setTime(ingestionAspectETag.getETag());
-          break;
-        }
-      }
-    }
-    return optimisticLockAuditStamp;
+  @Nullable
+  public <ASPECT extends RecordTemplate> AuditStamp extractOptimisticLockForAspectFromIngestionParamsIfPossible(
+      @Nullable IngestionParams ingestionParams, @Nonnull Class<ASPECT> aspectClass, URN urn) {
+    return null;
   }
 
   /**
