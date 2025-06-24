@@ -596,6 +596,24 @@ public abstract class BaseEntityResource<
     }
   }
 
+  /**
+   * Retrieves an asset by comparing aspect values from both the local and shadow DAOs.
+   * <p>
+   * This method first checks for the existence of the entity in the local DAO. If it exists,
+   * it fetches the specified aspects from both local and shadow sources. For each aspect:
+   * <ul>
+   *   <li>If both local and shadow values exist and match, the shadow value is used.</li>
+   *   <li>If both exist but differ, the local value is preferred and a warning is logged.</li>
+   *   <li>If only the local value exists, it is used.</li>
+   *   <li>If only the shadow value exists, it is skipped and a warning is logged.</li>
+   * </ul>
+   *
+   * @param urn the URN of the entity
+   * @param aspectNames the aspect names to retrieve; if null, all aspects are fetched
+   * @return an asset assembled from the resolved aspects
+   * @throws RestLiServiceException if the entity does not exist in the local DAO
+   */
+
   private ASSET getAssetWithShadowComparison(@Nonnull URN urn, @Nullable String[] aspectNames) {
 
     if (!getLocalDAO().exists(urn)) {
@@ -605,15 +623,18 @@ public abstract class BaseEntityResource<
       throw RestliUtils.resourceNotFoundException();
     }
 
+    // Generate aspect keys
     final Set<AspectKey<URN, ? extends RecordTemplate>> keys = parseAspectsParam(aspectNames, true).stream()
         .map(aspectClass -> new AspectKey<>(aspectClass, urn, LATEST_VERSION))
         .collect(Collectors.toSet());
 
+    // Fetch results from both DAOs
     Map<AspectKey<URN, ? extends RecordTemplate>, java.util.Optional<? extends RecordTemplate>> localResults =
         getLocalDAO().get(keys);
     Map<AspectKey<URN, ? extends RecordTemplate>, java.util.Optional<? extends RecordTemplate>> shadowResults =
         getShadowReadLocalDAO().get(keys);
 
+    // Collect aspects
     List<UnionTemplate> aspects = new ArrayList<>();
 
     for (AspectKey<URN, ? extends RecordTemplate> key : keys) {
@@ -626,8 +647,11 @@ public abstract class BaseEntityResource<
         if (!Objects.equals(local.get(), shadow.get())) {
           log.warn("Aspect mismatch for URN {} and aspect {}: local = {}, shadow = {}", urn,
               key.getAspectClass().getSimpleName(), local.get(), shadow.get());
+          valueToUse = local.get();  // Mismatch → prefer local
         }
-        valueToUse = shadow.get(); // match → prefer shadow
+        else {
+          valueToUse = shadow.get(); // match → prefer shadow
+        }
       } else if (shadow.isPresent()) {
         log.warn("Only shadow value present for URN {} and aspect {}. Skipping shadow-only data.",
             urn, key.getAspectClass().getSimpleName());
