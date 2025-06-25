@@ -22,6 +22,7 @@ import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.urnpath.EmptyPathExtractor;
 import com.linkedin.metadata.dao.urnpath.UrnPathExtractor;
 import com.linkedin.metadata.dao.utils.EBeanDAOUtils;
+import com.linkedin.metadata.dao.utils.ETagEncryptDecryptUtils;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.QueryUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
@@ -632,13 +633,28 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         }
 
         if (aspectAlias != null && aspectAlias.equalsIgnoreCase(ingestionAspectETag.getAspect_name()) && ingestionAspectETag.getETag() != null) {
-          optimisticLockAuditStamp = new AuditStamp();
-          optimisticLockAuditStamp.setTime(ingestionAspectETag.getETag());
-          break;
+          Long decryptedETag = getDecryptedETag(ingestionAspectETag);
+          if (decryptedETag != null) {
+            optimisticLockAuditStamp = new AuditStamp();
+            optimisticLockAuditStamp.setTime(decryptedETag);
+            break;
+          }
         }
       }
     }
     return optimisticLockAuditStamp;
+  }
+
+  @Nullable
+  private Long getDecryptedETag(@Nonnull IngestionAspectETag ingestionAspectETag) {
+    try {
+      if (ingestionAspectETag.getETag() == null) {
+        return null;
+      }
+      return ETagEncryptDecryptUtils.decryptTimestamp(ingestionAspectETag.getETag());
+    } catch (Exception e) {
+      return null;
+    }
   }
 
   @Override

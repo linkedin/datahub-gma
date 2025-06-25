@@ -11,7 +11,7 @@ record IngestionAspectETag {
   aspect_name: optional string = ""
 
   /**
-   * e.g. timestamp used for optimistic locking when writing new aspect value
+   * e.g. used for optimistic locking when writing new aspect value
    */
-  eTag: optional long = 0
+  eTag: optional string = ""
 }
