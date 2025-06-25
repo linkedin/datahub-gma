@@ -85,6 +85,14 @@ public class BaseLocalDAOTest {
       _transactionRunner = transactionRunner;
     }
 
+    @Nullable
+    @Override
+    public <ASPECT extends RecordTemplate> AuditStamp extractOptimisticLockForAspectFromIngestionParamsIfPossible(
+        @Nullable IngestionParams ingestionParams, @Nonnull Class<ASPECT> aspectClass, @Nonnull FooUrn urn) {
+      // no need to be implemented here. Returning null to avoid blocking code
+      return null;
+    }
+
     @Override
     protected <ASPECT extends RecordTemplate> long saveLatest(FooUrn urn, Class<ASPECT> aspectClass, ASPECT oldEntry,
         AuditStamp optimisticLockAuditStamp, ASPECT newEntry, AuditStamp newAuditStamp, boolean isSoftDeleted,
