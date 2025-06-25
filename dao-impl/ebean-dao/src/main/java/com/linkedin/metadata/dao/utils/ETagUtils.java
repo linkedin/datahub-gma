@@ -13,11 +13,13 @@ import javax.crypto.spec.SecretKeySpec;
 
 
 /**
- * Utility class for encrypting and decrypting IngestionAspectETag timestamps using AES encryption.
+ * Utility class for IngestionAspectETag. E.g., encrypting and decrypting timestamps using AES encryption.
  */
-public final class ETagEncryptDecryptUtils {
+public final class ETagUtils {
 
-  private ETagEncryptDecryptUtils() {
+  public static final String AES = "AES";
+
+  private ETagUtils() {
   }
 
   // 16-char key for AES-128
@@ -29,12 +31,12 @@ public final class ETagEncryptDecryptUtils {
    * @return Encrypted timestamp as a Base64 encoded string
    */
   @Nonnull
-  public static String encryptTimestamp(long timestamp)
+  public static String encrypt(long timestamp)
       throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, IllegalBlockSizeException,
              BadPaddingException {
     SecretKey secretKey = getSecretKey();
 
-    Cipher cipher = Cipher.getInstance("AES");
+    Cipher cipher = Cipher.getInstance(AES);
     cipher.init(Cipher.ENCRYPT_MODE, secretKey);
 
     byte[] inputBytes = Long.toString(timestamp).getBytes();
@@ -48,12 +50,12 @@ public final class ETagEncryptDecryptUtils {
    * @param encrypted Base64 encoded encrypted timestamp string
    * @return Decrypted timestamp as a long
    */
-  public static long decryptTimestamp(@Nonnull String encrypted)
+  public static long decrypt(@Nonnull String encrypted)
       throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, IllegalBlockSizeException,
              BadPaddingException {
     SecretKey secretKey = getSecretKey();
 
-    Cipher cipher = Cipher.getInstance("AES");
+    Cipher cipher = Cipher.getInstance(AES);
     cipher.init(Cipher.DECRYPT_MODE, secretKey);
 
     byte[] decoded = Base64.getDecoder().decode(encrypted);
@@ -64,7 +66,7 @@ public final class ETagEncryptDecryptUtils {
 
   private static SecretKey getSecretKey() {
     byte[] keyBytes = SECRET_KEY.getBytes();
-    return new SecretKeySpec(keyBytes, "AES");
+    return new SecretKeySpec(keyBytes, AES);
   }
 
 }

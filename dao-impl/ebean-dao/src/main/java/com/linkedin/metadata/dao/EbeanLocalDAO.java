@@ -22,7 +22,7 @@ import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.urnpath.EmptyPathExtractor;
 import com.linkedin.metadata.dao.urnpath.UrnPathExtractor;
 import com.linkedin.metadata.dao.utils.EBeanDAOUtils;
-import com.linkedin.metadata.dao.utils.ETagEncryptDecryptUtils;
+import com.linkedin.metadata.dao.utils.ETagUtils;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.QueryUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
@@ -632,7 +632,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
           continue;
         }
 
-        if (aspectAlias != null && aspectAlias.equalsIgnoreCase(ingestionAspectETag.getAspect_name()) && ingestionAspectETag.getETag() != null) {
+        if (aspectAlias != null && aspectAlias.equalsIgnoreCase(ingestionAspectETag.getAspect_alias())) {
           Long decryptedETag = getDecryptedETag(ingestionAspectETag);
           if (decryptedETag != null) {
             optimisticLockAuditStamp = new AuditStamp();
@@ -645,13 +645,16 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     return optimisticLockAuditStamp;
   }
 
+  /**
+   * When eTag is null, it means this is a regular ingestion request, no read-modify-write consistency guarantee.
+   */
   @Nullable
   private Long getDecryptedETag(@Nonnull IngestionAspectETag ingestionAspectETag) {
     try {
-      if (ingestionAspectETag.getETag() == null) {
+      if (ingestionAspectETag.getEtag() == null) {
         return null;
       }
-      return ETagEncryptDecryptUtils.decryptTimestamp(ingestionAspectETag.getETag());
+      return ETagUtils.decrypt(ingestionAspectETag.getEtag());
     } catch (Exception e) {
       return null;
     }

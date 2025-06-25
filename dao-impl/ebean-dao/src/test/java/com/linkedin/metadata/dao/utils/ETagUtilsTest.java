@@ -10,35 +10,35 @@ import org.testng.annotations.Test;
 import static org.junit.Assert.*;
 
 
-public class ETagEncryptDecryptUtilsTest {
+public class ETagUtilsTest {
 
   @Test
-  public void testEncryptAndDecryptTimestamp()
+  public void testEncryptAndDecrypt()
       throws NoSuchPaddingException, IllegalBlockSizeException, NoSuchAlgorithmException, BadPaddingException,
              InvalidKeyException {
     long timestamp = System.currentTimeMillis();
-    String encrypted = ETagEncryptDecryptUtils.encryptTimestamp(timestamp);
+    String encrypted = ETagUtils.encrypt(timestamp);
 
-    long decrypted = ETagEncryptDecryptUtils.decryptTimestamp(encrypted);
+    long decrypted = ETagUtils.decrypt(encrypted);
     assertEquals(decrypted, timestamp);
   }
 
   @Test
-  public void testEncryptTimestamp()
+  public void testEncrypt()
       throws NoSuchPaddingException, IllegalBlockSizeException, NoSuchAlgorithmException, BadPaddingException,
              InvalidKeyException {
     long timestamp = 1750796203701L;
-    String encrypted = ETagEncryptDecryptUtils.encryptTimestamp(timestamp);
+    String encrypted = ETagUtils.encrypt(timestamp);
 
     assertEquals("KsFkRXtjaBGQf37HjdEjDQ==", encrypted);
   }
 
   @Test
-  public void testDecryptTimestamp()
+  public void testDecrypt()
       throws NoSuchPaddingException, IllegalBlockSizeException, NoSuchAlgorithmException, BadPaddingException,
              InvalidKeyException {
     String encrypted = "KsFkRXtjaBGQf37HjdEjDQ==";
-    long decrypted = ETagEncryptDecryptUtils.decryptTimestamp(encrypted);
+    long decrypted = ETagUtils.decrypt(encrypted);
 
     assertEquals(1750796203701L, decrypted);
   }

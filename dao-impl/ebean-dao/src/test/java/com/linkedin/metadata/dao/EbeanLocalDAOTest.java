@@ -4071,9 +4071,9 @@ public class EbeanLocalDAOTest {
     FooUrn urn = new FooUrn(1);
 
     IngestionAspectETag ingestionAspectETag = new IngestionAspectETag();
-    ingestionAspectETag.setAspect_name("aspectFoo");
+    ingestionAspectETag.setAspect_alias("aspectFoo");
     long timestamp = 1750796203701L;
-    ingestionAspectETag.setETag("KsFkRXtjaBGQf37HjdEjDQ==");
+    ingestionAspectETag.setEtag("KsFkRXtjaBGQf37HjdEjDQ==");
 
     IngestionParams ingestionParams = new IngestionParams();
     ingestionParams.setIngestionETags(new IngestionAspectETagArray(ingestionAspectETag));
@@ -4105,8 +4105,8 @@ public class EbeanLocalDAOTest {
     FooUrn urn = new FooUrn(1);
 
     IngestionAspectETag ingestionAspectETag = new IngestionAspectETag();
-    ingestionAspectETag.setAspect_name("aspectBar");
-    ingestionAspectETag.setETag("KsFkRXtjaBGQf37HjdEjDQ==");
+    ingestionAspectETag.setAspect_alias("aspectBar");
+    ingestionAspectETag.setEtag("KsFkRXtjaBGQf37HjdEjDQ==");
 
     IngestionParams ingestionParams = new IngestionParams();
     ingestionParams.setIngestionETags(new IngestionAspectETagArray(ingestionAspectETag));
