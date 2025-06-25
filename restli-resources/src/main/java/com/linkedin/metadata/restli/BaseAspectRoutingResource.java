@@ -601,15 +601,24 @@ public abstract class BaseAspectRoutingResource<
           java.util.Optional<? extends RecordTemplate> shadow = shadowResults.getOrDefault(key, java.util.Optional.empty());
 
           RecordTemplate valueToUse = null;
-          if (shadow.isPresent() && local.isPresent() && !Objects.equals(local.get(), shadow.get())) {
-            log.warn("Aspect mismatch for URN {} and aspect {}: local = {}, shadow = {}",
-                key.getUrn(), key.getAspectClass().getSimpleName(), local.get(), shadow.get());
-            valueToUse = local.get();
+          if (local.isPresent() && shadow.isPresent()) {
+            if (Objects.equals(local.get(), shadow.get())) {
+              // Case 1: both present and equal → use shadow
+              valueToUse = shadow.get();
+            } else {
+              // Case 2: both present but not equal → use local, log warning
+              log.warn("Aspect mismatch for URN {} and aspect {}: local = {}, shadow = {}",
+                  key.getUrn(), key.getAspectClass().getSimpleName(), local.get(), shadow.get());
+              valueToUse = local.get();
+            }
           } else if (shadow.isPresent()) {
-            log.warn("Only shadow value present for URN {} and aspect {}", key.getUrn(), key.getAspectClass().getSimpleName());
-            valueToUse = shadow.get();
+            // Case 3: only shadow present → log warning, skip
+            log.warn("Only shadow value present for URN {} and aspect {}. Skipping shadow-only data.",
+                key.getUrn(), key.getAspectClass().getSimpleName());
           } else if (local.isPresent()) {
-            log.info("Only local value present for URN {} and aspect {}. Using local.", key.getUrn(), key.getAspectClass().getSimpleName());
+            // Case 4: only local present → use local, log warning
+            log.warn("Only local value present for URN {} and aspect {}. Using local.",
+                key.getUrn(), key.getAspectClass().getSimpleName());
             valueToUse = local.get();
           }
 
