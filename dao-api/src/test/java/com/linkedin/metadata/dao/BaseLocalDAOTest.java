@@ -52,8 +52,6 @@ import org.mockito.stubbing.OngoingStubbing;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
-import pegasus.com.linkedin.metadata.events.IngestionAspectETag;
-import pegasus.com.linkedin.metadata.events.IngestionAspectETagArray;
 
 import static com.linkedin.common.AuditStamps.*;
 import static org.mockito.Mockito.*;
@@ -85,6 +83,14 @@ public class BaseLocalDAOTest {
       super(aspectClass, eventProducer, trackingManager, FooUrn.class, new EmptyPathExtractor<>());
       _getLatestFunction = getLatestFunction;
       _transactionRunner = transactionRunner;
+    }
+
+    @Nullable
+    @Override
+    public <ASPECT extends RecordTemplate> AuditStamp extractOptimisticLockForAspectFromIngestionParamsIfPossible(
+        @Nullable IngestionParams ingestionParams, @Nonnull Class<ASPECT> aspectClass, @Nonnull FooUrn urn) {
+      // no need to be implemented here. Returning null to avoid blocking code
+      return null;
     }
 
     @Override
@@ -803,41 +809,6 @@ public class BaseLocalDAOTest {
 
     // Verify that the result is the same as the input aspect since it's not registered
     assertEquals(result.getUpdatedAspect(), foo);
-  }
-
-  @Test
-  public void testExtractOptimisticLockForAspectFromIngestionParamsIfPossible() {
-    IngestionAspectETag ingestionAspectETag = new IngestionAspectETag();
-    ingestionAspectETag.setAspect_name("aspectFoo");
-    ingestionAspectETag.setETag(1234L);
-
-    IngestionParams ingestionParams = new IngestionParams();
-    ingestionParams.setIngestionETags(new IngestionAspectETagArray(ingestionAspectETag));
-
-    AuditStamp result = _dummyLocalDAO.extractOptimisticLockForAspectFromIngestionParamsIfPossible(ingestionParams, AspectFoo.class);
-
-    assertEquals(result.getTime(), Long.valueOf(1234L));
-  }
-
-  @Test
-  public void testExtractOptimisticLockForAspectFromIngestionParamsIfPossibleIngestionParamsIsNull() {
-    AuditStamp result = _dummyLocalDAO.extractOptimisticLockForAspectFromIngestionParamsIfPossible(null, AspectFoo.class);
-
-    assertNull(result);
-  }
-
-  @Test
-  public void testExtractOptimisticLockForAspectFromIngestionParamsIfPossibleAspectNameDoesntMatch() {
-    IngestionAspectETag ingestionAspectETag = new IngestionAspectETag();
-    ingestionAspectETag.setAspect_name("aspectBar");
-    ingestionAspectETag.setETag(1234L);
-
-    IngestionParams ingestionParams = new IngestionParams();
-    ingestionParams.setIngestionETags(new IngestionAspectETagArray(ingestionAspectETag));
-
-    AuditStamp result = _dummyLocalDAO.extractOptimisticLockForAspectFromIngestionParamsIfPossible(ingestionParams, AspectFoo.class);
-
-    assertNull(result);
   }
 
   @Test

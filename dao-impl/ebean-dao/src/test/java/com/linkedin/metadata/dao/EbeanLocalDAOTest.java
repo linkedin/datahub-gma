@@ -115,6 +115,8 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Factory;
 import org.testng.annotations.Test;
+import pegasus.com.linkedin.metadata.events.IngestionAspectETag;
+import pegasus.com.linkedin.metadata.events.IngestionAspectETagArray;
 
 import static com.linkedin.common.AuditStamps.*;
 import static com.linkedin.metadata.dao.internal.BaseGraphWriterDAO.RemovalOption.*;
@@ -4059,5 +4061,57 @@ public class EbeanLocalDAOTest {
       assertEquals(v.getAudit().getActor(), actor);
       assertEquals(v.getAudit().getImpersonator(), impersonator);
     });
+  }
+
+  @Test
+  public void testExtractOptimisticLockForAspectFromIngestionParamsIfPossible() throws URISyntaxException {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+
+    FooUrn urn = new FooUrn(1);
+
+    IngestionAspectETag ingestionAspectETag = new IngestionAspectETag();
+    ingestionAspectETag.setAspect_name("aspectFoo");
+    ingestionAspectETag.setETag(1234L);
+
+    IngestionParams ingestionParams = new IngestionParams();
+    ingestionParams.setIngestionETags(new IngestionAspectETagArray(ingestionAspectETag));
+
+    AuditStamp result = dao.extractOptimisticLockForAspectFromIngestionParamsIfPossible(ingestionParams, AspectFoo.class,
+        urn);
+
+    assertEquals(result.getTime(), Long.valueOf(1234L));
+  }
+
+  @Test
+  public void testExtractOptimisticLockForAspectFromIngestionParamsIfPossibleIngestionParamsIsNull()
+      throws URISyntaxException {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+
+    FooUrn urn = new FooUrn(1);
+
+    AuditStamp result = dao.extractOptimisticLockForAspectFromIngestionParamsIfPossible(null, AspectFoo.class,
+        urn);
+
+    assertNull(result);
+  }
+
+  @Test
+  public void testExtractOptimisticLockForAspectFromIngestionParamsIfPossibleAspectNameDoesntMatch()
+      throws URISyntaxException {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+
+    FooUrn urn = new FooUrn(1);
+
+    IngestionAspectETag ingestionAspectETag = new IngestionAspectETag();
+    ingestionAspectETag.setAspect_name("aspectBar");
+    ingestionAspectETag.setETag(1234L);
+
+    IngestionParams ingestionParams = new IngestionParams();
+    ingestionParams.setIngestionETags(new IngestionAspectETagArray(ingestionAspectETag));
+
+    AuditStamp result = dao.extractOptimisticLockForAspectFromIngestionParamsIfPossible(ingestionParams, AspectFoo.class,
+        urn);
+
+    assertNull(result);
   }
 }

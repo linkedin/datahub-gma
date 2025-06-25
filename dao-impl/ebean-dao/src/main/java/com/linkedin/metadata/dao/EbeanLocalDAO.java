@@ -25,7 +25,9 @@ import com.linkedin.metadata.dao.utils.EBeanDAOUtils;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.QueryUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
+import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
 import com.linkedin.metadata.events.IngestionTrackingContext;
+import com.linkedin.metadata.internal.IngestionParams;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.ExtraInfoArray;
@@ -65,6 +67,8 @@ import javax.persistence.RollbackException;
 import javax.persistence.Table;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
+import pegasus.com.linkedin.metadata.events.IngestionAspectETag;
+import pegasus.com.linkedin.metadata.events.IngestionAspectETagArray;
 
 import static com.linkedin.metadata.dao.EbeanLocalAccess.*;
 import static com.linkedin.metadata.dao.EbeanMetadataAspect.*;
@@ -594,6 +598,47 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
 
     return result;
+  }
+
+  /**
+   * Extracts the optimistic lock for a specific aspect from the ingestion parameters if possible.
+   * @param ingestionParams the ingestion parameters containing the aspects and their eTags
+   * @param aspectClass aspect class
+   * @param urn asset urn
+   * @return the optimistic lock {@link AuditStamp} if it exists, otherwise null (i.e. if the aspect is not present in the ingestion params).
+   * @param <ASPECT> the aspect type
+   */
+  @Override
+  @Nullable
+  public <ASPECT extends RecordTemplate> AuditStamp extractOptimisticLockForAspectFromIngestionParamsIfPossible(
+      @Nullable IngestionParams ingestionParams, @Nonnull Class<ASPECT> aspectClass, @Nonnull URN urn) {
+    if (ingestionParams == null) {
+      return null;
+    }
+
+    AuditStamp optimisticLockAuditStamp = null;
+
+    final IngestionAspectETagArray ingestionAspectETags = ingestionParams.getIngestionETags();
+
+    if (ingestionAspectETags != null) {
+      for (IngestionAspectETag ingestionAspectETag: ingestionAspectETags) {
+
+        final String aspectAlias;
+
+        try {
+          aspectAlias = SQLSchemaUtils.getColumnName(urn.getEntityType(), aspectClass.getCanonicalName());
+        } catch (Exception e) {
+          continue;
+        }
+
+        if (aspectAlias != null && aspectAlias.equalsIgnoreCase(ingestionAspectETag.getAspect_name()) && ingestionAspectETag.getETag() != null) {
+          optimisticLockAuditStamp = new AuditStamp();
+          optimisticLockAuditStamp.setTime(ingestionAspectETag.getETag());
+          break;
+        }
+      }
+    }
+    return optimisticLockAuditStamp;
   }
 
   @Override

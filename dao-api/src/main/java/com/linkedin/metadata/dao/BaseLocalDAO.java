@@ -76,8 +76,6 @@ import lombok.Data;
 import lombok.NonNull;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
-import pegasus.com.linkedin.metadata.events.IngestionAspectETag;
-import pegasus.com.linkedin.metadata.events.IngestionAspectETagArray;
 
 import static com.linkedin.metadata.dao.utils.IngestionUtils.*;
 import static com.linkedin.metadata.dao.utils.ModelUtils.*;
@@ -545,7 +543,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       }
     }
 
-    final AuditStamp optimisticLockAuditStamp = extractOptimisticLockForAspectFromIngestionParamsIfPossible(ingestionParams, aspectClass);
+    final AuditStamp optimisticLockAuditStamp = extractOptimisticLockForAspectFromIngestionParamsIfPossible(ingestionParams, aspectClass, urn);
 
     // Logic determines whether an update to aspect should be persisted.
     if (!shouldUpdateAspect(ingestionParams.getIngestionMode(), urn, oldValue, newValue, aspectClass, auditStamp, equalityTester,
@@ -565,29 +563,13 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     return new AddResult<>(oldValue, newValue, aspectClass);
   }
 
+  /**
+   * Implemented in EbeanLocalDAO.
+   */
   @VisibleForTesting
-  protected  <ASPECT extends RecordTemplate> AuditStamp extractOptimisticLockForAspectFromIngestionParamsIfPossible(
-      @Nullable IngestionParams ingestionParams, @Nonnull Class<ASPECT> aspectClass) {
-    if (ingestionParams == null) {
-      return null;
-    }
-
-    AuditStamp optimisticLockAuditStamp = null;
-
-    final IngestionAspectETagArray ingestionAspectETags = ingestionParams.getIngestionETags();
-
-    if (ingestionAspectETags != null) {
-      for (IngestionAspectETag ingestionAspectETag: ingestionAspectETags) {
-        if (aspectClass.getSimpleName().equalsIgnoreCase(ingestionAspectETag.getAspect_name())
-            && ingestionAspectETag.getETag() != null) {
-          optimisticLockAuditStamp = new AuditStamp();
-          optimisticLockAuditStamp.setTime(ingestionAspectETag.getETag());
-          break;
-        }
-      }
-    }
-    return optimisticLockAuditStamp;
-  }
+  @Nullable
+  public abstract <ASPECT extends RecordTemplate> AuditStamp extractOptimisticLockForAspectFromIngestionParamsIfPossible(
+      @Nullable IngestionParams ingestionParams, @Nonnull Class<ASPECT> aspectClass, @Nonnull URN urn);
 
   /**
    * Adds a new version of several aspects for an entity.
