@@ -8,10 +8,10 @@ record IngestionAspectETag {
   /**
    * aspect field name, e.g. "status"
    */
-  aspect_name: optional string = ""
+  aspect_alias: optional string = ""
 
   /**
-   * e.g. timestamp used for optimistic locking when writing new aspect value
+   * e.g. used for optimistic locking when writing new aspect value
    */
-  eTag: optional long = 0
+  etag: optional string = ""
 }

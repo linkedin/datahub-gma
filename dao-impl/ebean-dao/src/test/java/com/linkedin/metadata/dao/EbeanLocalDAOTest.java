@@ -4064,14 +4064,16 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
-  public void testExtractOptimisticLockForAspectFromIngestionParamsIfPossible() throws URISyntaxException {
+  public void testExtractOptimisticLockForAspectFromIngestionParamsIfPossible()
+      throws URISyntaxException {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
 
     FooUrn urn = new FooUrn(1);
 
     IngestionAspectETag ingestionAspectETag = new IngestionAspectETag();
-    ingestionAspectETag.setAspect_name("aspectFoo");
-    ingestionAspectETag.setETag(1234L);
+    ingestionAspectETag.setAspect_alias("aspectFoo");
+    long timestamp = 1750796203701L;
+    ingestionAspectETag.setEtag("KsFkRXtjaBGQf37HjdEjDQ==");
 
     IngestionParams ingestionParams = new IngestionParams();
     ingestionParams.setIngestionETags(new IngestionAspectETagArray(ingestionAspectETag));
@@ -4079,7 +4081,7 @@ public class EbeanLocalDAOTest {
     AuditStamp result = dao.extractOptimisticLockForAspectFromIngestionParamsIfPossible(ingestionParams, AspectFoo.class,
         urn);
 
-    assertEquals(result.getTime(), Long.valueOf(1234L));
+    assertEquals(result.getTime(), Long.valueOf(timestamp));
   }
 
   @Test
@@ -4103,8 +4105,8 @@ public class EbeanLocalDAOTest {
     FooUrn urn = new FooUrn(1);
 
     IngestionAspectETag ingestionAspectETag = new IngestionAspectETag();
-    ingestionAspectETag.setAspect_name("aspectBar");
-    ingestionAspectETag.setETag(1234L);
+    ingestionAspectETag.setAspect_alias("aspectBar");
+    ingestionAspectETag.setEtag("KsFkRXtjaBGQf37HjdEjDQ==");
 
     IngestionParams ingestionParams = new IngestionParams();
     ingestionParams.setIngestionETags(new IngestionAspectETagArray(ingestionAspectETag));
