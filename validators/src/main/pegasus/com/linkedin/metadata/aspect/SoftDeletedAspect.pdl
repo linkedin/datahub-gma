@@ -7,6 +7,34 @@ record SoftDeletedAspect {
 
   /**
    * Flag to indicate if the aspect is soft deleted in GMA
+   *
+   * Currently, there are no cases where the aspect is soft-deleted but this flag is NOT set to
+   * true: the very existence of this Aspect type indicates soft-deletion. This is to say that
+   * any aspect that is not soft-deleted will simply not exist -- cannot be cast -- as this type.
    */
   gma_deleted: boolean
+
+  /**
+   * The deleted content (oldValue) of the aspect.
+   * Marked as optional for backwards compatibility with existing Deleted Aspects.
+   */
+  deletedContent: optional string
+
+  /**
+   * The canonical class name of the aspect.
+   * Marked as optional for backwards compatibility with existing Deleted Aspects.
+   */
+  canonicalName: optional string
+
+  /**
+   * Audit timestamp to track when this aspect was deleted.
+   * Marked as optional for backwards compatibility with existing Deleted Aspects.
+   */
+  deletedTimestamp: optional string
+
+  /**
+   * Audit information to track who deleted this aspect.
+   * Marked as optional for backwards compatibility with existing Deleted Aspects.
+   */
+  deletedBy: optional string
 }

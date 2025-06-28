@@ -698,7 +698,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         }
       }
 
-      insert(urn, newValue, aspectClass, newAuditStamp, LATEST_VERSION, trackingContext, isTestMode);
+      insert(urn, oldValue, newValue, aspectClass, newAuditStamp, LATEST_VERSION, trackingContext, isTestMode);
     }
 
     // This method will handle relationship ingestions and soft-deletions
@@ -848,7 +848,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
     final ExtraInfo extraInfo = toExtraInfo(latest);
 
-    if (isSoftDeletedAspect(latest, aspectClass)) {
+    if (isSoftDeletedAspect(latest)) {
       return new AspectEntry<>(null, extraInfo, true);
     }
 
@@ -969,11 +969,34 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   protected <ASPECT extends RecordTemplate> void insert(@Nonnull URN urn, @Nullable RecordTemplate value,
       @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, long version,
       @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
-    final EbeanMetadataAspect aspect = buildMetadataAspectBean(urn, value, aspectClass, auditStamp, version);
+    insert(urn, null, value, aspectClass, auditStamp, version, trackingContext, isTestMode);
+  }
+
+  /**
+   * Insert that also takes the old value of the aspect into account. This argument is used in the case
+   * Aspect soft-deletion is supposed to occur (ie. adding null).
+   *
+   * <p>TODO: Figure out if this should be surfaced to {@link BaseLocalDAO}'s {@link BaseLocalDAO#insert} signature.
+   * Right now, since it only has 1 use case -- soft-deletion and doesn't intuitively fit into the idea of an "insert",
+   * we are keeping it here only.
+   *
+   * @param urn                 entity urn
+   * @param oldValue            old value of the aspect
+   * @param newValue            new value of the aspect
+   * @param aspectClass         aspect class
+   * @param auditStamp          audit stamp
+   * @param version             version of the record
+   * @param trackingContext     tracking context
+   * @param isTestMode          test mode
+   */
+  protected <ASPECT extends RecordTemplate> void insert(@Nonnull URN urn, @Nullable RecordTemplate oldValue,
+      @Nullable RecordTemplate newValue, @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, long version,
+      @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
+    final EbeanMetadataAspect aspect = buildMetadataAspectBean(urn, newValue, aspectClass, auditStamp, version);
     if (_schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY && version == LATEST_VERSION) {
       // insert() could be called when updating log table (moving current versions into new history version)
       // the metadata entity tables shouldn't been updated.
-      _localAccess.add(urn, (ASPECT) value, aspectClass, auditStamp, trackingContext, isTestMode);
+      _localAccess.addWithOldValue(urn, (ASPECT) oldValue, (ASPECT) newValue, aspectClass, auditStamp, trackingContext, isTestMode);
     }
 
     // DO append change log table (metadata_aspect) if:
@@ -1523,7 +1546,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Nonnull
   static <ASPECT extends RecordTemplate> Optional<ASPECT> toRecordTemplate(@Nonnull Class<ASPECT> aspectClass,
       @Nonnull EbeanMetadataAspect aspect) {
-    if (isSoftDeletedAspect(aspect, aspectClass)) {
+    if (isSoftDeletedAspect(aspect)) {
       return Optional.empty();
     }
     return Optional.of(RecordUtils.toRecordTemplate(aspectClass, aspect.getMetadata()));
@@ -1532,7 +1555,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Nonnull
   static <ASPECT extends RecordTemplate> Optional<AspectWithExtraInfo<ASPECT>> toRecordTemplateWithExtraInfo(
       @Nonnull Class<ASPECT> aspectClass, @Nonnull EbeanMetadataAspect aspect) {
-    if (aspect.getMetadata() == null || isSoftDeletedAspect(aspect, aspectClass)) {
+    if (aspect.getMetadata() == null || isSoftDeletedAspect(aspect)) {
       return Optional.empty();
     }
     final ExtraInfo extraInfo = toExtraInfo(aspect);

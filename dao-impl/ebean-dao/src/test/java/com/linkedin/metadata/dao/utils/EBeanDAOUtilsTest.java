@@ -6,6 +6,7 @@ import com.linkedin.data.template.IntegerArray;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.StringArray;
 import com.linkedin.metadata.aspect.AuditedAspect;
+import com.linkedin.metadata.aspect.SoftDeletedAspect;
 import com.linkedin.metadata.dao.BaseLocalDAO;
 import com.linkedin.metadata.dao.EbeanLocalAccess;
 import com.linkedin.metadata.dao.EbeanMetadataAspect;
@@ -52,12 +53,14 @@ import static com.linkedin.testing.TestUtils.*;
 import static org.mockito.Mockito.*;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
-import static org.testng.AssertJUnit.assertEquals;
-import static org.testng.AssertJUnit.assertNotNull;
+import static org.testng.AssertJUnit.*;
 
 
 public class EBeanDAOUtilsTest {
 
+  final static String SOFT_DELETED_ASPECT_WITH_DELETED_CONTENT = "{\"gma_deleted\": true,"
+      + "\"deletedContent\": \"{removed: false}\", \"canonicalName\": \"com.linkedin.common.Status\","
+      + "\"deletedTimestamp\": \"0L\", \"deletedBy\": \"urn:li:tester\"}";
 
   @Nonnull
   private String readSQLfromFile(@Nonnull String resourcePath) {
@@ -573,6 +576,42 @@ public class EBeanDAOUtilsTest {
 
     when(sqlRow.getString("a_aspectbaz")).thenReturn("{\"random_value\": \"baz\"}");
     assertFalse(EBeanDAOUtils.isSoftDeletedAspect(sqlRow, "a_aspectbaz"));
+
+    when(sqlRow.getString("a_aspectbaz")).thenReturn("{\"random_value\": \"baz\"}");
+    assertFalse(EBeanDAOUtils.isSoftDeletedAspect(sqlRow, "a_aspectbaz"));
+
+    when(sqlRow.getString("a_aspectqux")).thenReturn("{\"gma_deleted\": false}");
+    assertFalse(EBeanDAOUtils.isSoftDeletedAspect(sqlRow, "a_aspectqux"));
+
+    when(sqlRow.getString("a_aspectbax")).thenReturn(SOFT_DELETED_ASPECT_WITH_DELETED_CONTENT);
+    assertTrue(EBeanDAOUtils.isSoftDeletedAspect(sqlRow, "a_aspectbax"));
+
+    when(sqlRow.getString("a_aspectbazz"))
+        .thenReturn("input that should fail being able to serialize as a RecordTemplate entirely");
+    assertFalse(EBeanDAOUtils.isSoftDeletedAspect(sqlRow, "a_aspectbazz"));
+  }
+
+  @Test
+  public void testIsSoftDeletedAspectEbeanMetadataAspect() {
+    EbeanMetadataAspect ebeanMetadataAspect = new EbeanMetadataAspect();
+
+    ebeanMetadataAspect.setMetadata("{\"gma_deleted\": true}");
+    assertTrue(EBeanDAOUtils.isSoftDeletedAspect(ebeanMetadataAspect));
+
+    ebeanMetadataAspect.setMetadata(SOFT_DELETED_ASPECT_WITH_DELETED_CONTENT);
+    assertTrue(EBeanDAOUtils.isSoftDeletedAspect(ebeanMetadataAspect));
+
+    ebeanMetadataAspect.setMetadata("{\"gma_deleted\": false}");
+    assertFalse(EBeanDAOUtils.isSoftDeletedAspect(ebeanMetadataAspect));
+
+    ebeanMetadataAspect.setMetadata("{\"aspect\": {\"value\": \"bar\"}, \"lastmodifiedby\": \"urn:li:tester\"}");
+    assertFalse(EBeanDAOUtils.isSoftDeletedAspect(ebeanMetadataAspect));
+
+    ebeanMetadataAspect.setMetadata("{\"random_value\": \"baz\"}");
+    assertFalse(EBeanDAOUtils.isSoftDeletedAspect(ebeanMetadataAspect));
+
+    ebeanMetadataAspect.setMetadata("input that should fail being able to serialize as a RecordTemplate entirely");
+    assertFalse(EBeanDAOUtils.isSoftDeletedAspect(ebeanMetadataAspect));
   }
 
   @Test
@@ -667,5 +706,21 @@ public class EBeanDAOUtilsTest {
     assertTrue(results.get(AnnotatedRelationshipFoo.class).contains(test2));
     assertTrue(results.get(AnnotatedRelationshipFoo.class).contains(test3));
     assertTrue(results.get(AnnotatedRelationshipBar.class).contains(new AnnotatedRelationshipBar()));
+  }
+
+  @Test
+  public void testCreateSoftDeletedAspect() {
+    // ideal case: nonnull oldvalue and oldtimestamp
+    AspectFoo fooAspect = new AspectFoo().setValue("foo");
+    Timestamp timestamp = new Timestamp(0L);
+    String actor = "actor";
+
+    SoftDeletedAspect softDeletedAspect =
+        EBeanDAOUtils.createSoftDeletedAspect(AspectFoo.class, fooAspect, timestamp, actor);
+    assertTrue(softDeletedAspect.isGma_deleted());
+    assertEquals(softDeletedAspect.getCanonicalName(), "com.linkedin.testing.AspectFoo");
+    assertEquals(softDeletedAspect.getDeletedContent(), RecordUtils.toJsonString(fooAspect));
+    assertEquals(softDeletedAspect.getDeletedTimestamp(), timestamp.toString());
+    assertEquals(softDeletedAspect.getDeletedBy(), actor);
   }
 }
