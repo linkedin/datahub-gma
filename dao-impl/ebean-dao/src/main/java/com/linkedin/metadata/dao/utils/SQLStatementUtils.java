@@ -58,14 +58,14 @@ public class SQLStatementUtils {
 
   private static final String SQL_UPSERT_ASPECT_TEMPLATE =
       "INSERT INTO %s (urn, %s, lastmodifiedon, lastmodifiedby) VALUE (:urn, :metadata, :lastmodifiedon, :lastmodifiedby) "
-          + "ON DUPLICATE KEY UPDATE %s = :metadata, lastmodifiedon = :lastmodifiedon;";
+          + "ON DUPLICATE KEY UPDATE %s = :metadata, lastmodifiedon = :lastmodifiedon, deleted_ts = NULL;";
 
   // Note: include a_urn in the duplicate key update for backfilling the a_urn column in updateEntityTables() if the column was
   // added after data already exists in the entity table. Normally, a_urn never needs to get updated once it's set the first time.
   // Note: this SQL should only be called if the urnExtraction flag is true (i.e. a_urn column exists)
   private static final String SQL_UPSERT_ASPECT_WITH_URN_TEMPLATE =
       "INSERT INTO %s (urn, a_urn, %s, lastmodifiedon, lastmodifiedby) VALUE (:urn, :a_urn, :metadata, :lastmodifiedon, :lastmodifiedby) "
-          + "ON DUPLICATE KEY UPDATE %s = :metadata, lastmodifiedon = :lastmodifiedon, a_urn = :a_urn;";
+          + "ON DUPLICATE KEY UPDATE %s = :metadata, lastmodifiedon = :lastmodifiedon, a_urn = :a_urn, deleted_ts = NULL;";
 
   // INSERT prefix of the sql statement for inserting into metadata_aspect table with multiple aspects which will be combined with the VALUES suffix
   public static final String SQL_INSERT_INTO_ASSET_WITH_URN = "INSERT INTO %s (urn, a_urn, lastmodifiedon, lastmodifiedby,";
@@ -76,13 +76,14 @@ public class SQLStatementUtils {
   // VALUES suffix of the sql statement for inserting into metadata_aspect table with multiple aspects which will be combined with the INSERT prefix
   public static final String SQL_INSERT_ASSET_VALUES = "VALUES (:urn, :lastmodifiedon, :lastmodifiedby,";
   // Delete prefix of the sql statement for deleting from metadata_aspect table
-  public static final String SQL_DELETE_ASSET_WITH_URN = "DELETE FROM %s WHERE urn = '%s'";
+  public static final String SQL_SOFT_DELETE_ASSET_WITH_URN = "UPDATE %s SET deleted_ts = NOW() WHERE urn = '%s';";
   // closing bracket for the sql statement INSERT prefix
   // e.g. INSERT INTO metadata_aspect (urn, a_urn, lastmodifiedon, lastmodifiedby)
   public static final String CLOSING_BRACKET = ") ";
-  // closing bracket with semicolon for the sql statement VALUES suffix
-  // e.g. VALUES (:urn, :a_urn, :lastmodifiedon, :lastmodifiedby);
-  public static final String CLOSING_BRACKET_WITH_SEMICOLON = ");";
+  // deleted_ts check on create Statement SQL. This is used to set the deleted_ts to a non-null value
+  // If a record that is NOT marked for deletion is attempted to be created again, an exception will be thrown
+  public static final String DELETED_TS_DUPLICATE_KEY_CHECK = "ON DUPLICATE KEY UPDATE ";
+  public static final String DELETED_TS_CONDITIONAL_VALUE_SET = ", deleted_ts = IF(deleted_ts IS NULL, CAST('DuplicateKeyException' AS UNSIGNED), NULL);";
   // "JSON_EXTRACT(%s, '$.gma_deleted') IS NOT NULL" is used to exclude soft-deleted entity which has no lastmodifiedon.
   // for details, see the known limitations on https://github.com/linkedin/datahub-gma/pull/311. Same reason for
   // SQL_UPDATE_ASPECT_WITH_URN_TEMPLATE
@@ -93,6 +94,13 @@ public class SQLStatementUtils {
   private static final String SQL_UPDATE_ASPECT_WITH_URN_TEMPLATE =
       "UPDATE %s SET %s = :metadata, a_urn = :a_urn, lastmodifiedon = :lastmodifiedon, lastmodifiedby = :lastmodifiedby "
           + "WHERE urn = :urn and (JSON_EXTRACT(%s, '$.lastmodifiedon') = :oldTimestamp OR JSON_EXTRACT(%s, '$.gma_deleted') IS NOT NULL);";
+
+  private static final String SQL_UPDATE_ASPECT_TEMPLATE_WITH_SOFT_DELETE_OVERWRITE =
+      "UPDATE %s SET %s = :metadata, lastmodifiedon = :lastmodifiedon, lastmodifiedby = :lastmodifiedby "
+          + "WHERE urn = :urn ;";
+
+  private static final String SQL_UPDATE_ASPECT_WITH_URN_TEMPLATE_WITH_SOFT_DELETE_OVERWRITE = "UPDATE %s SET %s = "
+      + ":metadata, a_urn = :a_urn, lastmodifiedon = :lastmodifiedon, lastmodifiedby = :lastmodifiedby WHERE urn = :urn;";
 
   private static final String SQL_READ_ASPECT_TEMPLATE =
       String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby FROM %%s WHERE %s AND urn IN (", SOFT_DELETED_CHECK);
@@ -279,26 +287,34 @@ public class SQLStatementUtils {
    * @param isTestMode whether the test mode is enabled or not
    * @return delete sql
    */
-  public static <ASPECT extends RecordTemplate> String createDeleteAssetSql(@Nonnull Urn urn, boolean isTestMode) {
+  public static <ASPECT extends RecordTemplate> String createSoftDeleteAssetSql(@Nonnull Urn urn, boolean isTestMode) {
     final String tableName = isTestMode ? getTestTableName(urn) : getTableName(urn);
-    return String.format(SQL_DELETE_ASSET_WITH_URN, tableName, urn);
+    return String.format(SQL_SOFT_DELETE_ASSET_WITH_URN, tableName, urn);
   }
 
   /**
-   * Create Update with optimistic locking SQL statement. The SQL UPDATE use old_timestamp as a compareAndSet to check if the current update
-   * is made on an unchange record. For example: UPDATE table WHERE modifiedon = :oldTimestamp.
-   * @param urn  entity urn
-   * @param <ASPECT> aspect type
-   * @param aspectClass aspect class
-   * @param isTestMode whether the test mode is enabled or not
+   * Create Update with optimistic locking SQL statement. The SQL UPDATE use old_timestamp as a compareAndSet to check
+   * if the current update is made on an unchange record. For example: UPDATE table WHERE modifiedon = :oldTimestamp.
+   *
+   * @param <ASPECT>            aspect type
+   * @param urn                 entity urn
+   * @param aspectClass         aspect class
+   * @param isTestMode          whether the test mode is enabled or not
+   * @param softDeleteOverwrite whether to overwrite soft deleted aspects marked with $gma_deleted when doing soft
+   *                            delete by setting deleted_ts=NOW()
    * @return aspect upsert sql
    */
   public static <ASPECT extends RecordTemplate> String createAspectUpdateWithOptimisticLockSql(@Nonnull Urn urn,
-      @Nonnull Class<ASPECT> aspectClass, boolean urnExtraction, boolean isTestMode) {
+      @Nonnull Class<ASPECT> aspectClass, boolean urnExtraction, boolean isTestMode, boolean softDeleteOverwrite) {
     final String tableName = isTestMode ? getTestTableName(urn) : getTableName(urn);
     final String columnName = getAspectColumnName(urn.getEntityType(), aspectClass);
-    return String.format(urnExtraction ? SQL_UPDATE_ASPECT_WITH_URN_TEMPLATE : SQL_UPDATE_ASPECT_TEMPLATE, tableName,
-        columnName, columnName, columnName);
+    if (softDeleteOverwrite) {
+      return String.format(urnExtraction ? SQL_UPDATE_ASPECT_WITH_URN_TEMPLATE_WITH_SOFT_DELETE_OVERWRITE
+          : SQL_UPDATE_ASPECT_TEMPLATE_WITH_SOFT_DELETE_OVERWRITE, tableName, columnName, columnName, columnName);
+    } else {
+      return String.format(urnExtraction ? SQL_UPDATE_ASPECT_WITH_URN_TEMPLATE : SQL_UPDATE_ASPECT_TEMPLATE, tableName,
+          columnName, columnName, columnName);
+    }
   }
 
   /**
