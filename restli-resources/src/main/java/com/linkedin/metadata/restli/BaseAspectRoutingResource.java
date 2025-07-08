@@ -119,8 +119,9 @@ public abstract class BaseAspectRoutingResource<
       // The assumption is main GMS must have this entity.
       // If entity only has routing aspect, resourceNotFoundException will be thrown.
       final URN urn = toUrn(id);
+      BaseLocalDAO<INTERNAL_ASPECT_UNION, URN> shadowReadLocalDAO = getShadowReadLocalDAO();
       if (!getLocalDAO().exists(urn)) {
-        if (getShadowReadLocalDAO() != null && getShadowReadLocalDAO().exists(urn)) {
+        if (shadowReadLocalDAO != null && shadowReadLocalDAO.exists(urn)) {
           // If the entity exists in shadow DAO, we can return an empty value.
           log.warn("Entity {} exists in shadow DAO but not in local DAO. Ignoring shadow-only data.", urn);
         }
@@ -571,7 +572,8 @@ public abstract class BaseAspectRoutingResource<
         .map(aspectClass -> new AspectKey<>(aspectClass, urn, LATEST_VERSION))
         .collect(Collectors.toSet());
 
-    if (getShadowReadLocalDAO() == null) {
+    BaseLocalDAO<INTERNAL_ASPECT_UNION, URN> shadowReadLocalDAO = getShadowReadLocalDAO();
+    if (shadowReadLocalDAO == null) {
       return getLocalDAO().get(keys)
           .values()
           .stream()
@@ -579,7 +581,7 @@ public abstract class BaseAspectRoutingResource<
           .map(aspect -> ModelUtils.newAspectUnion(_internalAspectUnionClass, aspect.get()))
           .collect(Collectors.toList());
     }
-    return getInternalAspectsWithShadowComparison(keys);
+    return getInternalAspectsWithShadowComparison(keys, shadowReadLocalDAO);
   }
 
   /**
@@ -588,12 +590,13 @@ public abstract class BaseAspectRoutingResource<
    * @param keys Aspect keys to be retrieved from shadow DAO
    * @return A list of internal aspects.
    */
-  private List<INTERNAL_ASPECT_UNION> getInternalAspectsWithShadowComparison(Set<AspectKey<URN, ? extends RecordTemplate>> keys) {
+  private List<INTERNAL_ASPECT_UNION> getInternalAspectsWithShadowComparison(
+      Set<AspectKey<URN, ? extends RecordTemplate>> keys, BaseLocalDAO<INTERNAL_ASPECT_UNION, URN> shadowReadLocalDAO) {
 
     Map<AspectKey<URN, ? extends RecordTemplate>, java.util.Optional<? extends RecordTemplate>> localResults =
         getLocalDAO().get(keys);
     Map<AspectKey<URN, ? extends RecordTemplate>, java.util.Optional<? extends RecordTemplate>> shadowResults =
-        getShadowReadLocalDAO().get(keys);
+        shadowReadLocalDAO.get(keys);
 
     return keys.stream()
         .map(key -> {
