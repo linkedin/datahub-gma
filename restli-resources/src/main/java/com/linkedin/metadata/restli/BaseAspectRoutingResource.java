@@ -590,7 +590,8 @@ public abstract class BaseAspectRoutingResource<
    * @param keys Aspect keys to be retrieved from shadow DAO
    * @return A list of internal aspects.
    */
-  private List<INTERNAL_ASPECT_UNION> getInternalAspectsWithShadowComparison(Set<AspectKey<URN, ? extends RecordTemplate>> keys, BaseLocalDAO<INTERNAL_ASPECT_UNION, URN> shadowReadLocalDAO) {
+  private List<INTERNAL_ASPECT_UNION> getInternalAspectsWithShadowComparison(
+      Set<AspectKey<URN, ? extends RecordTemplate>> keys, BaseLocalDAO<INTERNAL_ASPECT_UNION, URN> shadowReadLocalDAO) {
 
     Map<AspectKey<URN, ? extends RecordTemplate>, java.util.Optional<? extends RecordTemplate>> localResults =
         getLocalDAO().get(keys);
