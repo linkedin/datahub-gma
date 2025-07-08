@@ -149,7 +149,8 @@ public abstract class BaseVersionedAspectResource<URN extends Urn, ASPECT_UNION 
     });
   }
 
-  private CollectionResult<ASPECT, ListResultMetadata> getAllWithMetadataFromReadShadowDAO(URN urn, PagingContext pagingContext, BaseLocalDAO<ASPECT_UNION, URN> localReadShadowDAO) {
+  private CollectionResult<ASPECT, ListResultMetadata> getAllWithMetadataFromReadShadowDAO(URN urn,
+      PagingContext pagingContext, BaseLocalDAO<ASPECT_UNION, URN> localReadShadowDAO) {
     ListResult<ASPECT> localResult =
         getLocalDAO().list(_aspectClass, urn, pagingContext.getStart(), pagingContext.getCount());
 
