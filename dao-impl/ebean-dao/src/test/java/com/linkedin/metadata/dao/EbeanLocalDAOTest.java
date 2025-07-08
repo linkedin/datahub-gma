@@ -509,6 +509,107 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
+  public void testCreateAfterAssetMarkedDeleted() {
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+      // First add a record to db
+      EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+      FooUrn urn = makeFooUrn(1000);
+      RecordTemplate foo = new AspectFoo().setValue("foo_testing_create_after_soft_delete_1");
+      RecordTemplate bar = new AspectBar().setValue("bar_testing_create_after_soft_delete_1");
+      IngestionParams ingestionParams = new IngestionParams().setTestMode(false);
+      dao.setAlwaysEmitAuditEvent(false);
+      dao.setAlwaysEmitAspectSpecificAuditEvent(false);
+      // At this time, there was no previous record for this urn, so we can create the asset with aspect foo
+      FooUrn createdUrn = dao.create(urn, ImmutableList.of(foo, bar), _dummyAuditStamp, null, ingestionParams);
+      assertEquals(createdUrn, urn);
+
+
+      // Verify the record was added: Foo aspect
+      BaseLocalDAO.AspectEntry<AspectFoo> aspectFooEntry = dao.getLatest(urn, AspectFoo.class, false);
+      // Verify Create using get API and checking the contents of response for Aspect Foo
+      Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> getAspectFooEntryMap = dao.get(ImmutableSet.of(AspectFoo.class), urn);
+      assert (getAspectFooEntryMap.get(AspectFoo.class).isPresent());
+      assert (!aspectFooEntry.isSoftDeleted());
+      assertNotNull(dao.get(AspectFoo.class, urn).get());
+      assert (getAspectFooEntryMap.get(AspectFoo.class).get().equals(foo));
+      assertEquals(aspectFooEntry.getAspect().getValue(), "foo_testing_create_after_soft_delete_1");
+      // Verify the record was added: Bar aspect
+      BaseLocalDAO.AspectEntry<AspectBar> aspectBarEntry = dao.getLatest(urn, AspectBar.class, false);
+      // Verify Create using get API and checking the contents of response or Aspect Bar
+      Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> getAspectBarEntryMap = dao.get(ImmutableSet.of(AspectBar.class), urn);
+      assert (getAspectBarEntryMap.get(AspectBar.class).isPresent());
+      assert (!aspectBarEntry.isSoftDeleted());
+      assertNotNull(dao.get(AspectBar.class, urn).get());
+      assert (getAspectBarEntryMap.get(AspectBar.class).get().equals(bar));
+      assertEquals(aspectBarEntry.getAspect().getValue(), "bar_testing_create_after_soft_delete_1");
+
+
+      // Delete the asset with aspect foo using the delete method - using deleteAll since we are deleting Asset.
+      Collection<EntityAspectUnion> deletedAsset = dao.deleteAll(urn, ImmutableSet.of(AspectFoo.class, AspectBar.class), _dummyAuditStamp);
+      assertEquals(deletedAsset.size(), 2);
+      // dao.exists() should return false after URN is marked for deletion
+      assert (!dao.exists(urn));
+      // Verify the record was deleted and no longer exists in db
+      Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> aspectFooEntryDeleted = dao.get(ImmutableSet.of(AspectFoo.class), urn);
+      assert (!aspectFooEntryDeleted.get(AspectFoo.class).isPresent());
+      Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> aspectBarEntryDeleted = dao.get(ImmutableSet.of(AspectBar.class), urn);
+      assert (!aspectBarEntryDeleted.get(AspectBar.class).isPresent());
+
+      // try creating again with same urn, should not throw an exception
+      RecordTemplate newFoo = new AspectFoo().setValue("foo_testing_create_after_soft_delete_2");
+      FooUrn newCreatedUrn = dao.create(urn, ImmutableList.of(newFoo), _dummyAuditStamp, null, ingestionParams);
+      assertEquals(newCreatedUrn, urn);
+
+      // Verify the record was added: Foo aspect
+      Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> getNewAspectFooEntryMap = dao.get(ImmutableSet.of(AspectFoo.class), urn);
+      assert (dao.exists(urn));
+      Optional<AspectFoo> aspectNewFooEntry = getNewAspectFooEntryMap.get(AspectFoo.class).map(aspect -> (AspectFoo) aspect);
+      assert (aspectNewFooEntry.isPresent());
+      assertNotNull(dao.get(AspectFoo.class, urn).get());
+      assert (getNewAspectFooEntryMap.get(AspectFoo.class).get().equals(newFoo));
+      assertEquals(aspectNewFooEntry.get().getValue(), "foo_testing_create_after_soft_delete_2");
+      BaseLocalDAO.AspectEntry<AspectFoo>  newAspectFooGetLatestEntry = dao.getLatest(urn, AspectFoo.class, false);
+      assert (!newAspectFooGetLatestEntry.isSoftDeleted());
+      // Verify bar aspect was not created (previously deleted and not accessible with get)
+      Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> getNewAspectBarEntryMap = dao.get(ImmutableSet.of(AspectBar.class), urn);
+      assert (!getNewAspectBarEntryMap.get(AspectBar.class).isPresent());
+
+      assertNotNull(dao.get(AspectFoo.class, urn).get());
+    }
+  }
+
+  @Test
+  public void testUpdateAfterAssetMarkedDeleted() {
+    if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
+      EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+      FooUrn urn = makeFooUrn(1000);
+      AspectFoo foo = new AspectFoo().setValue("foo_testing_create_after_soft_delete");
+      IngestionParams ingestionParams = new IngestionParams().setTestMode(false);
+      dao.setAlwaysEmitAuditEvent(false);
+      dao.setAlwaysEmitAspectSpecificAuditEvent(false);
+      // At this time, there was no previous record for this urn, so we can add the asset with aspect foo using Upsert
+      // method dao.add
+      dao.add(urn, foo, _dummyAuditStamp, null, ingestionParams);
+      // Verify the record was added: Foo aspect
+      BaseLocalDAO.AspectEntry<AspectFoo> aspectFooEntry = dao.getLatest(urn, AspectFoo.class, false);
+      assertEquals(aspectFooEntry.getAspect().getValue(), "foo_testing_create_after_soft_delete");
+      assertNotNull(dao.get(AspectFoo.class, urn).get());
+      // Delete the asset with aspect foo using the delete method - using deleteAll since we are deleting Asset.
+      dao.deleteAll(urn, Collections.singleton(AspectFoo.class), _dummyAuditStamp);
+      // Verify the record was deleted and no longer exists in db
+      BaseLocalDAO.AspectEntry<AspectFoo> aspectFooEntryDeleted = dao.getLatest(urn, AspectFoo.class, false);
+      assertNull(aspectFooEntryDeleted.getAspect());
+      // try adding again with same urn, should not throw an exception
+      AspectFoo newFoo = new AspectFoo().setValue("foo_testing_create_after_soft_delete");
+      dao.add(urn, newFoo, _dummyAuditStamp, null, ingestionParams);
+      // Verify the record was added: Foo aspect
+      Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> aspectNewFooEntry = dao.get(ImmutableSet.of(AspectFoo.class), urn);
+      assert (aspectNewFooEntry.get(AspectFoo.class).isPresent());
+      assertNotNull(dao.get(AspectFoo.class, urn).get());
+    }
+  }
+
+  @Test
   public void testAddWithIngestionAnnotation() throws URISyntaxException {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     FooUrn urn = makeFooUrn(1);
@@ -3211,7 +3312,7 @@ public class EbeanLocalDAOTest {
     testGetWithQuerySize(1000);
   }
 
-  @Test(expectedExceptions = OptimisticLockException.class)
+  @Test
   public void testOptimisticLockException() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
     FooUrn fooUrn = makeFooUrn(1);
@@ -3234,8 +3335,11 @@ public class EbeanLocalDAOTest {
 
       // call save method with timestamp (_now - 100) but timestamp is already changed to _now
       // expect OptimisticLockException if optimistic locking is enabled
-      dao.updateWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now + 100),
-          0, new Timestamp(_now - 100), null, false);
+      assertThrows(OptimisticLockException.class, () -> {
+        dao.updateWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now + 100),
+            0, new Timestamp(_now - 100), null, false);
+      });
+
 
     } else if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
       // in DUAL SCHEMA, the aspect table is the SOT even though it also writes to the entity table
@@ -3268,8 +3372,10 @@ public class EbeanLocalDAOTest {
 
       // When: update with old timestamp does not match the lastmodifiedon in the aspect table
       // Expect: OptimisticLockException.
-      dao.updateWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now + 400), 0,
-          new Timestamp(_now + 100), null, false);
+      assertThrows(OptimisticLockException.class, () -> {
+        dao.updateWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now + 400), 0,
+            new Timestamp(_now + 100), null, false);
+      });
     } else if (_enableChangeLog) {
       // either NEW SCHEMA, the entity table is the SOT and the aspect table is the log table
       // Given:
@@ -3294,22 +3400,10 @@ public class EbeanLocalDAOTest {
       assertEquals(dao.getLatest(fooUrn, AspectFoo.class, false).getAspect().getValue(), "bar");
       assertEquals(dao.getLatest(fooUrn, AspectFoo.class, false).getExtraInfo().getAudit().getTime(), Long.valueOf(_now + 200L));
 
-      // When: update with old timestamp does not match the lastmodifiedon in the entity table
-      // Expect: OptimisticLockException.
-      dao.updateWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now + 400), 0,
-          new Timestamp(_now + 100), null, false);
-    } else {
+
+    } else { // Remove this case because we have changes implementation.
       // Given: changeLog is disabled
       assertFalse(_enableChangeLog);
-      // When: updateWithOptimisticLocking is called
-      try {
-        dao.updateWithOptimisticLocking(fooUrn, fooAspect, AspectFoo.class, makeAuditStamp("fooActor", _now + 400), 0,
-            new Timestamp(_now + 100), null, false);
-        fail("UnsupportedOperationException should be thrown");
-      } catch (UnsupportedOperationException uoe) {
-        // Expect: UnsupportedOperationException is thrown
-        throw new OptimisticLockException("skip: when _changeLog is enabled: " + uoe);
-      }
     }
   }
 

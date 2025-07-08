@@ -740,7 +740,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     boolean isTestModeFalseForAll = aspectCreateLambdas.stream().filter(aspectCreateLambda -> aspectCreateLambda.getIngestionParams().isTestMode()).collect(
           Collectors.toList()).isEmpty();
 
-    int numRows = createNewAspect(urn, aspectCreateLambdas, aspectValues, auditStamp, trackingContext, isTestModeFalseForAll);
+    int numRows = createNewAssetWithAspects(urn, aspectCreateLambdas, aspectValues, auditStamp, trackingContext, isTestModeFalseForAll);
     for (RecordTemplate aspectValue : aspectValues) {
       // For each aspect, we need to trigger emit MAE
       // In new asset creation, old value is null
@@ -962,54 +962,6 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     );
   }
 
-  /**
-   * The common method that can be used for both: deletion of aspects and entity.
-   *
-   * @param urn                 the URN for the entity the aspects are attached to
-   * @param aspectClasses       Aspect Classes of the aspects being deleted, must be supported aspect types in
-   *                            {@code ASPECT_UNION}
-   * @param auditStamp          the audit stamp of this action
-   * @param trackingContext     the tracking context for the operation
-   * @param ingestionParams     ingestion parameters
-   * @param deleteAll           if true, delete the entire asset, else mark aspects as deleted iteratively in a
-   *                            transaction
-   * @param maxTransactionRetry maximum number of transaction retries before throwing an exception
-   * @return a collection of the deleted aspects (their value before deletion), each wrapped in an instance of
-   * {@link ASPECT_UNION}
-   */
-  protected Collection<ASPECT_UNION> deleteCommon(@Nonnull URN urn,
-      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses,
-      @Nonnull AuditStamp auditStamp, int maxTransactionRetry,
-      @Nullable IngestionTrackingContext trackingContext,
-      @Nullable IngestionParams ingestionParams,
-      boolean deleteAll) {
-
-    // TODO: Handle pre-deletion callbacks if any
-
-    // If deleteAll is true, delete entire asset, else mark aspects as deleted iteratively in a transaction
-    if (deleteAll) {
-      Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>
-          results = permanentDelete(urn, aspectClasses, auditStamp, maxTransactionRetry, trackingContext, ingestionParams.isTestMode());
-      Collection<RecordTemplate> deletedAspects = new ArrayList<>();
-      results.forEach((key, value) -> {
-        // Check if aspect value present to avoid null pointer exception
-        if (value.isPresent()) {
-          DeleteResult deleteResult = new DeleteResult(value.get(), key);
-          deletedAspects.add(unwrapDeleteResult(urn, deleteResult, auditStamp, trackingContext, ChangeType.DELETE_ALL));
-        }
-      });
-
-      return deletedAspects.stream()
-          .filter(Objects::nonNull)
-          .map(x -> ModelUtils.newEntityUnion(_aspectUnionClass, x)).collect(Collectors.toList());
-    } else {
-      // TODO: delete aspects implementation can be moved here instead of in addCommon()
-      // Add common method should be used only for create and update
-      return Collections.emptyList();
-    }
-
-    //TODO: Handle post-ingestion callbacks if any
-  }
 
   /**
    * Delete asset and all its aspects atomically.
@@ -1076,9 +1028,36 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       int maxTransactionRetry,
       @Nullable IngestionTrackingContext trackingContext,
       @Nullable IngestionParams ingestionParams) {
+
     IngestionParams nonNullIngestionParams = ingestionParams == null
         ? new IngestionParams().setIngestionMode(IngestionMode.LIVE).setTestMode(false) : ingestionParams;
-    return deleteCommon(urn, aspectClasses, auditStamp, maxTransactionRetry, trackingContext, nonNullIngestionParams, true);
+
+    final Map<Class<?>, RecordTemplate> results = new HashMap<>();
+    runInTransactionWithRetry(() -> {
+        aspectClasses.forEach(aspectClass -> {
+          try {
+            RecordTemplate deletedAspect = delete(urn, aspectClass, auditStamp, maxTransactionRetry, trackingContext);
+            results.put(aspectClass, deletedAspect);
+          } catch (NullPointerException e) {
+            log.warn("Aspect {} for urn {} does not exist", aspectClass.getName(), urn);
+          }
+        });
+
+      permanentDelete(urn, nonNullIngestionParams.isTestMode());
+      return results;
+      }, maxTransactionRetry);
+
+
+    Collection<RecordTemplate> deletedAspects = new ArrayList<>();
+    results.forEach((key, value) -> {
+      // Check if aspect value present to avoid null pointer exception
+      DeleteResult deleteResult = new DeleteResult(value, key);
+      deletedAspects.add(unwrapDeleteResult(urn, deleteResult, auditStamp, trackingContext, ChangeType.DELETE_ALL));
+    });
+
+    return deletedAspects.stream()
+        .filter(Objects::nonNull)
+        .map(x -> ModelUtils.newEntityUnion(_aspectUnionClass, x)).collect(Collectors.toList());
   }
 
   /**
@@ -1340,24 +1319,19 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nullable ASPECT newEntry, @Nonnull AuditStamp newAuditStamp, boolean isSoftDeleted,
       @Nullable IngestionTrackingContext trackingContext, boolean isTestMode);
 
-  protected abstract <ASPECT_UNION extends RecordTemplate> int createNewAspect(@NonNull URN urn,
+  protected abstract <ASPECT_UNION extends RecordTemplate> int createNewAssetWithAspects(@NonNull URN urn,
       @Nonnull List<AspectCreateLambda<? extends RecordTemplate>> aspectCreateLambdas,
       @Nonnull List<? extends RecordTemplate> aspectValues, @Nonnull AuditStamp newAuditStamp,
       @Nullable IngestionTrackingContext trackingContext, boolean isTestMode);
 
   /**
-   * Permanently deletes the entity from the table.
-   * @param urn the URN for the entity the aspect is attached to
-   * @param aspectClasses Aspect Classes of the aspects being deleted, must be supported aspect types in {@code ASPECT_UNION}
-   * @param auditStamp the audit stamp of this action
-   * @param maxTransactionRetry maximum number of transaction retries before throwing an exception
-   * @param trackingContext the tracking context for the operation
+   * Mark the asset as deleted.
+   *
+   * @param urn        the URN for the entity the aspect is attached to
    * @param isTestMode whether the test mode is enabled or not
-   * @return a map of the deleted aspects (their value before deletion), each wrapped in an instance of {@link ASPECT_UNION}
+   * @return the number of rows updated in delete operation.
    */
-  protected abstract Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>> permanentDelete(@Nonnull URN urn,
-      @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nullable AuditStamp auditStamp,
-      int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext, boolean isTestMode);
+  protected abstract int permanentDelete(@Nonnull URN urn, boolean isTestMode);
 
   /**
    * Saves the new value of an aspect to entity tables. This is used when backfilling metadata from the old schema to
@@ -1572,13 +1546,13 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   /**
    * Update an aspect for an entity with specific version and {@link AuditStamp} with optimistic locking.
    *
-   * @param urn {@link Urn} for the entity
-   * @param value the aspect to update
-   * @param aspectClass the type of aspect to update
+   * @param urn           {@link Urn} for the entity
+   * @param value         the aspect to update
+   * @param aspectClass   the type of aspect to update
    * @param newAuditStamp the {@link AuditStamp} for the new aspect
-   * @param version the version for the aspect
-   * @param oldTimestamp the timestamp for the old aspect
-   * @param isTestMode whether the test mode is enabled or not
+   * @param version       the version for the aspect
+   * @param oldTimestamp  the timestamp for the old aspect
+   * @param isTestMode    whether the test mode is enabled or not
    */
   protected abstract <ASPECT extends RecordTemplate> void updateWithOptimisticLocking(@Nonnull URN urn,
       @Nullable RecordTemplate value, @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp newAuditStamp,
