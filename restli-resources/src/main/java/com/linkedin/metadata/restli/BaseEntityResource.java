@@ -234,8 +234,9 @@ public abstract class BaseEntityResource<
 
     return RestliUtils.toTask(() -> {
       final URN urn = toUrn(id);
+      BaseLocalDAO<INTERNAL_ASPECT_UNION, URN> shadowReadLocalDAO = getShadowReadLocalDAO();
       if (!getLocalDAO().exists(urn)) {
-        if (getShadowReadLocalDAO() != null && getShadowReadLocalDAO().exists(urn)) {
+        if (shadowReadLocalDAO != null && shadowReadLocalDAO.exists(urn)) {
           log.warn("Entity {} exists in shadow DAO but not in local DAO. Ignoring shadow-only data.", urn);
         }
         throw RestliUtils.resourceNotFoundException();
@@ -571,7 +572,8 @@ public abstract class BaseEntityResource<
       return RestliUtils.toTask(() -> {
         final URN urn = parseUrnParam(urnString);
 
-        if (getShadowReadLocalDAO() == null) {
+        BaseLocalDAO<INTERNAL_ASPECT_UNION, URN> shadowReadLocalDAO = getShadowReadLocalDAO();
+        if (shadowReadLocalDAO == null) {
           if (!getLocalDAO().exists(urn)) {
             throw RestliUtils.resourceNotFoundException();
           }
@@ -589,7 +591,7 @@ public abstract class BaseEntityResource<
 
           return ModelUtils.newAsset(_assetClass, urn, aspects);
         }
-        return getAssetWithShadowComparison(urn, aspectNames);
+        return getAssetWithShadowComparison(urn, aspectNames, shadowReadLocalDAO);
       });
     } catch (ModelValidationException e) {
       throw RestliUtils.invalidArgumentsException(e.getMessage());
@@ -610,10 +612,10 @@ public abstract class BaseEntityResource<
    * @return an asset assembled from the resolved aspects
    * @throws RestLiServiceException if the entity does not exist in the local DAO
    */
-  private ASSET getAssetWithShadowComparison(@Nonnull URN urn, @Nullable String[] aspectNames) {
+  private ASSET getAssetWithShadowComparison(@Nonnull URN urn, @Nullable String[] aspectNames, BaseLocalDAO<INTERNAL_ASPECT_UNION, URN> shadowReadLocalDAO) {
 
     if (!getLocalDAO().exists(urn)) {
-      if (getShadowReadLocalDAO().exists(urn)) {
+      if (shadowReadLocalDAO.exists(urn)) {
         log.warn("Entity {} exists in shadow DAO but not in local DAO. Ignoring shadow-only data.", urn);
       }
       throw RestliUtils.resourceNotFoundException();
@@ -628,7 +630,7 @@ public abstract class BaseEntityResource<
     Map<AspectKey<URN, ? extends RecordTemplate>, java.util.Optional<? extends RecordTemplate>> localResults =
         getLocalDAO().get(keys);
     Map<AspectKey<URN, ? extends RecordTemplate>, java.util.Optional<? extends RecordTemplate>> shadowResults =
-        getShadowReadLocalDAO().get(keys);
+        shadowReadLocalDAO.get(keys);
 
     // Collect aspects
     List<UnionTemplate> aspects = new ArrayList<>();
@@ -1230,7 +1232,8 @@ public abstract class BaseEntityResource<
     final Map<URN, List<UnionTemplate>> urnAspectsMap =
         urns.stream().collect(Collectors.toMap(Function.identity(), urn -> new ArrayList<>()));
 
-    if (getShadowReadLocalDAO() == null) {
+    BaseLocalDAO<INTERNAL_ASPECT_UNION, URN> shadowReadLocalDAO = getShadowReadLocalDAO();
+    if (shadowReadLocalDAO == null) {
       if (isInternalModelsEnabled) {
         getLocalDAO().get(keys)
             .forEach((key, aspect) -> aspect.ifPresent(metadata -> urnAspectsMap.get(key.getUrn())
@@ -1242,7 +1245,7 @@ public abstract class BaseEntityResource<
       }
       return urnAspectsMap;
     } else {
-      return getUrnAspectMapFromShadowDao(urns, keys, isInternalModelsEnabled);
+      return getUrnAspectMapFromShadowDao(urns, keys, isInternalModelsEnabled, shadowReadLocalDAO);
     }
   }
 
@@ -1250,14 +1253,14 @@ public abstract class BaseEntityResource<
   private Map<URN, List<UnionTemplate>> getUrnAspectMapFromShadowDao(
       @Nonnull Collection<URN> urns,
       @Nonnull Set<AspectKey<URN, ? extends RecordTemplate>> keys,
-      boolean isInternalModelsEnabled) {
+      boolean isInternalModelsEnabled,
+      @Nonnull BaseLocalDAO<INTERNAL_ASPECT_UNION, URN> shadowReadLocalDAO) {
 
     Map<AspectKey<URN, ? extends RecordTemplate>, java.util.Optional<? extends RecordTemplate>> localResults =
         getLocalDAO().get(keys);
 
-    BaseLocalDAO<INTERNAL_ASPECT_UNION, URN> shadowDao = getShadowReadLocalDAO();
     Map<AspectKey<URN, ? extends RecordTemplate>, java.util.Optional<? extends RecordTemplate>> shadowResults =
-        shadowDao.get(keys);
+        shadowReadLocalDAO.get(keys);
 
     final Map<URN, List<UnionTemplate>> urnAspectsMap =
         urns.stream().collect(Collectors.toMap(Function.identity(), urn -> new ArrayList<>()));
