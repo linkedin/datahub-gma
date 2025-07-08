@@ -1338,12 +1338,11 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nullable IngestionTrackingContext trackingContext, boolean isTestMode);
 
   /**
-   * Permanently deletes the entity from the table.
+   * Mark the asset as deleted.
    *
    * @param urn        the URN for the entity the aspect is attached to
    * @param isTestMode whether the test mode is enabled or not
-   * @return a map of the deleted aspects (their value before deletion), each wrapped in an instance of
-   * {@link ASPECT_UNION}
+   * @return the number of rows updated in delete operation.
    */
   protected abstract int permanentDelete(@Nonnull URN urn, boolean isTestMode);
 

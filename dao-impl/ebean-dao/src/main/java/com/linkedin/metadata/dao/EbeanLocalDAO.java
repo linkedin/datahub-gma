@@ -661,7 +661,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       @Nonnull List<? extends RecordTemplate> aspectValues, @Nonnull AuditStamp newAuditStamp,
       @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
     return runInTransactionWithRetry(() ->
-        // do a get to ensure the urn does not already exist
+        // behavior of create: do a get to ensure the urn does not already exist
         // if exists and deletedTs is null, then throw an exception
         // if exists and deletedTs is not null, then update the deletedTs to null and create records
         _localAccess.create(urn, aspectValues, aspectCreateLambdas, newAuditStamp, trackingContext, isTestMode), 1);

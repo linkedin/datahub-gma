@@ -236,12 +236,13 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
         deletedTsCheckForCreate.append(", ");
       }
     }
-    deletedTsCheckForCreate.append(DELETED_TS_CONDITIONAL_VALUE_SET);
+    deletedTsCheckForCreate.append(DELETED_TS_SET_VALUE_CONDITIONALLY);
 
-    // Build the final insert statement
-    // For example: INSERT INTO <table_name> (<columns>) VALUES (<values>);
+    // Build the final insert statement as follows:
+    // INSERT INTO <table_name> (<columns>) VALUES (<values>)
+    // ON DUPLICATE KEY UPDATE aspectclass1 = aspect1, ...,
+    // deleted_ts = IF(deleted_ts IS NULL, CAST('DuplicateKeyException' AS UNSIGNED), NULL);
     String insertStatement = insertIntoSql.toString() + insertSqlValues.toString() + deletedTsCheckForCreate.toString();
-
 
     insertStatement = String.format(insertStatement, getTableName(urn));
 
@@ -319,9 +320,8 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   }
 
   /**
-   * Delete all aspects + urn for the given urn. By this time pre-deletion hooks should be processed. Old values are not
-   * needed for delete, But should be retrieved and used for in post-update hooks if needed.
-   *
+   * Soft delete all aspects + urn for the given urn by setting deleted_ts=NOW().
+   * By this time pre-deletion hooks should be processed.
    * @param urn        {@link Urn} for the entity
    * @param isTestMode whether the operation is in test mode or not
    * @return number of rows deleted.

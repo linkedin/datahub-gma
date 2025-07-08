@@ -47,7 +47,9 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * @param oldTimestamp             old time stamp for optimistic lock checking
    * @param ingestionTrackingContext the ingestionTrackingContext of the MCE responsible for calling this update
    * @param isTestMode               whether the test mode is enabled or not
-   * @param softDeleteOverwrite      whether to overwrite soft deleted aspects marked with $gma_deleted
+   * @param softDeleteOverwrite      whether to overwrite soft deleted aspects marked with $gma_deleted.
+   *                                 Will always be false for old schema code path since those tables do not contain
+   *                                 deleted_ts column.
    * @return number of rows inserted or updated
    */
   <ASPECT extends RecordTemplate> int addWithOptimisticLocking(@Nonnull URN urn, @Nullable ASPECT newValue,
@@ -87,7 +89,7 @@ public interface IEbeanLocalAccess<URN extends Urn> {
       int keysCount, int position, boolean includeSoftDeleted, boolean isTestMode);
 
   /**
-   * Delete all aspects + urn for the given urn.
+   * Soft delete all aspects + urn for the given urn by setting deleted_ts=NOW().
    *
    * @param urn        {@link Urn} for the entity
    * @param isTestMode whether the operation is in test mode or not
