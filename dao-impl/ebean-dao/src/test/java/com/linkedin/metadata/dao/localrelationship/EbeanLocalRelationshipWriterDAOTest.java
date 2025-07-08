@@ -318,6 +318,37 @@ public class EbeanLocalRelationshipWriterDAOTest {
     _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_pairswith"));
   }
 
+  @Test
+  public void testRemoveRelationshipsSameAspectDifferentNamespace() throws URISyntaxException {
+    if (!_useAspectColumnForRelationshipRemoval) {
+      return; // this test doesn't apply to this case
+    }
+    _localRelationshipWriterDAO.setUseAspectColumnForRelationshipRemoval(_useAspectColumnForRelationshipRemoval);
+
+    BarUrn barUrn = BarUrn.createFromString("urn:li:bar:123");
+    FooUrn fooUrn123 = FooUrn.createFromString("urn:li:foo:123");
+    FooUrn fooUrn456 = FooUrn.createFromString("urn:li:foo:456");
+    _server.execute(Ebean.createSqlUpdate(insertRelationships("metadata_relationship_pairswith", barUrn.toString(),
+        "bar", fooUrn123.toString(), "foo", AspectFooBar.class.getCanonicalName())));
+
+    _server.execute(Ebean.createSqlUpdate(insertRelationships("metadata_relationship_pairswith", barUrn.toString(),
+        "bar", fooUrn456.toString(), "foo", "pegasus." + AspectFooBar.class.getCanonicalName())));
+
+    // Before processing
+    List<SqlRow> before = _server.createSqlQuery("select * from metadata_relationship_pairswith where deleted_ts is null").findList();
+    assertEquals(before.size(), 2);
+
+    PairsWith pairsWith = new PairsWith().setSource(barUrn).setDestination(fooUrn123);
+    _localRelationshipWriterDAO.removeRelationships(barUrn, AspectFooBar.class, Collections.singletonList(pairsWith));
+
+    // After processing verification - both relationships should have been deleted.
+    List<SqlRow> all = _server.createSqlQuery("select * from metadata_relationship_pairswith where deleted_ts is null").findList();
+    assertEquals(all.size(), 0); // Total number of edges is 0
+
+    // Clean up
+    _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_pairswith"));
+  }
+
   private String insertRelationships(String table, String sourceUrn, String sourceType, String destinationUrn, String destinationType, String aspect) {
     String insertWithAspectTemplate = "INSERT INTO %s (metadata, source, source_type, destination, destination_type, lastmodifiedon, lastmodifiedby, aspect)"
         + " VALUES ('{\"metadata\": true}', '%s', '%s', '%s', '%s', CURRENT_TIMESTAMP, 'unknown', '%s')";

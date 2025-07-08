@@ -218,7 +218,15 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
     SqlUpdate deletionSQL = _server.createSqlUpdate(SQLStatementUtils.deleteLocalRelationshipSQL(tableName, _useAspectColumnForRelationshipRemoval));
     deletionSQL.setParameter(CommonColumnName.SOURCE, source.toString());
     if (_useAspectColumnForRelationshipRemoval) {
-      deletionSQL.setParameter(CommonColumnName.ASPECT, aspectClass.getCanonicalName());
+      // treat "pegasus.com.linkedin..." and "com.linkedin..." as equivalent
+      String aspectClassFQCN = aspectClass.getCanonicalName();
+      String pegasusPrefix = "pegasus.";
+      // normalize the aspect FQCN first by removing any 'pegasus.' prefix
+      if (aspectClassFQCN.startsWith(pegasusPrefix)) {
+        aspectClassFQCN = aspectClassFQCN.substring(pegasusPrefix.length());
+      }
+      deletionSQL.setParameter(CommonColumnName.ASPECT, aspectClassFQCN); // WHERE aspect = "com.linkedin..."
+      deletionSQL.setParameter("pegasus_" + CommonColumnName.ASPECT, pegasusPrefix + aspectClassFQCN); // OR aspect = "pegasus.com.linkedin..."
     }
       batchCount = 0;
       while (batchCount < MAX_BATCHES) {

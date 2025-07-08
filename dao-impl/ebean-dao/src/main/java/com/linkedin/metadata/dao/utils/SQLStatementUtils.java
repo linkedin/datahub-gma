@@ -141,7 +141,7 @@ public class SQLStatementUtils {
       + "WHERE source = :source AND deleted_ts IS NULL";
 
   private static final String DELETE_BY_SOURCE_AND_ASPECT = "UPDATE %s SET deleted_ts=NOW() "
-      + "WHERE source = :source AND aspect = :aspect AND deleted_ts IS NULL";
+      + "WHERE source = :source AND (aspect = :aspect OR aspect = :pegasus_aspect) AND deleted_ts IS NULL";
 
   /**
    *  Filter query has pagination params in the existing APIs. To accommodate this, we use subquery to include total result counts in the query response.
