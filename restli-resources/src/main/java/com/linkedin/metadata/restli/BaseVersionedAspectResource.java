@@ -101,19 +101,20 @@ public abstract class BaseVersionedAspectResource<URN extends Urn, ASPECT_UNION 
   public Task<ASPECT> get(@Nonnull Long version) {
     return RestliUtils.toTask(() -> {
       final URN urn = getUrn(getContext().getPathKeys());
-      if (getLocalReadShadowDAO() == null) {
+      BaseLocalDAO<ASPECT_UNION, URN> localReadShadowDAO = getLocalReadShadowDAO();
+      if (localReadShadowDAO == null) {
         return getLocalDAO().get(new AspectKey<>(_aspectClass, urn, version))
             .orElseThrow(RestliUtils::resourceNotFoundException);
       }
-      return getAspectFromReadShadowDAO(urn, version);
+      return getAspectFromReadShadowDAO(urn, version, localReadShadowDAO);
     });
   }
 
-  private ASPECT getAspectFromReadShadowDAO(URN urn, Long version) {
+  private ASPECT getAspectFromReadShadowDAO(URN urn, Long version, BaseLocalDAO<ASPECT_UNION, URN> localReadShadowDAO) {
     AspectKey<URN, ASPECT> key = new AspectKey<>(_aspectClass, urn, version);
 
     Optional<ASPECT> localOpt = getLocalDAO().get(key);
-    Optional<ASPECT> shadowOpt = getLocalReadShadowDAO().get(key);
+    Optional<ASPECT> shadowOpt = localReadShadowDAO.get(key);
 
     if (localOpt.isPresent() && shadowOpt.isPresent()) {
       ASPECT local = localOpt.get();
@@ -138,21 +139,23 @@ public abstract class BaseVersionedAspectResource<URN extends Urn, ASPECT_UNION 
       @PagingContextParam @Nonnull PagingContext pagingContext) {
     return RestliUtils.toTask(() -> {
       final URN urn = getUrn(getContext().getPathKeys());
-      if (getLocalReadShadowDAO() == null) {
+      BaseLocalDAO<ASPECT_UNION, URN> localReadShadowDAO = getLocalReadShadowDAO();
+      if (localReadShadowDAO == null) {
         final ListResult<ASPECT> listResult =
             getLocalDAO().list(_aspectClass, urn, pagingContext.getStart(), pagingContext.getCount());
         return new CollectionResult<>(listResult.getValues(), listResult.getMetadata());
       }
-      return getAllWithMetadataFromReadShadowDAO(urn, pagingContext);
+      return getAllWithMetadataFromReadShadowDAO(urn, pagingContext, localReadShadowDAO);
     });
   }
 
-  private CollectionResult<ASPECT, ListResultMetadata> getAllWithMetadataFromReadShadowDAO(URN urn, PagingContext pagingContext) {
+  private CollectionResult<ASPECT, ListResultMetadata> getAllWithMetadataFromReadShadowDAO(URN urn,
+      PagingContext pagingContext, BaseLocalDAO<ASPECT_UNION, URN> localReadShadowDAO) {
     ListResult<ASPECT> localResult =
         getLocalDAO().list(_aspectClass, urn, pagingContext.getStart(), pagingContext.getCount());
 
     ListResult<ASPECT> shadowResult =
-        getLocalReadShadowDAO().list(_aspectClass, urn, pagingContext.getStart(), pagingContext.getCount());
+        localReadShadowDAO.list(_aspectClass, urn, pagingContext.getStart(), pagingContext.getCount());
 
     List<ASPECT> localValues = localResult.getValues();
     List<ASPECT> shadowValues = shadowResult.getValues();
