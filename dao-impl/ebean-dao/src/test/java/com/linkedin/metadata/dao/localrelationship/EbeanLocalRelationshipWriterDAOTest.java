@@ -12,6 +12,7 @@ import com.linkedin.testing.BarUrnArray;
 import com.linkedin.testing.RelationshipV2Bar;
 import com.linkedin.testing.localrelationship.AspectFooBar;
 import com.linkedin.testing.localrelationship.PairsWith;
+import com.linkedin.testing.localrelationship.VersionOf;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.FooUrn;
 import io.ebean.Ebean;
@@ -386,10 +387,10 @@ public class EbeanLocalRelationshipWriterDAOTest {
       final int threadId = i;
       executor.submit(() -> {
         try {
-          List<PairsWith> relationships = new ArrayList<>();
+          List<VersionOf> relationships = new ArrayList<>();
           for (int j = 0; j < relationshipsPerThread; j++) {
             FooUrn destination = FooUrn.createFromString("urn:li:foo:" + threadId + "00000" + j);
-            relationships.add(new PairsWith().setSource(barUrn).setDestination(destination));
+            relationships.add(new VersionOf().setSource(barUrn).setDestination(destination));
           }
 
           _localRelationshipWriterDAO.addRelationships(barUrn, AspectFooBar.class, relationships, false);
@@ -405,7 +406,7 @@ public class EbeanLocalRelationshipWriterDAOTest {
     executor.shutdown();
 
     // Verify all relationships were inserted
-    List<SqlRow> all = _server.createSqlQuery("select * from metadata_relationship_pairswith where deleted_ts is null").findList();
+    List<SqlRow> all = _server.createSqlQuery("select * from metadata_relationship_versionof where deleted_ts is null").findList();
     int expected = numThreads * relationshipsPerThread;
     assertEquals(expected, all.size());
 
@@ -417,7 +418,7 @@ public class EbeanLocalRelationshipWriterDAOTest {
     assertEquals(expected, uniqueDestinations.size());
 
     // Clean up
-    _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_pairswith"));
+    _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_versionof"));
   }
 
   @Test
