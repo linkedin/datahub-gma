@@ -244,7 +244,11 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
     batchCount = 0;
     while (batchCount < MAX_BATCHES) {
       try {
-        // Use the runInTransactionWithRetry method to handle retries in case of transaction failures
+        // Use the runInTransactionWithRetry method to handle retries in case of transaction failures.
+        // Although this whole logic is executed within a runInTransactionWithRetry block already (in addCommon), the nested
+        // behavior is supported when using Ebean Transactions despite the fact that true nested transactions are not supported in MySQL.
+        // Ebean mimics the nested behavior by using MySQL savepoints under the hood which CAN be nested. Thus, if all the inner commits (below) succeed,
+        // but the outer commit (somewhere else outside this logic) does not, the WHOLE TRANSACTION (including the inner commits) will be rolled back.
         int rowsAffected = runInTransactionWithRetry(deletionSQL::execute, 3); // Retry up to 3 times in case of transient failures
         batchCount++;
 

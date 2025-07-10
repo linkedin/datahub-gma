@@ -359,7 +359,6 @@ public class EbeanLocalRelationshipWriterDAOTest {
     _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_pairswith"));
   }
 
-
   @Test
   public void testRemoveRelationshipsSameAspectDifferentNamespace() throws URISyntaxException {
     if (!_useAspectColumnForRelationshipRemoval) {
