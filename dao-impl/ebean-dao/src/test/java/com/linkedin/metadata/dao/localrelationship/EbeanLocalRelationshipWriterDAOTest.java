@@ -25,6 +25,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Factory;
@@ -354,6 +359,62 @@ public class EbeanLocalRelationshipWriterDAOTest {
     assertEquals(all.get(1).getString("destination"), fooUrn456.toString());
     assertEquals(all.get(2).getString("source"), barUrn.toString());
     assertEquals(all.get(2).getString("destination"), fooUrn789.toString());
+
+    // Clean up
+    _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_pairswith"));
+  }
+
+  @Test
+  public void testConcurrentAddRelationships() throws Exception {
+    _localRelationshipWriterDAO.setUseAspectColumnForRelationshipRemoval(_useAspectColumnForRelationshipRemoval);
+
+    BarUrn barUrn = BarUrn.createFromString("urn:li:bar:123");
+    final int numThreads = 20;
+    final int relationshipsPerThread = 2;
+    final ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+    final CountDownLatch latch = new CountDownLatch(numThreads);
+
+    // set INSERT_BATCH_SIZE from 1000 to 2 for testing purposes
+    Field field = _localRelationshipWriterDAO.getClass().getDeclaredField("INSERT_BATCH_SIZE");
+    field.setAccessible(true); // ignore private keyword
+    Field modifiersField = Field.class.getDeclaredField("modifiers");
+    modifiersField.setAccessible(true);
+    modifiersField.setInt(field, field.getModifiers() & ~Modifier.FINAL); // remove the 'final' modifier
+    field.set(null, 2); // use null bc of static context
+
+    for (int i = 0; i < numThreads; i++) {
+      final int threadId = i;
+      executor.submit(() -> {
+        try {
+          List<PairsWith> relationships = new ArrayList<>();
+          for (int j = 0; j < relationshipsPerThread; j++) {
+            FooUrn destination = FooUrn.createFromString("urn:li:foo:" + threadId + "00000" + j);
+            relationships.add(new PairsWith().setSource(barUrn).setDestination(destination));
+          }
+
+          _localRelationshipWriterDAO.addRelationships(barUrn, AspectFooBar.class, relationships, false);
+        } catch (Exception e) {
+          e.printStackTrace(); // helpful for debugging failures
+        } finally {
+          latch.countDown();
+        }
+      });
+    }
+
+    latch.await(); // wait for all threads to finish
+    executor.shutdown();
+
+    // Verify all relationships were inserted
+    List<SqlRow> all = _server.createSqlQuery("select * from metadata_relationship_pairswith where deleted_ts is null").findList();
+    int expected = numThreads * relationshipsPerThread;
+    assertEquals(expected, all.size());
+
+    // Optional: Verify uniqueness of destination URNs
+    Set<String> uniqueDestinations = all.stream()
+        .map(row -> row.getString("destination"))
+        .collect(Collectors.toSet());
+
+    assertEquals(expected, uniqueDestinations.size());
 
     // Clean up
     _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_pairswith"));
