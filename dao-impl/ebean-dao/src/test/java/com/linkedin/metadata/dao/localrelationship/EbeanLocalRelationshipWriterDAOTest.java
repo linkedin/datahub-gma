@@ -409,7 +409,7 @@ public class EbeanLocalRelationshipWriterDAOTest {
     int expected = numThreads * relationshipsPerThread;
     assertEquals(expected, all.size());
 
-    // Optional: Verify uniqueness of destination URNs
+    // Verify uniqueness of destination URNs
     Set<String> uniqueDestinations = all.stream()
         .map(row -> row.getString("destination"))
         .collect(Collectors.toSet());
