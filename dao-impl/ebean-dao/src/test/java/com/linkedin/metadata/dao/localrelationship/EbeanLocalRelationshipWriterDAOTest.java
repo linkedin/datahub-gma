@@ -373,8 +373,8 @@ public class EbeanLocalRelationshipWriterDAOTest {
     _localRelationshipWriterDAO.setUseAspectColumnForRelationshipRemoval(_useAspectColumnForRelationshipRemoval);
 
     BarUrn barUrn = BarUrn.createFromString("urn:li:bar:123");
-    final int numThreads = 20;
-    final int relationshipsPerThread = 2;
+    final int numThreads = 10;
+    final int relationshipsPerThread = 4;
     final ExecutorService executor = Executors.newFixedThreadPool(numThreads);
     final CountDownLatch latch = new CountDownLatch(numThreads);
 
