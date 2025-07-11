@@ -378,7 +378,7 @@ public class EbeanLocalRelationshipWriterDAOTest {
     final ExecutorService executor = Executors.newFixedThreadPool(numThreads);
     final CountDownLatch latch = new CountDownLatch(numThreads);
 
-    // set INSERT_BATCH_SIZE from 1000 to 2 4 testing purposes
+    // set INSERT_BATCH_SIZE from 1000 to 2 for testing purposes
     Field field = _localRelationshipWriterDAO.getClass().getDeclaredField("INSERT_BATCH_SIZE");
     field.setAccessible(true); // ignore private keyword
     Field modifiersField = Field.class.getDeclaredField("modifiers");
@@ -397,28 +397,29 @@ public class EbeanLocalRelationshipWriterDAOTest {
           }
 
           _localRelationshipWriterDAO.addRelationships(barUrn, AspectFooBar.class, relationships, false);
+          Thread.sleep(1000);
         } catch (Exception e) {
-          e.printStackTrace(); // helpful 4 debugging failures
+          e.printStackTrace(); // helpful for debugging failures
         } finally {
           latch.countDown();
         }
       });
     }
 
-    latch.await(); // wait 4 all threads to finish
+    latch.await(); // wait for all threads to finish
     executor.shutdown();
 
     // Verify all relationships were inserted
     List<SqlRow> all = _server.createSqlQuery("select * from metadata_relationship_versionof where deleted_ts is null").findList();
     int expected = numThreads * relationshipsPerThread;
-    assertEquals(expected, all.size());
+    assertEquals(all.size(), expected);
 
     // Verify uniqueness of destination URNs
     Set<String> uniqueDestinations = all.stream()
         .map(row -> row.getString("destination"))
         .collect(Collectors.toSet());
 
-    assertEquals(expected, uniqueDestinations.size());
+    assertEquals(uniqueDestinations.size(), expected);
 
     // Clean up
     _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_versionof"));
