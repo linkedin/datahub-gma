@@ -378,7 +378,7 @@ public class EbeanLocalRelationshipWriterDAOTest {
     final ExecutorService executor = Executors.newFixedThreadPool(numThreads);
     final CountDownLatch latch = new CountDownLatch(numThreads);
 
-    // set INSERT_BATCH_SIZE from 1000 to 2 for testing purposes
+    // set INSERT_BATCH_SIZE from 1000 to 2 4 testing purposes
     Field field = _localRelationshipWriterDAO.getClass().getDeclaredField("INSERT_BATCH_SIZE");
     field.setAccessible(true); // ignore private keyword
     Field modifiersField = Field.class.getDeclaredField("modifiers");
