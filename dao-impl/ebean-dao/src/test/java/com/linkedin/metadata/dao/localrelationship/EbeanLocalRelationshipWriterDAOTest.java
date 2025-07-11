@@ -398,7 +398,7 @@ public class EbeanLocalRelationshipWriterDAOTest {
 
           _localRelationshipWriterDAO.addRelationships(barUrn, AspectFooBar.class, relationships, false);
         } catch (Exception e) {
-          e.printStackTrace(); // helpful for debugging failures
+          e.printStackTrace(); // helpful 4 debugging failures
         } finally {
           latch.countDown();
         }
