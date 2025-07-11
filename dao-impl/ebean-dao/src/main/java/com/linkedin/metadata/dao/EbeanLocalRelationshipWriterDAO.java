@@ -43,7 +43,8 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
     private static final String LAST_MODIFIED_ON = "lastmodifiedon";
     private static final String LAST_MODIFIED_BY = "lastmodifiedby";
   }
-  private static final int BATCH_SIZE = 10000; // Process rows in batches of 10,000
+  private static final int INSERT_BATCH_SIZE = 1000;
+  private static final int DELETE_BATCH_SIZE = 10000; // Process deletes in batches of 10,000 rows
   private static final int MAX_BATCHES = 1000; // Maximum number of batches to process
   private static final String LIMIT = " LIMIT ";
   @Getter
@@ -161,7 +162,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
   }
 
   /**
-   * Add the given list of relationships to the local relationship tables.
+   * Add the given list of relationships to the local relationship tables in batches.
    * @param urn the source urn to be used for the relationships. Optional for Relationship V1.
    *            Needed for Relationship V2 because source is not included in the relationshipV2 metadata.
    * @param aspectClass class of the aspect from which these relationships are extracted from
@@ -170,7 +171,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
    */
   private <ASPECT extends RecordTemplate, RELATIONSHIP extends RecordTemplate> void addRelationshipGroup(@Nullable Urn urn,
       @Nonnull Class<ASPECT> aspectClass, @Nonnull final List<RELATIONSHIP> relationshipGroup, boolean isTestMode) {
-    if (relationshipGroup.size() == 0) {
+    if (relationshipGroup.isEmpty()) {
       return;
     }
 
@@ -184,32 +185,44 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
 
     long now = Instant.now().toEpochMilli();
 
-    for (RELATIONSHIP relationship : relationshipGroup) {
-      // Relationship model V2 doesn't include source urn, it needs to be passed in.
-      // For relationship model V1, this given urn can be source urn or destination urn.
-      // For relationship model V2, this given urn can only be source urn.
-      Urn source = GraphUtils.getSourceUrnBasedOnRelationshipVersion(relationship, urn);
-      Urn destination = getDestinationUrnFromRelationship(relationship);
+    // Insert in batches with 1000 values per insert statement
+    int numBatches = (relationshipGroup.size() + INSERT_BATCH_SIZE - 1) / INSERT_BATCH_SIZE;
+    for (int i = 0; i < numBatches; i++) {
+      int numRelationships = Math.min(INSERT_BATCH_SIZE, relationshipGroup.size() - i * INSERT_BATCH_SIZE);
 
+      // Set up the general insertion update with static parameters set (lastmodifiedon, lastmodifiedby, {aspect})
       SqlUpdate sqlUpdate = _server.createSqlUpdate(SQLStatementUtils.insertLocalRelationshipSQL(
-              isTestMode ? SQLSchemaUtils.getTestRelationshipTableName(relationship)
-                  : SQLSchemaUtils.getRelationshipTableName(relationship), _useAspectColumnForRelationshipRemoval))
-          .setParameter(CommonColumnName.METADATA, RecordUtils.toJsonString(relationship))
-          .setParameter(CommonColumnName.SOURCE_TYPE, source.getEntityType())
-          .setParameter(CommonColumnName.DESTINATION_TYPE, destination.getEntityType())
-          .setParameter(CommonColumnName.SOURCE, source.toString())
-          .setParameter(CommonColumnName.DESTINATION, destination.toString())
+              isTestMode ? SQLSchemaUtils.getTestRelationshipTableName(firstRelationship)
+                  : SQLSchemaUtils.getRelationshipTableName(firstRelationship), numRelationships, _useAspectColumnForRelationshipRemoval))
           .setParameter(CommonColumnName.LAST_MODIFIED_ON, new Timestamp(now))
           .setParameter(CommonColumnName.LAST_MODIFIED_BY, DEFAULT_ACTOR);
       if (_useAspectColumnForRelationshipRemoval) {
         sqlUpdate.setParameter(CommonColumnName.ASPECT, aspectClass.getCanonicalName());
       }
+
+      // For each relationship in the batch, set the "values" to insert
+      for (int j = 0; j < numRelationships; j++) {
+        RELATIONSHIP relationship = relationshipGroup.get(j);
+        // Relationship model V2 doesn't include source urn, it needs to be passed in.
+        // For relationship model V1, this given urn can be source urn or destination urn.
+        // For relationship model V2, this given urn can only be source urn.
+        Urn source = GraphUtils.getSourceUrnBasedOnRelationshipVersion(relationship, urn);
+        Urn destination = getDestinationUrnFromRelationship(relationship);
+
+        sqlUpdate.setParameter(CommonColumnName.METADATA + j, RecordUtils.toJsonString(relationship))
+            .setParameter(CommonColumnName.SOURCE_TYPE + j, source.getEntityType())
+            .setParameter(CommonColumnName.DESTINATION_TYPE + j, destination.getEntityType())
+            .setParameter(CommonColumnName.SOURCE + j, source.toString())
+            .setParameter(CommonColumnName.DESTINATION + j, destination.toString());
+      }
+
+      // Execute the batch insert
       sqlUpdate.execute();
     }
   }
 
   /**
-   * Process the relationship removal in the DB tableName based on the removal option.
+   * Process the relationship removal in the DB tableName based on the source urn.
    * @param source the source urn to be used for the relationships
    * @param tableName the table name of the relationship
    */
@@ -228,45 +241,49 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
       deletionSQL.setParameter(CommonColumnName.ASPECT, aspectClassFQCN); // WHERE aspect = "com.linkedin..."
       deletionSQL.setParameter("pegasus_" + CommonColumnName.ASPECT, pegasusPrefix + aspectClassFQCN); // OR aspect = "pegasus.com.linkedin..."
     }
-      batchCount = 0;
-      while (batchCount < MAX_BATCHES) {
-        try {
-          // Use the runInTransactionWithRetry method to handle retries in case of transaction failures
-          int rowsAffected = runInTransactionWithRetry(deletionSQL::execute, 3); // Retry up to 3 times in case of transient failures
-          batchCount++;
+    batchCount = 0;
+    while (batchCount < MAX_BATCHES) {
+      try {
+        // Use the runInTransactionWithRetry method to handle retries in case of transaction failures.
+        // Although this whole logic is executed within a runInTransactionWithRetry block already (in addCommon), the nested
+        // behavior is supported when using Ebean Transactions despite the fact that true nested transactions are not supported in MySQL.
+        // Ebean mimics the nested behavior by using MySQL savepoints under the hood which CAN be nested. Thus, if all the inner commits (below) succeed,
+        // but the outer commit (somewhere else outside this logic) does not, the WHOLE TRANSACTION (including the inner commits) will be rolled back.
+        int rowsAffected = runInTransactionWithRetry(deletionSQL::execute, 3); // Retry up to 3 times in case of transient failures
+        batchCount++;
 
-          if (log.isDebugEnabled()) {
-            log.debug("Deleted {} rows in batch {}", rowsAffected, batchCount);
-          }
-
-          if (rowsAffected < BATCH_SIZE) {
-            // Exit loop if fewer than BATCH_SIZE rows were affected, indicating all rows are processed
-            break;
-          }
-
-          // Sleep for 1 millisecond to reduce load
-          Thread.sleep(1);
-        } catch (RetryLimitReached e) {
-          log.error("Error while executing batch deletion after {} batches and retries", batchCount, e);
-          throw new RuntimeException("Batch deletion failed due to retry limit", e);
-        } catch (InterruptedException e) {
-          Thread.currentThread().interrupt(); // Restore interrupted status
-          throw new RuntimeException("Batch deletion interrupted", e);
-        } catch (Exception e) {
-          log.error("Error while executing batch deletion after {} batches", batchCount, e);
-          throw new RuntimeException("Batch deletion failed", e);
+        if (log.isDebugEnabled()) {
+          log.debug("Deleted {} rows in batch {}", rowsAffected, batchCount);
         }
-      }
 
-      if (batchCount >= MAX_BATCHES) {
-        log.warn(
-            "Reached maximum batch count of {}, consider increasing MAX_BATCH_COUNT or debugging the deletion logic.",
-            MAX_BATCHES);
-      }
+        if (rowsAffected < DELETE_BATCH_SIZE) {
+          // Exit loop if fewer than DELETE_BATCH_SIZE rows were affected, indicating all rows are processed
+          break;
+        }
 
-      if (log.isDebugEnabled()) {
-        log.info("Cleared relationships in {} batches", batchCount);
+        // Sleep for 1 millisecond to reduce load
+        Thread.sleep(1);
+      } catch (RetryLimitReached e) {
+        log.error("Error while executing batch deletion after {} batches and retries", batchCount, e);
+        throw new RuntimeException("Batch deletion failed due to retry limit", e);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt(); // Restore interrupted status
+        throw new RuntimeException("Batch deletion interrupted", e);
+      } catch (Exception e) {
+        log.error("Error while executing batch deletion after {} batches", batchCount, e);
+        throw new RuntimeException("Batch deletion failed", e);
       }
+    }
+
+    if (batchCount >= MAX_BATCHES) {
+      log.warn(
+          "Reached maximum batch count of {}, consider increasing MAX_BATCH_COUNT or debugging the deletion logic.",
+          MAX_BATCHES);
+    }
+
+    if (log.isDebugEnabled()) {
+      log.info("Cleared relationships in {} batches", batchCount);
+    }
     deletionSQL.execute();
   }
 

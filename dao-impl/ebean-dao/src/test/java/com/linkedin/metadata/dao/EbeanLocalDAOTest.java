@@ -3518,6 +3518,32 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
+  public void testAddASingleRelationship() throws URISyntaxException {
+    // Set up local DAOs and AspectFooBar data
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> fooDao = createDao(FooUrn.class);
+    EbeanLocalDAO<EntityAspectUnion, BarUrn> barDao = createDao(BarUrn.class);
+    FooUrn fooUrn = makeFooUrn(1);
+    BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
+    AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(barUrn1));
+    AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
+
+    // Ingest the AspectFooBar aspect which has a single relationship
+    fooDao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
+    fooDao.add(fooUrn, aspectFooBar, auditStamp);
+    barDao.add(barUrn1, new AspectFoo().setValue("1"), auditStamp);
+
+    // Create the query DAO
+    EbeanLocalRelationshipQueryDAO ebeanLocalRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server);
+    ebeanLocalRelationshipQueryDAO.setSchemaConfig(_schemaConfig);
+
+    // Verify that the local relationship was added
+    List<BelongsTo> relationships = ebeanLocalRelationshipQueryDAO.findRelationships(
+        FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class, EMPTY_FILTER, BelongsTo.class, OUTGOING_FILTER, 0, 10);
+
+    assertEquals(relationships.size(), 1);
+  }
+
+  @Test
   public void testAddRelationships() throws URISyntaxException {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> fooDao = createDao(FooUrn.class);
     EbeanLocalDAO<EntityAspectUnion, BarUrn> barDao = createDao(BarUrn.class);

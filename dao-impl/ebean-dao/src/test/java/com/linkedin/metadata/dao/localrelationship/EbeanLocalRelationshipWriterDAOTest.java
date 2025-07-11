@@ -1,5 +1,6 @@
 package com.linkedin.metadata.dao.localrelationship;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.io.Resources;
 import com.linkedin.metadata.dao.EbeanLocalRelationshipWriterDAO;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
@@ -11,17 +12,25 @@ import com.linkedin.testing.BarUrnArray;
 import com.linkedin.testing.RelationshipV2Bar;
 import com.linkedin.testing.localrelationship.AspectFooBar;
 import com.linkedin.testing.localrelationship.PairsWith;
+import com.linkedin.testing.localrelationship.VersionOf;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.FooUrn;
 import io.ebean.Ebean;
 import io.ebean.EbeanServer;
 import io.ebean.SqlRow;
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Factory;
@@ -316,6 +325,103 @@ public class EbeanLocalRelationshipWriterDAOTest {
 
     // Clean up
     _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_pairswith"));
+  }
+
+  @Test
+  public void testAddRelationships() throws URISyntaxException, ReflectiveOperationException {
+    _localRelationshipWriterDAO.setUseAspectColumnForRelationshipRemoval(_useAspectColumnForRelationshipRemoval);
+
+    BarUrn barUrn = BarUrn.createFromString("urn:li:bar:123");
+    FooUrn fooUrn123 = FooUrn.createFromString("urn:li:foo:123");
+    FooUrn fooUrn456 = FooUrn.createFromString("urn:li:foo:456");
+    FooUrn fooUrn789 = FooUrn.createFromString("urn:li:foo:789");
+    PairsWith pairsWith1 = new PairsWith().setSource(barUrn).setDestination(fooUrn123);
+    PairsWith pairsWith2 = new PairsWith().setSource(barUrn).setDestination(fooUrn456);
+    PairsWith pairsWith3 = new PairsWith().setSource(barUrn).setDestination(fooUrn789);
+
+    List<PairsWith> relationshipsToInsert = ImmutableList.of(pairsWith1, pairsWith2, pairsWith3);
+
+    // set INSERT_BATCH_SIZE from 1000 to 2 for testing purposes
+    Field field = _localRelationshipWriterDAO.getClass().getDeclaredField("INSERT_BATCH_SIZE");
+    field.setAccessible(true); // ignore private keyword
+    Field modifiersField = Field.class.getDeclaredField("modifiers");
+    modifiersField.setAccessible(true);
+    modifiersField.setInt(field, field.getModifiers() & ~Modifier.FINAL); // remove the 'final' modifier
+    field.set(null, 2); // use null bc of static context
+
+    _localRelationshipWriterDAO.addRelationships(barUrn, AspectFooBar.class, relationshipsToInsert, false);
+
+    // After processing verification - all 3 relationships should be ingested
+    List<SqlRow> all = _server.createSqlQuery("select * from metadata_relationship_pairswith where deleted_ts is null").findList();
+    assertEquals(all.size(), 3); // Total number of edges is 1
+    assertEquals(all.get(0).getString("source"), barUrn.toString());
+    assertEquals(all.get(0).getString("destination"), fooUrn123.toString());
+    assertEquals(all.get(1).getString("source"), barUrn.toString());
+    assertEquals(all.get(1).getString("destination"), fooUrn456.toString());
+    assertEquals(all.get(2).getString("source"), barUrn.toString());
+    assertEquals(all.get(2).getString("destination"), fooUrn789.toString());
+
+    // Clean up
+    _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_pairswith"));
+  }
+
+  @Test
+  public void testConcurrentAddRelationships() throws Exception {
+    if (!_useAspectColumnForRelationshipRemoval) {
+      return;
+    }
+    _localRelationshipWriterDAO.setUseAspectColumnForRelationshipRemoval(_useAspectColumnForRelationshipRemoval);
+
+    BarUrn barUrn = BarUrn.createFromString("urn:li:bar:123");
+    final int numThreads = 20;
+    final int relationshipsPerThread = 2;
+    final ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+    final CountDownLatch latch = new CountDownLatch(numThreads);
+
+    // set INSERT_BATCH_SIZE from 1000 to 2 for testing purposes
+    Field field = _localRelationshipWriterDAO.getClass().getDeclaredField("INSERT_BATCH_SIZE");
+    field.setAccessible(true); // ignore private keyword
+    Field modifiersField = Field.class.getDeclaredField("modifiers");
+    modifiersField.setAccessible(true);
+    modifiersField.setInt(field, field.getModifiers() & ~Modifier.FINAL); // remove the 'final' modifier
+    field.set(null, 2); // use null bc of static context
+
+    for (int i = 0; i < numThreads; i++) {
+      final int threadId = i;
+      executor.submit(() -> {
+        try {
+          List<VersionOf> relationships = new ArrayList<>();
+          for (int j = 0; j < relationshipsPerThread; j++) {
+            FooUrn destination = FooUrn.createFromString("urn:li:foo:" + threadId + "00000" + j);
+            relationships.add(new VersionOf().setSource(barUrn).setDestination(destination));
+          }
+
+          _localRelationshipWriterDAO.addRelationships(barUrn, AspectFooBar.class, relationships, false);
+        } catch (Exception e) {
+          e.printStackTrace(); // helpful for debugging failures
+        } finally {
+          latch.countDown();
+        }
+      });
+    }
+
+    latch.await(); // wait for all threads to finish
+    executor.shutdown();
+
+    // Verify all relationships were inserted
+    List<SqlRow> all = _server.createSqlQuery("select * from metadata_relationship_versionof where deleted_ts is null").findList();
+    int expected = numThreads * relationshipsPerThread;
+    assertEquals(expected, all.size());
+
+    // Verify uniqueness of destination URNs
+    Set<String> uniqueDestinations = all.stream()
+        .map(row -> row.getString("destination"))
+        .collect(Collectors.toSet());
+
+    assertEquals(expected, uniqueDestinations.size());
+
+    // Clean up
+    _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_versionof"));
   }
 
   @Test
