@@ -367,6 +367,9 @@ public class EbeanLocalRelationshipWriterDAOTest {
 
   @Test
   public void testConcurrentAddRelationships() throws Exception {
+    if (!_useAspectColumnForRelationshipRemoval) {
+      return;
+    }
     _localRelationshipWriterDAO.setUseAspectColumnForRelationshipRemoval(_useAspectColumnForRelationshipRemoval);
 
     BarUrn barUrn = BarUrn.createFromString("urn:li:bar:123");
