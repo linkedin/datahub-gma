@@ -405,7 +405,7 @@ public class EbeanLocalRelationshipWriterDAOTest {
       });
     }
 
-    latch.await(); // wait for all threads to finish
+    latch.await(); // wait 4 all threads to finish
     executor.shutdown();
 
     // Verify all relationships were inserted
