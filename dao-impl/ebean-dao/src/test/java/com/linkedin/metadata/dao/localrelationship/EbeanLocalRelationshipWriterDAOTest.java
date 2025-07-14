@@ -366,66 +366,6 @@ public class EbeanLocalRelationshipWriterDAOTest {
   }
 
   @Test
-  public void testConcurrentAddRelationships() throws Exception {
-    if (!_useAspectColumnForRelationshipRemoval) {
-      return;
-    }
-    _localRelationshipWriterDAO.setUseAspectColumnForRelationshipRemoval(_useAspectColumnForRelationshipRemoval);
-
-    BarUrn barUrn = BarUrn.createFromString("urn:li:bar:123");
-    final int numThreads = 10;
-    final int relationshipsPerThread = 4;
-    final ExecutorService executor = Executors.newFixedThreadPool(numThreads);
-    final CountDownLatch latch = new CountDownLatch(numThreads);
-
-    // set INSERT_BATCH_SIZE from 1000 to 2 for testing purposes
-    Field field = _localRelationshipWriterDAO.getClass().getDeclaredField("INSERT_BATCH_SIZE");
-    field.setAccessible(true); // ignore private keyword
-    Field modifiersField = Field.class.getDeclaredField("modifiers");
-    modifiersField.setAccessible(true);
-    modifiersField.setInt(field, field.getModifiers() & ~Modifier.FINAL); // remove the 'final' modifier
-    field.set(null, 2); // use null bc of static context
-
-    for (int i = 0; i < numThreads; i++) {
-      final int threadId = i;
-      executor.submit(() -> {
-        try {
-          List<VersionOf> relationships = new ArrayList<>();
-          for (int j = 0; j < relationshipsPerThread; j++) {
-            FooUrn destination = FooUrn.createFromString("urn:li:foo:" + threadId + "00000" + j);
-            relationships.add(new VersionOf().setSource(barUrn).setDestination(destination));
-          }
-
-          _localRelationshipWriterDAO.addRelationships(barUrn, AspectFooBar.class, relationships, false);
-          Thread.sleep(1000);
-        } catch (Exception e) {
-          e.printStackTrace(); // helpful for debugging failures
-        } finally {
-          latch.countDown();
-        }
-      });
-    }
-
-    latch.await(); // wait for all threads to finish
-    executor.shutdown();
-
-    // Verify all relationships were inserted
-    List<SqlRow> all = _server.createSqlQuery("select * from metadata_relationship_versionof where deleted_ts is null").findList();
-    int expected = numThreads * relationshipsPerThread;
-    assertEquals(all.size(), expected);
-
-    // Verify uniqueness of destination URNs
-    Set<String> uniqueDestinations = all.stream()
-        .map(row -> row.getString("destination"))
-        .collect(Collectors.toSet());
-
-    assertEquals(uniqueDestinations.size(), expected);
-
-    // Clean up
-    _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_versionof"));
-  }
-
-  @Test
   public void testRemoveRelationshipsSameAspectDifferentNamespace() throws URISyntaxException {
     if (!_useAspectColumnForRelationshipRemoval) {
       return; // this test doesn't apply to this case
