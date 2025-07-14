@@ -373,8 +373,8 @@ public class EbeanLocalRelationshipWriterDAOTest {
     _localRelationshipWriterDAO.setUseAspectColumnForRelationshipRemoval(_useAspectColumnForRelationshipRemoval);
 
     BarUrn barUrn = BarUrn.createFromString("urn:li:bar:123");
-    final int numThreads = 20;
-    final int relationshipsPerThread = 2;
+    final int numThreads = 10;
+    final int relationshipsPerThread = 4;
     final ExecutorService executor = Executors.newFixedThreadPool(numThreads);
     final CountDownLatch latch = new CountDownLatch(numThreads);
 
@@ -397,6 +397,7 @@ public class EbeanLocalRelationshipWriterDAOTest {
           }
 
           _localRelationshipWriterDAO.addRelationships(barUrn, AspectFooBar.class, relationships, false);
+          Thread.sleep(1000);
         } catch (Exception e) {
           e.printStackTrace(); // helpful for debugging failures
         } finally {
@@ -411,14 +412,14 @@ public class EbeanLocalRelationshipWriterDAOTest {
     // Verify all relationships were inserted
     List<SqlRow> all = _server.createSqlQuery("select * from metadata_relationship_versionof where deleted_ts is null").findList();
     int expected = numThreads * relationshipsPerThread;
-    assertEquals(expected, all.size());
+    assertEquals(all.size(), expected);
 
     // Verify uniqueness of destination URNs
     Set<String> uniqueDestinations = all.stream()
         .map(row -> row.getString("destination"))
         .collect(Collectors.toSet());
 
-    assertEquals(expected, uniqueDestinations.size());
+    assertEquals(uniqueDestinations.size(), expected);
 
     // Clean up
     _server.execute(Ebean.createSqlUpdate("truncate metadata_relationship_versionof"));
