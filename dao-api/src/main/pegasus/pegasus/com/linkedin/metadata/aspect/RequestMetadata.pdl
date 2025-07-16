@@ -1,0 +1,13 @@
+namespace pegasus.com.linkedin.metadata.aspect
+
+/**
+ * *
+ * Metadata for API request
+ */
+record RequestMetadata {
+
+  /**
+   * * Aspect metadata map
+   */
+  aspect_metadata: optional array[AspectMetadata] = [ ]
+}
