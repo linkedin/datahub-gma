@@ -2,7 +2,7 @@ namespace com.linkedin.metadata.internal
 
 import com.linkedin.metadata.events.IngestionMode
 import com.linkedin.metadata.events.IngestionTrackingContext
-import pegasus.com.linkedin.metadata.events.IngestionAspectETag
+import pegasus.com.linkedin.metadata.aspect.RequestMetadata
 
 /**
  * Record defining ingestion-related parameters that can be passed into DAO API calls.
@@ -25,7 +25,7 @@ record IngestionParams {
   testMode: boolean = false
 
   /**
-   * eTag for aspect ingestion optimistic locking
+   * Metadata for API request
    */
-  ingestionETags: optional array[IngestionAspectETag] = [ ]
+  request_metadata: optional RequestMetadata
 }
