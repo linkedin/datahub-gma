@@ -1,0 +1,8 @@
+namespace pegasus.com.linkedin.metadata.query.LogicalOperation
+package pegasus.com.linkedin.metadata.query.innerLogicalOperation
+
+enum Operator {
+  UNKNOWN
+  AND
+  OR
+}

@@ -6,6 +6,7 @@ import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.utils.ClassUtils;
 import com.linkedin.metadata.dao.utils.EBeanDAOUtils;
+import com.linkedin.metadata.dao.utils.LogicalExpressionLocalRelationshipCriterionUtils;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.MultiHopsTraversalSqlGenerator;
 import com.linkedin.metadata.dao.utils.RecordUtils;
@@ -15,6 +16,7 @@ import com.linkedin.metadata.dao.utils.SQLStatementUtils;
 import com.linkedin.metadata.dao.utils.SchemaValidatorUtil;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.LocalRelationshipCriterion;
+import com.linkedin.metadata.query.LocalRelationshipCriterionArray;
 import com.linkedin.metadata.query.LocalRelationshipFilter;
 import com.linkedin.metadata.query.RelationshipDirection;
 import io.ebean.EbeanServer;
@@ -34,6 +36,11 @@ import javax.persistence.PersistenceException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringUtils;
 import org.javatuples.Pair;
+import pegasus.com.linkedin.metadata.query.LogicalExpressionLocalRelationshipCriterion;
+import pegasus.com.linkedin.metadata.query.LogicalOperation;
+import pegasus.com.linkedin.metadata.query.innerLogicalOperation.Operator;
+
+import static com.linkedin.metadata.dao.utils.LogicalExpressionLocalRelationshipCriterionUtils.*;
 
 
 /**
@@ -111,7 +118,7 @@ public class EbeanLocalRelationshipQueryDAO {
     final String tableName = SQLSchemaUtils.getTableName(ModelUtils.getUrnTypeFromSnapshot(snapshotClass));
     final StringBuilder sqlBuilder = new StringBuilder();
     sqlBuilder.append("SELECT * FROM ").append(tableName);
-    if (filter.hasCriteria() && !filter.getCriteria().isEmpty()) {
+    if (filterHasNonEmptyCriteria(filter)) {
       sqlBuilder.append(" WHERE ").append(SQLStatementUtils.whereClause(filter, SUPPORTED_CONDITIONS, null,
           _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled()));
     }
@@ -149,7 +156,7 @@ public class EbeanLocalRelationshipQueryDAO {
       throw new OperationNotSupportedException("findEntities is not supported in OLD_SCHEMA_MODE");
     }
 
-    validateRelationshipFilter(relationshipFilter);
+    validateRelationshipFilter(relationshipFilter, false);
     validateEntityFilter(sourceEntityFilter, sourceEntityClass);
     validateEntityFilter(destinationEntityFilter, destinationEntityClass);
 
@@ -198,7 +205,7 @@ public class EbeanLocalRelationshipQueryDAO {
       int count, RelationshipLookUpContext relationshipLookUpContext) {
     validateEntityFilter(sourceEntityFilter, sourceEntityClass);
     validateEntityFilter(destinationEntityFilter, destinationEntityClass);
-    validateRelationshipFilter(relationshipFilter);
+    validateRelationshipFilter(relationshipFilter, false);
 
     String destTableName = null;
     if (destinationEntityClass != null) {
@@ -247,9 +254,9 @@ public class EbeanLocalRelationshipQueryDAO {
       @Nullable String destinationEntityType, @Nullable LocalRelationshipFilter destinationEntityFilter,
       @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter,
       int offset, int count, RelationshipLookUpContext relationshipLookUpContext) {
-    List<SqlRow> sqlRows = findRelationshipsV2V3Core(
+    List<SqlRow> sqlRows = findRelationshipsV2V3V4Core(
         sourceEntityType, sourceEntityFilter, destinationEntityType, destinationEntityFilter,
-        relationshipType, relationshipFilter, offset, count, relationshipLookUpContext);
+        relationshipType, relationshipFilter, offset, count, relationshipLookUpContext, false);
 
     return sqlRows.stream()
         .map(row -> RecordUtils.toRecordTemplate(relationshipType, row.getString(METADATA)))
@@ -267,17 +274,18 @@ public class EbeanLocalRelationshipQueryDAO {
    * @param relationshipFilter the filter to apply to relationship when querying
    * @param offset the offset query should start at. Ignored if set to a negative value.
    * @param count the maximum number of entities to return. Ignored if set to a non-positive value.
+   * @param logicalExpressionFilterEnabled whether logical expression filter is enabled or not.
    * @return A list of relationship records in SqlRow (col: source, destination, metadata, etc).
    */
   @Nonnull
-  private <RELATIONSHIP extends RecordTemplate> List<SqlRow> findRelationshipsV2V3Core(
+  private <RELATIONSHIP extends RecordTemplate> List<SqlRow> findRelationshipsV2V3V4Core(
       @Nullable String sourceEntityType, @Nullable LocalRelationshipFilter sourceEntityFilter,
       @Nullable String destinationEntityType, @Nullable LocalRelationshipFilter destinationEntityFilter,
       @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter,
-      int offset, int count, RelationshipLookUpContext relationshipLookUpContext) {
-    validateEntityTypeAndFilter(sourceEntityFilter, sourceEntityType);
-    validateEntityTypeAndFilter(destinationEntityFilter, destinationEntityType);
-    validateRelationshipFilter(relationshipFilter);
+      int offset, int count, RelationshipLookUpContext relationshipLookUpContext, boolean logicalExpressionFilterEnabled) {
+    validateEntityTypeAndFilter(sourceEntityFilter, sourceEntityType, logicalExpressionFilterEnabled);
+    validateEntityTypeAndFilter(destinationEntityFilter, destinationEntityType, logicalExpressionFilterEnabled);
+    validateRelationshipFilter(relationshipFilter, logicalExpressionFilterEnabled);
 
     // the assumption is we have the table for every MG entity. For non-MG entities, sourceTableName will be null.
     final String sourceTableName = getMgEntityTableName(sourceEntityType);
@@ -287,12 +295,12 @@ public class EbeanLocalRelationshipQueryDAO {
     final String sql = buildFindRelationshipSQL(
         relationshipTableName, relationshipFilter,
         sourceTableName, sourceEntityFilter,
-        destTableName, destinationEntityFilter,
-        count, offset, relationshipLookUpContext);
+        destTableName, destinationEntityFilter, count, offset, relationshipLookUpContext);
     // Temporary log to help debug the slow SQL query
     log.info("Executing SQL for GQS: {}", sql);
     return executeSqlWithIndexCheck(sql, relationshipTableName);
   }
+
   /**
    * Finds a list of relationships of a specific type (Urn) based on the given filters if applicable.
    * Similar to findRelationshipsV2, but this method wraps the relationship in a specific class provided by user.
@@ -322,9 +330,48 @@ public class EbeanLocalRelationshipQueryDAO {
       throw new IllegalArgumentException("Please check your use of the findRelationshipsV3 method.");
     }
 
-    List<SqlRow> sqlRows = findRelationshipsV2V3Core(
+    List<SqlRow> sqlRows = findRelationshipsV2V3V4Core(
         sourceEntityType, sourceEntityFilter, destinationEntityType, destinationEntityFilter,
-        relationshipType, relationshipFilter, offset, count, relationshipLookUpContext);
+        relationshipType, relationshipFilter, offset, count, relationshipLookUpContext, false);
+
+    return sqlRows.stream()
+        .map(row -> createAssetRelationshipWrapperForRelationship(
+            relationshipType, assetRelationshipClass, row.getString(METADATA), row.getString(SOURCE), wrapOptions))
+        .collect(Collectors.toList());
+  }
+
+  /**
+   * Finds a list of relationships of a specific type (Urn) based on the given filters if applicable.
+   * Similar to findRelationshipsV3, but this method takes filters with logical expressions (AND/OR).
+   * The intended use case is for MG internally with AssetRelationship, but since it is an open API, we are leaving room for extendability.
+   *
+   * @param sourceEntityType type of source entity to query (e.g. "dataset")
+   * @param sourceEntityFilter the filter to apply to the source entity when querying (not applicable to non-MG entities)
+   * @param destinationEntityType type of destination entity to query (e.g. "dataset")
+   * @param destinationEntityFilter the filter to apply to the destination entity when querying (not applicable to non-MG entities)
+   * @param relationshipType the type of relationship to query
+   * @param relationshipFilter the filter to apply to relationship when querying
+   * @param assetRelationshipClass the wrapper class for the relationship type
+   * @param wrapOptions options to wrap the relationship. Currently unused. Leaving it open for the future.
+   * @param offset the offset query should start at. Ignored if set to a negative value.
+   * @param count the maximum number of entities to return. Ignored if set to a non-positive value.
+   * @return A list of relationship records.
+   */
+  @Nonnull
+  public <ASSET_RELATIONSHIP extends RecordTemplate, RELATIONSHIP extends RecordTemplate> List<ASSET_RELATIONSHIP> findRelationshipsV4(
+      @Nullable String sourceEntityType, @Nullable LocalRelationshipFilter sourceEntityFilter,
+      @Nullable String destinationEntityType, @Nullable LocalRelationshipFilter destinationEntityFilter,
+      @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter,
+      @Nonnull Class<ASSET_RELATIONSHIP> assetRelationshipClass, @Nullable Map<String, Object> wrapOptions,
+      int offset, int count, RelationshipLookUpContext relationshipLookUpContext) {
+    if (wrapOptions == null || !wrapOptions.containsKey(RELATIONSHIP_RETURN_TYPE)
+        || !MG_INTERNAL_ASSET_RELATIONSHIP_TYPE.equals(wrapOptions.get(RELATIONSHIP_RETURN_TYPE))) {
+      throw new IllegalArgumentException("Please check your use of the findRelationshipsV3 method.");
+    }
+
+    List<SqlRow> sqlRows = findRelationshipsV2V3V4Core(
+        sourceEntityType, sourceEntityFilter, destinationEntityType, destinationEntityFilter,
+        relationshipType, relationshipFilter, offset, count, relationshipLookUpContext, true);
 
     return sqlRows.stream()
         .map(row -> createAssetRelationshipWrapperForRelationship(
@@ -410,23 +457,48 @@ public class EbeanLocalRelationshipQueryDAO {
       throw new IllegalArgumentException("Entity class is null but filter is not empty.");
     }
 
-    validateFilterCriteria(filter);
+    validateFilterCriteria(filter, false);
   }
 
   /**
    * Validate:
    * 1. if the entity type is null or empty, then the filter should also be emtpy.
    * 2. the entity filter only contains supported conditions.
+   * 3. if logicalExpressionFilterEnabled is true, ONLY logical expression filters are allowed. Vice versa.
    * If any of above is violated, throw an IllegalArgumentException.
    */
-  private void validateEntityTypeAndFilter(@Nullable LocalRelationshipFilter filter, @Nullable String entityType) {
-    if ((StringUtils.isBlank(entityType)) && filter != null && filter.hasCriteria() && !filter.getCriteria()
-        .isEmpty()) {
+  private void validateEntityTypeAndFilter(@Nullable LocalRelationshipFilter filter, @Nullable String entityType,
+      boolean logicalExpressionFilterEnabled) {
+    if (filter == null) {
+      return;
+    }
+
+    validateLogicalExpressionFilter(filter, logicalExpressionFilterEnabled);
+
+    if ((StringUtils.isBlank(entityType)) && filterHasNonEmptyCriteria(filter)) {
       throw new IllegalArgumentException("Entity type string is null or empty but filter is not empty.");
     }
 
-    if (filter != null) {
-      validateFilterCriteria(filter);
+    validateFilterCriteria(filter, logicalExpressionFilterEnabled);
+  }
+
+  /**
+   * Checks if the filter follows all logical expression related rules.
+   * 1. if only one of criteria and logicalExpressionCriteria is used.
+   * 2. if logicalExpressionFilterEnabled is true, only logicalExpressionCriteria is allowed. Else, only criteria is allowed.
+   */
+  private static void validateLogicalExpressionFilter(@Nonnull LocalRelationshipFilter filter, boolean logicalExpressionFilterEnabled) {
+    if (filter.hasCriteria() && filter.hasLogicalExpressionCriteria()) {
+      throw new IllegalArgumentException(
+          "Please do not use both the 'criteria' field and the 'logicalExpressionCriteria' field.");
+    }
+
+    if (logicalExpressionFilterEnabled && filter.hasCriteria()) {
+        throw new IllegalArgumentException(
+            "Please do not use the 'criteria' field and use the 'logicalExpressionCriteria' field instead for findRelationshipsV4 API.");
+    } else if (!logicalExpressionFilterEnabled && filter.hasLogicalExpressionCriteria()) {
+        throw new IllegalArgumentException(
+            "Please do not use the 'logicalExpressionCriteria' field and use the 'criteria' field instead for findRelationshipsV2/V3 API.");
     }
   }
 
@@ -438,19 +510,30 @@ public class EbeanLocalRelationshipQueryDAO {
    * This is useful for non-MG entities or when running in OLD_SCHEMA_ONLY mode.
    */
   private void validateEntityFilterOnlyOneUrn(@Nonnull LocalRelationshipFilter filter) {
-    if (filter.hasCriteria() && !filter.getCriteria().isEmpty()) {
-      if (filter.getCriteria().size() > 1) {
-        throw new IllegalArgumentException("Only 1 filter is allowed for non-MG entities or when running in OLD_SCHEMA_ONLY mode.");
-      }
-      LocalRelationshipCriterion criterion = filter.getCriteria().get(0);
+    // TODO: expend this to check logical expression too
+    LocalRelationshipCriterionArray criteria = null;
 
-      if (!criterion.hasField() || !criterion.getField().isUrnField()) {
-        throw new IllegalArgumentException("Only filters on the urn field are allowed for non-MG entities or when running in OLD_SCHEMA_ONLY mode.");
-      }
-      Condition condition = filter.getCriteria().get(0).getCondition();
-      if (!SUPPORTED_CONDITIONS.containsKey(condition)) {
-        throw new IllegalArgumentException(String.format("Condition %s is not supported by local relationship DAO.", condition));
-      }
+    if (filter.hasCriteria() && !filter.getCriteria().isEmpty()) {
+      criteria = filter.getCriteria();
+    } else if (filter.hasLogicalExpressionCriteria() && filter.getLogicalExpressionCriteria() != null) {
+      criteria = LogicalExpressionLocalRelationshipCriterionUtils.flattenLogicalExpressionLocalRelationshipCriterion(filter.getLogicalExpressionCriteria());
+    }
+
+    if (criteria == null) {
+      return;
+    }
+
+    if (criteria.size() > 1) {
+      throw new IllegalArgumentException("Only 1 filter is allowed for non-MG entities or when running in OLD_SCHEMA_ONLY mode.");
+    }
+    LocalRelationshipCriterion criterion = criteria.get(0);
+
+    if (!criterion.hasField() || !criterion.getField().isUrnField()) {
+      throw new IllegalArgumentException("Only filters on the urn field are allowed for non-MG entities or when running in OLD_SCHEMA_ONLY mode.");
+    }
+    Condition condition = criterion.getCondition();
+    if (!SUPPORTED_CONDITIONS.containsKey(condition)) {
+      throw new IllegalArgumentException(String.format("Condition %s is not supported by local relationship DAO.", condition));
     }
   }
 
@@ -458,30 +541,77 @@ public class EbeanLocalRelationshipQueryDAO {
    * Validate:
    * 1. The relationship filter only contains supported condition.
    * 2. Relationship direction cannot be unknown.
+   * 3. if logicalExpressionFilterEnabled is true, ONLY logical expression filters are allowed. Vice versa.
    * If any of above is violated, throw IllegalArgumentException.
    */
-  private void validateRelationshipFilter(@Nonnull LocalRelationshipFilter filter) {
+  private void validateRelationshipFilter(@Nonnull LocalRelationshipFilter filter,
+      boolean logicalExpressionFilterEnabled) {
+
+    validateLogicalExpressionFilter(filter, logicalExpressionFilterEnabled);
+
     if (filter.getDirection() == null || filter.getDirection() == RelationshipDirection.$UNKNOWN) {
       throw new IllegalArgumentException("Relationship direction cannot be null or UNKNOWN.");
     }
 
-    if (filter.hasCriteria()) {
-      validateFilterCriteria(filter);
+    if (filterHasNonEmptyCriteria(filter)) {
+      validateFilterCriteria(filter, logicalExpressionFilterEnabled);
     }
   }
 
   /**
    * Validate whether filter criteria contains unsupported condition.
-   * @param filter the local relationship filter.
+   *
+   * @param filter                         the local relationship filter.
+   * @param logicalExpressionFilterEnabled
    */
-  private void validateFilterCriteria(@Nonnull LocalRelationshipFilter filter) {
-    filter.getCriteria().stream().map(criterion -> {
+  private void validateFilterCriteria(@Nonnull LocalRelationshipFilter filter, boolean logicalExpressionFilterEnabled) {
+    if (logicalExpressionFilterEnabled) {
+      validateLogicalExpression(filter.getLogicalExpressionCriteria());
+    } else {
+      filter.getCriteria().forEach(EbeanLocalRelationshipQueryDAO::validateLocalRelationshipCriterion);
+    }
+  }
+
+  private static void validateLocalRelationshipCriterion(LocalRelationshipCriterion criterion) {
       Condition condition = criterion.getCondition();
       if (!SUPPORTED_CONDITIONS.containsKey(condition)) {
-        throw new IllegalArgumentException(String.format("Condition %s is not supported by local relationship DAO.", condition));
+        throw new IllegalArgumentException(
+            String.format("Condition %s is not supported by local relationship DAO.", condition));
       }
-      return null; // unused
-    });
+  }
+
+  /**
+   * Recursively validate logical expression criteria. Checks Operator and uses validateLocalRelationshipCriterion to check each criterion.
+   */
+  private static void validateLogicalExpression(@Nullable LogicalExpressionLocalRelationshipCriterion logicalExpressionCriteria) {
+    if (logicalExpressionCriteria == null) {
+      return;
+    }
+
+    if (logicalExpressionCriteria.hasExpr()) {
+      LogicalExpressionLocalRelationshipCriterion.Expr expr = logicalExpressionCriteria.getExpr();
+      if (expr == null) {
+        throw new IllegalArgumentException("expr cannot be null in logical expression criteria.");
+      }
+
+      if (expr.isCriterion()) {
+        validateLocalRelationshipCriterion(expr.getCriterion());
+      }
+
+      if (expr.isLogical()) {
+        LogicalOperation logical = expr.getLogical();
+
+        if (!logical.hasOp() || logical.getOp() == Operator.UNKNOWN || logical.getOp() == Operator.$UNKNOWN) {
+          throw new IllegalArgumentException("Logical operation must have an operation defined.");
+        }
+
+        if (!logical.hasExpressions()) {
+          throw new IllegalArgumentException("Logical operation must have at least one expression.");
+        }
+
+        logical.getExpressions().forEach(EbeanLocalRelationshipQueryDAO::validateLogicalExpression);
+      }
+    }
   }
 
   /**
@@ -545,10 +675,14 @@ public class EbeanLocalRelationshipQueryDAO {
   @Nonnull
   @VisibleForTesting
   public String buildFindRelationshipSQL(@Nonnull final String relationshipTableName,
-      @Nonnull final LocalRelationshipFilter relationshipFilter, @Nullable final String sourceTableName,
-      @Nullable final LocalRelationshipFilter sourceEntityFilter, @Nullable final String destTableName,
-      @Nullable final LocalRelationshipFilter destinationEntityFilter, int limit, int offset,
+      @Nonnull LocalRelationshipFilter relationshipFilter, @Nullable final String sourceTableName,
+      @Nullable LocalRelationshipFilter sourceEntityFilter, @Nullable final String destTableName,
+      @Nullable LocalRelationshipFilter destinationEntityFilter, int limit, int offset,
       RelationshipLookUpContext relationshipLookUpContext) {
+
+    relationshipFilter = LogicalExpressionLocalRelationshipCriterionUtils.normalizeLocalRelationshipFilter(relationshipFilter);
+    sourceEntityFilter = LogicalExpressionLocalRelationshipCriterionUtils.normalizeLocalRelationshipFilter(sourceEntityFilter);
+    destinationEntityFilter = LogicalExpressionLocalRelationshipCriterionUtils.normalizeLocalRelationshipFilter(destinationEntityFilter);
 
     boolean includeNonCurrentRelationships = relationshipLookUpContext.isIncludeNonCurrentRelationships();
     StringBuilder sqlBuilder = new StringBuilder();
@@ -626,16 +760,16 @@ public class EbeanLocalRelationshipQueryDAO {
       }
       if (sourceEntityFilter != null) {
         validateEntityFilterOnlyOneUrn(sourceEntityFilter);
-        if (sourceEntityFilter.hasCriteria() && sourceEntityFilter.getCriteria().size() > 0) {
+        if (filterHasNonEmptyCriteria(sourceEntityFilter)) {
           whereClauseBuilder.append(
-              SQLStatementUtils.whereClauseOldSchema(SUPPORTED_CONDITIONS, sourceEntityFilter.getCriteria(), SQLStatementUtils.SOURCE));
+              SQLStatementUtils.whereClauseOldSchema(SUPPORTED_CONDITIONS, sourceEntityFilter, SQLStatementUtils.SOURCE));
         }
       }
       if (destinationEntityFilter != null) {
         validateEntityFilterOnlyOneUrn(destinationEntityFilter);
-        if (destinationEntityFilter.hasCriteria() && destinationEntityFilter.getCriteria().size() > 0) {
+        if (filterHasNonEmptyCriteria(destinationEntityFilter)) {
           whereClauseBuilder.append(
-              SQLStatementUtils.whereClauseOldSchema(SUPPORTED_CONDITIONS, destinationEntityFilter.getCriteria(), SQLStatementUtils.DESTINATION));
+              SQLStatementUtils.whereClauseOldSchema(SUPPORTED_CONDITIONS, destinationEntityFilter, SQLStatementUtils.DESTINATION));
         }
       }
       if (whereClauseBuilder.length() != 0) {

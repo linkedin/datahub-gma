@@ -1,5 +1,7 @@
 namespace com.linkedin.metadata.query
 
+import pegasus.com.linkedin.metadata.query.LogicalExpressionLocalRelationshipCriterion
+
 /**
  * The filter for finding an record or a collection of records
  */
@@ -13,4 +15,9 @@ record LocalRelationshipFilter {
    * The relationship direction between two nodes.
    */
   direction: optional RelationshipDirection
+
+  /**
+   * Logical Expression Criteria. Tree structure
+   */
+  logicalExpressionCriteria: optional LogicalExpressionLocalRelationshipCriterion
 }

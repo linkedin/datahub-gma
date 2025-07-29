@@ -65,8 +65,12 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Factory;
 import org.testng.annotations.Test;
+import pegasus.com.linkedin.metadata.query.LogicalExpressionLocalRelationshipCriterion;
+import pegasus.com.linkedin.metadata.query.LogicalExpressionLocalRelationshipCriterionArray;
+import pegasus.com.linkedin.metadata.query.innerLogicalOperation.Operator;
 
 import static com.linkedin.metadata.dao.EbeanLocalRelationshipQueryDAO.*;
+import static com.linkedin.metadata.dao.utils.LogicalExpressionLocalRelationshipCriterionUtils.*;
 import static com.linkedin.testing.TestUtils.*;
 import static org.testng.Assert.*;
 
@@ -854,6 +858,102 @@ public class EbeanLocalRelationshipQueryDAOTest {
     assertEquals(expectedBelongsToV2.getDestination().getString(), owner.toString());
   }
 
+  @Test(dataProvider = "schemaConfig")
+  public void testFindRelationshipsV4(EbeanLocalDAO.SchemaConfig schemaConfig) throws URISyntaxException {
+    FooUrn owner = new FooUrn(1);
+    FooUrn owner2 = new FooUrn(3);
+    FooUrn car = new FooUrn(2);
+    FooUrn car2 = new FooUrn(4);
+
+    // Add car and owner into entity tables.
+    if (schemaConfig == EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY) {
+      _fooUrnEBeanLocalAccess.add(car, new AspectFoo().setValue("Car"), AspectFoo.class, new AuditStamp(), null, false);
+      _fooUrnEBeanLocalAccess.add(car2, new AspectFoo().setValue("Car2"), AspectFoo.class, new AuditStamp(), null, false);
+      _fooUrnEBeanLocalAccess.add(owner, new AspectFoo().setValue("Owner"), AspectFoo.class, new AuditStamp(), null, false);
+      _fooUrnEBeanLocalAccess.add(owner2, new AspectFoo().setValue("Owner2"), AspectFoo.class, new AuditStamp(), null, false);
+    }
+
+    // Add car belongs-to owner relationship
+    BelongsToV2 carBelongsToOwner = new BelongsToV2();
+    carBelongsToOwner.setDestination(BelongsToV2.Destination.create(owner.toString()));
+    _localRelationshipWriterDAO.addRelationships(car, AspectFoo.class, Collections.singletonList(carBelongsToOwner), false);
+
+    // Add car belongs-to owner2 relationship
+    BelongsToV2 carBelongsToOwner2 = new BelongsToV2();
+    carBelongsToOwner2.setDestination(BelongsToV2.Destination.create(owner2.toString()));
+    _localRelationshipWriterDAO.addRelationships(car2, AspectFoo.class, Collections.singletonList(carBelongsToOwner2), false);
+
+    // Find all belongs-to relationship for owner.
+    LocalRelationshipFilter destFilter;
+    if (schemaConfig == EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY) {
+      // old schema does not support non-urn field filters, and only support one urn filter.
+      LocalRelationshipCriterion oldSchemaFilterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create(owner.toString()),
+          Condition.EQUAL,
+          new UrnField());
+      LogicalExpressionLocalRelationshipCriterion logicalExpressionCriterion = wrapCriterionAsLogicalExpression(oldSchemaFilterCriterion);
+
+      LogicalExpressionLocalRelationshipCriterionArray array = new LogicalExpressionLocalRelationshipCriterionArray();
+      array.add(logicalExpressionCriterion);
+
+      LogicalExpressionLocalRelationshipCriterion localRelationshipCriterion = buildLogicalGroup(Operator.OR, array);
+
+      destFilter = new LocalRelationshipFilter().setLogicalExpressionCriteria(localRelationshipCriterion);
+    } else {
+      LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Owner"),
+          Condition.EQUAL,
+          new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+      LogicalExpressionLocalRelationshipCriterion logicalExpressionCriterion = wrapCriterionAsLogicalExpression(filterCriterion);
+
+      LocalRelationshipCriterion filterCriterion2 = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Owner2"),
+          Condition.EQUAL,
+          new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+      LogicalExpressionLocalRelationshipCriterion logicalExpressionCriterion2 = wrapCriterionAsLogicalExpression(filterCriterion2);
+
+      LogicalExpressionLocalRelationshipCriterionArray array = new LogicalExpressionLocalRelationshipCriterionArray();
+      array.add(logicalExpressionCriterion);
+      array.add(logicalExpressionCriterion2);
+
+      LogicalExpressionLocalRelationshipCriterion localRelationshipCriterion = buildLogicalGroup(Operator.OR, array);
+
+      destFilter = new LocalRelationshipFilter().setLogicalExpressionCriteria(localRelationshipCriterion);
+    }
+
+    _localRelationshipQueryDAO.setSchemaConfig(schemaConfig);
+
+    Map<String, Object> wrapOptions = new HashMap<>();
+    wrapOptions.put(RELATIONSHIP_RETURN_TYPE, MG_INTERNAL_ASSET_RELATIONSHIP_TYPE);
+
+    List<AssetRelationship> belongsToOwner = _localRelationshipQueryDAO.findRelationshipsV4(
+        null, null, "foo", destFilter,
+        BelongsToV2.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
+        AssetRelationship.class, wrapOptions,
+        -1, -1, new RelationshipLookUpContext());
+
+    if (schemaConfig == EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY) {
+      assertEquals(belongsToOwner.size(), 1);
+
+      AssetRelationship actual1 = belongsToOwner.get(0);
+      assertEquals(actual1.getSource(), "urn:li:foo:2");
+
+      BelongsToV2 actual1BelongsToV2 = actual1.getRelatedTo().getBelongsToV2();
+      assertEquals(actual1BelongsToV2.getDestination().getString(), owner.toString());
+    } else {
+      assertEquals(belongsToOwner.size(), 2);
+
+      AssetRelationship actual1 = belongsToOwner.get(0);
+      assertEquals(actual1.getSource(), "urn:li:foo:2");
+
+      BelongsToV2 actual1BelongsToV2 = actual1.getRelatedTo().getBelongsToV2();
+      assertEquals(actual1BelongsToV2.getDestination().getString(), owner.toString());
+
+      AssetRelationship actual2 = belongsToOwner.get(1);
+      assertEquals(actual2.getSource(), "urn:li:foo:4");
+
+      BelongsToV2 actual2BelongsToV2 = actual2.getRelatedTo().getBelongsToV2();
+      assertEquals(actual2BelongsToV2.getDestination().getString(), owner2.toString());
+    }
+  }
+
   @Test
   public void testIsMgEntityType() throws Exception {
     // EbeanLocalRelationshipQueryDAOTest does not have the same package as EbeanLocalRelationshipQueryDAO (cant access protected method directly).
@@ -1343,4 +1443,45 @@ public class EbeanLocalRelationshipQueryDAOTest {
             + "INNER JOIN source_table_name st ON st.urn=rt.source  WHERE (dt.i_aspectfoo" + virtualColumnDelimiter
             + "value='Bob') AND (st.urn='urn:li:foo:4')) ranked_rows WHERE row_num = 1");
   }
+
+  @Test
+  public void testBuildFindRelationshipSQLWithLogicalExpression() {
+    LocalRelationshipFilter srcFilter = createLocalRelationshipFilterWithAndLogicalExpression();
+
+    String sql = _localRelationshipQueryDAO.buildFindRelationshipSQL("relationship_table_name",
+        new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
+        "source_table_name", srcFilter, "destination_table_name", null,
+        -1, -1, new RelationshipLookUpContext());
+
+    assertEquals(sql,
+        "SELECT rt.* FROM relationship_table_name rt INNER JOIN destination_table_name dt ON dt.urn=rt.destination "
+            + "INNER JOIN source_table_name st ON st.urn=rt.source WHERE rt.deleted_ts is NULL AND (st.urn='urn:li:foo:4' AND st.urn='urn:li:foo:5')");
+  }
+
+  private static LocalRelationshipFilter createLocalRelationshipFilterWithAndLogicalExpression() {
+    LocalRelationshipCriterion urnCriterion1 = EBeanDAOUtils.buildRelationshipFieldCriterion(
+        LocalRelationshipValue.create("urn:li:foo:4"),
+        Condition.EQUAL,
+        new UrnField());
+    LogicalExpressionLocalRelationshipCriterion logical1 =
+        wrapCriterionAsLogicalExpression(urnCriterion1);
+
+    LocalRelationshipCriterion urnCriterion2 = EBeanDAOUtils.buildRelationshipFieldCriterion(
+        LocalRelationshipValue.create("urn:li:foo:5"),
+        Condition.EQUAL,
+        new UrnField());
+    LogicalExpressionLocalRelationshipCriterion logical2 =
+        wrapCriterionAsLogicalExpression(urnCriterion2);
+
+    LogicalExpressionLocalRelationshipCriterionArray andArray = new LogicalExpressionLocalRelationshipCriterionArray();
+    andArray.add(logical1);
+    andArray.add(logical2);
+
+    LogicalExpressionLocalRelationshipCriterion andCriterion = buildLogicalGroup(Operator.AND, andArray);
+
+    LocalRelationshipFilter srcFilter = new LocalRelationshipFilter();
+    srcFilter.setLogicalExpressionCriteria(andCriterion);
+    return srcFilter;
+  }
+
 }

@@ -1,0 +1,12 @@
+namespace pegasus.com.linkedin.metadata.query
+
+import pegasus.com.linkedin.metadata.query.LogicalOperation.Operator
+
+record LogicalOperation {
+  op: optional Operator = "UNKNOWN"
+
+  /**
+   * Two or more sub-expressions
+   */
+  expressions: optional array[LogicalExpressionLocalRelationshipCriterion] = [ ]
+}
