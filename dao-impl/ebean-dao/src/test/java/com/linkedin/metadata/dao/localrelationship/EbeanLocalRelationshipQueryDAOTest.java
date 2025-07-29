@@ -925,7 +925,8 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     List<AssetRelationship> belongsToOwner = _localRelationshipQueryDAO.findRelationshipsV4(
         null, null, "foo", destFilter,
-        BelongsToV2.class, new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
+        BelongsToV2.class, new LocalRelationshipFilter().setLogicalExpressionCriteria(
+            new LogicalExpressionLocalRelationshipCriterion()).setDirection(RelationshipDirection.UNDIRECTED),
         AssetRelationship.class, wrapOptions,
         -1, -1, new RelationshipLookUpContext());
 
