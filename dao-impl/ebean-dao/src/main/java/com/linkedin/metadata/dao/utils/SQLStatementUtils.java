@@ -492,7 +492,7 @@ public class SQLStatementUtils {
       @Nonnull Map<Condition, String> supportedConditions, @Nullable String tablePrefix,
       boolean nonDollarVirtualColumnsEnabled) {
     if (!criterion.hasExpr() || criterion.getExpr() == null) {
-      throw new IllegalArgumentException("no expr");
+      throw new IllegalArgumentException("No logical expression found in criterion: " + criterion);
     }
 
     final LogicalExpressionLocalRelationshipCriterion.Expr expr = criterion.getExpr();

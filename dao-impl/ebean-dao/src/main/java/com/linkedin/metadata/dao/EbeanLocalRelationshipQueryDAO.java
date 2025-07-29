@@ -346,11 +346,14 @@ public class EbeanLocalRelationshipQueryDAO {
    * The intended use case is for MG internally with AssetRelationship, but since it is an open API, we are leaving room for extendability.
    *
    * @param sourceEntityType type of source entity to query (e.g. "dataset")
-   * @param sourceEntityFilter the filter to apply to the source entity when querying (not applicable to non-MG entities)
+   * @param sourceEntityFilter the filter to apply to the source entity when querying (not applicable to non-MG entities).
+   *                           criteria must be null. Use logicalExpressionCriteria instead.
    * @param destinationEntityType type of destination entity to query (e.g. "dataset")
-   * @param destinationEntityFilter the filter to apply to the destination entity when querying (not applicable to non-MG entities)
+   * @param destinationEntityFilter the filter to apply to the destination entity when querying (not applicable to non-MG entities).
+   *                                criteria must be null. Use logicalExpressionCriteria instead.
    * @param relationshipType the type of relationship to query
-   * @param relationshipFilter the filter to apply to relationship when querying
+   * @param relationshipFilter the filter to apply to relationship when querying.
+   *                           criteria must be null. Use logicalExpressionCriteria instead.
    * @param assetRelationshipClass the wrapper class for the relationship type
    * @param wrapOptions options to wrap the relationship. Currently unused. Leaving it open for the future.
    * @param offset the offset query should start at. Ignored if set to a negative value.
@@ -589,7 +592,7 @@ public class EbeanLocalRelationshipQueryDAO {
     }
 
     if (logicalExpressionCriteria.hasExpr()) {
-      LogicalExpressionLocalRelationshipCriterion.Expr expr = logicalExpressionCriteria.getExpr();
+      final LogicalExpressionLocalRelationshipCriterion.Expr expr = logicalExpressionCriteria.getExpr();
       if (expr == null) {
         throw new IllegalArgumentException("expr cannot be null in logical expression criteria.");
       }
@@ -599,14 +602,18 @@ public class EbeanLocalRelationshipQueryDAO {
       }
 
       if (expr.isLogical()) {
-        LogicalOperation logical = expr.getLogical();
+        final LogicalOperation logical = expr.getLogical();
 
         if (!logical.hasOp() || logical.getOp() == Operator.UNKNOWN || logical.getOp() == Operator.$UNKNOWN) {
           throw new IllegalArgumentException("Logical operation must have an operation defined.");
         }
 
         if (!logical.hasExpressions()) {
-          throw new IllegalArgumentException("Logical operation must have at least one expression.");
+          throw new IllegalArgumentException("Logical operation must have expressions.");
+        }
+
+        if (logical.getExpressions() != null && logical.getExpressions().size() < 2) {
+          throw new IllegalArgumentException("Logical operation must have at least two expressions.");
         }
 
         logical.getExpressions().forEach(EbeanLocalRelationshipQueryDAO::validateLogicalExpression);

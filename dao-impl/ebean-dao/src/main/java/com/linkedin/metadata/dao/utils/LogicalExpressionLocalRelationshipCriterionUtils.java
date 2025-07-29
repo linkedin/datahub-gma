@@ -9,6 +9,7 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -57,11 +58,16 @@ public final class LogicalExpressionLocalRelationshipCriterionUtils {
 
     final List<LogicalExpressionLocalRelationshipCriterion> fieldGroups = groupedByField.values().stream()
         .map(array -> buildLogicalGroup(Operator.OR, array))
+        .filter(Objects::nonNull)
         .collect(Collectors.toList());
 
     // combine all field groups with AND
     final LogicalExpressionLocalRelationshipCriterion root =
         buildLogicalGroup(Operator.AND, new LogicalExpressionLocalRelationshipCriterionArray(fieldGroups));
+
+    if (root == null) {
+      return null;
+    }
 
     // return a hard copy of filter with new LogicalExpressionCriteria
     return new LocalRelationshipFilter().setLogicalExpressionCriteria(root);
@@ -126,9 +132,13 @@ public final class LogicalExpressionLocalRelationshipCriterionUtils {
    * @param children LogicalExpressionLocalRelationshipCriterionArray
    * @return LogicalExpressionLocalRelationshipCriterion
    */
-  @Nonnull
+  @Nullable
   public static LogicalExpressionLocalRelationshipCriterion buildLogicalGroup(@Nonnull Operator op,
       @Nonnull LogicalExpressionLocalRelationshipCriterionArray children) {
+    if (children.size() == 0) {
+      return null;
+    }
+
     if (children.size() == 1) {
       // avoid wrapping unnecessarily
       return children.get(0);

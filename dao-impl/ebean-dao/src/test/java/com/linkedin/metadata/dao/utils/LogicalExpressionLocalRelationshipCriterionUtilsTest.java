@@ -173,6 +173,15 @@ public class LogicalExpressionLocalRelationshipCriterionUtilsTest {
   }
 
   @Test
+  public void testBuildLogicalGroupWithEmptyCriterion() {
+    LogicalExpressionLocalRelationshipCriterion result =
+        LogicalExpressionLocalRelationshipCriterionUtils.buildLogicalGroup(Operator.OR,
+            new LogicalExpressionLocalRelationshipCriterionArray());
+
+    assertNull(result);
+  }
+  
+  @Test
   public void testBuildLogicalGroupWithSingleCriterion() {
     LocalRelationshipCriterion criterion = createLocalRelationshipCriterionWithUrnField("foo");
 
