@@ -67,6 +67,7 @@ import org.testng.annotations.Factory;
 import org.testng.annotations.Test;
 import pegasus.com.linkedin.metadata.query.LogicalExpressionLocalRelationshipCriterion;
 import pegasus.com.linkedin.metadata.query.LogicalExpressionLocalRelationshipCriterionArray;
+import pegasus.com.linkedin.metadata.query.LogicalOperation;
 import pegasus.com.linkedin.metadata.query.innerLogicalOperation.Operator;
 
 import static com.linkedin.metadata.dao.EbeanLocalRelationshipQueryDAO.*;
@@ -1030,6 +1031,100 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     BelongsToV2 actual2BelongsToV2 = actual2.getRelatedTo().getBelongsToV2();
     assertEquals(actual2BelongsToV2.getDestination().getString(), owner2.toString());
+  }
+
+  @Test
+  public void testFindRelationshipsV4WithUnsetOp() {
+    // Find all belongs-to relationship for owner.
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Owner"),
+        Condition.EQUAL,
+        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+    LogicalExpressionLocalRelationshipCriterion logicalExpressionCriterion = wrapCriterionAsLogicalExpression(filterCriterion);
+
+    LocalRelationshipCriterion filterCriterion2 = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Owner2"),
+        Condition.EQUAL,
+        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+    LogicalExpressionLocalRelationshipCriterion logicalExpressionCriterion2 = wrapCriterionAsLogicalExpression(filterCriterion2);
+
+    LogicalExpressionLocalRelationshipCriterionArray array = new LogicalExpressionLocalRelationshipCriterionArray();
+    array.add(logicalExpressionCriterion);
+    array.add(logicalExpressionCriterion2);
+
+    // unset operator
+    LogicalOperation operation = new LogicalOperation();
+    operation.setExpressions(array);
+
+    LogicalExpressionLocalRelationshipCriterion.Expr expr = new LogicalExpressionLocalRelationshipCriterion.Expr();
+    expr.setLogical(operation);
+
+    LogicalExpressionLocalRelationshipCriterion localRelationshipCriterion = new LogicalExpressionLocalRelationshipCriterion()
+        .setExpr(expr);
+
+    LocalRelationshipFilter destFilter = new LocalRelationshipFilter().setLogicalExpressionCriteria(localRelationshipCriterion);
+
+    Map<String, Object> wrapOptions = new HashMap<>();
+    wrapOptions.put(RELATIONSHIP_RETURN_TYPE, MG_INTERNAL_ASSET_RELATIONSHIP_TYPE);
+
+    // illegalArgumentException is expected here because the filter contains the unset operator.
+    assertThrows(IllegalArgumentException.class, () -> {
+      _localRelationshipQueryDAO.findRelationshipsV4(
+          null, null, "foo", destFilter,
+          BelongsToV2.class, new LocalRelationshipFilter().setLogicalExpressionCriteria(
+              new LogicalExpressionLocalRelationshipCriterion()).setDirection(RelationshipDirection.UNDIRECTED),
+          AssetRelationship.class, wrapOptions,
+          -1, -1, new RelationshipLookUpContext());
+    });
+  }
+
+  @Test
+  public void testFindRelationshipsV4WithUnknownOp() {
+    // Find all belongs-to relationship for owner.
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Owner"),
+        Condition.EQUAL,
+        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+    LogicalExpressionLocalRelationshipCriterion logicalExpressionCriterion = wrapCriterionAsLogicalExpression(filterCriterion);
+
+    LocalRelationshipCriterion filterCriterion2 = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Owner2"),
+        Condition.EQUAL,
+        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+    LogicalExpressionLocalRelationshipCriterion logicalExpressionCriterion2 = wrapCriterionAsLogicalExpression(filterCriterion2);
+
+    LogicalExpressionLocalRelationshipCriterionArray array = new LogicalExpressionLocalRelationshipCriterionArray();
+    array.add(logicalExpressionCriterion);
+    array.add(logicalExpressionCriterion2);
+
+    // unknown operator
+    LogicalExpressionLocalRelationshipCriterion localRelationshipCriterion = buildLogicalGroup(Operator.UNKNOWN, array);
+
+    LocalRelationshipFilter destFilter = new LocalRelationshipFilter().setLogicalExpressionCriteria(localRelationshipCriterion);
+
+    Map<String, Object> wrapOptions = new HashMap<>();
+    wrapOptions.put(RELATIONSHIP_RETURN_TYPE, MG_INTERNAL_ASSET_RELATIONSHIP_TYPE);
+
+    // illegalArgumentException is expected here because the filter contains the unknown operator.
+    assertThrows(IllegalArgumentException.class, () -> {
+      _localRelationshipQueryDAO.findRelationshipsV4(
+          null, null, "foo", destFilter,
+          BelongsToV2.class, new LocalRelationshipFilter().setLogicalExpressionCriteria(
+              new LogicalExpressionLocalRelationshipCriterion()).setDirection(RelationshipDirection.UNDIRECTED),
+          AssetRelationship.class, wrapOptions,
+          -1, -1, new RelationshipLookUpContext());
+    });
+
+    // $unknown operator
+    LogicalExpressionLocalRelationshipCriterion localRelationshipCriterion1 = buildLogicalGroup(Operator.$UNKNOWN, array);
+
+    LocalRelationshipFilter destFilter1 = new LocalRelationshipFilter().setLogicalExpressionCriteria(localRelationshipCriterion1);
+
+    // illegalArgumentException is expected here because the filter contains the unknown operator.
+    assertThrows(IllegalArgumentException.class, () -> {
+      _localRelationshipQueryDAO.findRelationshipsV4(
+          null, null, "foo", destFilter,
+          BelongsToV2.class, new LocalRelationshipFilter().setLogicalExpressionCriteria(
+              new LogicalExpressionLocalRelationshipCriterion()).setDirection(RelationshipDirection.UNDIRECTED),
+          AssetRelationship.class, wrapOptions,
+          -1, -1, new RelationshipLookUpContext());
+    });
   }
 
   @Test(dataProvider = "schemaConfig")
