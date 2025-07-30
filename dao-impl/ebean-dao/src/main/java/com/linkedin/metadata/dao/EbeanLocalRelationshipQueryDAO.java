@@ -513,7 +513,6 @@ public class EbeanLocalRelationshipQueryDAO {
    * This is useful for non-MG entities or when running in OLD_SCHEMA_ONLY mode.
    */
   private void validateEntityFilterOnlyOneUrn(@Nonnull LocalRelationshipFilter filter) {
-    // TODO: expend this to check logical expression too
     LocalRelationshipCriterionArray criteria = null;
 
     if (filter.hasCriteria() && !filter.getCriteria().isEmpty()) {
@@ -725,9 +724,11 @@ public class EbeanLocalRelationshipQueryDAO {
         validateEntityFilterOnlyOneUrn(destinationEntityFilter);
         // non-mg entity case, applying dest filter on relationship table
         filters.add(new Pair<>(destinationEntityFilter, "rt"));
-      } else if (!relationshipFilter.getCriteria().isEmpty()) {
+      } else if (filterHasNonEmptyCriteria(relationshipFilter)) {
         // Apply FORCE INDEX if destination field is being filtered, and the index exists
-        for (LocalRelationshipCriterion criterion : relationshipFilter.getCriteria()) {
+        final LocalRelationshipCriterionArray relationshipCriteria =
+            flattenLogicalExpressionLocalRelationshipCriterion(relationshipFilter.getLogicalExpressionCriteria());
+        for (LocalRelationshipCriterion criterion : relationshipCriteria) {
           LocalRelationshipCriterion.Field field = criterion.getField();
           if (field.getUrnField() != null && DESTINATION_FIELD.equals(field.getUrnField().getName())) {
             // Check if index exists on 'destination' before applying FORCE INDEX
