@@ -30,7 +30,6 @@ import com.linkedin.metadata.query.RelationshipField;
 import com.linkedin.metadata.query.UrnField;
 import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectFoo;
-import com.linkedin.testing.AspectFooTwo;
 import com.linkedin.testing.BarSnapshot;
 import com.linkedin.testing.EntityAspectUnion;
 import com.linkedin.testing.EntityAspectUnionArray;
