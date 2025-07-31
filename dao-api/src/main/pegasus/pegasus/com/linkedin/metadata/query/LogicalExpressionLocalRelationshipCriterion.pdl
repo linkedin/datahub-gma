@@ -1,0 +1,14 @@
+namespace pegasus.com.linkedin.metadata.query
+
+import com.linkedin.metadata.query.LocalRelationshipCriterion
+
+/**
+ * The filter for finding an record or a collection of records
+ */
+record LogicalExpressionLocalRelationshipCriterion {
+
+  expr: optional union[
+    criterion: LocalRelationshipCriterion,
+    logical: LogicalOperation
+  ]
+}

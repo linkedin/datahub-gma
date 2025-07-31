@@ -31,7 +31,11 @@ import java.util.Set;
 import org.javatuples.Pair;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
+import pegasus.com.linkedin.metadata.query.LogicalExpressionLocalRelationshipCriterion;
+import pegasus.com.linkedin.metadata.query.LogicalExpressionLocalRelationshipCriterionArray;
+import pegasus.com.linkedin.metadata.query.innerLogicalOperation.Operator;
 
+import static com.linkedin.metadata.dao.utils.LogicalExpressionLocalRelationshipCriterionUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLSchemaUtils.*;
 import static com.linkedin.testing.TestUtils.*;
 import static org.mockito.Mockito.*;
@@ -242,8 +246,8 @@ public class SQLStatementUtilsTest {
 
     LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion1, criterion2);
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, false), "urn='value1' OR urn='value2'");
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, true), "urn='value1' OR urn='value2'");
+    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, false), "(urn='value1' OR urn='value2')");
+    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, true), "(urn='value1' OR urn='value2')");
   }
 
   @Test
@@ -265,9 +269,9 @@ public class SQLStatementUtilsTest {
     LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion1, criterion2);
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
     assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, false),
-        "urn='value1' AND i_aspectfoo$value='value2'");
+        "(i_aspectfoo$value='value2' AND urn='value1')");
     assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, true),
-        "urn='value1' AND i_aspectfoo0value='value2'");
+        "(i_aspectfoo0value='value2' AND urn='value1')");
   }
 
   @Test
@@ -385,8 +389,9 @@ public class SQLStatementUtilsTest {
         .setCondition(Condition.EQUAL)
         .setValue(LocalRelationshipValue.create("value1"));
     LocalRelationshipCriterionArray sourceCriteria = new LocalRelationshipCriterionArray(criterion);
+    LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(sourceCriteria);
     String expected = " AND rt.source = 'value1'";
-    assertEquals(SQLStatementUtils.whereClauseOldSchema(Collections.singletonMap(Condition.EQUAL, "="), sourceCriteria, "source"), expected);
+    assertEquals(SQLStatementUtils.whereClauseOldSchema(Collections.singletonMap(Condition.EQUAL, "="), filter, "source"), expected);
   }
 
   @Test
@@ -398,8 +403,56 @@ public class SQLStatementUtilsTest {
         .setCondition(Condition.IN)
         .setValue(LocalRelationshipValue.create("(value1, value2)"));
     LocalRelationshipCriterionArray sourceCriteria = new LocalRelationshipCriterionArray(criterion);
+    LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(sourceCriteria);
     String expected = " AND rt.source IN (value1, value2)";
-    assertEquals(SQLStatementUtils.whereClauseOldSchema(Collections.singletonMap(Condition.IN, "IN"), sourceCriteria, "source"), expected);
+    assertEquals(SQLStatementUtils.whereClauseOldSchema(Collections.singletonMap(Condition.IN, "IN"), filter, "source"), expected);
+  }
+
+  @Test
+  public void testWhereClauseWithLogicalExpression() {
+    LocalRelationshipCriterion c1 = createLocalRelationshipCriterionWithUrnField("foo1");
+    LocalRelationshipCriterion c2 = createLocalRelationshipCriterionWithUrnField("foo2");
+    LocalRelationshipCriterion c3 = createLocalRelationshipCriterionWithAspectField("bar");
+
+    LogicalExpressionLocalRelationshipCriterion n1 = wrapCriterionAsLogicalExpression(c1);
+    LogicalExpressionLocalRelationshipCriterion n2 = wrapCriterionAsLogicalExpression(c2);
+    LogicalExpressionLocalRelationshipCriterion n3 = wrapCriterionAsLogicalExpression(c3);
+
+    LogicalExpressionLocalRelationshipCriterion orNode =
+        buildLogicalGroup(Operator.OR, new LogicalExpressionLocalRelationshipCriterionArray(n1, n2));
+
+    LogicalExpressionLocalRelationshipCriterion root =
+        buildLogicalGroup(Operator.AND, new LogicalExpressionLocalRelationshipCriterionArray(orNode, n3));
+
+    LocalRelationshipFilter filter = new LocalRelationshipFilter().setLogicalExpressionCriteria(root);
+
+    //test for multi filters with dollar virtual columns names
+    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, false),
+        "((urn='foo1' OR urn='foo2') AND i_aspectfoo$value='bar')"
+    );
+
+    //test for multi filters with non dollar virtual columns names
+    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, true),
+        "((urn='foo1' OR urn='foo2') AND i_aspectfoo0value='bar')"
+    );
+  }
+
+  private LocalRelationshipCriterion createLocalRelationshipCriterionWithUrnField(String value) {
+    LocalRelationshipCriterion.Field field = new LocalRelationshipCriterion.Field();
+    field.setUrnField(new UrnField());
+    return new LocalRelationshipCriterion()
+        .setField(field)
+        .setCondition(Condition.EQUAL)
+        .setValue(LocalRelationshipValue.create(value));
+  }
+
+  private LocalRelationshipCriterion createLocalRelationshipCriterionWithAspectField(String value) {
+    LocalRelationshipCriterion.Field field = new LocalRelationshipCriterion.Field();
+    field.setAspectField(new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+    return new LocalRelationshipCriterion()
+        .setField(field)
+        .setCondition(Condition.EQUAL)
+        .setValue(LocalRelationshipValue.create(value));
   }
 
   private void assertConditionsEqual(String actualWhereClause, String expectedWhereClause) {
