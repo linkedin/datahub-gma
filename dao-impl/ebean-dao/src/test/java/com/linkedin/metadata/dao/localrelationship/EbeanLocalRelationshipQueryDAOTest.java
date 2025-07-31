@@ -990,11 +990,13 @@ public class EbeanLocalRelationshipQueryDAOTest {
     _localRelationshipWriterDAO.addRelationships(car2, AspectFoo.class, Collections.singletonList(carBelongsToOwner2), false);
 
     // Find all belongs-to relationship for owner.
+    // criterion 1: owner = "Owner"
     LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Owner"),
         Condition.EQUAL,
         new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
     LogicalExpressionLocalRelationshipCriterion logicalExpressionCriterion = wrapCriterionAsLogicalExpression(filterCriterion);
 
+    // criterion 2: owner = "Owner2"
     LocalRelationshipCriterion filterCriterion2 = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Owner2"),
         Condition.EQUAL,
         new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
@@ -1004,8 +1006,10 @@ public class EbeanLocalRelationshipQueryDAOTest {
     array.add(logicalExpressionCriterion);
     array.add(logicalExpressionCriterion2);
 
+    // or criterion: (owner = "Owner" OR owner = "Owner2")
     LogicalExpressionLocalRelationshipCriterion localRelationshipCriterion = buildLogicalGroup(Operator.OR, array);
 
+    // Filter: (owner = "Owner" OR owner = "Owner2")
     LocalRelationshipFilter destFilter = new LocalRelationshipFilter().setLogicalExpressionCriteria(localRelationshipCriterion);
 
     Map<String, Object> wrapOptions = new HashMap<>();
@@ -1061,11 +1065,13 @@ public class EbeanLocalRelationshipQueryDAOTest {
     _localRelationshipWriterDAO.addRelationships(car2, AspectFoo.class, Collections.singletonList(carBelongsToOwner2), false);
 
     // Find all belongs-to relationship for owner.
+    // criterion 1: foo = "Car"
     LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Car"),
         Condition.EQUAL,
         new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
     LogicalExpressionLocalRelationshipCriterion logicalExpressionCriterion = wrapCriterionAsLogicalExpression(filterCriterion);
 
+    // criterion 2: bar = "Bike"
     LocalRelationshipCriterion filterCriterion2 = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Bike"),
         Condition.EQUAL,
         new AspectField().setAspect(AspectBar.class.getCanonicalName()).setPath("/value"));
@@ -1075,8 +1081,10 @@ public class EbeanLocalRelationshipQueryDAOTest {
     array.add(logicalExpressionCriterion);
     array.add(logicalExpressionCriterion2);
 
+    // and criterion: (foo = "Car" AND bar = "Bike")
     LogicalExpressionLocalRelationshipCriterion localRelationshipCriterion = buildLogicalGroup(Operator.AND, array);
 
+    // Filter: (foo = "Car" AND bar = "Bike")
     LocalRelationshipFilter srcFilter = new LocalRelationshipFilter().setLogicalExpressionCriteria(localRelationshipCriterion);
 
     Map<String, Object> wrapOptions = new HashMap<>();
@@ -1097,7 +1105,104 @@ public class EbeanLocalRelationshipQueryDAOTest {
     BelongsToV2 actual1BelongsToV2 = actual1.getRelatedTo().getBelongsToV2();
     assertEquals(actual1BelongsToV2.getDestination().getString(), owner.toString());
   }
-  
+
+  /**
+   * Old schema does not support multiple criteria in the same filter. Skipped in this test.
+   */
+  @Test
+  public void testFindRelationshipsV4WithNestedCriterion() throws URISyntaxException {
+    FooUrn owner = new FooUrn(1);
+    FooUrn owner2 = new FooUrn(3);
+    FooUrn owner3 = new FooUrn(5);
+    FooUrn car = new FooUrn(2);
+    FooUrn car2 = new FooUrn(4);
+    FooUrn car3 = new FooUrn(6);
+
+    // Add car and owner into entity tables.
+    _fooUrnEBeanLocalAccess.add(car, new AspectFoo().setValue("Car"), AspectFoo.class, new AuditStamp(), null, false);
+    _fooUrnEBeanLocalAccess.add(car, new AspectBar().setValue("Bike"), AspectBar.class, new AuditStamp(), null, false);
+    _fooUrnEBeanLocalAccess.add(car2, new AspectFoo().setValue("Car2"), AspectFoo.class, new AuditStamp(), null, false);
+    _fooUrnEBeanLocalAccess.add(car3, new AspectFoo().setValue("Car3"), AspectFoo.class, new AuditStamp(), null, false);
+    _fooUrnEBeanLocalAccess.add(owner, new AspectFoo().setValue("Owner"), AspectFoo.class, new AuditStamp(), null, false);
+    _fooUrnEBeanLocalAccess.add(owner2, new AspectFoo().setValue("Owner2"), AspectFoo.class, new AuditStamp(), null, false);
+    _fooUrnEBeanLocalAccess.add(owner3, new AspectFoo().setValue("Owner3"), AspectFoo.class, new AuditStamp(), null, false);
+
+    // Add car belongs-to owner relationship
+    BelongsToV2 carBelongsToOwner = new BelongsToV2();
+    carBelongsToOwner.setDestination(BelongsToV2.Destination.create(owner.toString()));
+    _localRelationshipWriterDAO.addRelationships(car, AspectFoo.class, Collections.singletonList(carBelongsToOwner), false);
+
+    // Add car2 belongs-to owner2 relationship
+    BelongsToV2 carBelongsToOwner2 = new BelongsToV2();
+    carBelongsToOwner2.setDestination(BelongsToV2.Destination.create(owner2.toString()));
+    _localRelationshipWriterDAO.addRelationships(car2, AspectFoo.class, Collections.singletonList(carBelongsToOwner2), false);
+
+    // Add car3 belongs-to owner3 relationship
+    BelongsToV2 carBelongsToOwner3 = new BelongsToV2();
+    carBelongsToOwner3.setDestination(BelongsToV2.Destination.create(owner3.toString()));
+    _localRelationshipWriterDAO.addRelationships(car3, AspectFoo.class, Collections.singletonList(carBelongsToOwner3), false);
+
+    // Find all belongs-to relationship for owner.
+    // criterion 1: foo = "Car"
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Car"),
+        Condition.EQUAL,
+        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+    LogicalExpressionLocalRelationshipCriterion logicalExpressionCriterion = wrapCriterionAsLogicalExpression(filterCriterion);
+
+    // criterion 2: bar = "Bike"
+    LocalRelationshipCriterion filterCriterion2 = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Bike"),
+        Condition.EQUAL,
+        new AspectField().setAspect(AspectBar.class.getCanonicalName()).setPath("/value"));
+    LogicalExpressionLocalRelationshipCriterion logicalExpressionCriterion2 = wrapCriterionAsLogicalExpression(filterCriterion2);
+
+    LogicalExpressionLocalRelationshipCriterionArray array = new LogicalExpressionLocalRelationshipCriterionArray();
+    array.add(logicalExpressionCriterion);
+    array.add(logicalExpressionCriterion2);
+
+    // and criterion: (foo = "Car" AND bar = "Bike")
+    LogicalExpressionLocalRelationshipCriterion andCriterion = buildLogicalGroup(Operator.AND, array);
+
+    // criterion 3: foo = "Car2"
+    LocalRelationshipCriterion filterCriterion3 = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Car2"),
+        Condition.EQUAL,
+        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+    LogicalExpressionLocalRelationshipCriterion logicalExpressionCriterion3 = wrapCriterionAsLogicalExpression(filterCriterion3);
+
+    LogicalExpressionLocalRelationshipCriterionArray array2 = new LogicalExpressionLocalRelationshipCriterionArray();
+    array2.add(andCriterion);
+    array2.add(logicalExpressionCriterion3);
+
+    // or criterion: ((foo = "Car" AND bar = "Bike") OR (foo = "Car2"))
+    LogicalExpressionLocalRelationshipCriterion orCriterion = buildLogicalGroup(Operator.OR, array2);
+
+    // Filter: (foo = "Car" AND bar = "Bike") OR (foo = "Car2")
+    LocalRelationshipFilter srcFilter = new LocalRelationshipFilter().setLogicalExpressionCriteria(orCriterion);
+
+    Map<String, Object> wrapOptions = new HashMap<>();
+    wrapOptions.put(RELATIONSHIP_RETURN_TYPE, MG_INTERNAL_ASSET_RELATIONSHIP_TYPE);
+
+    List<AssetRelationship> belongsToOwner = _localRelationshipQueryDAO.findRelationshipsV4(
+        "foo", srcFilter, null, null,
+        BelongsToV2.class, new LocalRelationshipFilter().setLogicalExpressionCriteria(
+            new LogicalExpressionLocalRelationshipCriterion()).setDirection(RelationshipDirection.UNDIRECTED),
+        AssetRelationship.class, wrapOptions,
+        -1, -1, new RelationshipLookUpContext());
+
+    assertEquals(belongsToOwner.size(), 2);
+
+    AssetRelationship actual1 = belongsToOwner.get(0);
+    assertEquals(actual1.getSource(), "urn:li:foo:2");
+
+    BelongsToV2 actual1BelongsToV2 = actual1.getRelatedTo().getBelongsToV2();
+    assertEquals(actual1BelongsToV2.getDestination().getString(), owner.toString());
+
+    AssetRelationship actual2 = belongsToOwner.get(1);
+    assertEquals(actual2.getSource(), "urn:li:foo:4");
+
+    BelongsToV2 actual2BelongsToV2 = actual2.getRelatedTo().getBelongsToV2();
+    assertEquals(actual2BelongsToV2.getDestination().getString(), owner2.toString());
+  }
+
   @Test
   public void testFindRelationshipsV4WithUnsetOp() {
     // Find all belongs-to relationship for owner.
