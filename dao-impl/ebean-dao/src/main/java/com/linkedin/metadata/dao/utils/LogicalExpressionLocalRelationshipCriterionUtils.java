@@ -1,5 +1,6 @@
 package com.linkedin.metadata.dao.utils;
 
+import com.linkedin.data.template.SetMode;
 import com.linkedin.metadata.query.LocalRelationshipCriterion;
 import com.linkedin.metadata.query.LocalRelationshipCriterionArray;
 import com.linkedin.metadata.query.LocalRelationshipFilter;
@@ -70,7 +71,9 @@ public final class LogicalExpressionLocalRelationshipCriterionUtils {
     }
 
     // return a hard copy of filter with new LogicalExpressionCriteria
-    return new LocalRelationshipFilter().setLogicalExpressionCriteria(root);
+    return new LocalRelationshipFilter()
+        .setLogicalExpressionCriteria(root)
+        .setDirection(filter.getDirection(), SetMode.IGNORE_NULL);
   }
 
   /**
