@@ -43,7 +43,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
     private static final String LAST_MODIFIED_ON = "lastmodifiedon";
     private static final String LAST_MODIFIED_BY = "lastmodifiedby";
   }
-  private static final int INSERT_BATCH_SIZE = 1000;
+  private static final int INSERT_BATCH_SIZE = 100;
   private static final int DELETE_BATCH_SIZE = 10000; // Process deletes in batches of 10,000 rows
   private static final int MAX_BATCHES = 1000; // Maximum number of batches to process
   private static final String LIMIT = " LIMIT ";
@@ -185,7 +185,7 @@ public class EbeanLocalRelationshipWriterDAO extends BaseGraphWriterDAO {
 
     long now = Instant.now().toEpochMilli();
 
-    // Insert in batches with 1000 values per insert statement
+    // Insert in batches with 100 values per insert statement
     int numBatches = (relationshipGroup.size() + INSERT_BATCH_SIZE - 1) / INSERT_BATCH_SIZE;
     for (int i = 0; i < numBatches; i++) {
       int numRelationships = Math.min(INSERT_BATCH_SIZE, relationshipGroup.size() - i * INSERT_BATCH_SIZE);
