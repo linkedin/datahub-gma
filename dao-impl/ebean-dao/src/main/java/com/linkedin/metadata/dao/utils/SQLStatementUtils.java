@@ -13,7 +13,6 @@ import com.linkedin.metadata.query.LocalRelationshipCriterionArray;
 import com.linkedin.metadata.query.LocalRelationshipFilter;
 import com.linkedin.metadata.query.LocalRelationshipValue;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -23,8 +22,14 @@ import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringEscapeUtils;
+import org.apache.commons.lang.StringUtils;
 import org.javatuples.Pair;
+import pegasus.com.linkedin.metadata.query.LogicalExpressionLocalRelationshipCriterion;
+import pegasus.com.linkedin.metadata.query.LogicalExpressionLocalRelationshipCriterionArray;
+import pegasus.com.linkedin.metadata.query.LogicalOperation;
+import pegasus.com.linkedin.metadata.query.innerLogicalOperation.Operator;
 
+import static com.linkedin.metadata.dao.utils.LogicalExpressionLocalRelationshipCriterionUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLIndexFilterUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLSchemaUtils.*;
 
@@ -448,7 +453,7 @@ public class SQLStatementUtils {
       @Nonnull Pair<LocalRelationshipFilter, String>... filters) {
     List<String> andClauses = new ArrayList<>();
     for (Pair<LocalRelationshipFilter, String> filter : filters) {
-      if (filter.getValue0().hasCriteria() && filter.getValue0().getCriteria().size() > 0) {
+      if (LogicalExpressionLocalRelationshipCriterionUtils.filterHasNonEmptyCriteria(filter.getValue0())) {
         andClauses.add("(" + whereClause(filter.getValue0(), supportedConditions, filter.getValue1(), nonDollarVirtualColumnsEnabled) + ")");
       }
     }
@@ -473,48 +478,56 @@ public class SQLStatementUtils {
   public static String whereClause(@Nonnull LocalRelationshipFilter filter,
       @Nonnull Map<Condition, String> supportedConditions, @Nullable String tablePrefix,
       boolean nonDollarVirtualColumnsEnabled) {
-    if (!filter.hasCriteria() || filter.getCriteria().size() == 0) {
+    if (!LogicalExpressionLocalRelationshipCriterionUtils.filterHasNonEmptyCriteria(filter)) {
       throw new IllegalArgumentException("Empty filter cannot construct where clause.");
     }
 
-    // Group the conditions by field.
-    Map<String, List<Pair<Condition, LocalRelationshipValue>>> groupByField = new HashMap<>();
-    filter.getCriteria().forEach(criterion -> {
-      String field = parseLocalRelationshipField(criterion, tablePrefix, nonDollarVirtualColumnsEnabled);
-      List<Pair<Condition, LocalRelationshipValue>> group = groupByField.getOrDefault(field, new ArrayList<>());
-      group.add(new Pair<>(criterion.getCondition(), criterion.getValue()));
-      groupByField.put(field, group);
-    });
+    final LocalRelationshipFilter normalizedFilter = normalizeLocalRelationshipFilter(filter);
 
-    List<String> andClauses = new ArrayList<>();
-    for (Map.Entry<String, List<Pair<Condition, LocalRelationshipValue>>> entry : groupByField.entrySet()) {
-      List<String> orClauses = new ArrayList<>();
-      for (Pair<Condition, LocalRelationshipValue> pair : entry.getValue()) {
-        if (pair.getValue0() == Condition.IN) {
-          if (!pair.getValue1().isArray()) {
-            throw new IllegalArgumentException("IN condition must be paired with array value");
-          }
-          orClauses.add(entry.getKey() + " IN " +  parseLocalRelationshipValue(pair.getValue1()));
-        } else {
-          orClauses.add(entry.getKey() + supportedConditions.get(pair.getValue0()) + "'" + parseLocalRelationshipValue(pair.getValue1()) + "'");
+    return buildSQLQueryFromLogicalExpression(normalizedFilter.getLogicalExpressionCriteria(), supportedConditions, tablePrefix,
+        nonDollarVirtualColumnsEnabled);
+  }
+
+  private static String buildSQLQueryFromLogicalExpression(@Nonnull LogicalExpressionLocalRelationshipCriterion criterion,
+      @Nonnull Map<Condition, String> supportedConditions, @Nullable String tablePrefix,
+      boolean nonDollarVirtualColumnsEnabled) {
+    if (!criterion.hasExpr() || criterion.getExpr() == null) {
+      throw new IllegalArgumentException("No logical expression found in criterion: " + criterion);
+    }
+
+    final LogicalExpressionLocalRelationshipCriterion.Expr expr = criterion.getExpr();
+
+    if (expr.isCriterion()) {
+
+      final LocalRelationshipCriterion criterion1 = expr.getCriterion();
+
+      final String field = parseLocalRelationshipField(criterion1, tablePrefix, nonDollarVirtualColumnsEnabled);
+      final Condition condition = criterion1.getCondition();
+      final LocalRelationshipValue value = criterion1.getValue();
+
+      if (condition == Condition.IN) {
+        if (!value.isArray()) {
+          throw new IllegalArgumentException("IN condition must be paired with array value");
         }
-      }
-
-      if (orClauses.size() == 1) {
-        andClauses.add(orClauses.get(0));
+        return field + " IN " + parseLocalRelationshipValue(value);
       } else {
-        andClauses.add("(" + String.join(" OR ", orClauses) + ")");
+        return field + supportedConditions.get(condition) + "'" + parseLocalRelationshipValue(value) + "'";
       }
-    }
-    if (andClauses.size() == 1) {
-      String andClause = andClauses.get(0);
-      if (andClauses.get(0).startsWith("(")) {
-        return andClause.substring(1, andClause.length() - 1);
-      }
-      return andClause;
     }
 
-    return String.join(" AND ", andClauses);
+    // expr is logical
+    final LogicalOperation logicalOperation = expr.getLogical();
+
+    final Operator op = logicalOperation.getOp();
+    final String opString = op == Operator.AND ? " AND " : " OR ";
+
+    final LogicalExpressionLocalRelationshipCriterionArray array = logicalOperation.getExpressions();
+
+    final List<String> subClauses = array.stream().map(c -> {
+      return buildSQLQueryFromLogicalExpression(c, supportedConditions, tablePrefix, nonDollarVirtualColumnsEnabled);
+    }).collect(Collectors.toList());
+
+    return "(" + String.join(opString, subClauses) + ")";
   }
 
   /**
@@ -524,17 +537,25 @@ public class SQLStatementUtils {
    * Ex.
    * AND rt.source = "urn:li:dataset:abc" AND rt.destination = "urn:li:corpuser:def"
    * @param supportedConditions map of supported conditions, such as EQUAL
-   * @param criteria singleton array of criteria; old schema is limited to at most 1 criteria, and it must be on the urn field
+   * @param filter singleton array of filter; old schema is limited to at most 1 filter, and it must be on the urn field
    * @param whichNode which node of the edge the filter is applied on, either "source" or "destination"
    * @return SQL string starting with AND to denote the conditions of a relationship query in old schema mode.
    */
   public static String whereClauseOldSchema(@Nonnull Map<Condition, String> supportedConditions,
-      @Nonnull LocalRelationshipCriterionArray criteria, @Nonnull String whichNode) {
+      @Nonnull LocalRelationshipFilter filter, @Nonnull String whichNode) {
     if (!SOURCE.equals(whichNode) && !DESTINATION.equals(whichNode)) {
       throw new IllegalArgumentException("Must specify either 'source' or 'destination' node when parsing local relationship fields"
           + "in the old schema");
     }
+
+    if (!filterHasNonEmptyCriteria(filter)) {
+      return StringUtils.EMPTY;
+    }
+
     StringBuilder sb = new StringBuilder();
+    final LocalRelationshipCriterionArray criteria = filter.hasCriteria() ? filter.getCriteria()
+        : flattenLogicalExpressionLocalRelationshipCriterion(filter.getLogicalExpressionCriteria());
+
     for (LocalRelationshipCriterion criterion : criteria) {
       String field = "rt." + whichNode;
       String condition = supportedConditions.get(criterion.getCondition());
