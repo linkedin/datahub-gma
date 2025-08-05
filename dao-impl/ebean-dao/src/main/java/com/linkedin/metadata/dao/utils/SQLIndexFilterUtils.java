@@ -11,6 +11,7 @@ import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.query.IndexValue;
 import com.linkedin.metadata.query.SortOrder;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
@@ -143,6 +144,7 @@ public class SQLIndexFilterUtils {
    */
   private static String parseSqlFilter(String indexColumn, Condition condition, IndexValue indexValue) {
     switch (condition) {
+      // TODO: add validation to check that the index column value is an array type
       case ARRAY_CONTAINS:
         return String.format("'%s' MEMBER OF(%s)", parseIndexValue(indexValue), indexColumn);
       case CONTAIN:
@@ -207,7 +209,12 @@ public class SQLIndexFilterUtils {
     final IndexValue indexValue = criterion.getPathParams().getValue();
 
     if (condition == Condition.IN && (!indexValue.isArray() || indexValue.getArray().isEmpty())) {
-      throw new IllegalArgumentException("Invalid condition " + condition + " for index value " + indexValue);
+      throw new IllegalArgumentException("Invalid condition IN for index value " + indexValue);
+    }
+
+    if (condition == Condition.ARRAY_CONTAINS && indexValue.isArray()) {
+      throw new IllegalArgumentException(String.format("Array values are not allowed for the target of the condition ARRAY_CONTAINS."
+          + " Please split the array of elements into different criteria. Index value: %s", Arrays.toString(indexValue.getArray().toArray())));
     }
   }
 
