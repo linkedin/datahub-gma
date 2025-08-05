@@ -143,6 +143,8 @@ public class SQLIndexFilterUtils {
    */
   private static String parseSqlFilter(String indexColumn, Condition condition, IndexValue indexValue) {
     switch (condition) {
+      case ARRAY_CONTAINS:
+        return String.format("'%s' MEMBER OF(%s)", parseIndexValue(indexValue), indexColumn);
       case CONTAIN:
         return String.format("JSON_SEARCH(%s, 'one', '%s') IS NOT NULL", indexColumn, parseIndexValue(indexValue));
       case IN:
@@ -204,7 +206,7 @@ public class SQLIndexFilterUtils {
     final Condition condition = criterion.getPathParams().getCondition();
     final IndexValue indexValue = criterion.getPathParams().getValue();
 
-    if (condition == Condition.IN && (!indexValue.isArray() || indexValue.getArray().size() == 0)) {
+    if (condition == Condition.IN && (!indexValue.isArray() || indexValue.getArray().isEmpty())) {
       throw new IllegalArgumentException("Invalid condition " + condition + " for index value " + indexValue);
     }
   }
