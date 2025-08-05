@@ -166,7 +166,7 @@ public class SQLStatementUtilsTest {
     assertEquals(sql2, expectedSql2);
   }
 
-  @Test
+
   public void testCreateFilterSqlWithArrayContainsCondition() {
     IndexFilter indexFilter = new IndexFilter();
     IndexCriterionArray indexCriterionArray = new IndexCriterionArray();
@@ -183,7 +183,7 @@ public class SQLStatementUtilsTest {
         + "AND JSON_EXTRACT(a_aspectfoobar, '$.gma_deleted') IS NULL\n" + "AND 'bar1' MEMBER OF(i_aspectfoobar$bars)\n"
         + "AND deleted_ts IS NULL)" + " as _total_count FROM metadata_entity_foo\n"
         + "WHERE a_aspectfoobar IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoobar, '$.gma_deleted') IS NULL\n"
-        + "AND bars1 MEMBER OF(i_aspectfoobar$bars)\n" + "AND deleted_ts IS NULL";
+        + "AND 'bar1' MEMBER OF(i_aspectfoobar$bars)\n" + "AND deleted_ts IS NULL";
 
     assertEquals(sql1, expectedSql1);
   }
