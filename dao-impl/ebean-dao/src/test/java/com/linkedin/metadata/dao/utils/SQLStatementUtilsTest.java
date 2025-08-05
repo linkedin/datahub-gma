@@ -19,6 +19,7 @@ import com.linkedin.metadata.query.UrnField;
 import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.BarAsset;
+import com.linkedin.testing.localrelationship.AspectFooBar;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.FooUrn;
 import java.net.URISyntaxException;
@@ -163,6 +164,28 @@ public class SQLStatementUtilsTest {
         + "AND i_aspectfoo0value < 50\n" + "AND deleted_ts IS NULL";
 
     assertEquals(sql2, expectedSql2);
+  }
+
+
+  public void testCreateFilterSqlWithArrayContainsCondition() {
+    IndexFilter indexFilter = new IndexFilter();
+    IndexCriterionArray indexCriterionArray = new IndexCriterionArray();
+
+    IndexCriterion indexCriterion1 =
+        SQLIndexFilterUtils.createIndexCriterion(AspectFooBar.class, "bars", Condition.ARRAY_CONTAINS,
+            IndexValue.create("bar1"));
+
+    indexCriterionArray.add(indexCriterion1);
+    indexFilter.setCriteria(indexCriterionArray);
+
+    String sql1 = SQLStatementUtils.createFilterSql("foo", indexFilter, true, false, mockValidator);
+    String expectedSql1 = "SELECT *, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE a_aspectfoobar IS NOT NULL\n"
+        + "AND JSON_EXTRACT(a_aspectfoobar, '$.gma_deleted') IS NULL\n" + "AND 'bar1' MEMBER OF(i_aspectfoobar$bars)\n"
+        + "AND deleted_ts IS NULL)" + " as _total_count FROM metadata_entity_foo\n"
+        + "WHERE a_aspectfoobar IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoobar, '$.gma_deleted') IS NULL\n"
+        + "AND 'bar1' MEMBER OF(i_aspectfoobar$bars)\n" + "AND deleted_ts IS NULL";
+
+    assertEquals(sql1, expectedSql1);
   }
 
   @Test

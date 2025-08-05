@@ -179,19 +179,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     public Object value;
   }
 
-  private static final Map<Condition, String> CONDITION_STRING_MAP =
-      Collections.unmodifiableMap(new HashMap<Condition, String>() {
-        {
-          put(Condition.EQUAL, "=");
-          put(Condition.GREATER_THAN, ">");
-          put(Condition.GREATER_THAN_OR_EQUAL_TO, ">=");
-          put(Condition.IN, "IN");
-          put(Condition.LESS_THAN, "<");
-          put(Condition.LESS_THAN_OR_EQUAL_TO, "<=");
-          put(Condition.START_WITH, "LIKE");
-        }
-      });
-
   /**
    * Constructor for EbeanLocalDAO.
    *

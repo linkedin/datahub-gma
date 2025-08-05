@@ -49,4 +49,9 @@ enum Condition {
    * Represent the relation: String field starts with value, e.g. name starts with PageView
    */
   START_WITH
+
+  /**
+   * Represent the relation: array field contains string value, e.g. labels{["abc", "def"]} contains "abc"
+   */
+  ARRAY_CONTAINS
 }
