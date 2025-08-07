@@ -79,7 +79,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
   public EbeanLocalAccess(EbeanServer server, ServerConfig serverConfig, @Nonnull Class<URN> urnClass,
       UrnPathExtractor<URN> urnPathExtractor, boolean nonDollarVirtualColumnsEnabled) {
-    _server = server;
+    _server = server; //serverName: EbeanLocalAccessTest
     _urnClass = urnClass;
     _urnPathExtractor = urnPathExtractor;
     _entityType = ModelUtils.getEntityTypeFromUrnClass(_urnClass);
@@ -623,9 +623,14 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
   @Nonnull
   private SchemaEvolutionManager createSchemaEvolutionManager(@Nonnull ServerConfig serverConfig) {
-    String identifier = serverConfig.getDataSourceConfig().getCustomProperties() != null
-        ? serverConfig.getDataSourceConfig().getCustomProperties().getOrDefault(SERVICE_IDENTIFIER, null)
-        : null;
+
+    String name = serverConfig.getName();
+    String identifier = null;
+
+    if (name != null && name.endsWith("EbeanServerConfig")) {
+      identifier = name.substring(0, name.length() - "EbeanServerConfig".length());
+    }
+
     SchemaEvolutionManager.Config config = new SchemaEvolutionManager.Config(
         serverConfig.getDataSourceConfig().getUrl(),
         serverConfig.getDataSourceConfig().getPassword(),

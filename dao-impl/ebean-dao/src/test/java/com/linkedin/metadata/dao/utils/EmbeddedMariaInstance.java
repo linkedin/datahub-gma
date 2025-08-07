@@ -13,8 +13,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 
@@ -46,12 +44,9 @@ public class EmbeddedMariaInstance {
     dataSourceConfig.setPassword(DB_PASS);
     dataSourceConfig.setUrl(String.format("jdbc:mysql://localhost:%s/%s?allowMultiQueries=true", PORT, dbSchema));
     dataSourceConfig.setDriver("com.mysql.cj.jdbc.Driver");
-    Map<String, String> customProperties = new HashMap<>();
-    customProperties.put("SERVICE_IDENTIFIER", "test");
-    dataSourceConfig.setCustomProperties(customProperties);
 
     ServerConfig serverConfig = new ServerConfig();
-    serverConfig.setName(dbSchema);
+    serverConfig.setName("testEbeanServerConfig"); //EbeanLocalAccessTestEbeanConfig
     serverConfig.setDataSourceConfig(dataSourceConfig);
     serverConfig.setDdlGenerate(false);
     serverConfig.setDdlRun(false);
@@ -75,7 +70,7 @@ public class EmbeddedMariaInstance {
     dataSourceConfig.setDriver("com.mysql.cj.jdbc.Driver");
 
     ServerConfig serverConfig = new ServerConfig();
-    serverConfig.setName(dbSchema);
+    serverConfig.setName("testEbeanServerConfig");
     serverConfig.setDataSourceConfig(dataSourceConfig);
     serverConfig.setDdlGenerate(false);
     serverConfig.setDdlRun(false);
