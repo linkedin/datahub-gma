@@ -79,7 +79,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
   public EbeanLocalAccess(EbeanServer server, ServerConfig serverConfig, @Nonnull Class<URN> urnClass,
       UrnPathExtractor<URN> urnPathExtractor, boolean nonDollarVirtualColumnsEnabled) {
-    _server = server; //serverName: EbeanLocalAccessTest
+    _server = server;
     _urnClass = urnClass;
     _urnPathExtractor = urnPathExtractor;
     _entityType = ModelUtils.getEntityTypeFromUrnClass(_urnClass);
