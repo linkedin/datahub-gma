@@ -149,6 +149,7 @@ public class EbeanLocalDAOTest {
   private static final String GMA_DROP_ALL_SQL = "gma-drop-all.sql";
 
   private static final String CREATE_ALL_WITH_NON_DOLLAR_VIRTUAL_COLUMN_SQL = "ebean-local-dao-create-all-with-non-dollar-virtual-column-names.sql";
+  private static final String EBEAN_SERVER_CONFIG = "EbeanServerConfig";
   private final EBeanDAOConfig _eBeanDAOConfig = new EBeanDAOConfig();
   private static final LocalRelationshipFilter
       EMPTY_FILTER = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray());
@@ -4238,6 +4239,11 @@ public class EbeanLocalDAOTest {
   }
 
   private String getDatabaseName() {
-    return _server.getName().substring(0, _server.getName().length() - "EbeanServerConfig".length());
+    String name = _server.getName();
+    if (name != null && name.endsWith(EBEAN_SERVER_CONFIG)) {
+      return name.substring(0, name.length() - EBEAN_SERVER_CONFIG.length());
+    } else {
+      throw new IllegalStateException("Server name does not end with '" + EBEAN_SERVER_CONFIG + "': " + name);
+    }
   }
 }
