@@ -102,6 +102,7 @@ public class FlywaySchemaEvolutionManagerTest {
     assertEquals(method.invoke(_schemaEvolutionManager, config4), "my_first_db");
   }
 
+
   private String extractServiceIdentifier() {
     String serverName = _server.getName();
     return serverName.substring(0, serverName.indexOf(EBEAN_SERVER_CONFIG));

@@ -4238,6 +4238,14 @@ public class EbeanLocalDAOTest {
     assertNull(result);
   }
 
+  /**
+   * Returns the name of the database by removing the Ebean server configuration suffix
+   * from the server name. If the server name does not end with the expected suffix,
+   * an IllegalStateException is thrown.
+   *
+   * @return the database name without the Ebean server configuration suffix.
+   * @throws IllegalStateException if the server name does not end with the Ebean server configuration suffix.
+   */
   private String getDatabaseName() {
     String name = _server.getName();
     if (name != null && name.endsWith(EBEAN_SERVER_CONFIG)) {
