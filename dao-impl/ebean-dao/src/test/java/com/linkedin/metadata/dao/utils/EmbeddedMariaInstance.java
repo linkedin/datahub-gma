@@ -46,7 +46,7 @@ public class EmbeddedMariaInstance {
     dataSourceConfig.setDriver("com.mysql.cj.jdbc.Driver");
 
     ServerConfig serverConfig = new ServerConfig();
-    serverConfig.setName("testEbeanServerConfig"); //EbeanLocalAccessTestEbeanConfig
+    serverConfig.setName("testEbeanServerConfig");
     serverConfig.setDataSourceConfig(dataSourceConfig);
     serverConfig.setDdlGenerate(false);
     serverConfig.setDdlRun(false);
