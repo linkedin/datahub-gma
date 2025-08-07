@@ -59,7 +59,7 @@ public class FlywaySchemaEvolutionManagerTest {
 
   private boolean checkTableExists(String tableName) {
     String checkTableExistsSql = String.format("SELECT count(*) as count FROM information_schema.TABLES WHERE TABLE_SCHEMA = '%s' AND"
-        + " TABLE_NAME = '%s'",getDatabaseName() , tableName);
+        + " TABLE_NAME = '%s'", getDatabaseName(), tableName);
 
     return _server.createSqlQuery(checkTableExistsSql).findOne().getInteger("count") == 1;
   }
@@ -103,11 +103,14 @@ public class FlywaySchemaEvolutionManagerTest {
   }
 
   private String extractServiceIdentifier() {
-    String serverName =_server.getName();
+    String serverName = _server.getName();
     return serverName.substring(0, serverName.indexOf(EBEAN_SERVER_CONFIG));
   }
 
-
+  /**
+   * Return the database name associated with the given Ebean server.
+   * @return the database name
+   */
   private String getDatabaseName() {
     String name = _server.getName();
     if (name != null && name.endsWith(EBEAN_SERVER_CONFIG)) {
