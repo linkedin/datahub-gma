@@ -179,20 +179,20 @@ public class EbeanLocalDAOTest {
     return new Object[][]{
 
         // tests with change history enabled (legacy mode)
-        //        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, true, true},
-        //        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, true, true},
-        //        {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID, true, true},
-        //        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, true, false},
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, true, true},
+        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, true, true},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID, true, true},
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, true, false},
         {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, true, false},
-        //        {SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL, true, false},
-        //
-        //        // tests with change history disabled (cold-archive mode)
-        //        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, false, true},
-        //        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, false, true},
-        //        {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID, false, true},
-        //        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, false, false},
-        //        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, false, false},
-        //        {SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL, false, false},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL, true, false},
+
+        // tests with change history disabled (cold-archive mode)
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, false, true},
+        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, false, true},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID, false, true},
+        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, false, false},
+        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, false, false},
+        {SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL, false, false},
 
     };
   }
