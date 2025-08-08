@@ -142,7 +142,7 @@ public final class LogicalExpressionLocalRelationshipCriterionUtils {
       return null;
     }
 
-    if (children.size() == 1) {
+    if (children.size() == 1 && op != Operator.NOT) {
       // avoid wrapping unnecessarily
       return children.get(0);
     }

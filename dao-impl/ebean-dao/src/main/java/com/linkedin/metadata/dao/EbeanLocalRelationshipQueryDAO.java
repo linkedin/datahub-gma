@@ -611,6 +611,23 @@ public class EbeanLocalRelationshipQueryDAO {
           throw new IllegalArgumentException("Logical operation must have expressions.");
         }
 
+        if (logical.getOp() == Operator.NOT) {
+          if (!logical.hasExpressions() || logical.getExpressions() == null || logical.getExpressions().size() != 1) {
+            throw new IllegalArgumentException("NOT operator must have exactly one expression.");
+          }
+
+          if (!logical.getExpressions().get(0).hasExpr()) {
+            throw new IllegalArgumentException("NOT operator must have an expression.");
+          }
+
+          if (logical.getExpressions().get(0).getExpr() == null || !logical.getExpressions().get(0).getExpr().isCriterion()) {
+            throw new IllegalArgumentException("NOT operator must have a criterion expression.");
+          }
+
+          validateLocalRelationshipCriterion(logical.getExpressions().get(0).getExpr().getCriterion());
+          return;
+        }
+
         if (logical.getExpressions() != null && logical.getExpressions().size() < 2) {
           throw new IllegalArgumentException("Logical operation must have at least two expressions.");
         }
