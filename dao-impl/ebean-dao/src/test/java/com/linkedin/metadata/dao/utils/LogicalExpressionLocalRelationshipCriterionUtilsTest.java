@@ -218,6 +218,25 @@ public class LogicalExpressionLocalRelationshipCriterionUtilsTest {
   }
 
   @Test
+  public void testBuildLogicalGroupWithNotOp() {
+    LocalRelationshipCriterion c1 = createLocalRelationshipCriterionWithUrnField("foo1");
+
+    LogicalExpressionLocalRelationshipCriterion result =
+        LogicalExpressionLocalRelationshipCriterionUtils.buildLogicalGroup(Operator.NOT,
+            new LogicalExpressionLocalRelationshipCriterionArray(
+                wrapCriterionAsLogicalExpression(c1)));
+
+    assertNotNull(result);
+    assertTrue(result.hasExpr());
+    assertTrue(result.getExpr().isLogical());
+
+    LogicalOperation op = result.getExpr().getLogical();
+    assertEquals(op.getOp(), Operator.NOT);
+    assertEquals(op.getExpressions().size(), 1);
+    assertEquals(op.getExpressions().get(0).getExpr().getCriterion(), c1);
+  }
+
+  @Test
   public void testFilterHasNonEmptyCriteriaWithNull() {
     assertFalse(filterHasNonEmptyCriteria(null));
   }

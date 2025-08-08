@@ -460,6 +460,25 @@ public class SQLStatementUtilsTest {
     );
   }
 
+  @Test
+  public void testWhereClauseWithLogicalExpressionWithNot() {
+    LocalRelationshipCriterion c1 = createLocalRelationshipCriterionWithAspectField("bar");
+    LogicalExpressionLocalRelationshipCriterion n1 = wrapCriterionAsLogicalExpression(c1);
+    LogicalExpressionLocalRelationshipCriterion notNode = buildLogicalGroup(Operator.NOT, new LogicalExpressionLocalRelationshipCriterionArray(n1));
+
+    LocalRelationshipFilter filter = new LocalRelationshipFilter().setLogicalExpressionCriteria(notNode);
+
+    //test for multi filters with dollar virtual columns names
+    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, false),
+        "(NOT i_aspectfoo$value='bar')"
+    );
+
+    //test for multi filters with non dollar virtual columns names
+    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, true),
+        "(NOT i_aspectfoo0value='bar')"
+    );
+  }
+
   private LocalRelationshipCriterion createLocalRelationshipCriterionWithUrnField(String value) {
     LocalRelationshipCriterion.Field field = new LocalRelationshipCriterion.Field();
     field.setUrnField(new UrnField());

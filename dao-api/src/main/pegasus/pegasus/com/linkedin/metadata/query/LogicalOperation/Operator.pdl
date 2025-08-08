@@ -5,4 +5,5 @@ enum Operator {
   UNKNOWN
   AND
   OR
+  NOT
 }
