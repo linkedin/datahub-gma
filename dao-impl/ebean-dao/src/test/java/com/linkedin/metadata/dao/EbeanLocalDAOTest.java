@@ -149,6 +149,7 @@ public class EbeanLocalDAOTest {
   private static final String GMA_DROP_ALL_SQL = "gma-drop-all.sql";
 
   private static final String CREATE_ALL_WITH_NON_DOLLAR_VIRTUAL_COLUMN_SQL = "ebean-local-dao-create-all-with-non-dollar-virtual-column-names.sql";
+  private static final String EBEAN_SERVER_CONFIG = "EbeanServerConfig";
   private final EBeanDAOConfig _eBeanDAOConfig = new EBeanDAOConfig();
   private static final LocalRelationshipFilter
       EMPTY_FILTER = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray());
@@ -4089,7 +4090,7 @@ public class EbeanLocalDAOTest {
         _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled()); // e.g. i_aspectfoo$path1$value1
 
     String checkColumnExistance = String.format("SELECT * FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '%s' AND"
-        + " TABLE_NAME = '%s' AND COLUMN_NAME = '%s'", _server.getName(), getTableName(urn), fullIndexColumnName);
+        + " TABLE_NAME = '%s' AND COLUMN_NAME = '%s'", getDatabaseName(), getTableName(urn), fullIndexColumnName);
 
     if (_server.createSqlQuery(checkColumnExistance).findList().isEmpty()) {
       String sqlUpdate = String.format("ALTER TABLE %s ADD COLUMN %s VARCHAR(255);", getTableName(urn), fullIndexColumnName);
@@ -4097,7 +4098,7 @@ public class EbeanLocalDAOTest {
     }
 
     checkColumnExistance = String.format("SELECT * FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '%s' AND"
-        + " TABLE_NAME = '%s' AND COLUMN_NAME = '%s'", _server.getName(), getTableName(urn), aspectColumnName);
+        + " TABLE_NAME = '%s' AND COLUMN_NAME = '%s'", getDatabaseName(), getTableName(urn), aspectColumnName);
     // similarly for index columns (i_*), we need to add any new aspect columns (a_*)
     if (aspectColumnName != null && _server.createSqlQuery(checkColumnExistance).findList().isEmpty()) {
       String sqlUpdate = String.format("ALTER TABLE %s ADD COLUMN %s VARCHAR(255);", getTableName(urn), aspectColumnName);
@@ -4235,5 +4236,22 @@ public class EbeanLocalDAOTest {
         urn);
 
     assertNull(result);
+  }
+
+  /**
+   * Returns the name of the database by removing the Ebean server configuration suffix
+   * from the server name. If the server name does not end with the expected suffix,
+   * an IllegalStateException is thrown.
+   *
+   * @return the database name without the Ebean server configuration suffix.
+   * @throws IllegalStateException if the server name does not end with the Ebean server configuration suffix.
+   */
+  private String getDatabaseName() {
+    String name = _server.getName();
+    if (name != null && name.endsWith(EBEAN_SERVER_CONFIG)) {
+      return name.substring(0, name.length() - EBEAN_SERVER_CONFIG.length());
+    } else {
+      throw new IllegalStateException("Server name does not end with '" + EBEAN_SERVER_CONFIG + "': " + name);
+    }
   }
 }
