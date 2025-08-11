@@ -498,27 +498,20 @@ public class SQLStatementUtils {
     final LogicalExpressionLocalRelationshipCriterion.Expr expr = criterion.getExpr();
 
     if (expr.isCriterion()) {
-
-      final LocalRelationshipCriterion criterion1 = expr.getCriterion();
-
-      final String field = parseLocalRelationshipField(criterion1, tablePrefix, nonDollarVirtualColumnsEnabled);
-      final Condition condition = criterion1.getCondition();
-      final LocalRelationshipValue value = criterion1.getValue();
-
-      if (condition == Condition.IN) {
-        if (!value.isArray()) {
-          throw new IllegalArgumentException("IN condition must be paired with array value");
-        }
-        return field + " IN " + parseLocalRelationshipValue(value);
-      } else {
-        return field + supportedConditions.get(condition) + "'" + parseLocalRelationshipValue(value) + "'";
-      }
+      return buildSQLQueryFromLocalRelationshipCriterion(expr.getCriterion(), supportedConditions, tablePrefix, nonDollarVirtualColumnsEnabled);
     }
 
     // expr is logical
     final LogicalOperation logicalOperation = expr.getLogical();
 
     final Operator op = logicalOperation.getOp();
+
+    if (op == Operator.NOT) {
+      // NOT clause must only have 1 expreesion that is a criterion
+      return "(NOT " + buildSQLQueryFromLocalRelationshipCriterion(expr.getLogical().getExpressions().get(0).getExpr().getCriterion(),
+          supportedConditions, tablePrefix, nonDollarVirtualColumnsEnabled) + ")";
+    }
+
     final String opString = op == Operator.AND ? " AND " : " OR ";
 
     final LogicalExpressionLocalRelationshipCriterionArray array = logicalOperation.getExpressions();
@@ -528,6 +521,24 @@ public class SQLStatementUtils {
     }).collect(Collectors.toList());
 
     return "(" + String.join(opString, subClauses) + ")";
+  }
+
+  private static String buildSQLQueryFromLocalRelationshipCriterion(@Nonnull LocalRelationshipCriterion criterion,
+      @Nonnull Map<Condition, String> supportedConditions, @Nullable String tablePrefix,
+      boolean nonDollarVirtualColumnsEnabled) {
+
+    final String field = parseLocalRelationshipField(criterion, tablePrefix, nonDollarVirtualColumnsEnabled);
+    final Condition condition = criterion.getCondition();
+    final LocalRelationshipValue value = criterion.getValue();
+
+    if (condition == Condition.IN) {
+      if (!value.isArray()) {
+        throw new IllegalArgumentException("IN condition must be paired with array value");
+      }
+      return field + " IN " + parseLocalRelationshipValue(value);
+    } else {
+      return field + supportedConditions.get(condition) + "'" + parseLocalRelationshipValue(value) + "'";
+    }
   }
 
   /**
