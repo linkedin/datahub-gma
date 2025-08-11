@@ -479,6 +479,38 @@ public class SQLStatementUtilsTest {
     );
   }
 
+  @Test
+  public void testWhereClauseWithLogicalExpressionWithNotNested() {
+    LocalRelationshipCriterion c1 = createLocalRelationshipCriterionWithUrnField("foo1");
+    LocalRelationshipCriterion c2 = createLocalRelationshipCriterionWithUrnField("foo2");
+    LocalRelationshipCriterion c3 = createLocalRelationshipCriterionWithAspectField("bar");
+
+    LogicalExpressionLocalRelationshipCriterion n1 = wrapCriterionAsLogicalExpression(c1);
+    LogicalExpressionLocalRelationshipCriterion n2 = wrapCriterionAsLogicalExpression(c2);
+    LogicalExpressionLocalRelationshipCriterion n3 = wrapCriterionAsLogicalExpression(c3);
+
+    LogicalExpressionLocalRelationshipCriterion orNode =
+        buildLogicalGroup(Operator.OR, new LogicalExpressionLocalRelationshipCriterionArray(n1, n2));
+
+    LogicalExpressionLocalRelationshipCriterion notNode =
+        buildLogicalGroup(Operator.NOT, new LogicalExpressionLocalRelationshipCriterionArray(n3));
+
+    LogicalExpressionLocalRelationshipCriterion root =
+        buildLogicalGroup(Operator.AND, new LogicalExpressionLocalRelationshipCriterionArray(orNode, notNode));
+
+    LocalRelationshipFilter filter = new LocalRelationshipFilter().setLogicalExpressionCriteria(root);
+
+    //test for multi filters with dollar virtual columns names
+    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, false),
+        "((urn='foo1' OR urn='foo2') AND (NOT i_aspectfoo$value='bar'))"
+    );
+
+    //test for multi filters with non dollar virtual columns names
+    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, true),
+        "((urn='foo1' OR urn='foo2') AND (NOT i_aspectfoo0value='bar'))"
+    );
+  }
+
   private LocalRelationshipCriterion createLocalRelationshipCriterionWithUrnField(String value) {
     LocalRelationshipCriterion.Field field = new LocalRelationshipCriterion.Field();
     field.setUrnField(new UrnField());
