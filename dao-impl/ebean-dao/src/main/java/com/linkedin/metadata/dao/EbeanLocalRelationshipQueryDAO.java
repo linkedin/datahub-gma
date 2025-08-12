@@ -89,6 +89,7 @@ public class EbeanLocalRelationshipQueryDAO {
           put(Condition.IN, "IN");
           put(Condition.LESS_THAN, "<");
           put(Condition.LESS_THAN_OR_EQUAL_TO, "<=");
+          put(Condition.START_WITH, "LIKE");
         }
       });
 

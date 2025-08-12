@@ -210,6 +210,42 @@ public class EbeanLocalRelationshipQueryDAOTest {
   }
 
   @Test
+  public void testFindOneEntityV2WithStartWithCondition() throws URISyntaxException, OperationNotSupportedException {
+    // Ingest data
+    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null, false);
+    _fooUrnEBeanLocalAccess.add(new FooUrn(2), new AspectFoo().setValue("fooTwo"), AspectFoo.class, new AuditStamp(), null, false);
+
+    // Prepare filter
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("foo"),
+        Condition.START_WITH,
+        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+
+    LocalRelationshipFilter filter = new LocalRelationshipFilter().setLogicalExpressionCriteria(
+        wrapCriterionAsLogicalExpression(filterCriterion));
+    List<FooSnapshot> fooSnapshotList = _localRelationshipQueryDAO.findEntitiesV2(FooSnapshot.class, filter, 0, 10);
+
+    assertEquals(fooSnapshotList.size(), 2);
+    assertEquals(fooSnapshotList.get(0).getAspects().size(), 1);
+    assertEquals(fooSnapshotList.get(0).getAspects().get(0).getAspectFoo(), new AspectFoo().setValue("foo"));
+
+    assertEquals(fooSnapshotList.get(1).getAspects().size(), 1);
+    assertEquals(fooSnapshotList.get(1).getAspects().get(0).getAspectFoo(), new AspectFoo().setValue("fooTwo"));
+
+    // Prepare filter
+    LocalRelationshipCriterion filterCriterion2 = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("fooT"),
+        Condition.START_WITH,
+        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+
+    LocalRelationshipFilter filter2 = new LocalRelationshipFilter().setLogicalExpressionCriteria(
+        wrapCriterionAsLogicalExpression(filterCriterion2));
+    List<FooSnapshot> fooSnapshotList2 = _localRelationshipQueryDAO.findEntitiesV2(FooSnapshot.class, filter2, 0, 10);
+
+    assertEquals(fooSnapshotList2.size(), 1);
+    assertEquals(fooSnapshotList2.get(0).getAspects().size(), 1);
+    assertEquals(fooSnapshotList2.get(0).getAspects().get(0).getAspectFoo(), new AspectFoo().setValue("fooTwo"));
+  }
+
+  @Test
   public void testFindOneEntityTwoAspectsV2() throws URISyntaxException, OperationNotSupportedException {
     // Ingest data
     _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null, false);

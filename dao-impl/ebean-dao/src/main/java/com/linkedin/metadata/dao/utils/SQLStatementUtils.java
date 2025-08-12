@@ -536,6 +536,8 @@ public class SQLStatementUtils {
         throw new IllegalArgumentException("IN condition must be paired with array value");
       }
       return field + " IN " + parseLocalRelationshipValue(value);
+    } else if (condition == Condition.START_WITH) {
+      return field + " LIKE '" + parseLocalRelationshipValue(value) + "%'";
     } else {
       return field + supportedConditions.get(condition) + "'" + parseLocalRelationshipValue(value) + "'";
     }
@@ -570,9 +572,16 @@ public class SQLStatementUtils {
     for (LocalRelationshipCriterion criterion : criteria) {
       String field = "rt." + whichNode;
       String condition = supportedConditions.get(criterion.getCondition());
-      String value = criterion.getCondition() == Condition.IN
-          ? parseLocalRelationshipValue(criterion.getValue())
-          : "'" + parseLocalRelationshipValue(criterion.getValue()) + "'";
+      String value;
+
+      if (criterion.getCondition() == Condition.IN) {
+        value = parseLocalRelationshipValue(criterion.getValue());
+      } else if (criterion.getCondition() == Condition.START_WITH) {
+        value = "'" + parseLocalRelationshipValue(criterion.getValue()) + "%'";
+      } else {
+        value = "'" + parseLocalRelationshipValue(criterion.getValue()) + "'";
+      }
+
       sb.append(String.format(" AND %s %s %s", field, condition, value));
     }
     return sb.toString();
