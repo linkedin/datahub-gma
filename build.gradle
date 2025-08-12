@@ -46,6 +46,7 @@ project.ext.externalDependency = [
     'flywayCore': 'org.flywaydb:flyway-core:7.15.0',
     'guava': 'com.google.guava:guava:32.0.0-jre',
     'h2': 'com.h2database:h2:1.4.196',
+    'hikariCP': 'com.zaxxer:HikariCP:5.0.1',
     'jacksonCore': 'com.fasterxml.jackson.core:jackson-core:2.17.2',
     'jacksonDataBind': 'com.fasterxml.jackson.core:jackson-databind:2.17.2',
     'javatuples': 'org.javatuples:javatuples:1.2',
