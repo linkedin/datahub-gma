@@ -175,6 +175,68 @@ public class EbeanLocalRelationshipQueryDAOTest {
     assertEquals(fooSnapshotList.get(0).getAspects(), expected);
   }
 
+  @Test
+  public void testFindEntitiesV2WithV1Filter() throws URISyntaxException, OperationNotSupportedException {
+    // Ingest data
+    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null, false);
+
+    // Prepare filter
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("foo"),
+        Condition.EQUAL,
+        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+
+    LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
+
+    assertThrows(IllegalArgumentException.class, () -> _localRelationshipQueryDAO.findEntitiesV2(FooSnapshot.class, filter, 0, 10));
+  }
+
+  @Test
+  public void testFindOneEntityV2() throws URISyntaxException, OperationNotSupportedException {
+    // Ingest data
+    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null, false);
+
+    // Prepare filter
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("foo"),
+        Condition.EQUAL,
+        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+
+    LocalRelationshipFilter filter = new LocalRelationshipFilter().setLogicalExpressionCriteria(
+        wrapCriterionAsLogicalExpression(filterCriterion));
+    List<FooSnapshot> fooSnapshotList = _localRelationshipQueryDAO.findEntitiesV2(FooSnapshot.class, filter, 0, 10);
+
+    assertEquals(fooSnapshotList.size(), 1);
+    assertEquals(fooSnapshotList.get(0).getAspects().size(), 1);
+    assertEquals(fooSnapshotList.get(0).getAspects().get(0).getAspectFoo(), new AspectFoo().setValue("foo"));
+  }
+
+  @Test
+  public void testFindOneEntityTwoAspectsV2() throws URISyntaxException, OperationNotSupportedException {
+    // Ingest data
+    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectFoo().setValue("foo"), AspectFoo.class, new AuditStamp(), null, false);
+    _fooUrnEBeanLocalAccess.add(new FooUrn(1), new AspectBar().setValue("bar"), AspectBar.class, new AuditStamp(), null, false);
+
+    // Prepare filter
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("foo"),
+        Condition.EQUAL,
+        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+
+    LocalRelationshipFilter filter = new LocalRelationshipFilter().setLogicalExpressionCriteria(
+        wrapCriterionAsLogicalExpression(filterCriterion));
+
+    List<FooSnapshot> fooSnapshotList = _localRelationshipQueryDAO.findEntitiesV2(FooSnapshot.class, filter, 0, 10);
+
+    assertEquals(fooSnapshotList.size(), 1);
+    assertEquals(fooSnapshotList.get(0).getAspects().size(), 2);
+    EntityAspectUnion fooAspectUnion = new EntityAspectUnion();
+    fooAspectUnion.setAspectFoo(new AspectFoo().setValue("foo"));
+    EntityAspectUnion barAspectUnion = new EntityAspectUnion();
+    barAspectUnion.setAspectBar(new AspectBar().setValue("bar"));
+
+    EntityAspectUnionArray expected = new EntityAspectUnionArray(fooAspectUnion, barAspectUnion);
+
+    assertEquals(fooSnapshotList.get(0).getAspects(), expected);
+  }
+
   @DataProvider(name = "schemaConfig")
   public static Object[][] schemaConfig() {
     return new Object[][] {
