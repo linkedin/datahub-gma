@@ -252,6 +252,19 @@ public class SQLStatementUtilsTest {
   }
 
   @Test
+  public void testWhereClauseSingleStartWithCondition() {
+    LocalRelationshipCriterion.Field field = new LocalRelationshipCriterion.Field();
+    field.setUrnField(new UrnField());
+    LocalRelationshipCriterion criterion = new LocalRelationshipCriterion()
+        .setField(field)
+        .setCondition(Condition.START_WITH)
+        .setValue(LocalRelationshipValue.create("value1"));
+    LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion);
+    LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
+    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.START_WITH, "LIKE"), null, false), "urn LIKE 'value1%'");
+  }
+
+  @Test
   public void testWhereClauseMultiConditionSameName() {
     LocalRelationshipCriterion.Field field1 = new LocalRelationshipCriterion.Field();
     field1.setUrnField(new UrnField());
@@ -404,6 +417,69 @@ public class SQLStatementUtilsTest {
   }
 
   @Test
+  public void testWhereClauseMultiFilters2() {
+    LocalRelationshipCriterion.Field field1 = new LocalRelationshipCriterion.Field();
+    field1.setUrnField(new UrnField());
+    LocalRelationshipCriterion criterion1 = new LocalRelationshipCriterion()
+        .setField(field1)
+        .setCondition(Condition.START_WITH)
+        .setValue(LocalRelationshipValue.create("value1"));
+
+    LocalRelationshipCriterion.Field field2 = new LocalRelationshipCriterion.Field();
+    field2.setAspectField((new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value")));
+    LocalRelationshipCriterion criterion2 = new LocalRelationshipCriterion()
+        .setField(field2)
+        .setCondition(Condition.START_WITH)
+        .setValue(LocalRelationshipValue.create("value2"));
+
+    LocalRelationshipCriterion.Field field3 = new LocalRelationshipCriterion.Field();
+    field3.setUrnField(new UrnField());
+    LocalRelationshipCriterion criterion3 = new LocalRelationshipCriterion()
+        .setField(field3)
+        .setCondition(Condition.START_WITH)
+        .setValue(LocalRelationshipValue.create("value3"));
+
+    LocalRelationshipCriterion.Field field4 = new LocalRelationshipCriterion.Field();
+    field4.setRelationshipField(((new RelationshipField().setPath("/value"))));
+    LocalRelationshipCriterion criterion4 = new LocalRelationshipCriterion()
+        .setField(field4)
+        .setCondition(Condition.START_WITH)
+        .setValue(LocalRelationshipValue.create("value4"));
+
+    LocalRelationshipCriterionArray criteria1 = new LocalRelationshipCriterionArray(criterion1, criterion2, criterion3, criterion4);
+    LocalRelationshipFilter filter1 = new LocalRelationshipFilter().setCriteria(criteria1);
+
+    LocalRelationshipCriterion.Field field5 = new LocalRelationshipCriterion.Field();
+    field5.setUrnField(new UrnField());
+    LocalRelationshipCriterion criterion5 = new LocalRelationshipCriterion()
+        .setField(field5)
+        .setCondition(Condition.START_WITH)
+        .setValue(LocalRelationshipValue.create("value1"));
+
+    LocalRelationshipCriterion.Field field6 = new LocalRelationshipCriterion.Field();
+    field6.setUrnField(new UrnField());
+    LocalRelationshipCriterion criterion6 = new LocalRelationshipCriterion()
+        .setField(field6)
+        .setCondition(Condition.START_WITH)
+        .setValue(LocalRelationshipValue.create("value2"));
+
+    LocalRelationshipCriterionArray criteria2 = new LocalRelationshipCriterionArray(criterion5, criterion6);
+    LocalRelationshipFilter filter2 = new LocalRelationshipFilter().setCriteria(criteria2);
+
+    //test for multi filters with dollar virtual columns names
+    assertConditionsEqual(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), false, new Pair<>(filter1, "foo"),
+        new Pair<>(filter2, "bar")), "(foo.i_aspectfoo$value LIKE 'value2%' AND (foo.urn LIKE 'value1%' OR foo.urn LIKE 'value3%') "
+        + "AND foo.metadata$value LIKE 'value4%') AND (bar.urn LIKE 'value1%' OR bar.urn LIKE 'value2%')"
+    );
+
+    //test for multi filters with non dollar virtual columns names
+    assertConditionsEqual(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), true, new Pair<>(filter1, "foo"),
+        new Pair<>(filter2, "bar")), "(foo.i_aspectfoo0value LIKE 'value2%' AND (foo.urn LIKE 'value1%' OR foo.urn LIKE 'value3%') "
+        + "AND foo.metadata0value LIKE 'value4%') AND (bar.urn LIKE 'value1%' OR bar.urn LIKE 'value2%')"
+    );
+  }
+
+  @Test
   public void testWhereClauseOldSchemaSimple() {
     LocalRelationshipCriterion.Field field = new LocalRelationshipCriterion.Field();
     field.setUrnField(new UrnField());
@@ -429,6 +505,20 @@ public class SQLStatementUtilsTest {
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(sourceCriteria);
     String expected = " AND rt.source IN (value1, value2)";
     assertEquals(SQLStatementUtils.whereClauseOldSchema(Collections.singletonMap(Condition.IN, "IN"), filter, "source"), expected);
+  }
+
+  @Test
+  public void testWhereClauseOldSchemaConditionStartWith() {
+    LocalRelationshipCriterion.Field field = new LocalRelationshipCriterion.Field();
+    field.setUrnField(new UrnField());
+    LocalRelationshipCriterion criterion = new LocalRelationshipCriterion()
+        .setField(field)
+        .setCondition(Condition.START_WITH)
+        .setValue(LocalRelationshipValue.create("value1"));
+    LocalRelationshipCriterionArray sourceCriteria = new LocalRelationshipCriterionArray(criterion);
+    LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(sourceCriteria);
+    String expected = " AND rt.source LIKE 'value1%'";
+    assertEquals(SQLStatementUtils.whereClauseOldSchema(Collections.singletonMap(Condition.START_WITH, "LIKE"), filter, "source"), expected);
   }
 
   @Test
