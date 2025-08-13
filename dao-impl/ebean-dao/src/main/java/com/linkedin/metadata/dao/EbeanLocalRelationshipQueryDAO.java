@@ -89,6 +89,7 @@ public class EbeanLocalRelationshipQueryDAO {
           put(Condition.IN, "IN");
           put(Condition.LESS_THAN, "<");
           put(Condition.LESS_THAN_OR_EQUAL_TO, "<=");
+          put(Condition.START_WITH, "LIKE");
         }
       });
 
@@ -110,10 +111,15 @@ public class EbeanLocalRelationshipQueryDAO {
   @Nonnull
   public <SNAPSHOT extends RecordTemplate> List<SNAPSHOT> findEntities(@Nonnull Class<SNAPSHOT> snapshotClass,
       @Nonnull LocalRelationshipFilter filter, int offset, int count) throws OperationNotSupportedException {
+    return findEntitiesCore(snapshotClass, filter, offset, count, false);
+  }
+
+  private <SNAPSHOT extends RecordTemplate> List<SNAPSHOT> findEntitiesCore(@Nonnull Class<SNAPSHOT> snapshotClass,
+      @Nonnull LocalRelationshipFilter filter, int offset, int count, boolean logicalExpressionFilterEnabled) throws OperationNotSupportedException {
     if (_schemaConfig == EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY) {
       throw new OperationNotSupportedException("findEntities is not supported in OLD_SCHEMA_MODE");
     }
-    validateEntityFilter(filter, snapshotClass);
+    validateEntityFilter(filter, snapshotClass, logicalExpressionFilterEnabled);
 
     final String tableName = SQLSchemaUtils.getTableName(ModelUtils.getUrnTypeFromSnapshot(snapshotClass));
     final StringBuilder sqlBuilder = new StringBuilder();
@@ -127,6 +133,25 @@ public class EbeanLocalRelationshipQueryDAO {
     return _server.createSqlQuery(sqlBuilder.toString()).findList().stream()
         .map(sqlRow -> constructSnapshot(sqlRow, snapshotClass))
         .collect(Collectors.toList());
+  }
+
+  /**
+   * Finds a list of entities of a specific type based on the given filter on the entity.
+   * Similar to {@link #findEntities(Class, LocalRelationshipFilter, int, int)},
+   * but this method uses the LogicalExpressionLocalRelationshipCriterion in LocalRelationshipFilter.
+   * The SNAPSHOT class must be defined within com.linkedin.metadata.snapshot package in metadata-models.
+   * This method is not supported in OLD_SCHEMA_ONLY mode.
+   * @param snapshotClass the snapshot class to query.
+   * @param filter the filter to apply when querying. Uses `logicalExpressionCriteria` instead of `criteria`.
+   * @param offset the offset the query should start at. Ignored if set to a negative value.
+   * @param count the maximum number of entities to return. Ignored if set to a non-positive value.
+   * @return A list of entity records of class SNAPSHOT.
+   * @throws OperationNotSupportedException when called in OLD_SCHEMA_ONLY mode. This exception must be explicitly handled by the caller.
+   */
+  @Nonnull
+  public <SNAPSHOT extends RecordTemplate> List<SNAPSHOT> findEntitiesV2(@Nonnull Class<SNAPSHOT> snapshotClass,
+      @Nonnull LocalRelationshipFilter filter, int offset, int count) throws OperationNotSupportedException {
+    return findEntitiesCore(snapshotClass, filter, offset, count, true);
   }
 
   /**
@@ -449,18 +474,15 @@ public class EbeanLocalRelationshipQueryDAO {
     return SQLSchemaUtils.getTableName(entityType);
   }
 
-  /**
-   * Validate:
-   * 1. The entity filter only contains supported conditions.
-   * 2. if the entity class is null, then the filter should be empty.
-   * If any of above is violated, throw an IllegalArgumentException.
-   */
   private <ENTITY extends RecordTemplate> void validateEntityFilter(@Nonnull LocalRelationshipFilter filter, @Nullable Class<ENTITY> entityClass) {
-    if (entityClass == null && filter.hasCriteria() && filter.getCriteria().size() > 0) {
-      throw new IllegalArgumentException("Entity class is null but filter is not empty.");
-    }
+    validateEntityFilter(filter, entityClass, false);
+  }
 
-    validateFilterCriteria(filter, false);
+  private <ENTITY extends RecordTemplate> void validateEntityFilter(@Nonnull LocalRelationshipFilter filter, @Nullable Class<ENTITY> entityClass,
+      boolean logicalExpressionFilterEnabled) {
+    validateEntityTypeAndFilter(filter,
+        entityClass != null ? ModelUtils.getUrnTypeFromSnapshot(entityClass) : null,
+        logicalExpressionFilterEnabled);
   }
 
   /**
@@ -498,10 +520,10 @@ public class EbeanLocalRelationshipQueryDAO {
 
     if (logicalExpressionFilterEnabled && filter.hasCriteria()) {
         throw new IllegalArgumentException(
-            "Please do not use the 'criteria' field and use the 'logicalExpressionCriteria' field instead for findRelationshipsV4 API.");
+            "Please do not use the 'criteria' field and use the 'logicalExpressionCriteria' field instead for this API.");
     } else if (!logicalExpressionFilterEnabled && filter.hasLogicalExpressionCriteria()) {
         throw new IllegalArgumentException(
-            "Please do not use the 'logicalExpressionCriteria' field and use the 'criteria' field instead for findRelationshipsV2/V3 API.");
+            "Please do not use the 'logicalExpressionCriteria' field and use the 'criteria' field instead for this API.");
     }
   }
 
