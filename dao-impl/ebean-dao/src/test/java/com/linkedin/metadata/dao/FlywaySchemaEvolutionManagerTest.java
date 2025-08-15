@@ -18,8 +18,6 @@ public class FlywaySchemaEvolutionManagerTest {
   private FlywaySchemaEvolutionManager _schemaEvolutionManager;
   private EbeanServer _server;
 
-  private static final String EBEAN_SERVER_CONFIG = "EbeanServerConfig";
-
   @BeforeClass
   public void init() throws IOException {
     _server = EmbeddedMariaInstance.getServer(FlywaySchemaEvolutionManagerTest.class.getSimpleName());
@@ -29,7 +27,7 @@ public class FlywaySchemaEvolutionManagerTest {
         EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()).getDataSourceConfig().getUrl(),
         EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()).getDataSourceConfig().getPassword(),
         EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()).getDataSourceConfig().getUsername(),
-        extractServiceIdentifier()
+        EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()).getDataSourceConfig().getCustomProperties().get("SERVICE_IDENTIFIER")
     );
 
     _schemaEvolutionManager = new FlywaySchemaEvolutionManager(config);
@@ -59,7 +57,7 @@ public class FlywaySchemaEvolutionManagerTest {
 
   private boolean checkTableExists(String tableName) {
     String checkTableExistsSql = String.format("SELECT count(*) as count FROM information_schema.TABLES WHERE TABLE_SCHEMA = '%s' AND"
-        + " TABLE_NAME = '%s'", getDatabaseName(), tableName);
+        + " TABLE_NAME = '%s'", _server.getName(), tableName);
 
     return _server.createSqlQuery(checkTableExistsSql).findOne().getInteger("count") == 1;
   }
@@ -100,24 +98,5 @@ public class FlywaySchemaEvolutionManagerTest {
     databaseUrl = "jdbc:mysql://example.linkedin.com:1234/my_first_db?autoReconnect=true&useSSL=false";
     SchemaEvolutionManager.Config config4 = new SchemaEvolutionManager.Config(databaseUrl, "pw", "user", "case4");
     assertEquals(method.invoke(_schemaEvolutionManager, config4), "my_first_db");
-  }
-
-
-  private String extractServiceIdentifier() {
-    String serverName = _server.getName();
-    return serverName.substring(0, serverName.indexOf(EBEAN_SERVER_CONFIG));
-  }
-
-  /**
-   * Return the database name associated with the given Ebean server.
-   * @return the database name
-   */
-  private String getDatabaseName() {
-    String name = _server.getName();
-    if (name != null && name.endsWith(EBEAN_SERVER_CONFIG)) {
-      return name.substring(0, name.length() - EBEAN_SERVER_CONFIG.length());
-    } else {
-      throw new IllegalStateException("Server name does not end with '" + EBEAN_SERVER_CONFIG + "': " + name);
-    }
   }
 }
