@@ -1,5 +1,7 @@
 namespace com.linkedin.metadata.events
 
+import pegasus.com.linkedin.metadata.events.SubmissionType
+
 /**
  * Descriptor for the ingestion tracking context. To represent the lifecycle of the trackable ingestion item.
  */
@@ -19,4 +21,9 @@ record IngestionTrackingContext includes BaseTrackingContext {
    * Whether this event is a re-emitted event for backfilling purposes
    */
   backfill: boolean = false
+
+  /**
+  * Source environment of the ingestion event
+  */
+  submissionType: optional SubmissionType
 }

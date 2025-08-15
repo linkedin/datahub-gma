@@ -1,0 +1,12 @@
+namespace pegasus.com.linkedin.metadata.events
+
+/**
+ * *
+ * * Type of submission - Nearline or Online or Offline
+ */
+enum SubmissionType {
+  UNKNOWN
+  NEARLINE
+  ONLINE
+  OFFLINE
+}
