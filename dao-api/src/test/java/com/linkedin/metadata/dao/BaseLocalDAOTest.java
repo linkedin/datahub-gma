@@ -27,6 +27,9 @@ import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.BarUrnArray;
 import com.linkedin.testing.EntityAspectUnion;
+import com.linkedin.testing.MixedRecord;
+import com.linkedin.testing.MixedRecordArray;
+import com.linkedin.testing.MixedRecordNested;
 import com.linkedin.testing.localrelationship.AspectFooBar;
 import com.linkedin.testing.urn.BarUrn;
 import com.linkedin.testing.urn.FooUrn;
@@ -51,6 +54,7 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import static com.linkedin.common.AuditStamps.*;
+import static com.linkedin.metadata.dao.BaseLocalDAO.*;
 import static org.mockito.Mockito.*;
 import static org.testng.Assert.*;
 
@@ -701,6 +705,30 @@ public class BaseLocalDAOTest {
     BaseLocalDAO.AspectUpdateResult result = _dummyLocalDAO.aspectCallbackHelper(urn, foo, Optional.empty(), null, null);
     AspectFoo newAspect = (AspectFoo) result.getUpdatedAspect();
     assertEquals(newAspect, bar);
+  }
+
+  @Test
+  public void testValidateAgainstSchemaAndFillInDefault() {
+    // Setup test data
+    MixedRecord mixedRecord = new MixedRecord().setValue("testValue");
+    MixedRecordArray mixedRecordArray = new MixedRecordArray();
+    mixedRecordArray.add(mixedRecord);
+    MixedRecordNested nestedRecord = new MixedRecordNested().setRecordArray(mixedRecordArray);
+    validateAgainstSchemaAndFillinDefault(nestedRecord);
+    MixedRecord retrieved = nestedRecord.getRecordArray().get(0);
+    assertNotNull(retrieved.getDefaultField());
+    assertEquals(retrieved.getDefaultField(), "defaultVal");
+  }
+
+  @Test
+  public void testValidateAgainstSchemaAndFillInDefaultWithOptional() {
+    // Set up test data
+    MixedRecord mixedRecordWithOptional = new MixedRecord().setValue("testValue");
+    MixedRecordArray mixedRecordArray = new MixedRecordArray();
+    mixedRecordArray.add(mixedRecordWithOptional);
+    MixedRecordNested mixedRecordNested = new MixedRecordNested().setRecordArray(mixedRecordArray);
+    validateAgainstSchemaAndFillinDefault(mixedRecordNested);
+    assertFalse(mixedRecordNested.toString().contains("optionalDefaultField"));
   }
 
   @Test

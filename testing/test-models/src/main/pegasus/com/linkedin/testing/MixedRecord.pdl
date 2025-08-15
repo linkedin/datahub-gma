@@ -84,4 +84,9 @@ record MixedRecord {
    * For unit tests
    */
   recordUnionAlias: optional EntityAspectUnionAlias
+
+  /**
+   * For unit tests
+   */
+  optionalDefaultField: optional string = "defaultVal"
 }
