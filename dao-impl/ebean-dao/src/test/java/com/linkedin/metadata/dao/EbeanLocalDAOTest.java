@@ -115,8 +115,9 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Factory;
 import org.testng.annotations.Test;
-import pegasus.com.linkedin.metadata.events.IngestionAspectETag;
-import pegasus.com.linkedin.metadata.events.IngestionAspectETagArray;
+import pegasus.com.linkedin.metadata.aspect.AspectMetadata;
+import pegasus.com.linkedin.metadata.aspect.AspectMetadataArray;
+import pegasus.com.linkedin.metadata.aspect.RequestMetadata;
 
 import static com.linkedin.common.AuditStamps.*;
 import static com.linkedin.metadata.dao.internal.BaseGraphWriterDAO.RemovalOption.*;
@@ -4191,13 +4192,17 @@ public class EbeanLocalDAOTest {
 
     FooUrn urn = new FooUrn(1);
 
-    IngestionAspectETag ingestionAspectETag = new IngestionAspectETag();
-    ingestionAspectETag.setAspect_alias("aspectFoo");
     long timestamp = 1750796203701L;
-    ingestionAspectETag.setEtag("KsFkRXtjaBGQf37HjdEjDQ==");
+
+    AspectMetadata aspectMetadata = new AspectMetadata();
+    aspectMetadata.setAlias("aspectFoo");
+    aspectMetadata.setEtag("KsFkRXtjaBGQf37HjdEjDQ==");
+
+    RequestMetadata requestMetadata = new RequestMetadata();
+    requestMetadata.setAspect_metadata(new AspectMetadataArray(aspectMetadata));
 
     IngestionParams ingestionParams = new IngestionParams();
-    ingestionParams.setIngestionETags(new IngestionAspectETagArray(ingestionAspectETag));
+    ingestionParams.setRequest_metadata(requestMetadata);
 
     AuditStamp result = dao.extractOptimisticLockForAspectFromIngestionParamsIfPossible(ingestionParams, AspectFoo.class,
         urn);
@@ -4225,12 +4230,15 @@ public class EbeanLocalDAOTest {
 
     FooUrn urn = new FooUrn(1);
 
-    IngestionAspectETag ingestionAspectETag = new IngestionAspectETag();
-    ingestionAspectETag.setAspect_alias("aspectBar");
-    ingestionAspectETag.setEtag("KsFkRXtjaBGQf37HjdEjDQ==");
+    AspectMetadata aspectMetadata = new AspectMetadata();
+    aspectMetadata.setAlias("aspectBar");
+    aspectMetadata.setEtag("KsFkRXtjaBGQf37HjdEjDQ==");
+
+    RequestMetadata requestMetadata = new RequestMetadata();
+    requestMetadata.setAspect_metadata(new AspectMetadataArray(aspectMetadata));
 
     IngestionParams ingestionParams = new IngestionParams();
-    ingestionParams.setIngestionETags(new IngestionAspectETagArray(ingestionAspectETag));
+    ingestionParams.setRequest_metadata(requestMetadata);
 
     AuditStamp result = dao.extractOptimisticLockForAspectFromIngestionParamsIfPossible(ingestionParams, AspectFoo.class,
         urn);
