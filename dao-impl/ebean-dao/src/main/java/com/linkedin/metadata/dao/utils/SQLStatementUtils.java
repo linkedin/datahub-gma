@@ -636,14 +636,14 @@ public class SQLStatementUtils {
    * @param localRelationshipValue the local relationship value
    * @return the parsed string
    */
-  private static String parseLocalRelationshipValue(@Nonnull final LocalRelationshipValue localRelationshipValue) {
+  protected static String parseLocalRelationshipValue(@Nonnull final LocalRelationshipValue localRelationshipValue) {
     if (localRelationshipValue.isArray()) {
       return  "(" + localRelationshipValue.getArray().stream().map(s -> "'" + StringEscapeUtils.escapeSql(s) + "'")
           .collect(Collectors.joining(", ")) + ")";
     }
 
     if (localRelationshipValue.isString()) {
-      return localRelationshipValue.getString();
+      return StringEscapeUtils.escapeSql(localRelationshipValue.getString());
     }
 
     throw new IllegalArgumentException("Unrecognized field value");

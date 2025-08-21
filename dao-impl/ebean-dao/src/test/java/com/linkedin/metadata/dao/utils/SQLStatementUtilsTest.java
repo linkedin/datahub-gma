@@ -27,7 +27,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.javatuples.Pair;
 import org.testng.annotations.BeforeClass;
@@ -166,7 +168,7 @@ public class SQLStatementUtilsTest {
     assertEquals(sql2, expectedSql2);
   }
 
-
+  @Test
   public void testCreateFilterSqlWithArrayContainsCondition() {
     IndexFilter indexFilter = new IndexFilter();
     IndexCriterionArray indexCriterionArray = new IndexCriterionArray();
@@ -855,5 +857,202 @@ public class SQLStatementUtilsTest {
     assertFalse(sql.contains("GROUP BY"), "Should not contain GROUP BY if group-by column is missing");
   }
 
+  @Test
+  public void testParseLocalRelationshipValueSingleQuote() {
+    // Test case: Single quote in URN (the original issue raised in META-22917)
+    LocalRelationshipValue value = new LocalRelationshipValue();
+    value.setString("urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/dsotnt/lix_evaluations/premium_custom_button_acq_convoad_trex_eval_results',PROD)");
+
+    String result = SQLStatementUtils.parseLocalRelationshipValue(value);
+
+    // Single quote should be escaped to two single quotes
+    assertEquals(result, "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/dsotnt/lix_evaluations/premium_custom_button_acq_convoad_trex_eval_results'',PROD)");
+  }
+
+  @Test
+  public void testParseLocalRelationshipValueMultipleQuotes() {
+    // Test case: Multiple single quotes
+    LocalRelationshipValue value = new LocalRelationshipValue();
+    value.setString("urn:li:dataset:(urn:li:dataPlatform:hdfs,/O'Reilly's_\"books\"_data,PROD)");
+
+    String result = SQLStatementUtils.parseLocalRelationshipValue(value);
+
+    // All single quotes should be escaped
+    assertEquals(result, "urn:li:dataset:(urn:li:dataPlatform:hdfs,/O''Reilly''s_\"books\"_data,PROD)");
+  }
+
+  @Test
+  public void testParseLocalRelationshipValueSQLInjectionAttempt() {
+    // Test case: SQL injection attempt with OR 1=1
+    LocalRelationshipValue value = new LocalRelationshipValue();
+    value.setString("urn:li:dataset:(urn:li:dataPlatform:hdfs,/path',PROD) OR '1'='1");
+
+    String result = SQLStatementUtils.parseLocalRelationshipValue(value);
+
+    // The quotes should be escaped, preventing injection
+    assertEquals(result, "urn:li:dataset:(urn:li:dataPlatform:hdfs,/path'',PROD) OR ''1''=''1");
+  }
+
+  @Test
+  public void testParseLocalRelationshipValueBackslashAndQuote() {
+    // Test case: Backslash followed by quote
+    LocalRelationshipValue value = new LocalRelationshipValue();
+    value.setString("urn:li:dataset:(urn:li:dataPlatform:hdfs,/path\\'data,PROD)");
+
+    String result = SQLStatementUtils.parseLocalRelationshipValue(value);
+
+    // Quote escaped, backslash preserved
+    assertEquals(result, "urn:li:dataset:(urn:li:dataPlatform:hdfs,/path\\''data,PROD)");
+  }
+
+  @Test
+  public void testParseLocalRelationshipValueDoubleQuotes() {
+    // Test case: Double quotes (should be preserved as they're not special in single-quoted SQL strings)
+    LocalRelationshipValue value = new LocalRelationshipValue();
+    value.setString("urn:li:dataset:(urn:li:dataPlatform:hdfs,/path/with\"double\"quotes,PROD)");
+
+    String result = SQLStatementUtils.parseLocalRelationshipValue(value);
+
+    // Double quotes should be preserved
+    assertEquals(result, "urn:li:dataset:(urn:li:dataPlatform:hdfs,/path/with\"double\"quotes,PROD)");
+  }
+
+  @Test
+  public void testParseLocalRelationshipValueCommentSequence() {
+    // Test case: SQL comment sequences
+    LocalRelationshipValue value = new LocalRelationshipValue();
+    value.setString("urn:li:dataset:(urn:li:dataPlatform:hdfs,/path--comment/**/data,PROD)");
+
+    String result = SQLStatementUtils.parseLocalRelationshipValue(value);
+
+    // Comment sequences should be preserved as data
+    assertEquals(result, "urn:li:dataset:(urn:li:dataPlatform:hdfs,/path--comment/**/data,PROD)");
+  }
+
+  @Test
+  public void testParseLocalRelationshipValueSemicolon() {
+    // Test case: Semicolon (statement terminator)
+    LocalRelationshipValue value = new LocalRelationshipValue();
+    value.setString("urn:li:dataset:(urn:li:dataPlatform:hdfs,/path;DROP TABLE users;--,PROD)");
+
+    String result = SQLStatementUtils.parseLocalRelationshipValue(value);
+
+    // Semicolons should be preserved as data
+    assertEquals(result, "urn:li:dataset:(urn:li:dataPlatform:hdfs,/path;DROP TABLE users;--,PROD)");
+  }
+
+  @Test
+  public void testParseLocalRelationshipValueNewlinesAndTabs() {
+    // Test case: Newlines and tabs
+    LocalRelationshipValue value = new LocalRelationshipValue();
+    value.setString("urn:li:dataset:(urn:li:dataPlatform:hdfs,/path\nwith\nnewlines\tand\ttabs,PROD)");
+
+    String result = SQLStatementUtils.parseLocalRelationshipValue(value);
+
+    // Control characters should be preserved
+    assertEquals(result, "urn:li:dataset:(urn:li:dataPlatform:hdfs,/path\nwith\nnewlines\tand\ttabs,PROD)");
+  }
+
+  @Test
+  public void testParseLocalRelationshipValueNullByte() {
+    // Test case: Null byte (extremely unlikely in urn's though)
+    LocalRelationshipValue value = new LocalRelationshipValue();
+    value.setString("urn:li:dataset:(urn:li:dataPlatform:hdfs,/path\u0000with_null,PROD)");
+
+    String result = SQLStatementUtils.parseLocalRelationshipValue(value);
+
+    assertNotNull(result);
+    assertEquals(result, "urn:li:dataset:(urn:li:dataPlatform:hdfs,/path\u0000with_null,PROD)");
+  }
+
+  @Test
+  public void testParseLocalRelationshipValueArrayWithSpecialChars() {
+    // Test case: Array values with special characters
+    LocalRelationshipValue value = new LocalRelationshipValue();
+    value.setArray(new StringArray(Arrays.asList(
+        "urn:li:dataset:value1'with'quotes",
+        "urn:li:dataset:value2\\with\\backslash",
+        "urn:li:dataset:value3;with;semicolon"
+    )));
+
+    String result = SQLStatementUtils.parseLocalRelationshipValue(value);
+
+    // Should be formatted as SQL IN clause with all values escaped
+    assertTrue(result.startsWith("("));
+    assertTrue(result.endsWith(")"));
+    assertTrue(result.contains("'urn:li:dataset:value1''with''quotes'"));
+    assertTrue(result.contains(", "));  // Proper separation between values
+  }
+
+  @Test
+  public void testWhereClauseCompleteInjectionScenario() {
+    // Test case: Complete SQL injection scenario through whereClause
+    LocalRelationshipFilter filter = new LocalRelationshipFilter();
+    LocalRelationshipCriterion criterion = new LocalRelationshipCriterion();
+
+    LocalRelationshipCriterion.Field field = new LocalRelationshipCriterion.Field();
+    field.setUrnField(new UrnField().setName("destination"));
+    criterion.setField(field);
+    criterion.setCondition(Condition.EQUAL);
+
+    // Malicious URN attempting SQL injection
+    String maliciousUrn = "urn:li:dataset:(urn:li:dataPlatform:hdfs,/data') OR 1=1 OR destination LIKE '%";
+    LocalRelationshipValue value = new LocalRelationshipValue();
+    value.setString(maliciousUrn);
+    criterion.setValue(value);
+
+    filter.setCriteria(new LocalRelationshipCriterionArray(criterion));
+
+    Map<Condition, String> supportedConditions = new HashMap<>();
+    supportedConditions.put(Condition.EQUAL, "=");
+
+    String whereClause = SQLStatementUtils.whereClause(filter, supportedConditions, "rt", false);
+
+    // Expect all quotes escaped
+    assertEquals(whereClause, "rt.destination='urn:li:dataset:(urn:li:dataPlatform:hdfs,/data'') OR 1=1 OR destination LIKE ''%'");
+  }
+
+  @Test
+  public void testWhereClauseOldSchemaWithSpecialCharacters() {
+    // Test case: Old schema mode with special characters
+    // OLD_SCHEMA builds simpler sql, affects WHERE directly, no complex query with JOINs
+    LocalRelationshipCriterion.Field field = new LocalRelationshipCriterion.Field();
+    field.setUrnField(new UrnField());
+    LocalRelationshipCriterion criterion = new LocalRelationshipCriterion()
+        .setField(field)
+        .setCondition(Condition.EQUAL)
+        .setValue(LocalRelationshipValue.create("urn:li:dataset:test'data"));
+    LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion);
+    LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
+
+    String result = SQLStatementUtils.whereClauseOldSchema(
+        Collections.singletonMap(Condition.EQUAL, "="), filter, "destination");
+
+    // Should escape the quote
+    assertEquals(result, " AND rt.destination = 'urn:li:dataset:test''data'");
+  }
+
+  @Test
+  public void testBuildSQLQueryFromLocalRelationshipCriterionWithInjection() {
+    // Test the complete flow with START_WITH condition
+    LocalRelationshipCriterion.Field field = new LocalRelationshipCriterion.Field();
+    field.setUrnField(new UrnField().setName("destination"));
+
+    LocalRelationshipCriterion criterion = new LocalRelationshipCriterion()
+        .setField(field)
+        .setCondition(Condition.START_WITH)
+        .setValue(LocalRelationshipValue.create("urn:li:dataset:prefix'%"));
+
+    LocalRelationshipFilter filter = new LocalRelationshipFilter()
+        .setCriteria(new LocalRelationshipCriterionArray(criterion));
+
+    Map<Condition, String> supportedConditions = new HashMap<>();
+    supportedConditions.put(Condition.START_WITH, "LIKE");
+
+    String whereClause = SQLStatementUtils.whereClause(filter, supportedConditions, null, false);
+
+    // Should properly escape and add the wildcard
+    assertEquals(whereClause, "destination LIKE 'urn:li:dataset:prefix''%%'");
+  }
 
 }

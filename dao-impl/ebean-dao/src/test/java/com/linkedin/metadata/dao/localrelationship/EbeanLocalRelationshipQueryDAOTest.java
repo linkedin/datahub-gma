@@ -60,6 +60,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.naming.OperationNotSupportedException;
+import javax.persistence.PersistenceException;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
@@ -2109,4 +2110,83 @@ public class EbeanLocalRelationshipQueryDAOTest {
     return srcFilter;
   }
 
+  @Test
+  public void testBuildFindRelationshipSQLWithSingleQuote() {
+    // The bug case raised in META-22917
+    String problematicUrn = "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/dsotnt/lix_evaluations/premium_custom_button_acq_convoad_trex_eval_results',PROD)";
+
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(
+        LocalRelationshipValue.create(problematicUrn),
+        Condition.EQUAL,
+        new UrnField().setName("destination"));
+    LogicalExpressionLocalRelationshipCriterion logicalExpressionCriterion = wrapCriterionAsLogicalExpression(filterCriterion);
+
+    LocalRelationshipFilter filter = new LocalRelationshipFilter()
+        .setLogicalExpressionCriteria(logicalExpressionCriterion)
+        .setDirection(RelationshipDirection.OUTGOING);
+
+    String sql = _localRelationshipQueryDAO.buildFindRelationshipSQL(
+        "metadata_relationship_belongsto",
+        filter,
+        "metadata_entity_foo", null,
+        null, null,
+        -1, -1, new RelationshipLookUpContext());
+
+    // Verify the SQL is valid and the special characters are properly escaped
+    assertNotNull(sql);
+    assertTrue(sql.contains("metadata_relationship_belongsto"));
+    assertTrue(sql.contains("metadata_entity_foo"));
+    // The problematic URN should be properly escaped in the WHERE clause
+    assertTrue(sql.contains("rt.destination="));
+
+    // Most importantly, execute the SQL to ensure it doesn't throw syntax errors
+    try {
+      _server.createSqlQuery(sql).findList();
+    } catch (PersistenceException e) {
+      fail("SQL query with special characters should not throw syntax errors: " + e.getMessage());
+    }
+  }
+
+
+  @Test
+  public void testFindRelationshipsWithSingleQuoteInUrn() throws Exception {
+    // The original bug case raised in META-22917
+    String problematicUrn = "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/dsotnt/lix_evaluations/premium_custom_button_acq_convoad_trex_eval_results',PROD)";
+
+    FooUrn source = new FooUrn(1);
+
+    // Add source entity
+    _fooUrnEBeanLocalAccess.add(source, new AspectFoo().setValue("Source"), AspectFoo.class, new AuditStamp(), null, false);
+
+    // Create relationship with problematic destination URN
+    BelongsToV2 relationship = new BelongsToV2();
+    relationship.setDestination(BelongsToV2.Destination.create(problematicUrn));
+    _localRelationshipWriterDAO.addRelationships(source, AspectFoo.class, Collections.singletonList(relationship), false);
+
+    // Query with the problematic URN
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(
+        LocalRelationshipValue.create(problematicUrn),
+        Condition.EQUAL,
+        new UrnField().setName("destination"));
+    LogicalExpressionLocalRelationshipCriterion logicalExpressionCriterion = wrapCriterionAsLogicalExpression(filterCriterion);
+
+    LocalRelationshipFilter filter = new LocalRelationshipFilter()
+        .setLogicalExpressionCriteria(logicalExpressionCriterion)
+        .setDirection(RelationshipDirection.OUTGOING);
+
+    Map<String, Object> wrapOptions = new HashMap<>();
+    wrapOptions.put(RELATIONSHIP_RETURN_TYPE, MG_INTERNAL_ASSET_RELATIONSHIP_TYPE);
+
+    // This should work without SQL exceptions
+    List<AssetRelationship> results = _localRelationshipQueryDAO.findRelationshipsV4(
+        "foo", null, null, null,  // No destination entity type/filter since it's non-MG
+        BelongsToV2.class,
+        filter,
+        AssetRelationship.class, wrapOptions,
+        -1, -1, new RelationshipLookUpContext());
+
+    // Should find the relationship
+    assertEquals(results.size(), 1);
+    assertEquals(results.get(0).getRelatedTo().getBelongsToV2().getDestination().getString(), problematicUrn);
+  }
 }
