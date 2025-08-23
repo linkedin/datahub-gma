@@ -51,7 +51,7 @@ enum Condition {
   START_WITH
 
   /**
-   * Represent the relation: array field contains string value, e.g. labels{["abc", "def"]} contains "abc"
+   * Represent the relation: array field contains string value, e.g. labels{["abc", "def"]} contains abc
    */
   ARRAY_CONTAINS
 }
