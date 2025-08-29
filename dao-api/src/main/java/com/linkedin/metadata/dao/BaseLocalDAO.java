@@ -69,6 +69,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+import javax.persistence.OptimisticLockException;
 import javax.annotation.Nullable;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -503,6 +504,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nonnull AuditStamp auditStamp, @Nonnull EqualityTester<ASPECT> equalityTester,
       @Nullable IngestionTrackingContext trackingContext, @Nonnull IngestionParams ingestionParams) {
 
+    // ye main function h
     final ASPECT oldValue = latest.getAspect() == null ? null : latest.getAspect();
     final AuditStamp oldAuditStamp = latest.getExtraInfo() == null ? null : latest.getExtraInfo().getAudit();
     final Long oldEmitTime = latest.getExtraInfo() == null ? null : latest.getExtraInfo().getEmitTime();
@@ -543,11 +545,15 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       }
     }
 
+    // yaha p existing row se timestamp aaya hamare paas
+    //
     final AuditStamp optimisticLockAuditStamp = extractOptimisticLockForAspectFromIngestionParamsIfPossible(ingestionParams, aspectClass, urn);
 
     // Logic determines whether an update to aspect should be persisted.
+    // ye banda galat h i feel
     if (!shouldUpdateAspect(ingestionParams.getIngestionMode(), urn, oldValue, newValue, aspectClass, auditStamp, equalityTester,
         oldAuditStamp, optimisticLockAuditStamp)) {
+      //      throw new IllegalArgumentException("Should not update aspect");
       return new AddResult<>(oldValue, oldValue, aspectClass);
     }
 
@@ -810,6 +816,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     }
 
     // return the new value for updates and the old value for deletions
+    // yaha se hamare liye to new value hi return hogi
     return isDeletion ? oldValue : newValue;
   }
 
@@ -868,6 +875,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp,
       int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext, @Nonnull IngestionParams ingestionParams) {
+    // AspectUpdateLambda -> aspect class, updateLambda returns new value, ingestionmode -> live
     return add(urn, new AspectUpdateLambda<>(aspectClass, updateLambda, ingestionParams), auditStamp, maxTransactionRetry, trackingContext);
   }
 
@@ -925,6 +933,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     // default test mode is false being set in
     // {@link #rawAdd(Urn, RecordTemplate, AuditStamp, IngestionTrackingContext, IngestionParams)}}
+    // yaha p retry limit reach nahi hogi kuki hum result return kar dete h same same
     final AddResult<ASPECT> result =
         runInTransactionWithRetry(() -> aspectUpdateHelper(urn, updateLambda, auditStamp, trackingContext, isRawUpdate),
             maxTransactionRetry);
@@ -1187,6 +1196,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull Function<Optional<ASPECT>, ASPECT> updateLambda, @Nonnull AuditStamp auditStamp,
       @Nullable IngestionTrackingContext trackingContext, @Nonnull IngestionParams ingestionParams) {
+    // updateLambda returns newValue
     return add(urn, aspectClass, updateLambda, auditStamp, DEFAULT_MAX_TRANSACTION_RETRY, trackingContext, ingestionParams);
   }
 
@@ -1222,6 +1232,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, @Nonnull ASPECT newValue,
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext,
       @Nullable IngestionParams ingestionParams) {
+    // starting point
     IngestionParams nonNullIngestionParams = ingestionParams == null
         ? new IngestionParams().setIngestionMode(IngestionMode.LIVE) : ingestionParams;
     final IngestionParams nonNullIngestionParamsWithTestMode = !nonNullIngestionParams.hasTestMode()
@@ -2016,8 +2027,13 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     AspectIngestionAnnotation annotation = findIngestionAnnotationForEntity(ingestionAnnotations, urn);
     Mode mode = annotation == null || !annotation.hasMode() ? Mode.DEFAULT : annotation.getMode();
 
+    boolean isOutdatedEtag = aspectTimestampSkipWrite(eTagAuditStamp, oldValueAuditStamp);
+    if (isOutdatedEtag) {
+      throw new OptimisticLockException("Outdated Etag Exception");
+      //      throw new OutdatedEtagException("Outdated Etag Exception");
+    }
     final boolean shouldSkipBasedOnValueVersionAuditStamp =
-        oldAndNewEqual || aspectVersionSkipWrite(newValue, oldValue) || aspectTimestampSkipWrite(eTagAuditStamp, oldValueAuditStamp);
+        oldAndNewEqual || aspectVersionSkipWrite(newValue, oldValue) || isOutdatedEtag;
 
     // Skip saving for the following scenarios
     if (mode != Mode.FORCE_UPDATE

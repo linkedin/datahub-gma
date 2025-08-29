@@ -19,14 +19,13 @@ import com.linkedin.metadata.query.LocalRelationshipCriterion;
 import com.linkedin.metadata.query.LocalRelationshipValue;
 import com.linkedin.metadata.query.RelationshipField;
 import com.linkedin.metadata.query.UrnField;
-import io.ebean.EbeanServer;
 import io.ebean.SqlRow;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URISyntaxException;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -209,7 +208,12 @@ public class EBeanDAOUtils {
         EbeanMetadataAspect.PrimaryKey primaryKey = new EbeanMetadataAspect.PrimaryKey(urn, auditedAspect.getCanonicalName(), LATEST_VERSION);
         ebeanMetadataAspect.setKey(primaryKey);
         ebeanMetadataAspect.setCreatedBy(auditedAspect.getLastmodifiedby());
-        ebeanMetadataAspect.setCreatedOn(Timestamp.valueOf(auditedAspect.getLastmodifiedon()));
+
+        String tsString = auditedAspect.getLastmodifiedon();
+        LocalDateTime ldt = LocalDateTime.parse(
+            tsString, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS"));
+        ebeanMetadataAspect.setCreatedOn(Timestamp.from(ldt.toInstant(ZoneOffset.UTC)));
+
         ebeanMetadataAspect.setCreatedFor(auditedAspect.getCreatedfor());
         ebeanMetadataAspect.setMetadata(extractAspectJsonString(sqlRow.getString(columnName)));
         return ebeanMetadataAspect;
@@ -259,14 +263,24 @@ public class EBeanDAOUtils {
     if (isSoftDeletedAspect(sqlRow, columnName)) {
       primaryKey = new EbeanMetadataAspect.PrimaryKey(urn, aspectClass.getCanonicalName(), LATEST_VERSION);
       ebeanMetadataAspect.setCreatedBy(sqlRow.getString("lastmodifiedby"));
-      ebeanMetadataAspect.setCreatedOn(sqlRow.getTimestamp("lastmodifiedon"));
+
+      String tsString = sqlRow.getString("lastmodifiedon"); // get as string
+      LocalDateTime ldt = LocalDateTime.parse(
+          tsString, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS"));
+      ebeanMetadataAspect.setCreatedOn(Timestamp.from(ldt.toInstant(ZoneOffset.UTC)));
+
       ebeanMetadataAspect.setCreatedFor(sqlRow.getString("createdfor"));
       ebeanMetadataAspect.setMetadata(DELETED_VALUE);
     } else {
       AuditedAspect auditedAspect = RecordUtils.toRecordTemplate(AuditedAspect.class, sqlRow.getString(columnName));
       primaryKey = new EbeanMetadataAspect.PrimaryKey(urn, auditedAspect.getCanonicalName(), LATEST_VERSION);
       ebeanMetadataAspect.setCreatedBy(auditedAspect.getLastmodifiedby());
-      ebeanMetadataAspect.setCreatedOn(Timestamp.valueOf(auditedAspect.getLastmodifiedon()));
+
+      String tsString = auditedAspect.getLastmodifiedon();
+      LocalDateTime ldt = LocalDateTime.parse(
+          tsString, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS"));
+      ebeanMetadataAspect.setCreatedOn(Timestamp.from(ldt.toInstant(ZoneOffset.UTC)));
+
       ebeanMetadataAspect.setCreatedFor(auditedAspect.getCreatedfor());
       ebeanMetadataAspect.setEmitTime(auditedAspect.getEmitTime());
       ebeanMetadataAspect.setEmitter(auditedAspect.getEmitter());
@@ -314,42 +328,6 @@ public class EBeanDAOUtils {
 
   private static final String GET_LATEST_SQL =
       "SELECT * FROM metadata_aspect WHERE urn = ? and aspect = ? and version = 0";
-
-  /**
-   * Test method to find {@link EbeanMetadataAspect} with JDBC implementation.
-   * @param urn urn of the queried entity
-   * @param aspectName aspect name in canonical form
-   * @param server Ebean server
-   * @param key primary key {@link com.linkedin.metadata.dao.EbeanMetadataAspect.PrimaryKey}
-   * @return {@link EbeanMetadataAspect}
-   */
-  public static EbeanMetadataAspect getWithJdbc(@Nonnull final String urn, @Nonnull final String aspectName,
-      @Nonnull final EbeanServer server, @Nonnull EbeanMetadataAspect.PrimaryKey key) {
-
-    EbeanMetadataAspect aspect = null;
-    if (server.getPluginApi() == null) {
-      log.warn("cannot get pluginApi from ebean server, {}", server);
-      return null;
-    }
-    try (Connection connection = server.getPluginApi().getDataSource().getConnection();
-        PreparedStatement preparedStatement = connection.prepareStatement(GET_LATEST_SQL);) {
-      preparedStatement.setString(1, urn);
-      preparedStatement.setString(2, aspectName);
-      try (ResultSet resultSet = preparedStatement.executeQuery()) {
-        if (resultSet.next()) {
-          aspect = new EbeanMetadataAspect();
-          aspect.setMetadata(resultSet.getString("metadata"));
-          aspect.setCreatedBy(resultSet.getString("createdBy"));
-          aspect.setCreatedOn(resultSet.getTimestamp("createdOn"));
-          aspect.setCreatedFor(resultSet.getString("createdFor"));
-          aspect.setKey(key);
-        }
-      }
-    } catch (Exception throwables) {
-      log.error("Failed with JDBC extraction: {}", throwables.toString());
-    }
-    return aspect;
-  }
 
   /**
    * Helper function to create LocalRelationshipCriterion with different types of field.

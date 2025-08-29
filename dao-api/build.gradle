@@ -11,6 +11,7 @@ dependencies {
   compile externalDependency.commonsLang
   implementation 'com.google.protobuf:protobuf-java:3.21.1'
   implementation spec.product.pegasus.restliServer
+  compileOnly 'javax.persistence:javax.persistence-api:2.2'
   dataModel project(':core-models')
   dataModel project(':validators')
 

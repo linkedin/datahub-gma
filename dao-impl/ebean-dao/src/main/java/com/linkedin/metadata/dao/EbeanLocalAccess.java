@@ -46,13 +46,16 @@ import javax.annotation.Nullable;
 import javax.persistence.PersistenceException;
 import lombok.extern.slf4j.Slf4j;
 import org.json.simple.JSONObject;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.time.LocalDateTime;
 
 import static com.linkedin.metadata.dao.EbeanLocalDAO.*;
 import static com.linkedin.metadata.dao.utils.EBeanDAOUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLIndexFilterUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLSchemaUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLStatementUtils.*;
-
 
 /**
  * EBeanLocalAccess provides model agnostic data access (read / write) to MySQL database.
@@ -127,8 +130,12 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     } else {
       sqlUpdate = _server.createSqlUpdate(SQLStatementUtils.createAspectUpsertSql(urn, aspectClass, urnExtraction, isTestMode));
     }
+
+    String utcTimestamp = Instant.ofEpochMilli(timestamp)
+        .atZone(ZoneOffset.UTC)
+        .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS"));
     sqlUpdate.setParameter("urn", urn.toString())
-        .setParameter("lastmodifiedon", new Timestamp(timestamp).toString())
+        .setParameter("lastmodifiedon", utcTimestamp)
         .setParameter("lastmodifiedby", actor);
 
     // If a non-default UrnPathExtractor is provided, the user MUST specify in their schema generation scripts
@@ -146,7 +153,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
         .setAspect(RecordUtils.toJsonString(newValue))
         .setCanonicalName(aspectClass.getCanonicalName())
         .setLastmodifiedby(actor)
-        .setLastmodifiedon(new Timestamp(timestamp).toString())
+        .setLastmodifiedon(utcTimestamp)
         .setCreatedfor(impersonator, SetMode.IGNORE_NULL);
     if (ingestionTrackingContext != null) {
       auditedAspect.setEmitTime(ingestionTrackingContext.getEmitTime(), SetMode.IGNORE_NULL);
@@ -248,13 +255,16 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
     sqlUpdate = _server.createSqlUpdate(insertStatement);
 
+    String utcTimestamp = Instant.ofEpochMilli(timestamp)
+        .atZone(ZoneOffset.UTC)
+        .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS"));
     // Set parameters for each aspect value
     for (int i = 0; i < aspectValues.size(); i++) {
       AuditedAspect auditedAspect = new AuditedAspect()
           .setAspect(RecordUtils.toJsonString(aspectValues.get(i)))
           .setCanonicalName(aspectCreateLambdas.get(i).getAspectClass().getCanonicalName())
           .setLastmodifiedby(actor)
-          .setLastmodifiedon(new Timestamp(timestamp).toString())
+          .setLastmodifiedon(utcTimestamp)
           .setCreatedfor(impersonator, SetMode.IGNORE_NULL);
       if (ingestionTrackingContext != null) {
         auditedAspect.setEmitTime(ingestionTrackingContext.getEmitTime(), SetMode.IGNORE_NULL);
@@ -270,7 +280,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       sqlUpdate.setParameter("a_urn", toJsonString(urn));
     }
     sqlUpdate.setParameter("urn", urn.toString())
-        .setParameter("lastmodifiedon", new Timestamp(timestamp).toString())
+        .setParameter("lastmodifiedon", utcTimestamp)
         .setParameter("lastmodifiedby", actor);
 
     return sqlUpdate.execute();
@@ -399,9 +409,13 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
         final ASPECT aspect = RecordUtils.toRecordTemplate(aspectClass,
             extractAspectJsonString(sqlRow.getString(getAspectColumnName(urn.getEntityType(), aspectClass))));
         final ListResultMetadata listResultMetadata = new ListResultMetadata().setExtraInfos(new ExtraInfoArray());
+        String tsString = sqlRow.getString("lastmodifiedon");
+        LocalDateTime ldt = LocalDateTime.parse(
+            tsString, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS"));
+        Timestamp utcTimeStamp = Timestamp.from(ldt.toInstant(ZoneOffset.UTC));
         final ExtraInfo extraInfo = new ExtraInfo().setUrn(urn)
             .setVersion(LATEST_VERSION)
-            .setAudit(makeAuditStamp(sqlRow.getTimestamp("lastmodifiedon"), sqlRow.getString("lastmodifiedby"),
+            .setAudit(makeAuditStamp(utcTimeStamp, sqlRow.getString("lastmodifiedby"),
                 sqlRow.getString("createdfor")));
         listResultMetadata.getExtraInfos().add(extraInfo);
         return toListResult(Collections.singletonList(aspect), Collections.singletonList(sqlRow), listResultMetadata,
@@ -427,9 +441,13 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     }
     final ListResultMetadata listResultMetadata = new ListResultMetadata().setExtraInfos(new ExtraInfoArray());
     final List<ASPECT> aspectList = sqlRows.stream().map(sqlRow -> {
+      String tsString = sqlRow.getString("lastmodifiedon");
+      LocalDateTime ldt = LocalDateTime.parse(
+          tsString, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS"));
+      Timestamp utcTimeStamp = Timestamp.from(ldt.toInstant(ZoneOffset.UTC));
       final ExtraInfo extraInfo = new ExtraInfo().setUrn(getUrn(sqlRow.getString("urn"), _urnClass))
           .setVersion(LATEST_VERSION).setAudit(
-              makeAuditStamp(sqlRow.getTimestamp("lastmodifiedon"), sqlRow.getString("lastmodifiedby"),
+              makeAuditStamp(utcTimeStamp, sqlRow.getString("lastmodifiedby"),
                   sqlRow.getString("createdfor")));
       listResultMetadata.getExtraInfos().add(extraInfo);
       return RecordUtils.toRecordTemplate(aspectClass,
@@ -664,7 +682,11 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
         ebeanMetadataAspect.setMetadata(resultSet.getString("metadata"));
         ebeanMetadataAspect.setCreatedFor(resultSet.getString("createdFor"));
         ebeanMetadataAspect.setCreatedBy(resultSet.getString("createdBy"));
-        ebeanMetadataAspect.setCreatedOn(resultSet.getTimestamp("createdOn"));
+
+        String tsString = resultSet.getString("createdOn"); // e.g., "2025-08-29 04:01:28"
+        LocalDateTime ldt = LocalDateTime.parse(tsString, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        Timestamp utcTimestamp = Timestamp.from(ldt.toInstant(ZoneOffset.UTC));
+        ebeanMetadataAspect.setCreatedOn(utcTimestamp);
         return ebeanMetadataAspect;
       } else {
         // return null if there is no such a record in the Database

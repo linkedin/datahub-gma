@@ -922,6 +922,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         // DUAL WRITE: 1) update aspect table, 2) update entity table.
         // Note: when cold-archive is enabled, this method: updateWithOptimisticLocking will not be called.
         _server.execute(oldSchemaSqlUpdate);
+        // yaha se number of rows return hoti h
         return _localAccess.addWithOptimisticLocking(urn, (ASPECT) value, aspectClass, newAuditStamp, oldTimestamp,
             trackingContext, isTestMode, true);
       }, 1);
@@ -940,6 +941,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
     // If there is no single updated row, emit OptimisticLockException
     if (numOfUpdatedRows != 1) {
+      // nice ye hi directly use kar sakta hu m
       throw new OptimisticLockException(
           String.format("%s rows updated during update on update: %s.", numOfUpdatedRows, aspect));
     }
