@@ -1,0 +1,18 @@
+namespace pegasus.com.linkedin.metadata.aspect
+
+/**
+ * *
+ * Metadata associated with an aspect
+ */
+record AspectMetadata {
+
+  /**
+   * aspect alias name
+   */
+  alias: optional string = ""
+
+  /**
+   * used for optimistic locking in update API
+   */
+  etag: optional string = ""
+}

@@ -68,8 +68,8 @@ import javax.persistence.RollbackException;
 import javax.persistence.Table;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
-import pegasus.com.linkedin.metadata.events.IngestionAspectETag;
-import pegasus.com.linkedin.metadata.events.IngestionAspectETagArray;
+import pegasus.com.linkedin.metadata.aspect.AspectMetadata;
+import pegasus.com.linkedin.metadata.aspect.RequestMetadata;
 
 import static com.linkedin.metadata.dao.EbeanLocalAccess.*;
 import static com.linkedin.metadata.dao.EbeanMetadataAspect.*;
@@ -606,10 +606,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
     AuditStamp optimisticLockAuditStamp = null;
 
-    final IngestionAspectETagArray ingestionAspectETags = ingestionParams.getIngestionETags();
+    final RequestMetadata requestMetadata = ingestionParams.getRequest_metadata();
 
-    if (ingestionAspectETags != null) {
-      for (IngestionAspectETag ingestionAspectETag: ingestionAspectETags) {
+    if (requestMetadata != null && requestMetadata.getAspect_metadata() != null) {
+      for (AspectMetadata aspectMetadata: requestMetadata.getAspect_metadata()) {
 
         final String aspectAlias;
 
@@ -619,8 +619,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
           continue;
         }
 
-        if (aspectAlias != null && aspectAlias.equalsIgnoreCase(ingestionAspectETag.getAspect_alias())) {
-          Long decryptedETag = getDecryptedETag(ingestionAspectETag);
+        if (aspectAlias != null && aspectAlias.equalsIgnoreCase(aspectMetadata.getAlias())) {
+          Long decryptedETag = getDecryptedETag(aspectMetadata);
           if (decryptedETag != null) {
             optimisticLockAuditStamp = new AuditStamp();
             optimisticLockAuditStamp.setTime(decryptedETag);
@@ -636,12 +636,12 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * When eTag is null, it means this is a regular ingestion request, no read-modify-write consistency guarantee.
    */
   @Nullable
-  private Long getDecryptedETag(@Nonnull IngestionAspectETag ingestionAspectETag) {
+  private Long getDecryptedETag(@Nonnull AspectMetadata aspectMetadata) {
     try {
-      if (ingestionAspectETag.getEtag() == null) {
+      if (aspectMetadata.getEtag() == null) {
         return null;
       }
-      return ETagUtils.decrypt(ingestionAspectETag.getEtag());
+      return ETagUtils.decrypt(aspectMetadata.getEtag());
     } catch (Exception e) {
       return null;
     }
