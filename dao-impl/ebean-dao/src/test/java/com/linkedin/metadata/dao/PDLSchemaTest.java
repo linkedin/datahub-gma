@@ -16,6 +16,7 @@ public class PDLSchemaTest {
   /**
    * This test checks that all PDL models defined in this repo have valid comments which can be compiled by python libs.
    * Refer to #incident-6877 or ACTIONITEM-9287 for more details.
+   * If this test is failing for you, then please check the violating PDL file and make sure all comments do not end with the " character
    * @throws IOException ignored
    */
   @Test
