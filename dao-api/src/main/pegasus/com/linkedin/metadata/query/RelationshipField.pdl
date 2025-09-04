@@ -7,7 +7,7 @@ record RelationshipField {
   name: string = "metadata"
 
   /**
-   * Corresponding path to the indexed column. ex "/dataset/name"
+   * Corresponding path to the indexed column. ex /dataset/name
    */
   path: string
 }
