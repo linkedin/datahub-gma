@@ -27,4 +27,13 @@ enum IngestionMode {
    */
   LIVE_OVERRIDE
 
+  /**
+   * Append one or more items to one or more collections. Only applies to fields present in the new aspect.
+   */
+  APPEND_TO_COLLECTION
+
+  /**
+   * Remove one or more items from one or more collections. Only applies to fields present in the new aspect.
+   */
+  REMOVE_FROM_COLLECTION
 }
