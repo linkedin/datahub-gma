@@ -2,30 +2,37 @@ namespace com.linkedin.metadata.internal
 
 import com.linkedin.metadata.events.IngestionMode
 import com.linkedin.metadata.events.IngestionTrackingContext
+import pegasus.com.linkedin.metadata.events.CollectionIngestionMode
 import pegasus.com.linkedin.metadata.events.IngestionAspectETag
 
 /**
  * Record defining ingestion-related parameters that can be passed into DAO API calls.
  */
 record IngestionParams {
+
   /**
    * Ingestion mode
    */
   ingestionMode: optional IngestionMode
 
   /**
-   * Ingestion tracking context
+   * Ingestion Tracking Context
    */
   ingestionTrackingContext: optional IngestionTrackingContext
 
-  /*
+  /**
    * When testMode is true, the data will be persisted into {entity}_test and {relationship}_test table.
    * For validation purposes. And no MAE will be emitted during the persistance
    */
-  testMode: boolean = false
+  testMode: optional boolean = false
 
   /**
    * eTag for aspect ingestion optimistic locking
    */
   ingestionETags: optional array[IngestionAspectETag] = [ ]
+
+  /**
+   * if specified and the aspect to ingest is a collection, use this mode to determine how to handle the update
+   */
+  collectionIngestionMode: optional CollectionIngestionMode = "UNKNOWN"
 }
