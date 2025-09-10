@@ -2,7 +2,7 @@ namespace com.linkedin.metadata.internal
 
 import com.linkedin.metadata.events.IngestionMode
 import com.linkedin.metadata.events.IngestionTrackingContext
-import pegasus.com.linkedin.metadata.events.CollectionIngestionMode
+import pegasus.com.linkedin.metadata.events.CollectionUpdateBehaviorOverride
 import pegasus.com.linkedin.metadata.events.IngestionAspectETag
 
 /**
@@ -32,7 +32,7 @@ record IngestionParams {
   ingestionETags: optional array[IngestionAspectETag] = [ ]
 
   /**
-   * if specified and the aspect to ingest is a collection, use this mode to determine how to handle the update
+   * Optional parameter which if present, allows users to override the default update behavior when ingesting a collection aspect
    */
-  collectionIngestionMode: optional CollectionIngestionMode = "UNKNOWN"
+  collectionUpdateBehaviorOverride: optional CollectionUpdateBehaviorOverride = "UNKNOWN"
 }
