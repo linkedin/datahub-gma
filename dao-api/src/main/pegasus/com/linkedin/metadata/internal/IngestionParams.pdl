@@ -2,7 +2,7 @@ namespace com.linkedin.metadata.internal
 
 import com.linkedin.metadata.events.IngestionMode
 import com.linkedin.metadata.events.IngestionTrackingContext
-import pegasus.com.linkedin.metadata.events.CollectionUpdateBehaviorOverride
+import pegasus.com.linkedin.metadata.events.CollectionUpdateBehavior
 import pegasus.com.linkedin.metadata.events.IngestionAspectETag
 
 /**
@@ -34,5 +34,5 @@ record IngestionParams {
   /**
    * Optional parameter which if present, allows users to override the default update behavior when ingesting a collection aspect
    */
-  collectionUpdateBehaviorOverride: optional CollectionUpdateBehaviorOverride = "UNKNOWN"
+  collectionUpdateBehavior: optional CollectionUpdateBehavior = "UNKNOWN"
 }

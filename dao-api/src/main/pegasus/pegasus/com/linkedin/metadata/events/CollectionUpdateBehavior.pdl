@@ -1,0 +1,26 @@
+namespace pegasus.com.linkedin.metadata.events
+
+/**
+ * Enum that represents how to process a collection aspect update
+ */
+enum CollectionUpdateBehavior {
+  UNKNOWN
+
+  /**
+   * Default: replace by key. i.e. Keep only elements from the old collection which have different keys than those present in the new collection
+   */
+  REPLACE_BY_KEY
+
+  /**
+   * Replace all values with those from the new aspect. This is essentially like treating
+   * the collection aspect update as any other aspect update, storing only the values from the new aspect.
+   */
+  REPLACE_ALL
+
+  /**
+   * Can only be specified when passed through IngestionParams and cannot defined in the CollectionOptions as a default
+   * update behavior. Delete by key is different than replace by key as it will only remove elements which share the
+   * same key as the new provided aspect, rather than replace.
+   */
+  DELETE_BY_KEY
+}
