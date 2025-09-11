@@ -26,5 +26,4 @@ enum IngestionMode {
    * oldSemanticVer > newSemanticVer)
    */
   LIVE_OVERRIDE
-
 }
