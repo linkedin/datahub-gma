@@ -45,7 +45,7 @@ import static org.testng.AssertJUnit.assertTrue;
 
 /**
  * This class tests have excatly the same content as EbeanLocalAccessTest, except with a different DB server config.
- * It is expected to read default EbeanLocalAccessTest.conf file rather than EbeanLocalAccessTest-EbeanLocalAccessTest.conf.
+ * It is expected to read default EbeanLocalAccessTest.conf file rather than test-EbeanLocalAccessTest.conf.
  */
 
 public class EbeanLocalAccessTestWithoutServiceIdentifier {

@@ -70,7 +70,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   private static final int DEFAULT_PAGE_SIZE = 1000;
   private static final String ASPECT_JSON_PLACEHOLDER = "__PLACEHOLDER__";
   private static final String DEFAULT_ACTOR = "urn:li:principal:UNKNOWN";
-  private static final String EBEAN_SERVER_CONFIG = "EbeanServerConfig";
+  private static final String SERVICE_IDENTIFIER = "SERVICE_IDENTIFIER";
 
   // key: table_name,
   // value: Set(column1, column2, column3 ...)
@@ -623,14 +623,9 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
   @Nonnull
   private SchemaEvolutionManager createSchemaEvolutionManager(@Nonnull ServerConfig serverConfig) {
-
-    String name = serverConfig.getName();
-    String identifier = null;
-
-    if (name != null && name.endsWith(EBEAN_SERVER_CONFIG)) {
-      identifier = name.substring(0, name.length() - EBEAN_SERVER_CONFIG.length());
-    }
-
+    String identifier = serverConfig.getDataSourceConfig().getCustomProperties() != null
+        ? serverConfig.getDataSourceConfig().getCustomProperties().getOrDefault(SERVICE_IDENTIFIER, null)
+        : null;
     SchemaEvolutionManager.Config config = new SchemaEvolutionManager.Config(
         serverConfig.getDataSourceConfig().getUrl(),
         serverConfig.getDataSourceConfig().getPassword(),
