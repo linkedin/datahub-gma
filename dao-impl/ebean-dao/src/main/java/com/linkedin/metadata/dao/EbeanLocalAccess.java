@@ -20,6 +20,7 @@ import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.query.ListResultMetadata;
+import com.zaxxer.hikari.HikariDataSource;
 import io.ebean.EbeanServer;
 import io.ebean.SqlQuery;
 import io.ebean.SqlRow;
@@ -623,19 +624,29 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
   @Nonnull
   private SchemaEvolutionManager createSchemaEvolutionManager(@Nonnull ServerConfig serverConfig) {
-
     String name = serverConfig.getName();
     String identifier = null;
 
     if (name != null && name.endsWith(EBEAN_SERVER_CONFIG)) {
       identifier = name.substring(0, name.length() - EBEAN_SERVER_CONFIG.length());
     }
+    String connectionUrl = null;
+    String username = null;
+    String password = null;
 
-    SchemaEvolutionManager.Config config = new SchemaEvolutionManager.Config(
-        serverConfig.getDataSourceConfig().getUrl(),
-        serverConfig.getDataSourceConfig().getPassword(),
-        serverConfig.getDataSourceConfig().getUsername(),
-        identifier);
+    if (serverConfig.getDataSource() instanceof HikariDataSource) {
+      HikariDataSource dataSource = (HikariDataSource) serverConfig.getDataSource();
+      connectionUrl = dataSource.getJdbcUrl();
+      username = dataSource.getUsername();
+      password = dataSource.getPassword();
+    } else if (serverConfig.getDataSourceConfig() != null) {
+      connectionUrl = serverConfig.getDataSourceConfig().getUrl();
+      username = serverConfig.getDataSourceConfig().getUsername();
+      password = serverConfig.getDataSourceConfig().getPassword();
+    }
+
+    SchemaEvolutionManager.Config config =
+        new SchemaEvolutionManager.Config(connectionUrl, password, username, identifier);
 
     return new FlywaySchemaEvolutionManager(config);
   }
