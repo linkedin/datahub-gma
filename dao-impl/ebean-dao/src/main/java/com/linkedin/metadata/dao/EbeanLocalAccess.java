@@ -335,7 +335,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   @Override
   public List<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       @Nullable URN lastUrn, int pageSize) {
-    SqlQuery sqlQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, lastUrn, pageSize);
+    SqlQuery sqlQuery = createSelectFilterSqlQuery(indexFilter, indexSortCriterion, lastUrn, pageSize);
     final List<SqlRow> sqlRows = sqlQuery.setFirstRow(0).findList();
     return sqlRows.stream().map(sqlRow -> getUrn(sqlRow.getString("urn"), _urnClass)).collect(Collectors.toList());
   }
@@ -369,7 +369,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     }
 
     // 2. Run the paginated URN query for the current page
-    final SqlQuery pageQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, start, pageSize);
+    final SqlQuery pageQuery = createSelectFilterSqlQuery(indexFilter, indexSortCriterion, start, pageSize);
     final List<SqlRow> sqlRows = pageQuery.findList();
 
     // Map the SQL rows to URN objects
@@ -509,10 +509,10 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    * @param pageSize The maximum number of results to return.
    * @return A parametrized SqlQuery for fetching the paginated URNs.
    */
-  private SqlQuery createFilterSqlQuery(@Nullable IndexFilter indexFilter,
+  private SqlQuery createSelectFilterSqlQuery(@Nullable IndexFilter indexFilter,
       @Nullable IndexSortCriterion indexSortCriterion, int offset, int pageSize) {
     String filterSql =
-        SQLStatementUtils.createFilterSql(_entityType, indexFilter, false, _nonDollarVirtualColumnsEnabled, validator)
+        SQLStatementUtils.createSelectFilterSql(_entityType, indexFilter, _nonDollarVirtualColumnsEnabled, validator)
             + "\n" + parseSortCriteria(_entityType, indexSortCriterion, _nonDollarVirtualColumnsEnabled)
             + String.format(" LIMIT %d", Math.max(pageSize, 0)) + String.format(" OFFSET %d", Math.max(offset, 0));
     return _server.createSqlQuery(filterSql);
@@ -528,18 +528,18 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    * @return A parametrized SqlQuery for counting matching rows.
    */
   private SqlQuery createCountSqlQuery(@Nullable IndexFilter indexFilter) {
-    String countSql = SQLStatementUtils.createFilterSql(
-        _entityType, indexFilter, true, _nonDollarVirtualColumnsEnabled, validator);
+    String countSql = SQLStatementUtils.createCountFilterSql(
+        _entityType, indexFilter, _nonDollarVirtualColumnsEnabled, validator);
     return _server.createSqlQuery(countSql);
   }
 
   /**
    * Produce {@link SqlQuery} for list urns by last urn.
    */
-  private SqlQuery createFilterSqlQuery(@Nullable IndexFilter indexFilter,
+  private SqlQuery createSelectFilterSqlQuery(@Nullable IndexFilter indexFilter,
       @Nullable IndexSortCriterion indexSortCriterion, @Nullable URN lastUrn, int pageSize) {
     StringBuilder filterSql = new StringBuilder();
-    filterSql.append(SQLStatementUtils.createFilterSql(_entityType, indexFilter, false, _nonDollarVirtualColumnsEnabled, validator));
+    filterSql.append(SQLStatementUtils.createSelectFilterSql(_entityType, indexFilter, _nonDollarVirtualColumnsEnabled, validator));
 
     if (lastUrn != null) {
       // because createFilterSql will always include a WHERE clause to filter by deleted_ts is NULL

@@ -33,7 +33,6 @@ import static com.linkedin.metadata.dao.utils.LogicalExpressionLocalRelationship
 import static com.linkedin.metadata.dao.utils.SQLIndexFilterUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLSchemaUtils.*;
 
-
 /**
  * SQL statement util class to generate executable SQL query / execution statements.
  */
@@ -151,16 +150,6 @@ public class SQLStatementUtils {
 
   private static final String DELETE_BY_SOURCE_AND_ASPECT = "UPDATE %s SET deleted_ts=NOW() "
       + "WHERE source = :source AND (aspect = :aspect OR aspect = :pegasus_aspect) AND deleted_ts IS NULL";
-
-  /**
-   *  Filter query has pagination params in the existing APIs. To accommodate this, we use subquery to include total result counts in the query response.
-   *  For example, we will build the following filter query statement:
-   *
-   *  <p>SELECT *, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE i_aspectfoo$value >= 25\n"
-   *  AND i_aspectfoo$value < 50 AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL) as _total_count FROM metadata_entity_foo\n"
-   *  WHERE i_aspectfoo$value >= 25 AND i_aspectfoo$value < 50 AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL;
-   */
-  private static final String SQL_FILTER_TEMPLATE = "SELECT *, (%s) as _total_count FROM %s";
 
   private static final String SQL_COUNT_TEMPLATE =
       "SELECT COUNT(urn) AS total_count FROM %s %s";
@@ -403,6 +392,28 @@ public class SQLStatementUtils {
     final String columnName = getAspectColumnName(entityType, aspectClass);
     return String.format(SQL_BROWSE_ASPECT_TEMPLATE, columnName, tableName, tableName, columnName,
         Math.max(pageSize, 0), Math.max(offset, 0));
+  }
+
+  /**
+   * Creates an SQL statement for fetching URNs from an entity table, applying the provided filter.
+   */
+  public static String createSelectFilterSql(String entityType, @Nullable IndexFilter indexFilter, boolean nonDollarVirtualColumnsEnabled,
+      @Nonnull SchemaValidatorUtil schemaValidator) {
+    final String tableName = getTableName(entityType);
+    String whereClause = parseIndexFilter(entityType, indexFilter, nonDollarVirtualColumnsEnabled, schemaValidator);
+    // Build select query
+    return String.format(SQL_SELECT_URN_WHERE_TEMPLATE, tableName, whereClause);
+  }
+
+  /**
+   * Creates an SQL statement for counting rows from an entity table, applying the provided filter.
+   */
+  public static String createCountFilterSql(String entityType, @Nullable IndexFilter indexFilter, boolean nonDollarVirtualColumnsEnabled,
+      @Nonnull SchemaValidatorUtil schemaValidator) {
+    final String tableName = getTableName(entityType);
+    String whereClause = parseIndexFilter(entityType, indexFilter, nonDollarVirtualColumnsEnabled, schemaValidator);
+    // Build count query
+    return String.format(SQL_COUNT_TEMPLATE, tableName, whereClause);
   }
 
   /**
