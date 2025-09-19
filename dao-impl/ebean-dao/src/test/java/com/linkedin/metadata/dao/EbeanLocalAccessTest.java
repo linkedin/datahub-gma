@@ -299,9 +299,13 @@ public class EbeanLocalAccessTest {
     int adjustedCount6 = _ebeanLocalAccessFoo.resolveTotalCount(15, 50, 40, 10);
     assertEquals(adjustedCount6, 55, "Large insertion: Math.max(50, 55) → should expand totalCount");
 
-    // Scenario 7: Request beyond available data (start >= totalCount)
+    // Scenario 7: Request beyond available data with no results (start >= totalCount && valuesSize == 0)
     int adjustedCount7 = _ebeanLocalAccessFoo.resolveTotalCount(0, 3, 4, 2);
-    assertEquals(adjustedCount7, 3, "Beyond available data: start >= totalCount → should preserve totalCount");
+    assertEquals(adjustedCount7, 3, "Beyond available data with no results: start >= totalCount && valuesSize == 0 → should preserve totalCount");
+    
+    // Scenario 8: Insertion race condition at boundary (start >= totalCount but got results)
+    int adjustedCount8 = _ebeanLocalAccessFoo.resolveTotalCount(2, 3, 3, 2);
+    assertEquals(adjustedCount8, 5, "Insertion at boundary: start >= totalCount but valuesSize > 0 → should use Math.max(3, 3+2)");
   }
 
   @Test

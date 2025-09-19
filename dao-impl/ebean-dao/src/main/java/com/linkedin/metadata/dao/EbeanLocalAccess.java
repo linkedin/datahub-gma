@@ -391,8 +391,8 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    * @return Resolved totalCount that accounts for potential concurrent insertions/deletions
    */
   protected int resolveTotalCount(int valuesSize, int totalCount, int start, int pageSize) {
-    // If requesting beyond available data, preserve original totalCount
-    if (start >= totalCount) {
+    // If requesting beyond available data with no results, preserve original totalCount
+    if (start >= totalCount && valuesSize == 0) {
       return totalCount;
     }
     
