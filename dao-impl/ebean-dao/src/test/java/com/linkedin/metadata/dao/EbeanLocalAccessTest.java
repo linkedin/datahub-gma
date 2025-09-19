@@ -298,6 +298,10 @@ public class EbeanLocalAccessTest {
     // Scenario 6: Insertion with larger insertion count
     int adjustedCount6 = _ebeanLocalAccessFoo.resolveTotalCount(15, 50, 40, 10);
     assertEquals(adjustedCount6, 55, "Large insertion: Math.max(50, 55) → should expand totalCount");
+    
+    // Scenario 7: Request beyond available data (start >= totalCount)
+    int adjustedCount7 = _ebeanLocalAccessFoo.resolveTotalCount(0, 3, 4, 2);
+    assertEquals(adjustedCount7, 3, "Beyond available data: start >= totalCount → should preserve totalCount");
   }
 
   @Test
