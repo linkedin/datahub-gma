@@ -377,8 +377,30 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
         sqlRows.stream().map(sqlRow -> getUrn(sqlRow.getString("urn"), _urnClass)).collect(Collectors.toList());
 
     // 3. Build and return the ListResult with values, total count, and pagination metadata
-    // Use max to handle race condition where rows might be inserted between count and data queries
-    return toListResult(values, Math.max(totalCount, values.size()), start, pageSize);
+    int adjustedCount = resolveTotalCount(values.size(), totalCount, start, pageSize);
+    return toListResult(values, adjustedCount, start, pageSize);
+  }
+
+  /**
+   * Resolve totalCount to handle race conditions between count and data queries.
+   * 
+   * @param valuesSize Number of results returned from the data query
+   * @param totalCount Total count from the count query (potentially stale)
+   * @param start Starting offset for pagination
+   * @param pageSize Requested page size
+   * @return Resolved totalCount that accounts for potential concurrent insertions/deletions
+   */
+  protected int resolveTotalCount(int valuesSize, int totalCount, int start, int pageSize) {
+    if (valuesSize < pageSize && start + valuesSize < totalCount) {
+      // Deletion race condition detected: hit end early due to records being deleted between queries
+      // Adjust totalCount to reflect the actual end position
+      return start + valuesSize;
+    } else {
+      // Normal pagination OR insertion race condition:
+      // - Normal case: use original totalCount
+      // - Insertion case: ensure totalCount >= actual results returned to avoid undercount
+      return Math.max(totalCount, start + valuesSize);
+    }
   }
 
   @Override

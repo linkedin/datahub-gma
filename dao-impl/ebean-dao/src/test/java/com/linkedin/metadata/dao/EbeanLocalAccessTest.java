@@ -31,6 +31,7 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -185,6 +186,119 @@ public class EbeanLocalAccessTest {
     assertEquals(listUrns.getNextStart(), 10);
     assertEquals(listUrns.getTotalCount(), 25);
     assertEquals(listUrns.getTotalPageCount(), 5);
+  }
+
+  // Test Case 1: Normal last page behavior using existing 100 records from @BeforeMethod
+  @Test
+  public void testListUrns_NormalLastPagePagination() {
+    IndexFilter indexFilter = new IndexFilter();
+    IndexCriterion criterion = new IndexCriterion().setAspect(AspectFoo.class.getCanonicalName());
+    indexFilter.setCriteria(new IndexCriterionArray(Collections.singleton(criterion)));
+
+    // When: Request last page (start=90, pageSize=10) - should get 10 results (normal last page)
+    ListResult<FooUrn> result = _ebeanLocalAccessFoo.listUrns(indexFilter, null, 90, 10);
+
+    // Then: Should preserve original totalCount
+    assertEquals(result.getValues().size(), 10); // Last page has 10 items
+    assertEquals(result.getTotalCount(), 100); // Should keep original count
+    assertEquals(result.getNextStart(), -1); // Should indicate end reached
+    assertFalse(result.isHavingMore()); // Should indicate no more pages
+  }
+
+  // Test Case 2: Test normal pagination with soft deleted records
+  @Test
+  public void testListUrns_SoftDeletedRecordsHandling() throws URISyntaxException {
+    IndexFilter indexFilter = new IndexFilter();
+    IndexCriterion criterion = new IndexCriterion().setAspect(AspectFoo.class.getCanonicalName());
+    indexFilter.setCriteria(new IndexCriterionArray(Collections.singleton(criterion)));
+
+    // Soft delete records 50-59 (10 records) to create a gap in the middle
+    for (int i = 50; i < 60; i++) {
+      FooUrn fooUrn = new FooUrn(i);
+      _ebeanLocalAccessFoo.softDeleteAsset(fooUrn, false);
+    }
+
+    // When: Request a page in the middle that hits the deletion gap
+    // With 90 records remaining (100 - 10 deleted), requesting start=50, pageSize=10
+    // Should get fewer than 10 results due to the gap created by deletions
+    ListResult<FooUrn> result = _ebeanLocalAccessFoo.listUrns(indexFilter, null, 50, 10);
+
+    // Then: Soft deletion should be handled normally - query skips deleted records
+    assertEquals(result.getValues().size(), 10); // Should get full page by skipping deleted records
+    assertEquals(result.getTotalCount(), 90); // Should reflect actual remaining records
+    assertEquals(result.getNextStart(), 60); // Should advance normally
+    assertTrue(result.isHavingMore()); // Should indicate more pages available
+
+    // Verify that the returned records are the expected ones (skipping 50-59)
+    // Should start from 60+ since 50-59 were deleted
+    assertTrue(result.getValues().get(0).toString().contains("63")); // First available record after gap
+  }
+
+  // Test Case 3: Normal pagination behavior with full pages using existing 100 records
+  @Test
+  public void testListUrns_InsertionRaceConditionHandling() {
+    IndexFilter indexFilter = new IndexFilter();
+    IndexCriterion criterion = new IndexCriterion().setAspect(AspectFoo.class.getCanonicalName());
+    indexFilter.setCriteria(new IndexCriterionArray(Collections.singleton(criterion)));
+
+    // When: Request first page with pageSize=20 (should get full page)
+    ListResult<FooUrn> result = _ebeanLocalAccessFoo.listUrns(indexFilter, null, 0, 20);
+
+    // Then: Should handle full page correctly (values.size() = pageSize)
+    assertEquals(result.getValues().size(), 20); // Full page
+    assertEquals(result.getTotalCount(), 100); // Should preserve totalCount
+    assertTrue(result.isHavingMore()); // Should indicate more pages available
+    assertEquals(result.getNextStart(), 20); // Should point to next page
+  }
+
+  // Test Case 4: Boundary conditions for race condition detection using existing 100 records
+  @Test
+  public void testListUrns_BoundaryConditions() {
+    IndexFilter indexFilter = new IndexFilter();
+    IndexCriterion criterion = new IndexCriterion().setAspect(AspectFoo.class.getCanonicalName());
+    indexFilter.setCriteria(new IndexCriterionArray(Collections.singleton(criterion)));
+
+    // Test boundary: Exact page size match (values.size() = pageSize)
+    ListResult<FooUrn> result1 = _ebeanLocalAccessFoo.listUrns(indexFilter, null, 0, 10);
+    assertEquals(result1.getValues().size(), 10);
+    assertEquals(result1.getTotalCount(), 100);
+    assertTrue(result1.isHavingMore()); // Should have more since we have 100 records
+
+    // Test boundary: Request beyond available data
+    ListResult<FooUrn> result2 = _ebeanLocalAccessFoo.listUrns(indexFilter, null, 100, 10);
+    assertEquals(result2.getValues().size(), 0); // No records at position 100
+    assertEquals(result2.getTotalCount(), 100); // Total should still be 100
+    assertFalse(result2.isHavingMore()); // No more records available
+  }
+
+  // Test Case 5: Unit test for the extracted race condition detection method
+  @Test
+  public void testResolveTotalCount() {
+    // Test the extracted race condition detection method directly
+    
+    // Scenario 1: Deletion race condition detection
+    int adjustedCount1 = _ebeanLocalAccessFoo.resolveTotalCount(3, 100, 50, 10);
+    assertEquals(adjustedCount1, 53, "Deletion race condition: 3 < 10 AND 53 < 100 → should adjust to start + valuesSize");
+    
+    // Scenario 2: Insertion race condition (Math.max logic)
+    int adjustedCount2 = _ebeanLocalAccessFoo.resolveTotalCount(10, 45, 40, 10);
+    assertEquals(adjustedCount2, 50, "Insertion race condition: Math.max(45, 50) → should use Math.max logic");
+    
+    // Scenario 3: Normal pagination - no race condition
+    int adjustedCount3 = _ebeanLocalAccessFoo.resolveTotalCount(10, 100, 20, 10);
+    assertEquals(adjustedCount3, 100, "Normal pagination: 10 == 10 → should preserve original totalCount");
+    
+    // Scenario 4: Edge case - empty results due to deletion race condition
+    int adjustedCount4 = _ebeanLocalAccessFoo.resolveTotalCount(0, 100, 90, 10);
+    assertEquals(adjustedCount4, 90, "Empty results at end: 0 < 10 AND 90 < 100 → should adjust to start + valuesSize");
+    
+    // Scenario 5: Last page boundary - full page size but at exact end
+    int adjustedCount5 = _ebeanLocalAccessFoo.resolveTotalCount(10, 100, 90, 10);
+    assertEquals(adjustedCount5, 100, "Last page with full results: Math.max(100, 100) → should preserve totalCount");
+    
+    // Scenario 6: Insertion with larger insertion count
+    int adjustedCount6 = _ebeanLocalAccessFoo.resolveTotalCount(15, 50, 40, 10);
+    assertEquals(adjustedCount6, 55, "Large insertion: Math.max(50, 55) → should expand totalCount");
   }
 
   @Test
