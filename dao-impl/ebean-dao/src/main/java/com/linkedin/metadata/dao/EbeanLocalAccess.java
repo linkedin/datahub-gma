@@ -72,9 +72,6 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   private static final String DEFAULT_ACTOR = "urn:li:principal:UNKNOWN";
   private static final String EBEAN_SERVER_CONFIG = "EbeanServerConfig";
 
-  // key: table_name,
-  // value: Set(column1, column2, column3 ...)
-  private final Map<String, Set<String>> tableColumns = new ConcurrentHashMap<>();
   private final SchemaValidatorUtil validator;
 
   public EbeanLocalAccess(EbeanServer server, ServerConfig serverConfig, @Nonnull Class<URN> urnClass,
