@@ -53,7 +53,6 @@ import static com.linkedin.metadata.dao.utils.SQLIndexFilterUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLSchemaUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLStatementUtils.*;
 
-
 /**
  * EBeanLocalAccess provides model agnostic data access (read / write) to MySQL database.
  */
@@ -72,6 +71,9 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   private static final String DEFAULT_ACTOR = "urn:li:principal:UNKNOWN";
   private static final String EBEAN_SERVER_CONFIG = "EbeanServerConfig";
 
+  // key: table_name,
+  // value: Set(column1, column2, column3 ...)
+  private final Map<String, Set<String>> tableColumns = new ConcurrentHashMap<>();
   private final SchemaValidatorUtil validator;
 
   public EbeanLocalAccess(EbeanServer server, ServerConfig serverConfig, @Nonnull Class<URN> urnClass,
@@ -338,18 +340,44 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     return sqlRows.stream().map(sqlRow -> getUrn(sqlRow.getString("urn"), _urnClass)).collect(Collectors.toList());
   }
 
+  /**
+   * Retrieves a paginated list of URNs matching the provided filter and sort criteria.
+   * This method performs two queries:
+   * <ul>
+   *   <li>A count query to determine the total number of matching URNs.</li>
+   *   <li>A paginated query to fetch the URNs for the requested page.</li>
+   * </ul>
+   * The results are returned as a {@link ListResult} containing the page of URNs, total count, and pagination metadata.
+   *
+   * @param indexFilter The filter criteria to apply to the URNs (nullable).
+   * @param indexSortCriterion The sort criteria for ordering the URNs (nullable).
+   * @param start The starting offset (zero-based) of the page.
+   * @param pageSize The maximum number of URNs to return in the page.
+   * @return A {@link ListResult} containing the page of URNs, total count, and pagination metadata.
+   */
   @Override
   public ListResult<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       int start, int pageSize) {
-    final SqlQuery sqlQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, start, pageSize);
-    final List<SqlRow> sqlRows = sqlQuery.findList();
-    if (sqlRows.isEmpty()) {
-      final List<SqlRow> totalCountResults = createFilterSqlQuery(indexFilter, indexSortCriterion, 0, DEFAULT_PAGE_SIZE).findList();
-      final int actualTotalCount = totalCountResults.isEmpty() ? 0 : totalCountResults.get(0).getInteger("_total_count");
-      return toListResult(actualTotalCount, start, pageSize);
+    // 1. Run the count query to get total count of matching rows
+    final SqlQuery countQuery = createCountSqlQuery(indexFilter);
+    final SqlRow countRow = countQuery.findOne();
+    final int totalCount = (countRow == null) ? 0 : countRow.getInteger("total_count");
+
+    // If there are no matching rows, return an empty result immediately
+    if (totalCount == 0) {
+      return toListResult(0, start, pageSize);
     }
-    final List<URN> values = sqlRows.stream().map(sqlRow -> getUrn(sqlRow.getString("urn"), _urnClass)).collect(Collectors.toList());
-    return toListResult(values, sqlRows, null, start, pageSize);
+
+    // 2. Run the paginated URN query for the current page
+    final SqlQuery pageQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, start, pageSize);
+    final List<SqlRow> sqlRows = pageQuery.findList();
+
+    // Map the SQL rows to URN objects
+    final List<URN> values =
+        sqlRows.stream().map(sqlRow -> getUrn(sqlRow.getString("urn"), _urnClass)).collect(Collectors.toList());
+
+    // 3. Build and return the ListResult with values, total count, and pagination metadata
+    return toListResult(values, totalCount, start, pageSize);
   }
 
   @Override
@@ -376,7 +404,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     final List<URN> values = sqlRows.stream()
         .map(sqlRow -> getUrn(sqlRow.getString("urn"), _urnClass))
         .collect(Collectors.toList());
-    return toListResult(values, sqlRows, null, start, pageSize);
+    return  toListResult(values, sqlRows, null, start, pageSize);
   }
 
   @Nonnull
@@ -470,20 +498,39 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   }
 
   /**
-   * Produce {@link SqlQuery} for list urn by offset (start) and limit (pageSize).
-   * @param indexFilter index filter conditions
-   * @param indexSortCriterion sorting criterion, default ACS
-   * @return SqlQuery a SQL query which can be executed by ebean server.
+   * Builds a {@link SqlQuery} for fetching a paginated list of URNs matching the provided filter and sort criteria.
+   * Generates a query like:
+   *   SELECT urn FROM table WHERE filters ORDER BY sort LIMIT pageSize OFFSET offset
+   * Uses the provided IndexFilter and IndexSortCriterion to construct the WHERE and ORDER BY clauses.
+   *
+   * @param indexFilter The filter criteria to apply (nullable).
+   * @param indexSortCriterion The sort criteria to apply (nullable).
+   * @param offset The starting offset for pagination.
+   * @param pageSize The maximum number of results to return.
+   * @return A parametrized SqlQuery for fetching the paginated URNs.
    */
   private SqlQuery createFilterSqlQuery(@Nullable IndexFilter indexFilter,
       @Nullable IndexSortCriterion indexSortCriterion, int offset, int pageSize) {
-    StringBuilder filterSql = new StringBuilder();
-    filterSql.append(SQLStatementUtils.createFilterSql(_entityType, indexFilter, true, _nonDollarVirtualColumnsEnabled, validator));
-    filterSql.append("\n");
-    filterSql.append(parseSortCriteria(_entityType, indexSortCriterion, _nonDollarVirtualColumnsEnabled));
-    filterSql.append(String.format(" LIMIT %d", Math.max(pageSize, 0)));
-    filterSql.append(String.format(" OFFSET %d", Math.max(offset, 0)));
-    return _server.createSqlQuery(filterSql.toString());
+    String filterSql =
+        SQLStatementUtils.createFilterSql(_entityType, indexFilter, false, _nonDollarVirtualColumnsEnabled, validator)
+            + "\n" + parseSortCriteria(_entityType, indexSortCriterion, _nonDollarVirtualColumnsEnabled)
+            + String.format(" LIMIT %d", Math.max(pageSize, 0)) + String.format(" OFFSET %d", Math.max(offset, 0));
+    return _server.createSqlQuery(filterSql);
+  }
+
+  /**
+   * Builds a {@link SqlQuery} for counting the number of rows matching the provided filter.
+   * Generates a query like:
+   *   SELECT COUNT(urn) AS total_count FROM table WHERE filters ...
+   * Uses the provided IndexFilter and schema validator to construct the WHERE clause.
+   *
+   * @param indexFilter The filter criteria to apply (nullable).
+   * @return A parametrized SqlQuery for counting matching rows.
+   */
+  private SqlQuery createCountSqlQuery(@Nullable IndexFilter indexFilter) {
+    String countSql = SQLStatementUtils.createFilterSql(
+        _entityType, indexFilter, true, _nonDollarVirtualColumnsEnabled, validator);
+    return _server.createSqlQuery(countSql);
   }
 
   /**
@@ -561,8 +608,8 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    * @return {@link ListResult} which contains paging metadata information
    */
   @Nonnull
-  protected <T> ListResult<T> toListResult(@Nonnull List<T> values, @Nonnull List<SqlRow> sqlRows, @Nullable ListResultMetadata listResultMetadata,
-      int start, int pageSize) {
+  protected <T> ListResult<T> toListResult(@Nonnull List<T> values, @Nonnull List<SqlRow> sqlRows,
+      @Nullable ListResultMetadata listResultMetadata, int start, int pageSize) {
     if (pageSize == 0) {
       pageSize = DEFAULT_PAGE_SIZE;
     }
@@ -591,6 +638,51 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
         .pageSize(pageSize)
         .build();
   }
+
+  /**
+   * Convert values + totalCount into {@link ListResult}.
+   * This is used when totalCount comes from a separate COUNT query,
+   * not from an embedded _total_count in the SqlRow.
+   *
+   * @param values the page of results
+   * @param totalCount the total number of results matching the filter
+   * @param start starting offset
+   * @param pageSize number of rows in this page
+   * @param <T> type of query response
+   * @return {@link ListResult} containing results and pagination metadata
+   */
+  @Nonnull
+  protected <T> ListResult<T> toListResult(@Nonnull List<T> values,
+      int totalCount,
+      int start,
+      int pageSize) {
+    if (pageSize == 0) {
+      pageSize = DEFAULT_PAGE_SIZE;
+    }
+    final int totalPageCount = ceilDiv(totalCount, pageSize);
+
+    boolean hasNext;
+    int nextStart;
+
+    if (start + values.size() < totalCount) {
+      hasNext = true;
+      nextStart = start + values.size();
+    } else {
+      hasNext = false;
+      nextStart = ListResult.INVALID_NEXT_START;
+    }
+
+    return ListResult.<T>builder()
+        .values(values)
+        .metadata(null) // or construct ListResultMetadata if needed
+        .nextStart(nextStart)
+        .havingMore(hasNext)
+        .totalCount(totalCount)
+        .totalPageCount(totalPageCount)
+        .pageSize(pageSize)
+        .build();
+  }
+
 
   /**
    * Given an AuditedAspect object, serialize it into a json string in a format that will be saved in DB.

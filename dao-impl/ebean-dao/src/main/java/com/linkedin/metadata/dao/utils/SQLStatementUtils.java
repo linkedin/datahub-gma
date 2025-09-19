@@ -161,6 +161,13 @@ public class SQLStatementUtils {
    *  WHERE i_aspectfoo$value >= 25 AND i_aspectfoo$value < 50 AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL;
    */
   private static final String SQL_FILTER_TEMPLATE = "SELECT *, (%s) as _total_count FROM %s";
+
+  private static final String SQL_COUNT_TEMPLATE =
+      "SELECT COUNT(urn) AS total_count FROM %s %s";
+
+  private static final String SQL_SELECT_URN_WHERE_TEMPLATE =
+      "SELECT urn FROM %s %s";
+
   private static final String SQL_BROWSE_ASPECT_TEMPLATE =
       String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby, (SELECT COUNT(urn) FROM %%s) as _total_count "
           + "FROM %%s WHERE %s LIMIT %%d OFFSET %%d", SOFT_DELETED_CHECK);
@@ -327,29 +334,31 @@ public class SQLStatementUtils {
   }
 
   /**
-   * Create filter SQL statement.
-   * @param entityType entity type from urn
-   * @param indexFilter index filter
-   * @param hasTotalCount whether to calculate total count in SQL.
-   * @param nonDollarVirtualColumnsEnabled  true if virtual column does not contain $, false otherwise
-   * @return translated SQL where statement
+   * Creates an SQL statement for fetching URNs or counting rows from an entity table, applying the provided filter.
+   * If isCountQuery is true, generates a count query:
+   *   SELECT COUNT(urn) AS total_count FROM table WHERE ...
+   * If isCountQuery is false, generates a URN fetch query:
+   *   SELECT urn FROM table WHERE ...
+   *
+   * @param entityType The entity type (table) to query.
+   * @param indexFilter The filter criteria to apply (can be null).
+   * @param isCountQuery If true, generate a count query; if false, generate a URN fetch query.
+   * @param nonDollarVirtualColumnsEnabled True if virtual columns do not contain '$', false otherwise.
+   * @param schemaValidator Validator to check column existence and schema.
+   * @return The generated SQL query string.
    */
-  public static String createFilterSql(String entityType, @Nullable IndexFilter indexFilter, boolean hasTotalCount, boolean nonDollarVirtualColumnsEnabled,
+  public static String createFilterSql(String entityType, @Nullable IndexFilter indexFilter, boolean isCountQuery, boolean nonDollarVirtualColumnsEnabled,
       @Nonnull SchemaValidatorUtil schemaValidator) {
     final String tableName = getTableName(entityType);
     String whereClause = parseIndexFilter(entityType, indexFilter, nonDollarVirtualColumnsEnabled, schemaValidator);
-    String totalCountSql = String.format("SELECT COUNT(urn) FROM %s %s", tableName, whereClause);
-    StringBuilder sb = new StringBuilder();
 
-    if (hasTotalCount) {
-      sb.append(String.format(SQL_FILTER_TEMPLATE, totalCountSql, tableName));
+    if (isCountQuery) {
+      // Build count query
+      return String.format(SQL_COUNT_TEMPLATE, tableName, whereClause);
     } else {
-      sb.append("SELECT urn FROM ").append(tableName);
+      // Build urn fetch query
+      return String.format(SQL_SELECT_URN_WHERE_TEMPLATE, tableName, whereClause);
     }
-
-    sb.append("\n");
-    sb.append(whereClause);
-    return sb.toString();
   }
 
   /**
