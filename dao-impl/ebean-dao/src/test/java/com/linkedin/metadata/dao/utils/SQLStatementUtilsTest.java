@@ -44,7 +44,9 @@ import static com.linkedin.testing.TestUtils.*;
 import static org.mockito.Mockito.*;
 import static org.testng.Assert.*;
 
-
+/**
+ * Tests for {@link SQLStatementUtils}.
+ */
 public class SQLStatementUtilsTest {
 
   private static SchemaValidatorUtil mockValidator;
@@ -143,29 +145,37 @@ public class SQLStatementUtilsTest {
     indexCriterionArray.add(indexCriterion2);
     indexFilter.setCriteria(indexCriterionArray);
 
-    String sql1 = SQLStatementUtils.createFilterSql("foo", indexFilter, true, false, mockValidator);
-    String expectedSql1 = "SELECT *, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE a_aspectfoo IS NOT NULL\n"
+    // count query with dollar sign
+    String sql1 = SQLStatementUtils.createCountFilterSql("foo", indexFilter, false, mockValidator);
+    String expectedSql1 = "SELECT COUNT(urn) AS total_count FROM metadata_entity_foo WHERE a_aspectfoo IS NOT NULL\n"
         + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo$value >= 25\n"
         + "AND a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
-        + "AND i_aspectfoo$value < 50\n" + "AND deleted_ts IS NULL)" + " as _total_count FROM metadata_entity_foo\n"
-        + "WHERE a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
-        + "AND i_aspectfoo$value >= 25\n" + "AND a_aspectfoo IS NOT NULL\n"
-        + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
         + "AND i_aspectfoo$value < 50\n" + "AND deleted_ts IS NULL";
+    assertEquals(expectedSql1, sql1);
 
-    assertEquals(sql1, expectedSql1);
-
-    String sql2 = SQLStatementUtils.createFilterSql("foo", indexFilter, true, true, mockValidator);
-    String expectedSql2 = "SELECT *, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE a_aspectfoo IS NOT NULL\n"
+    // count query with no dollar sign
+    String sql2 = SQLStatementUtils.createCountFilterSql("foo", indexFilter, true, mockValidator);
+    String expectedSql2 = "SELECT COUNT(urn) AS total_count FROM metadata_entity_foo WHERE a_aspectfoo IS NOT NULL\n"
         + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo0value >= 25\n"
         + "AND a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
-        + "AND i_aspectfoo0value < 50\n" + "AND deleted_ts IS NULL)" + " as _total_count FROM metadata_entity_foo\n"
-        + "WHERE a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
-        + "AND i_aspectfoo0value >= 25\n" + "AND a_aspectfoo IS NOT NULL\n"
-        + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
         + "AND i_aspectfoo0value < 50\n" + "AND deleted_ts IS NULL";
+    assertEquals(expectedSql2, sql2);
 
-    assertEquals(sql2, expectedSql2);
+    //get urn query with dollar sign
+    String sql3 = SQLStatementUtils.createSelectFilterSql("foo", indexFilter, false, mockValidator);
+    String expectedSql3 = "SELECT urn FROM metadata_entity_foo WHERE a_aspectfoo IS NOT NULL\n"
+        + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo$value >= 25\n"
+        + "AND a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
+        + "AND i_aspectfoo$value < 50\n" + "AND deleted_ts IS NULL";
+    assertEquals(expectedSql3, sql3);
+
+    //get urn query with no dollar sign
+    String sql4 = SQLStatementUtils.createSelectFilterSql("foo", indexFilter, true, mockValidator);
+    String expectedSql4 = "SELECT urn FROM metadata_entity_foo WHERE a_aspectfoo IS NOT NULL\n"
+        + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo0value >= 25\n"
+        + "AND a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
+        + "AND i_aspectfoo0value < 50\n" + "AND deleted_ts IS NULL";
+    assertEquals(expectedSql4, sql4);
   }
 
   @Test
@@ -179,15 +189,33 @@ public class SQLStatementUtilsTest {
 
     indexCriterionArray.add(indexCriterion1);
     indexFilter.setCriteria(indexCriterionArray);
-
-    String sql1 = SQLStatementUtils.createFilterSql("foo", indexFilter, true, false, mockValidator);
-    String expectedSql1 = "SELECT *, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE a_aspectfoobar IS NOT NULL\n"
+    // count query with dollar sign
+    String sql1 = SQLStatementUtils.createCountFilterSql("foo", indexFilter, false, mockValidator);
+    String expectedSql1 = "SELECT COUNT(urn) AS total_count FROM metadata_entity_foo WHERE a_aspectfoobar IS NOT NULL\n"
         + "AND JSON_EXTRACT(a_aspectfoobar, '$.gma_deleted') IS NULL\n" + "AND 'bar1' MEMBER OF(i_aspectfoobar$bars)\n"
-        + "AND deleted_ts IS NULL)" + " as _total_count FROM metadata_entity_foo\n"
-        + "WHERE a_aspectfoobar IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoobar, '$.gma_deleted') IS NULL\n"
-        + "AND 'bar1' MEMBER OF(i_aspectfoobar$bars)\n" + "AND deleted_ts IS NULL";
+        + "AND deleted_ts IS NULL";
+    assertEquals(expectedSql1, sql1);
 
-    assertEquals(sql1, expectedSql1);
+    // count query with no dollar sign
+    String sql2 = SQLStatementUtils.createCountFilterSql("foo", indexFilter, true, mockValidator);
+    String expectedSql2 = "SELECT COUNT(urn) AS total_count FROM metadata_entity_foo WHERE a_aspectfoobar IS NOT NULL\n"
+        + "AND JSON_EXTRACT(a_aspectfoobar, '$.gma_deleted') IS NULL\n" + "AND 'bar1' MEMBER OF(i_aspectfoobar0bars)\n"
+        + "AND deleted_ts IS NULL";
+    assertEquals(expectedSql2, sql2);
+
+    //get urn query with dollar sign
+    String sql3 = SQLStatementUtils.createSelectFilterSql("foo", indexFilter, false, mockValidator);
+    String expectedSql3 = "SELECT urn FROM metadata_entity_foo WHERE a_aspectfoobar IS NOT NULL\n"
+        + "AND JSON_EXTRACT(a_aspectfoobar, '$.gma_deleted') IS NULL\n" + "AND 'bar1' MEMBER OF(i_aspectfoobar$bars)\n"
+        + "AND deleted_ts IS NULL";
+    assertEquals(expectedSql3, sql3);
+
+    //get urn query with no dollar sign
+    String sql4 = SQLStatementUtils.createSelectFilterSql("foo", indexFilter, true, mockValidator);
+    String expectedSql4 = "SELECT urn FROM metadata_entity_foo WHERE a_aspectfoobar IS NOT NULL\n"
+        + "AND JSON_EXTRACT(a_aspectfoobar, '$.gma_deleted') IS NULL\n" + "AND 'bar1' MEMBER OF(i_aspectfoobar0bars)\n"
+        + "AND deleted_ts IS NULL";
+    assertEquals(expectedSql4, sql4);
   }
 
   @Test
@@ -749,7 +777,7 @@ public class SQLStatementUtilsTest {
         SQLIndexFilterUtils.createIndexCriterion(AspectFoo.class, "invalid", Condition.EQUAL, IndexValue.create("val2"))
     ));
 
-    String sql = SQLStatementUtils.createFilterSql("foo", indexFilter, true, false, mockValidator1);
+    String sql = SQLStatementUtils.createSelectFilterSql("foo", indexFilter, false, mockValidator1);
     assertTrue(sql.contains("i_aspectfoo$value = 'val'"), "Should contain valid column condition");
     assertFalse(sql.contains("invalid"), "Should skip invalid column");
   }
