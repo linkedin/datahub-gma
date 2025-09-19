@@ -377,7 +377,8 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
         sqlRows.stream().map(sqlRow -> getUrn(sqlRow.getString("urn"), _urnClass)).collect(Collectors.toList());
 
     // 3. Build and return the ListResult with values, total count, and pagination metadata
-    return toListResult(values, totalCount, start, pageSize);
+    // Use max to handle race condition where rows might be inserted between count and data queries
+    return toListResult(values, Math.max(totalCount, values.size()), start, pageSize);
   }
 
   @Override
