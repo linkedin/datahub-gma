@@ -180,11 +180,38 @@ public class EbeanLocalAccessTest {
 
     ListResult<FooUrn> listUrns = _ebeanLocalAccessFoo.listUrns(indexFilter, indexSortCriterion, 5, 5);
 
-    assertEquals(5, listUrns.getValues().size());
-    assertEquals(5, listUrns.getPageSize());
+    assertEquals(listUrns.getValues().size(), 5);
+    assertEquals(listUrns.getPageSize(), 5);
     assertEquals(10, listUrns.getNextStart());
     assertEquals(25, listUrns.getTotalCount());
     assertEquals(5, listUrns.getTotalPageCount());
+  }
+
+  @Test
+  public void testListUrnsReturnsEmptyWhenNoResults() {
+    // Given: An IndexFilter that matches no rows
+    IndexFilter indexFilter = new IndexFilter();
+    // (Optionally set up filter to something impossible, e.g. value < 0)
+    IndexCriterionArray criteria = new IndexCriterionArray();
+    IndexCriterion impossibleCriterion = SQLIndexFilterUtils.createIndexCriterion(
+        AspectFoo.class, "value", Condition.LESS_THAN, IndexValue.create(-1));
+    criteria.add(impossibleCriterion);
+    indexFilter.setCriteria(criteria);
+
+    int start = 0;
+    int pageSize = 10;
+
+    // When: listUrns is called
+    ListResult<FooUrn> result = _ebeanLocalAccessFoo.listUrns(indexFilter, null, start, pageSize);
+
+    // Then: The result should be empty and pagination metadata should be correct
+    assertNotNull(result);
+    assertEquals(result.getValues().size(), 0);
+    assertEquals(result.getTotalCount(), 0);
+    assertFalse(result.isHavingMore());
+    assertEquals(result.getNextStart(), ListResult.INVALID_NEXT_START);
+    assertEquals(result.getNextStart(), -1);
+    assertEquals(pageSize, result.getPageSize());
   }
 
   @Test
