@@ -777,9 +777,7 @@ public class SQLStatementUtilsTest {
         SQLIndexFilterUtils.createIndexCriterion(AspectFoo.class, "invalid", Condition.EQUAL, IndexValue.create("val2"))
     ));
 
-
-
-    String sql = SQLStatementUtils.createSelectFilterSql("foo", indexFilter, true, mockValidator1);
+    String sql = SQLStatementUtils.createSelectFilterSql("foo", indexFilter, false, mockValidator1);
     assertTrue(sql.contains("i_aspectfoo$value = 'val'"), "Should contain valid column condition");
     assertFalse(sql.contains("invalid"), "Should skip invalid column");
   }
