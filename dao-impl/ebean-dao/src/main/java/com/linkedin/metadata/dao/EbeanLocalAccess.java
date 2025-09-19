@@ -404,7 +404,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     final List<URN> values = sqlRows.stream()
         .map(sqlRow -> getUrn(sqlRow.getString("urn"), _urnClass))
         .collect(Collectors.toList());
-    return  toListResult(values, sqlRows, null, start, pageSize);
+    return toListResult(values, sqlRows, null, start, pageSize);
   }
 
   @Nonnull
@@ -608,8 +608,8 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    * @return {@link ListResult} which contains paging metadata information
    */
   @Nonnull
-  protected <T> ListResult<T> toListResult(@Nonnull List<T> values, @Nonnull List<SqlRow> sqlRows,
-      @Nullable ListResultMetadata listResultMetadata, int start, int pageSize) {
+  protected <T> ListResult<T> toListResult(@Nonnull List<T> values, @Nonnull List<SqlRow> sqlRows, @Nullable ListResultMetadata listResultMetadata,
+      int start, int pageSize) {
     if (pageSize == 0) {
       pageSize = DEFAULT_PAGE_SIZE;
     }
