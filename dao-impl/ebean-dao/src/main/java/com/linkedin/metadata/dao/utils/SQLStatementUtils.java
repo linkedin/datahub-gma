@@ -321,35 +321,6 @@ public class SQLStatementUtils {
           columnName, columnName, columnName);
     }
   }
-
-  /**
-   * Creates an SQL statement for fetching URNs or counting rows from an entity table, applying the provided filter.
-   * If isCountQuery is true, generates a count query:
-   *   SELECT COUNT(urn) AS total_count FROM table WHERE ...
-   * If isCountQuery is false, generates a URN fetch query:
-   *   SELECT urn FROM table WHERE ...
-   *
-   * @param entityType The entity type (table) to query.
-   * @param indexFilter The filter criteria to apply (can be null).
-   * @param isCountQuery If true, generate a count query; if false, generate a URN fetch query.
-   * @param nonDollarVirtualColumnsEnabled True if virtual columns do not contain '$', false otherwise.
-   * @param schemaValidator Validator to check column existence and schema.
-   * @return The generated SQL query string.
-   */
-  public static String createFilterSql(String entityType, @Nullable IndexFilter indexFilter, boolean isCountQuery, boolean nonDollarVirtualColumnsEnabled,
-      @Nonnull SchemaValidatorUtil schemaValidator) {
-    final String tableName = getTableName(entityType);
-    String whereClause = parseIndexFilter(entityType, indexFilter, nonDollarVirtualColumnsEnabled, schemaValidator);
-
-    if (isCountQuery) {
-      // Build count query
-      return String.format(SQL_COUNT_TEMPLATE, tableName, whereClause);
-    } else {
-      // Build urn fetch query
-      return String.format(SQL_SELECT_URN_WHERE_TEMPLATE, tableName, whereClause);
-    }
-  }
-
   /**
    * Create index group by SQL statement.
    * @param entityType entity type
