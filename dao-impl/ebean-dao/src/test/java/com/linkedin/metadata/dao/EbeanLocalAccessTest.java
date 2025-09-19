@@ -182,9 +182,9 @@ public class EbeanLocalAccessTest {
 
     assertEquals(listUrns.getValues().size(), 5);
     assertEquals(listUrns.getPageSize(), 5);
-    assertEquals(10, listUrns.getNextStart());
-    assertEquals(25, listUrns.getTotalCount());
-    assertEquals(5, listUrns.getTotalPageCount());
+    assertEquals(listUrns.getNextStart(), 10);
+    assertEquals(listUrns.getTotalCount(), 25);
+    assertEquals(listUrns.getTotalPageCount(), 5);
   }
 
   @Test
