@@ -31,7 +31,6 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -190,7 +189,7 @@ public class EbeanLocalAccessTest {
 
   // Test Case 1: Normal last page behavior using existing 100 records from @BeforeMethod
   @Test
-  public void testListUrns_NormalLastPagePagination() {
+  public void testListUrnsNormalLastPagePagination() {
     IndexFilter indexFilter = new IndexFilter();
     IndexCriterion criterion = new IndexCriterion().setAspect(AspectFoo.class.getCanonicalName());
     indexFilter.setCriteria(new IndexCriterionArray(Collections.singleton(criterion)));
@@ -207,7 +206,7 @@ public class EbeanLocalAccessTest {
 
   // Test Case 2: Test normal pagination with soft deleted records
   @Test
-  public void testListUrns_SoftDeletedRecordsHandling() throws URISyntaxException {
+  public void testListUrnsSoftDeletedRecordsHandling() throws URISyntaxException {
     IndexFilter indexFilter = new IndexFilter();
     IndexCriterion criterion = new IndexCriterion().setAspect(AspectFoo.class.getCanonicalName());
     indexFilter.setCriteria(new IndexCriterionArray(Collections.singleton(criterion)));
@@ -236,7 +235,7 @@ public class EbeanLocalAccessTest {
 
   // Test Case 3: Normal pagination behavior with full pages using existing 100 records
   @Test
-  public void testListUrns_InsertionRaceConditionHandling() {
+  public void testListUrnsInsertionRaceConditionHandling() {
     IndexFilter indexFilter = new IndexFilter();
     IndexCriterion criterion = new IndexCriterion().setAspect(AspectFoo.class.getCanonicalName());
     indexFilter.setCriteria(new IndexCriterionArray(Collections.singleton(criterion)));
@@ -253,7 +252,7 @@ public class EbeanLocalAccessTest {
 
   // Test Case 4: Boundary conditions for race condition detection using existing 100 records
   @Test
-  public void testListUrns_BoundaryConditions() {
+  public void testListUrnsBoundaryConditions() {
     IndexFilter indexFilter = new IndexFilter();
     IndexCriterion criterion = new IndexCriterion().setAspect(AspectFoo.class.getCanonicalName());
     indexFilter.setCriteria(new IndexCriterionArray(Collections.singleton(criterion)));
@@ -275,27 +274,27 @@ public class EbeanLocalAccessTest {
   @Test
   public void testResolveTotalCount() {
     // Test the extracted race condition detection method directly
-    
+
     // Scenario 1: Deletion race condition detection
     int adjustedCount1 = _ebeanLocalAccessFoo.resolveTotalCount(3, 100, 50, 10);
     assertEquals(adjustedCount1, 53, "Deletion race condition: 3 < 10 AND 53 < 100 → should adjust to start + valuesSize");
-    
+
     // Scenario 2: Insertion race condition (Math.max logic)
     int adjustedCount2 = _ebeanLocalAccessFoo.resolveTotalCount(10, 45, 40, 10);
     assertEquals(adjustedCount2, 50, "Insertion race condition: Math.max(45, 50) → should use Math.max logic");
-    
+
     // Scenario 3: Normal pagination - no race condition
     int adjustedCount3 = _ebeanLocalAccessFoo.resolveTotalCount(10, 100, 20, 10);
     assertEquals(adjustedCount3, 100, "Normal pagination: 10 == 10 → should preserve original totalCount");
-    
+
     // Scenario 4: Edge case - empty results due to deletion race condition
     int adjustedCount4 = _ebeanLocalAccessFoo.resolveTotalCount(0, 100, 90, 10);
     assertEquals(adjustedCount4, 90, "Empty results at end: 0 < 10 AND 90 < 100 → should adjust to start + valuesSize");
-    
+
     // Scenario 5: Last page boundary - full page size but at exact end
     int adjustedCount5 = _ebeanLocalAccessFoo.resolveTotalCount(10, 100, 90, 10);
     assertEquals(adjustedCount5, 100, "Last page with full results: Math.max(100, 100) → should preserve totalCount");
-    
+
     // Scenario 6: Insertion with larger insertion count
     int adjustedCount6 = _ebeanLocalAccessFoo.resolveTotalCount(15, 50, 40, 10);
     assertEquals(adjustedCount6, 55, "Large insertion: Math.max(50, 55) → should expand totalCount");
