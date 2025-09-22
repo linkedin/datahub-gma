@@ -156,11 +156,11 @@ public class SQLStatementUtils {
    *  Filter query has pagination params in the existing APIs. To accommodate this, we use subquery to include total result counts in the query response.
    *  For example, we will build the following filter query statement:
    *
-   *  <p>SELECT *, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE i_aspectfoo$value >= 25\n"
+   *  <p>SELECT urn, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE i_aspectfoo$value >= 25\n"
    *  AND i_aspectfoo$value < 50 AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL) as _total_count FROM metadata_entity_foo\n"
-   *  WHERE i_aspectfoo$value >= 25 AND i_aspectfoo$value < 50 AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL;
+   *  WHERE i_aspectfoo$value >= 25 AND i_aspectfoo$value < 50 AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL LIMIT :limit OFFSET :offset;
    */
-  private static final String SQL_FILTER_TEMPLATE = "SELECT *, (%s) as _total_count FROM %s";
+  private static final String SQL_FILTER_TEMPLATE = "SELECT urn, (%s) as _total_count FROM %s";
   private static final String SQL_BROWSE_ASPECT_TEMPLATE =
       String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby, (SELECT COUNT(urn) FROM %%s) as _total_count "
           + "FROM %%s WHERE %s LIMIT %%d OFFSET %%d", SOFT_DELETED_CHECK);

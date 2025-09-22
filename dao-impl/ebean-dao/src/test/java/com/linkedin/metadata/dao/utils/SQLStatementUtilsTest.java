@@ -144,7 +144,7 @@ public class SQLStatementUtilsTest {
     indexFilter.setCriteria(indexCriterionArray);
 
     String sql1 = SQLStatementUtils.createFilterSql("foo", indexFilter, true, false, mockValidator);
-    String expectedSql1 = "SELECT *, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE a_aspectfoo IS NOT NULL\n"
+    String expectedSql1 = "SELECT urn, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE a_aspectfoo IS NOT NULL\n"
         + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo$value >= 25\n"
         + "AND a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
         + "AND i_aspectfoo$value < 50\n" + "AND deleted_ts IS NULL)" + " as _total_count FROM metadata_entity_foo\n"
@@ -156,7 +156,7 @@ public class SQLStatementUtilsTest {
     assertEquals(sql1, expectedSql1);
 
     String sql2 = SQLStatementUtils.createFilterSql("foo", indexFilter, true, true, mockValidator);
-    String expectedSql2 = "SELECT *, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE a_aspectfoo IS NOT NULL\n"
+    String expectedSql2 = "SELECT urn, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE a_aspectfoo IS NOT NULL\n"
         + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo0value >= 25\n"
         + "AND a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
         + "AND i_aspectfoo0value < 50\n" + "AND deleted_ts IS NULL)" + " as _total_count FROM metadata_entity_foo\n"
@@ -181,7 +181,7 @@ public class SQLStatementUtilsTest {
     indexFilter.setCriteria(indexCriterionArray);
 
     String sql1 = SQLStatementUtils.createFilterSql("foo", indexFilter, true, false, mockValidator);
-    String expectedSql1 = "SELECT *, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE a_aspectfoobar IS NOT NULL\n"
+    String expectedSql1 = "SELECT urn, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE a_aspectfoobar IS NOT NULL\n"
         + "AND JSON_EXTRACT(a_aspectfoobar, '$.gma_deleted') IS NULL\n" + "AND 'bar1' MEMBER OF(i_aspectfoobar$bars)\n"
         + "AND deleted_ts IS NULL)" + " as _total_count FROM metadata_entity_foo\n"
         + "WHERE a_aspectfoobar IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoobar, '$.gma_deleted') IS NULL\n"
