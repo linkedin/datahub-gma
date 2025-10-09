@@ -4254,4 +4254,137 @@ public class EbeanLocalDAOTest {
       throw new IllegalStateException("Server name does not end with '" + EBEAN_SERVER_CONFIG + "': " + name);
     }
   }
+
+  /**
+   * Test that createNewAssetWithAspects properly ingests relationships when creating a new entity
+   * with multiple aspects, using relationship builders to extract relationships
+   * This test verifies that:
+   * 1. A new entity can be created with multiple aspects (AspectFoo and AspectFooBar)
+   * 2. Relationships defined in AspectFooBar are properly extracted via relationship builders
+   * 3. The extracted relationships are persisted to the local relationship tables
+   * The test uses AspectFooBar with a "bars" field containing 3 Bar URNs, which should result
+   * in 3 BelongsTo relationships being created via the SampleLocalRelationshipRegistryImpl.
+   */
+  @Test
+  public void testCreateNewAssetWithAspectsAndRelationshipBuilder() throws URISyntaxException {
+    // Skip test for OLD_SCHEMA_ONLY and DUAL_SCHEMA as createNewAssetWithAspects only works with NEW_SCHEMA_ONLY
+    if (_schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      return;
+    }
+
+    // Setup DAOs with relationship builder registry
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> fooDao = createDao(FooUrn.class);
+    EbeanLocalDAO<EntityAspectUnion, BarUrn> barDao = createDao(BarUrn.class);
+    fooDao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
+    barDao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
+
+    // Create test URNs
+    FooUrn fooUrn = makeFooUrn(1);
+    BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
+    BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:2");
+    BarUrn barUrn3 = BarUrn.createFromString("urn:li:bar:3");
+
+    // Create aspects: AspectFoo (no relationships) and AspectFooBar (with relationships to 3 Bar entities)
+    AspectFoo aspectFoo = new AspectFoo().setValue("test");
+    AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(barUrn1, barUrn2, barUrn3));
+    AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
+
+    // Create the target Bar entities first
+    barDao.add(barUrn1, new AspectFoo().setValue("1"), auditStamp);
+    barDao.add(barUrn2, new AspectFoo().setValue("2"), auditStamp);
+    barDao.add(barUrn3, new AspectFoo().setValue("3"), auditStamp);
+
+    // Create new asset with multiple aspects using createNewAssetWithAspects
+    List<RecordTemplate> aspectValues = new ArrayList<>();
+    aspectValues.add(aspectFoo);
+    aspectValues.add(aspectFooBar);
+    List<BaseLocalDAO.AspectCreateLambda<? extends RecordTemplate>> aspectCreateLambdas = new ArrayList<>();
+    aspectCreateLambdas.add(new BaseLocalDAO.AspectCreateLambda(aspectFoo));
+    aspectCreateLambdas.add(new BaseLocalDAO.AspectCreateLambda(aspectFooBar));
+
+    int result = fooDao.createNewAssetWithAspects(fooUrn, aspectCreateLambdas, aspectValues, auditStamp, null, false);
+    assertEquals(result, 1);
+
+    // Verify that the entity was created with both aspects
+    AspectKey<FooUrn, AspectFoo> keyFoo = new AspectKey<>(AspectFoo.class, fooUrn, 0L);
+    AspectKey<FooUrn, AspectFooBar> keyFooBar = new AspectKey<>(AspectFooBar.class, fooUrn, 0L);
+    List<EbeanMetadataAspect> aspects = fooDao.batchGetHelper(Arrays.asList(keyFoo, keyFooBar), 2, 0);
+    assertEquals(aspects.size(), 2);
+
+    // Verify that local relationships were properly ingested via relationship builder
+    EbeanLocalRelationshipQueryDAO ebeanLocalRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server, _eBeanDAOConfig);
+    ebeanLocalRelationshipQueryDAO.setSchemaConfig(_schemaConfig);
+    List<BelongsTo> relationships = ebeanLocalRelationshipQueryDAO.findRelationships(
+        FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class, EMPTY_FILTER, BelongsTo.class, OUTGOING_FILTER, 0, 10);
+
+    // Should have 3 BelongsTo relationships (one for each Bar URN in AspectFooBar)
+    assertEquals(relationships.size(), 3);
+  }
+
+  /**
+   * Test that createNewAssetWithAspects properly ingests relationships when creating a new entity
+   * with multiple aspects, extracting relationships directly from aspect metadata (without relationship builders)
+   * This test verifies that:
+   * 1. A new entity can be created with multiple aspects (AspectFoo and AspectFooBar)
+   * 2. Relationships defined directly in AspectFooBar's metadata fields are properly extracted
+   * 3. The extracted relationships are persisted to the local relationship table
+   * The test uses AspectFooBar with a "belongsTos" field containing 2 BelongsToV2 relationship objects,
+   * which should result in 2 BelongsToV2 relationships being created by extracting them directly from
+   * the aspect metadata (since no relationship builder registry is set).
+   */
+  @Test
+  public void testCreateNewAssetWithAspectsAndDirectRelationships() throws URISyntaxException {
+    // Skip test for OLD_SCHEMA_ONLY and DUAL_SCHEMA as createNewAssetWithAspects only works with NEW_SCHEMA_ONLY
+    if (_schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      return;
+    }
+    // Setup DAOs without relationship builder registry - relationships will be extracted from aspect metadata
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> fooDao = createDao(FooUrn.class);
+    EbeanLocalDAO<EntityAspectUnion, BarUrn> barDao = createDao(BarUrn.class);
+
+    // Create test URNs
+    FooUrn fooUrn = makeFooUrn(2);
+    BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:10");
+    BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:11");
+
+    // Create relationship objects directly (BelongsToV2 is a relationship type)
+    BelongsToV2 belongsTo1 = new BelongsToV2().setDestination(BelongsToV2.Destination.create(barUrn1.toString()));
+    BelongsToV2 belongsTo2 = new BelongsToV2().setDestination(BelongsToV2.Destination.create(barUrn2.toString()));
+    BelongsToV2Array belongsToArray = new BelongsToV2Array(belongsTo1, belongsTo2);
+
+    // Create aspects: AspectFoo (no relationships) and AspectFooBar (with direct relationship fields)
+    AspectFoo aspectFoo = new AspectFoo().setValue("test2");
+    AspectFooBar aspectFooBar = new AspectFooBar().setBelongsTos(belongsToArray);
+    AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
+
+    // Create the target Bar entities first
+    barDao.add(barUrn1, new AspectFoo().setValue("10"), auditStamp);
+    barDao.add(barUrn2, new AspectFoo().setValue("11"), auditStamp);
+
+    // Create new asset with multiple aspects using createNewAssetWithAspects
+    List<RecordTemplate> aspectValues = new ArrayList<>();
+    aspectValues.add(aspectFoo);
+    aspectValues.add(aspectFooBar);
+    List<BaseLocalDAO.AspectCreateLambda<? extends RecordTemplate>> aspectCreateLambdas = new ArrayList<>();
+    aspectCreateLambdas.add(new BaseLocalDAO.AspectCreateLambda(aspectFoo));
+    aspectCreateLambdas.add(new BaseLocalDAO.AspectCreateLambda(aspectFooBar));
+
+    int result = fooDao.createNewAssetWithAspects(fooUrn, aspectCreateLambdas, aspectValues, auditStamp, null, false);
+    assertEquals(result, 1);
+
+    // Verify that the entity was created with both aspects
+    AspectKey<FooUrn, AspectFoo> keyFoo = new AspectKey<>(AspectFoo.class, fooUrn, 0L);
+    AspectKey<FooUrn, AspectFooBar> keyFooBar = new AspectKey<>(AspectFooBar.class, fooUrn, 0L);
+    List<EbeanMetadataAspect> aspects = fooDao.batchGetHelper(Arrays.asList(keyFoo, keyFooBar), 2, 0);
+    assertEquals(aspects.size(), 2);
+
+    // Verify that local relationships were properly ingested directly from aspect metadata
+    EbeanLocalRelationshipQueryDAO ebeanLocalRelationshipQueryDAO = new EbeanLocalRelationshipQueryDAO(_server, _eBeanDAOConfig);
+    ebeanLocalRelationshipQueryDAO.setSchemaConfig(_schemaConfig);
+    List<BelongsToV2> relationships = ebeanLocalRelationshipQueryDAO.findRelationships(
+        FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class, EMPTY_FILTER, BelongsToV2.class, OUTGOING_FILTER, 0, 10);
+
+    // Should have 2 BelongsToV2 relationships (one for each relationship in AspectFooBar's belongsTos field)
+    assertEquals(relationships.size(), 2);
+  }
 }

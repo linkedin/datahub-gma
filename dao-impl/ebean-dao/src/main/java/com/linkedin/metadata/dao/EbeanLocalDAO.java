@@ -711,11 +711,20 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       @Nonnull List<AspectCreateLambda<? extends RecordTemplate>> aspectCreateLambdas,
       @Nonnull List<? extends RecordTemplate> aspectValues, @Nonnull AuditStamp newAuditStamp,
       @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
-    return runInTransactionWithRetry(() ->
-        // behavior of create: do a get to ensure the urn does not already exist
-        // if exists and deletedTs is null, then throw an exception
-        // if exists and deletedTs is not null, then update the deletedTs to null and create records
-        _localAccess.create(urn, aspectValues, aspectCreateLambdas, newAuditStamp, trackingContext, isTestMode), 1);
+    return runInTransactionWithRetry(() -> {
+      // behavior of create: do a get to ensure the urn does not already exist
+      // if exists and deletedTs is null, then throw an exception
+      // if exists and deletedTs is not null, then update the deletedTs to null and create records
+      int rows = _localAccess.create(urn, aspectValues, aspectCreateLambdas, newAuditStamp, trackingContext, isTestMode);
+
+      // also insert any relationships associated with these aspects
+      for (int i = 0; i < aspectValues.size(); i++) {
+        Class<RecordTemplate> aspectClass = (Class<RecordTemplate>) aspectCreateLambdas.get(i).getAspectClass();
+        RecordTemplate newValue = aspectValues.get(i);
+        handleRelationshipIngestion(urn, newValue, null, aspectClass, isTestMode);
+      }
+      return rows;
+    }, 1);
   }
 
   @Override
