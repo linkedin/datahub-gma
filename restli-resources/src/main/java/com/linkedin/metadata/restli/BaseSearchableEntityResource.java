@@ -225,6 +225,18 @@ public abstract class BaseSearchableEntityResource<
     );
   }
 
+  /**
+   * Same as the above but doesn't require the callee to provide the 'isInternalModelsEnabled' flag.
+   * @param searchResult Search result returned from search infra, such as Elasticsearch.
+   * @param aspectNames List of aspect names that need to be returned.
+   * @return CollectionResult which contains: 1. aspect values fetched from MySQL DB, 2. Total count 3. Search result metadata.
+   */
+  @Nonnull
+  public CollectionResult<VALUE, SearchResultMetadata> getSearchQueryCollectionResult(@Nonnull SearchResult<DOCUMENT> searchResult,
+      @Nullable String[] aspectNames) {
+    return getSearchQueryCollectionResult(searchResult, aspectNames, getResourceLix().testSearch(_urnClass.getSimpleName()));
+  }
+
   private URN toEntitySpecificUrn(Urn urn) {
      try {
        return (URN) (_urnClass.getMethod("createFromUrn", Urn.class).invoke(null, urn));
