@@ -11,6 +11,7 @@ import com.linkedin.metadata.annotations.GmaAnnotationParser;
 import com.linkedin.metadata.annotations.ModelType;
 import com.linkedin.metadata.aspect.AuditedAspect;
 import com.linkedin.metadata.aspect.SoftDeletedAspect;
+import com.linkedin.metadata.dao.EbeanLocalAccess;
 import com.linkedin.metadata.dao.EbeanMetadataAspect;
 import com.linkedin.metadata.dao.ListResult;
 import com.linkedin.metadata.query.AspectField;
@@ -21,6 +22,8 @@ import com.linkedin.metadata.query.RelationshipField;
 import com.linkedin.metadata.query.UrnField;
 import io.ebean.EbeanServer;
 import io.ebean.SqlRow;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URISyntaxException;
@@ -209,7 +212,11 @@ public class EBeanDAOUtils {
         EbeanMetadataAspect.PrimaryKey primaryKey = new EbeanMetadataAspect.PrimaryKey(urn, auditedAspect.getCanonicalName(), LATEST_VERSION);
         ebeanMetadataAspect.setKey(primaryKey);
         ebeanMetadataAspect.setCreatedBy(auditedAspect.getLastmodifiedby());
-        ebeanMetadataAspect.setCreatedOn(Timestamp.valueOf(auditedAspect.getLastmodifiedon()));
+
+        String timestampString = auditedAspect.getLastmodifiedon();
+        LocalDateTime ldt = LocalDateTime.parse(timestampString, EbeanLocalAccess.DATETIME_FORMATTER);
+        ebeanMetadataAspect.setCreatedOn(Timestamp.from(ldt.toInstant(ZoneOffset.UTC)));
+
         ebeanMetadataAspect.setCreatedFor(auditedAspect.getCreatedfor());
         ebeanMetadataAspect.setMetadata(extractAspectJsonString(sqlRow.getString(columnName)));
         return ebeanMetadataAspect;
@@ -259,14 +266,22 @@ public class EBeanDAOUtils {
     if (isSoftDeletedAspect(sqlRow, columnName)) {
       primaryKey = new EbeanMetadataAspect.PrimaryKey(urn, aspectClass.getCanonicalName(), LATEST_VERSION);
       ebeanMetadataAspect.setCreatedBy(sqlRow.getString("lastmodifiedby"));
-      ebeanMetadataAspect.setCreatedOn(sqlRow.getTimestamp("lastmodifiedon"));
+
+      String timestampString = sqlRow.getString("lastmodifiedon"); // get as string
+      LocalDateTime ldt = LocalDateTime.parse(timestampString, EbeanLocalAccess.DATETIME_FORMATTER);
+      ebeanMetadataAspect.setCreatedOn(Timestamp.from(ldt.toInstant(ZoneOffset.UTC)));
+
       ebeanMetadataAspect.setCreatedFor(sqlRow.getString("createdfor"));
       ebeanMetadataAspect.setMetadata(DELETED_VALUE);
     } else {
       AuditedAspect auditedAspect = RecordUtils.toRecordTemplate(AuditedAspect.class, sqlRow.getString(columnName));
       primaryKey = new EbeanMetadataAspect.PrimaryKey(urn, auditedAspect.getCanonicalName(), LATEST_VERSION);
       ebeanMetadataAspect.setCreatedBy(auditedAspect.getLastmodifiedby());
-      ebeanMetadataAspect.setCreatedOn(Timestamp.valueOf(auditedAspect.getLastmodifiedon()));
+
+      String timestampString = auditedAspect.getLastmodifiedon();
+      LocalDateTime ldt = LocalDateTime.parse(timestampString, EbeanLocalAccess.DATETIME_FORMATTER);
+      ebeanMetadataAspect.setCreatedOn(Timestamp.from(ldt.toInstant(ZoneOffset.UTC)));
+
       ebeanMetadataAspect.setCreatedFor(auditedAspect.getCreatedfor());
       ebeanMetadataAspect.setEmitTime(auditedAspect.getEmitTime());
       ebeanMetadataAspect.setEmitter(auditedAspect.getEmitter());

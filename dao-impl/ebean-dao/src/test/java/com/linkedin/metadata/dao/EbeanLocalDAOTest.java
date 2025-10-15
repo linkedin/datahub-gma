@@ -88,6 +88,8 @@ import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -119,6 +121,7 @@ import pegasus.com.linkedin.metadata.events.IngestionAspectETag;
 import pegasus.com.linkedin.metadata.events.IngestionAspectETagArray;
 
 import static com.linkedin.common.AuditStamps.*;
+import static com.linkedin.metadata.dao.EbeanLocalAccess.*;
 import static com.linkedin.metadata.dao.internal.BaseGraphWriterDAO.RemovalOption.*;
 import static com.linkedin.metadata.dao.utils.EBeanDAOUtils.*;
 import static com.linkedin.metadata.dao.utils.ModelUtils.*;
@@ -329,11 +332,19 @@ public class EbeanLocalDAOTest {
     assertEquals(aspect.getKey().getUrn(), urn.toString());
     assertEquals(aspect.getKey().getAspect(), aspectName);
     assertEquals(aspect.getKey().getVersion(), 0);
-    assertEquals(aspect.getCreatedOn(), new Timestamp(_now));
     assertEquals(aspect.getCreatedBy(), "urn:li:test:actor");
     if (_schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
       // didn't even implement this in the new schema since the createdfor column is not being read by anyone. so skipping this check.
       assertEquals(aspect.getCreatedFor(), "urn:li:test:impersonator");
+      assertEquals(aspect.getCreatedOn(), new Timestamp(_now));
+    } else {
+      Instant instant = Instant.ofEpochMilli(_now);
+      DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS").withZone(ZoneOffset.UTC);
+
+      String utcString = formatter.format(instant);
+
+      // Compare using local datetime
+      assertEquals(aspect.getCreatedOn().toString(), utcString.replaceAll("\\.0+$", ".0"));
     }
 
     AspectFoo actual = RecordUtils.toRecordTemplate(AspectFoo.class, aspect.getMetadata());
@@ -4027,22 +4038,28 @@ public class EbeanLocalDAOTest {
     if (version != 0) {
       return;
     }
+    String createdOnString = Instant.ofEpochMilli(createdOn)
+        .atZone(ZoneOffset.UTC)
+        .format(DateTimeFormatter.ofPattern(DATE_TIME_FORMAT));
     String aspectName = aspectClass.getCanonicalName();
     String columnName = SQLSchemaUtils.getAspectColumnName(urn.getEntityType(), aspectName);
     String template = "insert into metadata_entity_%s (urn, %s, lastmodifiedon, lastmodifiedby, createdfor) value"
         + "('%s', '%s', '%s', '%s', '%s') ON DUPLICATE KEY UPDATE %s = '%s';";
     String query = String.format(template, urn.getEntityType(), columnName, urn, createAuditedAspect(metadata, aspectClass, createdOn, createdBy, createdFor),
-        new Timestamp(createdOn), createdBy, createdFor, columnName, createAuditedAspect(metadata, aspectClass, createdOn, createdBy, createdFor));
+        createdOnString, createdBy, createdFor, columnName, createAuditedAspect(metadata, aspectClass, createdOn, createdBy, createdFor));
     _server.createSqlUpdate(query).execute();
   }
 
   private <ASPECT extends RecordTemplate> String createAuditedAspect(RecordTemplate metadata, Class<ASPECT> aspectClass,
       long createdOn, String createdBy, String createdFor) {
+    String createdOnString = Instant.ofEpochMilli(createdOn)
+        .atZone(ZoneOffset.UTC)
+        .format(DateTimeFormatter.ofPattern(DATE_TIME_FORMAT));
     return metadata == null ? DELETED_VALUE : EbeanLocalAccess.toJsonString(new AuditedAspect()
         .setAspect(RecordUtils.toJsonString(metadata))
         .setCanonicalName(aspectClass.getCanonicalName())
         .setLastmodifiedby(createdBy)
-        .setLastmodifiedon(new Timestamp(createdOn).toString())
+        .setLastmodifiedon(createdOnString)
         .setCreatedfor(createdFor, SetMode.IGNORE_NULL));
   }
 
