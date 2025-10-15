@@ -23,8 +23,6 @@ import com.linkedin.metadata.query.ListResultMetadata;
 import io.ebean.EbeanServer;
 import io.ebean.SqlQuery;
 import io.ebean.SqlRow;
-import java.time.format.DateTimeFormatterBuilder;
-import java.time.temporal.ChronoField;
 import io.ebean.SqlUpdate;
 import io.ebean.Transaction;
 import io.ebean.annotation.Transactional;
@@ -51,7 +49,6 @@ import org.json.simple.JSONObject;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
-import java.time.LocalDateTime;
 
 import static com.linkedin.metadata.dao.EbeanLocalDAO.*;
 import static com.linkedin.metadata.dao.utils.EBeanDAOUtils.*;
@@ -66,12 +63,6 @@ import static com.linkedin.metadata.dao.utils.SQLStatementUtils.*;
 @Slf4j
 public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN> {
   public static final String DATE_TIME_FORMAT = "yyyy-MM-dd HH:mm:ss.SSS";
-  public static final DateTimeFormatter DATETIME_FORMATTER = new DateTimeFormatterBuilder()
-      .appendPattern("yyyy-MM-dd HH:mm:ss")
-      .optionalStart()
-      .appendFraction(ChronoField.MILLI_OF_SECOND, 1, 3, true) // 1 to 3 digits
-      .optionalEnd()
-      .toFormatter();
   private final EbeanServer _server;
   private final Class<URN> _urnClass;
   private final String _entityType;
@@ -420,9 +411,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
             extractAspectJsonString(sqlRow.getString(getAspectColumnName(urn.getEntityType(), aspectClass))));
         final ListResultMetadata listResultMetadata = new ListResultMetadata().setExtraInfos(new ExtraInfoArray());
 
-        String tsString = sqlRow.getString("lastmodifiedon");
-        LocalDateTime ldt = LocalDateTime.parse(tsString, DATETIME_FORMATTER);
-        Timestamp utcTimeStamp = Timestamp.from(ldt.toInstant(ZoneOffset.UTC));
+        Timestamp utcTimeStamp = timeStampStringToTimeStamp(sqlRow.getString("lastmodifiedon"));
         final ExtraInfo extraInfo = new ExtraInfo().setUrn(urn)
             .setVersion(LATEST_VERSION)
             .setAudit(makeAuditStamp(utcTimeStamp, sqlRow.getString("lastmodifiedby"),
@@ -451,9 +440,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     }
     final ListResultMetadata listResultMetadata = new ListResultMetadata().setExtraInfos(new ExtraInfoArray());
     final List<ASPECT> aspectList = sqlRows.stream().map(sqlRow -> {
-      String tsString = sqlRow.getString("lastmodifiedon");
-      LocalDateTime ldt = LocalDateTime.parse(tsString, DATETIME_FORMATTER);
-      Timestamp utcTimeStamp = Timestamp.from(ldt.toInstant(ZoneOffset.UTC));
+      Timestamp utcTimeStamp = timeStampStringToTimeStamp(sqlRow.getString("lastmodifiedon"));
       final ExtraInfo extraInfo = new ExtraInfo().setUrn(getUrn(sqlRow.getString("urn"), _urnClass))
           .setVersion(LATEST_VERSION).setAudit(
               makeAuditStamp(utcTimeStamp, sqlRow.getString("lastmodifiedby"),
