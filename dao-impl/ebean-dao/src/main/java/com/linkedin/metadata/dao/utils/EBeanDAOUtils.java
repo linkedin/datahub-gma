@@ -21,6 +21,8 @@ import com.linkedin.metadata.query.RelationshipField;
 import com.linkedin.metadata.query.UrnField;
 import io.ebean.EbeanServer;
 import io.ebean.SqlRow;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URISyntaxException;
@@ -28,6 +30,9 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -52,7 +57,12 @@ import static com.linkedin.metadata.annotations.GmaAnnotationParser.*;
  */
 @Slf4j
 public class EBeanDAOUtils {
-
+  private static final DateTimeFormatter DATETIME_FORMATTER = new DateTimeFormatterBuilder()
+      .appendPattern("yyyy-MM-dd HH:mm:ss")
+      .optionalStart()
+      .appendFraction(ChronoField.MILLI_OF_SECOND, 1, 3, true) // 1 to 3 digits
+      .optionalEnd()
+      .toFormatter();
   public static final String DIFFERENT_RESULTS_TEMPLATE = "The results of %s from the new schema table and old schema table are not equal. Reason: %s. "
       + "Defaulting to using the value(s) from the old schema table.";
   // String stored in metadata_aspect table for soft deleted aspect
@@ -79,6 +89,14 @@ public class EBeanDAOUtils {
       throw new RuntimeException(
           String.format("Failed to parse the delta annotation for aspect %s", aspectCanonicalName), e);
     }
+  }
+
+  /**
+   * Convert timestamp string to Timestamp.
+   */
+  public static Timestamp timeStampStringToTimeStamp(String timestampString) {
+    LocalDateTime ldt = LocalDateTime.parse(timestampString, DATETIME_FORMATTER);
+    return Timestamp.from(ldt.toInstant(ZoneOffset.UTC));
   }
 
   /**
@@ -209,7 +227,9 @@ public class EBeanDAOUtils {
         EbeanMetadataAspect.PrimaryKey primaryKey = new EbeanMetadataAspect.PrimaryKey(urn, auditedAspect.getCanonicalName(), LATEST_VERSION);
         ebeanMetadataAspect.setKey(primaryKey);
         ebeanMetadataAspect.setCreatedBy(auditedAspect.getLastmodifiedby());
-        ebeanMetadataAspect.setCreatedOn(Timestamp.valueOf(auditedAspect.getLastmodifiedon()));
+
+        ebeanMetadataAspect.setCreatedOn(timeStampStringToTimeStamp(auditedAspect.getLastmodifiedon()));
+
         ebeanMetadataAspect.setCreatedFor(auditedAspect.getCreatedfor());
         ebeanMetadataAspect.setMetadata(extractAspectJsonString(sqlRow.getString(columnName)));
         return ebeanMetadataAspect;
@@ -259,14 +279,18 @@ public class EBeanDAOUtils {
     if (isSoftDeletedAspect(sqlRow, columnName)) {
       primaryKey = new EbeanMetadataAspect.PrimaryKey(urn, aspectClass.getCanonicalName(), LATEST_VERSION);
       ebeanMetadataAspect.setCreatedBy(sqlRow.getString("lastmodifiedby"));
-      ebeanMetadataAspect.setCreatedOn(sqlRow.getTimestamp("lastmodifiedon"));
+
+      ebeanMetadataAspect.setCreatedOn(timeStampStringToTimeStamp(sqlRow.getString("lastmodifiedon")));
+
       ebeanMetadataAspect.setCreatedFor(sqlRow.getString("createdfor"));
       ebeanMetadataAspect.setMetadata(DELETED_VALUE);
     } else {
       AuditedAspect auditedAspect = RecordUtils.toRecordTemplate(AuditedAspect.class, sqlRow.getString(columnName));
       primaryKey = new EbeanMetadataAspect.PrimaryKey(urn, auditedAspect.getCanonicalName(), LATEST_VERSION);
       ebeanMetadataAspect.setCreatedBy(auditedAspect.getLastmodifiedby());
-      ebeanMetadataAspect.setCreatedOn(Timestamp.valueOf(auditedAspect.getLastmodifiedon()));
+
+      ebeanMetadataAspect.setCreatedOn(timeStampStringToTimeStamp(auditedAspect.getLastmodifiedon()));
+
       ebeanMetadataAspect.setCreatedFor(auditedAspect.getCreatedfor());
       ebeanMetadataAspect.setEmitTime(auditedAspect.getEmitTime());
       ebeanMetadataAspect.setEmitter(auditedAspect.getEmitter());
