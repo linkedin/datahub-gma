@@ -118,16 +118,21 @@ public class SQLIndexFilterUtils {
           final Condition condition = pathParams.getCondition();
           final String indexColumn = getGeneratedColumnName(entityType, aspect, pathParams.getPath(), nonDollarVirtualColumnsEnabled);
           final String tableName = SQLSchemaUtils.getTableName(entityType);
-          // New: Skip filter if column doesn't exist
-          if (!schemaValidator.columnExists(tableName, indexColumn)) {
-            // TODO: don't skip if the column doesn't exist, instead query for the JSON_Extract expression directly
-            // Think about how to "check for" whether an index actually exists: running this query without it will
-            // result in poor performance
 
-            log.warn("Skipping filter: virtual column '{}' not found in table '{}'", indexColumn, tableName);
-            continue;
+          // NEW: Check if an expression-based index exists, if it does, use the new logic
+          final String indexExpression = schemaValidator.getIndexExpression(tableName, indexColumn);
+          if (indexExpression != null) {
+            log.debug("Using expression index '{}' in table '{}' with expression '{}'", indexColumn, tableName, indexExpression);
+            //// Commenting this out for now... to be extra safe, will not currently make this queryable yet
+            ////   and should verify that the above debug log is printed to properly acknoledge an expression.
+            // sqlFilters.add(parseSqlFilter(indexExpression, condition, pathParams.getValue()));
           }
-          sqlFilters.add(parseSqlFilter(indexColumn, condition, pathParams.getValue()));
+          // Else: (old logic) Skip filter if column doesn't exist
+          else if (!schemaValidator.columnExists(tableName, indexColumn)) {
+            log.warn("Skipping filter: virtual column '{}' not found in table '{}'", indexColumn, tableName);
+          } else {
+            sqlFilters.add(parseSqlFilter(indexColumn, condition, pathParams.getValue()));
+          }
         }
       }
     }

@@ -148,7 +148,8 @@ public class SchemaValidatorUtil {
    *
    * @param tableName Table name
    * @param indexName Index name
-   * @return Expression string, or null if index does not exist OR is not created on an expression
+   * @return Expression string, or null if index does not exist OR is not created on an expression; will be enclosed in
+   *         parentheses '()'
    */
   @Nullable
   public String getIndexExpression(@Nonnull String tableName, @Nonnull String indexName) {
