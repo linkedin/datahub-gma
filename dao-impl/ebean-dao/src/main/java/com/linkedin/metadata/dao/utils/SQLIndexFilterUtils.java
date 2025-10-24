@@ -119,19 +119,22 @@ public class SQLIndexFilterUtils {
           final String indexColumn = getGeneratedColumnName(entityType, aspect, pathParams.getPath(), nonDollarVirtualColumnsEnabled);
           final String tableName = SQLSchemaUtils.getTableName(entityType);
 
-          // NEW: Check if an expression-based index exists, if it does, use the new logic
+          // NEW / TODO: Check if an expression-based index exists, if it does, use the new logic
           final String indexExpression = schemaValidator.getIndexExpression(tableName, indexColumn);
           if (indexExpression != null) {
             log.debug("Using expression index '{}' in table '{}' with expression '{}'", indexColumn, tableName, indexExpression);
             //// Commenting this out for now... to be extra safe, will not currently make this queryable yet
             ////   and should verify that the above debug log is printed to properly acknoledge an expression.
             // sqlFilters.add(parseSqlFilter(indexExpression, condition, pathParams.getValue()));
-          } else if (!schemaValidator.columnExists(tableName, indexColumn)) {
+          }
+
+          // FOR NOW: keep old logic to allow parallel usage of new indices and validation
+          if (!schemaValidator.columnExists(tableName, indexColumn)) {
             // Else: (old logic) Skip filter if column doesn't exist
             log.warn("Skipping filter: virtual column '{}' not found in table '{}'", indexColumn, tableName);
-          } else {
-            sqlFilters.add(parseSqlFilter(indexColumn, condition, pathParams.getValue()));
+            continue;
           }
+          sqlFilters.add(parseSqlFilter(indexColumn, condition, pathParams.getValue()));
         }
       }
     }
