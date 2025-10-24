@@ -120,6 +120,10 @@ public class SQLIndexFilterUtils {
           final String tableName = SQLSchemaUtils.getTableName(entityType);
           // New: Skip filter if column doesn't exist
           if (!schemaValidator.columnExists(tableName, indexColumn)) {
+            // TODO: don't skip if the column doesn't exist, instead query for the JSON_Extract expression directly
+            // Think about how to "check for" whether an index actually exists: running this query without it will
+            // result in poor performance
+
             log.warn("Skipping filter: virtual column '{}' not found in table '{}'", indexColumn, tableName);
             continue;
           }
