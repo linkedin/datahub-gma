@@ -126,9 +126,8 @@ public class SQLIndexFilterUtils {
             //// Commenting this out for now... to be extra safe, will not currently make this queryable yet
             ////   and should verify that the above debug log is printed to properly acknoledge an expression.
             // sqlFilters.add(parseSqlFilter(indexExpression, condition, pathParams.getValue()));
-          }
-          // Else: (old logic) Skip filter if column doesn't exist
-          else if (!schemaValidator.columnExists(tableName, indexColumn)) {
+          } else if (!schemaValidator.columnExists(tableName, indexColumn)) {
+            // Else: (old logic) Skip filter if column doesn't exist
             log.warn("Skipping filter: virtual column '{}' not found in table '{}'", indexColumn, tableName);
           } else {
             sqlFilters.add(parseSqlFilter(indexColumn, condition, pathParams.getValue()));

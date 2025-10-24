@@ -156,13 +156,19 @@ public class SchemaValidatorUtil {
     String lowerTable = tableName.toLowerCase();
     String lowerIndex = indexName.toLowerCase();
 
-    Map<String, String> indexes = indexExpressionCache.get(lowerTable, tbl -> {
-      log.info("Refreshing index cache for table '{}' from expression retrieval call", tbl);
-      return loadIndexesAndExpressions(tbl);
-    });
+    try {
+      Map<String, String> indexes = indexExpressionCache.get(lowerTable, tbl -> {
+        log.info("Refreshing index cache for table '{}' from expression retrieval call", tbl);
+        return loadIndexesAndExpressions(tbl);
+      });
 
-    // This will also return null if the Expression column is null itself
-    return cleanIndexExpression(indexes.getOrDefault(lowerIndex, null));
+      // This will also return null if the Expression column is null itself
+      return cleanIndexExpression(indexes.getOrDefault(lowerIndex, null));
+    } catch (Exception e) {
+      // MariaDB for local testing doesn't support EXPRESSION column - gracefully degrade
+      log.debug("Unable to load index expressions for table '{}': {}", lowerTable, e.getMessage());
+      return null;  // same logic as "no expression exists", which is good (handled gracefully)
+    }
   }
 
   /**
