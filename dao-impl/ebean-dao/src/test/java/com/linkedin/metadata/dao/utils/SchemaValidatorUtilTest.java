@@ -4,8 +4,12 @@ import com.google.common.io.Resources;
 import com.linkedin.metadata.dao.EBeanDAOConfig;
 import io.ebean.Ebean;
 import io.ebean.EbeanServer;
+import io.ebean.SqlQuery;
+import io.ebean.SqlRow;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
@@ -14,6 +18,7 @@ import org.testng.annotations.Test;
 
 import static com.linkedin.common.AuditStamps.*;
 import static com.linkedin.testing.TestUtils.*;
+import static org.mockito.Mockito.*;
 import static org.testng.AssertJUnit.*;
 
 
@@ -38,7 +43,9 @@ public class SchemaValidatorUtilTest {
 
   @BeforeClass
   public void init() {
-    server = EmbeddedMariaInstance.getServer(SchemaValidatorUtilTest.class.getSimpleName());
+    // need to mock this since we will be stubbing in for the EXPRESSION column retrieval for that test since
+    // MariaDB doesn't support functional indexes
+    server = spy(EmbeddedMariaInstance.getServer(SchemaValidatorUtilTest.class.getSimpleName()));
   }
 
   @BeforeMethod
@@ -74,6 +81,68 @@ public class SchemaValidatorUtilTest {
       assertTrue(validator.indexExists("metadata_entity_foo", "i_aspectfoo$value"));
     } else {
       assertTrue(validator.indexExists("metadata_entity_foo", "i_aspectfoo0value"));
+    }
+  }
+
+  @Test
+  public void testCleanExpression() {
+
+  }
+
+  /**
+   * These tests require mocking because MariaDB, our embedded test database, does not support functional indexes, which
+   * the code under test is trying to access.
+   */
+  @Test
+  public void testGetIndexExpression() {
+    // NEED to set up all mocks for DB access BEFORE running ANY tests because it will be cached
+    SqlQuery sqlQuery = mock(SqlQuery.class);
+    List<SqlRow> indexTable = new ArrayList<>();
+
+    when(sqlQuery.findList()).thenReturn(indexTable);
+    when(server.createSqlQuery(anyString())).thenReturn(sqlQuery);
+
+    // setup mock for the LEGACY index use case: no expression-based index, but the index still exists!
+    SqlRow row1 = mock(SqlRow.class);
+    indexTable.add(row1);
+    when(row1.getString("EXPRESSION")).thenReturn(null);
+
+    // setup mock for the EXPRESSION index use case
+    SqlRow row2 = mock(SqlRow.class);
+    indexTable.add(row2);
+    when(row2.getString("EXPRESSION")).thenReturn(
+        "cast(json_extract(`a_aspectfoo`, '$.aspect.value') as char(1024) charset utf8mb4)");
+
+    if (!ebeanConfig.isNonDollarVirtualColumnsEnabled()) {
+      when(row1.getString("INDEX_NAME")).thenReturn("i_aspectfoo$value");
+      when(row2.getString("INDEX_NAME")).thenReturn("idx_aspectfoo$value");
+    } else {
+      when(row1.getString("INDEX_NAME")).thenReturn("i_aspectfoo0value");
+      when(row2.getString("INDEX_NAME")).thenReturn("idx_aspectfoo0value");
+    }
+
+
+    // NONEXISTENT test
+    assertNull(validator.getIndexExpression("metadata_entity_burger", "idx_fake"));
+
+    if (!ebeanConfig.isNonDollarVirtualColumnsEnabled()) {
+      /// Verify!
+      assertNotNull(validator.getIndexExpression("metadata_entity_burger", "idx_aspectfoo$value"));
+      assertEquals("(cast(json_extract(`a_aspectfoo`, '$.aspect.value') as char(1024) charset utf8mb4))",
+          validator.getIndexExpression("metadata_entity_burger", "idx_aspectfoo$value"));
+
+      // Make sure that retrieving a "legacy" column-based index still returns true but returns null
+      assertTrue(validator.indexExists("metadata_entity_foo", "i_aspectfoo$value"));
+      assertNull(validator.getIndexExpression("metadata_entity_foo", "i_aspectfoo$value"));
+    } else {
+      /// Verify!
+      assertNotNull(validator.getIndexExpression("metadata_entity_burger", "idx_aspectfoo0value"));
+      assertEquals("(cast(json_extract(`a_aspectfoo`, '$.aspect.value') as char(1024) charset utf8mb4))",
+          validator.getIndexExpression("metadata_entity_burger", "idx_aspectfoo0value"));
+
+      // Make sure that retrieving a "legacy" column-based index still returns true but returns null
+      assertTrue(validator.indexExists("metadata_entity_foo", "i_aspectfoo0value"));
+      assertNull(validator.getIndexExpression("metadata_entity_foo", "i_aspectfoo0value"));
     }
   }
 
