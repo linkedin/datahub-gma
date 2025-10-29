@@ -87,6 +87,7 @@ public class SchemaValidatorUtilTest {
   // These are all real examples of expressions used to create functional indexes
   // https://docs.google.com/document/d/1OSfx9DAXuPLlOaHWkn2o_WUlzNp1xZ1R_D63TNPZIG4/edit?tab=t.0#bookmark=id.y4f15dapxdh8
   @Test
+  @SuppressWarnings("checkstyle:LineLength")
   public void testCleanIndexExpression() {
     assertEquals("(cast(json_unquote(json_extract(`a_azkabanjobinfo`,'$.aspect.project.clusterInfo.hadoopCluster')) as char(255) charset utf8mb4))",
         SchemaValidatorUtil.cleanIndexExpression("cast(json_unquote(json_extract(`a_azkabanjobinfo`,_utf8mb4\\'$.aspect.project.clusterInfo.hadoopCluster\\')) as char(255) charset utf8mb4)"));

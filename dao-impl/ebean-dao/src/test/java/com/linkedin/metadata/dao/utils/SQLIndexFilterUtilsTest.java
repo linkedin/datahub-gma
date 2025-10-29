@@ -76,6 +76,7 @@ public class SQLIndexFilterUtilsTest {
 
   // Note that the other tests passing with the existing mocks inherently test the non-functional index case
   @Test
+  @SuppressWarnings("checkstyle:LineLength")
   public void testParseIndexFilterWithFunctionalIndex() {
     IndexCriterion
         indexCriterion = SQLIndexFilterUtils.createIndexCriterion(AspectBar.class, "value", Condition.LESS_THAN, IndexValue.create(12L));
