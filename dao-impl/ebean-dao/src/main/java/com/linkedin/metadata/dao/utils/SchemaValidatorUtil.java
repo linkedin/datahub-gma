@@ -127,14 +127,14 @@ public class SchemaValidatorUtil {
    * @param expression Raw SQL expression from database
    * @return Cleaned expression string, with enclosing parentheses
    */
-  @VisibleForTesting
-  protected String cleanIndexExpression(@Nullable String expression) {
+  public static String cleanIndexExpression(@Nullable String expression) {
     if (expression == null) {
       return null;
     }
 
     return "(" + expression
         .replace("_utf8mb4\\'", "'")
+        .replace("_utf8mb3\\'", "'")
         .replace("\\'", "'")
         .replace("\\\"", "\"")
         .replace("\n", "") + ")";

@@ -84,9 +84,27 @@ public class SchemaValidatorUtilTest {
     }
   }
 
+  // These are all real examples of expressions used to create functional indexes
+  // https://docs.google.com/document/d/1OSfx9DAXuPLlOaHWkn2o_WUlzNp1xZ1R_D63TNPZIG4/edit?tab=t.0#bookmark=id.y4f15dapxdh8
   @Test
-  public void testCleanExpression() {
+  public void testCleanIndexExpression() {
+    assertEquals("(cast(json_unquote(json_extract(`a_azkabanjobinfo`,'$.aspect.project.clusterInfo.hadoopCluster')) as char(255) charset utf8mb4))",
+        SchemaValidatorUtil.cleanIndexExpression("cast(json_unquote(json_extract(`a_azkabanjobinfo`,_utf8mb4\\'$.aspect.project.clusterInfo.hadoopCluster\\')) as char(255) charset utf8mb4)"));
 
+    assertEquals("(cast(json_unquote(json_extract(`a_urn`,'$.\"\\\\\\\\/azkabanFlowUrn\"')) as char(255) charset utf8mb4))",
+        SchemaValidatorUtil.cleanIndexExpression("cast(json_unquote(json_extract(`a_urn`,_utf8mb4\\'$.\"\\\\\\\\/azkabanFlowUrn\"\\')) as char(255) charset utf8mb4)"));
+
+    assertEquals("(cast(replace(json_unquote(json_extract(`a_datapolicyinfo`,'$.aspect.annotation.ontologyIris[*]')),'\"','') as char(255) charset utf8mb4))",
+        SchemaValidatorUtil.cleanIndexExpression("cast(replace(json_unquote(json_extract(`a_datapolicyinfo`,_utf8mb3\\'$.aspect.annotation.ontologyIris[*]\\')),_utf8mb4\\'\"\\',_utf8mb3\\'\\') as char(255) charset utf8mb4)"));
+
+    assertEquals("(cast(json_unquote(json_extract(`a_urn`,'$.\"\\\\\\\\/dataset\\\\\\\\/platform\\\\\\\\/platformName\"')) as char(255) charset utf8mb4))",
+        SchemaValidatorUtil.cleanIndexExpression("cast(json_unquote(json_extract(`a_urn`,_utf8mb3\\'$.\"\\\\\\\\/dataset\\\\\\\\/platform\\\\\\\\/platformName\"\\')) as char(255) charset utf8mb4)"));
+
+    // crazy AIM use case lol
+    assertEquals("(cast(concat(json_unquote(json_extract(`a_model_instance_info`,'$.aspect.multi_product_version.major')),'.',json_unquote(json_extract(`a_model_instance_info`,'$.aspect.multi_product_version.minor')),'.',json_unquote(json_extract(`a_model_instance_info`,'$.aspect.multi_product_version.patch'))) as char(255) charset utf8mb4))",
+        SchemaValidatorUtil.cleanIndexExpression("cast(concat(json_unquote(json_extract(`a_model_instance_info`,_utf8mb3\\'$.aspect.multi_product_version.major\\')),_utf8mb4\\'.\\',json_unquote(json_extract(`a_model_instance_info`,_utf8mb3\\'$.aspect.multi_product_version.minor\\')),_utf8mb4\\'.\\',json_unquote(json_extract(`a_model_instance_info`,_utf8mb3\\'$.aspect.multi_product_version.patch\\'))) as char(255) charset utf8mb4)"));
+
+    assertNull(SchemaValidatorUtil.cleanIndexExpression(null));
   }
 
   /**

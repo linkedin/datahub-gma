@@ -119,22 +119,19 @@ public class SQLIndexFilterUtils {
           final String indexColumn = getGeneratedColumnName(entityType, aspect, pathParams.getPath(), nonDollarVirtualColumnsEnabled);
           final String tableName = SQLSchemaUtils.getTableName(entityType);
 
-          // NEW / TODO: Check if an expression-based index exists, if it does, use the new logic
+          // NEW: Check if an expression-based index exists, if it does, use the new logic
+          // NOTE: With functional indexes, we establish that the index name is EXPECTED to follow the same naming
+          //       convention as old column naming to keep things consistent.
           final String indexExpression = schemaValidator.getIndexExpression(tableName, indexColumn);
           if (indexExpression != null) {
             log.debug("Using expression index '{}' in table '{}' with expression '{}'", indexColumn, tableName, indexExpression);
-            //// Commenting this out for now... to be extra safe, will not currently make this queryable yet
-            ////   and should verify that the above debug log is printed to properly acknoledge an expression.
-            // sqlFilters.add(parseSqlFilter(indexExpression, condition, pathParams.getValue()));
-          }
-
-          // FOR NOW: keep old logic to allow parallel usage of new indices and validation
-          if (!schemaValidator.columnExists(tableName, indexColumn)) {
+            sqlFilters.add(parseSqlFilter(indexExpression, condition, pathParams.getValue()));
+          } else if (!schemaValidator.columnExists(tableName, indexColumn)) {
             // Else: (old logic) Skip filter if column doesn't exist
             log.warn("Skipping filter: virtual column '{}' not found in table '{}'", indexColumn, tableName);
-            continue;
+          } else {
+            sqlFilters.add(parseSqlFilter(indexColumn, condition, pathParams.getValue()));
           }
-          sqlFilters.add(parseSqlFilter(indexColumn, condition, pathParams.getValue()));
         }
       }
     }
@@ -148,42 +145,43 @@ public class SQLIndexFilterUtils {
 
   /**
    * Parse condition expression.
-   * @param indexColumn the virtual generated column
+   * @param index the name of the virtual generated column OR the actual expression of a functional index
+   *              (TODO: is this valid?) Note: the functional index is expected to be wrapped in parentheses already.
    * @param condition {@link Condition} filter condition
    * @param indexValue {@link IndexValue} index value
    * @return SQL expression of the condition expression
    */
-  private static String parseSqlFilter(String indexColumn, Condition condition, IndexValue indexValue) {
+  private static String parseSqlFilter(String index, Condition condition, IndexValue indexValue) {
     switch (condition) {
       // TODO: add validation to check that the index column value is an array type
       case ARRAY_CONTAINS:
-        return String.format("'%s' MEMBER OF(%s)", parseIndexValue(indexValue), indexColumn);
+        return String.format("'%s' MEMBER OF(%s)", parseIndexValue(indexValue), index);
       case CONTAIN:
-        return String.format("JSON_SEARCH(%s, 'one', '%s') IS NOT NULL", indexColumn, parseIndexValue(indexValue));
+        return String.format("JSON_SEARCH(%s, 'one', '%s') IS NOT NULL", index, parseIndexValue(indexValue));
       case IN:
-        return indexColumn + " IN " + parseIndexValue(indexValue);
+        return index + " IN " + parseIndexValue(indexValue);
       case EQUAL:
         if (indexValue.isString() || indexValue.isBoolean()) {
-          return indexColumn + " = '" + parseIndexValue(indexValue) + "'";
+          return index + " = '" + parseIndexValue(indexValue) + "'";
         }
 
         if (indexValue.isArray()) {
-          return indexColumn + " = '" + convertToJsonArray(indexValue.getArray()) + "'";
+          return index + " = '" + convertToJsonArray(indexValue.getArray()) + "'";
         }
 
-        return indexColumn + " = " + parseIndexValue(indexValue);
+        return index + " = " + parseIndexValue(indexValue);
       case START_WITH:
-        return indexColumn + " LIKE '" + parseIndexValue(indexValue) + "%'";
+        return index + " LIKE '" + parseIndexValue(indexValue) + "%'";
       case END_WITH:
-        return indexColumn + " LIKE '%" + parseIndexValue(indexValue) + "'";
+        return index + " LIKE '%" + parseIndexValue(indexValue) + "'";
       case GREATER_THAN_OR_EQUAL_TO:
-        return indexColumn + " >= " + parseIndexValue(indexValue);
+        return index + " >= " + parseIndexValue(indexValue);
       case GREATER_THAN:
-        return indexColumn + " > " + parseIndexValue(indexValue);
+        return index + " > " + parseIndexValue(indexValue);
       case LESS_THAN_OR_EQUAL_TO:
-        return indexColumn + " <= " + parseIndexValue(indexValue);
+        return index + " <= " + parseIndexValue(indexValue);
       case LESS_THAN:
-        return indexColumn + " < " + parseIndexValue(indexValue);
+        return index + " < " + parseIndexValue(indexValue);
       default:
         throw new UnsupportedOperationException("Unsupported condition operation: " + condition);
     }
