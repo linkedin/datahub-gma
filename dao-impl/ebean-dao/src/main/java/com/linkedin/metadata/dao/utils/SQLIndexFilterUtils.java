@@ -126,11 +126,12 @@ public class SQLIndexFilterUtils {
           if (indexExpression != null) {
             log.debug("Using expression index '{}' in table '{}' with expression '{}'", indexColumn, tableName, indexExpression);
             sqlFilters.add(parseSqlFilter(indexExpression, condition, pathParams.getValue()));
-          } else if (!schemaValidator.columnExists(tableName, indexColumn)) {
-            // Else: (old logic) Skip filter if column doesn't exist
-            log.warn("Skipping filter: virtual column '{}' not found in table '{}'", indexColumn, tableName);
-          } else {
+          } else if (schemaValidator.columnExists(tableName, indexColumn)) {
+            // (Pre-functional-index logic) Check for existence of (virtual) column
             sqlFilters.add(parseSqlFilter(indexColumn, condition, pathParams.getValue()));
+          } else {
+            // (Pre-functional-index logic) Skip filter if column doesn't exist
+            log.warn("Skipping filter: virtual column '{}' not found in table '{}'", indexColumn, tableName);
           }
         }
       }
