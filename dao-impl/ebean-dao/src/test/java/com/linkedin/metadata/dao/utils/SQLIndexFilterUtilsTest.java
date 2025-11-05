@@ -87,7 +87,6 @@ public class SQLIndexFilterUtilsTest {
         "WHERE a_aspectfoo IS NOT NULL\nAND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\nAND i_aspectfoo0id < 12\nAND deleted_ts IS NULL");
   }
 
-  @SuppressWarnings("checkstyle:LineLength")
   private static void assertValidSql(String sql) {
     final String sqlPrefix = "SELECT * FROM metadata_entity_fakeplaceholder\n";
     try {
@@ -99,6 +98,7 @@ public class SQLIndexFilterUtilsTest {
   }
 
   // Note that the other tests passing with the existing mocks inherently test the non-functional index case
+  @SuppressWarnings("checkstyle:LineLength")
   @Test
   public void testParseIndexFilterWithFunctionalIndex() {
     // set up reusable index filter code
