@@ -156,11 +156,11 @@ public class SQLIndexFilterUtils {
     switch (condition) {
       // TODO: add validation to check that the index column value is an array type
       case ARRAY_CONTAINS:
-        return String.format("'%s' MEMBER OF(%s)", parseIndexValue(indexValue), index);
+        return String.format("'%s' MEMBER OF(%s)", parseIndexValue(indexValue), index);  // JSON Array
       case CONTAIN:
-        return String.format("JSON_SEARCH(%s, 'one', '%s') IS NOT NULL", index, parseIndexValue(indexValue));
+        return String.format("JSON_SEARCH(%s, 'one', '%s') IS NOT NULL", index, parseIndexValue(indexValue));  // JSON String, Array, Struct
       case IN:
-        return index + " IN " + parseIndexValue(indexValue);
+        return index + " IN " + parseIndexValue(indexValue);  // note the usage here is "swapped": indexValue IN (input)
       case EQUAL:
         if (indexValue.isString() || indexValue.isBoolean()) {
           return index + " = '" + parseIndexValue(indexValue) + "'";

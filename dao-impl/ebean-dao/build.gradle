@@ -29,6 +29,7 @@ dependencies {
   testCompile externalDependency.mockito
   testCompile externalDependency.mockitoInline
   testCompile externalDependency.maria4j
+  testCompile externalDependency.calcite
   enhance externalDependency.ebeanAgent
 }
 
