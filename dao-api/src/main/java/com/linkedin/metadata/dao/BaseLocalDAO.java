@@ -736,11 +736,14 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       }
     }
 
-    // check if any the aspects are in test mode
-    boolean isTestModeFalseForAll = aspectCreateLambdas.stream().filter(aspectCreateLambda -> aspectCreateLambda.getIngestionParams().isTestMode()).collect(
-          Collectors.toList()).isEmpty();
+    // Check if any of the aspects are in test mode
+    // Assumption: Either all aspects will be in test mode OR all aspects will be in non-test mode.
+    // We check if the filtered list (aspects with test mode = true) is empty to determine if all are non-test mode.
+    boolean isTestModeFalseForAll = aspectCreateLambdas.stream()
+        .noneMatch(aspectCreateLambda -> aspectCreateLambda.getIngestionParams().isTestMode());
 
-    int numRows = createNewAssetWithAspects(urn, aspectCreateLambdas, aspectValues, auditStamp, trackingContext, isTestModeFalseForAll);
+    // Create the asset with aspects. Pass the negation since createNewAssetWithAspects expects isTestMode flag.
+    int numRows = createNewAssetWithAspects(urn, aspectCreateLambdas, aspectValues, auditStamp, trackingContext, !isTestModeFalseForAll);
     for (RecordTemplate aspectValue : aspectValues) {
       // For each aspect, we need to trigger emit MAE
       // In new asset creation, old value is null
