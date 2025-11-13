@@ -34,8 +34,14 @@ public class SQLSchemaUtilsTest {
   @Test
   public void testGetExpressionIndexName() {
     GlobalAssetRegistry.register(BarUrn.ENTITY_TYPE, BarAsset.class);
-    assertEquals("a_aspect_bar",
-        SQLSchemaUtils.getAspectColumnName(BarUrn.ENTITY_TYPE, "com.linkedin.testing.AspectBar"));
+    assertEquals(
+        SQLSchemaUtils.getExpressionIndexName(BarUrn.ENTITY_TYPE, AspectFoo.class.getCanonicalName(), "/value"),
+        "e_aspectfoo0value");
+
+    GlobalAssetRegistry.register(BarUrn.ENTITY_TYPE, BarAsset.class);
+    assertEquals(
+        SQLSchemaUtils.getExpressionIndexName(BarUrn.ENTITY_TYPE, AspectFoo.class.getCanonicalName(), "/value/fooBar"),
+        "e_aspectfoo0value0fooBar");
   }
 
 }
