@@ -31,4 +31,11 @@ public class SQLSchemaUtilsTest {
         SQLSchemaUtils.getAspectColumnName(BarUrn.ENTITY_TYPE, "com.linkedin.testing.AspectBar"));
   }
 
+  @Test
+  public void testGetExpressionIndexName() {
+    GlobalAssetRegistry.register(BarUrn.ENTITY_TYPE, BarAsset.class);
+    assertEquals("a_aspect_bar",
+        SQLSchemaUtils.getAspectColumnName(BarUrn.ENTITY_TYPE, "com.linkedin.testing.AspectBar"));
+  }
+
 }

@@ -24,6 +24,7 @@ public class SQLSchemaUtils {
   public static final String TEST_TABLE_SUFFIX = "_test";
   public static final String ASPECT_PREFIX = "a_";
   public static final String INDEX_PREFIX = "i_";
+  public static final String EXPRESSION_INDEX_PREFIX = "e_";
 
   private static final int MYSQL_MAX_COLUMN_NAME_LENGTH = 64 - ASPECT_PREFIX.length();
 
@@ -165,6 +166,21 @@ public class SQLSchemaUtils {
       log.warn("query with unknown asset type. aspect =  {}, path ={}, delimiter = {}", aspect, path, delimiter);
     }
     return INDEX_PREFIX + getColumnName(assetType, aspect) + processPath(path, delimiter);
+  }
+
+  /**
+   * Get the expected expression index name from aspect and path.
+   */
+  @Nonnull
+  public static String getExpressionIndexName(@Nonnull String assetType, @Nonnull String aspect, @Nonnull String path) {
+    char delimiter = '0';  // set to '0' to avoid complications for future "special character" considerations
+    if (isUrn(aspect)) {
+      return EXPRESSION_INDEX_PREFIX + "urn" + processPath(path, delimiter);
+    }
+    if (UNKNOWN_ASSET.equals(assetType)) {
+      log.warn("query with unknown asset type. aspect =  {}, path ={}, delimiter = {}", aspect, path, delimiter);
+    }
+    return EXPRESSION_INDEX_PREFIX + getColumnName(assetType, aspect) + processPath(path, delimiter);
   }
 
   /**

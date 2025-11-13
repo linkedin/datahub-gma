@@ -120,11 +120,10 @@ public class SQLIndexFilterUtils {
           final String tableName = SQLSchemaUtils.getTableName(entityType);
 
           // NEW: Check if an expression-based index exists, if it does, use the new logic
-          // NOTE: With functional indexes, we establish that the index name is EXPECTED to follow the same naming
-          //       convention as old column naming to keep things consistent.
-          final String indexExpression = schemaValidator.getIndexExpression(tableName, indexColumn);
+          final String expressionIndexName = getExpressionIndexName(entityType, aspect, pathParams.getPath());
+          final String indexExpression = schemaValidator.getIndexExpression(tableName, expressionIndexName);
           if (indexExpression != null) {
-            log.debug("Using expression index '{}' in table '{}' with expression '{}'", indexColumn, tableName, indexExpression);
+            log.debug("Using expression index '{}' in table '{}' with expression '{}'", expressionIndexName, tableName, indexExpression);
             sqlFilters.add(parseSqlFilter(indexExpression, condition, pathParams.getValue()));
           } else if (schemaValidator.columnExists(tableName, indexColumn)) {
             // (Pre-functional-index logic) Check for existence of (virtual) column

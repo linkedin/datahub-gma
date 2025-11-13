@@ -129,36 +129,30 @@ public class SchemaValidatorUtilTest {
     // setup mock for the EXPRESSION index use case
     SqlRow row2 = mock(SqlRow.class);
     indexTable.add(row2);
+    when(row2.getString("INDEX_NAME")).thenReturn("e_aspectfoo0value");
     when(row2.getString("EXPRESSION")).thenReturn(
         "cast(json_extract(`a_aspectfoo`, '$.aspect.value') as char(1024) charset utf8mb4)");
 
     if (!ebeanConfig.isNonDollarVirtualColumnsEnabled()) {
       when(row1.getString("INDEX_NAME")).thenReturn("i_aspectfoo$value");
-      when(row2.getString("INDEX_NAME")).thenReturn("idx_aspectfoo$value");
     } else {
       when(row1.getString("INDEX_NAME")).thenReturn("i_aspectfoo0value");
-      when(row2.getString("INDEX_NAME")).thenReturn("idx_aspectfoo0value");
     }
 
 
     // NONEXISTENT test
     assertNull(validator.getIndexExpression("metadata_entity_burger", "idx_fake"));
 
-    if (!ebeanConfig.isNonDollarVirtualColumnsEnabled()) {
-      /// Verify!
-      assertNotNull(validator.getIndexExpression("metadata_entity_burger", "idx_aspectfoo$value"));
-      assertEquals("(cast(json_extract(`a_aspectfoo`, '$.aspect.value') as char(1024) charset utf8mb4))",
-          validator.getIndexExpression("metadata_entity_burger", "idx_aspectfoo$value"));
+    /// Verify!
+    assertNotNull(validator.getIndexExpression("metadata_entity_burger", "e_aspectfoo0value"));
+    assertEquals("(cast(json_extract(`a_aspectfoo`, '$.aspect.value') as char(1024) charset utf8mb4))",
+        validator.getIndexExpression("metadata_entity_burger", "e_aspectfoo$value"));
 
+    if (!ebeanConfig.isNonDollarVirtualColumnsEnabled()) {
       // Make sure that retrieving a "legacy" column-based index still returns true but returns null
       assertTrue(validator.indexExists("metadata_entity_foo", "i_aspectfoo$value"));
       assertNull(validator.getIndexExpression("metadata_entity_foo", "i_aspectfoo$value"));
     } else {
-      /// Verify!
-      assertNotNull(validator.getIndexExpression("metadata_entity_burger", "idx_aspectfoo0value"));
-      assertEquals("(cast(json_extract(`a_aspectfoo`, '$.aspect.value') as char(1024) charset utf8mb4))",
-          validator.getIndexExpression("metadata_entity_burger", "idx_aspectfoo0value"));
-
       // Make sure that retrieving a "legacy" column-based index still returns true but returns null
       assertTrue(validator.indexExists("metadata_entity_foo", "i_aspectfoo0value"));
       assertNull(validator.getIndexExpression("metadata_entity_foo", "i_aspectfoo0value"));
