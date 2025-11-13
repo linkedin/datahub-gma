@@ -146,7 +146,7 @@ public class SchemaValidatorUtilTest {
     /// Verify!
     assertNotNull(validator.getIndexExpression("metadata_entity_burger", "e_aspectfoo0value"));
     assertEquals("(cast(json_extract(`a_aspectfoo`, '$.aspect.value') as char(1024) charset utf8mb4))",
-        validator.getIndexExpression("metadata_entity_burger", "e_aspectfoo$value"));
+        validator.getIndexExpression("metadata_entity_burger", "e_aspectfoo0value"));
 
     if (!ebeanConfig.isNonDollarVirtualColumnsEnabled()) {
       // Make sure that retrieving a "legacy" column-based index still returns true but returns null
