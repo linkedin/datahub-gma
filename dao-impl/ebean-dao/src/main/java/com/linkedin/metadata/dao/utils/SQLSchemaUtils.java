@@ -152,20 +152,29 @@ public class SQLSchemaUtils {
     return getAspectColumnName(entityType, aspectClass.getCanonicalName());
   }
 
+  private static String getExpectedNameHelper(
+      @Nonnull String prefix,
+      @Nonnull String assetType,
+      @Nonnull String aspect,
+      @Nonnull String path,
+      boolean nonDollarVirtualColumnsEnabled) {
+    char delimiter = nonDollarVirtualColumnsEnabled ? '0' : '$';
+    if (isUrn(aspect)) {
+      return prefix + "urn" + processPath(path, delimiter);
+    }
+    if (UNKNOWN_ASSET.equals(assetType)) {
+      log.warn("query with unknown asset type. aspect =  {}, path ={}, delimiter = {}", aspect, path, delimiter);
+    }
+    return prefix + getColumnName(assetType, aspect) + processPath(path, delimiter);
+  }
+
   /**
    * Get generated column name from aspect and path.
    */
   @Nonnull
   public static String getGeneratedColumnName(@Nonnull String assetType, @Nonnull String aspect, @Nonnull String path,
       boolean nonDollarVirtualColumnsEnabled) {
-    char delimiter = nonDollarVirtualColumnsEnabled ? '0' : '$';
-    if (isUrn(aspect)) {
-      return INDEX_PREFIX + "urn" + processPath(path, delimiter);
-    }
-    if (UNKNOWN_ASSET.equals(assetType)) {
-      log.warn("query with unknown asset type. aspect =  {}, path ={}, delimiter = {}", aspect, path, delimiter);
-    }
-    return INDEX_PREFIX + getColumnName(assetType, aspect) + processPath(path, delimiter);
+    return getExpectedNameHelper(INDEX_PREFIX, assetType, aspect, path, nonDollarVirtualColumnsEnabled);
   }
 
   /**
@@ -173,14 +182,9 @@ public class SQLSchemaUtils {
    */
   @Nonnull
   public static String getExpressionIndexName(@Nonnull String assetType, @Nonnull String aspect, @Nonnull String path) {
-    char delimiter = '0';  // set to '0' to avoid complications for future "special character" considerations
-    if (isUrn(aspect)) {
-      return EXPRESSION_INDEX_PREFIX + "urn" + processPath(path, delimiter);
-    }
-    if (UNKNOWN_ASSET.equals(assetType)) {
-      log.warn("query with unknown asset type. aspect =  {}, path ={}, delimiter = {}", aspect, path, delimiter);
-    }
-    return EXPRESSION_INDEX_PREFIX + getColumnName(assetType, aspect) + processPath(path, delimiter);
+    // set boolean flag to false to purposefully expect '0' as the delimiter to avoid complications for future
+    // "special character" considerations
+    return getExpectedNameHelper(EXPRESSION_INDEX_PREFIX, assetType, aspect, path, false);
   }
 
   /**
