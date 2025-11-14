@@ -31,4 +31,14 @@ public class SQLSchemaUtilsTest {
         SQLSchemaUtils.getAspectColumnName(BarUrn.ENTITY_TYPE, "com.linkedin.testing.AspectBar"));
   }
 
+  @Test
+  public void testGetExpressionIndexName() {
+    assertEquals(
+        SQLSchemaUtils.getExpressionIndexName(FooUrn.ENTITY_TYPE, AspectFoo.class.getCanonicalName(), "/value"),
+        "e_aspectfoo0value");
+    assertEquals(
+        SQLSchemaUtils.getExpressionIndexName(FooUrn.ENTITY_TYPE, AspectFoo.class.getCanonicalName(), "/value/fooBar"),
+        "e_aspectfoo0value0fooBar");
+  }
+
 }

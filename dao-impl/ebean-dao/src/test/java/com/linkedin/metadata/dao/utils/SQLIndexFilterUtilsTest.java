@@ -37,13 +37,13 @@ public class SQLIndexFilterUtilsTest {
     //    and works just fine: we will omit it here so that we can check the syntax otherwise.
 
     // "AspectBar" as the aspect with a functional index and "value" as the field (path) to be indexed
-    when(mockValidator.getIndexExpression(anyString(), matches("i_aspectbar[$0]value")))
+    when(mockValidator.getIndexExpression(anyString(), matches("e_aspectbar0value")))
         .thenReturn("(cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024)))");
     //    This is an existing new way of Array extraction (AssetLabels.derived_labels)
-    when(mockValidator.getIndexExpression(anyString(), matches("i_aspectbar[$0]value_array")))
+    when(mockValidator.getIndexExpression(anyString(), matches("e_aspectbar0value_array")))
         .thenReturn("(cast(json_extract(`a_aspectbar`, '$.aspect.value_array') as char(128) array))");
     //    This is an existing legacy way of array extraction, casting to a string (DataPolicyInfo.annotation.ontologyIris)
-    when(mockValidator.getIndexExpression(anyString(), matches("i_aspectbar[$0]annotation[$0]ontologyIris")))
+    when(mockValidator.getIndexExpression(anyString(), matches("e_aspectbar0annotation0ontologyIris")))
         .thenReturn("(cast(replace(json_unquote(json_extract(`a_aspectbar`,'$.aspect.annotation.ontologyIris[*]')),'\"','') as char(255)))");
   }
 
