@@ -184,7 +184,7 @@ public class SQLSchemaUtils {
   public static String getExpressionIndexName(@Nonnull String assetType, @Nonnull String aspect, @Nonnull String path) {
     // set boolean flag to false to purposefully expect '0' as the delimiter to avoid complications for future
     // "special character" considerations
-    return getExpectedNameHelper(EXPRESSION_INDEX_PREFIX, assetType, aspect, path, false);
+    return getExpectedNameHelper(EXPRESSION_INDEX_PREFIX, assetType, aspect, path, true);
   }
 
   /**
