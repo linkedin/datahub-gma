@@ -152,6 +152,7 @@ public class SQLSchemaUtils {
     return getAspectColumnName(entityType, aspectClass.getCanonicalName());
   }
 
+  @Nonnull
   private static String getExpectedNameHelper(
       @Nonnull String prefix,
       @Nonnull String assetType,
