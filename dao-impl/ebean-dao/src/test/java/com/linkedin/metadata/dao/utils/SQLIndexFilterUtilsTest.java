@@ -214,17 +214,17 @@ public class SQLIndexFilterUtilsTest {
   @Test
   public void testGetIndexedExpressionOrColumn() {
     // Get something that is NOT an expression (not mocked) -- '$' variant
-    assertEquals(SQLIndexFilterUtils.getIndexedExpressionOrColumn(FooUrn.ENTITY_TYPE, "aspectfoo", "value",
+    assertEquals(SQLIndexFilterUtils.getIndexedExpressionOrColumn(FooUrn.ENTITY_TYPE, AspectFoo.class.getCanonicalName(), "value",
         false, mockValidator),
-        "i_aspectbar$value");
+        "i_aspectfoo$value");
 
     // Get something that is NOT an expression (not mocked) -- '0' variant
-    assertEquals(SQLIndexFilterUtils.getIndexedExpressionOrColumn(FooUrn.ENTITY_TYPE, "aspectfoo", "value",
+    assertEquals(SQLIndexFilterUtils.getIndexedExpressionOrColumn(FooUrn.ENTITY_TYPE, AspectFoo.class.getCanonicalName(), "value",
         true, mockValidator),
-        "i_aspectbar0value");
+        "i_aspectfoo0value");
 
     // Get something that is an expression (mocked)
-    assertEquals(SQLIndexFilterUtils.getIndexedExpressionOrColumn(FooUrn.ENTITY_TYPE, "aspectbar", "value",
+    assertEquals(SQLIndexFilterUtils.getIndexedExpressionOrColumn(FooUrn.ENTITY_TYPE, AspectBar.class.getCanonicalName(), "value",
         false, mockValidator),
         "(cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024)))");
   }
