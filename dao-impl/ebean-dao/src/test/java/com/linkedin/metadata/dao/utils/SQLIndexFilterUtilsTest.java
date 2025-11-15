@@ -55,17 +55,17 @@ public class SQLIndexFilterUtilsTest {
     assertEquals(indexSortCriterion.getOrder(), SortOrder.ASCENDING);
     assertEquals(indexSortCriterion.getAspect(), AspectFoo.class.getCanonicalName());
 
-    String sql1 = SQLIndexFilterUtils.parseSortCriteria(fooUrn.getEntityType(), indexSortCriterion, false);
+    String sql1 = SQLIndexFilterUtils.parseSortCriteria(fooUrn.getEntityType(), indexSortCriterion, false, mockValidator);
     assertEquals(sql1, "ORDER BY i_aspectfoo$id ASC");
 
-    String sql2 = SQLIndexFilterUtils.parseSortCriteria(fooUrn.getEntityType(), indexSortCriterion, true);
+    String sql2 = SQLIndexFilterUtils.parseSortCriteria(fooUrn.getEntityType(), indexSortCriterion, true, mockValidator);
     assertEquals(sql2, "ORDER BY i_aspectfoo0id ASC");
 
     indexSortCriterion.setOrder(SortOrder.DESCENDING);
-    sql1 = SQLIndexFilterUtils.parseSortCriteria(fooUrn.getEntityType(), indexSortCriterion, false);
+    sql1 = SQLIndexFilterUtils.parseSortCriteria(fooUrn.getEntityType(), indexSortCriterion, false, mockValidator);
     assertEquals(sql1, "ORDER BY i_aspectfoo$id DESC");
 
-    sql2 = SQLIndexFilterUtils.parseSortCriteria(fooUrn.getEntityType(), indexSortCriterion, true);
+    sql2 = SQLIndexFilterUtils.parseSortCriteria(fooUrn.getEntityType(), indexSortCriterion, true, mockValidator);
     assertEquals(sql2, "ORDER BY i_aspectfoo0id DESC");
   }
 
@@ -209,5 +209,23 @@ public class SQLIndexFilterUtilsTest {
         expectedSql10);
     assertEquals(SQLIndexFilterUtils.parseIndexFilter(FooUrn.ENTITY_TYPE, indexFilter, true, mockValidator),
         expectedSql10);
+  }
+
+  @Test
+  public void testGetIndexedExpressionOrColumn() {
+    // Get something that is NOT an expression (not mocked) -- '$' variant
+    assertEquals(SQLIndexFilterUtils.getIndexedExpressionOrColumn(FooUrn.ENTITY_TYPE, AspectFoo.class.getCanonicalName(), "value",
+        false, mockValidator),
+        "i_aspectfoo$value");
+
+    // Get something that is NOT an expression (not mocked) -- '0' variant
+    assertEquals(SQLIndexFilterUtils.getIndexedExpressionOrColumn(FooUrn.ENTITY_TYPE, AspectFoo.class.getCanonicalName(), "value",
+        true, mockValidator),
+        "i_aspectfoo0value");
+
+    // Get something that is an expression (mocked)
+    assertEquals(SQLIndexFilterUtils.getIndexedExpressionOrColumn(FooUrn.ENTITY_TYPE, AspectBar.class.getCanonicalName(), "value",
+        false, mockValidator),
+        "(cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024)))");
   }
 }

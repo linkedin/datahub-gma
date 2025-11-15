@@ -362,21 +362,21 @@ public class SQLStatementUtils {
    */
   public static String createGroupBySql(String entityType, @Nullable IndexFilter indexFilter,
       @Nonnull IndexGroupByCriterion indexGroupByCriterion, boolean nonDollarVirtualColumnsEnabled, @Nonnull SchemaValidatorUtil schemaValidator) {
-    final String tableName = getTableName(entityType);
-    final String columnName =
-        getGeneratedColumnName(entityType, indexGroupByCriterion.getAspect(), indexGroupByCriterion.getPath(),
-            nonDollarVirtualColumnsEnabled);
-    // Check if the column exists in the schema
-    if (!schemaValidator.columnExists(tableName, columnName)) {
-      log.warn("Skipping group-by: column '{}' not found in table '{}'", columnName, tableName);
+    final String indexedExpressionOrColumn =
+        SQLIndexFilterUtils.getIndexedExpressionOrColumn(entityType, indexGroupByCriterion.getAspect(), indexGroupByCriterion.getPath(),
+            nonDollarVirtualColumnsEnabled, schemaValidator);
+    if (indexedExpressionOrColumn == null) {
+      log.warn("Skipping group-by: Neither expression index nor virtual column found for Aspect '{}' and Path '{}' for Asset '{}'",
+          indexGroupByCriterion.getAspect(), indexGroupByCriterion.getPath(), entityType);
       return ""; // skip query generation
     }
+
     StringBuilder sb = new StringBuilder();
-    sb.append(String.format(INDEX_GROUP_BY_CRITERION, columnName, tableName));
+    sb.append(String.format(INDEX_GROUP_BY_CRITERION, indexedExpressionOrColumn, getTableName(entityType)));
     sb.append("\n");
     sb.append(parseIndexFilter(entityType, indexFilter, nonDollarVirtualColumnsEnabled, schemaValidator));
     sb.append("\nGROUP BY ");
-    sb.append(columnName);
+    sb.append(indexedExpressionOrColumn);
     return sb.toString();
   }
 
