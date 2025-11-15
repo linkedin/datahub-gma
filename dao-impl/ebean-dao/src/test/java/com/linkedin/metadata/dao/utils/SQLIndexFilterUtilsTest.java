@@ -55,17 +55,17 @@ public class SQLIndexFilterUtilsTest {
     assertEquals(indexSortCriterion.getOrder(), SortOrder.ASCENDING);
     assertEquals(indexSortCriterion.getAspect(), AspectFoo.class.getCanonicalName());
 
-    String sql1 = SQLIndexFilterUtils.parseSortCriteria(fooUrn.getEntityType(), indexSortCriterion, false);
+    String sql1 = SQLIndexFilterUtils.parseSortCriteria(fooUrn.getEntityType(), indexSortCriterion, false, mockValidator);
     assertEquals(sql1, "ORDER BY i_aspectfoo$id ASC");
 
-    String sql2 = SQLIndexFilterUtils.parseSortCriteria(fooUrn.getEntityType(), indexSortCriterion, true);
+    String sql2 = SQLIndexFilterUtils.parseSortCriteria(fooUrn.getEntityType(), indexSortCriterion, true, mockValidator);
     assertEquals(sql2, "ORDER BY i_aspectfoo0id ASC");
 
     indexSortCriterion.setOrder(SortOrder.DESCENDING);
-    sql1 = SQLIndexFilterUtils.parseSortCriteria(fooUrn.getEntityType(), indexSortCriterion, false);
+    sql1 = SQLIndexFilterUtils.parseSortCriteria(fooUrn.getEntityType(), indexSortCriterion, false, mockValidator);
     assertEquals(sql1, "ORDER BY i_aspectfoo$id DESC");
 
-    sql2 = SQLIndexFilterUtils.parseSortCriteria(fooUrn.getEntityType(), indexSortCriterion, true);
+    sql2 = SQLIndexFilterUtils.parseSortCriteria(fooUrn.getEntityType(), indexSortCriterion, true, mockValidator);
     assertEquals(sql2, "ORDER BY i_aspectfoo0id DESC");
   }
 

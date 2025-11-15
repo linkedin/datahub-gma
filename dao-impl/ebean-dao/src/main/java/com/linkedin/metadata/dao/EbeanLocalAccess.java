@@ -457,12 +457,11 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   @Override
   public Map<String, Long> countAggregate(@Nullable IndexFilter indexFilter,
       @Nonnull IndexGroupByCriterion indexGroupByCriterion) {
-    final String tableName = SQLSchemaUtils.getTableName(_entityType);
-    final String groupByColumn =
-        getGeneratedColumnName(_entityType, indexGroupByCriterion.getAspect(), indexGroupByCriterion.getPath(),
-            _nonDollarVirtualColumnsEnabled);
-    // first, check for existence of the column we want to GROUP BY
-    if (!validator.columnExists(tableName, groupByColumn)) {
+    final String indexedExpressionOrColumn =
+        SQLSchemaUtils.getIndexedExpressionOrColumn(_entityType, indexGroupByCriterion.getAspect(), indexGroupByCriterion.getPath(),
+            _nonDollarVirtualColumnsEnabled, validator);
+    // first, check for existence of the column we want to GROUP BY --> null from the previous method call means this
+    if (indexedExpressionOrColumn == null) {
       // if we are trying to GROUP BY the results on a column that does not exist, just return an empty map
       return Collections.emptyMap();
     }
@@ -497,7 +496,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     StringBuilder filterSql = new StringBuilder();
     filterSql.append(SQLStatementUtils.createFilterSql(_entityType, indexFilter, true, _nonDollarVirtualColumnsEnabled, validator));
     filterSql.append("\n");
-    filterSql.append(parseSortCriteria(_entityType, indexSortCriterion, _nonDollarVirtualColumnsEnabled));
+    filterSql.append(parseSortCriteria(_entityType, indexSortCriterion, _nonDollarVirtualColumnsEnabled, validator));
     filterSql.append(String.format(" LIMIT %d", Math.max(pageSize, 0)));
     filterSql.append(String.format(" OFFSET %d", Math.max(offset, 0)));
     return _server.createSqlQuery(filterSql.toString());
@@ -520,7 +519,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     }
 
     filterSql.append("\n");
-    filterSql.append(parseSortCriteria(_entityType, indexSortCriterion, _nonDollarVirtualColumnsEnabled));
+    filterSql.append(parseSortCriteria(_entityType, indexSortCriterion, _nonDollarVirtualColumnsEnabled, validator));
     filterSql.append(String.format(" LIMIT %d", Math.max(pageSize, 0)));
     return _server.createSqlQuery(filterSql.toString());
   }

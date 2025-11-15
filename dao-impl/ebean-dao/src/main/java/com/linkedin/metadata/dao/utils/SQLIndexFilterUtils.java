@@ -74,19 +74,20 @@ public class SQLIndexFilterUtils {
    * @return SQL statement of sorting, e.g. ORDER BY ... DESC ..etc.
    */
   public static String parseSortCriteria(@Nonnull String entityType, @Nullable IndexSortCriterion indexSortCriterion,
-      boolean nonDollarVirtualColumnsEnabled) {
+      boolean nonDollarVirtualColumnsEnabled, @Nonnull SchemaValidatorUtil validator) {
     if (indexSortCriterion == null) {
       // Default to order by urn if user does not provide sort criterion.
       return "ORDER BY URN";
     }
-    final String indexColumn =
-        SQLSchemaUtils.getGeneratedColumnName(entityType, indexSortCriterion.getAspect(), indexSortCriterion.getPath(),
-            nonDollarVirtualColumnsEnabled);
+
+    final String indexedExpressionOrColumn =
+        SQLSchemaUtils.getIndexedExpressionOrColumn(entityType, indexSortCriterion.getAspect(), indexSortCriterion.getPath(),
+            nonDollarVirtualColumnsEnabled, validator);
 
     if (!indexSortCriterion.hasOrder()) {
-      return "ORDER BY " + indexColumn;
+      return "ORDER BY " + indexedExpressionOrColumn;
     } else {
-      return "ORDER BY " + indexColumn + " " + (indexSortCriterion.getOrder() == SortOrder.ASCENDING ? "ASC" : "DESC");
+      return "ORDER BY " + indexedExpressionOrColumn + " " + (indexSortCriterion.getOrder() == SortOrder.ASCENDING ? "ASC" : "DESC");
     }
   }
 
@@ -116,22 +117,16 @@ public class SQLIndexFilterUtils {
         if (pathParams != null) {
           validateConditionAndValue(indexCriterion);
           final Condition condition = pathParams.getCondition();
-          final String indexColumn = getGeneratedColumnName(entityType, aspect, pathParams.getPath(), nonDollarVirtualColumnsEnabled);
-          final String tableName = SQLSchemaUtils.getTableName(entityType);
 
-          // NEW: Check if an expression-based index exists, if it does, use the new logic
-          final String expressionIndexName = getExpressionIndexName(entityType, aspect, pathParams.getPath());
-          final String indexExpression = schemaValidator.getIndexExpression(tableName, expressionIndexName);
-          if (indexExpression != null) {
-            log.debug("Using expression index '{}' in table '{}' with expression '{}'", expressionIndexName, tableName, indexExpression);
-            sqlFilters.add(parseSqlFilter(indexExpression, condition, pathParams.getValue()));
-          } else if (schemaValidator.columnExists(tableName, indexColumn)) {
-            // (Pre-functional-index logic) Check for existence of (virtual) column
-            sqlFilters.add(parseSqlFilter(indexColumn, condition, pathParams.getValue()));
-          } else {
-            // (Pre-functional-index logic) Skip filter if column doesn't exist
-            log.warn("Skipping filter: virtual column '{}' not found in table '{}'", indexColumn, tableName);
+          final String indexedExpressionOrColumn =
+              getIndexedExpressionOrColumn(entityType, aspect, pathParams.getPath(), nonDollarVirtualColumnsEnabled, schemaValidator);
+          if (indexedExpressionOrColumn == null) {
+            log.warn("Skipping filter: Neither expression index nor virtual column found for Aspect '{}' and Path '{}' for Asset '{}'",
+                aspect, pathParams.getPath(), entityType);
+            continue;
           }
+
+          sqlFilters.add(parseSqlFilter(indexedExpressionOrColumn, condition, pathParams.getValue()));
         }
       }
     }
