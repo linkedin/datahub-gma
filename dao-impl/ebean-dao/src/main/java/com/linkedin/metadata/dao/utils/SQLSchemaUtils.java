@@ -10,7 +10,6 @@ import com.linkedin.metadata.dao.exception.MissingAnnotationException;
 import com.linkedin.metadata.dao.exception.ModelValidationException;
 import java.util.Map;
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import lombok.extern.slf4j.Slf4j;
 
 
@@ -187,31 +186,6 @@ public class SQLSchemaUtils {
     // set boolean flag to false to purposefully expect '0' as the delimiter to avoid complications for future
     // "special character" considerations
     return getExpectedNameHelper(EXPRESSION_INDEX_PREFIX, assetType, aspect, path, true);
-  }
-
-  /**
-   * Get the expression index "identifier", if it exists, otherwise retrieve the generated column name.
-   * The idea behind this is that whatever is returned from this method can be used verbatim to query the database;
-   * it's either the expression index itself (new approach) or the virtual column (old approach).
-   */
-  @Nullable
-  public static String getIndexedExpressionOrColumn(@Nonnull String assetType, @Nonnull String aspect, @Nonnull String path,
-      boolean nonDollarVirtualColumnsEnabled, @Nonnull SchemaValidatorUtil schemaValidator) {
-    final String indexColumn = getGeneratedColumnName(assetType, aspect, path, nonDollarVirtualColumnsEnabled);
-    final String tableName = getTableName(assetType);
-
-    // Check if an expression-based index exists... if it does, use that
-    final String expressionIndexName = getExpressionIndexName(assetType, aspect, path);
-    final String indexExpression = schemaValidator.getIndexExpression(tableName, expressionIndexName);
-    if (indexExpression != null) {
-      log.info("Using expression index '{}' in table '{}' with expression '{}'", expressionIndexName, tableName, indexExpression);
-      return indexExpression;
-    } else if (schemaValidator.columnExists(tableName, indexColumn)) {
-      // (Pre-functional-index logic) Check for existence of (virtual) column
-      return indexColumn;
-    } else {
-      return null;
-    }
   }
 
   /**

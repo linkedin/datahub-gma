@@ -10,6 +10,7 @@ import com.linkedin.metadata.dao.urnpath.UrnPathExtractor;
 import com.linkedin.metadata.dao.utils.EBeanDAOUtils;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
+import com.linkedin.metadata.dao.utils.SQLIndexFilterUtils;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
 import com.linkedin.metadata.dao.utils.SQLStatementUtils;
 import com.linkedin.metadata.dao.utils.SchemaValidatorUtil;
@@ -458,7 +459,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   public Map<String, Long> countAggregate(@Nullable IndexFilter indexFilter,
       @Nonnull IndexGroupByCriterion indexGroupByCriterion) {
     final String indexedExpressionOrColumn =
-        SQLSchemaUtils.getIndexedExpressionOrColumn(_entityType, indexGroupByCriterion.getAspect(), indexGroupByCriterion.getPath(),
+        SQLIndexFilterUtils.getIndexedExpressionOrColumn(_entityType, indexGroupByCriterion.getAspect(), indexGroupByCriterion.getPath(),
             _nonDollarVirtualColumnsEnabled, validator);
     // first, check for existence of the column we want to GROUP BY --> null from the previous method call means this
     if (indexedExpressionOrColumn == null) {

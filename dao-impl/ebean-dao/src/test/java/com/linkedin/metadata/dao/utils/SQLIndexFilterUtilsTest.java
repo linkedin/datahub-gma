@@ -210,4 +210,22 @@ public class SQLIndexFilterUtilsTest {
     assertEquals(SQLIndexFilterUtils.parseIndexFilter(FooUrn.ENTITY_TYPE, indexFilter, true, mockValidator),
         expectedSql10);
   }
+
+  @Test
+  public void testGetIndexedExpressionOrColumn() {
+    // Get something that is NOT an expression (not mocked) -- '$' variant
+    assertEquals(SQLIndexFilterUtils.getIndexedExpressionOrColumn(FooUrn.ENTITY_TYPE, "aspectfoo", "value",
+        false, mockValidator),
+        "i_aspectbar$value");
+
+    // Get something that is NOT an expression (not mocked) -- '0' variant
+    assertEquals(SQLIndexFilterUtils.getIndexedExpressionOrColumn(FooUrn.ENTITY_TYPE, "aspectfoo", "value",
+        true, mockValidator),
+        "i_aspectbar0value");
+
+    // Get something that is an expression (mocked)
+    assertEquals(SQLIndexFilterUtils.getIndexedExpressionOrColumn(FooUrn.ENTITY_TYPE, "aspectbar", "value",
+        false, mockValidator),
+        "(cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024)))");
+  }
 }

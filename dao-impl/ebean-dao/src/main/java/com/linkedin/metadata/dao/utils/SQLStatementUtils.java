@@ -363,7 +363,7 @@ public class SQLStatementUtils {
   public static String createGroupBySql(String entityType, @Nullable IndexFilter indexFilter,
       @Nonnull IndexGroupByCriterion indexGroupByCriterion, boolean nonDollarVirtualColumnsEnabled, @Nonnull SchemaValidatorUtil schemaValidator) {
     final String indexedExpressionOrColumn =
-        SQLSchemaUtils.getIndexedExpressionOrColumn(entityType, indexGroupByCriterion.getAspect(), indexGroupByCriterion.getPath(),
+        SQLIndexFilterUtils.getIndexedExpressionOrColumn(entityType, indexGroupByCriterion.getAspect(), indexGroupByCriterion.getPath(),
             nonDollarVirtualColumnsEnabled, schemaValidator);
     if (indexedExpressionOrColumn == null) {
       log.warn("Skipping group-by: Neither expression index nor virtual column found for Aspect '{}' and Path '{}' for Asset '{}'",
