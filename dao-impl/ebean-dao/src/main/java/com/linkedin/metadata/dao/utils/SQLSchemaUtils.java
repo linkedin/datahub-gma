@@ -1,5 +1,6 @@
 package com.linkedin.metadata.dao.utils;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.template.DataTemplateUtil;
@@ -172,8 +173,9 @@ public class SQLSchemaUtils {
   /**
    * Get generated column name from aspect and path.
    */
+  @VisibleForTesting
   @Nonnull
-  public static String getGeneratedColumnName(@Nonnull String assetType, @Nonnull String aspect, @Nonnull String path,
+  protected static String getGeneratedColumnName(@Nonnull String assetType, @Nonnull String aspect, @Nonnull String path,
       boolean nonDollarVirtualColumnsEnabled) {
     return getExpectedNameHelper(INDEX_PREFIX, assetType, aspect, path, nonDollarVirtualColumnsEnabled);
   }
