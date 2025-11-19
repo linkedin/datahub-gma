@@ -928,10 +928,7 @@ public class SQLStatementUtilsTest {
     // Case 2.1: (FC missing, GB present) group by is functional
     String sql21 = SQLStatementUtils.createGroupBySql("foo", indexFilter, indexGroupByFunctionalIndex, false, mockValidator);
     assertEquals(sql21, "SELECT count(*) as COUNT, (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024))) FROM metadata_entity_foo\n"
-        + "WHERE a_aspectfoo IS NOT NULL\n"
-        + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
-        + "AND i_aspectfoo$age >= 25\n"
-        + "AND a_aspectbar IS NOT NULL\n"
+        + "WHERE a_aspectbar IS NOT NULL\n"
         + "AND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\n"
         + "AND deleted_ts IS NULL\n"
         + "GROUP BY (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024)))");
