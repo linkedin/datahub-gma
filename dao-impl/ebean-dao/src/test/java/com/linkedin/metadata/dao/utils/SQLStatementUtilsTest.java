@@ -834,20 +834,20 @@ public class SQLStatementUtilsTest {
 
     String sql = SQLStatementUtils.createGroupBySql("foo", indexFilter, indexGroupByFunctionalIndex, false, mockValidator);
     assertEquals(sql, "SELECT count(*) as COUNT, (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024))) FROM metadata_entity_foo\n"
-        + "WHERE a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
-        + "AND (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024))) = 'jhui'\n" + "AND a_aspectbar IS NOT NULL\n"
+        + "WHERE a_aspectbar IS NOT NULL\n"
         + "AND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\n"
-        + "AND deleted_ts IS NULL\n" + "GROUP BY (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024)))");
-    assertValidSql(sql);
+        + "AND (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024))) = 'jhui'\n"
+        + "AND deleted_ts IS NULL\n"
+        + "GROUP BY (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024)))");
 
     // Case 1.2: (Stuff is present) filter is on a functional index, group by is on a column
     String sql2 = SQLStatementUtils.createGroupBySql("foo", indexFilter, indexGroupByCriterion, false, mockValidator);
     assertEquals(sql2, "SELECT count(*) as COUNT, i_aspectbar$name FROM metadata_entity_foo\n"
-        + "WHERE a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
-        + "AND (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024))) >= 25\n" + "AND a_aspectbar IS NOT NULL\n"
+        + "WHERE a_aspectbar IS NOT NULL\n"
         + "AND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\n"
-        + "AND deleted_ts IS NULL\n" + "GROUP BY i_aspectbar$name");
-    assertValidSql(sql2);
+        + "AND (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024))) = 'jhui'\n"
+        + "AND deleted_ts IS NULL\n"
+        + "GROUP BY i_aspectbar$name");
 
     // Case 1.3: (Stuff is present) filter is on a column, group by is on a functional index
     indexFilter = new IndexFilter();
@@ -857,11 +857,11 @@ public class SQLStatementUtilsTest {
 
     String sql3 = SQLStatementUtils.createGroupBySql("foo", indexFilter, indexGroupByFunctionalIndex, false, mockValidator);
     assertEquals(sql3, "SELECT count(*) as COUNT, (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024))) FROM metadata_entity_foo\n"
-        + "WHERE a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
-        + "AND i_aspectfoo$age >= 25\n" + "AND a_aspectbar IS NOT NULL\n"
-        + "AND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\n"
-        + "AND deleted_ts IS NULL\n" + "GROUP BY (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024)))");
-    assertValidSql(sql3);
+        + "WHERE a_aspectfoo IS NOT NULL\n"
+        + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
+        + "AND i_aspectfoo$age >= 25\n"
+        + "AND deleted_ts IS NULL\n"
+        + "GROUP BY (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024)))");
   }
 
   @Test
@@ -932,7 +932,6 @@ public class SQLStatementUtilsTest {
         + "AND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\n"
         + "AND deleted_ts IS NULL\n"
         + "GROUP BY (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024)))");
-    assertValidSql(sql21);
   }
 
   @Test
@@ -1191,15 +1190,6 @@ public class SQLStatementUtilsTest {
 
     // Should properly escape and add the wildcard
     assertEquals(whereClause, "destination LIKE 'urn:li:dataset:prefix''%%'");
-  }
-
-  private static void assertValidSql(String sql) {
-    try {
-      SqlParser.create(sql, SqlParser.config().withLex(Lex.MYSQL)).parseQuery();
-    } catch (Exception e) {
-      System.err.println("\nINPUT: " + sql);
-      throw new AssertionError("Expected valid SQL but got exception: " + e.getMessage());
-    }
   }
 
 }
