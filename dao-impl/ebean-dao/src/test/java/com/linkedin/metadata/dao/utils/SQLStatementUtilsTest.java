@@ -31,8 +31,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.apache.calcite.config.Lex;
-import org.apache.calcite.sql.parser.SqlParser;
 import org.javatuples.Pair;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
