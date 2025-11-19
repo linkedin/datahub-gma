@@ -140,6 +140,7 @@ public class EbeanLocalDAOTest {
   private BaseTrackingMetadataEventProducer _mockTrackingProducer;
   private BaseTrackingManager _mockTrackingManager;
   private AuditStamp _dummyAuditStamp;
+  private SchemaValidatorUtil _validator;
 
   // run the tests 1 time for each of EbeanLocalDAO.SchemaConfig values (3 total)
   private final SchemaConfig _schemaConfig;
@@ -225,6 +226,7 @@ public class EbeanLocalDAOTest {
   @BeforeClass
   public void setupServer() {
     _server = EmbeddedMariaInstance.getServer(EbeanLocalDAOTest.class.getSimpleName());
+    _validator = new SchemaValidatorUtil(_server);
   }
 
   @Nonnull
@@ -4104,11 +4106,9 @@ public class EbeanLocalDAOTest {
     urn:2| <some_timestamp> | "actor"        | "{..."longval":5...}                      |          5          |       <empty>
     */
 
-    final SchemaValidatorUtil validator = new SchemaValidatorUtil(_server);
-
     String aspectColumnName = isUrn(aspectName) ? null : SQLSchemaUtils.getAspectColumnName(urn.getEntityType(), aspectName); // e.g. a_aspectfoo;
     String fullIndexColumnName = SQLIndexFilterUtils.getIndexedExpressionOrColumn(urn.getEntityType(), aspectName, pathName,
-        _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled(), validator); // e.g. i_aspectfoo$path1$value1
+        _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled(), _validator); // e.g. i_aspectfoo$path1$value1
 
     String checkColumnExistance = String.format("SELECT * FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '%s' AND"
         + " TABLE_NAME = '%s' AND COLUMN_NAME = '%s'", getDatabaseName(), getTableName(urn), fullIndexColumnName);
