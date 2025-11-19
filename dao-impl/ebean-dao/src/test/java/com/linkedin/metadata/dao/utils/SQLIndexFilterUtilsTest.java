@@ -67,6 +67,18 @@ public class SQLIndexFilterUtilsTest {
 
     sql2 = SQLIndexFilterUtils.parseSortCriteria(fooUrn.getEntityType(), indexSortCriterion, true, mockValidator);
     assertEquals(sql2, "ORDER BY i_aspectfoo0id DESC");
+
+
+    // new tests that test with functional index, additionally ensuring sql parsability
+    indexSortCriterion = SQLIndexFilterUtils.createIndexSortCriterion(AspectBar.class, "value", SortOrder.ASCENDING);
+    sql1 = SQLIndexFilterUtils.parseSortCriteria(fooUrn.getEntityType(), indexSortCriterion, false, mockValidator);
+    assertEquals(sql1, "ORDER BY (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024))) ASC");
+    assertValidSql(sql1);
+
+    // results should not change even with "nonDollar..." enabled... the functional index will always be '0'-delimited
+    sql2 = SQLIndexFilterUtils.parseSortCriteria(fooUrn.getEntityType(), indexSortCriterion, true, mockValidator);
+    assertEquals(sql2, "ORDER BY (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024))) ASC");
+    assertValidSql(sql2);
   }
 
   @Test
