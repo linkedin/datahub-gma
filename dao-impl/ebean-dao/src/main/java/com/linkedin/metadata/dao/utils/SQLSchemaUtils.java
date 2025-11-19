@@ -172,10 +172,12 @@ public class SQLSchemaUtils {
 
   /**
    * Get generated column name from aspect and path.
+   * DEPRECATED, when attempting to obtain an indexed value, please use
+   * {@link SQLIndexFilterUtils#getIndexedExpressionOrColumn(String, String, String, boolean, SchemaValidatorUtil)} instead.
    */
-  @VisibleForTesting
+  @Deprecated
   @Nonnull
-  protected static String getGeneratedColumnName(@Nonnull String assetType, @Nonnull String aspect, @Nonnull String path,
+  public static String getGeneratedColumnName(@Nonnull String assetType, @Nonnull String aspect, @Nonnull String path,
       boolean nonDollarVirtualColumnsEnabled) {
     return getExpectedNameHelper(INDEX_PREFIX, assetType, aspect, path, nonDollarVirtualColumnsEnabled);
   }

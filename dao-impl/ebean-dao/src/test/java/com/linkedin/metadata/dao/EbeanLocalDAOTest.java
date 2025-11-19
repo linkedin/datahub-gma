@@ -34,9 +34,7 @@ import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
 import com.linkedin.metadata.dao.utils.FooUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
-import com.linkedin.metadata.dao.utils.SQLIndexFilterUtils;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
-import com.linkedin.metadata.dao.utils.SchemaValidatorUtil;
 import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.internal.IngestionParams;
@@ -140,7 +138,6 @@ public class EbeanLocalDAOTest {
   private BaseTrackingMetadataEventProducer _mockTrackingProducer;
   private BaseTrackingManager _mockTrackingManager;
   private AuditStamp _dummyAuditStamp;
-  private SchemaValidatorUtil _validator;
 
   // run the tests 1 time for each of EbeanLocalDAO.SchemaConfig values (3 total)
   private final SchemaConfig _schemaConfig;
@@ -226,7 +223,6 @@ public class EbeanLocalDAOTest {
   @BeforeClass
   public void setupServer() {
     _server = EmbeddedMariaInstance.getServer(EbeanLocalDAOTest.class.getSimpleName());
-    _validator = new SchemaValidatorUtil(_server);
   }
 
   @Nonnull
@@ -4107,8 +4103,8 @@ public class EbeanLocalDAOTest {
     */
 
     String aspectColumnName = isUrn(aspectName) ? null : SQLSchemaUtils.getAspectColumnName(urn.getEntityType(), aspectName); // e.g. a_aspectfoo;
-    String fullIndexColumnName = SQLIndexFilterUtils.getIndexedExpressionOrColumn(urn.getEntityType(), aspectName, pathName,
-        _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled(), _validator); // e.g. i_aspectfoo$path1$value1
+    String fullIndexColumnName = SQLSchemaUtils.getGeneratedColumnName(urn.getEntityType(), aspectName, pathName,
+        _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled()); // e.g. i_aspectfoo$path1$value1
 
     String checkColumnExistance = String.format("SELECT * FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '%s' AND"
         + " TABLE_NAME = '%s' AND COLUMN_NAME = '%s'", getDatabaseName(), getTableName(urn), fullIndexColumnName);
