@@ -1,6 +1,5 @@
 package com.linkedin.metadata.dao.utils;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.template.DataTemplateUtil;
