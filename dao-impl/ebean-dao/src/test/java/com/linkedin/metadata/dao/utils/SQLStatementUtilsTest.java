@@ -53,6 +53,21 @@ public class SQLStatementUtilsTest {
   public void setupValidator() {
     mockValidator = mock(SchemaValidatorUtil.class);
     when(mockValidator.columnExists(anyString(), anyString())).thenReturn(true);
+
+    /////// NEW MOCKS for functional index testing
+    // NOTE that " charset utf8mb4" is appended after "char(1024)" for some of the (real) use cases in our DB's
+    //    but does NOT pass Calcite's syntax checker. However, in actual queries, it is appended as a part of the index
+    //    and works just fine: we will omit it here so that we can check the syntax otherwise.
+
+    // "AspectBar" as the aspect (any asset) with a functional index and "value" as the field (path) to be indexed
+    when(mockValidator.getIndexExpression(anyString(), matches("e_aspectbar0value")))
+        .thenReturn("(cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024)))");
+    //    This is an existing new way of Array extraction (AssetLabels.derived_labels)
+    when(mockValidator.getIndexExpression(anyString(), matches("e_aspectbar0value_array")))
+        .thenReturn("(cast(json_extract(`a_aspectbar`, '$.aspect.value_array') as char(128) array))");
+    //    This is an existing legacy way of array extraction, casting to a string (DataPolicyInfo.annotation.ontologyIris)
+    when(mockValidator.getIndexExpression(anyString(), matches("e_aspectbar0annotation0ontologyIris")))
+        .thenReturn("(cast(replace(json_unquote(json_extract(`a_aspectbar`,'$.aspect.annotation.ontologyIris[*]')),'\"','') as char(255)))");
   }
 
   @Test
@@ -788,6 +803,66 @@ public class SQLStatementUtilsTest {
   }
 
   @Test
+  public void testCreateGroupBySqlFilterColumnPresentGroupByPresentFunctionalIndexes() {
+    // Note that functional indexes are already mocked!
+    when(mockValidator.columnExists(anyString(), contains("i_aspectfoo$age"))).thenReturn(true);
+    when(mockValidator.columnExists(anyString(), contains("i_aspectbar$name"))).thenReturn(true);
+
+    IndexCriterion indexCriterion1 =
+        SQLIndexFilterUtils.createIndexCriterion(AspectFoo.class, "age", Condition.GREATER_THAN_OR_EQUAL_TO,
+            IndexValue.create(25));
+
+    IndexCriterion indexCriterionFunctionalIndex =
+        SQLIndexFilterUtils.createIndexCriterion(AspectBar.class, "value", Condition.EQUAL,
+            IndexValue.create("jhui"));
+
+    IndexGroupByCriterion indexGroupByCriterion = new IndexGroupByCriterion();
+    indexGroupByCriterion.setAspect(AspectBar.class.getCanonicalName());
+    indexGroupByCriterion.setPath("/name");
+
+    IndexGroupByCriterion indexGroupByFunctionalIndex = new IndexGroupByCriterion();
+    indexGroupByFunctionalIndex.setAspect(AspectBar.class.getCanonicalName());
+    indexGroupByFunctionalIndex.setPath("/value");
+
+    // Case 1.1: (Stuff is present) both filter and group by are on functional indexes
+    IndexFilter indexFilter = new IndexFilter();
+    IndexCriterionArray indexCriterionArray = new IndexCriterionArray();
+    indexCriterionArray.add(indexCriterionFunctionalIndex);
+    indexFilter.setCriteria(indexCriterionArray);
+
+    String sql = SQLStatementUtils.createGroupBySql("foo", indexFilter, indexGroupByFunctionalIndex, false, mockValidator);
+    assertEquals(sql, "SELECT count(*) as COUNT, (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024))) FROM metadata_entity_foo\n"
+        + "WHERE a_aspectbar IS NOT NULL\n"
+        + "AND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\n"
+        + "AND (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024))) = 'jhui'\n"
+        + "AND deleted_ts IS NULL\n"
+        + "GROUP BY (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024)))");
+
+    // Case 1.2: (Stuff is present) filter is on a functional index, group by is on a column
+    String sql2 = SQLStatementUtils.createGroupBySql("foo", indexFilter, indexGroupByCriterion, false, mockValidator);
+    assertEquals(sql2, "SELECT count(*) as COUNT, i_aspectbar$name FROM metadata_entity_foo\n"
+        + "WHERE a_aspectbar IS NOT NULL\n"
+        + "AND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\n"
+        + "AND (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024))) = 'jhui'\n"
+        + "AND deleted_ts IS NULL\n"
+        + "GROUP BY i_aspectbar$name");
+
+    // Case 1.3: (Stuff is present) filter is on a column, group by is on a functional index
+    indexFilter = new IndexFilter();
+    indexCriterionArray = new IndexCriterionArray();
+    indexCriterionArray.add(indexCriterion1);
+    indexFilter.setCriteria(indexCriterionArray);
+
+    String sql3 = SQLStatementUtils.createGroupBySql("foo", indexFilter, indexGroupByFunctionalIndex, false, mockValidator);
+    assertEquals(sql3, "SELECT count(*) as COUNT, (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024))) FROM metadata_entity_foo\n"
+        + "WHERE a_aspectfoo IS NOT NULL\n"
+        + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
+        + "AND i_aspectfoo$age >= 25\n"
+        + "AND deleted_ts IS NULL\n"
+        + "GROUP BY (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024)))");
+  }
+
+  @Test
   public void testCreateGroupBySqlFilterColumnMissingGroupByPresent() {
     IndexFilter indexFilter = new IndexFilter();
     IndexCriterionArray indexCriterionArray = new IndexCriterionArray();
@@ -826,6 +901,38 @@ public class SQLStatementUtilsTest {
   }
 
   @Test
+  public void testCreateGroupBySqlFilterColumnMissingGroupByPresentFunctionalIndexes() {
+    // Note that functional indexes are already mocked!
+
+    // This mocks "fakefield" as NEITHER having an associated column nor a functional index
+    when(mockValidator.getIndexExpression(anyString(), matches("e_aspectbar0fakefield")))
+        .thenReturn(null);
+    when(mockValidator.columnExists(anyString(), contains("i_aspectbar$fakefield"))).thenReturn(false);
+
+    // Filter: does NOT exist
+    IndexCriterion indexCriterionNonexistent =
+        SQLIndexFilterUtils.createIndexCriterion(AspectBar.class, "fakefield", Condition.EQUAL,
+            IndexValue.create("nothing"));
+    IndexFilter indexFilter = new IndexFilter();
+    IndexCriterionArray indexCriterionArray = new IndexCriterionArray();
+    indexCriterionArray.add(indexCriterionNonexistent);
+    indexFilter.setCriteria(indexCriterionArray);
+
+    // GroupBy: functional
+    IndexGroupByCriterion indexGroupByFunctionalIndex = new IndexGroupByCriterion();
+    indexGroupByFunctionalIndex.setAspect(AspectBar.class.getCanonicalName());
+    indexGroupByFunctionalIndex.setPath("/value");
+
+    // Case 2.1: (FC missing, GB present) group by is functional
+    String sql21 = SQLStatementUtils.createGroupBySql("foo", indexFilter, indexGroupByFunctionalIndex, false, mockValidator);
+    assertEquals(sql21, "SELECT count(*) as COUNT, (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024))) FROM metadata_entity_foo\n"
+        + "WHERE a_aspectbar IS NOT NULL\n"
+        + "AND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\n"
+        + "AND deleted_ts IS NULL\n"
+        + "GROUP BY (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024)))");
+  }
+
+  @Test
   public void testCreateGroupBySqlGroupByColumnMissing() {
     IndexFilter indexFilter = new IndexFilter();
     IndexCriterionArray indexCriterionArray = new IndexCriterionArray();
@@ -855,6 +962,34 @@ public class SQLStatementUtilsTest {
     String sql = SQLStatementUtils.createGroupBySql("foo", indexFilter, groupBy, false, mockValidator);
     // Expect no GROUP BY clause when group-by column is missing
     assertFalse(sql.contains("GROUP BY"), "Should not contain GROUP BY if group-by column is missing");
+  }
+
+  @Test
+  public void testCreateGroupBySqlFilterColumnPresentGroupByMissingFunctionalIndexes() {
+    // Note that functional indexes are already mocked!
+
+    // This mocks "fakefield" as NEITHER having an associated column nor a functional index
+    when(mockValidator.getIndexExpression(anyString(), matches("e_aspectbar0fakefield")))
+        .thenReturn(null);
+    when(mockValidator.columnExists(anyString(), contains("i_aspectbar$fakefield"))).thenReturn(false);
+
+    // Filter: functional
+    IndexCriterion indexCriterionFunctionalIndex =
+        SQLIndexFilterUtils.createIndexCriterion(AspectBar.class, "value", Condition.EQUAL,
+            IndexValue.create("jhui"));
+    IndexFilter indexFilter = new IndexFilter();
+    IndexCriterionArray indexCriterionArray = new IndexCriterionArray();
+    indexCriterionArray.add(indexCriterionFunctionalIndex);
+    indexFilter.setCriteria(indexCriterionArray);
+
+    // GroupBy: does NOT exist
+    IndexGroupByCriterion indexGroupByNonexistent = new IndexGroupByCriterion();
+    indexGroupByNonexistent.setAspect(AspectBar.class.getCanonicalName());
+    indexGroupByNonexistent.setPath("/fakefield");
+
+    // Case 3.1: (GB missing, FC present) filter is functional ==> always results in empty query because no group by
+    String sql31 = SQLStatementUtils.createGroupBySql("foo", indexFilter, indexGroupByNonexistent, false, mockValidator);
+    assertEquals(sql31, "");
   }
 
   @Test
