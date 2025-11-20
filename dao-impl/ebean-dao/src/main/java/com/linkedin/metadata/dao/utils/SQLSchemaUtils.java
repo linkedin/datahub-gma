@@ -25,6 +25,7 @@ public class SQLSchemaUtils {
   public static final String ASPECT_PREFIX = "a_";
   public static final String INDEX_PREFIX = "i_";
   public static final String EXPRESSION_INDEX_PREFIX = "e_";
+  public static final String RELATIONSHIP_TABLE_EXPRESSION_INDEX_INFIX = "metadata";
 
   private static final int MYSQL_MAX_COLUMN_NAME_LENGTH = 64 - ASPECT_PREFIX.length();
 
@@ -153,20 +154,30 @@ public class SQLSchemaUtils {
   }
 
   @Nonnull
+  private static String getExpectedNameFormatter(
+      @Nonnull String prefix,
+      @Nonnull String infix,
+      @Nonnull String path,
+      boolean nonDollarVirtualColumnsEnabled) {
+    char delimiter = nonDollarVirtualColumnsEnabled ? '0' : '$';
+    return prefix + infix + processPath(path, delimiter);
+  }
+
+  @Nonnull
   private static String getExpectedNameHelper(
       @Nonnull String prefix,
       @Nonnull String assetType,
       @Nonnull String aspect,
       @Nonnull String path,
       boolean nonDollarVirtualColumnsEnabled) {
-    char delimiter = nonDollarVirtualColumnsEnabled ? '0' : '$';
     if (isUrn(aspect)) {
-      return prefix + "urn" + processPath(path, delimiter);
+      return getExpectedNameFormatter(prefix, "urn", path, nonDollarVirtualColumnsEnabled);
     }
     if (UNKNOWN_ASSET.equals(assetType)) {
-      log.warn("query with unknown asset type. aspect =  {}, path ={}, delimiter = {}", aspect, path, delimiter);
+      log.warn("query with unknown asset type. aspect =  {}, path ={}, nonDollarVirtualColumnsEnabled={}",
+          aspect, path, nonDollarVirtualColumnsEnabled);
     }
-    return prefix + getColumnName(assetType, aspect) + processPath(path, delimiter);
+    return getExpectedNameFormatter(prefix, getColumnName(assetType, aspect), path, nonDollarVirtualColumnsEnabled);
   }
 
   /**
@@ -189,6 +200,16 @@ public class SQLSchemaUtils {
     // set boolean flag to false to purposefully expect '0' as the delimiter to avoid complications for future
     // "special character" considerations
     return getExpectedNameHelper(EXPRESSION_INDEX_PREFIX, assetType, aspect, path, true);
+  }
+
+  /**
+   * Get the expected expression index name for a relationship table given the path.
+   * With the expression index changes, we establish an expected naming as follows...
+   * ex. e_metadata0foo0bar
+   */
+  @Nonnull
+  public static String getExpressionIndexNameRelationship(@Nonnull String path) {
+    return getExpectedNameFormatter(EXPRESSION_INDEX_PREFIX, RELATIONSHIP_TABLE_EXPRESSION_INDEX_INFIX, path, true);
   }
 
   /**

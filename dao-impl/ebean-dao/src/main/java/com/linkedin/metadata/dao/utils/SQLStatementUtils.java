@@ -1,5 +1,6 @@
 package com.linkedin.metadata.dao.utils;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.escape.Escaper;
 import com.google.common.escape.Escapers;
 import com.linkedin.common.urn.Urn;
@@ -587,6 +588,23 @@ public class SQLStatementUtils {
     return sb.toString();
   }
 
+  @VisibleForTesting
+  @Nonnull
+  protected static String addTablePrefixToExpression(@Nonnull String expression, @Nonnull String tablePrefix) {
+    if (tablePrefix == null || tablePrefix.isEmpty()) {
+      return expression;
+    }
+
+    // Replace column references: `columnName` -> `tablePrefix`.`columnName`
+    // This is a simplified example - would need more robust parsing
+    return expression.replaceAll("`(a_\\w+)`", "`" + tablePrefix + "`.`$1`");
+  }
+
+  @VisibleForTesting
+  protected static String handleRelationshipField() {
+
+  }
+
   private static String parseLocalRelationshipField(
       @Nonnull final LocalRelationshipCriterion localRelationshipCriterion, @Nullable String tablePrefix,
       boolean nonDollarVirtualColumnsEnabled) {
@@ -594,14 +612,23 @@ public class SQLStatementUtils {
     LocalRelationshipCriterion.Field field = localRelationshipCriterion.getField();
     char delimiter = nonDollarVirtualColumnsEnabled ? '0' : '$';
 
+    // UrnField.pdl defines UrnField.name as 'urn' --> real column
     if (field.isUrnField()) {
       return tablePrefix + field.getUrnField().getName();
     }
 
+    // RelationshipField.pdl defines RelationshipField.name as 'metadata'
+    //    --> virtual column use case that needs to be functionalized
     if (field.isRelationshipField()) {
-      return tablePrefix + field.getRelationshipField().getName() + processPath(field.getRelationshipField().getPath(), delimiter);
+      final String expectedVirtualColumnName =
+          tablePrefix + field.getRelationshipField().getName() + processPath(field.getRelationshipField().getPath(), delimiter);
+      return SQLIndexFilterUtils.getIndexedExpressionOrColumnRelationship(
+          expectedVirtualColumnName, field.getRelationshipField().getPath(),
+          tableName, schemaValidator);
     }
 
+    // This appears to be when a join has already occurred and this is some indexed field from an aspect column from
+    //    the entity table(s) --> virtual column use case that needs to be functionalized
     if (field.isAspectField()) {
       // entity type from Urn definition.
       String assetType = getAssetType(field.getAspectField());
