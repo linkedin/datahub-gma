@@ -672,13 +672,12 @@ public class SQLStatementUtils {
     //    the entity table(s) --> virtual column use case that needs to be functionalized
     if (field.isAspectField()) {
       final String aspectFqcn = field.getAspectField().getAspect();
-      final String aspectSimpleName = aspectFqcn.substring(aspectFqcn.lastIndexOf('.') + 1);
       final String path = field.getAspectField().getPath();
 
       final String assetType = getAssetType(field.getAspectField());
 
       final String indexedExpressionOrColumn =
-          SQLIndexFilterUtils.getIndexedExpressionOrColumn(assetType, aspectSimpleName, path, nonDollarVirtualColumnsEnabled, schemaValidator);
+          SQLIndexFilterUtils.getIndexedExpressionOrColumn(assetType, aspectFqcn, path, nonDollarVirtualColumnsEnabled, schemaValidator);
       if (indexedExpressionOrColumn == null) {
         throw new IllegalArgumentException(
             String.format("Neither expression nor column index not found for aspect field: Asset: %s, Aspect: %s, Path: %s",
