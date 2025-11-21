@@ -73,6 +73,10 @@ public class SQLStatementUtilsTest {
     //    This is an existing legacy way of array extraction, casting to a string (DataPolicyInfo.annotation.ontologyIris)
     when(mockValidator.getIndexExpression(anyString(), matches("e_aspectbar0annotation0ontologyIris")))
         .thenReturn("(cast(replace(json_unquote(json_extract(`a_aspectbar`,'$.aspect.annotation.ontologyIris[*]')),'\"','') as char(255)))");
+
+    // New mocks for relationship field validation
+    when(mockValidator.getIndexExpression(anyString(), matches("e_metadata0field")))
+        .thenReturn("(cast(json_extract(`metadata`, '$.field') as char(64)))");
   }
 
   @Test

@@ -673,20 +673,21 @@ public class SQLStatementUtils {
     if (field.isAspectField()) {
       final String aspectFqcn = field.getAspectField().getAspect();
       final String aspectSimpleName = aspectFqcn.substring(aspectFqcn.lastIndexOf('.') + 1);
-      String assetType = getAssetType(field.getAspectField());
+      final String path = field.getAspectField().getPath();
+
+      final String assetType = getAssetType(field.getAspectField());
+
       final String indexedExpressionOrColumn =
-          SQLIndexFilterUtils.getIndexedExpressionOrColumn(
-              assetType, aspectSimpleName, field.getAspectField().getPath(),
-              nonDollarVirtualColumnsEnabled, schemaValidator);
+          SQLIndexFilterUtils.getIndexedExpressionOrColumn(assetType, aspectSimpleName, path, nonDollarVirtualColumnsEnabled, schemaValidator);
       if (indexedExpressionOrColumn == null) {
         throw new IllegalArgumentException(
             String.format("Neither expression nor column index not found for aspect field: Asset: %s, Aspect: %s, Path: %s",
-                assetType, aspectFqcn, field.getAspectField().getPath()));
+                assetType, aspectFqcn, path));
       }
-      final String expectedVirtualColumnName = SQLSchemaUtils.getGeneratedColumnName(
-          assetType, aspectFqcn, field.getAspectField().getPath(), nonDollarVirtualColumnsEnabled);
+      final String expectedVirtualColumnName =
+          SQLSchemaUtils.getGeneratedColumnName(assetType, aspectFqcn, path, nonDollarVirtualColumnsEnabled);
       return addTablePrefixToExpression(tablePrefix, indexedExpressionOrColumn, expectedVirtualColumnName,
-          SQLSchemaUtils.getAspectColumnName(assetType, field.getAspectField().getAspect()));
+          SQLSchemaUtils.getAspectColumnName(assetType, aspectFqcn));
     }
 
     throw new IllegalArgumentException("Unrecognized field type");
