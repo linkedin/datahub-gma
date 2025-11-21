@@ -458,7 +458,9 @@ public class SQLStatementUtils {
     List<String> andClauses = new ArrayList<>();
     for (Pair<LocalRelationshipFilter, String> filter : filters) {
       if (LogicalExpressionLocalRelationshipCriterionUtils.filterHasNonEmptyCriteria(filter.getValue0())) {
-        andClauses.add("(" + whereClause(filter.getValue0(), supportedConditions, filter.getValue1(), relationshipTableName, schemaValidator, nonDollarVirtualColumnsEnabled) + ")");
+        andClauses.add("(" + whereClause(
+                filter.getValue0(), supportedConditions, filter.getValue1(), relationshipTableName,
+                schemaValidator, nonDollarVirtualColumnsEnabled) + ")");
       }
     }
     if (andClauses.isEmpty()) {
@@ -504,7 +506,8 @@ public class SQLStatementUtils {
     final LogicalExpressionLocalRelationshipCriterion.Expr expr = criterion.getExpr();
 
     if (expr.isCriterion()) {
-      return buildSQLQueryFromLocalRelationshipCriterion(expr.getCriterion(), supportedConditions, tablePrefix, tableName, schemaValidator, nonDollarVirtualColumnsEnabled);
+      return buildSQLQueryFromLocalRelationshipCriterion(
+          expr.getCriterion(), supportedConditions, tablePrefix, tableName, schemaValidator, nonDollarVirtualColumnsEnabled);
     }
 
     // expr is logical
@@ -637,7 +640,8 @@ public class SQLStatementUtils {
     return expression.replaceAll("(`?" + originColumnName + "`?)", "`" + tablePrefix + "`.`$1`");
   }
 
-  private static String parseLocalRelationshipField(
+  @VisibleForTesting
+  protected static String parseLocalRelationshipField(
       @Nonnull final LocalRelationshipCriterion localRelationshipCriterion, @Nullable String tablePrefix,
       @Nonnull String tableName, @Nonnull SchemaValidatorUtil schemaValidator, boolean nonDollarVirtualColumnsEnabled) {
     tablePrefix = tablePrefix == null ? "" : tablePrefix + ".";
