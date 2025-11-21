@@ -69,15 +69,15 @@ public class EbeanLocalRelationshipQueryDAO {
   public EbeanLocalRelationshipQueryDAO(EbeanServer server, EBeanDAOConfig eBeanDAOConfig) {
     _server = server;
     _eBeanDAOConfig = eBeanDAOConfig;
-    _sqlGenerator = new MultiHopsTraversalSqlGenerator(SUPPORTED_CONDITIONS);
     _schemaValidatorUtil = new SchemaValidatorUtil(server);
+    _sqlGenerator = new MultiHopsTraversalSqlGenerator(SUPPORTED_CONDITIONS, _schemaValidatorUtil);
   }
 
   public EbeanLocalRelationshipQueryDAO(EbeanServer server) {
     _server = server;
     _eBeanDAOConfig = new EBeanDAOConfig();
-    _sqlGenerator = new MultiHopsTraversalSqlGenerator(SUPPORTED_CONDITIONS);
     _schemaValidatorUtil = new SchemaValidatorUtil(server);
+    _sqlGenerator = new MultiHopsTraversalSqlGenerator(SUPPORTED_CONDITIONS, _schemaValidatorUtil);
   }
 
   static final Map<Condition, String> SUPPORTED_CONDITIONS =
@@ -125,8 +125,8 @@ public class EbeanLocalRelationshipQueryDAO {
     final StringBuilder sqlBuilder = new StringBuilder();
     sqlBuilder.append("SELECT * FROM ").append(tableName);
     if (filterHasNonEmptyCriteria(filter)) {
-      sqlBuilder.append(" WHERE ").append(SQLStatementUtils.whereClause(filter, SUPPORTED_CONDITIONS, null,
-          _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled()));
+      sqlBuilder.append(" WHERE ").append(SQLStatementUtils.whereClause(filter, SUPPORTED_CONDITIONS, null, tableName,
+          _schemaValidatorUtil, _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled()));
     }
     sqlBuilder.append(" ORDER BY urn LIMIT ").append(Math.max(1, count)).append(" OFFSET ").append(Math.max(0, offset));
 
@@ -795,6 +795,7 @@ public class EbeanLocalRelationshipQueryDAO {
 
       String whereClause = SQLStatementUtils.whereClause(SUPPORTED_CONDITIONS,
           _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled(),
+          relationshipTableName, _schemaValidatorUtil,
           filters.toArray(new Pair[filters.size()]));
 
       if (whereClause != null) {

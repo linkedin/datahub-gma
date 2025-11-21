@@ -15,9 +15,11 @@ import org.javatuples.Pair;
  */
 public class MultiHopsTraversalSqlGenerator {
   private static Map<Condition, String> _supportedConditions;
+  private final SchemaValidatorUtil _schemaValidator;
 
-  public MultiHopsTraversalSqlGenerator(Map<Condition, String> supportedConditions) {
+  public MultiHopsTraversalSqlGenerator(Map<Condition, String> supportedConditions, SchemaValidatorUtil schemaValidator) {
     _supportedConditions = Collections.unmodifiableMap(supportedConditions);
+    _schemaValidator = schemaValidator;
   }
 
   /**
@@ -77,6 +79,7 @@ public class MultiHopsTraversalSqlGenerator {
             urnColumn, relationshipTable, destEntityTable, srcEntityTable));
 
     String whereClause = SQLStatementUtils.whereClause(_supportedConditions,  nonDollarVirtualColumnsEnabled,
+        relationshipTable, _schemaValidator,
         new Pair<>(relationshipFilter, "rt"),
         new Pair<>(destFilter, "dt"),
         new Pair<>(srcFilter, "st"));
@@ -105,6 +108,7 @@ public class MultiHopsTraversalSqlGenerator {
             relationshipTable, entityTable));
 
     String whereClause = SQLStatementUtils.whereClause(_supportedConditions, nonDollarVirtualColumnsEnabled,
+        relationshipTable, _schemaValidator,
         new Pair<>(relationshipFilter, "rt"),
         new Pair<>(srcFilter, "et"));
 
@@ -123,7 +127,8 @@ public class MultiHopsTraversalSqlGenerator {
   @ParametersAreNonnullByDefault
   private String findEntitiesUndirected(String entityTable, String relationshipTable, String firstHopUrnSql, LocalRelationshipFilter destFilter,
   boolean nonDollarVirtualColumnsEnabled) {
-    String whereClause = SQLStatementUtils.whereClause(_supportedConditions, nonDollarVirtualColumnsEnabled, new Pair<>(destFilter, "et"));
+    String whereClause = SQLStatementUtils.whereClause(_supportedConditions, nonDollarVirtualColumnsEnabled,
+        relationshipTable, _schemaValidator, new Pair<>(destFilter, "et"));
 
     StringBuilder sourceEntitySql = new StringBuilder(
         String.format("SELECT et.* FROM %s et INNER JOIN %s rt ON et.urn=rt.source WHERE rt.destination IN (%s)",
