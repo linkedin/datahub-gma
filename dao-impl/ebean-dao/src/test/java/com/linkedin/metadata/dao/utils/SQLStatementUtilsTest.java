@@ -278,7 +278,9 @@ public class SQLStatementUtilsTest {
         .setValue(LocalRelationshipValue.create("value1"));
     LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion);
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.START_WITH, "LIKE"), null, null, mockValidator, false), "urn LIKE 'value1%'");
+    assertEquals(SQLStatementUtils.whereClause(
+        filter, Collections.singletonMap(Condition.START_WITH, "LIKE"), null, null,
+        mockValidator, false), "urn LIKE 'value1%'");
   }
 
   @Test
@@ -299,8 +301,12 @@ public class SQLStatementUtilsTest {
 
     LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion1, criterion2);
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, null, mockValidator, false), "(urn='value1' OR urn='value2')");
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, null, mockValidator, true), "(urn='value1' OR urn='value2')");
+    assertEquals(SQLStatementUtils.whereClause(
+        filter, Collections.singletonMap(Condition.EQUAL, "="), null, null,
+        mockValidator, false), "(urn='value1' OR urn='value2')");
+    assertEquals(SQLStatementUtils.whereClause(
+        filter, Collections.singletonMap(Condition.EQUAL, "="), null, null,
+        mockValidator, true), "(urn='value1' OR urn='value2')");
   }
 
   @Test

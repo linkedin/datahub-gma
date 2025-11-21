@@ -41,4 +41,11 @@ public class SQLSchemaUtilsTest {
         "e_aspectfoo0value0fooBar");
   }
 
+  @Test
+  public void testGetExpressionIndexNameRelationship() {
+    assertEquals(
+        SQLSchemaUtils.getExpressionIndexNameRelationship("/value/blue"),
+        "e_metadata0bvalue0blue");
+  }
+
 }
