@@ -671,17 +671,20 @@ public class SQLStatementUtils {
     // This appears to be when a join has already occurred and this is some indexed field from an aspect column from
     //    the entity table(s) --> virtual column use case that needs to be functionalized
     if (field.isAspectField()) {
+      final String aspectFqcn = field.getAspectField().getAspect();
+      final String aspectSimpleName = aspectFqcn.substring(aspectFqcn.lastIndexOf('.') + 1);
       String assetType = getAssetType(field.getAspectField());
       final String indexedExpressionOrColumn =
           SQLIndexFilterUtils.getIndexedExpressionOrColumn(
-              assetType, field.getAspectField().getAspect(), field.getAspectField().getPath(),
+              assetType, aspectSimpleName, field.getAspectField().getPath(),
               nonDollarVirtualColumnsEnabled, schemaValidator);
       if (indexedExpressionOrColumn == null) {
-        throw new IllegalArgumentException("Neither expression nor column index not found for aspect field: " + assetType
-            + "." + field.getAspectField().getAspect() + "." + field.getAspectField().getPath());
+        throw new IllegalArgumentException(
+            String.format("Neither expression nor column index not found for aspect field: Asset: %s, Aspect: %s, Path: %s",
+                assetType, aspectFqcn, field.getAspectField().getPath()));
       }
       final String expectedVirtualColumnName = SQLSchemaUtils.getGeneratedColumnName(
-          assetType, field.getAspectField().getAspect(), field.getAspectField().getPath(), nonDollarVirtualColumnsEnabled);
+          assetType, aspectFqcn, field.getAspectField().getPath(), nonDollarVirtualColumnsEnabled);
       return addTablePrefixToExpression(tablePrefix, indexedExpressionOrColumn, expectedVirtualColumnName,
           SQLSchemaUtils.getAspectColumnName(assetType, field.getAspectField().getAspect()));
     }
