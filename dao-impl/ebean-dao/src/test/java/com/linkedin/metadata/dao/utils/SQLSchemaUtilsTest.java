@@ -45,7 +45,7 @@ public class SQLSchemaUtilsTest {
   public void testGetExpressionIndexNameRelationship() {
     assertEquals(
         SQLSchemaUtils.getExpressionIndexNameRelationship("/value/blue"),
-        "e_metadata0bvalue0blue");
+        "e_metadata0value0blue");
   }
 
 }
