@@ -49,6 +49,11 @@ public class SQLStatementUtilsTest {
 
   private static SchemaValidatorUtil mockValidator;
 
+  // This is (dummy) table name placeholder for testing, introduced because we need to propagate the relationship table
+  //   name for relationship table functional index processing. However, for existing tests that simply don't test for
+  //   relationship table functional index processing, we can just use a dummy table name.
+  private static final String PLACEHOLDER_TABLE_NAME = "placeholder";
+
   @BeforeClass
   public void setupValidator() {
     mockValidator = mock(SchemaValidatorUtil.class);
@@ -249,8 +254,8 @@ public class SQLStatementUtilsTest {
         .setValue(LocalRelationshipValue.create("value1"));
     LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion);
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, null, mockValidator, false), "urn='value1'");
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, null, mockValidator, true), "urn='value1'");
+    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, PLACEHOLDER_TABLE_NAME, mockValidator, false), "urn='value1'");
+    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, PLACEHOLDER_TABLE_NAME, mockValidator, true), "urn='value1'");
   }
 
   @Test
@@ -264,8 +269,8 @@ public class SQLStatementUtilsTest {
         .setValue(LocalRelationshipValue.create(values));
     LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion);
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.IN, "IN"), null, null, mockValidator, false), "urn IN ('value1')");
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.IN, "IN"), null, null, mockValidator, true), "urn IN ('value1')");
+    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.IN, "IN"), null, PLACEHOLDER_TABLE_NAME, mockValidator, false), "urn IN ('value1')");
+    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.IN, "IN"), null, PLACEHOLDER_TABLE_NAME, mockValidator, true), "urn IN ('value1')");
   }
 
   @Test
@@ -327,9 +332,9 @@ public class SQLStatementUtilsTest {
 
     LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion1, criterion2);
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, null, mockValidator, false),
+    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, PLACEHOLDER_TABLE_NAME, mockValidator, false),
         "(i_aspectfoo$value='value2' AND urn='value1')");
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, null, mockValidator, true),
+    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, PLACEHOLDER_TABLE_NAME, mockValidator, true),
         "(i_aspectfoo0value='value2' AND urn='value1')");
   }
 
@@ -368,10 +373,10 @@ public class SQLStatementUtilsTest {
     LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion1, criterion2, criterion3, criterion4);
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
 
-    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, null, mockValidator, false),
+    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, PLACEHOLDER_TABLE_NAME, mockValidator, false),
         "(urn='value1' OR urn='value3') AND metadata$value='value4' AND i_aspectfoo$value='value2'");
 
-    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, null, mockValidator, true),
+    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, PLACEHOLDER_TABLE_NAME, mockValidator, true),
         "(urn='value1' OR urn='value3') AND metadata0value='value4' AND i_aspectfoo0value='value2'");
 
   }
@@ -427,13 +432,13 @@ public class SQLStatementUtilsTest {
     LocalRelationshipFilter filter2 = new LocalRelationshipFilter().setCriteria(criteria2);
 
     //test for multi filters with dollar virtual columns names
-    assertConditionsEqual(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), false, null, mockValidator, new Pair<>(filter1, "foo"),
+    assertConditionsEqual(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), false, PLACEHOLDER_TABLE_NAME, mockValidator, new Pair<>(filter1, "foo"),
         new Pair<>(filter2, "bar")), "(foo.i_aspectfoo$value='value2' AND (foo.urn='value1' OR foo.urn='value3') "
         + "AND foo.metadata$value='value4') AND (bar.urn='value1' OR bar.urn='value2')"
     );
 
     //test for multi filters with non dollar virtual columns names
-    assertConditionsEqual(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), true, null, mockValidator, new Pair<>(filter1, "foo"),
+    assertConditionsEqual(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), true, PLACEHOLDER_TABLE_NAME, mockValidator, new Pair<>(filter1, "foo"),
         new Pair<>(filter2, "bar")), "(foo.i_aspectfoo0value='value2' AND (foo.urn='value1' OR foo.urn='value3') "
         + "AND foo.metadata0value='value4') AND (bar.urn='value1' OR bar.urn='value2')"
     );
@@ -490,13 +495,13 @@ public class SQLStatementUtilsTest {
     LocalRelationshipFilter filter2 = new LocalRelationshipFilter().setCriteria(criteria2);
 
     //test for multi filters with dollar virtual columns names
-    assertConditionsEqual(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), false, null, mockValidator, new Pair<>(filter1, "foo"),
+    assertConditionsEqual(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), false, PLACEHOLDER_TABLE_NAME, mockValidator, new Pair<>(filter1, "foo"),
         new Pair<>(filter2, "bar")), "(foo.i_aspectfoo$value LIKE 'value2%' AND (foo.urn LIKE 'value1%' OR foo.urn LIKE 'value3%') "
         + "AND foo.metadata$value LIKE 'value4%') AND (bar.urn LIKE 'value1%' OR bar.urn LIKE 'value2%')"
     );
 
     //test for multi filters with non dollar virtual columns names
-    assertConditionsEqual(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), true, null, mockValidator, new Pair<>(filter1, "foo"),
+    assertConditionsEqual(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), true, PLACEHOLDER_TABLE_NAME, mockValidator, new Pair<>(filter1, "foo"),
         new Pair<>(filter2, "bar")), "(foo.i_aspectfoo0value LIKE 'value2%' AND (foo.urn LIKE 'value1%' OR foo.urn LIKE 'value3%') "
         + "AND foo.metadata0value LIKE 'value4%') AND (bar.urn LIKE 'value1%' OR bar.urn LIKE 'value2%')"
     );
@@ -563,12 +568,12 @@ public class SQLStatementUtilsTest {
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setLogicalExpressionCriteria(root);
 
     //test for multi filters with dollar virtual columns names
-    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, null, mockValidator, false),
+    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, PLACEHOLDER_TABLE_NAME, mockValidator, false),
         "((urn='foo1' OR urn='foo2') AND i_aspectfoo$value='bar')"
     );
 
     //test for multi filters with non dollar virtual columns names
-    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, null, mockValidator, true),
+    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, PLACEHOLDER_TABLE_NAME, mockValidator, true),
         "((urn='foo1' OR urn='foo2') AND i_aspectfoo0value='bar')"
     );
   }
@@ -582,12 +587,12 @@ public class SQLStatementUtilsTest {
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setLogicalExpressionCriteria(notNode);
 
     //test for multi filters with dollar virtual columns names
-    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, null, mockValidator, false),
+    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, PLACEHOLDER_TABLE_NAME, mockValidator, false),
         "(NOT i_aspectfoo$value='bar')"
     );
 
     //test for multi filters with non dollar virtual columns names
-    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, null, mockValidator, true),
+    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, PLACEHOLDER_TABLE_NAME, mockValidator, true),
         "(NOT i_aspectfoo0value='bar')"
     );
   }
@@ -614,12 +619,12 @@ public class SQLStatementUtilsTest {
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setLogicalExpressionCriteria(root);
 
     //test for multi filters with dollar virtual columns names
-    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, null, mockValidator, false),
+    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, PLACEHOLDER_TABLE_NAME, mockValidator, false),
         "((urn='foo1' OR urn='foo2') AND (NOT i_aspectfoo$value='bar'))"
     );
 
     //test for multi filters with non dollar virtual columns names
-    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, null, mockValidator, true),
+    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, PLACEHOLDER_TABLE_NAME, mockValidator, true),
         "((urn='foo1' OR urn='foo2') AND (NOT i_aspectfoo0value='bar'))"
     );
   }
@@ -1147,7 +1152,7 @@ public class SQLStatementUtilsTest {
     Map<Condition, String> supportedConditions = new HashMap<>();
     supportedConditions.put(Condition.EQUAL, "=");
 
-    String whereClause = SQLStatementUtils.whereClause(filter, supportedConditions, "rt", null, mockValidator, false);
+    String whereClause = SQLStatementUtils.whereClause(filter, supportedConditions, "rt", PLACEHOLDER_TABLE_NAME, mockValidator, false);
 
     // Expect all quotes escaped
     assertEquals(whereClause, "rt.destination='urn:li:dataset:(urn:li:dataPlatform:hdfs,/data'') OR 1=1 OR destination LIKE ''%'");
@@ -1190,7 +1195,7 @@ public class SQLStatementUtilsTest {
     Map<Condition, String> supportedConditions = new HashMap<>();
     supportedConditions.put(Condition.START_WITH, "LIKE");
 
-    String whereClause = SQLStatementUtils.whereClause(filter, supportedConditions, null, null, mockValidator, false);
+    String whereClause = SQLStatementUtils.whereClause(filter, supportedConditions, null, PLACEHOLDER_TABLE_NAME, mockValidator, false);
 
     // Should properly escape and add the wildcard
     assertEquals(whereClause, "destination LIKE 'urn:li:dataset:prefix''%%'");

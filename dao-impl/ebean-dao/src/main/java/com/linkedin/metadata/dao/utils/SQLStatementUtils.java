@@ -643,7 +643,7 @@ public class SQLStatementUtils {
   @VisibleForTesting
   protected static String parseLocalRelationshipField(
       @Nonnull final LocalRelationshipCriterion localRelationshipCriterion, @Nullable String tablePrefix,
-      @Nonnull String tableName, @Nonnull SchemaValidatorUtil schemaValidator, boolean nonDollarVirtualColumnsEnabled) {
+      @Nonnull String relationshipTableName, @Nonnull SchemaValidatorUtil schemaValidator, boolean nonDollarVirtualColumnsEnabled) {
     tablePrefix = tablePrefix == null ? "" : tablePrefix + ".";
     LocalRelationshipCriterion.Field field = localRelationshipCriterion.getField();
     char delimiter = nonDollarVirtualColumnsEnabled ? '0' : '$';
@@ -661,7 +661,7 @@ public class SQLStatementUtils {
       final String expectedVirtualColumnName = field.getRelationshipField().getName() + processPath(field.getRelationshipField().getPath(), delimiter);
       final String indexedExpressionOrColumn = SQLIndexFilterUtils.getIndexedExpressionOrColumnRelationship(
           expectedVirtualColumnName, field.getRelationshipField().getPath(),
-          tableName, schemaValidator);
+          relationshipTableName, schemaValidator);
       if (indexedExpressionOrColumn == null) {
         throw new IllegalArgumentException("Neither expression nor column index not found for relationship field: " + expectedVirtualColumnName);
       }
