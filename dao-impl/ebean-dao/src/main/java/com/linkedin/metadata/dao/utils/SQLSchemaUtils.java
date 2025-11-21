@@ -204,7 +204,7 @@ public class SQLSchemaUtils {
 
   /**
    * Get the expected expression index name for a relationship table given the path.
-   * With the expression index changes, we establish an expected naming as follows...
+   * With the expression index changes, we **establish** an **expected** index naming as follows...
    * ex. e_metadata0foo0bar
    */
   @Nonnull

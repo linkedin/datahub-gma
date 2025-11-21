@@ -47,12 +47,8 @@ public class SQLIndexFilterUtilsTest {
         .thenReturn("(cast(replace(json_unquote(json_extract(`a_aspectbar`,'$.aspect.annotation.ontologyIris[*]')),'\"','') as char(255)))");
 
     // New mocks for relationship field validation
-    when(mockValidator.getIndexExpression(anyString(), matches("e_aspectbar0destination")))
-        .thenReturn("destination");
-    when(mockValidator.getIndexExpression(anyString(), matches("e_aspectbar0destination_array")))
-        .thenReturn("destination_array");
-    when(mockValidator.getIndexExpression(anyString(), matches("e_aspectbar0destination_ontologyIris")))
-        .thenReturn("destination_ontologyIris");
+    when(mockValidator.getIndexExpression(anyString(), matches("e_metadata0field")))
+        .thenReturn("(cast(json_extract(`metadata`, '$.field') as char(64)))");
   }
 
   @Test
@@ -251,6 +247,16 @@ public class SQLIndexFilterUtilsTest {
 
   @Test
   public void testGetIndexedExpressionOrColumnRelationship() {
+    // Get something that is NOT an expression (not mocked) -- delimiters are not relevant here because this logic is deferred
+    //    to the caller
+    assertEquals(SQLIndexFilterUtils.getIndexedExpressionOrColumnRelationship(
+        "metadata$foofield", "/foofield", "tablenamedoesntmatterherebecauseofmock", mockValidator),
+        "metadata$foofield");
 
+    // Get something that is an expression (mocked)
+    assertEquals(SQLIndexFilterUtils.getIndexedExpressionOrColumnRelationship(
+        "metadata$field", "/field", "tablenamedoesntmatterherebecauseofmock", mockValidator),
+        "(cast(json_extract(`metadata`, '$.field') as char(64)))");
   }
+
 }

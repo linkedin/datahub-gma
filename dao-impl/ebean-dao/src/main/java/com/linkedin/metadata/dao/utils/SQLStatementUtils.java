@@ -648,14 +648,16 @@ public class SQLStatementUtils {
     LocalRelationshipCriterion.Field field = localRelationshipCriterion.getField();
     char delimiter = nonDollarVirtualColumnsEnabled ? '0' : '$';
 
-    // UrnField.pdl defines UrnField.name as 'urn' --> real column
+    // UrnField.pdl defines UrnField.name as 'urn'
+    //    --> real column (not a virtual one), no need to "functionalize"
     if (field.isUrnField()) {
       return tablePrefix + field.getUrnField().getName();
     }
 
-    // RelationshipField.pdl defines RelationshipField.name as 'metadata'
+    // RelationshipField.pdl defines RelationshipField.name as 'metadata' -- ie. this is how "metadata$foo$bar" column is formed
     //    --> virtual column use case that needs to be functionalized
     if (field.isRelationshipField()) {
+      // This next line is basically the original "expected naming logic" verbatim, keeping here for consistency
       final String expectedVirtualColumnName = field.getRelationshipField().getName() + processPath(field.getRelationshipField().getPath(), delimiter);
       final String indexedExpressionOrColumn = SQLIndexFilterUtils.getIndexedExpressionOrColumnRelationship(
           expectedVirtualColumnName, field.getRelationshipField().getPath(),
