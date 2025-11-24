@@ -85,25 +85,37 @@ public class SQLIndexFilterUtils {
    * Get the expression index "identifier", if it exists, otherwise retrieve the generated column name.
    * The idea behind this is that whatever is returned from this method can be used verbatim to query the database;
    * it's either the expression index itself (new approach) or the virtual column (old approach).
-   * Intended to be used with entity tables.
+   * Intended to be used with entity table metadata.
+   */
+  @Nullable
+  public static String getIndexedExpressionOrColumn(@Nonnull String assetType, @Nonnull String aspect, @Nonnull String path,
+      boolean nonDollarVirtualColumnsEnabled, @Nonnull String tableName, @Nonnull SchemaValidatorUtil schemaValidator) {
+    final String expectedLegacyColumnName = getGeneratedColumnName(assetType, aspect, path, nonDollarVirtualColumnsEnabled);
+    return getIndexedExpressionOrColumnGeneric(expectedLegacyColumnName, getExpressionIndexName(assetType, aspect, path), tableName, schemaValidator);
+  }
+
+  /**
+   * Same as {@link #getIndexedExpressionOrColumn(String, String, String, boolean, String, SchemaValidatorUtil)} but
+   * uses the table name derived from the asset type. Requires strict assurance that assetType is well-formed.
    */
   @Nullable
   public static String getIndexedExpressionOrColumn(@Nonnull String assetType, @Nonnull String aspect, @Nonnull String path,
       boolean nonDollarVirtualColumnsEnabled, @Nonnull SchemaValidatorUtil schemaValidator) {
-    final String indexColumn = getGeneratedColumnName(assetType, aspect, path, nonDollarVirtualColumnsEnabled);
     final String tableName = getTableName(assetType);
-    return getIndexedExpressionOrColumnGeneric(indexColumn, getExpressionIndexName(assetType, aspect, path), tableName, schemaValidator);
+    return getIndexedExpressionOrColumn(assetType, aspect, path, nonDollarVirtualColumnsEnabled, tableName, schemaValidator);
   }
 
   /**
    * Get the expression index "identifier", if it exists, otherwise retrieve the generated column name.
    * The idea behind this is that whatever is returned from this method can be used verbatim to query the database;
    * it's either the expression index itself (new approach) or the virtual column (old approach).
-   * Intended to be used with relationship tables.
+   * Intended to be used with relationship table metadata.
    */
   @Nullable
-  public static String getIndexedExpressionOrColumnRelationship(@Nonnull String expectedLegacyColumnName, @Nonnull String path,
-      @Nonnull String tableName, @Nonnull SchemaValidatorUtil schemaValidator) {
+  public static String getIndexedExpressionOrColumnRelationship(@Nonnull String relationshipFieldName, @Nonnull String path,
+      boolean nonDollarVirtualColumnsEnabled, @Nonnull String tableName, @Nonnull SchemaValidatorUtil schemaValidator) {
+    final String expectedLegacyColumnName =
+        SQLSchemaUtils.getGeneratedColumnNameRelationship(relationshipFieldName, path, nonDollarVirtualColumnsEnabled);
     final String expectedExpressionIndexName = SQLSchemaUtils.getExpressionIndexNameRelationship(path);
     return getIndexedExpressionOrColumnGeneric(expectedLegacyColumnName, expectedExpressionIndexName, tableName, schemaValidator);
   }

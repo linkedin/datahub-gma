@@ -445,7 +445,7 @@ public class SQLStatementUtils {
    * Construct where clause SQL from multiple filters. Return null if all filters are empty.
    * @param supportedConditions contains supported conditions such as EQUAL.
    * @param nonDollarVirtualColumnsEnabled  true if virtual column does not contain $, false otherwise
-   * @param relationshipTableName the relationship table name (used for RelationshipField schema validation)
+   * @param tableName the relationship table name (used for RelationshipField schema validation)
    * @param schemaValidator schema validator for checking column/index existence
    * @param filters An array of pairs which are filter and table prefix.
    * @return sql that can be appended after where clause.
@@ -453,13 +453,13 @@ public class SQLStatementUtils {
   @SafeVarargs
   @Nullable
   public static String whereClause(@Nonnull Map<Condition, String> supportedConditions, boolean nonDollarVirtualColumnsEnabled,
-      @Nullable String relationshipTableName, @Nonnull SchemaValidatorUtil schemaValidator,
+      @Nullable String tableName, @Nonnull SchemaValidatorUtil schemaValidator,
       @Nonnull Pair<LocalRelationshipFilter, String>... filters) {
     List<String> andClauses = new ArrayList<>();
     for (Pair<LocalRelationshipFilter, String> filter : filters) {
       if (LogicalExpressionLocalRelationshipCriterionUtils.filterHasNonEmptyCriteria(filter.getValue0())) {
         andClauses.add("(" + whereClause(
-                filter.getValue0(), supportedConditions, filter.getValue1(), relationshipTableName,
+                filter.getValue0(), supportedConditions, filter.getValue1(), tableName,
                 schemaValidator, nonDollarVirtualColumnsEnabled) + ")");
       }
     }
@@ -603,7 +603,6 @@ public class SQLStatementUtils {
    *
    * @param tablePrefix table prefix, is expected to have a delimiter already appended
    * @param expression expression
-   * @param expectedVirtualColumnName expected virtual column name
    * @param originColumnName the column name in which the indexed field is derived / extracted
    * @return expression with table prefix
    */
@@ -611,15 +610,14 @@ public class SQLStatementUtils {
   @Nonnull
   protected static String addTablePrefixToExpression(@Nonnull String tablePrefix,
       @Nonnull String expression,
-      @Nonnull String expectedVirtualColumnName,
       @Nonnull String originColumnName) {
     if (tablePrefix.isEmpty()) {
       return expression;
     }
 
-    // If the expression is the same as the expected virtual column name, we can just prepend the table prefix
-    // This is the case where, in evaluating "expression or column", the function returned a column (the expected column)
-    if (expression.equals(expectedVirtualColumnName)) {
+    // We make a reasonable assumption that if the expression has the characters '(' and ')', it's an expression
+    // Otherwise, it's a column
+    if (!expression.contains("(") && !expression.contains(")")) {
       return tablePrefix + expression;
     }
 
@@ -640,13 +638,17 @@ public class SQLStatementUtils {
     return expression.replaceAll("(`?" + originColumnName + "`?)", "`" + tablePrefix + "`.`$1`");
   }
 
+  // Note that tableName is currently only consumed if the relationshipCriterion is a RelationshipField. Otherwise,
+  // something like an Aspect-based field can have its table name derived through metadata extraction -- see AspectField.pdl,
+  // the same kind of metadata is NOT stored in RelationshipField.pdl and thus cannot be extracted in the same way.
+  // TODO (@jhui): It's possible to shrink the signature of the method by doing something similar in RelationshipField.pdl,
+  //               but this is a query-facing model, not sure if it makes sense to surface it there...
   @VisibleForTesting
   protected static String parseLocalRelationshipField(
       @Nonnull final LocalRelationshipCriterion localRelationshipCriterion, @Nullable String tablePrefix,
-      @Nonnull String relationshipTableName, @Nonnull SchemaValidatorUtil schemaValidator, boolean nonDollarVirtualColumnsEnabled) {
+      @Nonnull String tableName, @Nonnull SchemaValidatorUtil schemaValidator, boolean nonDollarVirtualColumnsEnabled) {
     tablePrefix = tablePrefix == null ? "" : tablePrefix + ".";
     LocalRelationshipCriterion.Field field = localRelationshipCriterion.getField();
-    char delimiter = nonDollarVirtualColumnsEnabled ? '0' : '$';
 
     // UrnField.pdl defines UrnField.name as 'urn'
     //    --> real column (not a virtual one), no need to "functionalize"
@@ -657,15 +659,17 @@ public class SQLStatementUtils {
     // RelationshipField.pdl defines RelationshipField.name as 'metadata' -- ie. this is how "metadata$foo$bar" column is formed
     //    --> virtual column use case that needs to be functionalized
     if (field.isRelationshipField()) {
-      // This next line is basically the original "expected naming logic" verbatim, keeping here for consistency
-      final String expectedVirtualColumnName = field.getRelationshipField().getName() + processPath(field.getRelationshipField().getPath(), delimiter);
+      final String relationshipFieldName = field.getRelationshipField().getName();
+      final String path = field.getRelationshipField().getPath();
+
       final String indexedExpressionOrColumn = SQLIndexFilterUtils.getIndexedExpressionOrColumnRelationship(
-          expectedVirtualColumnName, field.getRelationshipField().getPath(),
-          relationshipTableName, schemaValidator);
+          relationshipFieldName, path, nonDollarVirtualColumnsEnabled, tableName, schemaValidator);
       if (indexedExpressionOrColumn == null) {
-        throw new IllegalArgumentException("Neither expression nor column index not found for relationship field: " + expectedVirtualColumnName);
+        throw new IllegalArgumentException(
+            String.format("Neither expression nor column index not found for relationship field: RelationshipFieldName: %s, Path: %s",
+                relationshipFieldName, path));
       }
-      return addTablePrefixToExpression(tablePrefix, indexedExpressionOrColumn, expectedVirtualColumnName, RELATIONSHIP_TABLE_EXPRESSION_INDEX_INFIX);
+      return addTablePrefixToExpression(tablePrefix, indexedExpressionOrColumn, RELATIONSHIP_TABLE_EXPRESSION_INDEX_INFIX);
     }
 
     // This appears to be when a join has already occurred and this is some indexed field from an aspect column from
@@ -673,20 +677,16 @@ public class SQLStatementUtils {
     if (field.isAspectField()) {
       final String aspectFqcn = field.getAspectField().getAspect();
       final String path = field.getAspectField().getPath();
-
-      final String assetType = getAssetType(field.getAspectField());
+      final String assetType = getAssetType(field.getAspectField());  // NOT guaranteed to be set, must provide tableName in next call
 
       final String indexedExpressionOrColumn =
-          SQLIndexFilterUtils.getIndexedExpressionOrColumn(assetType, aspectFqcn, path, nonDollarVirtualColumnsEnabled, schemaValidator);
+          SQLIndexFilterUtils.getIndexedExpressionOrColumn(assetType, aspectFqcn, path, nonDollarVirtualColumnsEnabled, tableName, schemaValidator);
       if (indexedExpressionOrColumn == null) {
         throw new IllegalArgumentException(
             String.format("Neither expression nor column index not found for aspect field: Asset: %s, Aspect: %s, Path: %s",
                 assetType, aspectFqcn, path));
       }
-      final String expectedVirtualColumnName =
-          SQLSchemaUtils.getGeneratedColumnName(assetType, aspectFqcn, path, nonDollarVirtualColumnsEnabled);
-      return addTablePrefixToExpression(tablePrefix, indexedExpressionOrColumn, expectedVirtualColumnName,
-          SQLSchemaUtils.getAspectColumnName(assetType, aspectFqcn));
+      return addTablePrefixToExpression(tablePrefix, indexedExpressionOrColumn, SQLSchemaUtils.getAspectColumnName(assetType, aspectFqcn));
     }
 
     throw new IllegalArgumentException("Unrecognized field type");

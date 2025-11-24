@@ -193,6 +193,18 @@ public class SQLSchemaUtils {
   }
 
   /**
+   * Like the above but follows the convention for relationship tables.
+   * DEPRECATED, when attempting to obtain an indexed value, please use
+   * {@link SQLIndexFilterUtils#getIndexedExpressionOrColumnRelationship(String, String, boolean, String, SchemaValidatorUtil)} instead.
+   */
+  @Deprecated
+  @Nonnull
+  protected static String getGeneratedColumnNameRelationship(@Nonnull String relationshipFieldName, @Nonnull String path,
+      boolean nonDollarVirtualColumnsEnabled) {
+    return getExpectedNameFormatter("", relationshipFieldName, path, nonDollarVirtualColumnsEnabled);
+  }
+
+  /**
    * Get the expected expression index name from aspect and path.
    */
   @Nonnull

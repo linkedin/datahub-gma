@@ -74,6 +74,7 @@ import pegasus.com.linkedin.metadata.query.innerLogicalOperation.Operator;
 import static com.linkedin.metadata.dao.EbeanLocalRelationshipQueryDAO.*;
 import static com.linkedin.metadata.dao.utils.LogicalExpressionLocalRelationshipCriterionUtils.*;
 import static com.linkedin.testing.TestUtils.*;
+import static org.mockito.Mockito.*;
 import static org.testng.Assert.*;
 
 

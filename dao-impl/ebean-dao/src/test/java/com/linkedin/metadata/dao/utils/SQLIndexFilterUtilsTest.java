@@ -247,15 +247,22 @@ public class SQLIndexFilterUtilsTest {
 
   @Test
   public void testGetIndexedExpressionOrColumnRelationship() {
-    // Get something that is NOT an expression (not mocked) -- delimiters are not relevant here because this logic is deferred
-    //    to the caller
+    // Get something that is NOT an expression (not mocked) -- '$' variant
     assertEquals(SQLIndexFilterUtils.getIndexedExpressionOrColumnRelationship(
-        "metadata$foofield", "/foofield", "tablenamedoesntmatterherebecauseofmock", mockValidator),
+        "metadata$foofield", "/foofield", false,
+        "tablenamedoesntmatterherebecauseofmock", mockValidator),
         "metadata$foofield");
+
+    // Get something that is NOT an expression (not mocked) -- '0' variant
+    assertEquals(SQLIndexFilterUtils.getIndexedExpressionOrColumnRelationship(
+        "metadata0foofield", "/foofield", true,
+        "tablenamedoesntmatterherebecauseofmock", mockValidator),
+        "metadata0foofield");
 
     // Get something that is an expression (mocked)
     assertEquals(SQLIndexFilterUtils.getIndexedExpressionOrColumnRelationship(
-        "metadata$field", "/field", "tablenamedoesntmatterherebecauseofmock", mockValidator),
+        "metadata$field", "/field", false,
+        "tablenamedoesntmatterherebecauseofmock", mockValidator),
         "(cast(json_extract(`metadata`, '$.field') as char(64)))");
   }
 
