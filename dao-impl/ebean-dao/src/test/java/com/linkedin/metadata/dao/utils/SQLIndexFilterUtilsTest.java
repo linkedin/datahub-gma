@@ -123,7 +123,7 @@ public class SQLIndexFilterUtilsTest {
         SQLIndexFilterUtils.createIndexCriterion(AspectBar.class, "value_array", Condition.ARRAY_CONTAINS,
             IndexValue.create(12L)));
     final String expectedSql1 =
-        "WHERE a_aspectbar IS NOT NULL\nAND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\nAND JSON_CONTAINS((json_extract(`a_aspectbar`, '$.aspect.value_array'), '12'))\nAND deleted_ts IS NULL";
+        "WHERE a_aspectbar IS NOT NULL\nAND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\nAND JSON_CONTAINS((json_extract(`a_aspectbar`, '$.aspect.value_array')), '12')\nAND deleted_ts IS NULL";
     assertValidSql(expectedSql1);  // assert that the expected SQL is valid to begin with
     assertEquals(SQLIndexFilterUtils.parseIndexFilter(FooUrn.ENTITY_TYPE, indexFilter, false, mockValidator),
         expectedSql1);
@@ -261,6 +261,10 @@ public class SQLIndexFilterUtilsTest {
 
     // extra spaces (after 'cast', after 'as')
     assertEquals(SQLIndexFilterUtils.stripCastStatement("(cast    (json_extract(`a_aspectbar`, '$.aspect.value') as      char(1024)))"),
+        "(json_extract(`a_aspectbar`, '$.aspect.value'))");
+
+    // casting as an array
+    assertEquals(SQLIndexFilterUtils.stripCastStatement("(cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024) array))"),
         "(json_extract(`a_aspectbar`, '$.aspect.value'))");
 
     // NOT the outermost statement

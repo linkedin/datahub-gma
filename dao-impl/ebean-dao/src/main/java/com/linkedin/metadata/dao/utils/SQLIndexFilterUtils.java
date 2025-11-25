@@ -173,6 +173,7 @@ public class SQLIndexFilterUtils {
    * - whitespace is lenient -- before and after CAST, AS, between closing parentheses
    * - case-insensitive
    * - has to account for closing parens from the "AS" statement -- ie. as char(128)
+   * - has to account for array casting: ... as char(128) array
    * @param inputString input string
    *                    ex. (CAST(JSON_EXTRACT(a_asset_labels, '$.aspect.derived_labels') AS CHAR(128) ARRAY))
    * @return stripped string, enclosed in parentheses
@@ -181,7 +182,7 @@ public class SQLIndexFilterUtils {
   @VisibleForTesting
   @Nonnull
   protected static String stripCastStatement(@Nonnull String inputString) {
-    return inputString.replaceFirst("^\\(?\\s*(?i)CAST\\s*\\(", "(").replaceFirst("\\s+(?i)AS\\s+[^)]*(?:\\([^)]*\\))?\\s*\\){1,2}$", ")");
+    return inputString.replaceFirst("^\\(?\\s*(?i)CAST\\s*\\(", "(").replaceFirst("\\s+(?i)AS\\s+[^)]*(?:\\([^)]*\\))?[^)]*\\s*\\){1,2}$", ")");
   }
 
   /**
