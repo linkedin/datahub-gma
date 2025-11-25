@@ -197,10 +197,10 @@ public class SQLStatementUtilsTest {
 
     String sql1 = SQLStatementUtils.createFilterSql("foo", indexFilter, true, false, mockValidator);
     String expectedSql1 = "SELECT urn, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE a_aspectfoobar IS NOT NULL\n"
-        + "AND JSON_EXTRACT(a_aspectfoobar, '$.gma_deleted') IS NULL\n" + "AND 'bar1' MEMBER OF(i_aspectfoobar$bars)\n"
+        + "AND JSON_EXTRACT(a_aspectfoobar, '$.gma_deleted') IS NULL\n" + "AND JSON_CONTAINS(i_aspectfoobar$bars, 'bar1')\n"
         + "AND deleted_ts IS NULL)" + " as _total_count FROM metadata_entity_foo\n"
         + "WHERE a_aspectfoobar IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoobar, '$.gma_deleted') IS NULL\n"
-        + "AND 'bar1' MEMBER OF(i_aspectfoobar$bars)\n" + "AND deleted_ts IS NULL";
+        + "AND JSON_CONTAINS(i_aspectfoobar$bars, 'bar1')\n" + "AND deleted_ts IS NULL";
 
     assertEquals(sql1, expectedSql1);
   }

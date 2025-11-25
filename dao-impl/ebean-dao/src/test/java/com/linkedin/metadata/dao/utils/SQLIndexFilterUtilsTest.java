@@ -123,7 +123,7 @@ public class SQLIndexFilterUtilsTest {
         SQLIndexFilterUtils.createIndexCriterion(AspectBar.class, "value_array", Condition.ARRAY_CONTAINS,
             IndexValue.create(12L)));
     final String expectedSql1 =
-        "WHERE a_aspectbar IS NOT NULL\nAND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\nAND '12' MEMBER OF((cast(json_extract(`a_aspectbar`, '$.aspect.value_array') as char(128) array)))\nAND deleted_ts IS NULL";
+        "WHERE a_aspectbar IS NOT NULL\nAND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\nAND JSON_CONTAINS((json_extract(`a_aspectbar`, '$.aspect.value_array')), '12')\nAND deleted_ts IS NULL";
     assertValidSql(expectedSql1);  // assert that the expected SQL is valid to begin with
     assertEquals(SQLIndexFilterUtils.parseIndexFilter(FooUrn.ENTITY_TYPE, indexFilter, false, mockValidator),
         expectedSql1);
@@ -239,5 +239,40 @@ public class SQLIndexFilterUtilsTest {
     assertEquals(SQLIndexFilterUtils.getIndexedExpressionOrColumn(FooUrn.ENTITY_TYPE, AspectBar.class.getCanonicalName(), "value",
         false, mockValidator),
         "(cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024)))");
+  }
+
+  @Test
+  public void testStripCastStatement() {
+    // lowercase
+    assertEquals(SQLIndexFilterUtils.stripCastStatement("(cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024)))"),
+        "(json_extract(`a_aspectbar`, '$.aspect.value'))");
+
+    // all caps
+    assertEquals(SQLIndexFilterUtils.stripCastStatement("(CAST(json_extract(`a_aspectbar`, '$.aspect.value') AS char(1024)))"),
+        "(json_extract(`a_aspectbar`, '$.aspect.value'))");
+
+    // mixed case
+    assertEquals(SQLIndexFilterUtils.stripCastStatement("(CaSt(json_extract(`a_aspectbar`, '$.aspect.value') As char(1024)))"),
+        "(json_extract(`a_aspectbar`, '$.aspect.value'))");
+
+    // extra spaces (before 'cast', before 'as')
+    assertEquals(SQLIndexFilterUtils.stripCastStatement("(      cast(json_extract(`a_aspectbar`, '$.aspect.value')     as char(1024)))"),
+        "(json_extract(`a_aspectbar`, '$.aspect.value'))");
+
+    // extra spaces (after 'cast', after 'as')
+    assertEquals(SQLIndexFilterUtils.stripCastStatement("(cast    (json_extract(`a_aspectbar`, '$.aspect.value') as      char(1024)))"),
+        "(json_extract(`a_aspectbar`, '$.aspect.value'))");
+
+    // casting as an array
+    assertEquals(SQLIndexFilterUtils.stripCastStatement("(cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024) array))"),
+        "(json_extract(`a_aspectbar`, '$.aspect.value'))");
+
+    // NOT the outermost statement
+    assertEquals(SQLIndexFilterUtils.stripCastStatement("(foo(cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024))))"),
+        "(foo(cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024))))");
+
+    // no enclosing parents in original statement
+    assertEquals(SQLIndexFilterUtils.stripCastStatement("cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024))"),
+        "(json_extract(`a_aspectbar`, '$.aspect.value'))");
   }
 }
