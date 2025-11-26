@@ -1222,6 +1222,73 @@ public class SQLStatementUtilsTest {
     assertEquals(whereClause, "destination LIKE 'urn:li:dataset:prefix''%%'");
   }
 
+  @Test
+  public void testAddTablePrefixToExpression() {
+    // Test case 1: Empty table prefix should return expression unchanged
+    String expression1 = "(cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024)))";
+    assertEquals(SQLStatementUtils.addTablePrefixToExpression("", expression1, "a_aspectbar"), expression1);
 
+    // Test case 2: Simple column (no parentheses) should just prepend prefix
+    assertEquals(SQLStatementUtils.addTablePrefixToExpression("rt", "i_aspectfoo$value", "a_aspectfoo"),
+        "rt.i_aspectfoo$value");
+
+    // Test case 3 (from comments): Expression with backticks around column name
+    // (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024)))
+    // --> (cast(json_extract(`PREFIX`.`a_aspectbar`, '$.aspect.value') as char(1024)))
+    assertEquals(
+        SQLStatementUtils.addTablePrefixToExpression("PREFIX",
+            "(cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024)))", "a_aspectbar"),
+        "(cast(json_extract(`PREFIX`.`a_aspectbar`, '$.aspect.value') as char(1024)))");
+
+    // Test case 4 (from comments): Expression without backticks around column name
+    // (cast(json_extract(a_aspectbar, '$.aspect.value') as char(1024)))
+    // --> (cast(json_extract(`PREFIX`.`a_aspectbar`, '$.aspect.value') as char(1024)))
+    assertEquals(
+        SQLStatementUtils.addTablePrefixToExpression("PREFIX",
+            "(cast(json_extract(a_aspectbar, '$.aspect.value') as char(1024)))", "a_aspectbar"),
+        "(cast(json_extract(`PREFIX`.a_aspectbar, '$.aspect.value') as char(1024)))");
+
+    // Test case 5: Metadata column in relationship table (common use case) with backticks
+    assertEquals(
+        SQLStatementUtils.addTablePrefixToExpression("rt",
+            "(cast(json_extract(`metadata`, '$.field') as char(64)))", "metadata"),
+        "(cast(json_extract(`rt`.`metadata`, '$.field') as char(64)))");
+
+    // Test case 6: Metadata column without backticks
+    assertEquals(
+        SQLStatementUtils.addTablePrefixToExpression("rt",
+            "(cast(json_extract(metadata, '$.field') as char(64)))", "metadata"),
+        "(cast(json_extract(`rt`.metadata, '$.field') as char(64)))");
+
+    // Test case 7: Array expression index
+    assertEquals(
+        SQLStatementUtils.addTablePrefixToExpression("dt",
+            "(cast(json_extract(`a_aspectbar`, '$.aspect.value_array') as char(128) array))", "a_aspectbar"),
+        "(cast(json_extract(`dt`.`a_aspectbar`, '$.aspect.value_array') as char(128) array))");
+
+    // Test case 8: Complex nested JSON path (legacy array extraction)
+    assertEquals(
+        SQLStatementUtils.addTablePrefixToExpression("st",
+            "(cast(replace(json_unquote(json_extract(`a_aspectbar`,'$.aspect.annotation.ontologyIris[*]')),'\"','') as char(255)))",
+            "a_aspectbar"),
+        "(cast(replace(json_unquote(json_extract(`st`.`a_aspectbar`,'$.aspect.annotation.ontologyIris[*]')),'\"','') as char(255)))");
+
+    // Test case 9: Column name appears in JSON path - should only replace column reference
+    assertEquals(
+        SQLStatementUtils.addTablePrefixToExpression("foo",
+            "(cast(json_extract(`a_aspectfoo`, '$.a_aspectfoo.value') as char(1024)))", "a_aspectfoo"),
+        "(cast(json_extract(`foo`.`a_aspectfoo`, '$.a_aspectfoo.value') as char(1024)))");
+
+    // Test case 13: Column name substring appears in JSON path - should only replace actual column reference
+    assertEquals(
+        SQLStatementUtils.addTablePrefixToExpression("rt",
+            "(cast(json_extract(`metadata`, '$.metadata.field') as char(64)))", "metadata"),
+        "(cast(json_extract(`rt`.`metadata`, '$.metadata.field') as char(64)))");
+
+    // Test case 14: Multiple occurrences of column name - should replace all
+    assertEquals(
+        SQLStatementUtils.addTablePrefixToExpression("t1", "CONCAT(`a_col`, `a_col`)", "a_col"),
+        "CONCAT(`t1`.`a_col`, `t1`.`a_col`)");
+  }
 
 }

@@ -599,7 +599,7 @@ public class SQLStatementUtils {
    * or the value of an Expression Index. In the latter case, we have to replace the table prefix in the expression
    * as opposed to a simple prepend operation.
    *
-   * @param tablePrefix table prefix, is expected to have a delimiter already appended
+   * @param tablePrefix table prefix, is expected to NOT the delimiter '.' already appended
    * @param expression expression
    * @param originColumnName the column name in which the indexed field is derived / extracted
    * @return expression with table prefix
@@ -616,7 +616,7 @@ public class SQLStatementUtils {
     // We make a reasonable assumption that if the expression has the characters '(' and ')', it's an expression
     // Otherwise, it's a column
     if (!expression.contains("(") && !expression.contains(")")) {
-      return tablePrefix + expression;
+      return tablePrefix + "." + expression;
     }
 
     // This means that an expression index is being used. In this case, we need to prepend the prefix by injecting it
@@ -633,22 +633,21 @@ public class SQLStatementUtils {
     // Note that for good syntactic practice, we will surround the table prefix with backticks no matter what.
 
     // So what we want to do is look for the originColumnName then inject the table prefix before it.
-    return expression.replaceAll("(`?" + originColumnName + "`?)", "`" + tablePrefix + "`.`$1`");
+    // We use a negative lookbehind (?<!\.) to avoid matching column names inside JSON paths (e.g., '$.column.field')
+    return expression.replaceAll("(?<!\\.)(`?" + originColumnName + "`?)(\\s*)", "`" + tablePrefix + "`.$1$2");
   }
 
-  // TODO (@jhui): It's possible to shrink the signature of the method by doing something similar in RelationshipField.pdl,
-  //               but this is a query-facing model, not sure if it makes sense to surface it there...
   @VisibleForTesting
   protected static String parseLocalRelationshipField(
       @Nonnull final LocalRelationshipCriterion localRelationshipCriterion, @Nullable String tablePrefix,
       @Nonnull String tableName, @Nonnull SchemaValidatorUtil schemaValidator, boolean nonDollarVirtualColumnsEnabled) {
-    tablePrefix = tablePrefix == null ? "" : tablePrefix + ".";
+    tablePrefix = tablePrefix == null ? "" : tablePrefix;
     LocalRelationshipCriterion.Field field = localRelationshipCriterion.getField();
 
     // UrnField.pdl defines UrnField.name as 'urn'
     //    --> real column (not a virtual one), no need to "functionalize"
     if (field.isUrnField()) {
-      return tablePrefix + field.getUrnField().getName();
+      return tablePrefix + "." + field.getUrnField().getName();
     }
 
     // RelationshipField.pdl defines RelationshipField.name as 'metadata' -- ie. this is how "metadata$foo$bar" column is formed
