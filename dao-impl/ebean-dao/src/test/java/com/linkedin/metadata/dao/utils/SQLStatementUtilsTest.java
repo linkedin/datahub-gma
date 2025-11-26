@@ -49,9 +49,10 @@ public class SQLStatementUtilsTest {
 
   private static SchemaValidatorUtil mockValidator;
 
-  // This is (dummy) table name placeholder for testing, introduced because we need to propagate the relationship table
-  //   name for relationship table functional index processing. However, for existing tests that simply don't test for
-  //   relationship table functional index processing, we can just use a dummy table name.
+  // This is (dummy) table name placeholder for testing, introduced because we need to propagate the table name
+  // used in a "where filter" through the "where()" call.
+  // HOWEVER, since the table name ends up being directed into mocked calls in SchemaValidator, it doesn't matter
+  // what the table name is, so we'll just create and use a placeholder here.
   private static final String PLACEHOLDER_TABLE_NAME = "placeholder";
 
   @BeforeClass
@@ -1220,5 +1221,7 @@ public class SQLStatementUtilsTest {
     // Should properly escape and add the wildcard
     assertEquals(whereClause, "destination LIKE 'urn:li:dataset:prefix''%%'");
   }
+
+
 
 }
