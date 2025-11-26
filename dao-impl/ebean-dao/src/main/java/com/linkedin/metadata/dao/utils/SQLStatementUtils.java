@@ -647,7 +647,7 @@ public class SQLStatementUtils {
     // UrnField.pdl defines UrnField.name as 'urn'
     //    --> real column (not a virtual one), no need to "functionalize"
     if (field.isUrnField()) {
-      return tablePrefix + "." + field.getUrnField().getName();
+      return addTablePrefixToExpression(tablePrefix, field.getUrnField().getName(), field.getUrnField().getName());
     }
 
     // RelationshipField.pdl defines RelationshipField.name as 'metadata' -- ie. this is how "metadata$foo$bar" column is formed
