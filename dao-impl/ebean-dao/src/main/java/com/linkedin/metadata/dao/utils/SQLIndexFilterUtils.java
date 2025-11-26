@@ -1,5 +1,6 @@
 package com.linkedin.metadata.dao.utils;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.linkedin.data.template.GetMode;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.StringArray;
@@ -195,6 +196,28 @@ public class SQLIndexFilterUtils {
   }
 
   /**
+   * Strip CAST() statement from the input string. The intention for this is to be used for array-based functional
+   * indexes in which the CAST() statement must be removed before consumption from a JSON_CONTAINS() on the query side.
+   * Note that the CAST() statement is expected to be the **outermost** statement in the input string.
+   * Specifics:
+   * - leading '(' is optional
+   * - trailing ')' is optional
+   * - whitespace is lenient -- before and after CAST, AS, between closing parentheses
+   * - case-insensitive
+   * - has to account for closing parens from the "AS" statement -- ie. as char(128)
+   * - has to account for array casting: ... as char(128) array
+   * @param inputString input string
+   *                    ex. (CAST(JSON_EXTRACT(a_asset_labels, '$.aspect.derived_labels') AS CHAR(128) ARRAY))
+   * @return stripped string, enclosed in parentheses
+   *                    ex. (JSON_EXTRACT(a_asset_labels, '$.aspect.derived_labels'))
+   */
+  @VisibleForTesting
+  @Nonnull
+  protected static String stripCastStatement(@Nonnull String inputString) {
+    return inputString.replaceFirst("^\\(?\\s*(?i)CAST\\s*\\(", "(").replaceFirst("\\s+(?i)AS\\s+[^)]*(?:\\([^)]*\\))?[^)]*\\s*\\){1,2}$", ")");
+  }
+
+  /**
    * Parse condition expression.
    * @param index the name of the virtual generated column OR the actual expression of a functional index
    *              (TODO: is this valid?) Note: the functional index is expected to be wrapped in parentheses already.
@@ -206,7 +229,7 @@ public class SQLIndexFilterUtils {
     switch (condition) {
       // TODO: add validation to check that the index column value is an array type
       case ARRAY_CONTAINS:
-        return String.format("'%s' MEMBER OF(%s)", parseIndexValue(indexValue), index);  // JSON Array
+        return String.format("JSON_CONTAINS(%s, '%s')", stripCastStatement(index), parseIndexValue(indexValue));  // JSON Array
       case CONTAIN:
         return String.format("JSON_SEARCH(%s, 'one', '%s') IS NOT NULL", index, parseIndexValue(indexValue));  // JSON String, Array, Struct
       case IN:

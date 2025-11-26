@@ -59,6 +59,8 @@ public class TrackingUtils {
     // MCEv5 events submitted to Kafka topic
     MCEV5_SUBMITTED("mce-v5-consumer.mcev5.submitted"),
     MCEV5_RECEIVED("mce-v5-consumer.mcev5.received"),
+    MCEV5_PROPOSE_SUCCESS("mce-v5-consumer.propose.success"),
+    MCEV5_PROPOSE_FAILURE("mce-v5-consumer.propose.failure"),
     MCEV5_PROCESS_SUCCESS("mce-v5-consumer.process.success"),
     MCEV5_PROCESS_FAILURE("mce-v5-consumer.process.failure"),
     MCEV5_FAILURE_EVENT_SUCCESS("mce-v5-consumer.failureEvent.success"),
@@ -67,6 +69,8 @@ public class TrackingUtils {
     // Process states in MAEv5 Consumer Search Job
 
     // MAEv5 events submitted to Kafka topic
+    MAEV5_HS_SUBMITTED_SEARCH("maev5-hostedsearch-job.maev5.submitted"),
+    MAEV5_HS_RECEIVED_SEARCH("maev5-hostedsearch-job.maev5.received"),
     MAEV5_SUBMITTED_SEARCH("maev5-elasticsearch-job.maev5.submitted"),
     // MAEv5 events received by es-graph-job consumer
     MAEV5_RECEIVED_SEARCH("maev5-elasticsearch-job.maev5.received"),
