@@ -95,8 +95,7 @@ public class SQLIndexFilterUtils {
   }
 
   /**
-   * Same as {@link #getIndexedExpressionOrColumn(String, String, String, boolean, String, SchemaValidatorUtil)} but
-   * uses the table name derived from the asset type. Requires strict assurance that assetType is well-formed.
+   * Like the above but derives the 'tableName' from the 'assetType' parameter. Requires strict assurance that it is set.
    */
   @Nullable
   public static String getIndexedExpressionOrColumn(@Nonnull String assetType, @Nonnull String aspect, @Nonnull String path,
@@ -110,6 +109,9 @@ public class SQLIndexFilterUtils {
    * The idea behind this is that whatever is returned from this method can be used verbatim to query the database;
    * it's either the expression index itself (new approach) or the virtual column (old approach).
    * Intended to be used with relationship table metadata.
+   *
+   * @param relationshipFieldName the name of the relationship field "name" as stored in the RelationshipField object
+   *                              defined by the RelationshipField.pdl model. This defaults to "metadata".
    */
   @Nullable
   public static String getIndexedExpressionOrColumnRelationship(@Nonnull String relationshipFieldName, @Nonnull String path,

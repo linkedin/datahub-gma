@@ -7,7 +7,7 @@ import java.util.Collections;
 import java.util.Map;
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
-import org.javatuples.Pair;
+import org.javatuples.Triplet;
 
 
 /**
@@ -79,10 +79,10 @@ public class MultiHopsTraversalSqlGenerator {
             urnColumn, relationshipTable, destEntityTable, srcEntityTable));
 
     String whereClause = SQLStatementUtils.whereClause(_supportedConditions,  nonDollarVirtualColumnsEnabled,
-        relationshipTable, _schemaValidator,
-        new Pair<>(relationshipFilter, "rt"),
-        new Pair<>(destFilter, "dt"),
-        new Pair<>(srcFilter, "st"));
+        _schemaValidator,
+        new Triplet<>(relationshipFilter, "rt", relationshipTable),
+        new Triplet<>(destFilter, "dt", destEntityTable),
+        new Triplet<>(srcFilter, "st", srcEntityTable));
 
     if (whereClause != null) {
       sqlBuilder.append(" AND ").append(whereClause);
@@ -108,9 +108,9 @@ public class MultiHopsTraversalSqlGenerator {
             relationshipTable, entityTable));
 
     String whereClause = SQLStatementUtils.whereClause(_supportedConditions, nonDollarVirtualColumnsEnabled,
-        relationshipTable, _schemaValidator,
-        new Pair<>(relationshipFilter, "rt"),
-        new Pair<>(srcFilter, "et"));
+        _schemaValidator,
+        new Triplet<>(relationshipFilter, "rt", relationshipTable),
+        new Triplet<>(srcFilter, "et", entityTable));
 
     if (whereClause != null) {
       sourceUrnsSql.append(" AND ").append(whereClause);
@@ -128,7 +128,7 @@ public class MultiHopsTraversalSqlGenerator {
   private String findEntitiesUndirected(String entityTable, String relationshipTable, String firstHopUrnSql, LocalRelationshipFilter destFilter,
   boolean nonDollarVirtualColumnsEnabled) {
     String whereClause = SQLStatementUtils.whereClause(_supportedConditions, nonDollarVirtualColumnsEnabled,
-        relationshipTable, _schemaValidator, new Pair<>(destFilter, "et"));
+        _schemaValidator, new Triplet<>(destFilter, "et", entityTable));
 
     StringBuilder sourceEntitySql = new StringBuilder(
         String.format("SELECT et.* FROM %s et INNER JOIN %s rt ON et.urn=rt.source WHERE rt.destination IN (%s)",

@@ -1922,12 +1922,12 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     String sql = _localRelationshipQueryDAO.buildFindRelationshipSQL("relationship_table_name",
         new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
-        "source_table_name", srcFilter, "destination_table_name", null,
+        "metadata_entity_foo", srcFilter, "destination_table_name", null,
         -1, -1, new RelationshipLookUpContext());
 
     assertEquals(sql,
         "SELECT rt.* FROM relationship_table_name rt INNER JOIN destination_table_name dt ON dt.urn=rt.destination "
-            + "INNER JOIN source_table_name st ON st.urn=rt.source WHERE rt.deleted_ts is NULL AND st.i_aspectfoo"
+            + "INNER JOIN metadata_entity_foo st ON st.urn=rt.source WHERE rt.deleted_ts is NULL AND st.i_aspectfoo"
             + (_eBeanDAOConfig.isNonDollarVirtualColumnsEnabled() ? "0" : "$") + "value='Alice'");
   }
 
@@ -1940,11 +1940,11 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     String sql = _localRelationshipQueryDAO.buildFindRelationshipSQL("relationship_table_name",
         new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
-        "source_table_name", null, "destination_table_name", destFilter,
+        "source_table_name", null, "metadata_entity_bar", destFilter,
         -1, -1, new RelationshipLookUpContext());
 
     assertEquals(sql,
-        "SELECT rt.* FROM relationship_table_name rt INNER JOIN destination_table_name dt ON dt.urn=rt.destination "
+        "SELECT rt.* FROM relationship_table_name rt INNER JOIN metadata_entity_bar dt ON dt.urn=rt.destination "
             + "INNER JOIN source_table_name st ON st.urn=rt.source WHERE rt.deleted_ts is NULL AND dt.i_aspectfoo"
             + (_eBeanDAOConfig.isNonDollarVirtualColumnsEnabled() ? "0" : "$") + "value='Alice'");
   }
@@ -1963,13 +1963,13 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     String sql = _localRelationshipQueryDAO.buildFindRelationshipSQL("relationship_table_name",
         new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
-        "source_table_name", srcFilter, "destination_table_name", destFilter,
+        "metadata_entity_foo", srcFilter, "metadata_entity_bar", destFilter,
         -1, -1, new RelationshipLookUpContext());
 
     char virtualColumnDelimiter = _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled() ? '0' : '$';
     assertEquals(sql,
-        "SELECT rt.* FROM relationship_table_name rt INNER JOIN destination_table_name dt ON dt.urn=rt.destination "
-            + "INNER JOIN source_table_name st ON st.urn=rt.source WHERE rt.deleted_ts is NULL AND (dt.i_aspectfoo"
+        "SELECT rt.* FROM relationship_table_name rt INNER JOIN metadata_entity_bar dt ON dt.urn=rt.destination "
+            + "INNER JOIN metadata_entity_foo st ON st.urn=rt.source WHERE rt.deleted_ts is NULL AND (dt.i_aspectfoo"
             + virtualColumnDelimiter + "value='Bob') AND (st.i_aspectfoo" + virtualColumnDelimiter + "value='Alice')");
   }
 
@@ -2012,14 +2012,14 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     String sql = _localRelationshipQueryDAO.buildFindRelationshipSQL("relationship_table_name",
         new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
-        "source_table_name", srcFilter, "destination_table_name", null,
+        "metadata_entity_foo", srcFilter, "destination_table_name", null,
         -1, -1, new RelationshipLookUpContext(true));
 
     assertEquals(sql,
         "SELECT * FROM ("
             + "SELECT rt.*, ROW_NUMBER() OVER (PARTITION BY rt.source, rt.destination ORDER BY rt.lastmodifiedon DESC) AS row_num "
             + "FROM relationship_table_name rt INNER JOIN destination_table_name dt ON dt.urn=rt.destination "
-            + "INNER JOIN source_table_name st ON st.urn=rt.source  WHERE st.i_aspectfoo"
+            + "INNER JOIN metadata_entity_foo st ON st.urn=rt.source  WHERE st.i_aspectfoo"
             + (_eBeanDAOConfig.isNonDollarVirtualColumnsEnabled() ? "0" : "$") + "value='Alice') ranked_rows WHERE row_num = 1");
   }
 
@@ -2032,13 +2032,13 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     String sql = _localRelationshipQueryDAO.buildFindRelationshipSQL("relationship_table_name",
         new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
-        "source_table_name", null, "destination_table_name", destFilter,
+        "source_table_name", null, "metadata_entity_bar", destFilter,
         -1, -1, new RelationshipLookUpContext(true));
 
     assertEquals(sql,
         "SELECT * FROM ("
             + "SELECT rt.*, ROW_NUMBER() OVER (PARTITION BY rt.source, rt.destination ORDER BY rt.lastmodifiedon DESC) AS row_num "
-            + "FROM relationship_table_name rt INNER JOIN destination_table_name dt ON dt.urn=rt.destination "
+            + "FROM relationship_table_name rt INNER JOIN metadata_entity_bar dt ON dt.urn=rt.destination "
             + "INNER JOIN source_table_name st ON st.urn=rt.source  WHERE dt.i_aspectfoo"
             + (_eBeanDAOConfig.isNonDollarVirtualColumnsEnabled() ? "0" : "$") + "value='Alice') ranked_rows WHERE row_num = 1");
   }
@@ -2058,7 +2058,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     String sql = _localRelationshipQueryDAO.buildFindRelationshipSQL("relationship_table_name",
         new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
-        "source_table_name", srcFilter, "destination_table_name", destFilter,
+        "metadata_entity_foo", srcFilter, "metadata_entity_bar", destFilter,
         -1, -1, new RelationshipLookUpContext(true));
 
     char virtualColumnDelimiter = _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled() ? '0' : '$';
@@ -2066,8 +2066,8 @@ public class EbeanLocalRelationshipQueryDAOTest {
     assertEquals(sql,
         "SELECT * FROM ("
             + "SELECT rt.*, ROW_NUMBER() OVER (PARTITION BY rt.source, rt.destination ORDER BY rt.lastmodifiedon DESC) AS row_num "
-            + "FROM relationship_table_name rt INNER JOIN destination_table_name dt ON dt.urn=rt.destination "
-            + "INNER JOIN source_table_name st ON st.urn=rt.source  WHERE (dt.i_aspectfoo" + virtualColumnDelimiter
+            + "FROM relationship_table_name rt INNER JOIN metadata_entity_bar dt ON dt.urn=rt.destination "
+            + "INNER JOIN metadata_entity_foo st ON st.urn=rt.source  WHERE (dt.i_aspectfoo" + virtualColumnDelimiter
             + "value='Bob') AND (st.urn='urn:li:foo:4')) ranked_rows WHERE row_num = 1");
   }
 

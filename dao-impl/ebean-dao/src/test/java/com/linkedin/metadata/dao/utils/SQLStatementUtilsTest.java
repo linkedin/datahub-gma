@@ -31,7 +31,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.javatuples.Pair;
+import org.javatuples.Triplet;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 import pegasus.com.linkedin.metadata.query.LogicalExpressionLocalRelationshipCriterion;
@@ -443,14 +443,14 @@ public class SQLStatementUtilsTest {
 
     //test for multi filters with dollar virtual columns names
     assertConditionsEqual(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), false,
-        PLACEHOLDER_TABLE_NAME, mockValidator, new Pair<>(filter1, "foo"), new Pair<>(filter2, "bar")),
+        mockValidator, new Triplet<>(filter1, "foo", "faketable1"), new Triplet<>(filter2, "bar", "faketable2")),
         "(foo.i_aspectfoo$value='value2' AND (foo.urn='value1' OR foo.urn='value3') "
         + "AND foo.metadata$value='value4') AND (bar.urn='value1' OR bar.urn='value2')"
     );
 
     //test for multi filters with non dollar virtual columns names
     assertConditionsEqual(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), true,
-        PLACEHOLDER_TABLE_NAME, mockValidator, new Pair<>(filter1, "foo"), new Pair<>(filter2, "bar")),
+        mockValidator, new Triplet<>(filter1, "foo", "faketable1"), new Triplet<>(filter2, "bar", "faketable2")),
         "(foo.i_aspectfoo0value='value2' AND (foo.urn='value1' OR foo.urn='value3') "
         + "AND foo.metadata0value='value4') AND (bar.urn='value1' OR bar.urn='value2')"
     );
@@ -508,14 +508,14 @@ public class SQLStatementUtilsTest {
 
     //test for multi filters with dollar virtual columns names
     assertConditionsEqual(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), false,
-        PLACEHOLDER_TABLE_NAME, mockValidator, new Pair<>(filter1, "foo"), new Pair<>(filter2, "bar")),
+        mockValidator, new Triplet<>(filter1, "foo", "faketable1"), new Triplet<>(filter2, "bar", "faketable2")),
         "(foo.i_aspectfoo$value LIKE 'value2%' AND (foo.urn LIKE 'value1%' OR foo.urn LIKE 'value3%') "
         + "AND foo.metadata$value LIKE 'value4%') AND (bar.urn LIKE 'value1%' OR bar.urn LIKE 'value2%')"
     );
 
     //test for multi filters with non dollar virtual columns names
     assertConditionsEqual(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), true,
-        PLACEHOLDER_TABLE_NAME, mockValidator, new Pair<>(filter1, "foo"), new Pair<>(filter2, "bar")),
+        mockValidator, new Triplet<>(filter1, "foo", "faketable1"), new Triplet<>(filter2, "bar", "faketable2")),
         "(foo.i_aspectfoo0value LIKE 'value2%' AND (foo.urn LIKE 'value1%' OR foo.urn LIKE 'value3%') "
         + "AND foo.metadata0value LIKE 'value4%') AND (bar.urn LIKE 'value1%' OR bar.urn LIKE 'value2%')"
     );
