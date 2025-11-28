@@ -1356,7 +1356,7 @@ public class SQLStatementUtilsTest {
         .setValue(LocalRelationshipValue.create("NOTNEEDED"));
 
     assertEquals(SQLStatementUtils.parseLocalRelationshipField(relationshipCriterion2, "rt", PLACEHOLDER_TABLE_NAME,
-        mockValidator, false), "(cast(json_extract(rt.`metadata`, '$.field') as char(64)))");
+        mockValidator, false), "(cast(json_extract(`rt`.`metadata`, '$.field') as char(64)))");
 
     // Test case 7: AspectField with virtual column (dollar-separated)
     LocalRelationshipCriterion.Field aspectField1 = new LocalRelationshipCriterion.Field();
@@ -1386,7 +1386,7 @@ public class SQLStatementUtilsTest {
         .setValue(LocalRelationshipValue.create("NOTNEEDED"));
 
     assertEquals(SQLStatementUtils.parseLocalRelationshipField(aspectCriterion2, "PREFIX", PLACEHOLDER_TABLE_NAME,
-        mockValidator, false), "(cast(json_extract(PREFIX.`a_aspectbar`, '$.aspect.value') as char(1024)))");
+        mockValidator, false), "(cast(json_extract(`PREFIX`.`a_aspectbar`, '$.aspect.value') as char(1024)))");
 
     // Test case 11: AspectField with expression index and no table prefix
     assertEquals(SQLStatementUtils.parseLocalRelationshipField(aspectCriterion2, null, PLACEHOLDER_TABLE_NAME,
@@ -1404,7 +1404,7 @@ public class SQLStatementUtilsTest {
         .setValue(LocalRelationshipValue.create("NOTNEEDED"));
 
     assertEquals(SQLStatementUtils.parseLocalRelationshipField(aspectCriterion3, "t2", PLACEHOLDER_TABLE_NAME,
-        mockValidator, false), "(cast(json_extract(t2.`a_aspectbar`, '$.aspect.value') as char(1024)))");
+        mockValidator, false), "(cast(json_extract(`t2`.`a_aspectbar`, '$.aspect.value') as char(1024)))");
 
     // Test case 13: Invalid field type - should throw exception
     LocalRelationshipCriterion.Field invalidField = new LocalRelationshipCriterion.Field();

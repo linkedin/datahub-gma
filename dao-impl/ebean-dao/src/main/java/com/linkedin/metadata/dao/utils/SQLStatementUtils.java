@@ -630,10 +630,11 @@ public class SQLStatementUtils {
     // In this way, we could also have a case like:
     //     (cast(json_extract(a_aspectbar, '$.aspect.value') as char(1024)))
     //     --> (cast(json_extract(`PREFIX`.a_aspectbar, '$.aspect.value') as char(1024)))
+    // For safety, we'll always attach the '`' characters in non-column settings for clarity
 
     // So what we want to do is look for the originColumnName then inject the table prefix before it.
     // We use a negative lookbehind (?<!\.) to avoid matching column names inside JSON paths (e.g., '$.column.field')
-    return expression.replaceAll("(?<!\\.)(`?" + originColumnName + "`?)(\\s*)", tablePrefix + ".$1$2");
+    return expression.replaceAll("(?<!\\.)(`?" + originColumnName + "`?)(\\s*)", "`" + tablePrefix + "`.$1$2");
   }
 
   @VisibleForTesting
