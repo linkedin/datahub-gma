@@ -1291,7 +1291,7 @@ public class SQLStatementUtilsTest {
         "CONCAT(`t1`.`a_col`, `t1`.`a_col`)");
   }
 
-//   @Test
+  @Test
   public void testParseLocalRelationshipField() {
     // Test case 1: UrnField with null tablePrefix
     LocalRelationshipCriterion.Field urnField1 = new LocalRelationshipCriterion.Field();
@@ -1299,10 +1299,21 @@ public class SQLStatementUtilsTest {
     LocalRelationshipCriterion urnCriterion1 = new LocalRelationshipCriterion()
         .setField(urnField1)
         .setCondition(Condition.EQUAL)
-        .setValue(LocalRelationshipValue.create("value1"));
+        .setValue(LocalRelationshipValue.create("NOTNEEDED"));
 
     assertEquals(SQLStatementUtils.parseLocalRelationshipField(urnCriterion1, null, PLACEHOLDER_TABLE_NAME,
-        mockValidator, false), ".urn");
+        mockValidator, false), "urn");
+
+    // Test case 1.1: UrnField with null tablePrefix and non-"urn" name
+    LocalRelationshipCriterion.Field urnField11 = new LocalRelationshipCriterion.Field();
+    urnField11.setUrnField(new UrnField().setName("blargle"));
+    LocalRelationshipCriterion urnCriterion11 = new LocalRelationshipCriterion()
+        .setField(urnField11)
+        .setCondition(Condition.EQUAL)
+        .setValue(LocalRelationshipValue.create("NOTNEEDED"));
+
+    assertEquals(SQLStatementUtils.parseLocalRelationshipField(urnCriterion11, null, PLACEHOLDER_TABLE_NAME,
+        mockValidator, false), "blargle");
 
     // Test case 2: UrnField with non-null tablePrefix
     LocalRelationshipCriterion.Field urnField2 = new LocalRelationshipCriterion.Field();
@@ -1310,18 +1321,20 @@ public class SQLStatementUtilsTest {
     LocalRelationshipCriterion urnCriterion2 = new LocalRelationshipCriterion()
         .setField(urnField2)
         .setCondition(Condition.EQUAL)
-        .setValue(LocalRelationshipValue.create("value2"));
+        .setValue(LocalRelationshipValue.create("NOTNEEDED"));
 
     assertEquals(SQLStatementUtils.parseLocalRelationshipField(urnCriterion2, "rt", PLACEHOLDER_TABLE_NAME,
         mockValidator, false), "rt.urn");
 
     // Test case 3: RelationshipField with virtual column (dollar-separated)
+    //              NOTE that based on the mocks in the setup, VC's are assumed to exist no matter the input, and because
+    //              of how the logic runs, this will be superseded ONLY if there is (also) a expression index (mock)
     LocalRelationshipCriterion.Field relationshipField1 = new LocalRelationshipCriterion.Field();
     relationshipField1.setRelationshipField(new RelationshipField().setName("metadata").setPath("/value"));
     LocalRelationshipCriterion relationshipCriterion1 = new LocalRelationshipCriterion()
         .setField(relationshipField1)
         .setCondition(Condition.EQUAL)
-        .setValue(LocalRelationshipValue.create("value3"));
+        .setValue(LocalRelationshipValue.create("NOTNEEDED"));
 
     assertEquals(SQLStatementUtils.parseLocalRelationshipField(relationshipCriterion1, null, PLACEHOLDER_TABLE_NAME,
         mockValidator, false), "metadata$value");
@@ -1340,10 +1353,10 @@ public class SQLStatementUtilsTest {
     LocalRelationshipCriterion relationshipCriterion2 = new LocalRelationshipCriterion()
         .setField(relationshipField2)
         .setCondition(Condition.EQUAL)
-        .setValue(LocalRelationshipValue.create("value4"));
+        .setValue(LocalRelationshipValue.create("NOTNEEDED"));
 
     assertEquals(SQLStatementUtils.parseLocalRelationshipField(relationshipCriterion2, "rt", PLACEHOLDER_TABLE_NAME,
-        mockValidator, false), "(cast(json_extract(`rt`.`metadata`, '$.field') as char(64)))");
+        mockValidator, false), "(cast(json_extract(rt.`metadata`, '$.field') as char(64)))");
 
     // Test case 7: AspectField with virtual column (dollar-separated)
     LocalRelationshipCriterion.Field aspectField1 = new LocalRelationshipCriterion.Field();
@@ -1351,7 +1364,7 @@ public class SQLStatementUtilsTest {
     LocalRelationshipCriterion aspectCriterion1 = new LocalRelationshipCriterion()
         .setField(aspectField1)
         .setCondition(Condition.EQUAL)
-        .setValue(LocalRelationshipValue.create("value5"));
+        .setValue(LocalRelationshipValue.create("NOTNEEDED"));
 
     assertEquals(SQLStatementUtils.parseLocalRelationshipField(aspectCriterion1, null, PLACEHOLDER_TABLE_NAME,
         mockValidator, false), "i_aspectfoo$value");
@@ -1366,14 +1379,14 @@ public class SQLStatementUtilsTest {
 
     // Test case 10: AspectField with expression index (AspectBar with "value" field)
     LocalRelationshipCriterion.Field aspectField2 = new LocalRelationshipCriterion.Field();
-    aspectField2.setAspectField(new AspectField().setAspect(AspectBar.class.getCanonicalName()).setPath("/aspect/value"));
+    aspectField2.setAspectField(new AspectField().setAspect(AspectBar.class.getCanonicalName()).setPath("/value"));
     LocalRelationshipCriterion aspectCriterion2 = new LocalRelationshipCriterion()
         .setField(aspectField2)
         .setCondition(Condition.EQUAL)
-        .setValue(LocalRelationshipValue.create("value6"));
+        .setValue(LocalRelationshipValue.create("NOTNEEDED"));
 
     assertEquals(SQLStatementUtils.parseLocalRelationshipField(aspectCriterion2, "PREFIX", PLACEHOLDER_TABLE_NAME,
-        mockValidator, false), "(cast(json_extract(`PREFIX`.`a_aspectbar`, '$.aspect.value') as char(1024)))");
+        mockValidator, false), "(cast(json_extract(PREFIX.`a_aspectbar`, '$.aspect.value') as char(1024)))");
 
     // Test case 11: AspectField with expression index and no table prefix
     assertEquals(SQLStatementUtils.parseLocalRelationshipField(aspectCriterion2, null, PLACEHOLDER_TABLE_NAME,
@@ -1384,14 +1397,14 @@ public class SQLStatementUtilsTest {
     aspectField3.setAspectField(new AspectField()
         .setAspect(AspectBar.class.getCanonicalName())
         .setAsset(BarAsset.class.getCanonicalName())
-        .setPath("/aspect/value"));
+        .setPath("/value"));
     LocalRelationshipCriterion aspectCriterion3 = new LocalRelationshipCriterion()
         .setField(aspectField3)
         .setCondition(Condition.EQUAL)
-        .setValue(LocalRelationshipValue.create("value7"));
+        .setValue(LocalRelationshipValue.create("NOTNEEDED"));
 
     assertEquals(SQLStatementUtils.parseLocalRelationshipField(aspectCriterion3, "t2", PLACEHOLDER_TABLE_NAME,
-        mockValidator, false), "(cast(json_extract(`t2`.`a_aspectbar`, '$.aspect.value') as char(1024)))");
+        mockValidator, false), "(cast(json_extract(t2.`a_aspectbar`, '$.aspect.value') as char(1024)))");
 
     // Test case 13: Invalid field type - should throw exception
     LocalRelationshipCriterion.Field invalidField = new LocalRelationshipCriterion.Field();
@@ -1399,7 +1412,7 @@ public class SQLStatementUtilsTest {
     LocalRelationshipCriterion invalidCriterion = new LocalRelationshipCriterion()
         .setField(invalidField)
         .setCondition(Condition.EQUAL)
-        .setValue(LocalRelationshipValue.create("value8"));
+        .setValue(LocalRelationshipValue.create("NOTNEEDED"));
 
     try {
       SQLStatementUtils.parseLocalRelationshipField(invalidCriterion, null, PLACEHOLDER_TABLE_NAME,
