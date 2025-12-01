@@ -1406,6 +1406,8 @@ public class SQLStatementUtilsTest {
         .setCondition(Condition.EQUAL)
         .setValue(LocalRelationshipValue.create("NOTNEEDED"));
 
+    // if this test ever fails locally (MacOS), reach out to @jhui there is some weird Linux / Mac discrepancy that
+    // causes the test to fail ONLY on the laptop
     assertEquals(SQLStatementUtils.parseLocalRelationshipField(aspectCriterion3, "t2", PLACEHOLDER_TABLE_NAME,
         mockValidator, false), "(cast(json_extract(`t2`.`a_aspect_bar`, '$.aspect.value') as char(1024)))");
 
