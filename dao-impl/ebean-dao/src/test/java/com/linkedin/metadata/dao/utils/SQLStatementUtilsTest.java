@@ -1403,8 +1403,8 @@ public class SQLStatementUtilsTest {
         .setCondition(Condition.EQUAL)
         .setValue(LocalRelationshipValue.create("NOTNEEDED"));
 
-//    assertEquals(SQLStatementUtils.parseLocalRelationshipField(aspectCriterion3, "t2", PLACEHOLDER_TABLE_NAME,
-//        mockValidator, false), "(cast(json_extract(`t2`.`a_aspectbar`, '$.aspect.value') as char(1024)))");
+    // assertEquals(SQLStatementUtils.parseLocalRelationshipField(aspectCriterion3, "t2", PLACEHOLDER_TABLE_NAME,
+    //    mockValidator, false), "(cast(json_extract(`t2`.`a_aspectbar`, '$.aspect.value') as char(1024)))");
 
     // Test case 13: Invalid field type - should throw exception
     LocalRelationshipCriterion.Field invalidField = new LocalRelationshipCriterion.Field();
