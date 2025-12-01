@@ -634,6 +634,8 @@ public class SQLStatementUtils {
 
     // So what we want to do is look for the originColumnName then inject the table prefix before it.
     // We use a negative lookbehind (?<!\.) to avoid matching column names inside JSON paths (e.g., '$.column.field')
+    System.out.println(originColumnName);
+    System.out.println(expression.replaceAll("(?<!\\.)(`?" + originColumnName + "`?)(\\s*)", "`" + tablePrefix + "`.$1$2"));
     return expression.replaceAll("(?<!\\.)(`?" + originColumnName + "`?)(\\s*)", "`" + tablePrefix + "`.$1$2");
   }
 
@@ -681,6 +683,7 @@ public class SQLStatementUtils {
             String.format("Neither expression nor column index not found for aspect field: Asset: %s, Aspect: %s, Path: %s, TableName: %s",
                 assetType, aspectFqcn, path, tableName));
       }
+      System.out.println(indexedExpressionOrColumn);
       return addTablePrefixToExpression(tablePrefix, indexedExpressionOrColumn, SQLSchemaUtils.getAspectColumnName(assetType, aspectFqcn));
     }
 

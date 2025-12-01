@@ -1397,15 +1397,14 @@ public class SQLStatementUtilsTest {
     aspectField3.setAspectField(new AspectField()
         .setAspect(AspectBar.class.getCanonicalName())
         .setAsset(BarAsset.class.getCanonicalName())
-        .setPath("/value_array"));
+        .setPath("/value"));
     LocalRelationshipCriterion aspectCriterion3 = new LocalRelationshipCriterion()
         .setField(aspectField3)
         .setCondition(Condition.EQUAL)
         .setValue(LocalRelationshipValue.create("NOTNEEDED"));
 
-     // flaky test
-     assertEquals(SQLStatementUtils.parseLocalRelationshipField(aspectCriterion3, "t2", PLACEHOLDER_TABLE_NAME,
-        mockValidator, false), "(cast(json_extract(`t2`.`a_aspectbar`, '$.aspect.value_array') as char(128) array))");
+    assertEquals(SQLStatementUtils.parseLocalRelationshipField(aspectCriterion3, "t2", PLACEHOLDER_TABLE_NAME,
+        mockValidator, false), "(cast(json_extract(`t2`.`a_aspectbar`, '$.aspect.value') as char(1024)))");
 
     // Test case 13: Invalid field type - should throw exception
     LocalRelationshipCriterion.Field invalidField = new LocalRelationshipCriterion.Field();
