@@ -66,18 +66,21 @@ public class SQLStatementUtilsTest {
     //    and works just fine: we will omit it here so that we can check the syntax otherwise.
 
     // "AspectBar" as the aspect (any asset) with a functional index and "value" as the field (path) to be indexed
-    when(mockValidator.getIndexExpression(anyString(), matches("e_aspectbar0value")))
+    when(mockValidator.getIndexExpression(anyString(), eq("e_aspectbar0value")))
         .thenReturn("(cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024)))");
     //    This is an existing new way of Array extraction (AssetLabels.derived_labels)
-    when(mockValidator.getIndexExpression(anyString(), matches("e_aspectbar0value_array")))
+    when(mockValidator.getIndexExpression(anyString(), eq("e_aspectbar0value_array")))
         .thenReturn("(cast(json_extract(`a_aspectbar`, '$.aspect.value_array') as char(128) array))");
     //    This is an existing legacy way of array extraction, casting to a string (DataPolicyInfo.annotation.ontologyIris)
-    when(mockValidator.getIndexExpression(anyString(), matches("e_aspectbar0annotation0ontologyIris")))
+    when(mockValidator.getIndexExpression(anyString(), eq("e_aspectbar0annotation0ontologyIris")))
         .thenReturn("(cast(replace(json_unquote(json_extract(`a_aspectbar`,'$.aspect.annotation.ontologyIris[*]')),'\"','') as char(255)))");
 
     // New mocks for relationship field validation
-    when(mockValidator.getIndexExpression(anyString(), matches("e_metadata0field")))
+    when(mockValidator.getIndexExpression(anyString(), eq("e_metadata0field")))
         .thenReturn("(cast(json_extract(`metadata`, '$.field') as char(64)))");
+    // New mock when using an "Aspect Alias" -- see BarAsset.pdl which states that "aspect_bar" should be the col name
+    when(mockValidator.getIndexExpression(anyString(), eq("e_aspect_bar0value")))
+        .thenReturn("(cast(json_extract(`a_aspect_bar`, '$.aspect.value') as char(1024)))");
   }
 
   @Test
@@ -1406,7 +1409,7 @@ public class SQLStatementUtilsTest {
     System.out.println("Test 12!");
 
     assertEquals(SQLStatementUtils.parseLocalRelationshipField(aspectCriterion3, "t2", PLACEHOLDER_TABLE_NAME,
-        mockValidator, false), "(cast(json_extract(`t2`.`a_aspectbar`, '$.aspect.value') as char(1024)))");
+        mockValidator, false), "(cast(json_extract(`t2`.`a_aspect_bar`, '$.aspect.value') as char(1024)))");
 
     // Test case 13: Invalid field type - should throw exception
     LocalRelationshipCriterion.Field invalidField = new LocalRelationshipCriterion.Field();
