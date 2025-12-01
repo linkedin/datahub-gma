@@ -1406,8 +1406,6 @@ public class SQLStatementUtilsTest {
         .setCondition(Condition.EQUAL)
         .setValue(LocalRelationshipValue.create("NOTNEEDED"));
 
-    System.out.println("Test 12!");
-
     assertEquals(SQLStatementUtils.parseLocalRelationshipField(aspectCriterion3, "t2", PLACEHOLDER_TABLE_NAME,
         mockValidator, false), "(cast(json_extract(`t2`.`a_aspect_bar`, '$.aspect.value') as char(1024)))");
 
