@@ -66,6 +66,28 @@ public class SQLIndexFilterUtils {
     }
   }
 
+  /**
+   * Convert IndexValue to JSON format for JSON_CONTAINS.
+   * For strings, wraps in double quotes with JSON escaping.
+   * For other types, uses parseIndexValue as-is.
+   */
+  private static String parseIndexValueForJsonContains(@Nullable IndexValue indexValue) {
+    if (indexValue != null && indexValue.isString()) {
+      // Get raw string and escape for JSON directly
+      String raw = indexValue.getString();
+      String escaped = raw
+          .replace("\\", "\\\\")   // Escape backslashes first
+          .replace("\"", "\\\"")   // Escape double quotes
+          .replace("\n", "\\n")    // Escape newlines
+          .replace("\r", "\\r")    // Escape carriage returns
+          .replace("\t", "\\t");   // Escape tabs
+      return "\"" + escaped + "\"";
+    }
+    // TODO: handle array case, but this is not permitted right now: see validateConditionAndValue()
+    // For numbers, booleans, null - parseIndexValue already returns JSON-compatible format
+    return parseIndexValue(indexValue);
+  }
+
   @Nullable
   private static String getIndexedExpressionOrColumnGeneric(@Nonnull String expectedLegacyColumnName, @Nonnull String expectedExpressionIndexName,
       @Nonnull String tableName, @Nonnull SchemaValidatorUtil schemaValidator) {
@@ -229,7 +251,10 @@ public class SQLIndexFilterUtils {
     switch (condition) {
       // TODO: add validation to check that the index column value is an array type
       case ARRAY_CONTAINS:
-        return String.format("JSON_CONTAINS(%s, '%s')", stripCastStatement(index), parseIndexValue(indexValue));  // JSON Array
+        // TODO (@jhui): stripCastStatement() is ONLY used here because it NEEDS to be applied for array-based indexes...
+        //               If array indexes are to be used with other conditions here, then we need to incorporate that
+        //               call there as well.
+        return String.format("JSON_CONTAINS(%s, '%s')", stripCastStatement(index), parseIndexValueForJsonContains(indexValue));  // JSON Array
       case CONTAIN:
         return String.format("JSON_SEARCH(%s, 'one', '%s') IS NOT NULL", index, parseIndexValue(indexValue));  // JSON String, Array, Struct
       case IN:
