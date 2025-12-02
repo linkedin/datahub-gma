@@ -134,6 +134,18 @@ public class SQLIndexFilterUtilsTest {
     assertEquals(SQLIndexFilterUtils.parseIndexFilter(FooUrn.ENTITY_TYPE, indexFilter, true, mockValidator),
         expectedSql1);
 
+    // Test 1.1: ARRAY_CONTAINS with String value
+    indexCriterionArray.set(0,
+        SQLIndexFilterUtils.createIndexCriterion(AspectBar.class, "value_array", Condition.ARRAY_CONTAINS,
+            IndexValue.create("goop")));
+    final String expectedSql11 =
+        "WHERE a_aspectbar IS NOT NULL\nAND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\nAND JSON_CONTAINS((json_extract(`a_aspectbar`, '$.aspect.value_array')), '\"goop\"')\nAND deleted_ts IS NULL";
+    assertValidSql(expectedSql11);  // assert that the expected SQL is valid to begin with
+    assertEquals(SQLIndexFilterUtils.parseIndexFilter(FooUrn.ENTITY_TYPE, indexFilter, false, mockValidator),
+        expectedSql11);
+    assertEquals(SQLIndexFilterUtils.parseIndexFilter(FooUrn.ENTITY_TYPE, indexFilter, true, mockValidator),
+        expectedSql11);
+
     // Test 2.0: CONTAIN with simple string value
     indexCriterionArray.set(0,
         SQLIndexFilterUtils.createIndexCriterion(AspectBar.class, "value", Condition.CONTAIN, IndexValue.create(12L)));
