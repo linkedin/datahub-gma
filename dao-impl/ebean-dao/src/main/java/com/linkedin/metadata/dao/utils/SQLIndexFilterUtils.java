@@ -66,29 +66,61 @@ public class SQLIndexFilterUtils {
     }
   }
 
+  @Nullable
+  private static String getIndexedExpressionOrColumnGeneric(@Nonnull String expectedLegacyColumnName, @Nonnull String expectedExpressionIndexName,
+      @Nonnull String tableName, @Nonnull SchemaValidatorUtil schemaValidator) {
+    // Check if an expression-based index exists... if it does, use that
+    final String indexExpression = schemaValidator.getIndexExpression(tableName, expectedExpressionIndexName);
+    if (indexExpression != null) {
+      log.info("Using expression index '{}' in table '{}' with expression '{}'", expectedExpressionIndexName, tableName, indexExpression);
+      return indexExpression;
+    } else if (schemaValidator.columnExists(tableName, expectedLegacyColumnName)) {
+      // (Pre-functional-index logic) Check for existence of (virtual) column
+      return expectedLegacyColumnName;
+    } else {
+      return null;
+    }
+  }
+
   /**
    * Get the expression index "identifier", if it exists, otherwise retrieve the generated column name.
    * The idea behind this is that whatever is returned from this method can be used verbatim to query the database;
    * it's either the expression index itself (new approach) or the virtual column (old approach).
+   * Intended to be used with entity table metadata.
+   */
+  @Nullable
+  public static String getIndexedExpressionOrColumn(@Nonnull String assetType, @Nonnull String aspect, @Nonnull String path,
+      boolean nonDollarVirtualColumnsEnabled, @Nonnull String tableName, @Nonnull SchemaValidatorUtil schemaValidator) {
+    final String expectedLegacyColumnName = getGeneratedColumnName(assetType, aspect, path, nonDollarVirtualColumnsEnabled);
+    return getIndexedExpressionOrColumnGeneric(expectedLegacyColumnName, getExpressionIndexName(assetType, aspect, path), tableName, schemaValidator);
+  }
+
+  /**
+   * Like the above but derives the 'tableName' from the 'assetType' parameter. Requires strict assurance that it is set.
    */
   @Nullable
   public static String getIndexedExpressionOrColumn(@Nonnull String assetType, @Nonnull String aspect, @Nonnull String path,
       boolean nonDollarVirtualColumnsEnabled, @Nonnull SchemaValidatorUtil schemaValidator) {
-    final String indexColumn = getGeneratedColumnName(assetType, aspect, path, nonDollarVirtualColumnsEnabled);
     final String tableName = getTableName(assetType);
+    return getIndexedExpressionOrColumn(assetType, aspect, path, nonDollarVirtualColumnsEnabled, tableName, schemaValidator);
+  }
 
-    // Check if an expression-based index exists... if it does, use that
-    final String expressionIndexName = getExpressionIndexName(assetType, aspect, path);
-    final String indexExpression = schemaValidator.getIndexExpression(tableName, expressionIndexName);
-    if (indexExpression != null) {
-      log.info("Using expression index '{}' in table '{}' with expression '{}'", expressionIndexName, tableName, indexExpression);
-      return indexExpression;
-    } else if (schemaValidator.columnExists(tableName, indexColumn)) {
-      // (Pre-functional-index logic) Check for existence of (virtual) column
-      return indexColumn;
-    } else {
-      return null;
-    }
+  /**
+   * Get the expression index "identifier", if it exists, otherwise retrieve the generated column name.
+   * The idea behind this is that whatever is returned from this method can be used verbatim to query the database;
+   * it's either the expression index itself (new approach) or the virtual column (old approach).
+   * Intended to be used with relationship table metadata.
+   *
+   * @param relationshipFieldName the name of the relationship field "name" as stored in the RelationshipField object
+   *                              defined by the RelationshipField.pdl model. This defaults to "metadata".
+   */
+  @Nullable
+  public static String getIndexedExpressionOrColumnRelationship(@Nonnull String relationshipFieldName, @Nonnull String path,
+      boolean nonDollarVirtualColumnsEnabled, @Nonnull String tableName, @Nonnull SchemaValidatorUtil schemaValidator) {
+    final String expectedLegacyColumnName =
+        SQLSchemaUtils.getGeneratedColumnNameRelationship(relationshipFieldName, path, nonDollarVirtualColumnsEnabled);
+    final String expectedExpressionIndexName = SQLSchemaUtils.getExpressionIndexNameRelationship(path);
+    return getIndexedExpressionOrColumnGeneric(expectedLegacyColumnName, expectedExpressionIndexName, tableName, schemaValidator);
   }
 
   /**

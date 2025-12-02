@@ -1,5 +1,6 @@
 package com.linkedin.metadata.dao.utils;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.escape.Escaper;
 import com.google.common.escape.Escapers;
 import com.linkedin.common.urn.Urn;
@@ -23,7 +24,7 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringEscapeUtils;
 import org.apache.commons.lang.StringUtils;
-import org.javatuples.Pair;
+import org.javatuples.Triplet;
 import pegasus.com.linkedin.metadata.query.LogicalExpressionLocalRelationshipCriterion;
 import pegasus.com.linkedin.metadata.query.LogicalExpressionLocalRelationshipCriterionArray;
 import pegasus.com.linkedin.metadata.query.LogicalOperation;
@@ -444,17 +445,20 @@ public class SQLStatementUtils {
    * Construct where clause SQL from multiple filters. Return null if all filters are empty.
    * @param supportedConditions contains supported conditions such as EQUAL.
    * @param nonDollarVirtualColumnsEnabled  true if virtual column does not contain $, false otherwise
-   * @param filters An array of pairs which are filter and table prefix.
+   * @param schemaValidator schema validator for checking column/index existence
+   * @param filters An array of pairs which are filter and table prefix and table name
    * @return sql that can be appended after where clause.
    */
   @SafeVarargs
   @Nullable
   public static String whereClause(@Nonnull Map<Condition, String> supportedConditions, boolean nonDollarVirtualColumnsEnabled,
-      @Nonnull Pair<LocalRelationshipFilter, String>... filters) {
+      @Nonnull SchemaValidatorUtil schemaValidator, @Nonnull Triplet<LocalRelationshipFilter, String, String>... filters) {
     List<String> andClauses = new ArrayList<>();
-    for (Pair<LocalRelationshipFilter, String> filter : filters) {
+    for (Triplet<LocalRelationshipFilter, String, String> filter : filters) {
       if (LogicalExpressionLocalRelationshipCriterionUtils.filterHasNonEmptyCriteria(filter.getValue0())) {
-        andClauses.add("(" + whereClause(filter.getValue0(), supportedConditions, filter.getValue1(), nonDollarVirtualColumnsEnabled) + ")");
+        andClauses.add("(" + whereClause(
+                filter.getValue0(), supportedConditions, filter.getValue1(), filter.getValue2(),
+                schemaValidator, nonDollarVirtualColumnsEnabled) + ")");
       }
     }
     if (andClauses.isEmpty()) {
@@ -471,13 +475,15 @@ public class SQLStatementUtils {
    * @param filter contains field, condition and value
    * @param supportedConditions contains supported conditions such as EQUAL.
    * @param tablePrefix Table prefix append to the field name. Useful during SQL joining across multiple tables.
+   * @param tableName Full table name for the table referenced by tablePrefix
+   * @param schemaValidator schema validator for checking column/index existence
    * @param nonDollarVirtualColumnsEnabled whether to use dollar sign in virtual column names.
    * @return sql that can be appended after where clause.
    */
   @Nonnull
   public static String whereClause(@Nonnull LocalRelationshipFilter filter,
-      @Nonnull Map<Condition, String> supportedConditions, @Nullable String tablePrefix,
-      boolean nonDollarVirtualColumnsEnabled) {
+      @Nonnull Map<Condition, String> supportedConditions, @Nullable String tablePrefix, @Nonnull String tableName,
+      @Nonnull SchemaValidatorUtil schemaValidator, boolean nonDollarVirtualColumnsEnabled) {
     if (!LogicalExpressionLocalRelationshipCriterionUtils.filterHasNonEmptyCriteria(filter)) {
       throw new IllegalArgumentException("Empty filter cannot construct where clause.");
     }
@@ -485,12 +491,12 @@ public class SQLStatementUtils {
     final LocalRelationshipFilter normalizedFilter = normalizeLocalRelationshipFilter(filter);
 
     return buildSQLQueryFromLogicalExpression(normalizedFilter.getLogicalExpressionCriteria(), supportedConditions, tablePrefix,
-        nonDollarVirtualColumnsEnabled);
+        tableName, schemaValidator, nonDollarVirtualColumnsEnabled);
   }
 
   private static String buildSQLQueryFromLogicalExpression(@Nonnull LogicalExpressionLocalRelationshipCriterion criterion,
-      @Nonnull Map<Condition, String> supportedConditions, @Nullable String tablePrefix,
-      boolean nonDollarVirtualColumnsEnabled) {
+      @Nonnull Map<Condition, String> supportedConditions, @Nullable String tablePrefix, @Nonnull String tableName,
+      @Nonnull SchemaValidatorUtil schemaValidator, boolean nonDollarVirtualColumnsEnabled) {
     if (!criterion.hasExpr() || criterion.getExpr() == null) {
       throw new IllegalArgumentException("No logical expression found in criterion: " + criterion);
     }
@@ -498,7 +504,8 @@ public class SQLStatementUtils {
     final LogicalExpressionLocalRelationshipCriterion.Expr expr = criterion.getExpr();
 
     if (expr.isCriterion()) {
-      return buildSQLQueryFromLocalRelationshipCriterion(expr.getCriterion(), supportedConditions, tablePrefix, nonDollarVirtualColumnsEnabled);
+      return buildSQLQueryFromLocalRelationshipCriterion(
+          expr.getCriterion(), supportedConditions, tablePrefix, tableName, schemaValidator, nonDollarVirtualColumnsEnabled);
     }
 
     // expr is logical
@@ -509,7 +516,7 @@ public class SQLStatementUtils {
     if (op == Operator.NOT) {
       // NOT clause must only have 1 expreesion that is a criterion
       return "(NOT " + buildSQLQueryFromLocalRelationshipCriterion(expr.getLogical().getExpressions().get(0).getExpr().getCriterion(),
-          supportedConditions, tablePrefix, nonDollarVirtualColumnsEnabled) + ")";
+          supportedConditions, tablePrefix, tableName, schemaValidator, nonDollarVirtualColumnsEnabled) + ")";
     }
 
     final String opString = op == Operator.AND ? " AND " : " OR ";
@@ -517,17 +524,17 @@ public class SQLStatementUtils {
     final LogicalExpressionLocalRelationshipCriterionArray array = logicalOperation.getExpressions();
 
     final List<String> subClauses = array.stream().map(c -> {
-      return buildSQLQueryFromLogicalExpression(c, supportedConditions, tablePrefix, nonDollarVirtualColumnsEnabled);
+      return buildSQLQueryFromLogicalExpression(c, supportedConditions, tablePrefix, tableName, schemaValidator, nonDollarVirtualColumnsEnabled);
     }).collect(Collectors.toList());
 
     return "(" + String.join(opString, subClauses) + ")";
   }
 
   private static String buildSQLQueryFromLocalRelationshipCriterion(@Nonnull LocalRelationshipCriterion criterion,
-      @Nonnull Map<Condition, String> supportedConditions, @Nullable String tablePrefix,
-      boolean nonDollarVirtualColumnsEnabled) {
+      @Nonnull Map<Condition, String> supportedConditions, @Nullable String tablePrefix, @Nonnull String tableName,
+      @Nonnull SchemaValidatorUtil schemaValidator, boolean nonDollarVirtualColumnsEnabled) {
 
-    final String field = parseLocalRelationshipField(criterion, tablePrefix, nonDollarVirtualColumnsEnabled);
+    final String field = parseLocalRelationshipField(criterion, tablePrefix, tableName, schemaValidator, nonDollarVirtualColumnsEnabled);
     final Condition condition = criterion.getCondition();
     final LocalRelationshipValue value = criterion.getValue();
 
@@ -587,26 +594,94 @@ public class SQLStatementUtils {
     return sb.toString();
   }
 
-  private static String parseLocalRelationshipField(
+  /**
+   * This is a util method that prepends a table prefix to an expression, which can either be a (Virtual) Column
+   * or the value of an Expression Index. In the latter case, we have to replace the table prefix in the expression
+   * as opposed to a simple prepend operation.
+   *
+   * @param tablePrefix table prefix, is expected to NOT the delimiter '.' already appended
+   * @param expression expression
+   * @param originColumnName the column name in which the indexed field is derived / extracted
+   * @return expression with table prefix
+   */
+  @VisibleForTesting
+  @Nonnull
+  protected static String addTablePrefixToExpression(@Nonnull String tablePrefix,
+      @Nonnull String expression,
+      @Nonnull String originColumnName) {
+    if (tablePrefix.isEmpty()) {
+      return expression;
+    }
+
+    // We make a reasonable assumption that if the expression has the characters '(' and ')', it's an expression
+    // Otherwise, it's a column
+    if (!expression.contains("(") && !expression.contains(")")) {
+      return tablePrefix + "." + expression;
+    }
+
+    // This means that an expression index is being used. In this case, we need to prepend the prefix by injecting it
+    // into the string at the right location.
+    // An example of this would be:
+    //     (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024)))
+    //     --> (cast(json_extract(`PREFIX`.`a_aspectbar`, '$.aspect.value') as char(1024)))
+    // Note that in this example, there are backtick marks (`) surrounding the column name. This is expected because
+    // of how index value extraction works. However, we should also prepare for the use case where there are NO backticks
+    // around the column name just to be extra safe.
+    // In this way, we could also have a case like:
+    //     (cast(json_extract(a_aspectbar, '$.aspect.value') as char(1024)))
+    //     --> (cast(json_extract(`PREFIX`.a_aspectbar, '$.aspect.value') as char(1024)))
+    // For safety, we'll always attach the '`' characters in non-column settings for clarity
+
+    // So what we want to do is look for the originColumnName then inject the table prefix before it.
+    // We use a negative lookbehind (?<!\.) to avoid matching column names inside JSON paths (e.g., '$.column.field')
+    return expression.replaceAll("(?<!\\.)(`?" + originColumnName + "`?)(\\s*)", "`" + tablePrefix + "`.$1$2");
+  }
+
+  @VisibleForTesting
+  protected static String parseLocalRelationshipField(
       @Nonnull final LocalRelationshipCriterion localRelationshipCriterion, @Nullable String tablePrefix,
-      boolean nonDollarVirtualColumnsEnabled) {
-    tablePrefix = tablePrefix == null ? "" : tablePrefix + ".";
+      @Nonnull String tableName, @Nonnull SchemaValidatorUtil schemaValidator, boolean nonDollarVirtualColumnsEnabled) {
+    tablePrefix = tablePrefix == null ? "" : tablePrefix;
     LocalRelationshipCriterion.Field field = localRelationshipCriterion.getField();
-    char delimiter = nonDollarVirtualColumnsEnabled ? '0' : '$';
 
+    // UrnField.pdl defines UrnField.name as 'urn'
+    //    --> real column (not a virtual one), no need to "functionalize"
     if (field.isUrnField()) {
-      return tablePrefix + field.getUrnField().getName();
+      return addTablePrefixToExpression(tablePrefix, field.getUrnField().getName(), field.getUrnField().getName());
     }
 
+    // RelationshipField.pdl defines RelationshipField.name as 'metadata' -- ie. this is how "metadata$foo$bar" column is formed
+    //    --> virtual column use case that needs to be functionalized
     if (field.isRelationshipField()) {
-      return tablePrefix + field.getRelationshipField().getName() + processPath(field.getRelationshipField().getPath(), delimiter);
+      final String relationshipFieldName = field.getRelationshipField().getName();
+      final String path = field.getRelationshipField().getPath();
+
+      final String indexedExpressionOrColumn = SQLIndexFilterUtils.getIndexedExpressionOrColumnRelationship(
+          relationshipFieldName, path, nonDollarVirtualColumnsEnabled, tableName, schemaValidator);
+      if (indexedExpressionOrColumn == null) {
+        throw new IllegalArgumentException(
+            String.format("Neither expression nor column index not found for relationship field: RelationshipFieldName: %s, Path: %s, TableName: %s",
+                relationshipFieldName, path, tableName));
+      }
+      return addTablePrefixToExpression(tablePrefix, indexedExpressionOrColumn, RELATIONSHIP_TABLE_EXPRESSION_INDEX_INFIX);
     }
 
+    // This appears to be when a join has already occurred and this is some indexed field from an aspect column from
+    //    the entity table(s) --> virtual column use case that needs to be functionalized
     if (field.isAspectField()) {
-      // entity type from Urn definition.
-      String assetType = getAssetType(field.getAspectField());
-      return tablePrefix + getGeneratedColumnName(assetType, field.getAspectField().getAspect(),
-          field.getAspectField().getPath(), nonDollarVirtualColumnsEnabled);
+      final String aspectFqcn = field.getAspectField().getAspect();
+      final String path = field.getAspectField().getPath();
+      final String assetType = getAssetType(field.getAspectField());  // NOT guaranteed to be set
+
+      final String indexedExpressionOrColumn =
+          SQLIndexFilterUtils.getIndexedExpressionOrColumn(assetType, aspectFqcn, path, nonDollarVirtualColumnsEnabled,
+              tableName, schemaValidator);
+      if (indexedExpressionOrColumn == null) {
+        throw new IllegalArgumentException(
+            String.format("Neither expression nor column index not found for aspect field: Asset: %s, Aspect: %s, Path: %s, TableName: %s",
+                assetType, aspectFqcn, path, tableName));
+      }
+      return addTablePrefixToExpression(tablePrefix, indexedExpressionOrColumn, SQLSchemaUtils.getAspectColumnName(assetType, aspectFqcn));
     }
 
     throw new IllegalArgumentException("Unrecognized field type");

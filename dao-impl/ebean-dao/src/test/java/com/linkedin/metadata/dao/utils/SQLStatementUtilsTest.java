@@ -31,7 +31,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.javatuples.Pair;
+import org.javatuples.Triplet;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 import pegasus.com.linkedin.metadata.query.LogicalExpressionLocalRelationshipCriterion;
@@ -49,6 +49,12 @@ public class SQLStatementUtilsTest {
 
   private static SchemaValidatorUtil mockValidator;
 
+  // This is (dummy) table name placeholder for testing, introduced because we need to propagate the table name
+  // used in a "where filter" through the "where()" call.
+  // HOWEVER, since the table name ends up being directed into mocked calls in SchemaValidator, it doesn't matter
+  // what the table name is, so we'll just create and use a placeholder here.
+  private static final String PLACEHOLDER_TABLE_NAME = "placeholder";
+
   @BeforeClass
   public void setupValidator() {
     mockValidator = mock(SchemaValidatorUtil.class);
@@ -60,14 +66,21 @@ public class SQLStatementUtilsTest {
     //    and works just fine: we will omit it here so that we can check the syntax otherwise.
 
     // "AspectBar" as the aspect (any asset) with a functional index and "value" as the field (path) to be indexed
-    when(mockValidator.getIndexExpression(anyString(), matches("e_aspectbar0value")))
+    when(mockValidator.getIndexExpression(anyString(), eq("e_aspectbar0value")))
         .thenReturn("(cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024)))");
     //    This is an existing new way of Array extraction (AssetLabels.derived_labels)
-    when(mockValidator.getIndexExpression(anyString(), matches("e_aspectbar0value_array")))
+    when(mockValidator.getIndexExpression(anyString(), eq("e_aspectbar0value_array")))
         .thenReturn("(cast(json_extract(`a_aspectbar`, '$.aspect.value_array') as char(128) array))");
     //    This is an existing legacy way of array extraction, casting to a string (DataPolicyInfo.annotation.ontologyIris)
-    when(mockValidator.getIndexExpression(anyString(), matches("e_aspectbar0annotation0ontologyIris")))
+    when(mockValidator.getIndexExpression(anyString(), eq("e_aspectbar0annotation0ontologyIris")))
         .thenReturn("(cast(replace(json_unquote(json_extract(`a_aspectbar`,'$.aspect.annotation.ontologyIris[*]')),'\"','') as char(255)))");
+
+    // New mocks for relationship field validation
+    when(mockValidator.getIndexExpression(anyString(), eq("e_metadata0field")))
+        .thenReturn("(cast(json_extract(`metadata`, '$.field') as char(64)))");
+    // New mock when using an "Aspect Alias" -- see BarAsset.pdl which states that "aspect_bar" should be the col name
+    when(mockValidator.getIndexExpression(anyString(), eq("e_aspect_bar0value")))
+        .thenReturn("(cast(json_extract(`a_aspect_bar`, '$.aspect.value') as char(1024)))");
   }
 
   @Test
@@ -249,8 +262,10 @@ public class SQLStatementUtilsTest {
         .setValue(LocalRelationshipValue.create("value1"));
     LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion);
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, false), "urn='value1'");
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, true), "urn='value1'");
+    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null,
+        PLACEHOLDER_TABLE_NAME, mockValidator, false), "urn='value1'");
+    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null,
+        PLACEHOLDER_TABLE_NAME, mockValidator, true), "urn='value1'");
   }
 
   @Test
@@ -264,8 +279,10 @@ public class SQLStatementUtilsTest {
         .setValue(LocalRelationshipValue.create(values));
     LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion);
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.IN, "IN"), null, false), "urn IN ('value1')");
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.IN, "IN"), null, true), "urn IN ('value1')");
+    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.IN, "IN"), null,
+        PLACEHOLDER_TABLE_NAME, mockValidator, false), "urn IN ('value1')");
+    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.IN, "IN"), null,
+        PLACEHOLDER_TABLE_NAME, mockValidator, true), "urn IN ('value1')");
   }
 
   @Test
@@ -278,7 +295,9 @@ public class SQLStatementUtilsTest {
         .setValue(LocalRelationshipValue.create("value1"));
     LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion);
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.START_WITH, "LIKE"), null, false), "urn LIKE 'value1%'");
+    assertEquals(SQLStatementUtils.whereClause(
+        filter, Collections.singletonMap(Condition.START_WITH, "LIKE"), null, null,
+        mockValidator, false), "urn LIKE 'value1%'");
   }
 
   @Test
@@ -299,8 +318,12 @@ public class SQLStatementUtilsTest {
 
     LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion1, criterion2);
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, false), "(urn='value1' OR urn='value2')");
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, true), "(urn='value1' OR urn='value2')");
+    assertEquals(SQLStatementUtils.whereClause(
+        filter, Collections.singletonMap(Condition.EQUAL, "="), null, null,
+        mockValidator, false), "(urn='value1' OR urn='value2')");
+    assertEquals(SQLStatementUtils.whereClause(
+        filter, Collections.singletonMap(Condition.EQUAL, "="), null, null,
+        mockValidator, true), "(urn='value1' OR urn='value2')");
   }
 
   @Test
@@ -321,9 +344,9 @@ public class SQLStatementUtilsTest {
 
     LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion1, criterion2);
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, false),
+    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, PLACEHOLDER_TABLE_NAME, mockValidator, false),
         "(i_aspectfoo$value='value2' AND urn='value1')");
-    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, true),
+    assertEquals(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, PLACEHOLDER_TABLE_NAME, mockValidator, true),
         "(i_aspectfoo0value='value2' AND urn='value1')");
   }
 
@@ -362,10 +385,12 @@ public class SQLStatementUtilsTest {
     LocalRelationshipCriterionArray criteria = new LocalRelationshipCriterionArray(criterion1, criterion2, criterion3, criterion4);
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setCriteria(criteria);
 
-    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, false),
+    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="),
+        null, PLACEHOLDER_TABLE_NAME, mockValidator, false),
         "(urn='value1' OR urn='value3') AND metadata$value='value4' AND i_aspectfoo$value='value2'");
 
-    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, true),
+    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="),
+        null, PLACEHOLDER_TABLE_NAME, mockValidator, true),
         "(urn='value1' OR urn='value3') AND metadata0value='value4' AND i_aspectfoo0value='value2'");
 
   }
@@ -421,14 +446,16 @@ public class SQLStatementUtilsTest {
     LocalRelationshipFilter filter2 = new LocalRelationshipFilter().setCriteria(criteria2);
 
     //test for multi filters with dollar virtual columns names
-    assertConditionsEqual(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), false, new Pair<>(filter1, "foo"),
-        new Pair<>(filter2, "bar")), "(foo.i_aspectfoo$value='value2' AND (foo.urn='value1' OR foo.urn='value3') "
+    assertConditionsEqual(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), false,
+        mockValidator, new Triplet<>(filter1, "foo", "faketable1"), new Triplet<>(filter2, "bar", "faketable2")),
+        "(foo.i_aspectfoo$value='value2' AND (foo.urn='value1' OR foo.urn='value3') "
         + "AND foo.metadata$value='value4') AND (bar.urn='value1' OR bar.urn='value2')"
     );
 
     //test for multi filters with non dollar virtual columns names
-    assertConditionsEqual(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), true, new Pair<>(filter1, "foo"),
-        new Pair<>(filter2, "bar")), "(foo.i_aspectfoo0value='value2' AND (foo.urn='value1' OR foo.urn='value3') "
+    assertConditionsEqual(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), true,
+        mockValidator, new Triplet<>(filter1, "foo", "faketable1"), new Triplet<>(filter2, "bar", "faketable2")),
+        "(foo.i_aspectfoo0value='value2' AND (foo.urn='value1' OR foo.urn='value3') "
         + "AND foo.metadata0value='value4') AND (bar.urn='value1' OR bar.urn='value2')"
     );
   }
@@ -484,14 +511,16 @@ public class SQLStatementUtilsTest {
     LocalRelationshipFilter filter2 = new LocalRelationshipFilter().setCriteria(criteria2);
 
     //test for multi filters with dollar virtual columns names
-    assertConditionsEqual(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), false, new Pair<>(filter1, "foo"),
-        new Pair<>(filter2, "bar")), "(foo.i_aspectfoo$value LIKE 'value2%' AND (foo.urn LIKE 'value1%' OR foo.urn LIKE 'value3%') "
+    assertConditionsEqual(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), false,
+        mockValidator, new Triplet<>(filter1, "foo", "faketable1"), new Triplet<>(filter2, "bar", "faketable2")),
+        "(foo.i_aspectfoo$value LIKE 'value2%' AND (foo.urn LIKE 'value1%' OR foo.urn LIKE 'value3%') "
         + "AND foo.metadata$value LIKE 'value4%') AND (bar.urn LIKE 'value1%' OR bar.urn LIKE 'value2%')"
     );
 
     //test for multi filters with non dollar virtual columns names
-    assertConditionsEqual(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), true, new Pair<>(filter1, "foo"),
-        new Pair<>(filter2, "bar")), "(foo.i_aspectfoo0value LIKE 'value2%' AND (foo.urn LIKE 'value1%' OR foo.urn LIKE 'value3%') "
+    assertConditionsEqual(SQLStatementUtils.whereClause(Collections.singletonMap(Condition.EQUAL, "="), true,
+        mockValidator, new Triplet<>(filter1, "foo", "faketable1"), new Triplet<>(filter2, "bar", "faketable2")),
+        "(foo.i_aspectfoo0value LIKE 'value2%' AND (foo.urn LIKE 'value1%' OR foo.urn LIKE 'value3%') "
         + "AND foo.metadata0value LIKE 'value4%') AND (bar.urn LIKE 'value1%' OR bar.urn LIKE 'value2%')"
     );
   }
@@ -557,12 +586,14 @@ public class SQLStatementUtilsTest {
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setLogicalExpressionCriteria(root);
 
     //test for multi filters with dollar virtual columns names
-    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, false),
+    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="),
+        null, PLACEHOLDER_TABLE_NAME, mockValidator, false),
         "((urn='foo1' OR urn='foo2') AND i_aspectfoo$value='bar')"
     );
 
     //test for multi filters with non dollar virtual columns names
-    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, true),
+    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="),
+        null, PLACEHOLDER_TABLE_NAME, mockValidator, true),
         "((urn='foo1' OR urn='foo2') AND i_aspectfoo0value='bar')"
     );
   }
@@ -576,12 +607,14 @@ public class SQLStatementUtilsTest {
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setLogicalExpressionCriteria(notNode);
 
     //test for multi filters with dollar virtual columns names
-    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, false),
+    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="),
+        null, PLACEHOLDER_TABLE_NAME, mockValidator, false),
         "(NOT i_aspectfoo$value='bar')"
     );
 
     //test for multi filters with non dollar virtual columns names
-    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, true),
+    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="),
+        null, PLACEHOLDER_TABLE_NAME, mockValidator, true),
         "(NOT i_aspectfoo0value='bar')"
     );
   }
@@ -608,12 +641,14 @@ public class SQLStatementUtilsTest {
     LocalRelationshipFilter filter = new LocalRelationshipFilter().setLogicalExpressionCriteria(root);
 
     //test for multi filters with dollar virtual columns names
-    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, false),
+    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="),
+        null, PLACEHOLDER_TABLE_NAME, mockValidator, false),
         "((urn='foo1' OR urn='foo2') AND (NOT i_aspectfoo$value='bar'))"
     );
 
     //test for multi filters with non dollar virtual columns names
-    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="), null, true),
+    assertConditionsEqual(SQLStatementUtils.whereClause(filter, Collections.singletonMap(Condition.EQUAL, "="),
+        null, PLACEHOLDER_TABLE_NAME, mockValidator, true),
         "((urn='foo1' OR urn='foo2') AND (NOT i_aspectfoo0value='bar'))"
     );
   }
@@ -1141,7 +1176,7 @@ public class SQLStatementUtilsTest {
     Map<Condition, String> supportedConditions = new HashMap<>();
     supportedConditions.put(Condition.EQUAL, "=");
 
-    String whereClause = SQLStatementUtils.whereClause(filter, supportedConditions, "rt", false);
+    String whereClause = SQLStatementUtils.whereClause(filter, supportedConditions, "rt", PLACEHOLDER_TABLE_NAME, mockValidator, false);
 
     // Expect all quotes escaped
     assertEquals(whereClause, "rt.destination='urn:li:dataset:(urn:li:dataPlatform:hdfs,/data'') OR 1=1 OR destination LIKE ''%'");
@@ -1184,10 +1219,213 @@ public class SQLStatementUtilsTest {
     Map<Condition, String> supportedConditions = new HashMap<>();
     supportedConditions.put(Condition.START_WITH, "LIKE");
 
-    String whereClause = SQLStatementUtils.whereClause(filter, supportedConditions, null, false);
+    String whereClause = SQLStatementUtils.whereClause(filter, supportedConditions, null, PLACEHOLDER_TABLE_NAME, mockValidator, false);
 
     // Should properly escape and add the wildcard
     assertEquals(whereClause, "destination LIKE 'urn:li:dataset:prefix''%%'");
+  }
+
+  @Test
+  public void testAddTablePrefixToExpression() {
+    // Test case 1: Empty table prefix should return expression unchanged
+    String expression1 = "(cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024)))";
+    assertEquals(SQLStatementUtils.addTablePrefixToExpression("", expression1, "a_aspectbar"), expression1);
+
+    // Test case 2: Simple column (no parentheses) should just prepend prefix
+    assertEquals(SQLStatementUtils.addTablePrefixToExpression("rt", "i_aspectfoo$value", "a_aspectfoo"),
+        "rt.i_aspectfoo$value");
+
+    // Test case 3 (from comments): Expression with backticks around column name
+    // (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024)))
+    // --> (cast(json_extract(`PREFIX`.`a_aspectbar`, '$.aspect.value') as char(1024)))
+    assertEquals(
+        SQLStatementUtils.addTablePrefixToExpression("PREFIX",
+            "(cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024)))", "a_aspectbar"),
+        "(cast(json_extract(`PREFIX`.`a_aspectbar`, '$.aspect.value') as char(1024)))");
+
+    // Test case 4 (from comments): Expression without backticks around column name
+    // (cast(json_extract(a_aspectbar, '$.aspect.value') as char(1024)))
+    // --> (cast(json_extract(`PREFIX`.`a_aspectbar`, '$.aspect.value') as char(1024)))
+    assertEquals(
+        SQLStatementUtils.addTablePrefixToExpression("PREFIX",
+            "(cast(json_extract(a_aspectbar, '$.aspect.value') as char(1024)))", "a_aspectbar"),
+        "(cast(json_extract(`PREFIX`.a_aspectbar, '$.aspect.value') as char(1024)))");
+
+    // Test case 5: Metadata column in relationship table (common use case) with backticks
+    assertEquals(
+        SQLStatementUtils.addTablePrefixToExpression("rt",
+            "(cast(json_extract(`metadata`, '$.field') as char(64)))", "metadata"),
+        "(cast(json_extract(`rt`.`metadata`, '$.field') as char(64)))");
+
+    // Test case 6: Metadata column without backticks
+    assertEquals(
+        SQLStatementUtils.addTablePrefixToExpression("rt",
+            "(cast(json_extract(metadata, '$.field') as char(64)))", "metadata"),
+        "(cast(json_extract(`rt`.metadata, '$.field') as char(64)))");
+
+    // Test case 7: Array expression index
+    assertEquals(
+        SQLStatementUtils.addTablePrefixToExpression("dt",
+            "(cast(json_extract(`a_aspectbar`, '$.aspect.value_array') as char(128) array))", "a_aspectbar"),
+        "(cast(json_extract(`dt`.`a_aspectbar`, '$.aspect.value_array') as char(128) array))");
+
+    // Test case 8: Complex nested JSON path (legacy array extraction)
+    assertEquals(
+        SQLStatementUtils.addTablePrefixToExpression("st",
+            "(cast(replace(json_unquote(json_extract(`a_aspectbar`,'$.aspect.annotation.ontologyIris[*]')),'\"','') as char(255)))",
+            "a_aspectbar"),
+        "(cast(replace(json_unquote(json_extract(`st`.`a_aspectbar`,'$.aspect.annotation.ontologyIris[*]')),'\"','') as char(255)))");
+
+    // Test case 9: Column name appears in JSON path - should only replace column reference
+    assertEquals(
+        SQLStatementUtils.addTablePrefixToExpression("foo",
+            "(cast(json_extract(`a_aspectfoo`, '$.a_aspectfoo.value') as char(1024)))", "a_aspectfoo"),
+        "(cast(json_extract(`foo`.`a_aspectfoo`, '$.a_aspectfoo.value') as char(1024)))");
+
+    // Test case 13: Column name substring appears in JSON path - should only replace actual column reference
+    assertEquals(
+        SQLStatementUtils.addTablePrefixToExpression("rt",
+            "(cast(json_extract(`metadata`, '$.metadata.field') as char(64)))", "metadata"),
+        "(cast(json_extract(`rt`.`metadata`, '$.metadata.field') as char(64)))");
+
+    // Test case 14: Multiple occurrences of column name - should replace all
+    assertEquals(
+        SQLStatementUtils.addTablePrefixToExpression("t1", "CONCAT(`a_col`, `a_col`)", "a_col"),
+        "CONCAT(`t1`.`a_col`, `t1`.`a_col`)");
+  }
+
+  @Test
+  public void testParseLocalRelationshipField() {
+    // Test case 1: UrnField with null tablePrefix
+    LocalRelationshipCriterion.Field urnField1 = new LocalRelationshipCriterion.Field();
+    urnField1.setUrnField(new UrnField().setName("urn"));
+    LocalRelationshipCriterion urnCriterion1 = new LocalRelationshipCriterion()
+        .setField(urnField1)
+        .setCondition(Condition.EQUAL)
+        .setValue(LocalRelationshipValue.create("NOTNEEDED"));
+
+    assertEquals(SQLStatementUtils.parseLocalRelationshipField(urnCriterion1, null, PLACEHOLDER_TABLE_NAME,
+        mockValidator, false), "urn");
+
+    // Test case 1.1: UrnField with null tablePrefix and non-"urn" name
+    LocalRelationshipCriterion.Field urnField11 = new LocalRelationshipCriterion.Field();
+    urnField11.setUrnField(new UrnField().setName("blargle"));
+    LocalRelationshipCriterion urnCriterion11 = new LocalRelationshipCriterion()
+        .setField(urnField11)
+        .setCondition(Condition.EQUAL)
+        .setValue(LocalRelationshipValue.create("NOTNEEDED"));
+
+    assertEquals(SQLStatementUtils.parseLocalRelationshipField(urnCriterion11, null, PLACEHOLDER_TABLE_NAME,
+        mockValidator, false), "blargle");
+
+    // Test case 2: UrnField with non-null tablePrefix
+    LocalRelationshipCriterion.Field urnField2 = new LocalRelationshipCriterion.Field();
+    urnField2.setUrnField(new UrnField().setName("urn"));
+    LocalRelationshipCriterion urnCriterion2 = new LocalRelationshipCriterion()
+        .setField(urnField2)
+        .setCondition(Condition.EQUAL)
+        .setValue(LocalRelationshipValue.create("NOTNEEDED"));
+
+    assertEquals(SQLStatementUtils.parseLocalRelationshipField(urnCriterion2, "rt", PLACEHOLDER_TABLE_NAME,
+        mockValidator, false), "rt.urn");
+
+    // Test case 3: RelationshipField with virtual column (dollar-separated)
+    //              NOTE that based on the mocks in the setup, VC's are assumed to exist no matter the input, and because
+    //              of how the logic runs, this will be superseded ONLY if there is (also) a expression index (mock)
+    LocalRelationshipCriterion.Field relationshipField1 = new LocalRelationshipCriterion.Field();
+    relationshipField1.setRelationshipField(new RelationshipField().setName("metadata").setPath("/value"));
+    LocalRelationshipCriterion relationshipCriterion1 = new LocalRelationshipCriterion()
+        .setField(relationshipField1)
+        .setCondition(Condition.EQUAL)
+        .setValue(LocalRelationshipValue.create("NOTNEEDED"));
+
+    assertEquals(SQLStatementUtils.parseLocalRelationshipField(relationshipCriterion1, null, PLACEHOLDER_TABLE_NAME,
+        mockValidator, false), "metadata$value");
+
+    // Test case 4: RelationshipField with virtual column (non-dollar)
+    assertEquals(SQLStatementUtils.parseLocalRelationshipField(relationshipCriterion1, null, PLACEHOLDER_TABLE_NAME,
+        mockValidator, true), "metadata0value");
+
+    // Test case 5: RelationshipField with table prefix and virtual column
+    assertEquals(SQLStatementUtils.parseLocalRelationshipField(relationshipCriterion1, "rt", PLACEHOLDER_TABLE_NAME,
+        mockValidator, false), "rt.metadata$value");
+
+    // Test case 6: RelationshipField with expression index and table prefix
+    LocalRelationshipCriterion.Field relationshipField2 = new LocalRelationshipCriterion.Field();
+    relationshipField2.setRelationshipField(new RelationshipField().setName("metadata").setPath("/field"));
+    LocalRelationshipCriterion relationshipCriterion2 = new LocalRelationshipCriterion()
+        .setField(relationshipField2)
+        .setCondition(Condition.EQUAL)
+        .setValue(LocalRelationshipValue.create("NOTNEEDED"));
+
+    assertEquals(SQLStatementUtils.parseLocalRelationshipField(relationshipCriterion2, "rt", PLACEHOLDER_TABLE_NAME,
+        mockValidator, false), "(cast(json_extract(`rt`.`metadata`, '$.field') as char(64)))");
+
+    // Test case 7: AspectField with virtual column (dollar-separated)
+    LocalRelationshipCriterion.Field aspectField1 = new LocalRelationshipCriterion.Field();
+    aspectField1.setAspectField(new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+    LocalRelationshipCriterion aspectCriterion1 = new LocalRelationshipCriterion()
+        .setField(aspectField1)
+        .setCondition(Condition.EQUAL)
+        .setValue(LocalRelationshipValue.create("NOTNEEDED"));
+
+    assertEquals(SQLStatementUtils.parseLocalRelationshipField(aspectCriterion1, null, PLACEHOLDER_TABLE_NAME,
+        mockValidator, false), "i_aspectfoo$value");
+
+    // Test case 8: AspectField with virtual column (non-dollar)
+    assertEquals(SQLStatementUtils.parseLocalRelationshipField(aspectCriterion1, null, PLACEHOLDER_TABLE_NAME,
+        mockValidator, true), "i_aspectfoo0value");
+
+    // Test case 9: AspectField with table prefix and virtual column
+    assertEquals(SQLStatementUtils.parseLocalRelationshipField(aspectCriterion1, "t1", PLACEHOLDER_TABLE_NAME,
+        mockValidator, false), "t1.i_aspectfoo$value");
+
+    // Test case 10: AspectField with expression index (AspectBar with "value" field)
+    LocalRelationshipCriterion.Field aspectField2 = new LocalRelationshipCriterion.Field();
+    aspectField2.setAspectField(new AspectField().setAspect(AspectBar.class.getCanonicalName()).setPath("/value"));
+    LocalRelationshipCriterion aspectCriterion2 = new LocalRelationshipCriterion()
+        .setField(aspectField2)
+        .setCondition(Condition.EQUAL)
+        .setValue(LocalRelationshipValue.create("NOTNEEDED"));
+
+    assertEquals(SQLStatementUtils.parseLocalRelationshipField(aspectCriterion2, "PREFIX", PLACEHOLDER_TABLE_NAME,
+        mockValidator, false), "(cast(json_extract(`PREFIX`.`a_aspectbar`, '$.aspect.value') as char(1024)))");
+
+    // Test case 11: AspectField with expression index and no table prefix
+    assertEquals(SQLStatementUtils.parseLocalRelationshipField(aspectCriterion2, null, PLACEHOLDER_TABLE_NAME,
+        mockValidator, false), "(cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024)))");
+
+    // Test case 12: AspectField with asset type specified
+    LocalRelationshipCriterion.Field aspectField3 = new LocalRelationshipCriterion.Field();
+    aspectField3.setAspectField(new AspectField()
+        .setAspect(AspectBar.class.getCanonicalName())
+        .setAsset(BarAsset.class.getCanonicalName())
+        .setPath("/value"));
+    LocalRelationshipCriterion aspectCriterion3 = new LocalRelationshipCriterion()
+        .setField(aspectField3)
+        .setCondition(Condition.EQUAL)
+        .setValue(LocalRelationshipValue.create("NOTNEEDED"));
+
+    // if this test ever fails locally (MacOS), reach out to @jhui there is some weird Linux / Mac discrepancy that
+    // causes the test to fail ONLY on the laptop
+    assertEquals(SQLStatementUtils.parseLocalRelationshipField(aspectCriterion3, "t2", PLACEHOLDER_TABLE_NAME,
+        mockValidator, false), "(cast(json_extract(`t2`.`a_aspect_bar`, '$.aspect.value') as char(1024)))");
+
+    // Test case 13: Invalid field type - should throw exception
+    LocalRelationshipCriterion.Field invalidField = new LocalRelationshipCriterion.Field();
+    // Don't set any field type (not urn, relationship, or aspect)
+    LocalRelationshipCriterion invalidCriterion = new LocalRelationshipCriterion()
+        .setField(invalidField)
+        .setCondition(Condition.EQUAL)
+        .setValue(LocalRelationshipValue.create("NOTNEEDED"));
+
+    try {
+      SQLStatementUtils.parseLocalRelationshipField(invalidCriterion, null, PLACEHOLDER_TABLE_NAME,
+          mockValidator, false);
+      fail("Expected IllegalArgumentException for unrecognized field type");
+    } catch (IllegalArgumentException e) {
+      assertEquals(e.getMessage(), "Unrecognized field type");
+    }
   }
 
 }

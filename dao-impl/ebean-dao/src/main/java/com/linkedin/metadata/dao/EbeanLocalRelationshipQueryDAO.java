@@ -35,7 +35,7 @@ import javax.naming.OperationNotSupportedException;
 import javax.persistence.PersistenceException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringUtils;
-import org.javatuples.Pair;
+import org.javatuples.Triplet;
 import pegasus.com.linkedin.metadata.query.LogicalExpressionLocalRelationshipCriterion;
 import pegasus.com.linkedin.metadata.query.LogicalOperation;
 import pegasus.com.linkedin.metadata.query.innerLogicalOperation.Operator;
@@ -69,15 +69,15 @@ public class EbeanLocalRelationshipQueryDAO {
   public EbeanLocalRelationshipQueryDAO(EbeanServer server, EBeanDAOConfig eBeanDAOConfig) {
     _server = server;
     _eBeanDAOConfig = eBeanDAOConfig;
-    _sqlGenerator = new MultiHopsTraversalSqlGenerator(SUPPORTED_CONDITIONS);
     _schemaValidatorUtil = new SchemaValidatorUtil(server);
+    _sqlGenerator = new MultiHopsTraversalSqlGenerator(SUPPORTED_CONDITIONS, _schemaValidatorUtil);
   }
 
   public EbeanLocalRelationshipQueryDAO(EbeanServer server) {
     _server = server;
     _eBeanDAOConfig = new EBeanDAOConfig();
-    _sqlGenerator = new MultiHopsTraversalSqlGenerator(SUPPORTED_CONDITIONS);
     _schemaValidatorUtil = new SchemaValidatorUtil(server);
+    _sqlGenerator = new MultiHopsTraversalSqlGenerator(SUPPORTED_CONDITIONS, _schemaValidatorUtil);
   }
 
   static final Map<Condition, String> SUPPORTED_CONDITIONS =
@@ -125,8 +125,8 @@ public class EbeanLocalRelationshipQueryDAO {
     final StringBuilder sqlBuilder = new StringBuilder();
     sqlBuilder.append("SELECT * FROM ").append(tableName);
     if (filterHasNonEmptyCriteria(filter)) {
-      sqlBuilder.append(" WHERE ").append(SQLStatementUtils.whereClause(filter, SUPPORTED_CONDITIONS, null,
-          _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled()));
+      sqlBuilder.append(" WHERE ").append(SQLStatementUtils.whereClause(filter, SUPPORTED_CONDITIONS, null, tableName,
+          _schemaValidatorUtil, _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled()));
     }
     sqlBuilder.append(" ORDER BY urn LIMIT ").append(Math.max(1, count)).append(" OFFSET ").append(Math.max(0, offset));
 
@@ -750,19 +750,19 @@ public class EbeanLocalRelationshipQueryDAO {
 
     sqlBuilder.append(" FROM ").append(relationshipTableName).append(" rt ");
 
-    List<Pair<LocalRelationshipFilter, String>> filters = new ArrayList<>();
+    List<Triplet<LocalRelationshipFilter, String, String>> filters = new ArrayList<>();
 
     if (_schemaConfig == EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY || _schemaConfig == EbeanLocalDAO.SchemaConfig.DUAL_SCHEMA) {
       if (destTableName != null) {
         sqlBuilder.append("INNER JOIN ").append(destTableName).append(" dt ON dt.urn=rt.destination ");
 
         if (destinationEntityFilter != null) {
-          filters.add(new Pair<>(destinationEntityFilter, "dt"));
+          filters.add(new Triplet<>(destinationEntityFilter, "dt", destTableName));
         }
       } else if (destinationEntityFilter != null) {
         validateEntityFilterOnlyOneUrn(destinationEntityFilter);
         // non-mg entity case, applying dest filter on relationship table
-        filters.add(new Pair<>(destinationEntityFilter, "rt"));
+        filters.add(new Triplet<>(destinationEntityFilter, "rt", relationshipTableName));
       } else if (filterHasNonEmptyCriteria(relationshipFilter)) {
         // Apply FORCE INDEX if destination field is being filtered, and the index exists
         final LocalRelationshipCriterionArray relationshipCriteria =
@@ -783,7 +783,7 @@ public class EbeanLocalRelationshipQueryDAO {
         sqlBuilder.append("INNER JOIN ").append(sourceTableName).append(" st ON st.urn=rt.source ");
 
         if (sourceEntityFilter != null) {
-          filters.add(new Pair<>(sourceEntityFilter, "st"));
+          filters.add(new Triplet<>(sourceEntityFilter, "st", sourceTableName));
         }
       }
 
@@ -791,11 +791,11 @@ public class EbeanLocalRelationshipQueryDAO {
         sqlBuilder.append("WHERE rt.deleted_ts is NULL");
       }
 
-      filters.add(new Pair<>(relationshipFilter, "rt"));
+      filters.add(new Triplet<>(relationshipFilter, "rt", relationshipTableName));
 
       String whereClause = SQLStatementUtils.whereClause(SUPPORTED_CONDITIONS,
-          _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled(),
-          filters.toArray(new Pair[filters.size()]));
+          _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled(), _schemaValidatorUtil,
+          filters.toArray(new Triplet[filters.size()]));
 
       if (whereClause != null) {
         sqlBuilder.append(includeNonCurrentRelationships ? " WHERE " : " AND ").append(whereClause);
