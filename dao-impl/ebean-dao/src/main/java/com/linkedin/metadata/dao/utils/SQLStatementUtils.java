@@ -668,6 +668,10 @@ public class SQLStatementUtils {
 
     // This appears to be when a join has already occurred and this is some indexed field from an aspect column from
     //    the entity table(s) --> virtual column use case that needs to be functionalized
+    // NOTE: When filtering by an urn-DERIVED field -- urn/platform, urn/type, etc. -- it is passed as an "Aspect Field"
+    //    down to this level (different when it's just "urn" without a path). You can see evidence of this in the
+    //    metadata-graph-query MP. Because of this, we cannot assume 100% that the "Aspect" is an Aspect, it could be Urn
+    //    This affects logic like in the return statement,
     if (field.isAspectField()) {
       final String aspectFqcn = field.getAspectField().getAspect();
       final String path = field.getAspectField().getPath();
@@ -681,7 +685,8 @@ public class SQLStatementUtils {
             String.format("Neither expression nor column index not found for aspect field: Asset: %s, Aspect: %s, Path: %s, TableName: %s",
                 assetType, aspectFqcn, path, tableName));
       }
-      return addTablePrefixToExpression(tablePrefix, indexedExpressionOrColumn, SQLSchemaUtils.getAspectColumnName(assetType, aspectFqcn));
+      return addTablePrefixToExpression(tablePrefix, indexedExpressionOrColumn,
+          SQLSchemaUtils.getGeneratedColumnName(assetType, aspectFqcn, path, nonDollarVirtualColumnsEnabled));
     }
 
     throw new IllegalArgumentException("Unrecognized field type");

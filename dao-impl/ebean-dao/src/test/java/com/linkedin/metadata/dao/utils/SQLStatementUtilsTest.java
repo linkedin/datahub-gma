@@ -1426,6 +1426,21 @@ public class SQLStatementUtilsTest {
     } catch (IllegalArgumentException e) {
       assertEquals(e.getMessage(), "Unrecognized field type");
     }
+
+    // Added due to lineage bug that was introduced,
+    // Test case 14: AspectField that is Urn-derived (this is how GQS uses this logic)
+    //    Remember, this will go through the "columnExists() pathway" which is mocked to always be true
+    LocalRelationshipCriterion.Field aspectField4 = new LocalRelationshipCriterion.Field();
+    aspectField4.setAspectField(new AspectField()
+        .setAspect(Urn.class.getCanonicalName())
+        .setPath("/value"));
+    LocalRelationshipCriterion aspectCriterion4 = new LocalRelationshipCriterion()
+        .setField(aspectField4)
+        .setCondition(Condition.EQUAL)
+        .setValue(LocalRelationshipValue.create("NOTNEEDED"));
+
+    assertEquals(SQLStatementUtils.parseLocalRelationshipField(aspectCriterion4, null, PLACEHOLDER_TABLE_NAME,
+        mockValidator, false), "i_urn$value");
   }
 
 }
