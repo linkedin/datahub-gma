@@ -26,6 +26,7 @@ public class SQLSchemaUtils {
   public static final String INDEX_PREFIX = "i_";
   public static final String EXPRESSION_INDEX_PREFIX = "e_";
   public static final String RELATIONSHIP_TABLE_EXPRESSION_INDEX_INFIX = "metadata";
+  public static final String URN_COLUMN_NAME = "a_urn";
 
   private static final int MYSQL_MAX_COLUMN_NAME_LENGTH = 64 - ASPECT_PREFIX.length();
 
@@ -131,6 +132,18 @@ public class SQLSchemaUtils {
   @Nonnull
   public static String getAspectColumnName(@Nonnull final String entityType, @Nonnull final String aspectCanonicalName) {
     return ASPECT_PREFIX + getColumnName(entityType, aspectCanonicalName);
+  }
+
+  /**
+   * Same as {@link #getAspectColumnName(String, String)} but checks for the possibility that the FQCN is of type
+   * {@link com.linkedin.common.urn.Urn} in which case it short-circuits and just returns "a_urn".
+   */
+  @Nonnull
+  public static String getAspectColumnNameWithUrnCheck(@Nonnull final String assetType, @Nonnull final String aspectCanonicalName) {
+    if (isUrn(aspectCanonicalName)) {
+      return URN_COLUMN_NAME;
+    }
+    return getAspectColumnName(assetType, aspectCanonicalName);
   }
 
   /**
