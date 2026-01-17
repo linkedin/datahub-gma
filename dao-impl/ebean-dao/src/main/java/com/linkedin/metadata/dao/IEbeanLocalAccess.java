@@ -11,6 +11,7 @@ import com.linkedin.metadata.query.IndexSortCriterion;
 import java.sql.Timestamp;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -181,6 +182,23 @@ public interface IEbeanLocalAccess<URN extends Urn> {
   @Nonnull
   <ASPECT extends RecordTemplate> ListResult<ASPECT> list(@Nonnull Class<ASPECT> aspectClass,
      int start, int pageSize);
+
+  /**
+   * Returns the latest updates from the database given a timestamp and a lookbackWindow.
+   * Results are ordered by the timestamp in ascending order.
+   *
+   * @param timestamp the timestamp from which to retrieve updates
+   * @param lookbackWindow the amount of time to look back for updates
+   * @param aspectClasses the types of aspects to retrieve
+   * @param filter optional index filter to apply to the query
+   * @param start the starting offset of the page
+   * @param count the maximum number of updates to return
+   * @return a Map containing the latest updates for each URN, with each update
+   *         represented as a Map from the aspect class to the aspect value
+   */
+  @Nonnull
+  <ASPECT extends RecordTemplate> Map<URN, Map<Class<ASPECT>, Optional<ASPECT>>> getLatestUpdates(@Nonnull Timestamp timestamp,
+      long lookbackWindow, List<Class<ASPECT>> aspectClasses, @Nullable IndexFilter filter, int start, int count);
 
   /**
    * Ensure table schemas are up-to-date according to db evolution scripts.

@@ -9,6 +9,7 @@ import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
+import com.linkedin.metadata.query.IndexPathParams;
 import com.linkedin.metadata.query.IndexValue;
 import com.linkedin.metadata.query.LocalRelationshipCriterion;
 import com.linkedin.metadata.query.LocalRelationshipCriterionArray;
@@ -1443,4 +1444,43 @@ public class SQLStatementUtilsTest {
         mockValidator, false), "i_urn$value");
   }
 
+  @Test
+  public void testGetLatestUpdatesSQLWithoutFilter() {
+    // single aspect
+    String sql = SQLStatementUtils.getLatestUpdatesSQL("foo", Collections.singletonList(AspectFoo.class), null, false, mockValidator);
+    assertEquals(sql, "SELECT urn, a_aspectfoo FROM metadata_entity_foo WHERE deleted_ts IS NULL AND lastmodifiedon >= :startTimestamp "
+        + "AND lastmodifiedon < :endTimestamp ORDER BY lastmodifiedon ASC LIMIT :limit OFFSET :offset");
+
+    // multiple aspects
+    sql = SQLStatementUtils.getLatestUpdatesSQL("foo", (List) Arrays.asList(AspectFoo.class, AspectBar.class), null, false, mockValidator);
+    assertEquals(sql, "SELECT urn, a_aspectfoo, a_aspectbar FROM metadata_entity_foo WHERE deleted_ts IS NULL AND lastmodifiedon >= :startTimestamp "
+        + "AND lastmodifiedon < :endTimestamp ORDER BY lastmodifiedon ASC LIMIT :limit OFFSET :offset");
+  }
+
+  @Test
+  public void testGetLatestUpdatesSQLWithFilter() {
+    IndexFilter filter = new IndexFilter();
+    IndexValue indexValue = new IndexValue();
+    indexValue.setString("foo");
+    IndexPathParams pathParams = new IndexPathParams().setPath("/value").setValue(indexValue);
+    IndexCriterion indexCriterion = new IndexCriterion().setAspect(AspectFoo.class.getCanonicalName()).setPathParams(pathParams);
+    IndexCriterionArray indexCriterionArray = new IndexCriterionArray(indexCriterion);
+    filter.setCriteria(indexCriterionArray);
+
+    // single aspect
+    String sql = SQLStatementUtils.getLatestUpdatesSQL("foo", Collections.singletonList(AspectFoo.class), filter, false, mockValidator);
+    assertEquals(sql, "SELECT urn, a_aspectfoo FROM metadata_entity_foo WHERE a_aspectfoo IS NOT NULL\n"
+        + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
+        + "AND i_aspectfoo$value = 'foo'\n"
+        + "AND deleted_ts IS NULL AND lastmodifiedon >= :startTimestamp "
+        + "AND lastmodifiedon < :endTimestamp ORDER BY lastmodifiedon ASC LIMIT :limit OFFSET :offset");
+
+    // multiple aspects
+    sql = SQLStatementUtils.getLatestUpdatesSQL("foo", (List) Arrays.asList(AspectFoo.class, AspectBar.class), filter, false, mockValidator);
+    assertEquals(sql, "SELECT urn, a_aspectfoo, a_aspectbar FROM metadata_entity_foo WHERE a_aspectfoo IS NOT NULL\n"
+        + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
+        + "AND i_aspectfoo$value = 'foo'\n"
+        + "AND deleted_ts IS NULL AND lastmodifiedon >= :startTimestamp "
+        + "AND lastmodifiedon < :endTimestamp ORDER BY lastmodifiedon ASC LIMIT :limit OFFSET :offset");
+  }
 }

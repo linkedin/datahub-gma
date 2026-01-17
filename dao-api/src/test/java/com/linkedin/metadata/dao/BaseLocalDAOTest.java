@@ -226,6 +226,12 @@ public class BaseLocalDAOTest {
     }
 
     @Override
+    protected <ASPECT extends RecordTemplate> Map<FooUrn, Map<Class<ASPECT>, Optional<ASPECT>>> getLatestUpdates(
+        @Nonnull Timestamp timestamp, long lookbackWindow, List<Class<ASPECT>> aspectClasses, @Nullable IndexFilter filter, int start, int count) {
+      return Collections.emptyMap();
+    }
+
+    @Override
     @Nonnull
     public Map<AspectKey<FooUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> get(
         Set<AspectKey<FooUrn, ? extends RecordTemplate>> aspectKeys) {

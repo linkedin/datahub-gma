@@ -153,6 +153,11 @@ public class SQLStatementUtils {
   private static final String DELETE_BY_SOURCE_AND_ASPECT = "UPDATE %s SET deleted_ts=NOW() "
       + "WHERE source = :source AND (aspect = :aspect OR aspect = :pegasus_aspect) AND deleted_ts IS NULL";
 
+  private static final String GET_LATEST_UPDATES_PRE_FILTER = "SELECT urn, %s FROM %s ";
+
+  private static final String GET_LATEST_UPDATES_POST_FILTER = " AND lastmodifiedon >= :startTimestamp "
+      + "AND lastmodifiedon < :endTimestamp ORDER BY lastmodifiedon ASC LIMIT :limit OFFSET :offset";
+
   /**
    *  Filter query has pagination params in the existing APIs. To accommodate this, we use subquery to include total result counts in the query response.
    *  For example, we will build the following filter query statement:
@@ -727,5 +732,25 @@ public class SQLStatementUtils {
     }
 
     throw new IllegalArgumentException("Unrecognized field value");
+  }
+
+  /**
+   * Get the SQL query for fetching the latest updates of a given entity.
+   * @param entityType the entity type
+   * @param aspectClasses the aspect classes
+   * @param filter the index filter
+   * @param nonDollarVirtualColumnsEnabled if virtual columns do not contain dollar signs
+   * @param schemaValidator the schema validator
+   * @return the SQL query
+   */
+  public static <ASPECT extends RecordTemplate> String getLatestUpdatesSQL(String entityType, List<Class<ASPECT>> aspectClasses,
+      @Nullable IndexFilter filter, boolean nonDollarVirtualColumnsEnabled,
+      @Nonnull SchemaValidatorUtil schemaValidator) {
+    String tableName = getTableName(entityType);
+    String aspectNames = aspectClasses.stream()
+        .map(aspectClass -> getAspectColumnName(entityType, aspectClass.getCanonicalName()))
+        .collect(Collectors.joining(", "));
+    String whereClause = parseIndexFilter(entityType, filter, nonDollarVirtualColumnsEnabled, schemaValidator);
+    return String.format(GET_LATEST_UPDATES_PRE_FILTER, aspectNames, tableName) + whereClause + GET_LATEST_UPDATES_POST_FILTER;
   }
 }
