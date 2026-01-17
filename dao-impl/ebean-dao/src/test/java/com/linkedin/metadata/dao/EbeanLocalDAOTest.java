@@ -4008,6 +4008,200 @@ public class EbeanLocalDAOTest {
     }
   }
 
+  @Test
+  public void testGetLatestUpdatesSingleAspect() {
+    if (!_enableChangeLog || _schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      // skip this test if the change log is not even enabled and/or if we are not operating in new schema mode.
+      return;
+    }
+
+    // new schema DAO, used for inserts and reads
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> fooDao = createDao(FooUrn.class);
+
+    // Given: multiple versions of metadata are inserted
+    FooUrn fooUrn1 = makeFooUrn(1);
+    FooUrn fooUrn2 = makeFooUrn(2);
+    FooUrn fooUrn3 = makeFooUrn(3);
+    AspectFoo v1 = new AspectFoo().setValue("foo");
+    AspectFoo v2 = new AspectFoo().setValue("bar");
+    AspectFoo v3 = new AspectFoo().setValue("baz");
+    AuditStamp v1AuditStamp = makeAuditStamp("foo", _now);
+    AuditStamp v2AuditStamp = makeAuditStamp("foo", _now + 1000);
+    AuditStamp v3AuditStamp = makeAuditStamp("foo", _now + 2000);
+    fooDao.add(fooUrn1, v1, v1AuditStamp);
+    fooDao.add(fooUrn2, v2, v2AuditStamp);
+    fooDao.add(fooUrn3, v3, v3AuditStamp);
+
+    // When: getLatestUpdates is called
+    // actual:      _now          1000          2000
+    //              foo1          foo2          foo3
+    // window: |----------------------------|
+    Map<FooUrn, Map<Class<AspectFoo>, Optional<AspectFoo>>> results =
+        fooDao.getLatestUpdates(new Timestamp(_now + 1500), 2000, Collections.singletonList(AspectFoo.class), null, 0, 10);
+
+    // Expect: getLatestUpdates returns two out of three Foo rows (not the latest one)
+    assertEquals(results.size(), 2);
+    assertTrue(results.containsKey(fooUrn1));
+    assertTrue(results.containsKey(fooUrn2));
+    assertFalse(results.containsKey(fooUrn3));
+    assertEquals(results.get(fooUrn1).get(AspectFoo.class).get().getValue(), "foo");
+    assertEquals(results.get(fooUrn2).get(AspectFoo.class).get().getValue(), "bar");
+  }
+
+  @Test
+  public void testGetLatestUpdatesMultipleAspects() {
+    if (!_enableChangeLog || _schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      // skip this test if the change log is not even enabled and/or if we are not operating in new schema mode.
+      return;
+    }
+
+    // new schema DAO, used for inserts and reads
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> fooDao = createDao(FooUrn.class);
+
+    // Given: multiple versions of metadata are inserted
+    FooUrn fooUrn1 = makeFooUrn(1);
+    FooUrn fooUrn2 = makeFooUrn(2);
+    FooUrn fooUrn3 = makeFooUrn(3);
+    AspectFoo v1 = new AspectFoo().setValue("foo");
+    AspectFoo v2 = new AspectFoo().setValue("bar");
+    AspectFoo v3 = new AspectFoo().setValue("baz");
+    AspectBar bar1 = new AspectBar().setValue("1");
+    AuditStamp v1AuditStamp = makeAuditStamp("foo", _now);
+    AuditStamp v2AuditStamp = makeAuditStamp("foo", _now + 1000);
+    AuditStamp v3AuditStamp = makeAuditStamp("foo", _now + 2000);
+    fooDao.add(fooUrn1, v1, v1AuditStamp);
+    fooDao.add(fooUrn1, bar1, v1AuditStamp);
+    fooDao.add(fooUrn2, v2, v2AuditStamp);
+    fooDao.add(fooUrn3, v3, v3AuditStamp);
+
+    // When: getLatestUpdates is called
+    // actual:            _now          1000          2000
+    //                    foo1          foo2          foo3
+    // window:  (inclusive) |---------------------------| (exclusive)
+    Map<FooUrn, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> results =
+        fooDao.getLatestUpdates(new Timestamp(_now + 2000), 2000, (List) Arrays.asList(AspectFoo.class, AspectBar.class), null, 0, 10);
+
+    // Expect: getLatestUpdates returns two out of three Foo rows (not the latest one)
+    assertEquals(results.size(), 2);
+    assertTrue(results.containsKey(fooUrn1));
+    assertTrue(results.containsKey(fooUrn2));
+    assertFalse(results.containsKey(fooUrn3));
+    assertEquals(((AspectFoo) results.get(fooUrn1).get(AspectFoo.class).get()).getValue(), "foo");
+    assertEquals(((AspectFoo) results.get(fooUrn2).get(AspectFoo.class).get()).getValue(), "bar");
+    assertEquals(((AspectBar) results.get(fooUrn1).get(AspectBar.class).get()).getValue(), "1");
+    assertFalse(results.get(fooUrn2).get(AspectBar.class).isPresent());
+  }
+
+  @Test
+  public void testGetLatestUpdatesSingleAspectWithFilter() {
+    if (!_enableChangeLog || _schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      // skip this test if the change log is not even enabled and/or if we are not operating in new schema mode.
+      return;
+    }
+
+    // new schema DAO, used for inserts and reads
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> fooDao = createDao(FooUrn.class);
+
+    // Given: multiple versions of metadata are inserted
+    FooUrn fooUrn1 = makeFooUrn(1);
+    FooUrn fooUrn2 = makeFooUrn(2);
+    FooUrn fooUrn3 = makeFooUrn(3);
+    AspectFoo v1 = new AspectFoo().setValue("foo");
+    AspectFoo v2 = new AspectFoo().setValue("bar");
+    AspectFoo v3 = new AspectFoo().setValue("baz");
+    AuditStamp v1AuditStamp = makeAuditStamp("foo", _now);
+    AuditStamp v2AuditStamp = makeAuditStamp("foo", _now + 1000);
+    AuditStamp v3AuditStamp = makeAuditStamp("foo", _now + 2000);
+    addIndex(fooUrn1, AspectFoo.class.getCanonicalName(), "/value", "foo");
+    addIndex(fooUrn2, AspectFoo.class.getCanonicalName(), "/value", "bar");
+    addIndex(fooUrn3, AspectFoo.class.getCanonicalName(), "/value", "baz");
+    addMetadataWithAuditStamp(fooUrn1, AspectFoo.class, 0, v1, v1AuditStamp.getTime(), "", "");
+    addMetadataWithAuditStamp(fooUrn2, AspectFoo.class, 0, v2, v2AuditStamp.getTime(), "", "");
+    addMetadataWithAuditStamp(fooUrn3, AspectFoo.class, 0, v3, v3AuditStamp.getTime(), "", "");
+
+    // create filters
+    IndexFilter filter = new IndexFilter();
+    IndexValue indexValue = new IndexValue();
+    indexValue.setString("foo");
+    IndexPathParams pathParams = new IndexPathParams().setPath("/value").setValue(indexValue);
+    IndexCriterion indexCriterion = new IndexCriterion().setAspect(AspectFoo.class.getCanonicalName()).setPathParams(pathParams);
+    IndexCriterionArray indexCriterionArray = new IndexCriterionArray(indexCriterion);
+    filter.setCriteria(indexCriterionArray);
+
+    // When: getLatestUpdates is called
+    // actual:      _now          1000          2000
+    //              foo1          foo2          foo3
+    // window: |----------------------------|
+    Map<FooUrn, Map<Class<AspectFoo>, Optional<AspectFoo>>> results =
+        fooDao.getLatestUpdates(new Timestamp(_now + 1500), 2000, Collections.singletonList(AspectFoo.class), filter, 0, 10);
+
+    // Expect: getLatestUpdates returns two out of three Foo rows (not the latest one)
+    assertEquals(results.size(), 1);
+    assertTrue(results.containsKey(fooUrn1));
+    assertFalse(results.containsKey(fooUrn2));
+    assertFalse(results.containsKey(fooUrn3));
+    assertEquals(results.get(fooUrn1).get(AspectFoo.class).get().getValue(), "foo");
+  }
+
+  @Test
+  public void testGetLatestUpdatesMultipleAspectsWithFilter() {
+    if (!_enableChangeLog || _schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      // skip this test if the change log is not even enabled and/or if we are not operating in new schema mode.
+      return;
+    }
+
+    // new schema DAO, used for inserts and reads
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> fooDao = createDao(FooUrn.class);
+
+    // Given: multiple versions of metadata are inserted
+    FooUrn fooUrn1 = makeFooUrn(1);
+    FooUrn fooUrn2 = makeFooUrn(2);
+    FooUrn fooUrn3 = makeFooUrn(3);
+    FooUrn fooUrn4 = makeFooUrn(4);
+    AspectFoo v1 = new AspectFoo().setValue("foo");
+    AspectFoo v2 = new AspectFoo().setValue("bar");
+    AspectFoo v3 = new AspectFoo().setValue("baz");
+    AspectBar bar1 = new AspectBar().setValue("1");
+    AspectBar bar4 = new AspectBar().setValue("4");
+    AuditStamp v1AuditStamp = makeAuditStamp("foo", _now);
+    AuditStamp v2AuditStamp = makeAuditStamp("foo", _now + 1000);
+    AuditStamp v3AuditStamp = makeAuditStamp("foo", _now + 2000);
+    addIndex(fooUrn1, AspectFoo.class.getCanonicalName(), "/value", "foo");
+    addIndex(fooUrn2, AspectFoo.class.getCanonicalName(), "/value", "bar");
+    addIndex(fooUrn3, AspectFoo.class.getCanonicalName(), "/value", "baz");
+    addIndex(fooUrn1, AspectBar.class.getCanonicalName(), "/value", "1");
+    addIndex(fooUrn4, AspectBar.class.getCanonicalName(), "/value", "4");
+    addMetadataWithAuditStamp(fooUrn1, AspectFoo.class, 0, v1, v1AuditStamp.getTime(), "", "");
+    addMetadataWithAuditStamp(fooUrn2, AspectFoo.class, 0, v2, v2AuditStamp.getTime(), "", "");
+    addMetadataWithAuditStamp(fooUrn3, AspectFoo.class, 0, v3, v3AuditStamp.getTime(), "", "");
+    addMetadataWithAuditStamp(fooUrn1, AspectBar.class, 0, bar1, v1AuditStamp.getTime(), "", "");
+    addMetadataWithAuditStamp(fooUrn4, AspectBar.class, 0, bar4, v1AuditStamp.getTime(), "", "");
+
+    // create filters
+    IndexFilter filter = new IndexFilter();
+    IndexValue indexValue = new IndexValue();
+    indexValue.setString("1");
+    IndexPathParams pathParams = new IndexPathParams().setPath("/value").setValue(indexValue);
+    IndexCriterion indexCriterion = new IndexCriterion().setAspect(AspectBar.class.getCanonicalName()).setPathParams(pathParams);
+    IndexCriterionArray indexCriterionArray = new IndexCriterionArray(indexCriterion);
+    filter.setCriteria(indexCriterionArray);
+
+    // When: getLatestUpdates is called
+    // actual:            _now          1000          2000
+    //                    foo1          foo2          foo3
+    // window:  (inclusive) |---------------------------| (exclusive)
+    Map<FooUrn, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> results =
+        fooDao.getLatestUpdates(new Timestamp(_now + 2000), 2000, (List) Arrays.asList(AspectFoo.class, AspectBar.class), filter, 0, 10);
+
+    // Expect: getLatestUpdates returns one out of four Foo rows (just the first one)
+    assertEquals(results.size(), 1);
+    assertTrue(results.containsKey(fooUrn1));
+    assertFalse(results.containsKey(fooUrn2));
+    assertFalse(results.containsKey(fooUrn3));
+    assertEquals(((AspectFoo) results.get(fooUrn1).get(AspectFoo.class).get()).getValue(), "foo");
+    assertEquals(((AspectBar) results.get(fooUrn1).get(AspectBar.class).get()).getValue(), "1");
+  }
+
   @Nonnull
   private EbeanMetadataAspect getMetadata(Urn urn, String aspectName, long version, @Nullable RecordTemplate metadata) {
     EbeanMetadataAspect aspect = new EbeanMetadataAspect();
@@ -4044,9 +4238,9 @@ public class EbeanLocalDAOTest {
     String aspectName = aspectClass.getCanonicalName();
     String columnName = SQLSchemaUtils.getAspectColumnName(urn.getEntityType(), aspectName);
     String template = "insert into metadata_entity_%s (urn, %s, lastmodifiedon, lastmodifiedby, createdfor) value"
-        + "('%s', '%s', '%s', '%s', '%s') ON DUPLICATE KEY UPDATE %s = '%s';";
+        + "('%s', '%s', '%s', '%s', '%s') ON DUPLICATE KEY UPDATE %s = '%s', lastmodifiedon = '%s';";
     String query = String.format(template, urn.getEntityType(), columnName, urn, createAuditedAspect(metadata, aspectClass, createdOn, createdBy, createdFor),
-        createdOnString, createdBy, createdFor, columnName, createAuditedAspect(metadata, aspectClass, createdOn, createdBy, createdFor));
+        createdOnString, createdBy, createdFor, columnName, createAuditedAspect(metadata, aspectClass, createdOn, createdBy, createdFor), createdOnString);
     _server.createSqlUpdate(query).execute();
   }
 
@@ -4125,7 +4319,14 @@ public class EbeanLocalDAOTest {
     // finally, we need to update the newly added column with the passed-in value.
     String sqlUpdate;
     if (aspectColumnName != null) {
-      final String dummyAspectValue = "{\"value\": \"dummy_value\"}";
+      final String dummyAspectValue = "{\"aspect\": \"dummy_value\", "
+          + "\"canonicalName\": \"com.linkedin.testing.TestAspect\", "
+          + "\"lastmodifiedon\": 1234, "
+          + "\"lastmodifiedby\": \"tester\", "
+          + "\"createdfor\": \"urn:li:test:bar\", "
+          + "\"emitTime\": 1234, "
+          + "\"emitter\": \"urn:li:test:bar\""
+          + "}";
       sqlUpdate = String.format("INSERT INTO %s (urn, a_urn, lastmodifiedon, lastmodifiedby, %s, %s) "
               + "VALUES ('%s', '{}','00-01-01 00:00:00.000000', 'tester', '%s', %s) ON DUPLICATE KEY UPDATE %s = %s, %s = '%s';", getTableName(urn),
           aspectColumnName, fullIndexColumnName, urn, dummyAspectValue, trueVal, fullIndexColumnName, trueVal, aspectColumnName, dummyAspectValue);

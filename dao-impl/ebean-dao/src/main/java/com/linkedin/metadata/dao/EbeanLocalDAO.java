@@ -54,6 +54,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -1770,5 +1771,39 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       throw new UnsupportedOperationException("countAggregate is only supported in new schema.");
     }
     return _localAccess.countAggregate(indexFilter, indexGroupByCriterion);
+  }
+
+  /**
+   * Returns the latest updates from the database given a timestamp and a lookbackWindow.
+   * Results are ordered by the timestamp in ascending order.
+   *
+   * @param timestamp the timestamp from which to retrieve updates
+   * @param lookbackWindow the amount of time to look back for updates
+   * @param aspectClasses the types of aspects to retrieve
+   * @param filter optional index filter to apply to the query
+   * @param start the starting offset of the page
+   * @param count the maximum number of updates to return
+   * @return a Map containing the latest updates for each URN, with each update
+   *         represented as a Map from the aspect class to the aspect value
+   */
+  @Override
+  @Nonnull
+  public <ASPECT extends RecordTemplate> Map<URN, Map<Class<ASPECT>, Optional<ASPECT>>> getLatestUpdates(@Nonnull Timestamp timestamp,
+      long lookbackWindow, @Nonnull List<Class<ASPECT>> aspectClasses, @Nullable IndexFilter filter, int start, int count) {
+    if (_schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      throw new UnsupportedOperationException("The getLatestUpdates method is only supported in NEW_SCHEMA_ONLY mode");
+    }
+    if (aspectClasses.isEmpty()) {
+      throw new IllegalArgumentException("The aspectClasses parameter must not be empty");
+    }
+    checkValidAspects(new HashSet<>(aspectClasses));
+    if (start < 0) {
+      throw new IllegalArgumentException("The start parameter must be non-negative");
+    }
+    if (count > DEFAULT_BATCH_SIZE) {
+      log.warn("getLatestUpdates called with count = {} which is over the max batch size of {}. Defaulting to the max batch size.", count, DEFAULT_BATCH_SIZE);
+      count = DEFAULT_BATCH_SIZE;
+    }
+    return _localAccess.getLatestUpdates(timestamp, lookbackWindow, aspectClasses, filter, start, count);
   }
 }
