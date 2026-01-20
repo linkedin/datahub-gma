@@ -88,8 +88,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   protected final EbeanServer _server;
   protected final Class<URN> _urnClass;
 
-  private final static int DEFAULT_BATCH_SIZE = 50;
-  private int _queryKeysCount = DEFAULT_BATCH_SIZE;
+  private final static int MAX_BATCH_SIZE = 50;
+  private int _queryKeysCount = MAX_BATCH_SIZE;
   private IEbeanLocalAccess<URN> _localAccess;
   private EbeanLocalRelationshipWriterDAO _localRelationshipWriterDAO;
   private LocalRelationshipBuilderRegistry _localRelationshipBuilderRegistry = null;
@@ -1197,15 +1197,15 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   /**
-   * Sets the max keys allowed for each single query, not allowed more than the default batch size.
+   * Sets the max keys allowed for each single query, not allowed more than the max batch size.
    */
   public void setQueryKeysCount(int keysCount) {
     if (keysCount < 0) {
       throw new IllegalArgumentException("Query keys count must be non-negative: " + keysCount);
-    } else if (keysCount > DEFAULT_BATCH_SIZE) {
-      log.warn("Setting query keys count greater than " + DEFAULT_BATCH_SIZE
-          + " may cause performance issues. Defaulting to " + DEFAULT_BATCH_SIZE + ".");
-      _queryKeysCount = DEFAULT_BATCH_SIZE;
+    } else if (keysCount > MAX_BATCH_SIZE) {
+      log.warn("Setting query keys count greater than " + MAX_BATCH_SIZE
+          + " may cause performance issues. Defaulting to " + MAX_BATCH_SIZE + ".");
+      _queryKeysCount = MAX_BATCH_SIZE;
     } else {
       _queryKeysCount = keysCount;
     }
@@ -1800,9 +1800,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     if (start < 0) {
       throw new IllegalArgumentException("The start parameter must be non-negative");
     }
-    if (count > DEFAULT_BATCH_SIZE) {
-      log.warn("getLatestUpdates called with count = {} which is over the max batch size of {}. Defaulting to the max batch size.", count, DEFAULT_BATCH_SIZE);
-      count = DEFAULT_BATCH_SIZE;
+    if (count > MAX_BATCH_SIZE) {
+      log.warn("getLatestUpdates called with count = {} which is over the max batch size of {}. Defaulting to the max batch size.", count, MAX_BATCH_SIZE);
+      count = MAX_BATCH_SIZE;
     }
     return _localAccess.getLatestUpdates(timestamp, lookbackWindow, aspectClasses, filter, start, count);
   }
