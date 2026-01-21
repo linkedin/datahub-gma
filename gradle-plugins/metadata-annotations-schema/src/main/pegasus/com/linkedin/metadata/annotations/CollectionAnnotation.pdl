@@ -1,0 +1,30 @@
+namespace com.linkedin.metadata.annotations
+
+/**
+ * Annotation for collections-related attributes
+ */
+record CollectionAnnotation {
+  /**
+   * Whether a model is a collection
+   */
+  isCollection: optional boolean
+
+  /**
+   * A list of key-values representing the primary keys to use for updating collection-typed fields. The keys are
+   * strings representing collections field names. The values are lists of field masks indicating the key(s) to be used for updates on that field.
+   *
+   * e.g. [{"my_struct.foo": {"paths": ["x.y", "x.z"]}}] -> the foo field of my_struct is a list, which has primary keys of x.y (where x is a struct
+   * and y is a field of x) and x.z (where z is also a field of x). A real world example could be lineage where x is an Upstream struct,
+   * x.y is the dataset urn, and x.z is the lastmodifiedby value.
+   */
+  primaryKeys: optional array[map[string, map[string, array[string]]]]
+
+  /**
+   * How to handle updates. The default/implicit behavior is REPLACE_BY_KEY
+   */
+  defaultUpdateBehavior: optional enum UpdateBehavior {
+    REPLACE_BY_KEY,
+    REPLACE_BY_ACTOR,
+    REPLACE_ALL
+  }
+}
