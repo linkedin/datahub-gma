@@ -31,6 +31,7 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -529,12 +530,15 @@ public class EbeanLocalAccessTest {
     FooUrn fooUrn = makeFooUrn(300);
     AspectFoo foo = new AspectFoo().setValue("foo_value");
     AspectBar bar = new AspectBar().setValue("bar_value");
-    List<RecordTemplate> aspects = List.of(foo, bar);
-    List<Class<? extends RecordTemplate>> classes = List.of(AspectFoo.class, AspectBar.class);
+    List<RecordTemplate> aspects = Arrays.asList(foo, bar);
+    List<BaseLocalDAO.AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas = Arrays.asList(
+        new BaseLocalDAO.AspectUpdateLambda<>(foo),
+        new BaseLocalDAO.AspectUpdateLambda<>(bar)
+    );
     AuditStamp auditStamp = makeAuditStamp("actor", _now);
 
     // Act
-    int result = _ebeanLocalAccessFoo.batchUpsert(fooUrn, aspects, classes, auditStamp, null, false);
+    int result = _ebeanLocalAccessFoo.batchUpsert(fooUrn, aspects, aspectUpdateLambdas, auditStamp, null, false);
 
     // Assert
     assertEquals(result, 1);
@@ -550,29 +554,34 @@ public class EbeanLocalAccessTest {
     // Arrange
     FooUrn fooUrn = makeFooUrn(301);
     AspectFoo foo = new AspectFoo().setValue("single");
-    List<RecordTemplate> aspects = List.of(foo);
-    List<Class<? extends RecordTemplate>> classes = List.of(AspectFoo.class);
+    List<RecordTemplate> aspects = Collections.singletonList(foo);
+    List<BaseLocalDAO.AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas = 
+        Collections.singletonList(new BaseLocalDAO.AspectUpdateLambda<>(foo));
     AuditStamp auditStamp = makeAuditStamp("actor", _now);
 
     // Act
-    int result = _ebeanLocalAccessFoo.batchUpsert(fooUrn, aspects, classes, auditStamp, null, false);
+    int result = _ebeanLocalAccessFoo.batchUpsert(fooUrn, aspects, aspectUpdateLambdas, auditStamp, null, false);
 
     // Assert
     assertEquals(result, 1);
   }
 
   @Test(expectedExceptions = IllegalArgumentException.class,
-        expectedExceptionsMessageRegExp = ".*aspectValues and aspectClasses must have the same size.*")
+        expectedExceptionsMessageRegExp = ".*Aspect value cannot be null.*")
   public void testBatchUpsertMismatchedSizes() {
     // Arrange
     FooUrn fooUrn = makeFooUrn(302);
     AspectFoo foo = new AspectFoo().setValue("test");
-    List<RecordTemplate> aspects = List.of(foo);
-    List<Class<? extends RecordTemplate>> classes = List.of(AspectFoo.class, AspectBar.class);
+    List<RecordTemplate> aspects = Collections.singletonList(foo);
+    // Mismatched: 1 aspect but 2 lambdas
+    List<BaseLocalDAO.AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas = Arrays.asList(
+        new BaseLocalDAO.AspectUpdateLambda<>(foo),
+        new BaseLocalDAO.AspectUpdateLambda<>(new AspectBar().setValue("bar"))
+    );
     AuditStamp auditStamp = makeAuditStamp("actor", _now);
 
     // Act - should throw
-    _ebeanLocalAccessFoo.batchUpsert(fooUrn, aspects, classes, auditStamp, null, false);
+    _ebeanLocalAccessFoo.batchUpsert(fooUrn, aspects, aspectUpdateLambdas, auditStamp, null, false);
   }
 
   @Test(expectedExceptions = IllegalArgumentException.class,
@@ -580,12 +589,16 @@ public class EbeanLocalAccessTest {
   public void testBatchUpsertWithNullAspect() {
     // Arrange
     FooUrn fooUrn = makeFooUrn(303);
-    List<RecordTemplate> aspects = List.of(new AspectFoo().setValue("test"), null);
-    List<Class<? extends RecordTemplate>> classes = List.of(AspectFoo.class, AspectBar.class);
+    AspectFoo foo = new AspectFoo().setValue("test");
+    List<RecordTemplate> aspects = Arrays.asList(foo, null);
+    List<BaseLocalDAO.AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas = Arrays.asList(
+        new BaseLocalDAO.AspectUpdateLambda<>(foo),
+        new BaseLocalDAO.AspectUpdateLambda<>(new AspectBar().setValue("bar"))
+    );
     AuditStamp auditStamp = makeAuditStamp("actor", _now);
 
     // Act - should throw
-    _ebeanLocalAccessFoo.batchUpsert(fooUrn, aspects, classes, auditStamp, null, false);
+    _ebeanLocalAccessFoo.batchUpsert(fooUrn, aspects, aspectUpdateLambdas, auditStamp, null, false);
   }
 
   @Test
@@ -593,18 +606,21 @@ public class EbeanLocalAccessTest {
     // Arrange
     FooUrn fooUrn = makeFooUrn(304);
     AspectFoo foo1 = new AspectFoo().setValue("initial");
-    List<RecordTemplate> aspects1 = List.of(foo1);
-    List<Class<? extends RecordTemplate>> classes = List.of(AspectFoo.class);
+    List<RecordTemplate> aspects1 = Collections.singletonList(foo1);
+    List<BaseLocalDAO.AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas1 = 
+        Collections.singletonList(new BaseLocalDAO.AspectUpdateLambda<>(foo1));
     AuditStamp auditStamp = makeAuditStamp("actor", _now);
     
     // First write
-    int result1 = _ebeanLocalAccessFoo.batchUpsert(fooUrn, aspects1, classes, auditStamp, null, false);
+    int result1 = _ebeanLocalAccessFoo.batchUpsert(fooUrn, aspects1, aspectUpdateLambdas1, auditStamp, null, false);
     assertEquals(result1, 1);
     
     // Act - upsert with new value
     AspectFoo foo2 = new AspectFoo().setValue("updated");
-    List<RecordTemplate> aspects2 = List.of(foo2);
-    int result2 = _ebeanLocalAccessFoo.batchUpsert(fooUrn, aspects2, classes, auditStamp, null, false);
+    List<RecordTemplate> aspects2 = Collections.singletonList(foo2);
+    List<BaseLocalDAO.AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas2 = 
+        Collections.singletonList(new BaseLocalDAO.AspectUpdateLambda<>(foo2));
+    int result2 = _ebeanLocalAccessFoo.batchUpsert(fooUrn, aspects2, aspectUpdateLambdas2, auditStamp, null, false);
 
     // Assert - should have updated
     assertEquals(result2, 1);

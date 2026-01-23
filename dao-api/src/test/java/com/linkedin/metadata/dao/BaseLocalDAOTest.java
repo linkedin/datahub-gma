@@ -110,6 +110,15 @@ public class BaseLocalDAOTest {
     }
 
     @Override
+    protected <ASPECT_UNION extends RecordTemplate> int batchUpsertAspects(@Nonnull FooUrn urn,
+        @Nonnull List<AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas,
+        @Nonnull List<? extends RecordTemplate> aspectValues,
+        @Nonnull AuditStamp auditStamp,
+        @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
+      return aspectValues.size();
+    }
+
+    @Override
     protected int permanentDelete(@Nonnull FooUrn urn, boolean isTestMode) {
       // 1 aspect is deleted: 1 row in table
       return 1;

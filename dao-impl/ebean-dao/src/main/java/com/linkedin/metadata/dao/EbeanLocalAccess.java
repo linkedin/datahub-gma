@@ -236,7 +236,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
     // Construct  DELETED_TS_CHECK_FOR_CREATE String
     StringBuilder deletedTsCheckForCreate = new StringBuilder();
-    deletedTsCheckForCreate.append(DELETED_TS_DUPLICATE_KEY_CHECK);
+    deletedTsCheckForCreate.append(ON_DUPLICATE_KEY_UPDATE);
     for (int i = 0; i < classNames.size(); i++) {
       deletedTsCheckForCreate.append(getAspectColumnName(urn.getEntityType(), classNames.get(i)));
       deletedTsCheckForCreate.append(" = :aspect").append(i);
@@ -264,6 +264,133 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       AuditedAspect auditedAspect = new AuditedAspect()
           .setAspect(RecordUtils.toJsonString(aspectValues.get(i)))
           .setCanonicalName(aspectCreateLambdas.get(i).getAspectClass().getCanonicalName())
+          .setLastmodifiedby(actor)
+          .setLastmodifiedon(utcTimestamp)
+          .setCreatedfor(impersonator, SetMode.IGNORE_NULL);
+      if (ingestionTrackingContext != null) {
+        auditedAspect.setEmitTime(ingestionTrackingContext.getEmitTime(), SetMode.IGNORE_NULL);
+        auditedAspect.setEmitter(ingestionTrackingContext.getEmitter(), SetMode.IGNORE_NULL);
+      }
+      sqlUpdate.setParameter("aspect" + i, toJsonString(auditedAspect));
+    }
+
+
+    // If a non-default UrnPathExtractor is provided, the user MUST specify in their schema generation scripts
+    // 'ALTER TABLE <table> ADD COLUMN a_urn JSON'.
+    if (urnExtraction) {
+      sqlUpdate.setParameter("a_urn", toJsonString(urn));
+    }
+    sqlUpdate.setParameter("urn", urn.toString())
+        .setParameter("lastmodifiedon", utcTimestamp)
+        .setParameter("lastmodifiedby", actor);
+
+    return sqlUpdate.execute();
+  }
+
+  /**
+   * Batch upsert multiple aspects for a single URN using multi-column UPDATE.
+   * This method generates a single SQL statement that updates all aspect columns at once.
+   * Unlike create(), this does UPSERT (always updates if exists, no duplicate key check).
+   *
+   * <p>NOTE: This method shares significant SQL generation logic with create(). The duplication was
+   * intentional to minimize risk to the battle-tested create() method. Future refactoring could
+   * extract common logic into a helper method like:
+   *   buildMultiColumnInsertSql(urn, aspects, classNames, onDuplicateKeyClause, ...)
+   * where onDuplicateKeyClause differs:
+   *   - create(): "deleted_ts = IF(deleted_ts IS NULL, CAST('DuplicateKeyException' AS UNSIGNED), NULL)"
+   *   - batchUpsert(): "deleted_ts = NULL"
+   * Consider refactoring once batchUpsert() is proven stable in production.
+   *
+   * @param urn entity URN
+   * @param aspectValues list of aspect values to upsert
+   * @param aspectUpdateLambdas list of aspect update lambdas to upsert
+   * @param auditStamp audit stamp for tracking
+   * @param ingestionTrackingContext tracking context for ingestion
+   * @param isTestMode whether this is a test mode operation
+   * @return number of rows affected
+   */
+  public <ASPECT_UNION extends RecordTemplate> int batchUpsert(
+      @Nonnull URN urn,
+      @Nonnull List<? extends RecordTemplate> aspectValues,
+      @Nonnull List<BaseLocalDAO.AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas,
+      @Nonnull AuditStamp auditStamp,
+      @Nullable IngestionTrackingContext ingestionTrackingContext,
+      boolean isTestMode) {
+
+    aspectValues.forEach(aspectValue -> {
+      if (aspectValue == null) {
+        throw new IllegalArgumentException("Aspect value cannot be null");
+      }
+    });
+
+    final long timestamp = auditStamp.hasTime() ? auditStamp.getTime() : System.currentTimeMillis();
+    final String actor = auditStamp.hasActor() ? auditStamp.getActor().toString() : DEFAULT_ACTOR;
+    final String impersonator = auditStamp.hasImpersonator() ? auditStamp.getImpersonator().toString() : null;
+    final boolean urnExtraction = _urnPathExtractor != null && !(_urnPathExtractor instanceof EmptyPathExtractor);
+
+    final SqlUpdate sqlUpdate;
+
+    List<String> classNames = aspectUpdateLambdas.stream()
+        .map(aspectUpdateLamdba -> aspectUpdateLamdba.getAspectClass().getCanonicalName())
+        .collect(Collectors.toList());
+
+    // Create insert statement with variable number of aspect columns
+    // For example: INSERT INTO <table_name> (<columns>)
+    StringBuilder insertIntoSql = new StringBuilder();
+    // Create part of insert statement with variable number of aspect values
+    // For example: VALUES (<values>);
+    StringBuilder insertSqlValues = new StringBuilder();
+
+    if (urnExtraction) {
+      insertIntoSql.append(SQL_INSERT_INTO_ASSET_WITH_URN);
+      insertSqlValues.append(SQL_INSERT_ASSET_VALUES_WITH_URN);
+    } else {
+      insertIntoSql.append(SQL_INSERT_INTO_ASSET);
+      insertSqlValues.append(SQL_INSERT_ASSET_VALUES);
+    }
+
+    // Build column list and value placeholders
+    for (int i = 0; i < classNames.size(); i++) {
+      insertIntoSql.append(getAspectColumnName(urn.getEntityType(), classNames.get(i)));
+      // Add parameterization for aspect values
+      insertSqlValues.append(":aspect").append(i);
+      // Add comma if not the last column
+      if (i != classNames.size() - 1) {
+        insertIntoSql.append(", ");
+        insertSqlValues.append(", ");
+      }
+    }
+    insertIntoSql.append(CLOSING_BRACKET);
+    insertSqlValues.append(CLOSING_BRACKET);
+
+    // Build ON DUPLICATE KEY UPDATE clause for UPSERT semantics
+    StringBuilder onDuplicateUpdate = new StringBuilder();
+    onDuplicateUpdate.append(ON_DUPLICATE_KEY_UPDATE);
+    for (int i = 0; i < classNames.size(); i++) {
+      String columnName = getAspectColumnName(urn.getEntityType(), classNames.get(i));
+      onDuplicateUpdate.append(columnName).append(" = :aspect").append(i);
+      if (i != classNames.size() - 1) {
+        onDuplicateUpdate.append(", ");
+      }
+    }
+
+    // Always update lastmodifiedon and clear deleted_ts on upsert
+    // TODO (@jhui): abstract this into SQLStatementUtils?
+    onDuplicateUpdate.append(", lastmodifiedon = :lastmodifiedon, deleted_ts = NULL;");
+
+    String insertStatement = insertIntoSql.toString() + insertSqlValues.toString() + onDuplicateUpdate.toString();
+    insertStatement = String.format(insertStatement, getTableName(urn));
+
+    sqlUpdate = _server.createSqlUpdate(insertStatement);
+
+    String utcTimestamp = Instant.ofEpochMilli(timestamp)
+        .atZone(ZoneOffset.UTC)
+        .format(DateTimeFormatter.ofPattern(DATE_TIME_FORMAT));
+    // Set parameters for each aspect value
+    for (int i = 0; i < aspectValues.size(); i++) {
+      AuditedAspect auditedAspect = new AuditedAspect()
+          .setAspect(RecordUtils.toJsonString(aspectValues.get(i)))
+          .setCanonicalName(aspectUpdateLambdas.get(i).getAspectClass().getCanonicalName())
           .setLastmodifiedby(actor)
           .setLastmodifiedon(utcTimestamp)
           .setCreatedfor(impersonator, SetMode.IGNORE_NULL);
@@ -697,115 +824,6 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   private static final String FIND_LATEST_SQL_TEMPLATE =
       "select * from metadata_aspect t0"
           + " where t0.urn = ? and t0.aspect = ?  and t0.version = ? order by t0.createdOn desc limit 1";
-
-  /**
-   * Batch upsert multiple aspects for a single URN using multi-column UPDATE.
-   * This method generates a single SQL statement that updates all aspect columns at once.
-   * Unlike create(), this does UPSERT (always updates if exists, no duplicate key check).
-   *
-   * @param urn entity URN
-   * @param aspectValues list of aspect values to upsert
-   * @param aspectClasses list of aspect classes (must match aspectValues)
-   * @param auditStamp audit stamp for tracking
-   * @param ingestionTrackingContext tracking context for ingestion
-   * @param isTestMode whether this is a test mode operation
-   * @return number of rows affected
-   */
-  public <ASPECT_UNION extends RecordTemplate> int batchUpsert(
-      @Nonnull URN urn,
-      @Nonnull List<? extends RecordTemplate> aspectValues,
-      @Nonnull List<Class<? extends RecordTemplate>> aspectClasses,
-      @Nonnull AuditStamp auditStamp,
-      @Nullable IngestionTrackingContext ingestionTrackingContext,
-      boolean isTestMode) {
-
-    if (aspectValues.size() != aspectClasses.size()) {
-      throw new IllegalArgumentException("aspectValues and aspectClasses must have the same size");
-    }
-
-    aspectValues.forEach(aspectValue -> {
-      if (aspectValue == null) {
-        throw new IllegalArgumentException("Aspect value cannot be null");
-      }
-    });
-
-    final long timestamp = auditStamp.hasTime() ? auditStamp.getTime() : System.currentTimeMillis();
-    final String actor = auditStamp.hasActor() ? auditStamp.getActor().toString() : DEFAULT_ACTOR;
-    final String impersonator = auditStamp.hasImpersonator() ? auditStamp.getImpersonator().toString() : null;
-    final boolean urnExtraction = _urnPathExtractor != null && !(_urnPathExtractor instanceof EmptyPathExtractor);
-
-    // Build multi-column INSERT ... ON DUPLICATE KEY UPDATE statement
-    StringBuilder insertIntoSql = new StringBuilder();
-    StringBuilder insertSqlValues = new StringBuilder();
-    StringBuilder onDuplicateUpdate = new StringBuilder();
-
-    if (urnExtraction) {
-      insertIntoSql.append(SQL_INSERT_INTO_ASSET_WITH_URN);
-      insertSqlValues.append(SQL_INSERT_ASSET_VALUES_WITH_URN);
-    } else {
-      insertIntoSql.append(SQL_INSERT_INTO_ASSET);
-      insertSqlValues.append(SQL_INSERT_ASSET_VALUES);
-    }
-
-    // Build column list and value placeholders
-    for (int i = 0; i < aspectClasses.size(); i++) {
-      String columnName = getAspectColumnName(urn.getEntityType(), aspectClasses.get(i).getCanonicalName());
-      insertIntoSql.append(columnName);
-      insertSqlValues.append(":aspect").append(i);
-
-      if (i != aspectClasses.size() - 1) {
-        insertIntoSql.append(", ");
-        insertSqlValues.append(", ");
-      }
-    }
-    insertIntoSql.append(CLOSING_BRACKET);
-    insertSqlValues.append(CLOSING_BRACKET);
-
-    // Build ON DUPLICATE KEY UPDATE clause for UPSERT semantics
-    onDuplicateUpdate.append("ON DUPLICATE KEY UPDATE ");
-    for (int i = 0; i < aspectClasses.size(); i++) {
-      String columnName = getAspectColumnName(urn.getEntityType(), aspectClasses.get(i).getCanonicalName());
-      onDuplicateUpdate.append(columnName).append(" = :aspect").append(i);
-      if (i != aspectClasses.size() - 1) {
-        onDuplicateUpdate.append(", ");
-      }
-    }
-    // Always update lastmodifiedon and clear deleted_ts on upsert
-    onDuplicateUpdate.append(", lastmodifiedon = :lastmodifiedon, deleted_ts = NULL;");
-
-    String insertStatement = insertIntoSql.toString() + insertSqlValues.toString() + onDuplicateUpdate.toString();
-    insertStatement = String.format(insertStatement, getTableName(urn));
-
-    SqlUpdate sqlUpdate = _server.createSqlUpdate(insertStatement);
-
-    String utcTimestamp = Instant.ofEpochMilli(timestamp)
-        .atZone(ZoneOffset.UTC)
-        .format(DateTimeFormatter.ofPattern(DATE_TIME_FORMAT));
-
-    // Set parameters for each aspect value
-    for (int i = 0; i < aspectValues.size(); i++) {
-      AuditedAspect auditedAspect = new AuditedAspect()
-          .setAspect(RecordUtils.toJsonString(aspectValues.get(i)))
-          .setCanonicalName(aspectClasses.get(i).getCanonicalName())
-          .setLastmodifiedby(actor)
-          .setLastmodifiedon(utcTimestamp)
-          .setCreatedfor(impersonator, SetMode.IGNORE_NULL);
-      if (ingestionTrackingContext != null) {
-        auditedAspect.setEmitTime(ingestionTrackingContext.getEmitTime(), SetMode.IGNORE_NULL);
-        auditedAspect.setEmitter(ingestionTrackingContext.getEmitter(), SetMode.IGNORE_NULL);
-      }
-      sqlUpdate.setParameter("aspect" + i, toJsonString(auditedAspect));
-    }
-
-    if (urnExtraction) {
-      sqlUpdate.setParameter("a_urn", toJsonString(urn));
-    }
-    sqlUpdate.setParameter("urn", urn.toString())
-        .setParameter("lastmodifiedon", utcTimestamp)
-        .setParameter("lastmodifiedby", actor);
-
-    return sqlUpdate.execute();
-  }
 
   /**
    * SQL implementation of find the latest {@link EbeanMetadataAspect}.

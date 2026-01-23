@@ -652,14 +652,14 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   /**
    * Batch upsert multiple aspects for a single URN using a single multi-column SQL statement.
    * This method processes all aspects through validation/callbacks before executing a single batch SQL update.
-   * 
-   * Differences from addMany():
+   *
+   * <p>Differences from addMany():
    * - Uses single SQL statement (1 DB call) instead of N statements (2N DB calls)
    * - Does NOT read old values (no equality testing or backfill)
    * - Does NOT support Lambda Function Registry transformations (not used in practice)
    * - DOES support aspect callbacks, validation, and pre/post-update hooks
    * - Always does UPSERT (insert or replace), no duplicate key checks
-   * 
+   *
    * @param urn entity URN
    * @param aspectValues list of aspect values to upsert
    * @param auditStamp audit stamp for tracking
@@ -668,100 +668,101 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    */
   public List<ASPECT_UNION> addManyBatch(@Nonnull URN urn, @Nonnull List<? extends RecordTemplate> aspectValues,
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext) {
-    return addManyBatch(urn, aspectValues, auditStamp, trackingContext, DEFAULT_MAX_TRANSACTION_RETRY);
+    // Convert to AspectUpdateLambda to support test mode and ingestion params
+    List<AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas = aspectValues.stream()
+        .map(AspectUpdateLambda::new)
+        .collect(Collectors.toList());
+    // ingest aspects and process callbacks in a single transaction
+    return runInTransactionWithRetry(() -> {
+          return addManyBatchWithCallbacks(urn, aspectUpdateLambdas, auditStamp, trackingContext);
+        }, DEFAULT_MAX_TRANSACTION_RETRY
+    );
   }
 
   /**
-   * Batch upsert with configurable transaction retry.
+   * Batch upsert with AspectUpdateLambda support (enables test mode and ingestion params).
+   *
+   * <p>Note: Transaction retry is handled by the subclass implementation (e.g., EbeanLocalDAO),
+   * not at this layer. The maxTransactionRetry parameter is kept for API compatibility but is
+   * currently not used. Transaction handling follows the same pattern as createNewAssetWithAspects().
+   *
+   * <p>NOTE: This is structurally very similar to createAspectsWithCallbacks(), some future refactoring can be done to
+   * share the logic between the two.
    */
-  public List<ASPECT_UNION> addManyBatch(@Nonnull URN urn, @Nonnull List<? extends RecordTemplate> aspectValues,
-      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext, int maxTransactionRetry) {
+  List<ASPECT_UNION> addManyBatchWithCallbacks(@Nonnull URN urn,
+      @Nonnull List<AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas,
+      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext) {
 
     // Validate all aspects upfront
-    aspectValues.forEach(aspectValue -> checkValidAspect(aspectValue.getClass()));
+    aspectUpdateLambdas.stream().map(AspectUpdateLambda::getAspectClass).forEach(this::checkValidAspect);
 
-    // Process all aspects through callbacks/validation pipeline
-    final List<ProcessedAspect> processedAspects = runInTransactionWithRetry(() -> {
-      List<ProcessedAspect> processed = new ArrayList<>();
+    // Process all aspects through callbacks/validation pipeline (OUTSIDE transaction, like create pathway)
+    List<ProcessedAspect> processedAspects = new ArrayList<>();
 
-      for (RecordTemplate aspectValue : aspectValues) {
-        Class<RecordTemplate> aspectClass = (Class<RecordTemplate>) aspectValue.getClass();
-        IngestionParams ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
+    for (AspectUpdateLambda<? extends RecordTemplate> updateLambda : aspectUpdateLambdas) {
+      Class<RecordTemplate> aspectClass = (Class<RecordTemplate>) updateLambda.getAspectClass();
+      IngestionParams ingestionParams = updateLambda.getIngestionParams();
 
-        RecordTemplate newValue = aspectValue;
+      // Execute the lambda to get the aspect value
+      RecordTemplate newValue = (RecordTemplate) updateLambda.getUpdateLambda().apply(Optional.empty());
 
-        // NOTE: Lambda Function Registry NOT supported (not used in practice)
-        // if (_lambdaFunctionRegistry != null && _lambdaFunctionRegistry.isRegistered(aspectClass)) {
-        //   newValue = updatePreIngestionLambdas(urn, Optional.empty(), newValue);
-        // }
-
-        // Aspect callbacks (can transform or skip)
-        AspectUpdateResult callbackResult = aspectCallbackHelper(urn, newValue, Optional.empty(), ingestionParams, auditStamp);
-        newValue = (RecordTemplate) callbackResult.getUpdatedAspect();
-        if (newValue == null || callbackResult.isSkipProcessing()) {
-          // Skip this aspect
-          continue;
-        }
-
-        // Validation
-        validateAgainstSchemaAndFillinDefault(newValue);
-
-        // Pre-update hooks (side effects within transaction)
-        if (_aspectPreUpdateHooksMap.containsKey(aspectClass)) {
-          for (final BiConsumer<Urn, RecordTemplate> hook : _aspectPreUpdateHooksMap.get(aspectClass)) {
-            hook.accept(urn, newValue);
-          }
-        }
-
-        processed.add(new ProcessedAspect(aspectClass, newValue));
+      // Apply Lambda Function Registry transformations (same as addMany pathway)
+      if (_lambdaFunctionRegistry != null && _lambdaFunctionRegistry.isRegistered(aspectClass)) {
+        newValue = updatePreIngestionLambdas(urn, Optional.empty(), newValue);
       }
 
-      // Execute batch SQL (single statement for all aspects)
-      if (!processed.isEmpty()) {
-        List<RecordTemplate> values = processed.stream().map(p -> p.aspectValue).collect(Collectors.toList());
-        List<Class<? extends RecordTemplate>> classes = processed.stream().map(p -> p.aspectClass).collect(Collectors.toList());
-        
-        // Call EbeanLocalAccess.batchUpsert()
-        _localAccess.batchUpsert(urn, values, classes, auditStamp, trackingContext, false);
+      // Aspect callbacks (can transform or skip)
+      AspectUpdateResult callbackResult = aspectCallbackHelper(urn, newValue, Optional.empty(), ingestionParams, auditStamp);
+      newValue = (RecordTemplate) callbackResult.getUpdatedAspect();
+      if (newValue == null || callbackResult.isSkipProcessing()) {
+        // Skip this aspect
+        continue;
       }
 
-      return processed;
-    }, maxTransactionRetry);
+      // Validation
+      validateAgainstSchemaAndFillinDefault(newValue);
 
-    // Post-transaction: emit MAE and post-update hooks
+      // Pre-update hooks (executed OUTSIDE transaction, like create pathway)
+      if (_aspectPreUpdateHooksMap.containsKey(aspectClass)) {
+        for (final BiConsumer<Urn, RecordTemplate> hook : _aspectPreUpdateHooksMap.get(aspectClass)) {
+          hook.accept(urn, newValue);
+        }
+      }
+
+      processedAspects.add(new ProcessedAspect(aspectClass, newValue, ingestionParams));
+    }
+
+    // Check if any of the aspects are in test mode (same logic as create pathway)
+    // Assumption: Either all aspects will be in test mode OR all aspects will be in non-test mode.
+    boolean isTestModeFalseForAll = processedAspects.stream()
+        .noneMatch(aspect -> aspect.ingestionParams.isTestMode());
+
+    // Execute batch SQL (transaction managed by EbeanLocalDAO, like create pathway)
+    if (!processedAspects.isEmpty()) {
+      List<RecordTemplate> values = processedAspects.stream().map(p -> p.aspectValue).collect(Collectors.toList());
+
+      // Call subclass implementation - transaction handled inside EbeanLocalDAO.batchUpsertAspects()
+      // Pass isTestMode flag (negated to match createNewAssetWithAspects convention)
+      batchUpsertAspects(urn, aspectUpdateLambdas, values, auditStamp, trackingContext, !isTestModeFalseForAll);
+    }
+
+    // Post-transaction: emit MAE and post-update hooks using unwrapAddResultToUnion()
+    // This reuses the same logic as addMany() and ingestInternalAsset()
     List<ASPECT_UNION> results = new ArrayList<>();
     for (ProcessedAspect processed : processedAspects) {
-      Class<RecordTemplate> aspectClass = processed.aspectClass;
-      RecordTemplate newValue = processed.aspectValue;
+      // Create AddResult with oldValue=null since batch upsert doesn't read old values
+      AddResult<RecordTemplate> addResult = new AddResult<>(
+          null,  // oldValue - not read in batch operation
+          processed.aspectValue,  // newValue
+          processed.aspectClass   // aspectClass
+      );
 
-      // Post-update hooks (outside transaction)
-      if (_aspectPostUpdateHooksMap.containsKey(aspectClass) && newValue != null) {
-        _aspectPostUpdateHooksMap.get(aspectClass).forEach(hook -> hook.accept(urn, newValue));
-      }
-
-      // Produce MAE
-      if (_emitAuditEvent) {
-        if (_alwaysEmitAuditEvent || true) { // Always emit since we don't check equality
-          if (_trackingProducer != null) {
-            _trackingProducer.produceMetadataAuditEvent(urn, null, newValue);
-          } else {
-            _producer.produceMetadataAuditEvent(urn, null, newValue);
-          }
-        }
-      }
-
-      // Produce aspect-specific MAE
-      if (_emitAspectSpecificAuditEvent) {
-        _producer.produceAspectSpecificMetadataAuditEvent(urn, null, newValue);
-      }
-
-      // Convert to union
-      try {
-        ASPECT_UNION aspectUnion = ModelUtils.newAspectUnion(_aspectUnionClass, newValue);
-        results.add(aspectUnion);
-      } catch (Exception e) {
-        throw new RuntimeException("Failed to create aspect union for " + aspectClass.getSimpleName(), e);
-      }
+      // Use existing unwrapAddResultToUnion() to handle:
+      // - Post-update hooks
+      // - MAE emission (regular and aspect-specific)
+      // - Union wrapping
+      ASPECT_UNION result = unwrapAddResultToUnion(urn, addResult, auditStamp, trackingContext);
+      results.add(result);
     }
 
     return results;
@@ -773,10 +774,12 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   private static class ProcessedAspect {
     final Class<RecordTemplate> aspectClass;
     final RecordTemplate aspectValue;
+    final IngestionParams ingestionParams;
 
-    ProcessedAspect(Class<RecordTemplate> aspectClass, RecordTemplate aspectValue) {
+    ProcessedAspect(Class<RecordTemplate> aspectClass, RecordTemplate aspectValue, IngestionParams ingestionParams) {
       this.aspectClass = aspectClass;
       this.aspectValue = aspectValue;
+      this.ingestionParams = ingestionParams;
     }
   }
 
@@ -1456,6 +1459,24 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   protected abstract <ASPECT_UNION extends RecordTemplate> int createNewAssetWithAspects(@NonNull URN urn,
       @Nonnull List<AspectCreateLambda<? extends RecordTemplate>> aspectCreateLambdas,
       @Nonnull List<? extends RecordTemplate> aspectValues, @Nonnull AuditStamp newAuditStamp,
+      @Nullable IngestionTrackingContext trackingContext, boolean isTestMode);
+
+  /**
+   * Batch upsert multiple aspects for a single URN using a single SQL statement.
+   * Subclasses must implement this to perform the actual database operation.
+   *
+   * @param urn entity URN
+   * @param aspectUpdateLambdas list of aspect update lambdas to upsert
+   * @param aspectValues list of aspect values to upsert
+   * @param auditStamp audit stamp for tracking
+   * @param trackingContext tracking context for ingestion
+   * @param isTestMode whether the test mode is enabled or not
+   * @return number of rows affected
+   */
+  protected abstract <ASPECT_UNION extends RecordTemplate> int batchUpsertAspects(@Nonnull URN urn,
+      @Nonnull List<AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas,
+      @Nonnull List<? extends RecordTemplate> aspectValues,
+      @Nonnull AuditStamp auditStamp,
       @Nullable IngestionTrackingContext trackingContext, boolean isTestMode);
 
   /**

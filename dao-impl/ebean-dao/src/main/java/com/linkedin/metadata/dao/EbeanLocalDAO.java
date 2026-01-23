@@ -728,6 +728,28 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   @Override
+  protected <ASPECT_UNION extends RecordTemplate> int batchUpsertAspects(@Nonnull URN urn,
+      @Nonnull List<AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas,
+      @Nonnull List<? extends RecordTemplate> aspectValues,
+      @Nonnull AuditStamp auditStamp,
+      @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
+    // Wrap in transaction with retry, just like createNewAssetWithAspects()
+    return runInTransactionWithRetry(() -> {
+      // Execute batch upsert
+      int rows = _localAccess.batchUpsert(urn, aspectValues, aspectUpdateLambdas, auditStamp, trackingContext, isTestMode);
+
+      // also insert any relationships associated with these aspects
+      for (int i = 0; i < aspectValues.size(); i++) {
+        Class<RecordTemplate> aspectClass = (Class<RecordTemplate>) aspectUpdateLambdas.get(i).getAspectClass();
+        RecordTemplate newValue = aspectValues.get(i);
+        handleRelationshipIngestion(urn, newValue, null, aspectClass, isTestMode);
+      }
+
+      return rows;
+    }, 1);
+  }
+
+  @Override
   protected int permanentDelete(@Nonnull URN urn, boolean isTestMode) {
     // If the table does not have the URN, return empty map. Nothing to delete here.
     if (!exists(urn)) {

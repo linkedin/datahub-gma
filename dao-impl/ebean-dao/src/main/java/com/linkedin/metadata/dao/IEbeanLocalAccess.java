@@ -81,7 +81,7 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * @param <ASPECT_UNION>           metadata aspect value
    * @param urn                      entity urn
    * @param aspectValues             list of aspect values in {@link RecordTemplate}
-   * @param aspectClasses            list of aspect classes (must match aspectValues)
+   * @param aspectUpdateLambdas      list of aspect update lambdas to upsert
    * @param auditStamp               audit timestamp
    * @param ingestionTrackingContext the ingestionTrackingContext of the MCE responsible for this update
    * @param isTestMode               whether the test mode is enabled or not
@@ -89,7 +89,7 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    */
   <ASPECT_UNION extends RecordTemplate> int batchUpsert(@Nonnull URN urn,
       @Nonnull List<? extends RecordTemplate> aspectValues,
-      @Nonnull List<Class<? extends RecordTemplate>> aspectClasses,
+      @Nonnull List<BaseLocalDAO.AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas,
       @Nonnull AuditStamp auditStamp,
       @Nullable IngestionTrackingContext ingestionTrackingContext, boolean isTestMode);
 
