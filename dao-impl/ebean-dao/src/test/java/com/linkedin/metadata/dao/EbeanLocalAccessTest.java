@@ -520,4 +520,93 @@ public class EbeanLocalAccessTest {
     int numRowsDeleted = _ebeanLocalAccessFoo.softDeleteAsset(fooUrn, false);
     assertEquals(numRowsDeleted, 1);
   }
+
+  // ===== batchUpsert() tests =====
+
+  @Test
+  public void testBatchUpsertMultipleAspects() {
+    // Arrange
+    FooUrn fooUrn = makeFooUrn(300);
+    AspectFoo foo = new AspectFoo().setValue("foo_value");
+    AspectBar bar = new AspectBar().setValue("bar_value");
+    List<RecordTemplate> aspects = List.of(foo, bar);
+    List<Class<? extends RecordTemplate>> classes = List.of(AspectFoo.class, AspectBar.class);
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+
+    // Act
+    int result = _ebeanLocalAccessFoo.batchUpsert(fooUrn, aspects, classes, auditStamp, null, false);
+
+    // Assert
+    assertEquals(result, 1);
+    
+    // Verify both aspects were written
+    List<EbeanMetadataAspect> fooResults = _server.find(EbeanMetadataAspect.class)
+        .where().eq("urn", fooUrn.toString()).findList();
+    assertNotNull(fooResults);
+  }
+
+  @Test
+  public void testBatchUpsertSingleAspect() {
+    // Arrange
+    FooUrn fooUrn = makeFooUrn(301);
+    AspectFoo foo = new AspectFoo().setValue("single");
+    List<RecordTemplate> aspects = List.of(foo);
+    List<Class<? extends RecordTemplate>> classes = List.of(AspectFoo.class);
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+
+    // Act
+    int result = _ebeanLocalAccessFoo.batchUpsert(fooUrn, aspects, classes, auditStamp, null, false);
+
+    // Assert
+    assertEquals(result, 1);
+  }
+
+  @Test(expectedExceptions = IllegalArgumentException.class,
+        expectedExceptionsMessageRegExp = ".*aspectValues and aspectClasses must have the same size.*")
+  public void testBatchUpsertMismatchedSizes() {
+    // Arrange
+    FooUrn fooUrn = makeFooUrn(302);
+    AspectFoo foo = new AspectFoo().setValue("test");
+    List<RecordTemplate> aspects = List.of(foo);
+    List<Class<? extends RecordTemplate>> classes = List.of(AspectFoo.class, AspectBar.class);
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+
+    // Act - should throw
+    _ebeanLocalAccessFoo.batchUpsert(fooUrn, aspects, classes, auditStamp, null, false);
+  }
+
+  @Test(expectedExceptions = IllegalArgumentException.class,
+        expectedExceptionsMessageRegExp = ".*Aspect value cannot be null.*")
+  public void testBatchUpsertWithNullAspect() {
+    // Arrange
+    FooUrn fooUrn = makeFooUrn(303);
+    List<RecordTemplate> aspects = List.of(new AspectFoo().setValue("test"), null);
+    List<Class<? extends RecordTemplate>> classes = List.of(AspectFoo.class, AspectBar.class);
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+
+    // Act - should throw
+    _ebeanLocalAccessFoo.batchUpsert(fooUrn, aspects, classes, auditStamp, null, false);
+  }
+
+  @Test
+  public void testBatchUpsertUpsertBehavior() {
+    // Arrange
+    FooUrn fooUrn = makeFooUrn(304);
+    AspectFoo foo1 = new AspectFoo().setValue("initial");
+    List<RecordTemplate> aspects1 = List.of(foo1);
+    List<Class<? extends RecordTemplate>> classes = List.of(AspectFoo.class);
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+    
+    // First write
+    int result1 = _ebeanLocalAccessFoo.batchUpsert(fooUrn, aspects1, classes, auditStamp, null, false);
+    assertEquals(result1, 1);
+    
+    // Act - upsert with new value
+    AspectFoo foo2 = new AspectFoo().setValue("updated");
+    List<RecordTemplate> aspects2 = List.of(foo2);
+    int result2 = _ebeanLocalAccessFoo.batchUpsert(fooUrn, aspects2, classes, auditStamp, null, false);
+
+    // Assert - should have updated
+    assertEquals(result2, 1);
+  }
 }

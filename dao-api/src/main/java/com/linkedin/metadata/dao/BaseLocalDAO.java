@@ -649,6 +649,137 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     return addMany(urn, aspectUpdateLambdas, auditStamp, DEFAULT_MAX_TRANSACTION_RETRY, trackingContext);
   }
 
+  /**
+   * Batch upsert multiple aspects for a single URN using a single multi-column SQL statement.
+   * This method processes all aspects through validation/callbacks before executing a single batch SQL update.
+   * 
+   * Differences from addMany():
+   * - Uses single SQL statement (1 DB call) instead of N statements (2N DB calls)
+   * - Does NOT read old values (no equality testing or backfill)
+   * - Does NOT support Lambda Function Registry transformations (not used in practice)
+   * - DOES support aspect callbacks, validation, and pre/post-update hooks
+   * - Always does UPSERT (insert or replace), no duplicate key checks
+   * 
+   * @param urn entity URN
+   * @param aspectValues list of aspect values to upsert
+   * @param auditStamp audit stamp for tracking
+   * @param trackingContext tracking context for ingestion
+   * @return list of aspect unions (all newValue since we don't read oldValue)
+   */
+  public List<ASPECT_UNION> addManyBatch(@Nonnull URN urn, @Nonnull List<? extends RecordTemplate> aspectValues,
+      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext) {
+    return addManyBatch(urn, aspectValues, auditStamp, trackingContext, DEFAULT_MAX_TRANSACTION_RETRY);
+  }
+
+  /**
+   * Batch upsert with configurable transaction retry.
+   */
+  public List<ASPECT_UNION> addManyBatch(@Nonnull URN urn, @Nonnull List<? extends RecordTemplate> aspectValues,
+      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext, int maxTransactionRetry) {
+
+    // Validate all aspects upfront
+    aspectValues.forEach(aspectValue -> checkValidAspect(aspectValue.getClass()));
+
+    // Process all aspects through callbacks/validation pipeline
+    final List<ProcessedAspect> processedAspects = runInTransactionWithRetry(() -> {
+      List<ProcessedAspect> processed = new ArrayList<>();
+
+      for (RecordTemplate aspectValue : aspectValues) {
+        Class<RecordTemplate> aspectClass = (Class<RecordTemplate>) aspectValue.getClass();
+        IngestionParams ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
+
+        RecordTemplate newValue = aspectValue;
+
+        // NOTE: Lambda Function Registry NOT supported (not used in practice)
+        // if (_lambdaFunctionRegistry != null && _lambdaFunctionRegistry.isRegistered(aspectClass)) {
+        //   newValue = updatePreIngestionLambdas(urn, Optional.empty(), newValue);
+        // }
+
+        // Aspect callbacks (can transform or skip)
+        AspectUpdateResult callbackResult = aspectCallbackHelper(urn, newValue, Optional.empty(), ingestionParams, auditStamp);
+        newValue = (RecordTemplate) callbackResult.getUpdatedAspect();
+        if (newValue == null || callbackResult.isSkipProcessing()) {
+          // Skip this aspect
+          continue;
+        }
+
+        // Validation
+        validateAgainstSchemaAndFillinDefault(newValue);
+
+        // Pre-update hooks (side effects within transaction)
+        if (_aspectPreUpdateHooksMap.containsKey(aspectClass)) {
+          for (final BiConsumer<Urn, RecordTemplate> hook : _aspectPreUpdateHooksMap.get(aspectClass)) {
+            hook.accept(urn, newValue);
+          }
+        }
+
+        processed.add(new ProcessedAspect(aspectClass, newValue));
+      }
+
+      // Execute batch SQL (single statement for all aspects)
+      if (!processed.isEmpty()) {
+        List<RecordTemplate> values = processed.stream().map(p -> p.aspectValue).collect(Collectors.toList());
+        List<Class<? extends RecordTemplate>> classes = processed.stream().map(p -> p.aspectClass).collect(Collectors.toList());
+        
+        // Call EbeanLocalAccess.batchUpsert()
+        _localAccess.batchUpsert(urn, values, classes, auditStamp, trackingContext, false);
+      }
+
+      return processed;
+    }, maxTransactionRetry);
+
+    // Post-transaction: emit MAE and post-update hooks
+    List<ASPECT_UNION> results = new ArrayList<>();
+    for (ProcessedAspect processed : processedAspects) {
+      Class<RecordTemplate> aspectClass = processed.aspectClass;
+      RecordTemplate newValue = processed.aspectValue;
+
+      // Post-update hooks (outside transaction)
+      if (_aspectPostUpdateHooksMap.containsKey(aspectClass) && newValue != null) {
+        _aspectPostUpdateHooksMap.get(aspectClass).forEach(hook -> hook.accept(urn, newValue));
+      }
+
+      // Produce MAE
+      if (_emitAuditEvent) {
+        if (_alwaysEmitAuditEvent || true) { // Always emit since we don't check equality
+          if (_trackingProducer != null) {
+            _trackingProducer.produceMetadataAuditEvent(urn, null, newValue);
+          } else {
+            _producer.produceMetadataAuditEvent(urn, null, newValue);
+          }
+        }
+      }
+
+      // Produce aspect-specific MAE
+      if (_emitAspectSpecificAuditEvent) {
+        _producer.produceAspectSpecificMetadataAuditEvent(urn, null, newValue);
+      }
+
+      // Convert to union
+      try {
+        ASPECT_UNION aspectUnion = ModelUtils.newAspectUnion(_aspectUnionClass, newValue);
+        results.add(aspectUnion);
+      } catch (Exception e) {
+        throw new RuntimeException("Failed to create aspect union for " + aspectClass.getSimpleName(), e);
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Helper class to hold processed aspect data.
+   */
+  private static class ProcessedAspect {
+    final Class<RecordTemplate> aspectClass;
+    final RecordTemplate aspectValue;
+
+    ProcessedAspect(Class<RecordTemplate> aspectClass, RecordTemplate aspectValue) {
+      this.aspectClass = aspectClass;
+      this.aspectValue = aspectValue;
+    }
+  }
+
   private <ASPECT extends RecordTemplate> AddResult<ASPECT> aspectUpdateHelper(URN urn, AspectUpdateLambda<ASPECT> updateTuple,
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext) {
     return aspectUpdateHelper(urn, updateTuple, auditStamp, trackingContext, false);
