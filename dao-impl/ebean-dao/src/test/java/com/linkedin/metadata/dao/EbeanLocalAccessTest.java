@@ -567,7 +567,7 @@ public class EbeanLocalAccessTest {
   }
 
   @Test(expectedExceptions = IllegalArgumentException.class,
-        expectedExceptionsMessageRegExp = ".*Aspect value cannot be null.*")
+        expectedExceptionsMessageRegExp = ".*must match.*")
   public void testBatchUpsertMismatchedSizes() {
     // Arrange
     FooUrn fooUrn = makeFooUrn(302);
@@ -622,7 +622,7 @@ public class EbeanLocalAccessTest {
         Collections.singletonList(new BaseLocalDAO.AspectUpdateLambda<>(foo2));
     int result2 = _ebeanLocalAccessFoo.batchUpsert(fooUrn, aspects2, aspectUpdateLambdas2, auditStamp, null, false);
 
-    // Assert - should have updated
-    assertEquals(result2, 1);
+    // Assert - MySQL returns 2 for ON DUPLICATE KEY UPDATE when updating existing row
+    assertEquals(result2, 2);
   }
 }

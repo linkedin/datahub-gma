@@ -317,6 +317,12 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       @Nullable IngestionTrackingContext ingestionTrackingContext,
       boolean isTestMode) {
 
+    if (aspectValues.size() != aspectUpdateLambdas.size()) {
+      throw new IllegalArgumentException(
+          String.format("Aspect values size (%d) must match aspect update lambdas size (%d)",
+              aspectValues.size(), aspectUpdateLambdas.size()));
+    }
+
     aspectValues.forEach(aspectValue -> {
       if (aspectValue == null) {
         throw new IllegalArgumentException("Aspect value cannot be null");
