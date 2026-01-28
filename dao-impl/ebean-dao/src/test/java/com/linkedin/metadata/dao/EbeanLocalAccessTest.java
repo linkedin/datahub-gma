@@ -625,4 +625,82 @@ public class EbeanLocalAccessTest {
     // Assert - MySQL returns 2 for ON DUPLICATE KEY UPDATE when updating existing row
     assertEquals(result2, 2);
   }
+
+  @Test
+  public void testBatchUpsertWithIngestionTrackingContext() {
+    // Arrange
+    FooUrn fooUrn = makeFooUrn(305);
+    AspectFoo foo = new AspectFoo().setValue("tracked");
+    List<RecordTemplate> aspects = Collections.singletonList(foo);
+    List<BaseLocalDAO.AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas = 
+        Collections.singletonList(new BaseLocalDAO.AspectUpdateLambda<>(foo));
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+    
+    // Create ingestion tracking context
+    com.linkedin.metadata.events.IngestionTrackingContext trackingContext = 
+        new com.linkedin.metadata.events.IngestionTrackingContext()
+            .setEmitter("test-emitter")
+            .setEmitTime(System.currentTimeMillis());
+
+    // Act
+    int result = _ebeanLocalAccessFoo.batchUpsert(fooUrn, aspects, aspectUpdateLambdas, auditStamp, trackingContext, false);
+
+    // Assert
+    assertEquals(result, 1);
+  }
+
+  @Test
+  public void testBatchUpsertWithImpersonator() {
+    // Arrange
+    FooUrn fooUrn = makeFooUrn(306);
+    AspectFoo foo = new AspectFoo().setValue("impersonated");
+    List<RecordTemplate> aspects = Collections.singletonList(foo);
+    List<BaseLocalDAO.AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas = 
+        Collections.singletonList(new BaseLocalDAO.AspectUpdateLambda<>(foo));
+    
+    // Create audit stamp with impersonator
+    FooUrn actor = makeFooUrn(9001);
+    FooUrn impersonator = makeFooUrn(9002);
+    AuditStamp auditStamp = makeAuditStamp(actor, impersonator, _now);
+
+    // Act
+    int result = _ebeanLocalAccessFoo.batchUpsert(fooUrn, aspects, aspectUpdateLambdas, auditStamp, null, false);
+
+    // Assert
+    assertEquals(result, 1);
+  }
+
+  @Test
+  public void testBatchUpsertInTestMode() {
+    // Arrange
+    FooUrn fooUrn = makeFooUrn(307);
+    AspectFoo foo = new AspectFoo().setValue("test_mode");
+    List<RecordTemplate> aspects = Collections.singletonList(foo);
+    List<BaseLocalDAO.AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas = 
+        Collections.singletonList(new BaseLocalDAO.AspectUpdateLambda<>(foo));
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+
+    // Act - with test mode enabled
+    int result = _ebeanLocalAccessFoo.batchUpsert(fooUrn, aspects, aspectUpdateLambdas, auditStamp, null, true);
+
+    // Assert
+    assertEquals(result, 1);
+  }
+
+  @Test
+  public void testBatchUpsertWithoutUrnExtraction() {
+    // Arrange - use BurgerUrn which has EmptyPathExtractor (no URN extraction)
+    BurgerUrn burgerUrn = makeBurgerUrn("urn:li:burger:test100");
+    AspectFoo foo = new AspectFoo().setValue("no_urn_extraction");
+    List<RecordTemplate> aspects = Collections.singletonList(foo);
+    List<BaseLocalDAO.AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas = 
+        Collections.singletonList(new BaseLocalDAO.AspectUpdateLambda<>(foo));
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+
+    // Act
+    int result = _ebeanLocalAccessBurger.batchUpsert(burgerUrn, aspects, aspectUpdateLambdas, auditStamp, null, false);
+
+    // Assert
+    assertEquals(result, 1);
+  }
 }

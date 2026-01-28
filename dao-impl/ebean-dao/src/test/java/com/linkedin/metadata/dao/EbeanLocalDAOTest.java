@@ -4404,4 +4404,96 @@ public class EbeanLocalDAOTest {
     // Should have 2 BelongsToV2 relationships (one for each relationship in AspectFooBar's belongsTos field)
     assertEquals(relationships.size(), 2);
   }
+
+  @Test
+  public void testAddManyBatch() throws URISyntaxException {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(5000);
+    
+    AspectFoo foo = new AspectFoo().setValue("batch_foo");
+    AspectBar bar = new AspectBar().setValue("batch_bar");
+    List<RecordTemplate> aspects = Arrays.asList(foo, bar);
+    
+    // Act - use addManyBatch
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, aspects, _dummyAuditStamp, null);
+    
+    // Assert
+    assertEquals(results.size(), 2);
+    assertTrue(dao.exists(fooUrn));
+    assertEquals(dao.get(AspectFoo.class, fooUrn).get().getValue(), "batch_foo");
+    assertEquals(dao.get(AspectBar.class, fooUrn).get().getValue(), "batch_bar");
+  }
+
+  @Test
+  public void testAddManyBatchWithIngestionTrackingContext() throws URISyntaxException {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(5001);
+    
+    AspectFoo foo = new AspectFoo().setValue("tracked_batch");
+    List<RecordTemplate> aspects = Collections.singletonList(foo);
+    
+    IngestionTrackingContext trackingContext = new IngestionTrackingContext()
+        .setEmitter("test-emitter")
+        .setEmitTime(System.currentTimeMillis());
+    
+    // Act
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, aspects, _dummyAuditStamp, trackingContext);
+    
+    // Assert
+    assertEquals(results.size(), 1);
+    assertEquals(dao.get(AspectFoo.class, fooUrn).get().getValue(), "tracked_batch");
+  }
+
+  @Test
+  public void testAddManyBatchUpsertBehavior() throws URISyntaxException {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(5002);
+    
+    // First insert
+    AspectFoo foo1 = new AspectFoo().setValue("initial_batch");
+    dao.addManyBatch(fooUrn, Collections.singletonList(foo1), _dummyAuditStamp, null);
+    assertEquals(dao.get(AspectFoo.class, fooUrn).get().getValue(), "initial_batch");
+    
+    // Upsert with new value
+    AspectFoo foo2 = new AspectFoo().setValue("updated_batch");
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, Collections.singletonList(foo2), _dummyAuditStamp, null);
+    
+    // Assert - should have updated
+    assertEquals(results.size(), 1);
+    assertEquals(dao.get(AspectFoo.class, fooUrn).get().getValue(), "updated_batch");
+  }
+
+  @Test
+  public void testAddManyBatchSingleAspect() throws URISyntaxException {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(5003);
+    
+    AspectFoo foo = new AspectFoo().setValue("single_batch");
+    
+    // Act
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, Collections.singletonList(foo), _dummyAuditStamp, null);
+    
+    // Assert
+    assertEquals(results.size(), 1);
+    assertEquals(dao.get(AspectFoo.class, fooUrn).get().getValue(), "single_batch");
+  }
+
+  @Test
+  public void testAddManyBatchMultipleAspects() throws URISyntaxException {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(5004);
+    
+    // Test with 3 different aspects
+    AspectFoo foo = new AspectFoo().setValue("multi_foo");
+    AspectBar bar = new AspectBar().setValue("multi_bar");
+    List<RecordTemplate> aspects = Arrays.asList(foo, bar);
+    
+    // Act
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, aspects, _dummyAuditStamp, null);
+    
+    // Assert - all aspects should be inserted
+    assertEquals(results.size(), 2);
+    assertEquals(dao.get(AspectFoo.class, fooUrn).get().getValue(), "multi_foo");
+    assertEquals(dao.get(AspectBar.class, fooUrn).get().getValue(), "multi_bar");
+  }
 }
