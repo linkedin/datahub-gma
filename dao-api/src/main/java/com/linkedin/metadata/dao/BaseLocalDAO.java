@@ -656,8 +656,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * <p>Differences from addMany():
    * - Uses single SQL statement (1 DB call) instead of N statements (2N DB calls)
    * - Does NOT read old values (no equality testing or backfill)
-   * - Does NOT support Lambda Function Registry transformations (not used in practice)
-   * - DOES support aspect callbacks, validation, and pre/post-update hooks
+   * - DOES support Lambda Function Registry transformations, aspect callbacks, validation, and pre/post-update hooks
    * - Always does UPSERT (insert or replace), no duplicate key checks
    *
    * @param urn entity URN
