@@ -4516,4 +4516,106 @@ public class EbeanLocalDAOTest {
     assertNotNull(results.get(0));
     assertNotNull(results.get(1));
   }
+
+  @Test
+  public void testAddManyBatchWithEqualitySkip() throws URISyntaxException {
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      return;
+    }
+    
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(6000);
+    
+    // First write
+    AspectFoo foo1 = new AspectFoo().setValue("initial");
+    dao.addManyBatch(fooUrn, Collections.singletonList(foo1), _dummyAuditStamp, null);
+    
+    // Second write with SAME value - should skip due to equality
+    AspectFoo foo2 = new AspectFoo().setValue("initial");
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, Collections.singletonList(foo2), _dummyAuditStamp, null);
+    
+    // Should return result
+    assertEquals(results.size(), 1);
+    assertNotNull(results.get(0));
+  }
+
+  @Test
+  public void testAddManyBatchUpdateExisting() throws URISyntaxException {
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      return;
+    }
+    
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(6001);
+    
+    // First write
+    AspectFoo foo1 = new AspectFoo().setValue("v1");
+    dao.addManyBatch(fooUrn, Collections.singletonList(foo1), _dummyAuditStamp, null);
+    
+    // Second write with different value - should update
+    AspectFoo foo2 = new AspectFoo().setValue("v2");
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, Collections.singletonList(foo2), _dummyAuditStamp, null);
+    
+    // Verify result returned
+    assertEquals(results.size(), 1);
+    assertNotNull(results.get(0));
+  }
+
+  @Test
+  public void testAddManyBatchWithBackfillSkip() throws URISyntaxException {
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      return;
+    }
+    
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(6002);
+    
+    long now = System.currentTimeMillis();
+    
+    // First write with newer timestamp
+    AspectFoo foo1 = new AspectFoo().setValue("newer_data");
+    IngestionTrackingContext newerContext = new IngestionTrackingContext()
+        .setEmitter("test")
+        .setEmitTime(now + 1000)
+        .setBackfill(true);
+    dao.addManyBatch(fooUrn, Collections.singletonList(foo1), _dummyAuditStamp, newerContext);
+    
+    // Try to backfill with OLDER timestamp - should be skipped
+    AspectFoo foo2 = new AspectFoo().setValue("older_data");
+    IngestionTrackingContext olderContext = new IngestionTrackingContext()
+        .setEmitter("test")
+        .setEmitTime(now)  // Older timestamp
+        .setBackfill(true);
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, Collections.singletonList(foo2), 
+        _dummyAuditStamp, olderContext);
+    
+    // Should return result
+    assertEquals(results.size(), 1);
+  }
+
+  @Test
+  public void testAddManyBatchMixedEqualityChanges() throws URISyntaxException {
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      return;
+    }
+    
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(6003);
+    
+    // First write - 2 aspects
+    AspectFoo foo1 = new AspectFoo().setValue("foo_v1");
+    AspectBar bar1 = new AspectBar().setValue("bar_v1");
+    dao.addManyBatch(fooUrn, Arrays.asList(foo1, bar1), _dummyAuditStamp, null);
+    
+    // Second write - Foo unchanged, Bar changed
+    AspectFoo foo2 = new AspectFoo().setValue("foo_v1");  // Same
+    AspectBar bar2 = new AspectBar().setValue("bar_v2");  // Different
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, Arrays.asList(foo2, bar2), 
+        _dummyAuditStamp, null);
+    
+    // Should return 2 results
+    assertEquals(results.size(), 2);
+    assertNotNull(results.get(0));
+    assertNotNull(results.get(1));
+  }
 }

@@ -650,20 +650,22 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * Batch upsert multiple aspects for a single URN using a single multi-column SQL statement.
+   * Batch upsert multiple aspects for a single URN using optimized batched read and write operations.
    * This method processes all aspects through validation/callbacks before executing a single batch SQL update.
    *
    * <p>Differences from addMany():
-   * - Uses single SQL statement (1 DB call) instead of N statements (2N DB calls)
-   * - Does NOT read old values (no equality testing or backfill)
+   * - Uses 2 queries (1 batched read + 1 batched write) instead of 2N queries (N reads + N writes)
+   * - DOES read old values for equality testing, backfill logic, and lambda functions
    * - DOES support Lambda Function Registry transformations, aspect callbacks, validation, and pre/post-update hooks
-   * - Always does UPSERT (insert or replace), no duplicate key checks
+   * - DOES skip DB writes for unchanged aspects (equality testing)
+   * - DOES skip MAE emission for unchanged aspects
+   * - Only writes changed aspects in a single batch operation
    *
    * @param urn entity URN
    * @param aspectValues list of aspect values to upsert
    * @param auditStamp audit stamp for tracking
    * @param trackingContext tracking context for ingestion
-   * @return list of aspect unions (all newValue since we don't read oldValue)
+   * @return list of aspect unions (with actual old values for proper MAE emission)
    */
   public List<ASPECT_UNION> addManyBatch(@Nonnull URN urn, @Nonnull List<? extends RecordTemplate> aspectValues,
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext) {
@@ -695,71 +697,78 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     // Validate all aspects upfront
     aspectUpdateLambdas.stream().map(AspectUpdateLambda::getAspectClass).forEach(this::checkValidAspect);
 
-    // Process all aspects through callbacks/validation pipeline (OUTSIDE transaction, like create pathway)
-    List<ProcessedAspect> processedAspects = new ArrayList<>();
+    // STEP 1: Batched read of old values with extra info (1 query)
+    Map<Class<? extends RecordTemplate>, AspectWithExtraInfo<RecordTemplate>> oldValuesWithInfo = 
+        batchGetOldValuesWithExtraInfo(urn, aspectUpdateLambdas);
+
+    // STEP 2: Process all aspects through callbacks/validation pipeline
+    List<AddResult<RecordTemplate>> processedResults = new ArrayList<>();
+    List<RecordTemplate> valuesToWrite = new ArrayList<>();
+    List<AspectUpdateLambda<? extends RecordTemplate>> lambdasToWrite = new ArrayList<>();
 
     for (AspectUpdateLambda<? extends RecordTemplate> updateLambda : aspectUpdateLambdas) {
       Class<RecordTemplate> aspectClass = (Class<RecordTemplate>) updateLambda.getAspectClass();
       IngestionParams ingestionParams = updateLambda.getIngestionParams();
+      
+      // Extract old value and extra info from batched results
+      AspectWithExtraInfo<RecordTemplate> oldInfo = oldValuesWithInfo.get(aspectClass);
+      RecordTemplate oldAspect = oldInfo != null ? oldInfo.getAspect() : null;
+      Optional oldValue = Optional.ofNullable(oldAspect);
+      ExtraInfo oldExtraInfo = oldInfo != null ? oldInfo.getExtraInfo() : null;
+      AuditStamp oldAuditStamp = oldExtraInfo != null ? oldExtraInfo.getAudit() : null;
+      Long oldEmitTime = oldExtraInfo != null ? oldExtraInfo.getEmitTime() : null;
 
-      // Execute the lambda to get the aspect value
-      RecordTemplate newValue = (RecordTemplate) updateLambda.getUpdateLambda().apply(Optional.empty());
+      // Execute lambda WITH old value (not Optional.empty())
+      RecordTemplate newValue = (RecordTemplate) updateLambda.getUpdateLambda().apply(oldValue);
 
-      // Apply Lambda Function Registry transformations (same as addMany pathway)
-      if (_lambdaFunctionRegistry != null && _lambdaFunctionRegistry.isRegistered(aspectClass)) {
-        newValue = updatePreIngestionLambdas(urn, Optional.empty(), newValue);
+      // Equality testing & backfill logic
+      if (!shouldProcessAspect(urn, oldValue, newValue, aspectClass, auditStamp, 
+                               ingestionParams, trackingContext, oldAuditStamp, oldEmitTime)) {
+        // Skip this aspect - add as unchanged for MAE skip logic
+        processedResults.add(new AddResult<RecordTemplate>(oldAspect, oldAspect, aspectClass));
+        continue;
       }
 
-      // Aspect callbacks (can transform or skip)
-      AspectUpdateResult callbackResult = aspectCallbackHelper(urn, newValue, Optional.empty(), ingestionParams, auditStamp);
+      // Apply Lambda Function Registry transformations (with old value)
+      if (_lambdaFunctionRegistry != null && _lambdaFunctionRegistry.isRegistered(aspectClass)) {
+        newValue = updatePreIngestionLambdas(urn, oldValue, newValue);
+      }
+
+      // Aspect callbacks (with old value)
+      AspectUpdateResult callbackResult = aspectCallbackHelper(urn, newValue, oldValue, ingestionParams, auditStamp);
       newValue = (RecordTemplate) callbackResult.getUpdatedAspect();
       if (newValue == null || callbackResult.isSkipProcessing()) {
-        // Skip this aspect
         continue;
       }
 
       // Validation
       validateAgainstSchemaAndFillinDefault(newValue);
 
-      // Pre-update hooks (executed OUTSIDE transaction, like create pathway)
+      // Pre-update hooks
       if (_aspectPreUpdateHooksMap.containsKey(aspectClass)) {
         for (final BiConsumer<Urn, RecordTemplate> hook : _aspectPreUpdateHooksMap.get(aspectClass)) {
           hook.accept(urn, newValue);
         }
       }
 
-      processedAspects.add(new ProcessedAspect(aspectClass, newValue, ingestionParams));
+      // Add to both results and write lists
+      processedResults.add(new AddResult<RecordTemplate>(oldAspect, newValue, aspectClass));
+      valuesToWrite.add(newValue);
+      lambdasToWrite.add(updateLambda);
     }
 
-    // Check if any of the aspects are in test mode (same logic as create pathway)
-    // Assumption: Either all aspects will be in test mode OR all aspects will be in non-test mode.
-    boolean isTestModeFalseForAll = processedAspects.stream()
-        .noneMatch(aspect -> aspect.ingestionParams.isTestMode());
-
-    // Execute batch SQL (transaction managed by EbeanLocalDAO, like create pathway)
-    if (!processedAspects.isEmpty()) {
-      List<RecordTemplate> values = processedAspects.stream().map(p -> p.aspectValue).collect(Collectors.toList());
-
-      // Call subclass implementation - transaction handled inside EbeanLocalDAO.batchUpsertAspects()
-      // Pass isTestMode flag (negated to match createNewAssetWithAspects convention)
-      batchUpsertAspects(urn, aspectUpdateLambdas, values, auditStamp, trackingContext, !isTestModeFalseForAll);
+    // STEP 3: Execute batch SQL (1 query) - only for changed aspects
+    if (!valuesToWrite.isEmpty()) {
+      boolean isTestMode = lambdasToWrite.stream()
+          .anyMatch(lambda -> lambda.getIngestionParams().isTestMode());
+      
+      batchUpsertAspects(urn, lambdasToWrite, valuesToWrite, auditStamp, trackingContext, isTestMode);
     }
 
-    // Post-transaction: emit MAE and post-update hooks using unwrapAddResultToUnion()
-    // This reuses the same logic as addMany() and ingestInternalAsset()
+    // STEP 4: Post-transaction processing (with actual old values for MAE logic)
     List<ASPECT_UNION> results = new ArrayList<>();
-    for (ProcessedAspect processed : processedAspects) {
-      // Create AddResult with oldValue=null since batch upsert doesn't read old values
-      AddResult<RecordTemplate> addResult = new AddResult<>(
-          null,  // oldValue - not read in batch operation
-          processed.aspectValue,  // newValue
-          processed.aspectClass   // aspectClass
-      );
-
-      // Use existing unwrapAddResultToUnion() to handle:
-      // - Post-update hooks
-      // - MAE emission (regular and aspect-specific)
-      // - Union wrapping
+    for (AddResult<RecordTemplate> addResult : processedResults) {
+      // unwrapAddResultToUnion() checks equality internally - won't emit MAE if old == new
       ASPECT_UNION result = unwrapAddResultToUnion(urn, addResult, auditStamp, trackingContext);
       results.add(result);
     }
@@ -780,6 +789,88 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       this.aspectValue = aspectValue;
       this.ingestionParams = ingestionParams;
     }
+  }
+
+  /**
+   * Batch read old values with extra info (audit stamps, emit time) for equality testing and backfill.
+   * Uses existing getWithExtraInfo() which performs a single batched query.
+   */
+  private Map<Class<? extends RecordTemplate>, AspectWithExtraInfo<RecordTemplate>> 
+      batchGetOldValuesWithExtraInfo(
+          @Nonnull URN urn,
+          @Nonnull List<AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas) {
+    
+    // Build aspect keys for batch get
+    Set<AspectKey<URN, ? extends RecordTemplate>> keys = aspectUpdateLambdas.stream()
+        .map(lambda -> new AspectKey<>(lambda.getAspectClass(), urn, LATEST_VERSION))
+        .collect(Collectors.toSet());
+    
+    // Single batched query - uses existing infrastructure
+    Map<AspectKey<URN, ? extends RecordTemplate>, AspectWithExtraInfo<? extends RecordTemplate>> results = 
+        getWithExtraInfo(keys);
+    
+    // Convert to class-based map for easier lookup
+    Map<Class<? extends RecordTemplate>, AspectWithExtraInfo<RecordTemplate>> byClass = new HashMap<>();
+    for (AspectUpdateLambda lambda : aspectUpdateLambdas) {
+      AspectKey key = new AspectKey<>(lambda.getAspectClass(), urn, LATEST_VERSION);
+      AspectWithExtraInfo info = (AspectWithExtraInfo<RecordTemplate>) results.get(key);
+      if (info != null) {
+        byClass.put(lambda.getAspectClass(), info);
+      }
+    }
+    
+    return byClass;
+  }
+
+  /**
+   * Determines if an aspect should be processed based on equality testing and backfill logic.
+   * Reuses existing shouldUpdateAspect() logic for consistency with addMany().
+   */
+  private <ASPECT extends RecordTemplate> boolean shouldProcessAspect(
+      URN urn,
+      Optional<ASPECT> oldValue,
+      ASPECT newValue,
+      Class<ASPECT> aspectClass,
+      AuditStamp auditStamp,
+      IngestionParams ingestionParams,
+      IngestionTrackingContext trackingContext,
+      AuditStamp oldAuditStamp,
+      Long oldEmitTime) {
+    
+    // Backfill logic (from addCommon, lines 510-535)
+    final boolean isBackfillEvent = trackingContext != null
+        && trackingContext.hasBackfill() && trackingContext.isBackfill();
+    
+    if (isBackfillEvent) {
+      boolean shouldBackfill = !oldValue.isPresent()
+          || (trackingContext.hasEmitTime() 
+              && ((oldEmitTime != null && trackingContext.getEmitTime() > oldEmitTime)
+                  || (oldEmitTime == null && oldAuditStamp != null && oldAuditStamp.hasTime()
+                      && trackingContext.getEmitTime() > oldAuditStamp.getTime())));
+      
+      if (!shouldBackfill) {
+        log.info("Skipping backfill for aspect {} on urn {} - event is older than existing data",
+            aspectClass.getSimpleName(), urn);
+        return false;
+      }
+    }
+    
+    // Equality testing and ingestion mode logic (reuses existing shouldUpdateAspect)
+    EqualityTester<ASPECT> equalityTester = getEqualityTester(aspectClass);
+    AuditStamp eTagAuditStamp = extractOptimisticLockForAspectFromIngestionParamsIfPossible(
+        ingestionParams, aspectClass, urn);
+    
+    return shouldUpdateAspect(
+        ingestionParams.getIngestionMode(),
+        urn,
+        oldValue.orElse(null),
+        newValue,
+        aspectClass,
+        auditStamp,
+        equalityTester,
+        oldAuditStamp,
+        eTagAuditStamp
+    );
   }
 
   private <ASPECT extends RecordTemplate> AddResult<ASPECT> aspectUpdateHelper(URN urn, AspectUpdateLambda<ASPECT> updateTuple,
