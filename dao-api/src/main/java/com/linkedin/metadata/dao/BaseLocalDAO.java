@@ -755,21 +755,6 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * Helper class to hold processed aspect data.
-   */
-  private static class ProcessedAspect {
-    final Class<RecordTemplate> aspectClass;
-    final RecordTemplate aspectValue;
-    final IngestionParams ingestionParams;
-
-    ProcessedAspect(Class<RecordTemplate> aspectClass, RecordTemplate aspectValue, IngestionParams ingestionParams) {
-      this.aspectClass = aspectClass;
-      this.aspectValue = aspectValue;
-      this.ingestionParams = ingestionParams;
-    }
-  }
-
-  /**
    * Batch read old values with extra info (audit stamps, emit time) for equality testing and backfill.
    * Uses existing getWithExtraInfo() which performs a single batched query.
    */
