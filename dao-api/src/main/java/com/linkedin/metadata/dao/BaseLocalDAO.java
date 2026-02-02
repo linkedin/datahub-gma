@@ -507,33 +507,6 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     final AuditStamp oldAuditStamp = latest.getExtraInfo() == null ? null : latest.getExtraInfo().getAudit();
     final Long oldEmitTime = latest.getExtraInfo() == null ? null : latest.getExtraInfo().getEmitTime();
 
-    final boolean isBackfillEvent = trackingContext != null
-        && trackingContext.hasBackfill() && trackingContext.isBackfill();
-    if (isBackfillEvent) {
-      boolean shouldBackfill =
-          // new value is being inserted. We should backfill
-          oldValue == null
-              || (
-              // tracking context should ideally always have emitTime. If it's not present, we will skip backfilling
-              trackingContext.hasEmitTime()
-                  && (
-                  // old emit time is available so we'll use it for comparison
-                  // if new event emit time > old event emit time, we'll backfill
-                  (oldEmitTime != null && trackingContext.getEmitTime() > oldEmitTime)
-                      // old emit time is not available, so we'll fall back to comparing new emit time against old audit time
-                      // old audit time represents the last modified time of the aspect
-                      || (oldEmitTime == null && oldAuditStamp != null && oldAuditStamp.hasTime() && trackingContext.getEmitTime() > oldAuditStamp.getTime())));
-
-      log.info("Encounter backfill event. Old value = null: {}. Tracking context: {}. Urn: {}. Aspect class: {}. Old audit stamp: {}. "
-              + "Old emit time: {}. "
-              + "Based on this information, shouldBackfill = {}.",
-          oldValue == null, trackingContext, urn, aspectClass, oldAuditStamp, oldEmitTime, shouldBackfill);
-
-      if (!shouldBackfill) {
-        return new AddResult<>(oldValue, oldValue, aspectClass);
-      }
-    }
-
     // TODO(yanyang) added for job-gms duplicity debug, throwaway afterwards
     if (log.isDebugEnabled()) {
       if ("AzkabanFlowInfo".equals(aspectClass.getSimpleName())) {
@@ -545,9 +518,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     final AuditStamp optimisticLockAuditStamp = extractOptimisticLockForAspectFromIngestionParamsIfPossible(ingestionParams, aspectClass, urn);
 
-    // Logic determines whether an update to aspect should be persisted.
+    // Unified logic determines whether an update to aspect should be persisted (includes backfill, equality, version, mode checks)
     if (!shouldUpdateAspect(ingestionParams.getIngestionMode(), urn, oldValue, newValue, aspectClass, auditStamp, equalityTester,
-        oldAuditStamp, optimisticLockAuditStamp)) {
+        oldAuditStamp, optimisticLockAuditStamp, trackingContext, oldEmitTime)) {
       return new AddResult<>(oldValue, oldValue, aspectClass);
     }
 
@@ -721,9 +694,14 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       // Execute lambda WITH old value (not Optional.empty())
       RecordTemplate newValue = (RecordTemplate) updateLambda.getUpdateLambda().apply(oldValue);
 
-      // Equality testing & backfill logic
-      if (!shouldProcessAspect(urn, oldValue, newValue, aspectClass, auditStamp, 
-                               ingestionParams, trackingContext, oldAuditStamp, oldEmitTime)) {
+      // Equality testing & backfill logic using unified shouldUpdateAspect
+      EqualityTester<RecordTemplate> equalityTester = getEqualityTester(aspectClass);
+      AuditStamp eTagAuditStamp = extractOptimisticLockForAspectFromIngestionParamsIfPossible(
+          ingestionParams, aspectClass, urn);
+      
+      if (!shouldUpdateAspect(ingestionParams.getIngestionMode(), urn, oldAspect, newValue,
+                              aspectClass, auditStamp, equalityTester, oldAuditStamp, eTagAuditStamp,
+                              trackingContext, oldEmitTime)) {
         // Skip this aspect - add as unchanged for MAE skip logic
         processedResults.add(new AddResult<RecordTemplate>(oldAspect, oldAspect, aspectClass));
         continue;
@@ -820,57 +798,6 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     }
     
     return byClass;
-  }
-
-  /**
-   * Determines if an aspect should be processed based on equality testing and backfill logic.
-   * Reuses existing shouldUpdateAspect() logic for consistency with addMany().
-   */
-  private <ASPECT extends RecordTemplate> boolean shouldProcessAspect(
-      URN urn,
-      Optional<ASPECT> oldValue,
-      ASPECT newValue,
-      Class<ASPECT> aspectClass,
-      AuditStamp auditStamp,
-      IngestionParams ingestionParams,
-      IngestionTrackingContext trackingContext,
-      AuditStamp oldAuditStamp,
-      Long oldEmitTime) {
-    
-    // Backfill logic (from addCommon, lines 510-535)
-    final boolean isBackfillEvent = trackingContext != null
-        && trackingContext.hasBackfill() && trackingContext.isBackfill();
-    
-    if (isBackfillEvent) {
-      boolean shouldBackfill = !oldValue.isPresent()
-          || (trackingContext.hasEmitTime() 
-              && ((oldEmitTime != null && trackingContext.getEmitTime() > oldEmitTime)
-                  || (oldEmitTime == null && oldAuditStamp != null && oldAuditStamp.hasTime()
-                      && trackingContext.getEmitTime() > oldAuditStamp.getTime())));
-      
-      if (!shouldBackfill) {
-        log.info("Skipping backfill for aspect {} on urn {} - event is older than existing data",
-            aspectClass.getSimpleName(), urn);
-        return false;
-      }
-    }
-    
-    // Equality testing and ingestion mode logic (reuses existing shouldUpdateAspect)
-    EqualityTester<ASPECT> equalityTester = getEqualityTester(aspectClass);
-    AuditStamp eTagAuditStamp = extractOptimisticLockForAspectFromIngestionParamsIfPossible(
-        ingestionParams, aspectClass, urn);
-    
-    return shouldUpdateAspect(
-        ingestionParams.getIngestionMode(),
-        urn,
-        oldValue.orElse(null),
-        newValue,
-        aspectClass,
-        auditStamp,
-        equalityTester,
-        oldAuditStamp,
-        eTagAuditStamp
-    );
   }
 
   private <ASPECT extends RecordTemplate> AddResult<ASPECT> aspectUpdateHelper(URN urn, AspectUpdateLambda<ASPECT> updateTuple,
@@ -2249,10 +2176,33 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   /**
    * The logic determines if we will update the aspect.
+   * Includes backfill logic, equality testing, version checking, and ingestion mode handling.
    */
   private <ASPECT extends RecordTemplate> boolean shouldUpdateAspect(IngestionMode ingestionMode, URN urn, ASPECT oldValue,
       ASPECT newValue, Class<ASPECT> aspectClass, AuditStamp auditStamp, EqualityTester<ASPECT> equalityTester,
-      AuditStamp oldValueAuditStamp, AuditStamp eTagAuditStamp) {
+      AuditStamp oldValueAuditStamp, AuditStamp eTagAuditStamp, @Nullable IngestionTrackingContext trackingContext,
+      @Nullable Long oldEmitTime) {
+
+    // Backfill check - if this is a backfill event, verify it's newer than existing data
+    final boolean isBackfillEvent = trackingContext != null
+        && trackingContext.hasBackfill() && trackingContext.isBackfill();
+    
+    if (isBackfillEvent) {
+      boolean shouldBackfill = oldValue == null
+          || (trackingContext.hasEmitTime() 
+              && ((oldEmitTime != null && trackingContext.getEmitTime() > oldEmitTime)
+                  || (oldEmitTime == null && oldValueAuditStamp != null && oldValueAuditStamp.hasTime()
+                      && trackingContext.getEmitTime() > oldValueAuditStamp.getTime())));
+      
+      log.info("Encounter backfill event. Old value = null: {}. Tracking context: {}. Urn: {}. Aspect class: {}. Old audit stamp: {}. "
+              + "Old emit time: {}. "
+              + "Based on this information, shouldBackfill = {}.",
+          oldValue == null, trackingContext, urn, aspectClass, oldValueAuditStamp, oldEmitTime, shouldBackfill);
+      
+      if (!shouldBackfill) {
+        return false;
+      }
+    }
 
     final boolean oldAndNewEqual = (oldValue == null && newValue == null) || (oldValue != null && newValue != null && equalityTester.equals(
         oldValue, newValue));
