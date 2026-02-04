@@ -4736,4 +4736,210 @@ public class EbeanLocalDAOTest {
     // all aspects are rejected by equality checks, causing deleted_ts to be set to NULL and
     // lastmodifiedon/lastmodifiedby to be updated despite no actual content changes.
   }
+
+  // ===== Relationship Ingestion Tests for addManyBatch() =====
+
+  @Test
+  public void testAddManyBatchRelationshipsNotWrittenWhenEqualityCheckFails() throws URISyntaxException {
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      return;
+    }
+
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> fooDao = createDao(FooUrn.class);
+    EbeanLocalDAO<EntityAspectUnion, BarUrn> barDao = createDao(BarUrn.class);
+    
+    // Enable relationship ingestion
+    fooDao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
+    barDao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
+
+    FooUrn fooUrn = makeFooUrn(7002);
+    BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
+    BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:2");
+    BarUrn barUrn3 = BarUrn.createFromString("urn:li:bar:3");
+    BarUrn barUrn4 = BarUrn.createFromString("urn:li:bar:4");
+    
+    AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
+
+    // Create bar entities
+    barDao.add(barUrn1, new AspectFoo().setValue("1"), auditStamp);
+    barDao.add(barUrn2, new AspectFoo().setValue("2"), auditStamp);
+    barDao.add(barUrn3, new AspectFoo().setValue("3"), auditStamp);
+    barDao.add(barUrn4, new AspectFoo().setValue("4"), auditStamp);
+
+    // First write - create initial aspects with relationships
+    AspectFooBar aspectFooBar1 = new AspectFooBar().setBars(new BarUrnArray(barUrn1, barUrn2));
+    BelongsToV2 belongsTo1 = new BelongsToV2().setDestination(BelongsToV2.Destination.create(barUrn3.toString()));
+    AspectFooBaz aspectFooBaz1 = new AspectFooBaz().setBelongsTos(new BelongsToV2Array(belongsTo1));
+    
+    fooDao.addManyBatch(fooUrn, Arrays.asList(aspectFooBar1, aspectFooBaz1), auditStamp, null);
+
+    // Verify initial relationships
+    EbeanLocalRelationshipQueryDAO queryDAO = new EbeanLocalRelationshipQueryDAO(_server);
+    queryDAO.setSchemaConfig(_schemaConfig);
+    
+    List<BelongsTo> initialBelongsTo = queryDAO.findRelationships(
+        FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class, EMPTY_FILTER, BelongsTo.class, OUTGOING_FILTER, 0, 10);
+    assertEquals(initialBelongsTo.size(), 2);
+    
+    List<BelongsToV2> initialBelongsToV2 = queryDAO.findRelationships(
+        FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class, EMPTY_FILTER, BelongsToV2.class, OUTGOING_FILTER, 0, 10);
+    assertEquals(initialBelongsToV2.size(), 1);
+
+    // Second write - one aspect unchanged (equality check fails), one aspect changed
+    // AspectFooBar unchanged - should NOT update relationships
+    AspectFooBar aspectFooBar2 = new AspectFooBar().setBars(new BarUrnArray(barUrn1, barUrn2));
+    // AspectFooBaz changed - SHOULD update relationships
+    BelongsToV2 belongsTo2 = new BelongsToV2().setDestination(BelongsToV2.Destination.create(barUrn4.toString()));
+    AspectFooBaz aspectFooBaz2 = new AspectFooBaz().setBelongsTos(new BelongsToV2Array(belongsTo2));
+    
+    fooDao.addManyBatch(fooUrn, Arrays.asList(aspectFooBar2, aspectFooBaz2), auditStamp, null);
+
+    // Verify relationships after second write
+    List<BelongsTo> finalBelongsTo = queryDAO.findRelationships(
+        FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class, EMPTY_FILTER, BelongsTo.class, OUTGOING_FILTER, 0, 10);
+    // BelongsTo should still be 2 (unchanged because AspectFooBar was equal)
+    assertEquals(finalBelongsTo.size(), 2, 
+        "BelongsTo relationships should remain unchanged when AspectFooBar equality check fails");
+    
+    List<BelongsToV2> finalBelongsToV2 = queryDAO.findRelationships(
+        FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class, EMPTY_FILTER, BelongsToV2.class, OUTGOING_FILTER, 0, 10);
+    // BelongsToV2 should be updated (old one soft-deleted, new one added)
+    // With soft deletion, we should see 2 total (1 deleted, 1 active)
+    List<io.ebean.SqlRow> allBelongsToV2 = _server.createSqlQuery(
+        "SELECT * FROM metadata_relationship_belongstov2 WHERE source = '" + fooUrn.toString() + "'").findList();
+    assertEquals(allBelongsToV2.size(), 2, "Should have 2 BelongsToV2 records (1 soft-deleted, 1 active)");
+    
+    long activeCount = allBelongsToV2.stream().filter(row -> row.get("deleted_ts") == null).count();
+    assertEquals(activeCount, 1, "Should have 1 active BelongsToV2 relationship");
+  }
+
+  @Test
+  public void testAddManyBatchRelationshipsUpdateWithOldValues() throws URISyntaxException {
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      return;
+    }
+
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> fooDao = createDao(FooUrn.class);
+    EbeanLocalDAO<EntityAspectUnion, BarUrn> barDao = createDao(BarUrn.class);
+    
+    // Enable relationship ingestion
+    fooDao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
+    barDao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
+
+    FooUrn fooUrn = makeFooUrn(7003);
+    BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
+    BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:2");
+    BarUrn barUrn3 = BarUrn.createFromString("urn:li:bar:3");
+    
+    AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
+
+    // Create bar entities
+    barDao.add(barUrn1, new AspectFoo().setValue("1"), auditStamp);
+    barDao.add(barUrn2, new AspectFoo().setValue("2"), auditStamp);
+    barDao.add(barUrn3, new AspectFoo().setValue("3"), auditStamp);
+
+    // First write - create initial relationships
+    AspectFooBar aspectFooBar1 = new AspectFooBar().setBars(new BarUrnArray(barUrn1, barUrn2));
+    fooDao.addManyBatch(fooUrn, Collections.singletonList(aspectFooBar1), auditStamp, null);
+
+    // Verify initial relationships
+    EbeanLocalRelationshipQueryDAO queryDAO = new EbeanLocalRelationshipQueryDAO(_server);
+    queryDAO.setSchemaConfig(_schemaConfig);
+    
+    List<BelongsTo> initialRelationships = queryDAO.findRelationships(
+        FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class, EMPTY_FILTER, BelongsTo.class, OUTGOING_FILTER, 0, 10);
+    assertEquals(initialRelationships.size(), 2);
+
+    // Second write - update relationships (remove barUrn2, add barUrn3)
+    AspectFooBar aspectFooBar2 = new AspectFooBar().setBars(new BarUrnArray(barUrn1, barUrn3));
+    fooDao.addManyBatch(fooUrn, Collections.singletonList(aspectFooBar2), auditStamp, null);
+
+    // Verify relationships were properly updated
+    // Old relationships should be soft-deleted, new ones added
+    List<io.ebean.SqlRow> allRelationships = _server.createSqlQuery(
+        "SELECT * FROM metadata_relationship_belongsto WHERE source = '" + fooUrn.toString() + "'").findList();
+    
+    // Should have 3 total records: 2 from first write (1 kept, 1 deleted) + 1 new from second write
+    // Actually with RemoveAllEdgesFromSource, old edges are soft-deleted and new ones added
+    // So we expect: barUrn1->barUrn2 (deleted), barUrn1 (new), barUrn3 (new)
+    assertTrue(allRelationships.size() >= 2, "Should have at least 2 relationship records");
+    
+    List<BelongsTo> activeRelationships = queryDAO.findRelationships(
+        FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class, EMPTY_FILTER, BelongsTo.class, OUTGOING_FILTER, 0, 10);
+    assertEquals(activeRelationships.size(), 2, "Should have 2 active relationships after update");
+    
+    // Verify the correct relationships exist (barUrn1 and barUrn3)
+    Set<String> destinations = activeRelationships.stream()
+        .map(rel -> rel.getDestination().toString())
+        .collect(java.util.stream.Collectors.toSet());
+    assertTrue(destinations.contains(barUrn1.toString()));
+    assertTrue(destinations.contains(barUrn3.toString()));
+    assertFalse(destinations.contains(barUrn2.toString()), "barUrn2 should no longer be in active relationships");
+  }
+
+  @Test
+  public void testAddManyBatchMultipleAspectsWithRelationshipsInSingleBatch() throws URISyntaxException {
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      return;
+    }
+
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> fooDao = createDao(FooUrn.class);
+    EbeanLocalDAO<EntityAspectUnion, BarUrn> barDao = createDao(BarUrn.class);
+    
+    // Enable relationship ingestion
+    fooDao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
+    barDao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
+
+    FooUrn fooUrn = makeFooUrn(7004);
+    BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
+    BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:2");
+    BarUrn barUrn3 = BarUrn.createFromString("urn:li:bar:3");
+    BarUrn barUrn4 = BarUrn.createFromString("urn:li:bar:4");
+    
+    AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
+
+    // Create bar entities
+    barDao.add(barUrn1, new AspectFoo().setValue("1"), auditStamp);
+    barDao.add(barUrn2, new AspectFoo().setValue("2"), auditStamp);
+    barDao.add(barUrn3, new AspectFoo().setValue("3"), auditStamp);
+    barDao.add(barUrn4, new AspectFoo().setValue("4"), auditStamp);
+
+    // Create multiple aspects with different relationship types in a single batch
+    AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(barUrn1, barUrn2));
+    BelongsToV2 belongsTo1 = new BelongsToV2().setDestination(BelongsToV2.Destination.create(barUrn3.toString()));
+    BelongsToV2 belongsTo2 = new BelongsToV2().setDestination(BelongsToV2.Destination.create(barUrn4.toString()));
+    AspectFooBaz aspectFooBaz = new AspectFooBaz().setBelongsTos(new BelongsToV2Array(belongsTo1, belongsTo2));
+    
+    // Act - single batch upsert with multiple aspects, each having relationships
+    List<EntityAspectUnion> results = fooDao.addManyBatch(fooUrn, Arrays.asList(aspectFooBar, aspectFooBaz), auditStamp, null);
+
+    // Assert
+    assertEquals(results.size(), 2);
+    
+    // Verify all relationships were created correctly
+    EbeanLocalRelationshipQueryDAO queryDAO = new EbeanLocalRelationshipQueryDAO(_server);
+    queryDAO.setSchemaConfig(_schemaConfig);
+    
+    // AspectFooBar should create 2 BelongsTo relationships
+    List<BelongsTo> belongsToRelationships = queryDAO.findRelationships(
+        FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class, EMPTY_FILTER, BelongsTo.class, OUTGOING_FILTER, 0, 10);
+    assertEquals(belongsToRelationships.size(), 2);
+    
+    Set<String> belongsToDestinations = belongsToRelationships.stream()
+        .map(rel -> rel.getDestination().toString())
+        .collect(java.util.stream.Collectors.toSet());
+    assertTrue(belongsToDestinations.contains(barUrn1.toString()));
+    assertTrue(belongsToDestinations.contains(barUrn2.toString()));
+    
+    // AspectFooBaz should create 2 BelongsToV2 relationships
+    List<BelongsToV2> belongsToV2Relationships = queryDAO.findRelationships(
+        FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class, EMPTY_FILTER, BelongsToV2.class, OUTGOING_FILTER, 0, 10);
+    assertEquals(belongsToV2Relationships.size(), 2);
+    
+    Set<String> belongsToV2Destinations = belongsToV2Relationships.stream()
+        .map(rel -> rel.getDestination().toString())
+        .collect(java.util.stream.Collectors.toSet());
+    assertTrue(belongsToV2Destinations.contains(barUrn3.toString()));
+    assertTrue(belongsToV2Destinations.contains(barUrn4.toString()));
+  }
 }

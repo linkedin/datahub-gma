@@ -111,11 +111,10 @@ public class BaseLocalDAOTest {
 
     @Override
     protected <ASPECT_UNION extends RecordTemplate> int batchUpsertAspects(@Nonnull FooUrn urn,
-        @Nonnull List<AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas,
-        @Nonnull List<? extends RecordTemplate> aspectValues,
+        @Nonnull List<AspectUpdateContext<RecordTemplate>> updateContexts,
         @Nonnull AuditStamp auditStamp,
         @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
-      return aspectValues.size();
+      return updateContexts.size();
     }
 
     @Override
