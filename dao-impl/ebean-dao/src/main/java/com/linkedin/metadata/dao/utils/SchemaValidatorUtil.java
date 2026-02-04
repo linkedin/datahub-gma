@@ -119,13 +119,17 @@ public class SchemaValidatorUtil {
 
 
   /**
-   * Cleans SQL expression by removing MySQL-specific encoding artifacts that otherwise result in unrecognized syntax.
-   * Removes _utf8mb4 and _utf8mb3 charset prefix, unescapes quotes, and removes newlines.
-   * MySQL team is the POC for questions about this since there is preprocessing needed to transform the as-is
+   * Cleans SQL expression by unescaping quotes and removing newlines while preserving the original structure.
+   * IMPORTANT: Preserves charset introducers (e.g., _utf8mb4) exactly as they appear in the index definition
+   * to ensure byte-for-byte matching with functional index expressions. MySQL requires exact expression matching
+   * for functional indexes - any mismatch (even just a missing charset introducer) causes MySQL to ignore the
+   * index and perform a full table scan instead.
+   *
+   * <p>MySQL team is the POC for questions about this since there is preprocessing needed to transform the as-is
    * index expression from the index table to a (string) expression that is usable directly in an indexed query.
    *
-   * @param expression Raw SQL expression from database
-   * @return Cleaned expression string, with enclosing parentheses
+   * @param expression Raw SQL expression from database (e.g., _utf8mb4\'$.aspect.model_group_urn\')
+   * @return Cleaned expression string with unescaped quotes and enclosing parentheses (e.g., (_utf8mb4'$.aspect.model_group_urn'))
    */
   public static String cleanIndexExpression(@Nullable String expression) {
     if (expression == null) {
@@ -133,8 +137,6 @@ public class SchemaValidatorUtil {
     }
 
     return "(" + expression
-        .replace("_utf8mb4\\'", "'")
-        .replace("_utf8mb3\\'", "'")
         .replace("\\'", "'")
         .replace("\\\"", "\"")
         .replace("\n", "") + ")";
