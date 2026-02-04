@@ -743,7 +743,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       //       so its relationships are meant to be written (as well)
       for (BaseLocalDAO.AspectUpdateContext<RecordTemplate> ctx : updateContexts) {
         Class<RecordTemplate> aspectClass = (Class<RecordTemplate>) ctx.getLambda().getAspectClass();
-        handleRelationshipIngestion(urn, ctx.getNewValue(), ctx.getOldValue(), aspectClass, isTestMode);
+        // apply the lambda to the old value to get the new value
+        RecordTemplate newVal = ctx.getLambda().getUpdateLambda().apply(Optional.ofNullable(ctx.getOldValue()));
+        handleRelationshipIngestion(urn, newVal, ctx.getOldValue(), aspectClass, isTestMode);
       }
 
       return rows;

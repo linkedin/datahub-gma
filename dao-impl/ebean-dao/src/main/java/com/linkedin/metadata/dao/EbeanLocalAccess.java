@@ -33,7 +33,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -43,7 +42,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -54,6 +52,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 
+import static com.linkedin.metadata.dao.BaseReadDAO.LATEST_VERSION;
 import static com.linkedin.metadata.dao.EbeanLocalDAO.*;
 import static com.linkedin.metadata.dao.utils.EBeanDAOUtils.*;
 import static com.linkedin.metadata.dao.utils.SQLIndexFilterUtils.*;
@@ -227,7 +226,8 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     List<BaseLocalDAO.AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas = new ArrayList<>();
     
     for (BaseLocalDAO.AspectUpdateContext<RecordTemplate> ctx : updateContexts) {
-      aspectValues.add(ctx.getNewValue());
+      RecordTemplate newVal = ctx.getLambda().getUpdateLambda().apply(Optional.ofNullable(ctx.getOldValue()));
+      aspectValues.add(newVal);
       aspectUpdateLambdas.add(ctx.getLambda());
     }
 
@@ -688,28 +688,30 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   /**
    * Comprehensive helper method that prepares a SqlUpdate with all common logic up to the ON DUPLICATE KEY clause.
    * This consolidates audit extraction, SQL building, and parameter setting for both create() and batchUpsert().
-   * 
-   * Returns a SqlUpdate object with:
-   * - INSERT INTO and VALUES clauses built
-   * - All aspect parameters set
-   * - URN parameter set (if urnExtraction enabled)
-   * - lastmodifiedon and lastmodifiedby parameters set
-   * 
-   * The caller only needs to append the ON DUPLICATE KEY clause and execute.
    *
-   * TODO: Refactor to accept List<AspectUpdateContext> instead of parallel lists.
+   * <p>Returns a SqlUpdate object with:</p>
+   * <ul>
+   * <li>INSERT INTO and VALUES clauses built</li>
+   * <li>All aspect parameters set</li>
+   * <li>URN parameter set (if urnExtraction enabled)</li>
+   * <li>lastmodifiedon and lastmodifiedby parameters set</li>
+   * </ul>
+   *
+   * <p>The caller only needs to append the ON DUPLICATE KEY clause and execute.</p>
+   *
+   * <p>TODO: Refactor to accept List&lt;AspectUpdateContext&gt; instead of parallel lists.
    * This would eliminate the positional contract between aspectValues and aspectLambdas,
    * making it impossible to misalign them and improving type safety. The create() pathway
    * would need to wrap values in AspectUpdateContext with null oldValue. This change would
-   * complete the AspectUpdateContext refactoring throughout the entire call chain.
+   * complete the AspectUpdateContext refactoring throughout the entire call chain.</p>
    *
    * @param urn entity URN
    * @param aspectValues list of aspect values
    * @param aspectLambdas list of aspect lambdas (AspectUpdateLambda or AspectCreateLambda)
    * @param auditStamp audit stamp for tracking
    * @param ingestionTrackingContext tracking context for ingestion
-   * @param insertStatementTemplate the INSERT statement template with placeholder for ON DUPLICATE KEY clause (e.g., "INSERT INTO %s (...) VALUES (...) %s")
-   * @return SqlUpdate object ready for ON DUPLICATE KEY clause to be appended
+   * @param onDuplicateKeyClause the ON DUPLICATE KEY UPDATE clause to append
+   * @return SqlUpdate object ready for execution
    */
   private SqlUpdate prepareMultiColumnInsert(
       @Nonnull URN urn,

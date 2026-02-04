@@ -211,10 +211,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    */
   @Value
   static class AspectUpdateContext<ASPECT extends RecordTemplate> {
-    @Nonnull
-    ASPECT newValue;
-    
-    @Nullable
+@Nullable
     ASPECT oldValue;
     
     @Nonnull
@@ -725,6 +722,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       Long oldEmitTime = oldExtraInfo != null ? oldExtraInfo.getEmitTime() : null;
 
       // Execute lambda WITH old value (not Optional.empty())
+      // NOTE: if the lambda is "empty" then it will return the value to be written (newValue) since that is how
+      // AspectUpdateLambda is defined and constructed
       RecordTemplate newValue = (RecordTemplate) updateLambda.getUpdateLambda().apply(oldValue);
 
       // Equality testing & backfill logic using unified shouldUpdateAspect
@@ -764,7 +763,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
       // Package context for batch write
       processedResults.add(new AddResult<RecordTemplate>(oldAspect, newValue, aspectClass));
-      contextsToWrite.add(new AspectUpdateContext<>(newValue, oldAspect, (AspectUpdateLambda<RecordTemplate>) updateLambda));
+      contextsToWrite.add(new AspectUpdateContext<>(oldAspect, (AspectUpdateLambda<RecordTemplate>) updateLambda));
     }
 
     // STEP 3: Execute batch SQL (1 query) - only for changed aspects

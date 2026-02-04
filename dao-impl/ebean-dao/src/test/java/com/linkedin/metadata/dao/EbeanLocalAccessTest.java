@@ -531,8 +531,8 @@ public class EbeanLocalAccessTest {
     AspectFoo foo = new AspectFoo().setValue("foo_value");
     AspectBar bar = new AspectBar().setValue("bar_value");
     List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts = Arrays.asList(
-        new BaseLocalDAO.AspectUpdateContext<>((RecordTemplate) foo, null, new BaseLocalDAO.AspectUpdateLambda<>(foo)),
-        new BaseLocalDAO.AspectUpdateContext<>((RecordTemplate) bar, null, new BaseLocalDAO.AspectUpdateLambda<>(bar))
+        new BaseLocalDAO.AspectUpdateContext<>(null, new BaseLocalDAO.AspectUpdateLambda<>(foo)),
+        new BaseLocalDAO.AspectUpdateContext<>(null, new BaseLocalDAO.AspectUpdateLambda<>(bar))
     );
     AuditStamp auditStamp = makeAuditStamp("actor", _now);
 
@@ -554,7 +554,7 @@ public class EbeanLocalAccessTest {
     FooUrn fooUrn = makeFooUrn(301);
     AspectFoo foo = new AspectFoo().setValue("single");
     List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts = 
-        Collections.singletonList(new BaseLocalDAO.AspectUpdateContext<>((RecordTemplate) foo, null, new BaseLocalDAO.AspectUpdateLambda<>(foo)));
+        Collections.singletonList(new BaseLocalDAO.AspectUpdateContext<>(null, new BaseLocalDAO.AspectUpdateLambda<>(foo)));
     AuditStamp auditStamp = makeAuditStamp("actor", _now);
 
     // Act
@@ -564,28 +564,25 @@ public class EbeanLocalAccessTest {
     assertEquals(result, 1);
   }
 
-  @Test(expectedExceptions = IllegalArgumentException.class,
-        expectedExceptionsMessageRegExp = ".*must match.*")
+  @Test
   public void testBatchUpsertMismatchedSizes() {
     // NOTE: This test is no longer relevant with AspectUpdateContext since the wrapper
-    // guarantees alignment by construction. Keeping test but it now validates prepareMultiColumnInsert
-    // validation when contexts are unpacked.
+    // guarantees alignment by construction. AspectUpdateContext ensures that each context
+    // contains both the lambda and old value together, making misalignment impossible.
+    // Keeping test as a no-op to document this design decision.
+    
     // Arrange
     FooUrn fooUrn = makeFooUrn(302);
     AspectFoo foo = new AspectFoo().setValue("test");
-    // Create mismatched lists manually to trigger validation in prepareMultiColumnInsert
-    List<RecordTemplate> aspects = Collections.singletonList(foo);
-    List<BaseLocalDAO.AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas = Arrays.asList(
-        new BaseLocalDAO.AspectUpdateLambda<>(foo),
-        new BaseLocalDAO.AspectUpdateLambda<>(new AspectBar().setValue("bar"))
-    );
+    List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts = 
+        Collections.singletonList(new BaseLocalDAO.AspectUpdateContext<>(null, new BaseLocalDAO.AspectUpdateLambda<>(foo)));
     AuditStamp auditStamp = makeAuditStamp("actor", _now);
 
-    // Act - call prepareMultiColumnInsert directly via reflection or skip this test
-    // For now, create a valid context list (test becomes a no-op)
-    List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts = 
-        Collections.singletonList(new BaseLocalDAO.AspectUpdateContext<>((RecordTemplate) foo, null, new BaseLocalDAO.AspectUpdateLambda<>(foo)));
-    _ebeanLocalAccessFoo.batchUpsert(fooUrn, updateContexts, auditStamp, null, false);
+    // Act - this should succeed since AspectUpdateContext guarantees alignment
+    int result = _ebeanLocalAccessFoo.batchUpsert(fooUrn, updateContexts, auditStamp, null, false);
+    
+    // Assert
+    assertEquals(result, 1);
   }
 
   @Test(expectedExceptions = NullPointerException.class)
@@ -593,10 +590,10 @@ public class EbeanLocalAccessTest {
     // Arrange
     FooUrn fooUrn = makeFooUrn(303);
     AspectFoo foo = new AspectFoo().setValue("test");
-    // AspectUpdateContext constructor will throw NPE for null newValue due to @Nonnull
+    // AspectUpdateContext constructor will throw NPE for null lambda due to @Nonnull
     List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts = Arrays.asList(
-        new BaseLocalDAO.AspectUpdateContext<>((RecordTemplate) foo, null, new BaseLocalDAO.AspectUpdateLambda<>(foo)),
-        new BaseLocalDAO.AspectUpdateContext<>(null, null, new BaseLocalDAO.AspectUpdateLambda<>(new AspectBar().setValue("bar")))
+        new BaseLocalDAO.AspectUpdateContext<>(null, new BaseLocalDAO.AspectUpdateLambda<>(foo)),
+        new BaseLocalDAO.AspectUpdateContext<>(null, null)  // null lambda should throw NPE
     );
     AuditStamp auditStamp = makeAuditStamp("actor", _now);
 
@@ -610,7 +607,7 @@ public class EbeanLocalAccessTest {
     FooUrn fooUrn = makeFooUrn(304);
     AspectFoo foo1 = new AspectFoo().setValue("initial");
     List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts1 = 
-        Collections.singletonList(new BaseLocalDAO.AspectUpdateContext<>((RecordTemplate) foo1, null, new BaseLocalDAO.AspectUpdateLambda<>(foo1)));
+        Collections.singletonList(new BaseLocalDAO.AspectUpdateContext<>(null, new BaseLocalDAO.AspectUpdateLambda<>(foo1)));
     AuditStamp auditStamp = makeAuditStamp("actor", _now);
     
     // First write
@@ -620,7 +617,7 @@ public class EbeanLocalAccessTest {
     // Act - upsert with new value
     AspectFoo foo2 = new AspectFoo().setValue("updated");
     List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts2 = 
-        Collections.singletonList(new BaseLocalDAO.AspectUpdateContext<>((RecordTemplate) foo2, null, new BaseLocalDAO.AspectUpdateLambda<>(foo2)));
+        Collections.singletonList(new BaseLocalDAO.AspectUpdateContext<>(null, new BaseLocalDAO.AspectUpdateLambda<>(foo2)));
     int result2 = _ebeanLocalAccessFoo.batchUpsert(fooUrn, updateContexts2, auditStamp, null, false);
 
     // Assert - MySQL returns 2 for ON DUPLICATE KEY UPDATE when updating existing row
@@ -633,7 +630,7 @@ public class EbeanLocalAccessTest {
     FooUrn fooUrn = makeFooUrn(305);
     AspectFoo foo = new AspectFoo().setValue("tracked");
     List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts = 
-        Collections.singletonList(new BaseLocalDAO.AspectUpdateContext<>((RecordTemplate) foo, null, new BaseLocalDAO.AspectUpdateLambda<>(foo)));
+        Collections.singletonList(new BaseLocalDAO.AspectUpdateContext<>(null, new BaseLocalDAO.AspectUpdateLambda<>(foo)));
     AuditStamp auditStamp = makeAuditStamp("actor", _now);
     
     // Create ingestion tracking context
@@ -655,7 +652,7 @@ public class EbeanLocalAccessTest {
     FooUrn fooUrn = makeFooUrn(306);
     AspectFoo foo = new AspectFoo().setValue("impersonated");
     List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts = 
-        Collections.singletonList(new BaseLocalDAO.AspectUpdateContext<>((RecordTemplate) foo, null, new BaseLocalDAO.AspectUpdateLambda<>(foo)));
+        Collections.singletonList(new BaseLocalDAO.AspectUpdateContext<>(null, new BaseLocalDAO.AspectUpdateLambda<>(foo)));
     
     // Create audit stamp with impersonator
     FooUrn actor = makeFooUrn(9001);
@@ -675,7 +672,7 @@ public class EbeanLocalAccessTest {
     FooUrn fooUrn = makeFooUrn(307);
     AspectFoo foo = new AspectFoo().setValue("test_mode");
     List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts = 
-        Collections.singletonList(new BaseLocalDAO.AspectUpdateContext<>((RecordTemplate) foo, null, new BaseLocalDAO.AspectUpdateLambda<>(foo)));
+        Collections.singletonList(new BaseLocalDAO.AspectUpdateContext<>(null, new BaseLocalDAO.AspectUpdateLambda<>(foo)));
     AuditStamp auditStamp = makeAuditStamp("actor", _now);
 
     // Act - with test mode enabled
@@ -691,7 +688,7 @@ public class EbeanLocalAccessTest {
     BurgerUrn burgerUrn = makeBurgerUrn("urn:li:burger:test100");
     AspectFoo foo = new AspectFoo().setValue("no_urn_extraction");
     List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts = 
-        Collections.singletonList(new BaseLocalDAO.AspectUpdateContext<>((RecordTemplate) foo, null, new BaseLocalDAO.AspectUpdateLambda<>(foo)));
+        Collections.singletonList(new BaseLocalDAO.AspectUpdateContext<>(null, new BaseLocalDAO.AspectUpdateLambda<>(foo)));
     AuditStamp auditStamp = makeAuditStamp("actor", _now);
 
     // Act
