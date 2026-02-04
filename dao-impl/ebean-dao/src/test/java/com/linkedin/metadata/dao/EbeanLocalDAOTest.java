@@ -4936,8 +4936,9 @@ public class EbeanLocalDAOTest {
         FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class, EMPTY_FILTER, BelongsToV2.class, OUTGOING_FILTER, 0, 10);
     assertEquals(belongsToV2Relationships.size(), 2);
     
+    // BelongsToV2.Destination is a union type, so we need to extract the string value properly
     Set<String> belongsToV2Destinations = belongsToV2Relationships.stream()
-        .map(rel -> rel.getDestination().toString())
+        .map(rel -> rel.getDestination().getString())
         .collect(java.util.stream.Collectors.toSet());
     assertTrue(belongsToV2Destinations.contains(barUrn3.toString()));
     assertTrue(belongsToV2Destinations.contains(barUrn4.toString()));
