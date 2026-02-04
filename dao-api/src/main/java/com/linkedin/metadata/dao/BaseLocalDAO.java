@@ -203,6 +203,24 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     private boolean skipProcessing;
   }
 
+  /**
+   * Immutable class to package aspect update context for batch operations.
+   * Eliminates the need for multiple parallel lists by bundling related data together.
+   *
+   * @param <ASPECT> the type of the aspect being updated
+   */
+  @Value
+  static class AspectUpdateContext<ASPECT extends RecordTemplate> {
+    @Nonnull
+    ASPECT newValue;
+    
+    @Nullable
+    ASPECT oldValue;
+    
+    @Nonnull
+    AspectUpdateLambda<ASPECT> lambda;
+  }
+
   private static final String DEFAULT_ID_NAMESPACE = "global";
 
   private static final String BACKFILL_EMITTER = "dao_backfill_endpoint";
@@ -692,8 +710,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     // STEP 2: Process all aspects through callbacks/validation pipeline
     List<AddResult<RecordTemplate>> processedResults = new ArrayList<>();
-    List<RecordTemplate> valuesToWrite = new ArrayList<>();
-    List<AspectUpdateLambda<? extends RecordTemplate>> lambdasToWrite = new ArrayList<>();
+    List<AspectUpdateContext<RecordTemplate>> contextsToWrite = new ArrayList<>();
 
     for (AspectUpdateLambda<? extends RecordTemplate> updateLambda : aspectUpdateLambdas) {
       Class<RecordTemplate> aspectClass = (Class<RecordTemplate>) updateLambda.getAspectClass();
@@ -745,18 +762,18 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
         }
       }
 
-      // Add to both results and write lists
+      // Package context for batch write
       processedResults.add(new AddResult<RecordTemplate>(oldAspect, newValue, aspectClass));
-      valuesToWrite.add(newValue);
-      lambdasToWrite.add(updateLambda);
+      contextsToWrite.add(new AspectUpdateContext<>(newValue, oldAspect, (AspectUpdateLambda<RecordTemplate>) updateLambda));
     }
 
     // STEP 3: Execute batch SQL (1 query) - only for changed aspects
-    if (!valuesToWrite.isEmpty()) {
-      boolean isTestMode = lambdasToWrite.stream()
-          .anyMatch(lambda -> lambda.getIngestionParams().isTestMode());
+    if (!contextsToWrite.isEmpty()) {
+      boolean isTestMode = contextsToWrite.stream()
+          .anyMatch(ctx -> ctx.getLambda().getIngestionParams().isTestMode());
       
-      batchUpsertAspects(urn, lambdasToWrite, valuesToWrite, auditStamp, trackingContext, isTestMode);
+      // NOTE: basically if an aspect appears here then its relationships are meant to be written (as well)
+      batchUpsertAspects(urn, contextsToWrite, auditStamp, trackingContext, isTestMode);
     }
 
     // STEP 4: Post-transaction processing (with actual old values for MAE logic)
@@ -1484,16 +1501,14 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * Subclasses must implement this to perform the actual database operation.
    *
    * @param urn entity URN
-   * @param aspectUpdateLambdas list of aspect update lambdas to upsert
-   * @param aspectValues list of aspect values to upsert
+   * @param updateContexts list of aspect update contexts containing values, old values, and lambdas
    * @param auditStamp audit stamp for tracking
    * @param trackingContext tracking context for ingestion
    * @param isTestMode whether the test mode is enabled or not
    * @return number of rows affected
    */
   protected abstract <ASPECT_UNION extends RecordTemplate> int batchUpsertAspects(@Nonnull URN urn,
-      @Nonnull List<AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas,
-      @Nonnull List<? extends RecordTemplate> aspectValues,
+      @Nonnull List<AspectUpdateContext<RecordTemplate>> updateContexts,
       @Nonnull AuditStamp auditStamp,
       @Nullable IngestionTrackingContext trackingContext, boolean isTestMode);
 

@@ -32,14 +32,18 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -205,8 +209,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    * Unlike create(), this does UPSERT (always updates if exists, no duplicate key check).
    *
    * @param urn entity URN
-   * @param aspectValues list of aspect values to upsert
-   * @param aspectUpdateLambdas list of aspect update lambdas to upsert
+   * @param updateContexts list of aspect update contexts containing values and lambdas
    * @param auditStamp audit stamp for tracking
    * @param ingestionTrackingContext tracking context for ingestion
    * @param isTestMode whether this is a test mode operation
@@ -214,11 +217,19 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    */
   public <ASPECT_UNION extends RecordTemplate> int batchUpsert(
       @Nonnull URN urn,
-      @Nonnull List<? extends RecordTemplate> aspectValues,
-      @Nonnull List<BaseLocalDAO.AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas,
+      @Nonnull List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts,
       @Nonnull AuditStamp auditStamp,
       @Nullable IngestionTrackingContext ingestionTrackingContext,
       boolean isTestMode) {
+
+    // Extract parallel lists from contexts for prepareMultiColumnInsert
+    List<RecordTemplate> aspectValues = new ArrayList<>();
+    List<BaseLocalDAO.AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas = new ArrayList<>();
+    
+    for (BaseLocalDAO.AspectUpdateContext<RecordTemplate> ctx : updateContexts) {
+      aspectValues.add(ctx.getNewValue());
+      aspectUpdateLambdas.add(ctx.getLambda());
+    }
 
     // Build ON DUPLICATE KEY UPDATE clause for upsert semantics (always updates and clears deleted_ts)
     String onDuplicateKeyClause = buildOnDuplicateKeyForUpsert(urn, aspectUpdateLambdas);
@@ -685,6 +696,12 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    * - lastmodifiedon and lastmodifiedby parameters set
    * 
    * The caller only needs to append the ON DUPLICATE KEY clause and execute.
+   *
+   * TODO: Refactor to accept List<AspectUpdateContext> instead of parallel lists.
+   * This would eliminate the positional contract between aspectValues and aspectLambdas,
+   * making it impossible to misalign them and improving type safety. The create() pathway
+   * would need to wrap values in AspectUpdateContext with null oldValue. This change would
+   * complete the AspectUpdateContext refactoring throughout the entire call chain.
    *
    * @param urn entity URN
    * @param aspectValues list of aspect values

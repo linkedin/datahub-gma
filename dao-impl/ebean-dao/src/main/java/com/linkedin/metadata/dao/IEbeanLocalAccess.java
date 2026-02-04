@@ -75,21 +75,18 @@ public interface IEbeanLocalAccess<URN extends Urn> {
       @Nullable IngestionTrackingContext ingestionTrackingContext, boolean isTestMode);
 
   /**
-   * Batch upsert multiple aspects for a single URN using multi-column SQL.
-   * Unlike create(), this always performs UPSERT (no duplicate key checks).
+   * Batch upsert multiple aspects for a single URN using multi-column UPDATE.
+   * This method generates a single SQL statement that updates all aspect columns at once.
    *
-   * @param <ASPECT_UNION>           metadata aspect value
-   * @param urn                      entity urn
-   * @param aspectValues             list of aspect values in {@link RecordTemplate}
-   * @param aspectUpdateLambdas      list of aspect update lambdas to upsert
-   * @param auditStamp               audit timestamp
-   * @param ingestionTrackingContext the ingestionTrackingContext of the MCE responsible for this update
+   * @param urn                      entity URN
+   * @param updateContexts           list of aspect update contexts containing values and lambdas
+   * @param auditStamp               audit stamp for tracking
+   * @param ingestionTrackingContext tracking context for ingestion
    * @param isTestMode               whether the test mode is enabled or not
    * @return number of rows inserted or updated
    */
   <ASPECT_UNION extends RecordTemplate> int batchUpsert(@Nonnull URN urn,
-      @Nonnull List<? extends RecordTemplate> aspectValues,
-      @Nonnull List<BaseLocalDAO.AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas,
+      @Nonnull List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts,
       @Nonnull AuditStamp auditStamp,
       @Nullable IngestionTrackingContext ingestionTrackingContext, boolean isTestMode);
 
