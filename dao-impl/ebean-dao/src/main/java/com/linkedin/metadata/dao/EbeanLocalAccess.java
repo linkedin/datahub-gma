@@ -189,100 +189,12 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       @Nullable IngestionTrackingContext ingestionTrackingContext,
       boolean isTestMode) {
 
-    aspectValues.forEach(aspectValue -> {
-      if (aspectValue == null) {
-        throw new IllegalArgumentException("Aspect value cannot be null");
-      }
-    });
+    // Build ON DUPLICATE KEY UPDATE clause for create semantics (throws exception on duplicate)
+    String onDuplicateKeyClause = buildOnDuplicateKeyForCreate(urn, aspectCreateLambdas);
 
-    final long timestamp = auditStamp.hasTime() ? auditStamp.getTime() : System.currentTimeMillis();
-    final String actor = auditStamp.hasActor() ? auditStamp.getActor().toString() : DEFAULT_ACTOR;
-    final String impersonator = auditStamp.hasImpersonator() ? auditStamp.getImpersonator().toString() : null;
-    final boolean urnExtraction = _urnPathExtractor != null && !(_urnPathExtractor instanceof EmptyPathExtractor);
-
-    final SqlUpdate sqlUpdate;
-
-    List<String> classNames = aspectCreateLambdas.stream()
-        .map(aspectCreateLamdba -> aspectCreateLamdba.getAspectClass().getCanonicalName())
-        .collect(Collectors.toList());
-
-    // Create insert statement with variable number of aspect columns
-    // For example: INSERT INTO <table_name> (<columns>)
-    StringBuilder insertIntoSql = new StringBuilder();
-    // Create part of insert statement with variable number of aspect values
-    // For example: VALUES (<values>);
-    StringBuilder insertSqlValues = new StringBuilder();
-
-    if (urnExtraction) {
-      insertIntoSql.append(SQL_INSERT_INTO_ASSET_WITH_URN);
-      insertSqlValues.append(SQL_INSERT_ASSET_VALUES_WITH_URN);
-    } else {
-      insertIntoSql.append(SQL_INSERT_INTO_ASSET);
-      insertSqlValues.append(SQL_INSERT_ASSET_VALUES);
-    }
-
-    for (int i = 0; i < classNames.size(); i++) {
-      insertIntoSql.append(getAspectColumnName(urn.getEntityType(), classNames.get(i)));
-      // Add parameterization for aspect values
-      insertSqlValues.append(":aspect").append(i);
-      // Add comma if not the last column
-      if (i != classNames.size() - 1) {
-        insertIntoSql.append(", ");
-        insertSqlValues.append(", ");
-      }
-    }
-    insertIntoSql.append(CLOSING_BRACKET);
-    insertSqlValues.append(CLOSING_BRACKET);
-
-    // Construct  DELETED_TS_CHECK_FOR_CREATE String
-    StringBuilder deletedTsCheckForCreate = new StringBuilder();
-    deletedTsCheckForCreate.append(ON_DUPLICATE_KEY_UPDATE);
-    for (int i = 0; i < classNames.size(); i++) {
-      deletedTsCheckForCreate.append(getAspectColumnName(urn.getEntityType(), classNames.get(i)));
-      deletedTsCheckForCreate.append(" = :aspect").append(i);
-      if (i != classNames.size() - 1) {
-        deletedTsCheckForCreate.append(", ");
-      }
-    }
-    deletedTsCheckForCreate.append(DELETED_TS_SET_VALUE_CONDITIONALLY);
-
-    // Build the final insert statement as follows:
-    // INSERT INTO <table_name> (<columns>) VALUES (<values>)
-    // ON DUPLICATE KEY UPDATE aspectclass1 = aspect1, ...,
-    // deleted_ts = IF(deleted_ts IS NULL, CAST('DuplicateKeyException' AS UNSIGNED), NULL);
-    String insertStatement = insertIntoSql.toString() + insertSqlValues.toString() + deletedTsCheckForCreate.toString();
-
-    insertStatement = String.format(insertStatement, getTableName(urn));
-
-    sqlUpdate = _server.createSqlUpdate(insertStatement);
-
-    String utcTimestamp = Instant.ofEpochMilli(timestamp)
-        .atZone(ZoneOffset.UTC)
-        .format(DateTimeFormatter.ofPattern(DATE_TIME_FORMAT));
-    // Set parameters for each aspect value
-    for (int i = 0; i < aspectValues.size(); i++) {
-      AuditedAspect auditedAspect = new AuditedAspect()
-          .setAspect(RecordUtils.toJsonString(aspectValues.get(i)))
-          .setCanonicalName(aspectCreateLambdas.get(i).getAspectClass().getCanonicalName())
-          .setLastmodifiedby(actor)
-          .setLastmodifiedon(utcTimestamp)
-          .setCreatedfor(impersonator, SetMode.IGNORE_NULL);
-      if (ingestionTrackingContext != null) {
-        auditedAspect.setEmitTime(ingestionTrackingContext.getEmitTime(), SetMode.IGNORE_NULL);
-        auditedAspect.setEmitter(ingestionTrackingContext.getEmitter(), SetMode.IGNORE_NULL);
-      }
-      sqlUpdate.setParameter("aspect" + i, toJsonString(auditedAspect));
-    }
-
-
-    // If a non-default UrnPathExtractor is provided, the user MUST specify in their schema generation scripts
-    // 'ALTER TABLE <table> ADD COLUMN a_urn JSON'.
-    if (urnExtraction) {
-      sqlUpdate.setParameter("a_urn", toJsonString(urn));
-    }
-    sqlUpdate.setParameter("urn", urn.toString())
-        .setParameter("lastmodifiedon", utcTimestamp)
-        .setParameter("lastmodifiedby", actor);
+    // Use comprehensive helper to prepare SqlUpdate with all common logic
+    SqlUpdate sqlUpdate = prepareMultiColumnInsert(urn, aspectValues, aspectCreateLambdas, 
+        auditStamp, ingestionTrackingContext, onDuplicateKeyClause);
 
     return sqlUpdate.execute();
   }
@@ -291,15 +203,6 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    * Batch upsert multiple aspects for a single URN using multi-column UPDATE.
    * This method generates a single SQL statement that updates all aspect columns at once.
    * Unlike create(), this does UPSERT (always updates if exists, no duplicate key check).
-   *
-   * <p>NOTE: This method shares significant SQL generation logic with create(). The duplication was
-   * intentional to minimize risk to the battle-tested create() method. Future refactoring could
-   * extract common logic into a helper method like:
-   *   buildMultiColumnInsertSql(urn, aspects, classNames, onDuplicateKeyClause, ...)
-   * where onDuplicateKeyClause differs:
-   *   - create(): "deleted_ts = IF(deleted_ts IS NULL, CAST('DuplicateKeyException' AS UNSIGNED), NULL)"
-   *   - batchUpsert(): "deleted_ts = NULL"
-   * Consider refactoring once batchUpsert() is proven stable in production.
    *
    * @param urn entity URN
    * @param aspectValues list of aspect values to upsert
@@ -317,105 +220,12 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       @Nullable IngestionTrackingContext ingestionTrackingContext,
       boolean isTestMode) {
 
-    if (aspectValues.size() != aspectUpdateLambdas.size()) {
-      throw new IllegalArgumentException(
-          String.format("Aspect values size (%d) must match aspect update lambdas size (%d)",
-              aspectValues.size(), aspectUpdateLambdas.size()));
-    }
+    // Build ON DUPLICATE KEY UPDATE clause for upsert semantics (always updates and clears deleted_ts)
+    String onDuplicateKeyClause = buildOnDuplicateKeyForUpsert(urn, aspectUpdateLambdas);
 
-    aspectValues.forEach(aspectValue -> {
-      if (aspectValue == null) {
-        throw new IllegalArgumentException("Aspect value cannot be null");
-      }
-    });
-
-    final long timestamp = auditStamp.hasTime() ? auditStamp.getTime() : System.currentTimeMillis();
-    final String actor = auditStamp.hasActor() ? auditStamp.getActor().toString() : DEFAULT_ACTOR;
-    final String impersonator = auditStamp.hasImpersonator() ? auditStamp.getImpersonator().toString() : null;
-    final boolean urnExtraction = _urnPathExtractor != null && !(_urnPathExtractor instanceof EmptyPathExtractor);
-
-    final SqlUpdate sqlUpdate;
-
-    List<String> classNames = aspectUpdateLambdas.stream()
-        .map(aspectUpdateLamdba -> aspectUpdateLamdba.getAspectClass().getCanonicalName())
-        .collect(Collectors.toList());
-
-    // Create insert statement with variable number of aspect columns
-    // For example: INSERT INTO <table_name> (<columns>)
-    StringBuilder insertIntoSql = new StringBuilder();
-    // Create part of insert statement with variable number of aspect values
-    // For example: VALUES (<values>);
-    StringBuilder insertSqlValues = new StringBuilder();
-
-    if (urnExtraction) {
-      insertIntoSql.append(SQL_INSERT_INTO_ASSET_WITH_URN);
-      insertSqlValues.append(SQL_INSERT_ASSET_VALUES_WITH_URN);
-    } else {
-      insertIntoSql.append(SQL_INSERT_INTO_ASSET);
-      insertSqlValues.append(SQL_INSERT_ASSET_VALUES);
-    }
-
-    // Build column list and value placeholders
-    for (int i = 0; i < classNames.size(); i++) {
-      insertIntoSql.append(getAspectColumnName(urn.getEntityType(), classNames.get(i)));
-      // Add parameterization for aspect values
-      insertSqlValues.append(":aspect").append(i);
-      // Add comma if not the last column
-      if (i != classNames.size() - 1) {
-        insertIntoSql.append(", ");
-        insertSqlValues.append(", ");
-      }
-    }
-    insertIntoSql.append(CLOSING_BRACKET);
-    insertSqlValues.append(CLOSING_BRACKET);
-
-    // Build ON DUPLICATE KEY UPDATE clause for UPSERT semantics
-    StringBuilder onDuplicateUpdate = new StringBuilder();
-    onDuplicateUpdate.append(ON_DUPLICATE_KEY_UPDATE);
-    for (int i = 0; i < classNames.size(); i++) {
-      String columnName = getAspectColumnName(urn.getEntityType(), classNames.get(i));
-      onDuplicateUpdate.append(columnName).append(" = :aspect").append(i);
-      if (i != classNames.size() - 1) {
-        onDuplicateUpdate.append(", ");
-      }
-    }
-
-    // Always update lastmodifiedon and clear deleted_ts on upsert
-    // TODO (@jhui): abstract this into SQLStatementUtils?
-    onDuplicateUpdate.append(", lastmodifiedon = :lastmodifiedon, deleted_ts = NULL;");
-
-    String insertStatement = insertIntoSql.toString() + insertSqlValues.toString() + onDuplicateUpdate.toString();
-    insertStatement = String.format(insertStatement, getTableName(urn));
-
-    sqlUpdate = _server.createSqlUpdate(insertStatement);
-
-    String utcTimestamp = Instant.ofEpochMilli(timestamp)
-        .atZone(ZoneOffset.UTC)
-        .format(DateTimeFormatter.ofPattern(DATE_TIME_FORMAT));
-    // Set parameters for each aspect value
-    for (int i = 0; i < aspectValues.size(); i++) {
-      AuditedAspect auditedAspect = new AuditedAspect()
-          .setAspect(RecordUtils.toJsonString(aspectValues.get(i)))
-          .setCanonicalName(aspectUpdateLambdas.get(i).getAspectClass().getCanonicalName())
-          .setLastmodifiedby(actor)
-          .setLastmodifiedon(utcTimestamp)
-          .setCreatedfor(impersonator, SetMode.IGNORE_NULL);
-      if (ingestionTrackingContext != null) {
-        auditedAspect.setEmitTime(ingestionTrackingContext.getEmitTime(), SetMode.IGNORE_NULL);
-        auditedAspect.setEmitter(ingestionTrackingContext.getEmitter(), SetMode.IGNORE_NULL);
-      }
-      sqlUpdate.setParameter("aspect" + i, toJsonString(auditedAspect));
-    }
-
-
-    // If a non-default UrnPathExtractor is provided, the user MUST specify in their schema generation scripts
-    // 'ALTER TABLE <table> ADD COLUMN a_urn JSON'.
-    if (urnExtraction) {
-      sqlUpdate.setParameter("a_urn", toJsonString(urn));
-    }
-    sqlUpdate.setParameter("urn", urn.toString())
-        .setParameter("lastmodifiedon", utcTimestamp)
-        .setParameter("lastmodifiedby", actor);
+    // Use comprehensive helper to prepare SqlUpdate with all common logic
+    SqlUpdate sqlUpdate = prepareMultiColumnInsert(urn, aspectValues, aspectUpdateLambdas, 
+        auditStamp, ingestionTrackingContext, onDuplicateKeyClause);
 
     return sqlUpdate.execute();
   }
@@ -862,5 +672,179 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       // has context transaction, get the connection object and execute the query.
       return findLatestMetadataAspect(ebeanServer.currentTransaction().getConnection(), urn, aspectClass);
     }
+  }
+
+  /**
+   * Comprehensive helper method that prepares a SqlUpdate with all common logic up to the ON DUPLICATE KEY clause.
+   * This consolidates audit extraction, SQL building, and parameter setting for both create() and batchUpsert().
+   * 
+   * Returns a SqlUpdate object with:
+   * - INSERT INTO and VALUES clauses built
+   * - All aspect parameters set
+   * - URN parameter set (if urnExtraction enabled)
+   * - lastmodifiedon and lastmodifiedby parameters set
+   * 
+   * The caller only needs to append the ON DUPLICATE KEY clause and execute.
+   *
+   * @param urn entity URN
+   * @param aspectValues list of aspect values
+   * @param aspectLambdas list of aspect lambdas (AspectUpdateLambda or AspectCreateLambda)
+   * @param auditStamp audit stamp for tracking
+   * @param ingestionTrackingContext tracking context for ingestion
+   * @param insertStatementTemplate the INSERT statement template with placeholder for ON DUPLICATE KEY clause (e.g., "INSERT INTO %s (...) VALUES (...) %s")
+   * @return SqlUpdate object ready for ON DUPLICATE KEY clause to be appended
+   */
+  private SqlUpdate prepareMultiColumnInsert(
+      @Nonnull URN urn,
+      @Nonnull List<? extends RecordTemplate> aspectValues,
+      @Nonnull List<? extends BaseLocalDAO.AspectUpdateLambda<? extends RecordTemplate>> aspectLambdas,
+      @Nonnull AuditStamp auditStamp,
+      @Nullable IngestionTrackingContext ingestionTrackingContext,
+      @Nonnull String onDuplicateKeyClause) {
+    
+    // Validate that aspectValues and aspectLambdas have the same size
+    if (aspectValues.size() != aspectLambdas.size()) {
+      throw new IllegalArgumentException(
+          String.format("Aspect values size (%d) must match aspect lambdas size (%d)",
+              aspectValues.size(), aspectLambdas.size()));
+    }
+    
+    // Validate that no aspect values are null
+    aspectValues.forEach(aspectValue -> {
+      if (aspectValue == null) {
+        throw new IllegalArgumentException("Aspect value cannot be null");
+      }
+    });
+    
+    // Extract audit information
+    final long timestamp = auditStamp.hasTime() ? auditStamp.getTime() : System.currentTimeMillis();
+    final String actor = auditStamp.hasActor() ? auditStamp.getActor().toString() : DEFAULT_ACTOR;
+    final String impersonator = auditStamp.hasImpersonator() ? auditStamp.getImpersonator().toString() : null;
+    final boolean urnExtraction = _urnPathExtractor != null && !(_urnPathExtractor instanceof EmptyPathExtractor);
+
+    // Extract class names from lambdas
+    List<String> classNames = aspectLambdas.stream()
+        .map(lambda -> lambda.getAspectClass().getCanonicalName())
+        .collect(Collectors.toList());
+
+    // Build INSERT INTO and VALUES clauses
+    StringBuilder insertIntoSql = new StringBuilder();
+    StringBuilder insertSqlValues = new StringBuilder();
+
+    if (urnExtraction) {
+      insertIntoSql.append(SQL_INSERT_INTO_ASSET_WITH_URN);
+      insertSqlValues.append(SQL_INSERT_ASSET_VALUES_WITH_URN);
+    } else {
+      insertIntoSql.append(SQL_INSERT_INTO_ASSET);
+      insertSqlValues.append(SQL_INSERT_ASSET_VALUES);
+    }
+
+    // Build column list and value placeholders
+    for (int i = 0; i < classNames.size(); i++) {
+      insertIntoSql.append(getAspectColumnName(urn.getEntityType(), classNames.get(i)));
+      insertSqlValues.append(":aspect").append(i);
+      if (i != classNames.size() - 1) {
+        insertIntoSql.append(", ");
+        insertSqlValues.append(", ");
+      }
+    }
+    insertIntoSql.append(CLOSING_BRACKET);
+    insertSqlValues.append(CLOSING_BRACKET);
+
+    // Build complete SQL statement with ON DUPLICATE KEY clause
+    String insertStatement = insertIntoSql.toString() + insertSqlValues.toString() + onDuplicateKeyClause;
+    insertStatement = String.format(insertStatement, getTableName(urn));
+
+    // Create SqlUpdate and set all parameters
+    SqlUpdate sqlUpdate = _server.createSqlUpdate(insertStatement);
+
+    String utcTimestamp = Instant.ofEpochMilli(timestamp)
+        .atZone(ZoneOffset.UTC)
+        .format(DateTimeFormatter.ofPattern(DATE_TIME_FORMAT));
+
+    // Set aspect parameters
+    for (int i = 0; i < aspectValues.size(); i++) {
+      AuditedAspect auditedAspect = new AuditedAspect()
+          .setAspect(RecordUtils.toJsonString(aspectValues.get(i)))
+          .setCanonicalName(classNames.get(i))
+          .setLastmodifiedby(actor)
+          .setLastmodifiedon(utcTimestamp)
+          .setCreatedfor(impersonator, SetMode.IGNORE_NULL);
+      if (ingestionTrackingContext != null) {
+        auditedAspect.setEmitTime(ingestionTrackingContext.getEmitTime(), SetMode.IGNORE_NULL);
+        auditedAspect.setEmitter(ingestionTrackingContext.getEmitter(), SetMode.IGNORE_NULL);
+      }
+      sqlUpdate.setParameter("aspect" + i, toJsonString(auditedAspect));
+    }
+
+    // Set URN parameter if extraction is enabled
+    if (urnExtraction) {
+      sqlUpdate.setParameter("a_urn", toJsonString(urn));
+    }
+    
+    // Set common parameters
+    sqlUpdate.setParameter("urn", urn.toString())
+        .setParameter("lastmodifiedon", utcTimestamp)
+        .setParameter("lastmodifiedby", actor);
+
+    return sqlUpdate;
+  }
+
+  /**
+   * Helper method to build the ON DUPLICATE KEY UPDATE clause for create() method.
+   * This clause throws a DuplicateKeyException if the row already exists and is not soft-deleted.
+   *
+   * @param urn entity URN
+   * @param aspectLambdas list of aspect lambdas
+   * @return the ON DUPLICATE KEY UPDATE clause string
+   */
+  private String buildOnDuplicateKeyForCreate(
+      @Nonnull URN urn, 
+      @Nonnull List<? extends BaseLocalDAO.AspectUpdateLambda<? extends RecordTemplate>> aspectLambdas) {
+    
+    List<String> classNames = aspectLambdas.stream()
+        .map(lambda -> lambda.getAspectClass().getCanonicalName())
+        .collect(Collectors.toList());
+    
+    StringBuilder onDuplicateKey = new StringBuilder();
+    onDuplicateKey.append(ON_DUPLICATE_KEY_UPDATE);
+    for (int i = 0; i < classNames.size(); i++) {
+      onDuplicateKey.append(getAspectColumnName(urn.getEntityType(), classNames.get(i)));
+      onDuplicateKey.append(" = :aspect").append(i);
+      if (i != classNames.size() - 1) {
+        onDuplicateKey.append(", ");
+      }
+    }
+    onDuplicateKey.append(DELETED_TS_SET_VALUE_CONDITIONALLY);
+    return onDuplicateKey.toString();
+  }
+
+  /**
+   * Helper method to build the ON DUPLICATE KEY UPDATE clause for batchUpsert() method.
+   * This clause always updates the row and clears deleted_ts (UPSERT semantics).
+   *
+   * @param urn entity URN
+   * @param aspectLambdas list of aspect lambdas
+   * @return the ON DUPLICATE KEY UPDATE clause string
+   */
+  private String buildOnDuplicateKeyForUpsert(
+      @Nonnull URN urn, 
+      @Nonnull List<? extends BaseLocalDAO.AspectUpdateLambda<? extends RecordTemplate>> aspectLambdas) {
+    
+    List<String> classNames = aspectLambdas.stream()
+        .map(lambda -> lambda.getAspectClass().getCanonicalName())
+        .collect(Collectors.toList());
+    
+    StringBuilder onDuplicateKey = new StringBuilder();
+    onDuplicateKey.append(ON_DUPLICATE_KEY_UPDATE);
+    for (int i = 0; i < classNames.size(); i++) {
+      String columnName = getAspectColumnName(urn.getEntityType(), classNames.get(i));
+      onDuplicateKey.append(columnName).append(" = :aspect").append(i);
+      if (i != classNames.size() - 1) {
+        onDuplicateKey.append(", ");
+      }
+    }
+    onDuplicateKey.append(", lastmodifiedon = :lastmodifiedon, deleted_ts = NULL;");
+    return onDuplicateKey.toString();
   }
 }

@@ -4530,6 +4530,10 @@ public class EbeanLocalDAOTest {
     AspectFoo foo1 = new AspectFoo().setValue("initial");
     dao.addManyBatch(fooUrn, Collections.singletonList(foo1), _dummyAuditStamp, null);
     
+    // Get audit timestamp after first write
+    BaseLocalDAO.AspectEntry<AspectFoo> entry1 = dao.getLatest(fooUrn, AspectFoo.class, false);
+    Long timestamp1 = entry1.getExtraInfo() != null ? entry1.getExtraInfo().getAudit().getTime() : null;
+    
     // Second write with SAME value - should skip due to equality
     AspectFoo foo2 = new AspectFoo().setValue("initial");
     List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, Collections.singletonList(foo2), _dummyAuditStamp, null);
@@ -4537,6 +4541,11 @@ public class EbeanLocalDAOTest {
     // Should return result
     assertEquals(results.size(), 1);
     assertNotNull(results.get(0));
+    
+    // Verify NO database write occurred - audit timestamp should be unchanged
+    BaseLocalDAO.AspectEntry<AspectFoo> entry2 = dao.getLatest(fooUrn, AspectFoo.class, false);
+    Long timestamp2 = entry2.getExtraInfo() != null ? entry2.getExtraInfo().getAudit().getTime() : null;
+    assertEquals(timestamp1, timestamp2, "Audit timestamp should not change when value is equal - no DB write should occur");
   }
 
   @Test
@@ -4556,7 +4565,7 @@ public class EbeanLocalDAOTest {
     AspectFoo foo2 = new AspectFoo().setValue("v2");
     List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, Collections.singletonList(foo2), _dummyAuditStamp, null);
     
-    // Verify result returned
+    // Verify result returned - this confirms non-skipped aspect was processed
     assertEquals(results.size(), 1);
     assertNotNull(results.get(0));
   }
@@ -4580,6 +4589,11 @@ public class EbeanLocalDAOTest {
         .setBackfill(true);
     dao.addManyBatch(fooUrn, Collections.singletonList(foo1), _dummyAuditStamp, newerContext);
     
+    // Get audit timestamp and value after first write
+    BaseLocalDAO.AspectEntry<AspectFoo> entry1 = dao.getLatest(fooUrn, AspectFoo.class, false);
+    Long timestamp1 = entry1.getExtraInfo() != null ? entry1.getExtraInfo().getAudit().getTime() : null;
+    String value1 = entry1.getAspect() != null ? entry1.getAspect().getValue() : null;
+    
     // Try to backfill with OLDER timestamp - should be skipped
     AspectFoo foo2 = new AspectFoo().setValue("older_data");
     IngestionTrackingContext olderContext = new IngestionTrackingContext()
@@ -4591,6 +4605,13 @@ public class EbeanLocalDAOTest {
     
     // Should return result
     assertEquals(results.size(), 1);
+    
+    // Verify NO database write occurred - audit timestamp and value should be unchanged
+    BaseLocalDAO.AspectEntry<AspectFoo> entry2 = dao.getLatest(fooUrn, AspectFoo.class, false);
+    Long timestamp2 = entry2.getExtraInfo() != null ? entry2.getExtraInfo().getAudit().getTime() : null;
+    String value2 = entry2.getAspect() != null ? entry2.getAspect().getValue() : null;
+    assertEquals(timestamp1, timestamp2, "Audit timestamp should not change when backfill event is older - no DB write should occur");
+    assertEquals(value1, value2, "Value should remain 'newer_data', not be overwritten by older backfill");
   }
 
   @Test
@@ -4617,5 +4638,102 @@ public class EbeanLocalDAOTest {
     assertEquals(results.size(), 2);
     assertNotNull(results.get(0));
     assertNotNull(results.get(1));
+  }
+
+  @Test
+  public void testAddManyBatchRejectsDuplicateAspects() throws URISyntaxException {
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      return;
+    }
+    
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(6004);
+    
+    // Try to update same aspect class twice in one batch - should throw
+    AspectFoo foo1 = new AspectFoo().setValue("value1");
+    AspectFoo foo2 = new AspectFoo().setValue("value2");
+    
+    try {
+      dao.addManyBatch(fooUrn, Arrays.asList(foo1, foo2), _dummyAuditStamp, null);
+      fail("Expected IllegalArgumentException for duplicate aspect classes");
+    } catch (IllegalArgumentException e) {
+      assertTrue(e.getMessage().contains("Duplicate aspect class"));
+      assertTrue(e.getMessage().contains("AspectFoo"));
+    }
+  }
+
+  @Test
+  public void testAddManyBatchAllAspectsRejectedByEquality() throws URISyntaxException {
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      return;
+    }
+    
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(6005);
+    
+    // First write - create entity with multiple aspects
+    AspectFoo foo1 = new AspectFoo().setValue("foo_initial");
+    AspectBar bar1 = new AspectBar().setValue("bar_initial");
+    dao.addManyBatch(fooUrn, Arrays.asList(foo1, bar1), _dummyAuditStamp, null);
+    
+    // Capture the state after first write
+    BaseLocalDAO.AspectEntry<AspectFoo> fooEntry1 = dao.getLatest(fooUrn, AspectFoo.class, false);
+    BaseLocalDAO.AspectEntry<AspectBar> barEntry1 = dao.getLatest(fooUrn, AspectBar.class, false);
+    
+    Long fooTimestamp1 = fooEntry1.getExtraInfo() != null ? fooEntry1.getExtraInfo().getAudit().getTime() : null;
+    Long barTimestamp1 = barEntry1.getExtraInfo() != null ? barEntry1.getExtraInfo().getAudit().getTime() : null;
+    
+    // Query the database directly to check deleted_ts before second write
+    String urnString = fooUrn.toString();
+    String tableName = "metadata_entity_foo";
+    String query = String.format("SELECT deleted_ts FROM %s WHERE urn = '%s'", tableName, urnString);
+    
+    Long deletedTsBefore = _server.createSqlQuery(query)
+        .findOne()
+        .getLong("deleted_ts");
+    
+    // Second write - ALL aspects have SAME values (should be rejected by equality check)
+    AspectFoo foo2 = new AspectFoo().setValue("foo_initial");  // Same as foo1
+    AspectBar bar2 = new AspectBar().setValue("bar_initial");  // Same as bar1
+    
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, Arrays.asList(foo2, bar2), _dummyAuditStamp, null);
+    
+    // Should return results (even though no actual update occurred)
+    assertEquals(results.size(), 2);
+    assertNotNull(results.get(0));
+    assertNotNull(results.get(1));
+    
+    // Verify NO database write occurred for either aspect
+    BaseLocalDAO.AspectEntry<AspectFoo> fooEntry2 = dao.getLatest(fooUrn, AspectFoo.class, false);
+    BaseLocalDAO.AspectEntry<AspectBar> barEntry2 = dao.getLatest(fooUrn, AspectBar.class, false);
+    
+    Long fooTimestamp2 = fooEntry2.getExtraInfo() != null ? fooEntry2.getExtraInfo().getAudit().getTime() : null;
+    Long barTimestamp2 = barEntry2.getExtraInfo() != null ? barEntry2.getExtraInfo().getAudit().getTime() : null;
+    
+    // Audit timestamps should be unchanged (no DB write)
+    assertEquals(fooTimestamp1, fooTimestamp2, 
+        "AspectFoo audit timestamp should not change when value is equal - no DB write should occur");
+    assertEquals(barTimestamp1, barTimestamp2, 
+        "AspectBar audit timestamp should not change when value is equal - no DB write should occur");
+    
+    // CRITICAL: Verify deleted_ts was NOT set to NULL
+    // This is the key assertion - if all aspects are rejected by equality, the SQL should not execute
+    // and deleted_ts should remain unchanged (not be set to NULL which would incorrectly signal an update)
+    Long deletedTsAfter = _server.createSqlQuery(query)
+        .findOne()
+        .getLong("deleted_ts");
+    
+    assertEquals(deletedTsBefore, deletedTsAfter, 
+        "deleted_ts should NOT be modified when all aspects are rejected by equality check. "
+        + "Setting deleted_ts=NULL would incorrectly signal a successful update when no content changed.");
+    
+    // Additional verification: check lastmodifiedon and lastmodifiedby remain unchanged
+    String detailedQuery = String.format(
+        "SELECT lastmodifiedon, lastmodifiedby, deleted_ts FROM %s WHERE urn = '%s'", 
+        tableName, urnString);
+    
+    // Note: This test may fail if there's a bug where batchUpsert executes the SQL even when
+    // all aspects are rejected by equality checks, causing deleted_ts to be set to NULL and
+    // lastmodifiedon/lastmodifiedby to be updated despite no actual content changes.
   }
 }

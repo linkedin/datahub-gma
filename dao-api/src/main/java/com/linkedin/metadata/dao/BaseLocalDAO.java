@@ -73,6 +73,8 @@ import javax.annotation.Nullable;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NonNull;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
@@ -143,17 +145,24 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    *
    * @param <ASPECT> the type of the aspect being updated
    */
-  @AllArgsConstructor
-  @Value
+  @Getter
   public static class AspectUpdateLambda<ASPECT extends RecordTemplate> {
     @NonNull
-    Class<ASPECT> aspectClass;
+    protected final Class<ASPECT> aspectClass;
 
     @NonNull
-    Function<Optional<ASPECT>, ASPECT> updateLambda;
+    protected final Function<Optional<ASPECT>, ASPECT> updateLambda;
 
     @NonNull
-    IngestionParams ingestionParams;
+    protected final IngestionParams ingestionParams;
+
+    public AspectUpdateLambda(@NonNull Class<ASPECT> aspectClass, 
+                              @NonNull Function<Optional<ASPECT>, ASPECT> updateLambda,
+                              @NonNull IngestionParams ingestionParams) {
+      this.aspectClass = aspectClass;
+      this.updateLambda = updateLambda;
+      this.ingestionParams = ingestionParams;
+    }
 
     AspectUpdateLambda(ASPECT value) {
       this.aspectClass = (Class<ASPECT>) value.getClass();
@@ -171,22 +180,19 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   /**
    * Immutable class to hold the details of a Create to an aspect.
    *
+   * <p>This class extends AspectUpdateLambda because create is conceptually a special case of update
+   * where the transformation function ignores the old value and always returns the new value.
+   *
    * <p>This class allows the wildcard capture in {@link #create(Urn, List, AuditStamp, IngestionTrackingContext, IngestionParams)}</p>
    *
-   * @param <ASPECT> the type of the aspect being updated
+   * @param <ASPECT> the type of the aspect being created
    */
-  @AllArgsConstructor
   @Value
-  public static class AspectCreateLambda<ASPECT extends RecordTemplate> {
-    @Nonnull
-    Class<ASPECT> aspectClass;
-
-    @Nonnull
-    IngestionParams ingestionParams;
-
+  @EqualsAndHashCode(callSuper = true)
+  public static class AspectCreateLambda<ASPECT extends RecordTemplate> extends AspectUpdateLambda<ASPECT> {
+    
     public AspectCreateLambda(@Nonnull ASPECT value) {
-      this.aspectClass = (Class<ASPECT>) value.getClass();
-      ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
+      super(value); // Uses AspectUpdateLambda constructor that creates lambda: (ignored) -> value
     }
   }
 
@@ -656,9 +662,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   /**
    * Batch upsert with AspectUpdateLambda support (enables test mode and ingestion params).
    *
-   * <p>Note: Transaction retry is handled by the subclass implementation (e.g., EbeanLocalDAO),
-   * not at this layer. The maxTransactionRetry parameter is kept for API compatibility but is
-   * currently not used. Transaction handling follows the same pattern as createNewAssetWithAspects().
+   * <p>Note: This method is called WITHIN a transaction by addManyBatch(). 
+ * It should not handle its own transaction logic.
    *
    * <p>NOTE: This is structurally very similar to createAspectsWithCallbacks(), some future refactoring can be done to
    * share the logic between the two.
@@ -669,6 +674,17 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     // Validate all aspects upfront
     aspectUpdateLambdas.stream().map(AspectUpdateLambda::getAspectClass).forEach(this::checkValidAspect);
+
+    // Validate no duplicate aspect classes in the batch
+    Set<Class<? extends RecordTemplate>> seenAspectClasses = new HashSet<>();
+    for (AspectUpdateLambda<? extends RecordTemplate> lambda : aspectUpdateLambdas) {
+      Class<? extends RecordTemplate> aspectClass = lambda.getAspectClass();
+      if (!seenAspectClasses.add(aspectClass)) {
+        throw new IllegalArgumentException(
+            String.format("Duplicate aspect class %s found in batch update for urn %s. Each aspect class can only appear once per batch.",
+                aspectClass.getCanonicalName(), urn));
+      }
+    }
 
     // STEP 1: Batched read of old values with extra info (1 query)
     Map<Class<? extends RecordTemplate>, AspectWithExtraInfo<RecordTemplate>> oldValuesWithInfo = 
@@ -1077,7 +1093,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * Add new aspects for an asset.
    * @param urn the URN for the entity the aspects are attached to
    * @param aspectValues the list of new aspect values to be added to the asset being created
-   * @param aspectCreateLambdas the list of aspect create lambdas to be executed
+   * @param aspectCreateLambdas the list of aspect create lambdas to be executed (must be positionally aligned with aspectValues)
    * @param auditStamp the audit stamp for the operation
    * @param maxTransactionRetry the maximum number of times to retry the transaction
    * @param trackingContext the tracking context for the operation
