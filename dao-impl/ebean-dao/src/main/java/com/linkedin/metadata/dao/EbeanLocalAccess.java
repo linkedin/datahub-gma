@@ -38,6 +38,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -729,5 +730,51 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       // has context transaction, get the connection object and execute the query.
       return findLatestMetadataAspect(ebeanServer.currentTransaction().getConnection(), urn, aspectClass);
     }
+  }
+
+  /**
+   * Returns the latest updates from the database given a timestamp and a lookbackWindow.
+   * Results are ordered by the timestamp in ascending order.
+   *
+   * @param timestamp the timestamp from which to retrieve updates
+   * @param lookbackWindow the amount of time to look back for updates
+   * @param aspectClasses the types of aspects to retrieve
+   * @param filter optional index filter to apply to the query
+   * @param start the starting offset of the page
+   * @param count the maximum number of updates to return
+   * @return a Map containing the latest updates for each URN, with each update
+   *         represented as a Map from the aspect class to the aspect value
+   */
+  @Override
+  @Nonnull
+  public <ASPECT extends RecordTemplate> Map<URN, Map<Class<ASPECT>, Optional<ASPECT>>> getLatestUpdates(
+      @Nonnull Timestamp timestamp, long lookbackWindow, List<Class<ASPECT>> aspectClasses, @Nullable IndexFilter filter, int start, int count) {
+    String sqlTemplate = SQLStatementUtils.getLatestUpdatesSQL(_entityType, aspectClasses, filter, _nonDollarVirtualColumnsEnabled, validator);
+    String startTimestamp = Instant.ofEpochMilli(timestamp.getTime() - lookbackWindow)
+        .atZone(ZoneOffset.UTC)
+        .format(DateTimeFormatter.ofPattern(DATE_TIME_FORMAT));
+    String endTimestamp = Instant.ofEpochMilli(timestamp.getTime())
+        .atZone(ZoneOffset.UTC)
+        .format(DateTimeFormatter.ofPattern(DATE_TIME_FORMAT));
+
+    SqlQuery sqlQuery = _server.createSqlQuery(sqlTemplate);
+    sqlQuery.setParameter("startTimestamp", startTimestamp);
+    sqlQuery.setParameter("endTimestamp", endTimestamp);
+    sqlQuery.setParameter("limit", count);
+    sqlQuery.setParameter("offset", start);
+    List<SqlRow> results = sqlQuery.findList();
+
+    return results.stream().collect(Collectors.toMap(
+        sqlRow -> getUrn(sqlRow.getString("urn"), _urnClass),
+        sqlRow -> aspectClasses.stream().collect(Collectors.toMap(
+            aspectClass -> aspectClass,
+            aspectClass -> {
+              String aspectValue = sqlRow.getString(getAspectColumnName(_entityType, aspectClass));
+              if (aspectValue == null) {
+                return Optional.empty();
+              }
+              String jsonAspect = extractAspectJsonString(aspectValue);
+              return jsonAspect == null ? Optional.empty() : Optional.of(RecordUtils.toRecordTemplate(aspectClass, jsonAspect));
+            }))));
   }
 }
