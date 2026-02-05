@@ -873,4 +873,162 @@ public class BaseLocalDAOTest {
     // invalid, should skip
     assertEquals(_dummyLocalDAO.aspectTimestampSkipWrite(null, null), false);
   }
+
+  // ===== addManyBatch() Tests =====
+
+  @Test
+  public void testAddManyBatchMAEEmission() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectBar bar = new AspectBar().setValue("bar");
+    _dummyLocalDAO.setAlwaysEmitAuditEvent(true);
+    
+    when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(null, null));
+    when(_mockGetLatestFunction.apply(any(), eq(AspectBar.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectBar>(null, null));
+
+    _dummyLocalDAO.addManyBatch(urn, Arrays.asList(foo, bar), _dummyAuditStamp, null);
+
+    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
+    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, bar);
+    verify(_mockEventProducer, times(1))
+        .produceAspectSpecificMetadataAuditEvent(urn, null, foo, AspectFoo.class, _dummyAuditStamp, IngestionMode.LIVE);
+    verify(_mockEventProducer, times(1))
+        .produceAspectSpecificMetadataAuditEvent(urn, null, bar, AspectBar.class, _dummyAuditStamp, IngestionMode.LIVE);
+  }
+
+  @Test
+  public void testAddManyBatchMAEEmissionWithEqualitySkip() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectBar bar = new AspectBar().setValue("bar");
+    _dummyLocalDAO.setAlwaysEmitAuditEvent(false);
+    
+    // foo already exists with same value, bar is new
+    when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(foo, null));
+    when(_mockGetLatestFunction.apply(any(), eq(AspectBar.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectBar>(null, null));
+
+    List<EntityAspectUnion> results = _dummyLocalDAO.addManyBatch(urn, Arrays.asList(foo, bar), _dummyAuditStamp, null);
+
+    // Both aspects are returned, but foo should not emit MAE due to equality
+    assertEquals(results.size(), 2);
+    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, bar);
+    verify(_mockEventProducer, times(1))
+        .produceAspectSpecificMetadataAuditEvent(urn, null, bar, AspectBar.class, _dummyAuditStamp, IngestionMode.LIVE);
+  }
+
+  @Test
+  public void testAddManyBatchPreUpdateHook() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectBar bar = new AspectBar().setValue("bar");
+    BiConsumer<FooUrn, AspectFoo> fooHook = mock(BiConsumer.class);
+    BiConsumer<FooUrn, AspectBar> barHook = mock(BiConsumer.class);
+    
+    when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(null, null));
+    when(_mockGetLatestFunction.apply(any(), eq(AspectBar.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectBar>(null, null));
+
+    _dummyLocalDAO.addPreUpdateHook(AspectFoo.class, fooHook);
+    _dummyLocalDAO.addPreUpdateHook(AspectBar.class, barHook);
+    _dummyLocalDAO.addManyBatch(urn, Arrays.asList(foo, bar), _dummyAuditStamp, null);
+
+    verify(fooHook, times(1)).accept(urn, foo);
+    verify(barHook, times(1)).accept(urn, bar);
+    verifyNoMoreInteractions(fooHook, barHook);
+  }
+
+  @Test
+  public void testAddManyBatchPostUpdateHook() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectBar bar = new AspectBar().setValue("bar");
+    BiConsumer<FooUrn, AspectFoo> fooHook = mock(BiConsumer.class);
+    BiConsumer<FooUrn, AspectBar> barHook = mock(BiConsumer.class);
+    
+    when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(null, null));
+    when(_mockGetLatestFunction.apply(any(), eq(AspectBar.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectBar>(null, null));
+
+    _dummyLocalDAO.addPostUpdateHook(AspectFoo.class, fooHook);
+    _dummyLocalDAO.addPostUpdateHook(AspectBar.class, barHook);
+    _dummyLocalDAO.addManyBatch(urn, Arrays.asList(foo, bar), _dummyAuditStamp, null);
+
+    verify(fooHook, times(1)).accept(urn, foo);
+    verify(barHook, times(1)).accept(urn, bar);
+    verifyNoMoreInteractions(fooHook, barHook);
+  }
+
+  @Test
+  public void testAddManyBatchTransactionBehavior() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectBar bar = new AspectBar().setValue("bar");
+    
+    when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(null, null));
+    when(_mockGetLatestFunction.apply(any(), eq(AspectBar.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectBar>(null, null));
+
+    _dummyLocalDAO.addManyBatch(urn, Arrays.asList(foo, bar), _dummyAuditStamp, null);
+
+    // Should execute in a single transaction
+    verify(_mockTransactionRunner, times(1)).run(any());
+  }
+
+  @Test
+  public void testAddManyBatchWithTrackingContext() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    IngestionTrackingContext mockTrackingContext = mock(IngestionTrackingContext.class);
+    DummyLocalDAO<EntityAspectUnion> dummyLocalDAO = new DummyLocalDAO<>(EntityAspectUnion.class,
+        _mockGetLatestFunction, _mockTrackingEventProducer, _mockTrackingManager,
+        _dummyLocalDAO._transactionRunner);
+    dummyLocalDAO.setEmitAuditEvent(true);
+    dummyLocalDAO.setAlwaysEmitAuditEvent(true);
+    dummyLocalDAO.setEmitAspectSpecificAuditEvent(true);
+    dummyLocalDAO.setAlwaysEmitAspectSpecificAuditEvent(true);
+    
+    when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(null, null));
+
+    dummyLocalDAO.addManyBatch(urn, Collections.singletonList(foo), _dummyAuditStamp, mockTrackingContext);
+
+    verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
+    verify(_mockTrackingEventProducer, times(1))
+        .produceAspectSpecificMetadataAuditEvent(urn, null, foo, AspectFoo.class, _dummyAuditStamp, mockTrackingContext, IngestionMode.LIVE);
+  }
+
+  @Test(expectedExceptions = IllegalArgumentException.class)
+  public void testAddManyBatchRejectsDuplicateAspects() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo1 = new AspectFoo().setValue("foo1");
+    AspectFoo foo2 = new AspectFoo().setValue("foo2");
+    
+    // Should throw IllegalArgumentException due to duplicate aspect class
+    _dummyLocalDAO.addManyBatch(urn, Arrays.asList(foo1, foo2), _dummyAuditStamp, null);
+  }
+
+  @Test
+  public void testAddManyBatchReturnsAllAspects() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectBar bar = new AspectBar().setValue("bar");
+    
+    // Both aspects already exist with same values
+    when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(foo, null));
+    when(_mockGetLatestFunction.apply(any(), eq(AspectBar.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectBar>(bar, null));
+
+    List<EntityAspectUnion> results = _dummyLocalDAO.addManyBatch(urn, Arrays.asList(foo, bar), _dummyAuditStamp, null);
+
+    // Both aspects are returned in the result list
+    assertEquals(results.size(), 2);
+  }
 }
