@@ -156,14 +156,6 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     @NonNull
     protected final IngestionParams ingestionParams;
 
-    public AspectUpdateLambda(@NonNull Class<ASPECT> aspectClass, 
-                              @NonNull Function<Optional<ASPECT>, ASPECT> updateLambda,
-                              @NonNull IngestionParams ingestionParams) {
-      this.aspectClass = aspectClass;
-      this.updateLambda = updateLambda;
-      this.ingestionParams = ingestionParams;
-    }
-
     AspectUpdateLambda(ASPECT value) {
       this.aspectClass = (Class<ASPECT>) value.getClass();
       this.updateLambda = (ignored) -> value;
@@ -174,6 +166,13 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       this.aspectClass = aspectClass;
       this.updateLambda = updateLambda;
       this.ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
+    }
+
+    AspectUpdateLambda(@NonNull Class<ASPECT> aspectClass, @NonNull Function<Optional<ASPECT>, ASPECT> updateLambda,
+        @NonNull IngestionParams ingestionParams) {
+      this.aspectClass = aspectClass;
+      this.updateLambda = updateLambda;
+      this.ingestionParams = ingestionParams;
     }
   }
 
@@ -206,6 +205,11 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   /**
    * Immutable class to package aspect update context for batch operations.
    * Eliminates the need for multiple parallel lists by bundling related data together.
+   * 
+   * <p>Note that 'newValue' can be calculated directly by applying 'lambda' to 'oldValue', so it's not striclty
+   * needed to be stored. You can see an example of the consumption in 
+   * {@link EbeanLocalDAO#batchUpsertAspects(URN, List, AuditStamp, IngestionTrackingContext, boolean)} and
+   * {@link EbeanLocalAccess#batchUpsert(URN, List, AuditStamp, IngestionTrackingContext, boolean)}.
    *
    * @param <ASPECT> the type of the aspect being updated
    */
