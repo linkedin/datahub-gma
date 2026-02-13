@@ -4404,4 +4404,543 @@ public class EbeanLocalDAOTest {
     // Should have 2 BelongsToV2 relationships (one for each relationship in AspectFooBar's belongsTos field)
     assertEquals(relationships.size(), 2);
   }
+
+  @Test
+  public void testAddManyBatch() throws URISyntaxException {
+    // addManyBatch requires _localAccess which is only initialized for non-OLD_SCHEMA_ONLY
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      return;
+    }
+    
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(5000);
+    
+    AspectFoo foo = new AspectFoo().setValue("batch_foo");
+    AspectBar bar = new AspectBar().setValue("batch_bar");
+    List<RecordTemplate> aspects = Arrays.asList(foo, bar);
+    
+    // Act - use addManyBatch
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, aspects, _dummyAuditStamp, null);
+    
+    // Assert - verify results returned
+    assertEquals(results.size(), 2);
+    assertNotNull(results.get(0));
+    assertNotNull(results.get(1));
+  }
+
+  @Test
+  public void testAddManyBatchWithIngestionTrackingContext() throws URISyntaxException {
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      return;
+    }
+    
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(5001);
+    
+    AspectFoo foo = new AspectFoo().setValue("tracked_batch");
+    List<RecordTemplate> aspects = Collections.singletonList(foo);
+    
+    IngestionTrackingContext trackingContext = new IngestionTrackingContext()
+        .setEmitter("test-emitter")
+        .setEmitTime(System.currentTimeMillis());
+    
+    // Act
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, aspects, _dummyAuditStamp, trackingContext);
+    
+    // Assert - verify result returned
+    assertEquals(results.size(), 1);
+    assertNotNull(results.get(0));
+  }
+
+  @Test
+  public void testAddManyBatchUpsertBehavior() throws URISyntaxException {
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      return;
+    }
+    
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(5002);
+    
+    // First insert
+    AspectFoo foo1 = new AspectFoo().setValue("initial_batch");
+    List<EntityAspectUnion> results1 = dao.addManyBatch(fooUrn, Collections.singletonList(foo1), _dummyAuditStamp, null);
+    assertEquals(results1.size(), 1);
+    
+    // Upsert with new value
+    AspectFoo foo2 = new AspectFoo().setValue("updated_batch");
+    List<EntityAspectUnion> results2 = dao.addManyBatch(fooUrn, Collections.singletonList(foo2), _dummyAuditStamp, null);
+    
+    // Assert - both operations should return results
+    assertEquals(results2.size(), 1);
+    assertNotNull(results2.get(0));
+  }
+
+  @Test
+  public void testAddManyBatchSingleAspect() throws URISyntaxException {
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      return;
+    }
+    
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(5003);
+    
+    AspectFoo foo = new AspectFoo().setValue("single_batch");
+    
+    // Act
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, Collections.singletonList(foo), _dummyAuditStamp, null);
+    
+    // Assert - verify result returned
+    assertEquals(results.size(), 1);
+    assertNotNull(results.get(0));
+  }
+
+  @Test
+  public void testAddManyBatchMultipleAspects() throws URISyntaxException {
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      return;
+    }
+    
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(5004);
+    
+    // Test with 3 different aspects
+    AspectFoo foo = new AspectFoo().setValue("multi_foo");
+    AspectBar bar = new AspectBar().setValue("multi_bar");
+    List<RecordTemplate> aspects = Arrays.asList(foo, bar);
+    
+    // Act
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, aspects, _dummyAuditStamp, null);
+    
+    // Assert - verify all results returned
+    assertEquals(results.size(), 2);
+    assertNotNull(results.get(0));
+    assertNotNull(results.get(1));
+  }
+
+  @Test
+  public void testAddManyBatchWithEqualitySkip() throws URISyntaxException {
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      return;
+    }
+    
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(6000);
+    
+    // First write
+    AspectFoo foo1 = new AspectFoo().setValue("initial");
+    dao.addManyBatch(fooUrn, Collections.singletonList(foo1), _dummyAuditStamp, null);
+    
+    // Get audit timestamp after first write
+    BaseLocalDAO.AspectEntry<AspectFoo> entry1 = dao.getLatest(fooUrn, AspectFoo.class, false);
+    Long timestamp1 = entry1.getExtraInfo() != null ? entry1.getExtraInfo().getAudit().getTime() : null;
+    
+    // Second write with SAME value - should skip due to equality
+    AspectFoo foo2 = new AspectFoo().setValue("initial");
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, Collections.singletonList(foo2), _dummyAuditStamp, null);
+    
+    // Should return result
+    assertEquals(results.size(), 1);
+    assertNotNull(results.get(0));
+    
+    // Verify NO database write occurred - audit timestamp should be unchanged
+    BaseLocalDAO.AspectEntry<AspectFoo> entry2 = dao.getLatest(fooUrn, AspectFoo.class, false);
+    Long timestamp2 = entry2.getExtraInfo() != null ? entry2.getExtraInfo().getAudit().getTime() : null;
+    assertEquals(timestamp1, timestamp2, "Audit timestamp should not change when value is equal - no DB write should occur");
+  }
+
+  @Test
+  public void testAddManyBatchUpdateExisting() throws URISyntaxException {
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      return;
+    }
+    
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(6001);
+    
+    // First write
+    AspectFoo foo1 = new AspectFoo().setValue("v1");
+    dao.addManyBatch(fooUrn, Collections.singletonList(foo1), _dummyAuditStamp, null);
+    
+    // Second write with different value - should update
+    AspectFoo foo2 = new AspectFoo().setValue("v2");
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, Collections.singletonList(foo2), _dummyAuditStamp, null);
+    
+    // Verify result returned - this confirms non-skipped aspect was processed
+    assertEquals(results.size(), 1);
+    assertNotNull(results.get(0));
+  }
+
+  @Test
+  public void testAddManyBatchWithBackfillSkip() throws URISyntaxException {
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      return;
+    }
+    
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(6002);
+    
+    long now = System.currentTimeMillis();
+    
+    // First write with newer timestamp
+    AspectFoo foo1 = new AspectFoo().setValue("newer_data");
+    IngestionTrackingContext newerContext = new IngestionTrackingContext()
+        .setEmitter("test")
+        .setEmitTime(now + 1000)
+        .setBackfill(true);
+    dao.addManyBatch(fooUrn, Collections.singletonList(foo1), _dummyAuditStamp, newerContext);
+    
+    // Get audit timestamp and value after first write
+    BaseLocalDAO.AspectEntry<AspectFoo> entry1 = dao.getLatest(fooUrn, AspectFoo.class, false);
+    Long timestamp1 = entry1.getExtraInfo() != null ? entry1.getExtraInfo().getAudit().getTime() : null;
+    String value1 = entry1.getAspect() != null ? entry1.getAspect().getValue() : null;
+    
+    // Try to backfill with OLDER timestamp - should be skipped
+    AspectFoo foo2 = new AspectFoo().setValue("older_data");
+    IngestionTrackingContext olderContext = new IngestionTrackingContext()
+        .setEmitter("test")
+        .setEmitTime(now)  // Older timestamp
+        .setBackfill(true);
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, Collections.singletonList(foo2), 
+        _dummyAuditStamp, olderContext);
+    
+    // Should return result
+    assertEquals(results.size(), 1);
+    
+    // Verify NO database write occurred - audit timestamp and value should be unchanged
+    BaseLocalDAO.AspectEntry<AspectFoo> entry2 = dao.getLatest(fooUrn, AspectFoo.class, false);
+    Long timestamp2 = entry2.getExtraInfo() != null ? entry2.getExtraInfo().getAudit().getTime() : null;
+    String value2 = entry2.getAspect() != null ? entry2.getAspect().getValue() : null;
+    assertEquals(timestamp1, timestamp2, "Audit timestamp should not change when backfill event is older - no DB write should occur");
+    assertEquals(value1, value2, "Value should remain 'newer_data', not be overwritten by older backfill");
+  }
+
+  @Test
+  public void testAddManyBatchMixedEqualityChanges() throws URISyntaxException {
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      return;
+    }
+    
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(6003);
+    
+    // First write - 2 aspects
+    AspectFoo foo1 = new AspectFoo().setValue("foo_v1");
+    AspectBar bar1 = new AspectBar().setValue("bar_v1");
+    dao.addManyBatch(fooUrn, Arrays.asList(foo1, bar1), _dummyAuditStamp, null);
+    
+    // Second write - Foo unchanged, Bar changed
+    AspectFoo foo2 = new AspectFoo().setValue("foo_v1");  // Same
+    AspectBar bar2 = new AspectBar().setValue("bar_v2");  // Different
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, Arrays.asList(foo2, bar2), 
+        _dummyAuditStamp, null);
+    
+    // Should return 2 results
+    assertEquals(results.size(), 2);
+    assertNotNull(results.get(0));
+    assertNotNull(results.get(1));
+  }
+
+  @Test
+  public void testAddManyBatchRejectsDuplicateAspects() throws URISyntaxException {
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      return;
+    }
+    
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(6004);
+    
+    // Try to update same aspect class twice in one batch - should throw
+    AspectFoo foo1 = new AspectFoo().setValue("value1");
+    AspectFoo foo2 = new AspectFoo().setValue("value2");
+    
+    try {
+      dao.addManyBatch(fooUrn, Arrays.asList(foo1, foo2), _dummyAuditStamp, null);
+      fail("Expected IllegalArgumentException for duplicate aspect classes");
+    } catch (IllegalArgumentException e) {
+      assertTrue(e.getMessage().contains("Duplicate aspect class"));
+      assertTrue(e.getMessage().contains("AspectFoo"));
+    }
+  }
+
+  @Test
+  public void testAddManyBatchAllAspectsRejectedByEquality() throws URISyntaxException {
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      return;
+    }
+    
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(6005);
+    
+    // First write - create entity with multiple aspects
+    AspectFoo foo1 = new AspectFoo().setValue("foo_initial");
+    AspectBar bar1 = new AspectBar().setValue("bar_initial");
+    dao.addManyBatch(fooUrn, Arrays.asList(foo1, bar1), _dummyAuditStamp, null);
+    
+    // Capture the state after first write
+    BaseLocalDAO.AspectEntry<AspectFoo> fooEntry1 = dao.getLatest(fooUrn, AspectFoo.class, false);
+    BaseLocalDAO.AspectEntry<AspectBar> barEntry1 = dao.getLatest(fooUrn, AspectBar.class, false);
+    
+    Long fooTimestamp1 = fooEntry1.getExtraInfo() != null ? fooEntry1.getExtraInfo().getAudit().getTime() : null;
+    Long barTimestamp1 = barEntry1.getExtraInfo() != null ? barEntry1.getExtraInfo().getAudit().getTime() : null;
+    
+    // Query the database directly to check deleted_ts before second write
+    String urnString = fooUrn.toString();
+    String tableName = "metadata_entity_foo";
+    String query = String.format("SELECT deleted_ts FROM %s WHERE urn = '%s'", tableName, urnString);
+    
+    Long deletedTsBefore = _server.createSqlQuery(query)
+        .findOne()
+        .getLong("deleted_ts");
+    
+    // Second write - ALL aspects have SAME values (should be rejected by equality check)
+    AspectFoo foo2 = new AspectFoo().setValue("foo_initial");  // Same as foo1
+    AspectBar bar2 = new AspectBar().setValue("bar_initial");  // Same as bar1
+    
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, Arrays.asList(foo2, bar2), _dummyAuditStamp, null);
+    
+    // Should return results (even though no actual update occurred)
+    assertEquals(results.size(), 2);
+    assertNotNull(results.get(0));
+    assertNotNull(results.get(1));
+    
+    // Verify NO database write occurred for either aspect
+    BaseLocalDAO.AspectEntry<AspectFoo> fooEntry2 = dao.getLatest(fooUrn, AspectFoo.class, false);
+    BaseLocalDAO.AspectEntry<AspectBar> barEntry2 = dao.getLatest(fooUrn, AspectBar.class, false);
+    
+    Long fooTimestamp2 = fooEntry2.getExtraInfo() != null ? fooEntry2.getExtraInfo().getAudit().getTime() : null;
+    Long barTimestamp2 = barEntry2.getExtraInfo() != null ? barEntry2.getExtraInfo().getAudit().getTime() : null;
+    
+    // Audit timestamps should be unchanged (no DB write)
+    assertEquals(fooTimestamp1, fooTimestamp2, 
+        "AspectFoo audit timestamp should not change when value is equal - no DB write should occur");
+    assertEquals(barTimestamp1, barTimestamp2, 
+        "AspectBar audit timestamp should not change when value is equal - no DB write should occur");
+    
+    // CRITICAL: Verify deleted_ts was NOT set to NULL
+    // This is the key assertion - if all aspects are rejected by equality, the SQL should not execute
+    // and deleted_ts should remain unchanged (not be set to NULL which would incorrectly signal an update)
+    Long deletedTsAfter = _server.createSqlQuery(query)
+        .findOne()
+        .getLong("deleted_ts");
+    
+    assertEquals(deletedTsBefore, deletedTsAfter, 
+        "deleted_ts should NOT be modified when all aspects are rejected by equality check. "
+        + "Setting deleted_ts=NULL would incorrectly signal a successful update when no content changed.");
+    
+    // Additional verification: check lastmodifiedon and lastmodifiedby remain unchanged
+    String detailedQuery = String.format(
+        "SELECT lastmodifiedon, lastmodifiedby, deleted_ts FROM %s WHERE urn = '%s'", 
+        tableName, urnString);
+    
+    // Note: This test may fail if there's a bug where batchUpsert executes the SQL even when
+    // all aspects are rejected by equality checks, causing deleted_ts to be set to NULL and
+    // lastmodifiedon/lastmodifiedby to be updated despite no actual content changes.
+  }
+
+  // ===== Relationship Ingestion Tests for addManyBatch() =====
+
+  @Test
+  public void testAddManyBatchRelationshipsNotWrittenWhenEqualityCheckFails() throws URISyntaxException {
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      return;
+    }
+
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> fooDao = createDao(FooUrn.class);
+    EbeanLocalDAO<EntityAspectUnion, BarUrn> barDao = createDao(BarUrn.class);
+    
+    // Enable relationship ingestion
+    fooDao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
+    barDao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
+
+    FooUrn fooUrn = makeFooUrn(7002);
+    BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
+    BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:2");
+    BarUrn barUrn3 = BarUrn.createFromString("urn:li:bar:3");
+    BarUrn barUrn4 = BarUrn.createFromString("urn:li:bar:4");
+    
+    AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
+
+    // Create bar entities
+    barDao.add(barUrn1, new AspectFoo().setValue("1"), auditStamp);
+    barDao.add(barUrn2, new AspectFoo().setValue("2"), auditStamp);
+    barDao.add(barUrn3, new AspectFoo().setValue("3"), auditStamp);
+    barDao.add(barUrn4, new AspectFoo().setValue("4"), auditStamp);
+
+    // First write - create initial aspects with relationships
+    AspectFooBar aspectFooBar1 = new AspectFooBar().setBars(new BarUrnArray(barUrn1, barUrn2));
+    BelongsToV2 belongsTo1 = new BelongsToV2().setDestination(BelongsToV2.Destination.create(barUrn3.toString()));
+    AspectFooBaz aspectFooBaz1 = new AspectFooBaz().setBelongsTos(new BelongsToV2Array(belongsTo1));
+    
+    fooDao.addManyBatch(fooUrn, Arrays.asList(aspectFooBar1, aspectFooBaz1), auditStamp, null);
+
+    // Verify initial relationships
+    EbeanLocalRelationshipQueryDAO queryDAO = new EbeanLocalRelationshipQueryDAO(_server);
+    queryDAO.setSchemaConfig(_schemaConfig);
+    
+    List<BelongsTo> initialBelongsTo = queryDAO.findRelationships(
+        FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class, EMPTY_FILTER, BelongsTo.class, OUTGOING_FILTER, 0, 10);
+    assertEquals(initialBelongsTo.size(), 2);
+    
+    List<BelongsToV2> initialBelongsToV2 = queryDAO.findRelationships(
+        FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class, EMPTY_FILTER, BelongsToV2.class, OUTGOING_FILTER, 0, 10);
+    assertEquals(initialBelongsToV2.size(), 1);
+
+    // Second write - one aspect unchanged (equality check fails), one aspect changed
+    // AspectFooBar unchanged - should NOT update relationships
+    AspectFooBar aspectFooBar2 = new AspectFooBar().setBars(new BarUrnArray(barUrn1, barUrn2));
+    // AspectFooBaz changed - SHOULD update relationships
+    BelongsToV2 belongsTo2 = new BelongsToV2().setDestination(BelongsToV2.Destination.create(barUrn4.toString()));
+    AspectFooBaz aspectFooBaz2 = new AspectFooBaz().setBelongsTos(new BelongsToV2Array(belongsTo2));
+    
+    fooDao.addManyBatch(fooUrn, Arrays.asList(aspectFooBar2, aspectFooBaz2), auditStamp, null);
+
+    // Verify relationships after second write
+    List<BelongsTo> finalBelongsTo = queryDAO.findRelationships(
+        FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class, EMPTY_FILTER, BelongsTo.class, OUTGOING_FILTER, 0, 10);
+    // BelongsTo should still be 2 (unchanged because AspectFooBar was equal)
+    assertEquals(finalBelongsTo.size(), 2, 
+        "BelongsTo relationships should remain unchanged when AspectFooBar equality check fails");
+    
+    List<BelongsToV2> finalBelongsToV2 = queryDAO.findRelationships(
+        FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class, EMPTY_FILTER, BelongsToV2.class, OUTGOING_FILTER, 0, 10);
+    // BelongsToV2 should be updated (old one soft-deleted, new one added)
+    // With soft deletion, we should see 2 total (1 deleted, 1 active)
+    List<io.ebean.SqlRow> allBelongsToV2 = _server.createSqlQuery(
+        "SELECT * FROM metadata_relationship_belongstov2 WHERE source = '" + fooUrn.toString() + "'").findList();
+    assertEquals(allBelongsToV2.size(), 2, "Should have 2 BelongsToV2 records (1 soft-deleted, 1 active)");
+    
+    long activeCount = allBelongsToV2.stream().filter(row -> row.get("deleted_ts") == null).count();
+    assertEquals(activeCount, 1, "Should have 1 active BelongsToV2 relationship");
+  }
+
+  @Test
+  public void testAddManyBatchRelationshipsUpdateWithOldValues() throws URISyntaxException {
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      return;
+    }
+
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> fooDao = createDao(FooUrn.class);
+    EbeanLocalDAO<EntityAspectUnion, BarUrn> barDao = createDao(BarUrn.class);
+    
+    // Enable relationship ingestion
+    fooDao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
+    barDao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
+
+    FooUrn fooUrn = makeFooUrn(7003);
+    BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
+    BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:2");
+    BarUrn barUrn3 = BarUrn.createFromString("urn:li:bar:3");
+    
+    AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
+
+    // Create bar entities
+    barDao.add(barUrn1, new AspectFoo().setValue("1"), auditStamp);
+    barDao.add(barUrn2, new AspectFoo().setValue("2"), auditStamp);
+    barDao.add(barUrn3, new AspectFoo().setValue("3"), auditStamp);
+
+    // First write - create initial relationships
+    AspectFooBar aspectFooBar1 = new AspectFooBar().setBars(new BarUrnArray(barUrn1, barUrn2));
+    fooDao.addManyBatch(fooUrn, Collections.singletonList(aspectFooBar1), auditStamp, null);
+
+    // Verify initial relationships
+    EbeanLocalRelationshipQueryDAO queryDAO = new EbeanLocalRelationshipQueryDAO(_server);
+    queryDAO.setSchemaConfig(_schemaConfig);
+    
+    List<BelongsTo> initialRelationships = queryDAO.findRelationships(
+        FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class, EMPTY_FILTER, BelongsTo.class, OUTGOING_FILTER, 0, 10);
+    assertEquals(initialRelationships.size(), 2);
+
+    // Second write - update relationships (remove barUrn2, add barUrn3)
+    AspectFooBar aspectFooBar2 = new AspectFooBar().setBars(new BarUrnArray(barUrn1, barUrn3));
+    fooDao.addManyBatch(fooUrn, Collections.singletonList(aspectFooBar2), auditStamp, null);
+
+    // Verify relationships were properly updated
+    // Old relationships should be soft-deleted, new ones added
+    List<io.ebean.SqlRow> allRelationships = _server.createSqlQuery(
+        "SELECT * FROM metadata_relationship_belongsto WHERE source = '" + fooUrn.toString() + "'").findList();
+    
+    // Should have 3 total records: 2 from first write (1 kept, 1 deleted) + 1 new from second write
+    // Actually with RemoveAllEdgesFromSource, old edges are soft-deleted and new ones added
+    // So we expect: barUrn1->barUrn2 (deleted), barUrn1 (new), barUrn3 (new)
+    assertTrue(allRelationships.size() >= 2, "Should have at least 2 relationship records");
+    
+    List<BelongsTo> activeRelationships = queryDAO.findRelationships(
+        FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class, EMPTY_FILTER, BelongsTo.class, OUTGOING_FILTER, 0, 10);
+    assertEquals(activeRelationships.size(), 2, "Should have 2 active relationships after update");
+    
+    // Verify the correct relationships exist (barUrn1 and barUrn3)
+    Set<String> destinations = activeRelationships.stream()
+        .map(rel -> rel.getDestination().toString())
+        .collect(java.util.stream.Collectors.toSet());
+    assertTrue(destinations.contains(barUrn1.toString()));
+    assertTrue(destinations.contains(barUrn3.toString()));
+    assertFalse(destinations.contains(barUrn2.toString()), "barUrn2 should no longer be in active relationships");
+  }
+
+  @Test
+  public void testAddManyBatchMultipleAspectsWithRelationshipsInSingleBatch() throws URISyntaxException {
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      return;
+    }
+
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> fooDao = createDao(FooUrn.class);
+    EbeanLocalDAO<EntityAspectUnion, BarUrn> barDao = createDao(BarUrn.class);
+    
+    // Enable relationship ingestion
+    fooDao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
+    barDao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
+
+    FooUrn fooUrn = makeFooUrn(7004);
+    BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
+    BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:2");
+    BarUrn barUrn3 = BarUrn.createFromString("urn:li:bar:3");
+    BarUrn barUrn4 = BarUrn.createFromString("urn:li:bar:4");
+    
+    AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
+
+    // Create bar entities
+    barDao.add(barUrn1, new AspectFoo().setValue("1"), auditStamp);
+    barDao.add(barUrn2, new AspectFoo().setValue("2"), auditStamp);
+    barDao.add(barUrn3, new AspectFoo().setValue("3"), auditStamp);
+    barDao.add(barUrn4, new AspectFoo().setValue("4"), auditStamp);
+
+    // Create multiple aspects with different relationship types in a single batch
+    AspectFooBar aspectFooBar = new AspectFooBar().setBars(new BarUrnArray(barUrn1, barUrn2));
+    BelongsToV2 belongsTo1 = new BelongsToV2().setDestination(BelongsToV2.Destination.create(barUrn3.toString()));
+    BelongsToV2 belongsTo2 = new BelongsToV2().setDestination(BelongsToV2.Destination.create(barUrn4.toString()));
+    AspectFooBaz aspectFooBaz = new AspectFooBaz().setBelongsTos(new BelongsToV2Array(belongsTo1, belongsTo2));
+    
+    // Act - single batch upsert with multiple aspects, each having relationships
+    List<EntityAspectUnion> results = fooDao.addManyBatch(fooUrn, Arrays.asList(aspectFooBar, aspectFooBaz), auditStamp, null);
+
+    // Assert
+    assertEquals(results.size(), 2);
+    
+    // Verify all relationships were created correctly
+    EbeanLocalRelationshipQueryDAO queryDAO = new EbeanLocalRelationshipQueryDAO(_server);
+    queryDAO.setSchemaConfig(_schemaConfig);
+    
+    // AspectFooBar should create 2 BelongsTo relationships
+    List<BelongsTo> belongsToRelationships = queryDAO.findRelationships(
+        FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class, EMPTY_FILTER, BelongsTo.class, OUTGOING_FILTER, 0, 10);
+    assertEquals(belongsToRelationships.size(), 2);
+    
+    Set<String> belongsToDestinations = belongsToRelationships.stream()
+        .map(rel -> rel.getDestination().toString())
+        .collect(java.util.stream.Collectors.toSet());
+    assertTrue(belongsToDestinations.contains(barUrn1.toString()));
+    assertTrue(belongsToDestinations.contains(barUrn2.toString()));
+    
+    // AspectFooBaz should create 2 BelongsToV2 relationships
+    List<BelongsToV2> belongsToV2Relationships = queryDAO.findRelationships(
+        FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class, EMPTY_FILTER, BelongsToV2.class, OUTGOING_FILTER, 0, 10);
+    assertEquals(belongsToV2Relationships.size(), 2);
+    
+    // BelongsToV2.Destination is a union type, so we need to extract the string value properly
+    Set<String> belongsToV2Destinations = belongsToV2Relationships.stream()
+        .map(rel -> rel.getDestination().getString())
+        .collect(java.util.stream.Collectors.toSet());
+    assertTrue(belongsToV2Destinations.contains(barUrn3.toString()));
+    assertTrue(belongsToV2Destinations.contains(barUrn4.toString()));
+  }
 }

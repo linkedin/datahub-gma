@@ -8,6 +8,7 @@ import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.UnionTemplate;
+import com.linkedin.metadata.dao.EbeanMetadataAspect.PrimaryKey;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.builder.LocalRelationshipBuilderRegistry;
 import com.linkedin.metadata.dao.exception.ModelConversionException;
@@ -723,6 +724,30 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         RecordTemplate newValue = aspectValues.get(i);
         handleRelationshipIngestion(urn, newValue, null, aspectClass, isTestMode);
       }
+      return rows;
+    }, 1);
+  }
+
+  @Override
+  protected <ASPECT_UNION extends RecordTemplate> int batchUpsertAspects(@Nonnull URN urn,
+      @Nonnull List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts,
+      @Nonnull AuditStamp auditStamp,
+      @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
+    // Wrap in transaction with retry, just like createNewAssetWithAspects()
+    return runInTransactionWithRetry(() -> {
+      // Execute batch upsert - pass contexts directly
+      int rows = _localAccess.batchUpsert(urn, updateContexts, auditStamp, trackingContext, isTestMode);
+
+      // also insert any relationships associated with these aspects
+      // NOTE: basically if an aspect appears in the payload at all, "should I write this aspect" checks have already passed,
+      //       so its relationships are meant to be written (as well)
+      for (BaseLocalDAO.AspectUpdateContext<RecordTemplate> ctx : updateContexts) {
+        Class<RecordTemplate> aspectClass = (Class<RecordTemplate>) ctx.getLambda().getAspectClass();
+        // apply the lambda to the old value to get the new value
+        RecordTemplate newVal = ctx.getLambda().getUpdateLambda().apply(Optional.ofNullable(ctx.getOldValue()));
+        handleRelationshipIngestion(urn, newVal, ctx.getOldValue(), aspectClass, isTestMode);
+      }
+
       return rows;
     }, 1);
   }

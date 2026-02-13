@@ -88,7 +88,7 @@ public class SQLStatementUtils {
   public static final String CLOSING_BRACKET = ") ";
   // deleted_ts check on create Statement SQL. This is used to set the deleted_ts to a non-null value
   // If a record that is NOT marked for deletion is attempted to be created again, an exception will be thrown
-  public static final String DELETED_TS_DUPLICATE_KEY_CHECK = "ON DUPLICATE KEY UPDATE ";
+  public static final String ON_DUPLICATE_KEY_UPDATE = "ON DUPLICATE KEY UPDATE ";
   public static final String DELETED_TS_SET_VALUE_CONDITIONALLY = ", deleted_ts = IF(deleted_ts IS NULL, CAST('DuplicateKeyException' AS UNSIGNED), NULL);";
   // "JSON_EXTRACT(%s, '$.gma_deleted') IS NOT NULL" is used to exclude soft-deleted entity which has no lastmodifiedon.
   // for details, see the known limitations on https://github.com/linkedin/datahub-gma/pull/311. Same reason for

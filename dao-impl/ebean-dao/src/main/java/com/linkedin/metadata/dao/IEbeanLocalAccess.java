@@ -75,6 +75,22 @@ public interface IEbeanLocalAccess<URN extends Urn> {
       @Nullable IngestionTrackingContext ingestionTrackingContext, boolean isTestMode);
 
   /**
+   * Batch upsert multiple aspects for a single URN using multi-column UPDATE.
+   * This method generates a single SQL statement that updates all aspect columns at once.
+   *
+   * @param urn                      entity URN
+   * @param updateContexts           list of aspect update contexts containing values and lambdas
+   * @param auditStamp               audit stamp for tracking
+   * @param ingestionTrackingContext tracking context for ingestion
+   * @param isTestMode               whether the test mode is enabled or not
+   * @return number of rows inserted or updated
+   */
+  <ASPECT_UNION extends RecordTemplate> int batchUpsert(@Nonnull URN urn,
+      @Nonnull List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts,
+      @Nonnull AuditStamp auditStamp,
+      @Nullable IngestionTrackingContext ingestionTrackingContext, boolean isTestMode);
+
+  /**
    * Get read aspects from entity table. This a new schema implementation for batchGetUnion() in {@link EbeanLocalDAO}
    * @param keys {@link AspectKey} to retrieve aspect metadata
    * @param keysCount pagination key count limit

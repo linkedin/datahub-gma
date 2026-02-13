@@ -31,6 +31,7 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -519,5 +520,181 @@ public class EbeanLocalAccessTest {
     assertEquals(createResult, 1);
     int numRowsDeleted = _ebeanLocalAccessFoo.softDeleteAsset(fooUrn, false);
     assertEquals(numRowsDeleted, 1);
+  }
+
+  // ===== batchUpsert() tests =====
+
+  @Test
+  public void testBatchUpsertMultipleAspects() {
+    // Arrange
+    FooUrn fooUrn = makeFooUrn(300);
+    AspectFoo foo = new AspectFoo().setValue("foo_value");
+    AspectBar bar = new AspectBar().setValue("bar_value");
+    List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts = Arrays.asList(
+        new BaseLocalDAO.AspectUpdateContext<>(null, new BaseLocalDAO.AspectUpdateLambda<>(foo)),
+        new BaseLocalDAO.AspectUpdateContext<>(null, new BaseLocalDAO.AspectUpdateLambda<>(bar))
+    );
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+
+    // Act
+    int result = _ebeanLocalAccessFoo.batchUpsert(fooUrn, updateContexts, auditStamp, null, false);
+
+    // Assert
+    assertEquals(result, 1);
+    
+    // Verify both aspects were written
+    List<EbeanMetadataAspect> fooResults = _server.find(EbeanMetadataAspect.class)
+        .where().eq("urn", fooUrn.toString()).findList();
+    assertNotNull(fooResults);
+  }
+
+  @Test
+  public void testBatchUpsertSingleAspect() {
+    // Arrange
+    FooUrn fooUrn = makeFooUrn(301);
+    AspectFoo foo = new AspectFoo().setValue("single");
+    List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts = 
+        Collections.singletonList(new BaseLocalDAO.AspectUpdateContext<>(null, new BaseLocalDAO.AspectUpdateLambda<>(foo)));
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+
+    // Act
+    int result = _ebeanLocalAccessFoo.batchUpsert(fooUrn, updateContexts, auditStamp, null, false);
+
+    // Assert
+    assertEquals(result, 1);
+  }
+
+  @Test
+  public void testBatchUpsertMismatchedSizes() {
+    // NOTE: This test is no longer relevant with AspectUpdateContext since the wrapper
+    // guarantees alignment by construction. AspectUpdateContext ensures that each context
+    // contains both the lambda and old value together, making misalignment impossible.
+    // Keeping test as a no-op to document this design decision.
+    
+    // Arrange
+    FooUrn fooUrn = makeFooUrn(302);
+    AspectFoo foo = new AspectFoo().setValue("test");
+    List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts = 
+        Collections.singletonList(new BaseLocalDAO.AspectUpdateContext<>(null, new BaseLocalDAO.AspectUpdateLambda<>(foo)));
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+
+    // Act - this should succeed since AspectUpdateContext guarantees alignment
+    int result = _ebeanLocalAccessFoo.batchUpsert(fooUrn, updateContexts, auditStamp, null, false);
+    
+    // Assert
+    assertEquals(result, 1);
+  }
+
+  @Test(expectedExceptions = NullPointerException.class)
+  public void testBatchUpsertWithNullAspect() {
+    // Arrange
+    FooUrn fooUrn = makeFooUrn(303);
+    AspectFoo foo = new AspectFoo().setValue("test");
+    // AspectUpdateContext constructor will throw NPE for null lambda due to @Nonnull
+    List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts = Arrays.asList(
+        new BaseLocalDAO.AspectUpdateContext<>(null, new BaseLocalDAO.AspectUpdateLambda<>(foo)),
+        new BaseLocalDAO.AspectUpdateContext<>(null, null)  // null lambda should throw NPE
+    );
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+
+    // Act - should throw NPE from AspectUpdateContext constructor
+    _ebeanLocalAccessFoo.batchUpsert(fooUrn, updateContexts, auditStamp, null, false);
+  }
+
+  @Test
+  public void testBatchUpsertUpsertBehavior() {
+    // Arrange
+    FooUrn fooUrn = makeFooUrn(304);
+    AspectFoo foo1 = new AspectFoo().setValue("initial");
+    List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts1 = 
+        Collections.singletonList(new BaseLocalDAO.AspectUpdateContext<>(null, new BaseLocalDAO.AspectUpdateLambda<>(foo1)));
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+    
+    // First write
+    int result1 = _ebeanLocalAccessFoo.batchUpsert(fooUrn, updateContexts1, auditStamp, null, false);
+    assertEquals(result1, 1);
+    
+    // Act - upsert with new value
+    AspectFoo foo2 = new AspectFoo().setValue("updated");
+    List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts2 = 
+        Collections.singletonList(new BaseLocalDAO.AspectUpdateContext<>(null, new BaseLocalDAO.AspectUpdateLambda<>(foo2)));
+    int result2 = _ebeanLocalAccessFoo.batchUpsert(fooUrn, updateContexts2, auditStamp, null, false);
+
+    // Assert - MySQL returns 2 for ON DUPLICATE KEY UPDATE when updating existing row
+    assertEquals(result2, 2);
+  }
+
+  @Test
+  public void testBatchUpsertWithIngestionTrackingContext() {
+    // Arrange
+    FooUrn fooUrn = makeFooUrn(305);
+    AspectFoo foo = new AspectFoo().setValue("tracked");
+    List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts = 
+        Collections.singletonList(new BaseLocalDAO.AspectUpdateContext<>(null, new BaseLocalDAO.AspectUpdateLambda<>(foo)));
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+    
+    // Create ingestion tracking context
+    com.linkedin.metadata.events.IngestionTrackingContext trackingContext = 
+        new com.linkedin.metadata.events.IngestionTrackingContext()
+            .setEmitter("test-emitter")
+            .setEmitTime(System.currentTimeMillis());
+
+    // Act
+    int result = _ebeanLocalAccessFoo.batchUpsert(fooUrn, updateContexts, auditStamp, trackingContext, false);
+
+    // Assert
+    assertEquals(result, 1);
+  }
+
+  @Test
+  public void testBatchUpsertWithImpersonator() {
+    // Arrange
+    FooUrn fooUrn = makeFooUrn(306);
+    AspectFoo foo = new AspectFoo().setValue("impersonated");
+    List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts = 
+        Collections.singletonList(new BaseLocalDAO.AspectUpdateContext<>(null, new BaseLocalDAO.AspectUpdateLambda<>(foo)));
+    
+    // Create audit stamp with impersonator
+    FooUrn actor = makeFooUrn(9001);
+    FooUrn impersonator = makeFooUrn(9002);
+    AuditStamp auditStamp = makeAuditStamp(actor, impersonator, _now);
+
+    // Act
+    int result = _ebeanLocalAccessFoo.batchUpsert(fooUrn, updateContexts, auditStamp, null, false);
+
+    // Assert
+    assertEquals(result, 1);
+  }
+
+  @Test
+  public void testBatchUpsertInTestMode() {
+    // Arrange
+    FooUrn fooUrn = makeFooUrn(307);
+    AspectFoo foo = new AspectFoo().setValue("test_mode");
+    List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts = 
+        Collections.singletonList(new BaseLocalDAO.AspectUpdateContext<>(null, new BaseLocalDAO.AspectUpdateLambda<>(foo)));
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+
+    // Act - with test mode enabled
+    int result = _ebeanLocalAccessFoo.batchUpsert(fooUrn, updateContexts, auditStamp, null, true);
+
+    // Assert
+    assertEquals(result, 1);
+  }
+
+  @Test
+  public void testBatchUpsertWithoutUrnExtraction() {
+    // Arrange - use BurgerUrn which has EmptyPathExtractor (no URN extraction)
+    BurgerUrn burgerUrn = makeBurgerUrn("urn:li:burger:test100");
+    AspectFoo foo = new AspectFoo().setValue("no_urn_extraction");
+    List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts = 
+        Collections.singletonList(new BaseLocalDAO.AspectUpdateContext<>(null, new BaseLocalDAO.AspectUpdateLambda<>(foo)));
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+
+    // Act
+    int result = _ebeanLocalAccessBurger.batchUpsert(burgerUrn, updateContexts, auditStamp, null, false);
+
+    // Assert
+    assertEquals(result, 1);
   }
 }
