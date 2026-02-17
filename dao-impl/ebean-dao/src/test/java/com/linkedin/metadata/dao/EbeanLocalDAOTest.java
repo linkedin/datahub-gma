@@ -5117,7 +5117,9 @@ public class EbeanLocalDAOTest {
     com.linkedin.metadata.dao.ingestion.LambdaFunctionRegistry registry = 
         new com.linkedin.metadata.dao.ingestion.LambdaFunctionRegistry() {
           @Override
-          public <ASPECT extends com.linkedin.data.template.RecordTemplate> java.util.List<com.linkedin.metadata.dao.ingestion.BaseLambdaFunction> getLambdaFunctions(ASPECT aspect) {
+          public <ASPECT extends com.linkedin.data.template.RecordTemplate>
+              java.util.List<com.linkedin.metadata.dao.ingestion.BaseLambdaFunction>
+              getLambdaFunctions(ASPECT aspect) {
             if (aspect instanceof AspectFoo) {
               return java.util.Collections.singletonList(transformLambda);
             }
@@ -5183,7 +5185,9 @@ public class EbeanLocalDAOTest {
     com.linkedin.metadata.dao.ingestion.LambdaFunctionRegistry registry = 
         new com.linkedin.metadata.dao.ingestion.LambdaFunctionRegistry() {
           @Override
-          public <ASPECT extends com.linkedin.data.template.RecordTemplate> java.util.List<com.linkedin.metadata.dao.ingestion.BaseLambdaFunction> getLambdaFunctions(ASPECT aspect) {
+          public <ASPECT extends com.linkedin.data.template.RecordTemplate>
+              java.util.List<com.linkedin.metadata.dao.ingestion.BaseLambdaFunction>
+              getLambdaFunctions(ASPECT aspect) {
             if (aspect instanceof AspectFoo) {
               return java.util.Collections.singletonList(fooLambda);
             } else if (aspect instanceof AspectBar) {
@@ -5257,7 +5261,9 @@ public class EbeanLocalDAOTest {
     com.linkedin.metadata.dao.ingestion.LambdaFunctionRegistry registry = 
         new com.linkedin.metadata.dao.ingestion.LambdaFunctionRegistry() {
           @Override
-          public <ASPECT extends com.linkedin.data.template.RecordTemplate> java.util.List<com.linkedin.metadata.dao.ingestion.BaseLambdaFunction> getLambdaFunctions(ASPECT aspect) {
+          public <ASPECT extends com.linkedin.data.template.RecordTemplate>
+              java.util.List<com.linkedin.metadata.dao.ingestion.BaseLambdaFunction>
+              getLambdaFunctions(ASPECT aspect) {
             if (aspect instanceof AspectFoo) {
               return java.util.Collections.singletonList(fooLambda);
             }
@@ -5336,7 +5342,9 @@ public class EbeanLocalDAOTest {
     com.linkedin.metadata.dao.ingestion.LambdaFunctionRegistry registry = 
         new com.linkedin.metadata.dao.ingestion.LambdaFunctionRegistry() {
           @Override
-          public <ASPECT extends com.linkedin.data.template.RecordTemplate> java.util.List<com.linkedin.metadata.dao.ingestion.BaseLambdaFunction> getLambdaFunctions(ASPECT aspect) {
+          public <ASPECT extends com.linkedin.data.template.RecordTemplate>
+              java.util.List<com.linkedin.metadata.dao.ingestion.BaseLambdaFunction>
+              getLambdaFunctions(ASPECT aspect) {
             if (aspect instanceof AspectFoo) {
               return java.util.Collections.singletonList(mergeLambda);
             }
@@ -5374,10 +5382,10 @@ public class EbeanLocalDAOTest {
    * - AspectBar: Updated due to FORCE_UPDATE annotation (same value but write forced, verified via changed timestamp)
    * - AspectFooBar: Transformed by callback before ingestion
    * - AspectAttributes: Transformed by lambda before ingestion
-   * 
-   * All aspects have existing metadata before the batch update.
-   * 
-   * Note: AspectBar has @gma.aspect.ingestion with FORCE_UPDATE and filter: fooId=1 OR dummyId=10.
+   *
+   * <p>All aspects have existing metadata before the batch update.
+   *
+   * <p>Note: AspectBar has @gma.aspect.ingestion with FORCE_UPDATE and filter: fooId=1 OR dummyId=10.
    * Since FooUrnPathExtractor hardcodes dummyId=10, the FORCE_UPDATE is triggered even when values are equal.
    */
   @Test
@@ -5439,7 +5447,9 @@ public class EbeanLocalDAOTest {
     com.linkedin.metadata.dao.ingestion.LambdaFunctionRegistry lambdaRegistry = 
         new com.linkedin.metadata.dao.ingestion.LambdaFunctionRegistry() {
           @Override
-          public <ASPECT extends com.linkedin.data.template.RecordTemplate> java.util.List<com.linkedin.metadata.dao.ingestion.BaseLambdaFunction> getLambdaFunctions(ASPECT aspect) {
+          public <ASPECT extends com.linkedin.data.template.RecordTemplate>
+              java.util.List<com.linkedin.metadata.dao.ingestion.BaseLambdaFunction>
+              getLambdaFunctions(ASPECT aspect) {
             if (aspect instanceof AspectAttributes) {
               return java.util.Collections.singletonList(attrsLambda);
             }
