@@ -206,17 +206,18 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * Immutable class to package aspect update context for batch operations.
    * Eliminates the need for multiple parallel lists by bundling related data together.
    * 
-   * <p>Note that 'newValue' can be calculated directly by applying 'lambda' to 'oldValue', so it's not striclty
-   * needed to be stored. You can see an example of the consumption in 
-   * {@link EbeanLocalDAO#batchUpsertAspects(URN, List, AuditStamp, IngestionTrackingContext, boolean)} and
-   * {@link EbeanLocalAccess#batchUpsert(URN, List, AuditStamp, IngestionTrackingContext, boolean)}.
+   * <p>The 'newValue' field contains the final computed value after all transformations (lambda application,
+   * callback processing, lambda function registry). This is the value that will be persisted to the database.
    *
    * @param <ASPECT> the type of the aspect being updated
    */
   @Value
   static class AspectUpdateContext<ASPECT extends RecordTemplate> {
-@Nullable
+    @Nullable
     ASPECT oldValue;
+
+    @Nonnull
+    ASPECT newValue;
     
     @Nonnull
     AspectUpdateLambda<ASPECT> lambda;
@@ -682,10 +683,19 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * Batch upsert with AspectUpdateLambda support (enables test mode and ingestion params).
    *
    * <p>Note: This method is called WITHIN a transaction by addManyBatch(). 
- * It should not handle its own transaction logic.
+   * It should not handle its own transaction logic.
    *
    * <p>NOTE: This is structurally very similar to createAspectsWithCallbacks(), some future refactoring can be done to
    * share the logic between the two.
+   *
+   * <p><b>Aspect Skip Reasons:</b> An aspect may be skipped from processing/writing for the following reasons:
+   * <ul>
+   *   <li><b>Callback skip:</b> {@code aspectCallbackHelper()} returns {@code isSkipProcessing() == true} - 
+   *       the registered {@link AspectCallbackRoutingClient} explicitly requests skipping this aspect.</li>
+   *   <li><b>Callback returns null:</b> {@code aspectCallbackHelper()} returns a null updated aspect.</li>
+   *   <li><b>shouldUpdateAspect returns false:</b> See {@link #shouldUpdateAspect} for details on equality, 
+   *       backfill, version, and timestamp skip conditions.</li>
+   * </ul>
    */
   List<ASPECT_UNION> addManyBatchWithCallbacks(@Nonnull URN urn,
       @Nonnull List<AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas,
@@ -751,6 +761,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       // Aspect callbacks (with old value)
       AspectUpdateResult callbackResult = aspectCallbackHelper(urn, newValue, oldValue, ingestionParams, auditStamp);
       newValue = (RecordTemplate) callbackResult.getUpdatedAspect();
+      
       if (newValue == null || callbackResult.isSkipProcessing()) {
         continue;
       }
@@ -767,7 +778,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
       // Package context for batch write
       processedResults.add(new AddResult<RecordTemplate>(oldAspect, newValue, aspectClass));
-      contextsToWrite.add(new AspectUpdateContext<>(oldAspect, (AspectUpdateLambda<RecordTemplate>) updateLambda));
+      contextsToWrite.add(new AspectUpdateContext<>(oldAspect, newValue, (AspectUpdateLambda<RecordTemplate>) updateLambda));
     }
 
     // STEP 3: Execute batch SQL (1 query) - only for changed aspects
@@ -2194,8 +2205,24 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * The logic determines if we will update the aspect.
-   * Includes backfill logic, equality testing, version checking, and ingestion mode handling.
+   * Determines if an aspect update should be persisted to the database.
+   * 
+   * <p><b>Returns false (skip write) when:</b>
+   * <ul>
+   *   <li><b>Backfill with older data:</b> This is a backfill event ({@code trackingContext.isBackfill() == true}) 
+   *       and the new emit time is older than the existing data's emit time or audit stamp.</li>
+   *   <li><b>Equality check:</b> Old and new values are equal according to the {@link EqualityTester}.</li>
+   *   <li><b>Version skip:</b> New aspect has a lower version than the existing aspect 
+   *       (see {@link #aspectVersionSkipWrite}).</li>
+   *   <li><b>Timestamp/ETag skip:</b> Optimistic locking check fails - the eTag timestamp is older than 
+   *       the existing aspect's timestamp (see {@link #aspectTimestampSkipWrite}).</li>
+   * </ul>
+   * 
+   * <p><b>Returns true (force write) when:</b>
+   * <ul>
+   *   <li>{@code IngestionMode.LIVE_OVERRIDE} is set - forces the write regardless of other conditions.</li>
+   *   <li>Aspect has {@code @gma.aspect.ingestion Mode.FORCE_UPDATE} annotation and filter conditions match.</li>
+   * </ul>
    */
   private <ASPECT extends RecordTemplate> boolean shouldUpdateAspect(IngestionMode ingestionMode, URN urn, ASPECT oldValue,
       ASPECT newValue, Class<ASPECT> aspectClass, AuditStamp auditStamp, EqualityTester<ASPECT> equalityTester,

@@ -226,8 +226,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     List<BaseLocalDAO.AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas = new ArrayList<>();
     
     for (BaseLocalDAO.AspectUpdateContext<RecordTemplate> ctx : updateContexts) {
-      RecordTemplate newVal = ctx.getLambda().getUpdateLambda().apply(Optional.ofNullable(ctx.getOldValue()));
-      aspectValues.add(newVal);
+      aspectValues.add(ctx.getNewValue());
       aspectUpdateLambdas.add(ctx.getLambda());
     }
 
