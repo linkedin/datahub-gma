@@ -305,6 +305,25 @@ public class EbeanLocalDAOTest {
     assertNotNull(dao6._trackingProducer);
   }
 
+  @Test
+  public void testWrapLocalAccess() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    IEbeanLocalAccess<FooUrn> mockWrapper = mock(IEbeanLocalAccess.class);
+
+    // Wrapping should apply when _localAccess is non-null (NEW_SCHEMA_ONLY / DUAL_SCHEMA)
+    // and be a no-op when null (OLD_SCHEMA_ONLY)
+    dao.wrapLocalAccess(original -> mockWrapper);
+
+    if (_schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
+      // In new-schema mode, the wrapper should have been applied
+      // Verify by calling a method that delegates to _localAccess
+      when(mockWrapper.exists(any())).thenReturn(true);
+      assertTrue(dao.exists(makeFooUrn(1)));
+      verify(mockWrapper).exists(any());
+    }
+    // In OLD_SCHEMA_ONLY, wrapLocalAccess is a no-op — no exception, no effect
+  }
+
   @Test(expectedExceptions = InvalidMetadataType.class)
   public void testMetadataAspectCheck() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);

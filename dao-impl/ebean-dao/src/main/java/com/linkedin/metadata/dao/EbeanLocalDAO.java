@@ -553,6 +553,18 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   /**
+   * Wrap the underlying {@link IEbeanLocalAccess} with a decorator (e.g. for instrumentation).
+   * No-op when {@code _localAccess} is {@code null} (OLD_SCHEMA_ONLY mode).
+   *
+   * @param wrapper a function that takes the current local access and returns a wrapped version
+   */
+  public void wrapLocalAccess(@Nonnull Function<IEbeanLocalAccess<URN>, IEbeanLocalAccess<URN>> wrapper) {
+    if (_localAccess != null) {
+      _localAccess = wrapper.apply(_localAccess);
+    }
+  }
+
+  /**
    * Ensure table schemas is up-to-date with db evolution scripts.
    */
   public void ensureSchemaUpToDate() {
