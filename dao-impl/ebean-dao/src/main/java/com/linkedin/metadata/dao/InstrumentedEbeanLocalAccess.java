@@ -38,6 +38,8 @@ public class InstrumentedEbeanLocalAccess<URN extends Urn> implements IEbeanLoca
   private final String _entityType;
 
   /**
+   * Creates an instrumented wrapper around the given local access implementation.
+   *
    * @param delegate   the real local access implementation to wrap
    * @param metrics    the metrics recorder (may be a no-op)
    * @param urnClass   the URN class, used to derive the entity type name once at construction
