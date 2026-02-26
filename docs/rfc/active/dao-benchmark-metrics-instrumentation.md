@@ -248,3 +248,10 @@ layer) is untouched.
 datahub-gma changes must ship first (Phase 1) since metadata-graph-assets depends on the
 new interface. Then Phase 2+3 ship together in metadata-graph-assets. Phase 4 is
 config-only.
+
+---
+
+## Further Work
+
+- [META-23515](https://linkedin.atlassian.net/browse/META-23515)
+- [META-23514](https://linkedin.atlassian.net/browse/META-23514)
