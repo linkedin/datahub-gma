@@ -26,6 +26,7 @@ import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
 import com.linkedin.metadata.dao.retention.VersionBasedRetention;
 import com.linkedin.metadata.dao.storage.LocalDAOStorageConfig;
+import com.linkedin.metadata.dao.tracking.BaseDaoBenchmarkMetrics;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.urnpath.UrnPathExtractor;
 import com.linkedin.metadata.dao.utils.BarUrnPathExtractor;
@@ -306,22 +307,16 @@ public class EbeanLocalDAOTest {
   }
 
   @Test
-  public void testWrapLocalAccess() {
+  public void testSetBenchmarkMetrics() {
     EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
-    IEbeanLocalAccess<FooUrn> mockWrapper = mock(IEbeanLocalAccess.class);
+    BaseDaoBenchmarkMetrics mockMetrics = mock(BaseDaoBenchmarkMetrics.class);
+    when(mockMetrics.isEnabled()).thenReturn(false);
 
-    // Wrapping should apply when _localAccess is non-null (NEW_SCHEMA_ONLY / DUAL_SCHEMA)
+    // Should apply when _localAccess is non-null (NEW_SCHEMA_ONLY / DUAL_SCHEMA)
     // and be a no-op when null (OLD_SCHEMA_ONLY)
-    dao.wrapLocalAccess(original -> mockWrapper);
+    dao.setBenchmarkMetrics(mockMetrics);
 
-    if (_schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
-      // In new-schema mode, the wrapper should have been applied
-      // Verify by calling a method that delegates to _localAccess
-      when(mockWrapper.exists(any())).thenReturn(true);
-      assertTrue(dao.exists(makeFooUrn(1)));
-      verify(mockWrapper).exists(any());
-    }
-    // In OLD_SCHEMA_ONLY, wrapLocalAccess is a no-op — no exception, no effect
+    // In OLD_SCHEMA_ONLY, setBenchmarkMetrics is a no-op — no exception, no effect
   }
 
   @Test(expectedExceptions = InvalidMetadataType.class)

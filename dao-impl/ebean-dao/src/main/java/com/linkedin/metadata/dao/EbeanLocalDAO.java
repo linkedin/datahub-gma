@@ -18,6 +18,7 @@ import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
 import com.linkedin.metadata.dao.retention.VersionBasedRetention;
 import com.linkedin.metadata.dao.storage.LocalDAOStorageConfig;
+import com.linkedin.metadata.dao.tracking.BaseDaoBenchmarkMetrics;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.urnpath.EmptyPathExtractor;
 import com.linkedin.metadata.dao.urnpath.UrnPathExtractor;
@@ -553,14 +554,15 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   /**
-   * Wrap the underlying {@link IEbeanLocalAccess} with a decorator (e.g. for instrumentation).
+   * Set benchmark metrics for DAO operation instrumentation. Wraps the underlying
+   * {@link IEbeanLocalAccess} with an {@link InstrumentedEbeanLocalAccess} decorator.
    * No-op when {@code _localAccess} is {@code null} (OLD_SCHEMA_ONLY mode).
    *
-   * @param wrapper a function that takes the current local access and returns a wrapped version
+   * @param metrics the benchmark metrics implementation to use
    */
-  public void wrapLocalAccess(@Nonnull Function<IEbeanLocalAccess<URN>, IEbeanLocalAccess<URN>> wrapper) {
+  public void setBenchmarkMetrics(@Nonnull BaseDaoBenchmarkMetrics metrics) {
     if (_localAccess != null) {
-      _localAccess = wrapper.apply(_localAccess);
+      _localAccess = new InstrumentedEbeanLocalAccess<>(_localAccess, metrics, _urnClass);
     }
   }
 

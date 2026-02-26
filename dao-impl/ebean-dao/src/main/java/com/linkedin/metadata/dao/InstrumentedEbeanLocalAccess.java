@@ -13,6 +13,7 @@ import java.sql.Timestamp;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -153,29 +154,19 @@ public class InstrumentedEbeanLocalAccess<URN extends Urn> implements IEbeanLoca
    * Core instrumentation wrapper. When metrics are disabled, delegates directly.
    * When enabled, times the operation and records latency on success, latency + error on failure.
    */
-  private <T> T instrument(@Nonnull String operationType, @Nonnull InstrumentedSupplier<T> supplier) {
+  private <T> T instrument(@Nonnull String operationType, @Nonnull Supplier<T> supplier) {
     if (!_metrics.isEnabled()) {
       return supplier.get();
     }
     final long startNanos = System.nanoTime();
     try {
-      T result = supplier.get();
-      final long latencyMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
-      _metrics.recordOperationLatency(operationType, _entityType, latencyMs);
-      return result;
+      return supplier.get();
     } catch (RuntimeException ex) {
-      final long latencyMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
-      _metrics.recordOperationLatency(operationType, _entityType, latencyMs);
       _metrics.recordOperationError(operationType, _entityType, ex.getClass().getSimpleName());
       throw ex;
+    } finally {
+      _metrics.recordOperationLatency(operationType, _entityType,
+          TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos));
     }
-  }
-
-  /**
-   * A supplier that can throw unchecked exceptions (for use with the instrument wrapper).
-   */
-  @FunctionalInterface
-  private interface InstrumentedSupplier<T> {
-    T get();
   }
 }
