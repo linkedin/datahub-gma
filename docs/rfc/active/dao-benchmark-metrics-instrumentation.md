@@ -71,17 +71,23 @@ Three metrics are emitted per DAO call:
 
 ### Instrumented Operations (9)
 
-| Operation                  | Description                         |
-| -------------------------- | ----------------------------------- |
-| `add`                      | Upsert an aspect                    |
-| `addWithOptimisticLocking` | Upsert with compare-and-swap        |
-| `create`                   | Create entity with multiple aspects |
-| `batchGetUnion`            | Batch read aspects by keys          |
-| `list` (2 overloads)       | Paginate over aspect versions       |
-| `listUrns`                 | Paginate over URNs by filter        |
-| `softDeleteAsset`          | Soft-delete an entity               |
-| `countAggregate`           | Aggregated count by group           |
-| `exists`                   | Check if entity exists              |
+| Operation                  | Description                         | Extra dimension   |
+| -------------------------- | ----------------------------------- | ----------------- |
+| `add`                      | Upsert an aspect                    | aspect class name |
+| `addWithOptimisticLocking` | Upsert with compare-and-swap        | aspect class name |
+| `create`                   | Create entity with multiple aspects | aspect count      |
+| `batchGetUnion`            | Batch read aspects by keys          | key count         |
+| `list` (2 overloads)       | Paginate over aspect versions       | —                 |
+| `listUrns`                 | Paginate over URNs by filter        | —                 |
+| `softDeleteAsset`          | Soft-delete an entity               | —                 |
+| `countAggregate`           | Aggregated count by group           | —                 |
+| `exists`                   | Check if entity exists              | —                 |
+
+For operations where request complexity varies, the decorator encodes extra context into the operation name:
+
+- `add` / `addWithOptimisticLocking`: appends `aspectClass.getSimpleName()` (e.g. `add.Ownership`)
+- `batchGetUnion`: appends key count (e.g. `batchGetUnion.keys_10`)
+- `create`: appends aspect count (e.g. `create.aspects_3`)
 
 **Not instrumented:** `setUrnPathExtractor` (config) and `ensureSchemaUpToDate` (admin) — neither are data-path
 operations.
@@ -89,10 +95,13 @@ operations.
 ### Example Metric Names
 
 ```
-dao.benchmark.dataset.add.latency
-dao.benchmark.dataset.add.count
-dao.benchmark.dataset.add.error.SQLException
-dao.benchmark.corpuser.batchGetUnion.latency
+dao.benchmark.dataset.add.Ownership.latency
+dao.benchmark.dataset.add.Ownership.count
+dao.benchmark.dataset.add.Ownership.error.SQLException
+dao.benchmark.dataset.addWithOptimisticLocking.Status.latency
+dao.benchmark.dataset.batchGetUnion.keys_10.latency
+dao.benchmark.dataset.create.aspects_3.latency
+dao.benchmark.corpuser.exists.latency
 ```
 
 ---
