@@ -102,14 +102,14 @@ public class InstrumentedEbeanLocalAccess<URN extends Urn> implements IEbeanLoca
   @Override
   public List<URN> listUrns(@Nullable IndexFilter indexFilter,
       @Nullable IndexSortCriterion indexSortCriterion, @Nullable URN lastUrn, int pageSize) {
-    return instrument("listUrns",
+    return instrument("listUrns.cursor",
         () -> _delegate.listUrns(indexFilter, indexSortCriterion, lastUrn, pageSize));
   }
 
   @Override
   public ListResult<URN> listUrns(@Nullable IndexFilter indexFilter,
       @Nullable IndexSortCriterion indexSortCriterion, int start, int pageSize) {
-    return instrument("listUrns",
+    return instrument("listUrns.offset",
         () -> _delegate.listUrns(indexFilter, indexSortCriterion, start, pageSize));
   }
 

@@ -169,7 +169,7 @@ public class InstrumentedEbeanLocalAccessTest {
         mock(IndexFilter.class), mock(IndexSortCriterion.class), 0, 10);
 
     assertSame(result, expected);
-    verify(_mockMetrics).recordOperationLatency(eq("listUrns"), eq("test"), anyLong());
+    verify(_mockMetrics).recordOperationLatency(eq("listUrns.offset"), eq("test"), anyLong());
   }
 
   @Test
