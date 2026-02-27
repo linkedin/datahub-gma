@@ -18,6 +18,7 @@ import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
 import com.linkedin.metadata.dao.retention.VersionBasedRetention;
 import com.linkedin.metadata.dao.storage.LocalDAOStorageConfig;
+import com.linkedin.metadata.dao.tracking.BaseDaoBenchmarkMetrics;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.urnpath.EmptyPathExtractor;
 import com.linkedin.metadata.dao.urnpath.UrnPathExtractor;
@@ -550,6 +551,19 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    */
   void setSchemaConfig(SchemaConfig schemaConfig) {
     _schemaConfig = schemaConfig;
+  }
+
+  /**
+   * Set benchmark metrics for DAO operation instrumentation. Wraps the underlying
+   * {@link IEbeanLocalAccess} with an {@link InstrumentedEbeanLocalAccess} decorator.
+   * No-op when {@code _localAccess} is {@code null} (OLD_SCHEMA_ONLY mode).
+   *
+   * @param metrics the benchmark metrics implementation to use
+   */
+  public void setBenchmarkMetrics(@Nonnull BaseDaoBenchmarkMetrics metrics) {
+    if (_localAccess != null) {
+      _localAccess = new InstrumentedEbeanLocalAccess<>(_localAccess, metrics, _urnClass);
+    }
   }
 
   /**
