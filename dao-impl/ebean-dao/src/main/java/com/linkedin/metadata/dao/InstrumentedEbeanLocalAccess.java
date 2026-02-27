@@ -60,8 +60,8 @@ public class InstrumentedEbeanLocalAccess<URN extends Urn> implements IEbeanLoca
   public <ASPECT extends RecordTemplate> int add(@Nonnull URN urn, @Nullable ASPECT newValue,
       @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp,
       @Nullable IngestionTrackingContext ingestionTrackingContext, boolean isTestMode) {
-    return instrument("add", () -> _delegate.add(urn, newValue, aspectClass, auditStamp,
-        ingestionTrackingContext, isTestMode));
+    return instrument("add." + aspectClass.getSimpleName(), () -> _delegate.add(urn, newValue,
+        aspectClass, auditStamp, ingestionTrackingContext, isTestMode));
   }
 
   @Override
@@ -69,7 +69,7 @@ public class InstrumentedEbeanLocalAccess<URN extends Urn> implements IEbeanLoca
       @Nullable ASPECT newValue, @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp,
       @Nullable Timestamp oldTimestamp, @Nullable IngestionTrackingContext ingestionTrackingContext,
       boolean isTestMode, boolean softDeleteOverwrite) {
-    return instrument("addWithOptimisticLocking",
+    return instrument("addWithOptimisticLocking." + aspectClass.getSimpleName(),
         () -> _delegate.addWithOptimisticLocking(urn, newValue, aspectClass, auditStamp,
             oldTimestamp, ingestionTrackingContext, isTestMode, softDeleteOverwrite));
   }
@@ -80,8 +80,9 @@ public class InstrumentedEbeanLocalAccess<URN extends Urn> implements IEbeanLoca
       @Nonnull List<BaseLocalDAO.AspectCreateLambda<? extends RecordTemplate>> aspectCreateLambdas,
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext ingestionTrackingContext,
       boolean isTestMode) {
-    return instrument("create", () -> _delegate.create(urn, aspectValues, aspectCreateLambdas,
-        auditStamp, ingestionTrackingContext, isTestMode));
+    return instrument("create.aspects_" + aspectValues.size(),
+        () -> _delegate.create(urn, aspectValues, aspectCreateLambdas,
+            auditStamp, ingestionTrackingContext, isTestMode));
   }
 
   @Nonnull
@@ -89,7 +90,7 @@ public class InstrumentedEbeanLocalAccess<URN extends Urn> implements IEbeanLoca
   public <ASPECT extends RecordTemplate> List<EbeanMetadataAspect> batchGetUnion(
       @Nonnull List<AspectKey<URN, ? extends RecordTemplate>> keys, int keysCount, int position,
       boolean includeSoftDeleted, boolean isTestMode) {
-    return instrument("batchGetUnion",
+    return instrument("batchGetUnion.keys_" + keys.size(),
         () -> _delegate.batchGetUnion(keys, keysCount, position, includeSoftDeleted, isTestMode));
   }
 

@@ -4,6 +4,7 @@ import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.tracking.BaseDaoBenchmarkMetrics;
+import com.linkedin.testing.AspectFoo;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
@@ -71,11 +72,11 @@ public class InstrumentedEbeanLocalAccessTest {
   public void testAddDelegatesAndRecordsLatency() {
     when(_mockDelegate.add(any(), any(), any(), any(), any(), anyBoolean())).thenReturn(1);
 
-    int result = _instrumented.add(null, null, RecordTemplate.class, mock(AuditStamp.class), null, false);
+    int result = _instrumented.add(null, null, AspectFoo.class, mock(AuditStamp.class), null, false);
 
     assertEquals(result, 1);
     verify(_mockDelegate).add(any(), any(), any(), any(), any(), anyBoolean());
-    verify(_mockMetrics).recordOperationLatency(eq("add"), eq("test"), anyLong());
+    verify(_mockMetrics).recordOperationLatency(eq("add.AspectFoo"), eq("test"), anyLong());
     verify(_mockMetrics, never()).recordOperationError(anyString(), anyString(), anyString());
   }
 
@@ -84,12 +85,12 @@ public class InstrumentedEbeanLocalAccessTest {
     when(_mockDelegate.addWithOptimisticLocking(any(), any(), any(), any(), any(), any(), anyBoolean(), anyBoolean()))
         .thenReturn(1);
 
-    int result = _instrumented.addWithOptimisticLocking(null, null, RecordTemplate.class,
+    int result = _instrumented.addWithOptimisticLocking(null, null, AspectFoo.class,
         mock(AuditStamp.class), null, null, false, false);
 
     assertEquals(result, 1);
     verify(_mockDelegate).addWithOptimisticLocking(any(), any(), any(), any(), any(), any(), anyBoolean(), anyBoolean());
-    verify(_mockMetrics).recordOperationLatency(eq("addWithOptimisticLocking"), eq("test"), anyLong());
+    verify(_mockMetrics).recordOperationLatency(eq("addWithOptimisticLocking.AspectFoo"), eq("test"), anyLong());
   }
 
   @Test
@@ -100,7 +101,7 @@ public class InstrumentedEbeanLocalAccessTest {
         mock(AuditStamp.class), null, false);
 
     assertEquals(result, 1);
-    verify(_mockMetrics).recordOperationLatency(eq("create"), eq("test"), anyLong());
+    verify(_mockMetrics).recordOperationLatency(eq("create.aspects_0"), eq("test"), anyLong());
   }
 
   @Test
@@ -112,7 +113,7 @@ public class InstrumentedEbeanLocalAccessTest {
     List<EbeanMetadataAspect> result = _instrumented.batchGetUnion(Collections.emptyList(), 10, 0, false, false);
 
     assertSame(result, expected);
-    verify(_mockMetrics).recordOperationLatency(eq("batchGetUnion"), eq("test"), anyLong());
+    verify(_mockMetrics).recordOperationLatency(eq("batchGetUnion.keys_0"), eq("test"), anyLong());
   }
 
   @Test
