@@ -16,13 +16,14 @@ import javax.annotation.Nonnull;
 public interface BaseDaoBenchmarkMetrics {
 
   /**
-   * Record the latency of a successful or failed DAO operation.
+   * Record a completed DAO operation. Implementations should record both the latency
+   * (as a histogram) and increment the operation count.
    *
    * @param operationType the DAO operation name (e.g. "add", "batchGetUnion", "list")
    * @param entityType    the entity type derived from the URN class (e.g. "dataset", "corpuser")
    * @param latencyMs     wall-clock latency in milliseconds
    */
-  void recordOperationLatency(@Nonnull String operationType, @Nonnull String entityType, long latencyMs);
+  void recordOperation(@Nonnull String operationType, @Nonnull String entityType, long latencyMs);
 
   /**
    * Record an error that occurred during a DAO operation.

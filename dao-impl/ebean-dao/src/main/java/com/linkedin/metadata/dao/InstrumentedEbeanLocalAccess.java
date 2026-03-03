@@ -168,7 +168,7 @@ public class InstrumentedEbeanLocalAccess<URN extends Urn> implements IEbeanLoca
       _metrics.recordOperationError(operationType, _entityType, ex.getClass().getSimpleName());
       throw ex;
     } finally {
-      _metrics.recordOperationLatency(operationType, _entityType,
+      _metrics.recordOperation(operationType, _entityType,
           TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos));
     }
   }

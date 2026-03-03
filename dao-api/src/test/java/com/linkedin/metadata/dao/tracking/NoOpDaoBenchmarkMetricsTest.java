@@ -12,7 +12,7 @@ public class NoOpDaoBenchmarkMetricsTest {
     NoOpDaoBenchmarkMetrics metrics = new NoOpDaoBenchmarkMetrics();
 
     // Should not throw
-    metrics.recordOperationLatency("add", "dataset", 42L);
+    metrics.recordOperation("add", "dataset", 42L);
     metrics.recordOperationError("add", "dataset", "SQLException");
 
     assertFalse(metrics.isEnabled());

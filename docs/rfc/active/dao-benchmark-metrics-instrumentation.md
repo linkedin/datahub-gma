@@ -19,7 +19,7 @@ Located in `dao-api/.../tracking/BaseDaoBenchmarkMetrics.java`.
 
 Three methods:
 
-- `recordOperationLatency(String operationType, String entityType, long latencyMs)`
+- `recordOperation(String operationType, String entityType, long latencyMs)`
 - `recordOperationError(String operationType, String entityType, String exceptionClass)`
 - `isEnabled()` — for short-circuiting when disabled
 

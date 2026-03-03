@@ -64,7 +64,7 @@ public class InstrumentedEbeanLocalAccessTest {
     access.exists(null);
 
     ArgumentCaptor<String> entityCaptor = ArgumentCaptor.forClass(String.class);
-    verify(_mockMetrics).recordOperationLatency(eq("exists"), entityCaptor.capture(), anyLong());
+    verify(_mockMetrics).recordOperation(eq("exists"), entityCaptor.capture(), anyLong());
     assertEquals(entityCaptor.getValue(), "test");
   }
 
@@ -76,7 +76,7 @@ public class InstrumentedEbeanLocalAccessTest {
 
     assertEquals(result, 1);
     verify(_mockDelegate).add(any(), any(), any(), any(), any(), anyBoolean());
-    verify(_mockMetrics).recordOperationLatency(eq("add.AspectFoo"), eq("test"), anyLong());
+    verify(_mockMetrics).recordOperation(eq("add.AspectFoo"), eq("test"), anyLong());
     verify(_mockMetrics, never()).recordOperationError(anyString(), anyString(), anyString());
   }
 
@@ -90,7 +90,7 @@ public class InstrumentedEbeanLocalAccessTest {
 
     assertEquals(result, 1);
     verify(_mockDelegate).addWithOptimisticLocking(any(), any(), any(), any(), any(), any(), anyBoolean(), anyBoolean());
-    verify(_mockMetrics).recordOperationLatency(eq("addWithOptimisticLocking.AspectFoo"), eq("test"), anyLong());
+    verify(_mockMetrics).recordOperation(eq("addWithOptimisticLocking.AspectFoo"), eq("test"), anyLong());
   }
 
   @Test
@@ -101,7 +101,7 @@ public class InstrumentedEbeanLocalAccessTest {
         mock(AuditStamp.class), null, false);
 
     assertEquals(result, 1);
-    verify(_mockMetrics).recordOperationLatency(eq("create.aspects_0"), eq("test"), anyLong());
+    verify(_mockMetrics).recordOperation(eq("create.aspects_0"), eq("test"), anyLong());
   }
 
   @Test
@@ -113,7 +113,7 @@ public class InstrumentedEbeanLocalAccessTest {
     List<EbeanMetadataAspect> result = _instrumented.batchGetUnion(Collections.emptyList(), 10, 0, false, false);
 
     assertSame(result, expected);
-    verify(_mockMetrics).recordOperationLatency(eq("batchGetUnion.keys_0"), eq("test"), anyLong());
+    verify(_mockMetrics).recordOperation(eq("batchGetUnion.keys_0"), eq("test"), anyLong());
   }
 
   @Test
@@ -123,7 +123,7 @@ public class InstrumentedEbeanLocalAccessTest {
     int result = _instrumented.softDeleteAsset(null, false);
 
     assertEquals(result, 3);
-    verify(_mockMetrics).recordOperationLatency(eq("softDeleteAsset"), eq("test"), anyLong());
+    verify(_mockMetrics).recordOperation(eq("softDeleteAsset"), eq("test"), anyLong());
   }
 
   @Test
@@ -133,7 +133,7 @@ public class InstrumentedEbeanLocalAccessTest {
     boolean result = _instrumented.exists(null);
 
     assertTrue(result);
-    verify(_mockMetrics).recordOperationLatency(eq("exists"), eq("test"), anyLong());
+    verify(_mockMetrics).recordOperation(eq("exists"), eq("test"), anyLong());
   }
 
   @Test
@@ -145,7 +145,7 @@ public class InstrumentedEbeanLocalAccessTest {
     Map<String, Long> result = _instrumented.countAggregate(null, mock(IndexGroupByCriterion.class));
 
     assertSame(result, expected);
-    verify(_mockMetrics).recordOperationLatency(eq("countAggregate"), eq("test"), anyLong());
+    verify(_mockMetrics).recordOperation(eq("countAggregate"), eq("test"), anyLong());
   }
 
   @Test
@@ -156,7 +156,7 @@ public class InstrumentedEbeanLocalAccessTest {
     ListResult<RecordTemplate> result = _instrumented.list(RecordTemplate.class, 0, 10);
 
     assertSame(result, expected);
-    verify(_mockMetrics).recordOperationLatency(eq("list"), eq("test"), anyLong());
+    verify(_mockMetrics).recordOperation(eq("list"), eq("test"), anyLong());
   }
 
   @Test
@@ -169,7 +169,7 @@ public class InstrumentedEbeanLocalAccessTest {
         mock(IndexFilter.class), mock(IndexSortCriterion.class), 0, 10);
 
     assertSame(result, expected);
-    verify(_mockMetrics).recordOperationLatency(eq("listUrns.offset"), eq("test"), anyLong());
+    verify(_mockMetrics).recordOperation(eq("listUrns.offset"), eq("test"), anyLong());
   }
 
   @Test
@@ -184,7 +184,7 @@ public class InstrumentedEbeanLocalAccessTest {
       assertSame(ex, error);
     }
 
-    verify(_mockMetrics).recordOperationLatency(eq("exists"), eq("test"), anyLong());
+    verify(_mockMetrics).recordOperation(eq("exists"), eq("test"), anyLong());
     verify(_mockMetrics).recordOperationError("exists", "test", "IllegalStateException");
   }
 
@@ -198,7 +198,7 @@ public class InstrumentedEbeanLocalAccessTest {
     assertTrue(result);
     verify(_mockDelegate).exists(any());
     // No metrics calls should be made
-    verify(_mockMetrics, never()).recordOperationLatency(anyString(), anyString(), anyLong());
+    verify(_mockMetrics, never()).recordOperation(anyString(), anyString(), anyLong());
     verify(_mockMetrics, never()).recordOperationError(anyString(), anyString(), anyString());
   }
 
@@ -207,7 +207,7 @@ public class InstrumentedEbeanLocalAccessTest {
     _instrumented.ensureSchemaUpToDate();
 
     verify(_mockDelegate).ensureSchemaUpToDate();
-    verify(_mockMetrics, never()).recordOperationLatency(anyString(), anyString(), anyLong());
+    verify(_mockMetrics, never()).recordOperation(anyString(), anyString(), anyLong());
   }
 
   @Test

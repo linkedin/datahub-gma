@@ -12,7 +12,7 @@ import javax.annotation.Nonnull;
 public class NoOpDaoBenchmarkMetrics implements BaseDaoBenchmarkMetrics {
 
   @Override
-  public void recordOperationLatency(@Nonnull String operationType, @Nonnull String entityType, long latencyMs) {
+  public void recordOperation(@Nonnull String operationType, @Nonnull String entityType, long latencyMs) {
     // Do nothing
   }
 
