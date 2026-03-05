@@ -514,8 +514,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       if (oldValue == null && !latest.isSoftDeleted) {
         // Aspect has never existed — safe to backfill unconditionally
         shouldBackfill = true;
-      } else if (oldValue == null && latest.isSoftDeleted) {
-        // Aspect/entity was soft-deleted (oldValue is null but deletion occurred).
+      } else if (oldValue == null) {
+        // Soft-deleted (isSoftDeleted is necessarily true here since !isSoftDeleted was checked above).
         // Compare emitTime against the deletion timestamp (oldAuditStamp.time) to prevent
         // stale backfill events from resurrecting soft-deleted entities.
         shouldBackfill = trackingContext.hasEmitTime()
