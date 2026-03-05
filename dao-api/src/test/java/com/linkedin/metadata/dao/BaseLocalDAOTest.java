@@ -865,4 +865,114 @@ public class BaseLocalDAOTest {
     // invalid, should skip
     assertEquals(_dummyLocalDAO.aspectTimestampSkipWrite(null, null), false);
   }
+
+  // --- Backfill soft-delete bug fix tests ---
+
+  @Test(description = "Backfill should be a no-op when aspect is soft-deleted and emitTime is stale")
+  public void testBackfillNoopWhenSoftDeletedAndEmitTimeIsStale() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo newFoo = new AspectFoo().setValue("newFoo");
+
+    // Simulate soft-deleted aspect: oldValue=null, isSoftDeleted=true, deletion at time=100
+    AuditStamp deletionAuditStamp = makeAuditStamp("deleter", 100L);
+    ExtraInfo extraInfo = new ExtraInfo().setAudit(deletionAuditStamp);
+    BaseLocalDAO.AspectEntry<AspectFoo> softDeletedEntry = BaseLocalDAO.AspectEntry.<AspectFoo>builder()
+        .aspect(null)
+        .extraInfo(extraInfo)
+        .isSoftDeleted(true)
+        .build();
+
+    DummyLocalDAO<EntityAspectUnion> dummyLocalDAO = new DummyLocalDAO<>(EntityAspectUnion.class,
+        _mockGetLatestFunction, _mockTrackingEventProducer, _mockTrackingManager,
+        _dummyLocalDAO._transactionRunner);
+    dummyLocalDAO.setEmitAuditEvent(true);
+    dummyLocalDAO.setAlwaysEmitAuditEvent(true);
+    dummyLocalDAO.setEmitAspectSpecificAuditEvent(true);
+    dummyLocalDAO.setAlwaysEmitAspectSpecificAuditEvent(true);
+    expectGetLatest(urn, AspectFoo.class, Collections.singletonList(softDeletedEntry));
+
+    IngestionTrackingContext ingestionTrackingContext = new IngestionTrackingContext();
+    ingestionTrackingContext.setBackfill(true);
+    ingestionTrackingContext.setEmitTime(50L); // stale: 50 < 100 (deletion time)
+
+    dummyLocalDAO.add(urn, newFoo, _dummyAuditStamp, ingestionTrackingContext, null);
+
+    // Should NOT backfill — audit events emitted with old==new==null (no-op pattern)
+    verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, null, null);
+    verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(
+        urn, null, null, AspectFoo.class, _dummyAuditStamp, ingestionTrackingContext, IngestionMode.LIVE);
+    verifyNoMoreInteractions(_mockTrackingEventProducer);
+  }
+
+  @Test(description = "Backfill should succeed when aspect is soft-deleted but emitTime is newer (intentional resurrection)")
+  public void testBackfillSucceedsWhenSoftDeletedAndEmitTimeIsNewer() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo newFoo = new AspectFoo().setValue("resurrectedFoo");
+
+    // Simulate soft-deleted aspect: deletion at time=100
+    AuditStamp deletionAuditStamp = makeAuditStamp("deleter", 100L);
+    ExtraInfo extraInfo = new ExtraInfo().setAudit(deletionAuditStamp);
+    BaseLocalDAO.AspectEntry<AspectFoo> softDeletedEntry = BaseLocalDAO.AspectEntry.<AspectFoo>builder()
+        .aspect(null)
+        .extraInfo(extraInfo)
+        .isSoftDeleted(true)
+        .build();
+
+    DummyLocalDAO<EntityAspectUnion> dummyLocalDAO = new DummyLocalDAO<>(EntityAspectUnion.class,
+        _mockGetLatestFunction, _mockTrackingEventProducer, _mockTrackingManager,
+        _dummyLocalDAO._transactionRunner);
+    dummyLocalDAO.setEmitAuditEvent(true);
+    dummyLocalDAO.setAlwaysEmitAuditEvent(true);
+    dummyLocalDAO.setEmitAspectSpecificAuditEvent(true);
+    dummyLocalDAO.setAlwaysEmitAspectSpecificAuditEvent(true);
+    expectGetLatest(urn, AspectFoo.class, Collections.singletonList(softDeletedEntry));
+
+    IngestionTrackingContext ingestionTrackingContext = new IngestionTrackingContext();
+    ingestionTrackingContext.setBackfill(true);
+    ingestionTrackingContext.setEmitTime(200L); // newer: 200 >= 100 (deletion time)
+
+    dummyLocalDAO.add(urn, newFoo, _dummyAuditStamp, ingestionTrackingContext, null);
+
+    // SHOULD backfill — intentional resurrection
+    verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, null, newFoo);
+    verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(
+        urn, null, newFoo, AspectFoo.class, _dummyAuditStamp, ingestionTrackingContext, IngestionMode.LIVE);
+    verifyNoMoreInteractions(_mockTrackingEventProducer);
+  }
+
+  @Test(description = "Backfill should be a no-op when soft-deleted and no emitTime provided")
+  public void testBackfillNoopWhenSoftDeletedAndNoEmitTime() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo newFoo = new AspectFoo().setValue("newFoo");
+
+    // Simulate soft-deleted aspect: deletion at time=100
+    AuditStamp deletionAuditStamp = makeAuditStamp("deleter", 100L);
+    ExtraInfo extraInfo = new ExtraInfo().setAudit(deletionAuditStamp);
+    BaseLocalDAO.AspectEntry<AspectFoo> softDeletedEntry = BaseLocalDAO.AspectEntry.<AspectFoo>builder()
+        .aspect(null)
+        .extraInfo(extraInfo)
+        .isSoftDeleted(true)
+        .build();
+
+    DummyLocalDAO<EntityAspectUnion> dummyLocalDAO = new DummyLocalDAO<>(EntityAspectUnion.class,
+        _mockGetLatestFunction, _mockTrackingEventProducer, _mockTrackingManager,
+        _dummyLocalDAO._transactionRunner);
+    dummyLocalDAO.setEmitAuditEvent(true);
+    dummyLocalDAO.setAlwaysEmitAuditEvent(true);
+    dummyLocalDAO.setEmitAspectSpecificAuditEvent(true);
+    dummyLocalDAO.setAlwaysEmitAspectSpecificAuditEvent(true);
+    expectGetLatest(urn, AspectFoo.class, Collections.singletonList(softDeletedEntry));
+
+    IngestionTrackingContext ingestionTrackingContext = new IngestionTrackingContext();
+    ingestionTrackingContext.setBackfill(true);
+    // No emitTime set — should NOT backfill when soft-deleted
+
+    dummyLocalDAO.add(urn, newFoo, _dummyAuditStamp, ingestionTrackingContext, null);
+
+    // Should NOT backfill — audit events emitted with old==new==null (no-op pattern)
+    verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, null, null);
+    verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(
+        urn, null, null, AspectFoo.class, _dummyAuditStamp, ingestionTrackingContext, IngestionMode.LIVE);
+    verifyNoMoreInteractions(_mockTrackingEventProducer);
+  }
 }
