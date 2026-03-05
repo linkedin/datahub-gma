@@ -510,24 +510,32 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     final boolean isBackfillEvent = trackingContext != null
         && trackingContext.hasBackfill() && trackingContext.isBackfill();
     if (isBackfillEvent) {
-      boolean shouldBackfill =
-          // new value is being inserted. We should backfill
-          oldValue == null
-              || (
-              // tracking context should ideally always have emitTime. If it's not present, we will skip backfilling
-              trackingContext.hasEmitTime()
-                  && (
-                  // old emit time is available so we'll use it for comparison
-                  // if new event emit time > old event emit time, we'll backfill
-                  (oldEmitTime != null && trackingContext.getEmitTime() > oldEmitTime)
-                      // old emit time is not available, so we'll fall back to comparing new emit time against old audit time
-                      // old audit time represents the last modified time of the aspect
-                      || (oldEmitTime == null && oldAuditStamp != null && oldAuditStamp.hasTime() && trackingContext.getEmitTime() > oldAuditStamp.getTime())));
+      boolean shouldBackfill;
+      if (oldValue == null && !latest.isSoftDeleted) {
+        // Aspect has never existed — safe to backfill unconditionally
+        shouldBackfill = true;
+      } else if (oldValue == null && latest.isSoftDeleted) {
+        // Aspect/entity was soft-deleted (oldValue is null but deletion occurred).
+        // Compare emitTime against the deletion timestamp (oldAuditStamp.time) to prevent
+        // stale backfill events from resurrecting soft-deleted entities.
+        shouldBackfill = trackingContext.hasEmitTime()
+            && oldAuditStamp != null && oldAuditStamp.hasTime()
+            && trackingContext.getEmitTime() >= oldAuditStamp.getTime();
+      } else {
+        // oldValue exists (not soft-deleted) — normal emitTime comparison
+        shouldBackfill =
+            trackingContext.hasEmitTime()
+                && (
+                (oldEmitTime != null && trackingContext.getEmitTime() > oldEmitTime)
+                    || (oldEmitTime == null && oldAuditStamp != null && oldAuditStamp.hasTime()
+                    && trackingContext.getEmitTime() > oldAuditStamp.getTime()));
+      }
 
-      log.info("Encounter backfill event. Old value = null: {}. Tracking context: {}. Urn: {}. Aspect class: {}. Old audit stamp: {}. "
-              + "Old emit time: {}. "
+      log.info("Encounter backfill event. Old value = null: {}. isSoftDeleted: {}. Tracking context: {}. Urn: {}. "
+              + "Aspect class: {}. Old audit stamp: {}. Old emit time: {}. "
               + "Based on this information, shouldBackfill = {}.",
-          oldValue == null, trackingContext, urn, aspectClass, oldAuditStamp, oldEmitTime, shouldBackfill);
+          oldValue == null, latest.isSoftDeleted, trackingContext, urn, aspectClass, oldAuditStamp, oldEmitTime,
+          shouldBackfill);
 
       if (!shouldBackfill) {
         return new AddResult<>(oldValue, oldValue, aspectClass);
@@ -629,7 +637,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     } else {
       // no atomic multiple updates: run each in its own transaction. This is the same as repeated calls to add
       results = aspectUpdateLambdas.stream().map(x -> runInTransactionWithRetry(() ->
-              aspectUpdateHelper(urn, x, auditStamp, trackingContext), maxTransactionRetry)).collect(Collectors.toList());
+          aspectUpdateHelper(urn, x, auditStamp, trackingContext), maxTransactionRetry)).collect(Collectors.toList());
     }
 
     // send the audit events etc
@@ -960,8 +968,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     // create aspects and process callbacks in a single transaction
     return runInTransactionWithRetry(() -> {
-      return createAspectsWithCallbacks(urn, aspectValues, aspectCreateLambdas, auditStamp, trackingContext);
-      }, maxTransactionRetry
+          return createAspectsWithCallbacks(urn, aspectValues, aspectCreateLambdas, auditStamp, trackingContext);
+        }, maxTransactionRetry
     );
   }
 
@@ -1037,18 +1045,18 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     final Map<Class<?>, RecordTemplate> results = new HashMap<>();
     runInTransactionWithRetry(() -> {
-        aspectClasses.forEach(aspectClass -> {
-          try {
-            RecordTemplate deletedAspect = delete(urn, aspectClass, auditStamp, maxTransactionRetry, trackingContext);
-            results.put(aspectClass, deletedAspect);
-          } catch (NullPointerException e) {
-            log.warn("Aspect {} for urn {} does not exist", aspectClass.getName(), urn);
-          }
-        });
+      aspectClasses.forEach(aspectClass -> {
+        try {
+          RecordTemplate deletedAspect = delete(urn, aspectClass, auditStamp, maxTransactionRetry, trackingContext);
+          results.put(aspectClass, deletedAspect);
+        } catch (NullPointerException e) {
+          log.warn("Aspect {} for urn {} does not exist", aspectClass.getName(), urn);
+        }
+      });
 
       permanentDelete(urn, nonNullIngestionParams.isTestMode());
       return results;
-      }, maxTransactionRetry);
+    }, maxTransactionRetry);
 
 
     Collection<RecordTemplate> deletedAspects = new ArrayList<>();
