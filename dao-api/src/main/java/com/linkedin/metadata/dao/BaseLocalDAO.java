@@ -518,9 +518,16 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
         // Soft-deleted (isSoftDeleted is necessarily true here since !isSoftDeleted was checked above).
         // Compare emitTime against the deletion timestamp (oldAuditStamp.time) to prevent
         // stale backfill events from resurrecting soft-deleted entities.
+        // Uses strict > (not >=) for consistency with the non-deleted branch: an event at the exact
+        // same millisecond as the deletion is treated as stale (likely in-flight when delete occurred).
+        if (trackingContext.hasEmitTime() && (oldAuditStamp == null || !oldAuditStamp.hasTime())) {
+          log.warn("Soft-deleted entity has valid emitTime but missing/invalid deletion timestamp. "
+              + "Backfill will be rejected. Urn: {}. Aspect: {}. emitTime: {}. oldAuditStamp: {}.",
+              urn, aspectClass, trackingContext.getEmitTime(), oldAuditStamp);
+        }
         shouldBackfill = trackingContext.hasEmitTime()
             && oldAuditStamp != null && oldAuditStamp.hasTime()
-            && trackingContext.getEmitTime() >= oldAuditStamp.getTime();
+            && trackingContext.getEmitTime() > oldAuditStamp.getTime();
       } else {
         // oldValue exists (not soft-deleted) — normal emitTime comparison
         shouldBackfill =

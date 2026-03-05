@@ -929,7 +929,7 @@ public class BaseLocalDAOTest {
 
     IngestionTrackingContext ingestionTrackingContext = new IngestionTrackingContext();
     ingestionTrackingContext.setBackfill(true);
-    ingestionTrackingContext.setEmitTime(200L); // newer: 200 >= 100 (deletion time)
+    ingestionTrackingContext.setEmitTime(200L); // newer: 200 > 100 (deletion time)
 
     dummyLocalDAO.add(urn, newFoo, _dummyAuditStamp, ingestionTrackingContext, null);
 
@@ -970,6 +970,42 @@ public class BaseLocalDAOTest {
     dummyLocalDAO.add(urn, newFoo, _dummyAuditStamp, ingestionTrackingContext, null);
 
     // Should NOT backfill — audit events emitted with old==new==null (no-op pattern)
+    verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, null, null);
+    verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(
+        urn, null, null, AspectFoo.class, _dummyAuditStamp, ingestionTrackingContext, IngestionMode.LIVE);
+    verifyNoMoreInteractions(_mockTrackingEventProducer);
+  }
+
+  @Test(description = "Backfill should be a no-op when soft-deleted and emitTime equals deletion timestamp (boundary)")
+  public void testBackfillNoopWhenSoftDeletedAndEmitTimeEqualsDeletionTime() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo newFoo = new AspectFoo().setValue("newFoo");
+
+    // Simulate soft-deleted aspect: deletion at time=100
+    AuditStamp deletionAuditStamp = makeAuditStamp("deleter", 100L);
+    ExtraInfo extraInfo = new ExtraInfo().setAudit(deletionAuditStamp);
+    BaseLocalDAO.AspectEntry<AspectFoo> softDeletedEntry = BaseLocalDAO.AspectEntry.<AspectFoo>builder()
+        .aspect(null)
+        .extraInfo(extraInfo)
+        .isSoftDeleted(true)
+        .build();
+
+    DummyLocalDAO<EntityAspectUnion> dummyLocalDAO = new DummyLocalDAO<>(EntityAspectUnion.class,
+        _mockGetLatestFunction, _mockTrackingEventProducer, _mockTrackingManager,
+        _dummyLocalDAO._transactionRunner);
+    dummyLocalDAO.setEmitAuditEvent(true);
+    dummyLocalDAO.setAlwaysEmitAuditEvent(true);
+    dummyLocalDAO.setEmitAspectSpecificAuditEvent(true);
+    dummyLocalDAO.setAlwaysEmitAspectSpecificAuditEvent(true);
+    expectGetLatest(urn, AspectFoo.class, Collections.singletonList(softDeletedEntry));
+
+    IngestionTrackingContext ingestionTrackingContext = new IngestionTrackingContext();
+    ingestionTrackingContext.setBackfill(true);
+    ingestionTrackingContext.setEmitTime(100L); // exact boundary: 100 == 100 (deletion time) → no-op
+
+    dummyLocalDAO.add(urn, newFoo, _dummyAuditStamp, ingestionTrackingContext, null);
+
+    // Should NOT backfill — event at same ms as deletion is treated as stale (strict >)
     verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, null, null);
     verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(
         urn, null, null, AspectFoo.class, _dummyAuditStamp, ingestionTrackingContext, IngestionMode.LIVE);
