@@ -503,52 +503,22 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nonnull AuditStamp auditStamp, @Nonnull EqualityTester<ASPECT> equalityTester,
       @Nullable IngestionTrackingContext trackingContext, @Nonnull IngestionParams ingestionParams) {
 
-    final ASPECT oldValue = latest.getAspect() == null ? null : latest.getAspect();
+    final ASPECT oldValue = latest.getAspect();
     final AuditStamp oldAuditStamp = latest.getExtraInfo() == null ? null : latest.getExtraInfo().getAudit();
     final Long oldEmitTime = latest.getExtraInfo() == null ? null : latest.getExtraInfo().getEmitTime();
 
     final boolean isBackfillEvent = trackingContext != null
         && trackingContext.hasBackfill() && trackingContext.isBackfill();
     if (isBackfillEvent) {
-      boolean shouldBackfill;
-      if (oldValue == null && !latest.isSoftDeleted) {
-        // Aspect has never existed — safe to backfill unconditionally
-        shouldBackfill = true;
-      } else if (oldValue == null) {
-        // Soft-deleted (isSoftDeleted is necessarily true here since !isSoftDeleted was checked above).
-        // Compare emitTime against the deletion timestamp (oldAuditStamp.time) to prevent
-        // stale backfill events from resurrecting soft-deleted entities.
-        // Uses strict > (not >=) for consistency with the non-deleted branch: an event at the exact
-        // same millisecond as the deletion is treated as stale (likely in-flight when delete occurred).
-        if (trackingContext.hasEmitTime() && (oldAuditStamp == null || !oldAuditStamp.hasTime())) {
-          log.warn("Soft-deleted entity has valid emitTime but missing/invalid deletion timestamp. "
-              + "Backfill will be rejected. Urn: {}. Aspect: {}. emitTime: {}. oldAuditStamp: {}.",
-              urn, aspectClass, trackingContext.getEmitTime(), oldAuditStamp);
-        }
-        shouldBackfill = trackingContext.hasEmitTime()
-            && oldAuditStamp != null && oldAuditStamp.hasTime()
-            && trackingContext.getEmitTime() > oldAuditStamp.getTime();
-      } else {
-        // oldValue exists (not soft-deleted) — normal emitTime comparison
-        shouldBackfill =
-            trackingContext.hasEmitTime()
-                && (
-                (oldEmitTime != null && trackingContext.getEmitTime() > oldEmitTime)
-                    || (oldEmitTime == null && oldAuditStamp != null && oldAuditStamp.hasTime()
-                    && trackingContext.getEmitTime() > oldAuditStamp.getTime()));
-      }
-
+      boolean shouldBackfill = shouldBackfill(urn, latest, aspectClass, trackingContext);
       log.info("Encounter backfill event. Old value = null: {}. isSoftDeleted: {}. Tracking context: {}. Urn: {}. "
               + "Aspect class: {}. Old audit stamp: {}. Old emit time: {}. "
               + "Based on this information, shouldBackfill = {}.",
-          oldValue == null, latest.isSoftDeleted, trackingContext, urn, aspectClass, oldAuditStamp, oldEmitTime,
-          shouldBackfill);
-
+          oldValue == null, latest.isSoftDeleted, trackingContext, urn, aspectClass, oldAuditStamp, oldEmitTime, shouldBackfill);
       if (!shouldBackfill) {
         return new AddResult<>(oldValue, oldValue, aspectClass);
       }
     }
-
     // TODO(yanyang) added for job-gms duplicity debug, throwaway afterwards
     if (log.isDebugEnabled()) {
       if ("AzkabanFlowInfo".equals(aspectClass.getSimpleName())) {
@@ -576,6 +546,51 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     applyRetention(urn, aspectClass, getRetention(aspectClass), largestVersion);
 
     return new AddResult<>(oldValue, newValue, aspectClass);
+  }
+
+  /**
+   * Determines whether a backfill event should be applied.
+   */
+  private <ASPECT extends RecordTemplate> boolean shouldBackfill(
+      @Nonnull URN urn,
+      @Nonnull AspectEntry<ASPECT> latest,
+      @Nonnull Class<ASPECT> aspectClass,
+      @Nonnull IngestionTrackingContext trackingContext) {
+
+    final ASPECT oldValue = latest.getAspect();
+    final AuditStamp oldAuditStamp = latest.getExtraInfo() == null ? null : latest.getExtraInfo().getAudit();
+    final Long oldEmitTime = latest.getExtraInfo() == null ? null : latest.getExtraInfo().getEmitTime();
+
+    // 1. Aspect has never existed (no value, not soft-deleted) — safe to backfill unconditionally.
+    // This is the only case where we allow backfill without an emitTime comparison.
+    if (oldValue == null && !latest.isSoftDeleted) {
+      return true;
+    }
+
+    // 2. All remaining cases require emitTime to determine staleness. Without emitTime we cannot safely compare, so reject the backfill.
+    if (!trackingContext.hasEmitTime()) {
+      return false;
+    }
+    long emitTime = trackingContext.getEmitTime();
+    // 3. Aspect was soft-deleted (oldValue is null because the aspect was deleted, not because it never existed).
+    // Compare emitTime against the deletion timestamp to prevent stale DLQ replays from resurrecting deleted entities.
+    // Uses strict > (not >=) — an event at the exact same millisecond as the deletion is treated as stale,
+    // since it was likely in-flight when delete occurred.
+    if (oldValue == null) {
+      // If the deletion timestamp is missing or invalid, we can't safely compare — reject and warn
+      if (oldAuditStamp == null || !oldAuditStamp.hasTime()) {
+        log.warn("Soft-deleted entity has valid emitTime but missing/invalid deletion timestamp. Backfill will be rejected. Urn: {}. Aspect: {}. "
+            + "emitTime: {}. oldAuditStamp: {}.", urn, aspectClass, emitTime, oldAuditStamp);
+        return false;
+      }
+      return emitTime > oldAuditStamp.getTime();
+    }
+    // 4. Aspect exists with a current value — standard staleness check. Prefer comparing against the old event's emitTime (most accurate).
+    if (oldEmitTime != null) {
+      return emitTime > oldEmitTime;
+    }
+    // 5. Old emitTime unavailable — fall back to the aspect's last-modified audit timestamp. This is less precise but the best available signal.
+    return oldAuditStamp != null && oldAuditStamp.hasTime() && emitTime > oldAuditStamp.getTime();
   }
 
   /**
