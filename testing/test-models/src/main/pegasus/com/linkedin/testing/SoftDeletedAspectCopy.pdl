@@ -9,4 +9,14 @@ record SoftDeletedAspectCopy {
    * flag to indicate if the aspect is soft deleted in GMA
    */
   gma_deleted: boolean
+
+  /**
+   * Timestamp of when the aspect was soft deleted
+   */
+  deleted_timestamp: optional string
+
+  /**
+   * Identity of who deleted the aspect
+   */
+  deleted_by: optional string
 }

@@ -520,4 +520,33 @@ public class EbeanLocalAccessTest {
     int numRowsDeleted = _ebeanLocalAccessFoo.softDeleteAsset(fooUrn, false);
     assertEquals(numRowsDeleted, 1);
   }
+
+  @Test
+  public void testSoftDeleteWritesEnrichedJson() {
+    // Given: an existing aspect
+    FooUrn fooUrn = makeFooUrn(300);
+    AspectFoo aspectFoo = new AspectFoo().setValue("toBeDeleted");
+    long deleteTime = System.currentTimeMillis();
+    AuditStamp auditStamp = makeAuditStamp("urn:li:corpuser:deleter", deleteTime);
+    _ebeanLocalAccessFoo.add(fooUrn, aspectFoo, AspectFoo.class, auditStamp, null, false);
+
+    // When: soft-delete the aspect (newValue = null)
+    _ebeanLocalAccessFoo.add(fooUrn, null, AspectFoo.class, auditStamp, null, false);
+
+    // Then: the stored JSON should contain deleted_timestamp and deleted_by
+    String aspectColumn = com.linkedin.metadata.dao.utils.SQLSchemaUtils.getAspectColumnName("foo", AspectFoo.class);
+    String query = String.format("SELECT %s FROM metadata_entity_foo WHERE urn = '%s'", aspectColumn, fooUrn);
+    SqlRow row = _server.createSqlQuery(query).findOne();
+    assertNotNull(row);
+    String metadata = row.getString(aspectColumn);
+    assertNotNull(metadata);
+
+    // Verify it's detected as soft-deleted
+    assertTrue(com.linkedin.metadata.dao.utils.EBeanDAOUtils.isSoftDeletedMetadata(metadata));
+
+    // Verify it contains the enriched fields
+    assertTrue(metadata.contains("deleted_timestamp"));
+    assertTrue(metadata.contains("deleted_by"));
+    assertTrue(metadata.contains("deleter"));
+  }
 }

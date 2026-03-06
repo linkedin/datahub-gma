@@ -576,6 +576,60 @@ public class EBeanDAOUtilsTest {
   }
 
   @Test
+  public void testIsSoftDeletedAspectWithEnrichedJson() {
+    // Enriched format with deleted_timestamp and deleted_by should also be detected as soft-deleted
+    SqlRow sqlRow = mock(SqlRow.class);
+    String enrichedJson = "{\"gma_deleted\": true, \"deleted_timestamp\": \"2026-03-06 18:41:59.000\", \"deleted_by\": \"urn:li:corpuser:testuser\"}";
+    when(sqlRow.getString("a_aspectfoo")).thenReturn(enrichedJson);
+    assertTrue(EBeanDAOUtils.isSoftDeletedAspect(sqlRow, "a_aspectfoo"));
+  }
+
+  @Test
+  public void testIsSoftDeletedAspectOnEbeanMetadataAspectWithEnrichedJson() {
+    // isSoftDeletedAspect(EbeanMetadataAspect, Class) should detect enriched JSON
+    EbeanMetadataAspect aspect = new EbeanMetadataAspect();
+    aspect.setKey(new EbeanMetadataAspect.PrimaryKey("urn:li:foo:1", AspectFoo.class.getCanonicalName(), 0));
+
+    // Legacy format
+    aspect.setMetadata("{\"gma_deleted\":true}");
+    assertTrue(EBeanDAOUtils.isSoftDeletedAspect(aspect, AspectFoo.class));
+
+    // Enriched format
+    aspect.setMetadata("{\"gma_deleted\":true,\"deleted_timestamp\":\"2026-03-06 18:41:59.000\",\"deleted_by\":\"urn:li:corpuser:testuser\"}");
+    assertTrue(EBeanDAOUtils.isSoftDeletedAspect(aspect, AspectFoo.class));
+
+    // Non-deleted aspect
+    aspect.setMetadata("{\"value\":\"foo\"}");
+    assertFalse(EBeanDAOUtils.isSoftDeletedAspect(aspect, AspectFoo.class));
+  }
+
+  @Test
+  public void testBuildDeletedValue() {
+    String result = EBeanDAOUtils.buildDeletedValue("2026-03-06 18:41:59.000", "urn:li:corpuser:testuser");
+    assertTrue(EBeanDAOUtils.isSoftDeletedMetadata(result));
+
+    // Verify the enriched fields are in the JSON
+    assertTrue(result.contains("gma_deleted"));
+    assertTrue(result.contains("2026-03-06 18:41:59.000"));
+    assertTrue(result.contains("urn:li:corpuser:testuser"));
+  }
+
+  @Test
+  public void testIsSoftDeletedMetadata() {
+    // Legacy format
+    assertTrue(EBeanDAOUtils.isSoftDeletedMetadata("{\"gma_deleted\":true}"));
+
+    // Enriched format
+    assertTrue(EBeanDAOUtils.isSoftDeletedMetadata(
+        "{\"gma_deleted\":true,\"deleted_timestamp\":\"2026-03-06 18:41:59.000\",\"deleted_by\":\"urn:li:corpuser:testuser\"}"));
+
+    // Not soft-deleted
+    assertFalse(EBeanDAOUtils.isSoftDeletedMetadata("{\"value\":\"foo\"}"));
+    assertFalse(EBeanDAOUtils.isSoftDeletedMetadata(null));
+    assertFalse(EBeanDAOUtils.isSoftDeletedMetadata(""));
+  }
+
+  @Test
   public void testBuildRelationshipFieldCriterionWithAspectField() {
     LocalRelationshipValue localRelationshipValue = LocalRelationshipValue.create(new StringArray("bar"));
     Condition condition = Condition.IN;

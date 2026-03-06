@@ -573,11 +573,12 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     }
     long emitTime = trackingContext.getEmitTime();
     // 3. Aspect was soft-deleted (oldValue is null because the aspect was deleted, not because it never existed).
-    // Compare emitTime against the deletion timestamp to prevent stale DLQ replays from resurrecting deleted entities.
+    // Compare emitTime against the per-aspect deletion timestamp (from SoftDeletedAspect.deleted_timestamp,
+    // surfaced via oldAuditStamp) to prevent stale DLQ replays from resurrecting deleted aspects.
     // Uses strict > (not >=) — an event at the exact same millisecond as the deletion is treated as stale,
     // since it was likely in-flight when delete occurred.
     if (oldValue == null) {
-      // If the deletion timestamp is missing or invalid, we can't safely compare — reject and warn
+      // If the deletion timestamp is missing or invalid, we can't safely compare — reject and warn.
       if (oldAuditStamp == null || !oldAuditStamp.hasTime()) {
         log.warn("Soft-deleted entity has valid emitTime but missing/invalid deletion timestamp. Backfill will be rejected. Urn: {}. Aspect: {}. "
             + "emitTime: {}. oldAuditStamp: {}.", urn, aspectClass, emitTime, oldAuditStamp);
