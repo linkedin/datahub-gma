@@ -147,7 +147,8 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
     // newValue is null if aspect is to be soft-deleted.
     if (newValue == null) {
-      return sqlUpdate.setParameter("metadata", DELETED_VALUE).execute();
+      String deletedValue = EBeanDAOUtils.buildDeletedValue(timestamp, actor);
+      return sqlUpdate.setParameter("metadata", deletedValue).execute();
     }
 
     AuditedAspect auditedAspect = new AuditedAspect()
