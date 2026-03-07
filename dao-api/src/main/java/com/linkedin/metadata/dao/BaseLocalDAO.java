@@ -514,7 +514,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       log.info("Encounter backfill event. Old value = null: {}. isSoftDeleted: {}. Tracking context: {}. Urn: {}. "
               + "Aspect class: {}. Old audit stamp: {}. Old emit time: {}. "
               + "Based on this information, shouldBackfill = {}.",
-          oldValue == null, latest.isSoftDeleted, trackingContext, urn, aspectClass, oldAuditStamp, oldEmitTime, shouldBackfill);
+          oldValue == null, latest.isSoftDeleted(), trackingContext, urn, aspectClass, oldAuditStamp, oldEmitTime, shouldBackfill);
       if (!shouldBackfill) {
         return new AddResult<>(oldValue, oldValue, aspectClass);
       }
@@ -540,7 +540,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     long largestVersion =
         saveLatest(urn, aspectClass, oldValue,
             optimisticLockAuditStamp != null ? optimisticLockAuditStamp : oldAuditStamp,
-            newValue, auditStamp, latest.isSoftDeleted, trackingContext, ingestionParams.isTestMode());
+            newValue, auditStamp, latest.isSoftDeleted(), trackingContext, ingestionParams.isTestMode());
 
     // Apply retention policy
     applyRetention(urn, aspectClass, getRetention(aspectClass), largestVersion);
@@ -563,7 +563,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     // 1. Aspect has never existed (no value, not soft-deleted) — safe to backfill unconditionally.
     // This is the only case where we allow backfill without an emitTime comparison.
-    if (oldValue == null && !latest.isSoftDeleted) {
+    if (oldValue == null && !latest.isSoftDeleted()) {
       return true;
     }
 

@@ -579,7 +579,7 @@ public class EBeanDAOUtilsTest {
   public void testIsSoftDeletedAspectWithEnrichedJson() {
     // Enriched format with deleted_timestamp and deleted_by should also be detected as soft-deleted
     SqlRow sqlRow = mock(SqlRow.class);
-    String enrichedJson = "{\"gma_deleted\": true, \"deleted_timestamp\": \"2026-03-06 18:41:59.000\", \"deleted_by\": \"urn:li:corpuser:testuser\"}";
+    String enrichedJson = "{\"gma_deleted\": true, \"deleted_timestamp\": 1741286519000, \"deleted_by\": \"urn:li:corpuser:testuser\"}";
     when(sqlRow.getString("a_aspectfoo")).thenReturn(enrichedJson);
     assertTrue(EBeanDAOUtils.isSoftDeletedAspect(sqlRow, "a_aspectfoo"));
   }
@@ -595,7 +595,7 @@ public class EBeanDAOUtilsTest {
     assertTrue(EBeanDAOUtils.isSoftDeletedAspect(aspect, AspectFoo.class));
 
     // Enriched format
-    aspect.setMetadata("{\"gma_deleted\":true,\"deleted_timestamp\":\"2026-03-06 18:41:59.000\",\"deleted_by\":\"urn:li:corpuser:testuser\"}");
+    aspect.setMetadata("{\"gma_deleted\":true,\"deleted_timestamp\":1741286519000,\"deleted_by\":\"urn:li:corpuser:testuser\"}");
     assertTrue(EBeanDAOUtils.isSoftDeletedAspect(aspect, AspectFoo.class));
 
     // Non-deleted aspect
@@ -605,12 +605,12 @@ public class EBeanDAOUtilsTest {
 
   @Test
   public void testBuildDeletedValue() {
-    String result = EBeanDAOUtils.buildDeletedValue("2026-03-06 18:41:59.000", "urn:li:corpuser:testuser");
+    String result = EBeanDAOUtils.buildDeletedValue(1741286519000L, "urn:li:corpuser:testuser");
     assertTrue(EBeanDAOUtils.isSoftDeletedMetadata(result));
 
     // Verify the enriched fields are in the JSON
     assertTrue(result.contains("gma_deleted"));
-    assertTrue(result.contains("2026-03-06 18:41:59.000"));
+    assertTrue(result.contains("1741286519000"));
     assertTrue(result.contains("urn:li:corpuser:testuser"));
   }
 
@@ -621,7 +621,7 @@ public class EBeanDAOUtilsTest {
 
     // Enriched format
     assertTrue(EBeanDAOUtils.isSoftDeletedMetadata(
-        "{\"gma_deleted\":true,\"deleted_timestamp\":\"2026-03-06 18:41:59.000\",\"deleted_by\":\"urn:li:corpuser:testuser\"}"));
+        "{\"gma_deleted\":true,\"deleted_timestamp\":1741286519000,\"deleted_by\":\"urn:li:corpuser:testuser\"}"));
 
     // Not soft-deleted
     assertFalse(EBeanDAOUtils.isSoftDeletedMetadata("{\"value\":\"foo\"}"));

@@ -65,17 +65,24 @@ public class EBeanDAOUtils {
       .toFormatter();
   public static final String DIFFERENT_RESULTS_TEMPLATE = "The results of %s from the new schema table and old schema table are not equal. Reason: %s. "
       + "Defaulting to using the value(s) from the old schema table.";
-  // Bare soft-delete marker (legacy format, used only for detection/filtering of old rows)
+  /**
+   * @deprecated Use {@link #isSoftDeletedMetadata(String)} for detection and {@link #buildDeletedValue(long, String)} for writing.
+   */
+  @Deprecated
   private static final RecordTemplate DELETED_METADATA = new SoftDeletedAspect().setGma_deleted(true);
+  /**
+   * @deprecated Use {@link #isSoftDeletedMetadata(String)} for detection and {@link #buildDeletedValue(long, String)} for writing.
+   */
+  @Deprecated
   public static final String DELETED_VALUE = RecordUtils.toJsonString(DELETED_METADATA);
 
   /**
    * Build an enriched soft-delete marker JSON with deletion audit metadata.
-   * @param deletedTimestamp the deletion timestamp string (DB lastmodifiedon format, e.g. "2026-03-06 18:41:59.000")
+   * @param deletedTimestamp the deletion timestamp in epoch millis
    * @param deletedBy who deleted the aspect (corpuser URN or "backfill")
-   * @return JSON string like {"gma_deleted":true,"deleted_timestamp":"...","deleted_by":"..."}
+   * @return JSON string like {"gma_deleted":true,"deleted_timestamp":1741286519000,"deleted_by":"..."}
    */
-  public static String buildDeletedValue(@Nonnull String deletedTimestamp, @Nonnull String deletedBy) {
+  public static String buildDeletedValue(long deletedTimestamp, @Nonnull String deletedBy) {
     SoftDeletedAspect softDeletedAspect = new SoftDeletedAspect().setGma_deleted(true);
     softDeletedAspect.setDeleted_timestamp(deletedTimestamp);
     softDeletedAspect.setDeleted_by(deletedBy);
@@ -94,6 +101,7 @@ public class EBeanDAOUtils {
       SoftDeletedAspect aspect = RecordUtils.toRecordTemplate(SoftDeletedAspect.class, metadata);
       return aspect.hasGma_deleted() && aspect.isGma_deleted();
     } catch (Exception e) {
+      log.debug("Failed to parse metadata as SoftDeletedAspect: {}", metadata, e);
       return false;
     }
   }
@@ -309,15 +317,15 @@ public class EBeanDAOUtils {
       // Try to extract per-aspect deletion timestamp from the enriched soft-delete JSON.
       // Fall back to entity-level lastmodifiedon for legacy rows that only have {"gma_deleted":true}.
       SoftDeletedAspect softDeletedAspect = RecordUtils.toRecordTemplate(SoftDeletedAspect.class, sqlRow.getString(columnName));
-      String deletionTimestamp = softDeletedAspect.hasDeleted_timestamp()
-          ? softDeletedAspect.getDeleted_timestamp()
-          : sqlRow.getString("lastmodifiedon");
+      Timestamp deletionTimestamp = softDeletedAspect.hasDeleted_timestamp()
+          ? new Timestamp(softDeletedAspect.getDeleted_timestamp())
+          : timeStampStringToTimeStamp(sqlRow.getString("lastmodifiedon"));
       String deletedBy = softDeletedAspect.hasDeleted_by()
           ? softDeletedAspect.getDeleted_by()
           : sqlRow.getString("lastmodifiedby");
 
       ebeanMetadataAspect.setCreatedBy(deletedBy);
-      ebeanMetadataAspect.setCreatedOn(timeStampStringToTimeStamp(deletionTimestamp));
+      ebeanMetadataAspect.setCreatedOn(deletionTimestamp);
       ebeanMetadataAspect.setCreatedFor(sqlRow.getString("createdfor"));
       ebeanMetadataAspect.setMetadata(sqlRow.getString(columnName));
     } else {

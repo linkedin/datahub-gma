@@ -11,9 +11,9 @@ record SoftDeletedAspect {
   gma_deleted: boolean
 
   /**
-   * Timestamp of when the aspect was soft deleted (string format matching DB lastmodifiedon column, e.g. "2026-03-06 18:41:59.000")
+   * Timestamp of when the aspect was soft deleted (epoch millis)
    */
-  deleted_timestamp: optional string
+  deleted_timestamp: optional long
 
   /**
    * Identity of who deleted the aspect (corpuser URN or "backfill" for backfilled rows)
