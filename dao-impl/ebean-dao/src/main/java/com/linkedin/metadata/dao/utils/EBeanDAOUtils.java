@@ -66,11 +66,13 @@ public class EBeanDAOUtils {
   public static final String DIFFERENT_RESULTS_TEMPLATE = "The results of %s from the new schema table and old schema table are not equal. Reason: %s. "
       + "Defaulting to using the value(s) from the old schema table.";
   /**
+   * Bare soft-delete marker (legacy format).
    * @deprecated Use {@link #isSoftDeletedMetadata(String)} for detection and {@link #buildDeletedValue(long, String)} for writing.
    */
   @Deprecated
   private static final RecordTemplate DELETED_METADATA = new SoftDeletedAspect().setGma_deleted(true);
   /**
+   * Bare soft-delete marker JSON (legacy format).
    * @deprecated Use {@link #isSoftDeletedMetadata(String)} for detection and {@link #buildDeletedValue(long, String)} for writing.
    */
   @Deprecated

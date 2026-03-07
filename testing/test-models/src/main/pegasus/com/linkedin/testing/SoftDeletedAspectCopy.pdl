@@ -13,7 +13,7 @@ record SoftDeletedAspectCopy {
   /**
    * Timestamp of when the aspect was soft deleted
    */
-  deleted_timestamp: optional string
+  deleted_timestamp: optional long
 
   /**
    * Identity of who deleted the aspect

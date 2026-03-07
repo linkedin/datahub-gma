@@ -4,10 +4,12 @@ import com.google.common.io.Resources;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.urnpath.EmptyPathExtractor;
+import com.linkedin.metadata.dao.utils.EBeanDAOUtils;
 import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
 import com.linkedin.metadata.dao.utils.FooUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLIndexFilterUtils;
+import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
 import com.linkedin.metadata.dao.utils.SchemaValidatorUtil;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.IndexCriterion;
@@ -534,7 +536,7 @@ public class EbeanLocalAccessTest {
     _ebeanLocalAccessFoo.add(fooUrn, null, AspectFoo.class, auditStamp, null, false);
 
     // Then: the stored JSON should contain deleted_timestamp and deleted_by
-    String aspectColumn = com.linkedin.metadata.dao.utils.SQLSchemaUtils.getAspectColumnName("foo", AspectFoo.class);
+    String aspectColumn = SQLSchemaUtils.getAspectColumnName("foo", AspectFoo.class);
     String query = String.format("SELECT %s FROM metadata_entity_foo WHERE urn = '%s'", aspectColumn, fooUrn);
     SqlRow row = _server.createSqlQuery(query).findOne();
     assertNotNull(row);
@@ -542,7 +544,7 @@ public class EbeanLocalAccessTest {
     assertNotNull(metadata);
 
     // Verify it's detected as soft-deleted
-    assertTrue(com.linkedin.metadata.dao.utils.EBeanDAOUtils.isSoftDeletedMetadata(metadata));
+    assertTrue(EBeanDAOUtils.isSoftDeletedMetadata(metadata));
 
     // Verify it contains the enriched fields
     assertTrue(metadata.contains("deleted_timestamp"));
