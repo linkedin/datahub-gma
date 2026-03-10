@@ -147,6 +147,13 @@ public class InstrumentedEbeanLocalAccess<URN extends Urn> implements IEbeanLoca
     return instrument("list", () -> _delegate.list(aspectClass, start, pageSize));
   }
 
+  @Nullable
+  @Override
+  public Timestamp getAssetDeletionTimestamp(@Nonnull URN urn, boolean isTestMode) {
+    return instrument("getAssetDeletionTimestamp",
+        () -> _delegate.getAssetDeletionTimestamp(urn, isTestMode));
+  }
+
   @Override
   public void ensureSchemaUpToDate() {
     // Not instrumented — admin operation

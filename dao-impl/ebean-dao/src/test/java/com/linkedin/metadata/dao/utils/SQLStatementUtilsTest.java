@@ -772,6 +772,26 @@ public class SQLStatementUtilsTest {
   }
 
   @Test
+  public void testGetAssetDeletionTimestampSql() {
+    FooUrn fooUrn = makeFooUrn(1);
+    String expectedSql = "SELECT deleted_ts "
+        + "FROM metadata_entity_foo "
+        + "WHERE urn = 'urn:li:foo:1' "
+        + "AND deleted_ts IS NOT NULL";
+    assertConditionsEqual(SQLStatementUtils.createGetAssetDeletionTimestampSql(fooUrn, false), expectedSql);
+  }
+
+  @Test
+  public void testGetAssetDeletionTimestampSqlTestMode() {
+    FooUrn fooUrn = makeFooUrn(1);
+    String expectedSql = "SELECT deleted_ts "
+        + "FROM metadata_entity_foo_test "
+        + "WHERE urn = 'urn:li:foo:1' "
+        + "AND deleted_ts IS NOT NULL";
+    assertConditionsEqual(SQLStatementUtils.createGetAssetDeletionTimestampSql(fooUrn, true), expectedSql);
+  }
+
+  @Test
   public void testParseIndexFilterSkipsMissingVirtualColumn() {
     SchemaValidatorUtil mockValidator1 = mock(SchemaValidatorUtil.class);
     when(mockValidator1.columnExists(anyString(), anyString())).thenReturn(false); // Simulate missing column

@@ -551,4 +551,51 @@ public class EbeanLocalAccessTest {
     assertTrue(metadata.contains("deleted_by"));
     assertTrue(metadata.contains("deleter"));
   }
+
+  @Test
+  public void testGetAssetDeletionTimestampReturnsNullForActiveEntity() throws URISyntaxException {
+    // Entity exists but is not asset-deleted (deleted_ts is NULL)
+    FooUrn fooUrn = makeFooUrn(1);
+    Timestamp result = _ebeanLocalAccessFoo.getAssetDeletionTimestamp(fooUrn, false);
+    assertNull(result);
+  }
+
+  @Test
+  public void testGetAssetDeletionTimestampReturnsNullForNonExistentEntity() throws URISyntaxException {
+    // Entity does not exist at all
+    FooUrn fooUrn = makeFooUrn(9999);
+    Timestamp result = _ebeanLocalAccessFoo.getAssetDeletionTimestamp(fooUrn, false);
+    assertNull(result);
+  }
+
+  @Test
+  public void testGetAssetDeletionTimestampReturnsTimestampForDeletedEntity() throws URISyntaxException {
+    // Given: an entity that exists
+    FooUrn fooUrn = makeFooUrn(50);
+
+    // When: asset-delete it (sets deleted_ts = NOW())
+    _ebeanLocalAccessFoo.softDeleteAsset(fooUrn, false);
+
+    // Then: getAssetDeletionTimestamp should return the deletion timestamp
+    Timestamp result = _ebeanLocalAccessFoo.getAssetDeletionTimestamp(fooUrn, false);
+    assertNotNull(result);
+  }
+
+  @Test
+  public void testGetAssetDeletionTimestampInvisibleToBatchGetUnion() throws URISyntaxException {
+    // Given: an entity with an aspect
+    FooUrn fooUrn = makeFooUrn(60);
+
+    // When: asset-delete it
+    _ebeanLocalAccessFoo.softDeleteAsset(fooUrn, false);
+
+    // Then: batchGetUnion should return empty (entity is invisible)
+    List<EbeanMetadataAspect> results = _ebeanLocalAccessFoo.batchGetUnion(
+        Collections.singletonList(new AspectKey<>(AspectFoo.class, fooUrn, 0L)), 1, 0, true, false);
+    assertTrue(results.isEmpty());
+
+    // But: getAssetDeletionTimestamp should still find it
+    Timestamp deletionTs = _ebeanLocalAccessFoo.getAssetDeletionTimestamp(fooUrn, false);
+    assertNotNull(deletionTs);
+  }
 }

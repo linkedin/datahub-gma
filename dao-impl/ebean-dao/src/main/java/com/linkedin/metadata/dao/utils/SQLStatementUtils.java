@@ -135,6 +135,9 @@ public class SQLStatementUtils {
 
   private static final String SQL_URN_EXIST_TEMPLATE = "SELECT urn FROM %s WHERE urn = '%s' AND deleted_ts IS NULL";
 
+  private static final String SQL_GET_ASSET_DELETION_TIMESTAMP_TEMPLATE =
+      "SELECT deleted_ts FROM %s WHERE urn = '%s' AND deleted_ts IS NOT NULL";
+
   private static final String INSERT_LOCAL_RELATIONSHIPS = "INSERT INTO %s (metadata, source, destination, source_type, "
       + "destination_type, lastmodifiedon, lastmodifiedby) VALUES ";
 
@@ -192,6 +195,18 @@ public class SQLStatementUtils {
   public static String createExistSql(@Nonnull Urn urn) {
     final String tableName = getTableName(urn);
     return String.format(SQL_URN_EXIST_TEMPLATE, tableName, escapeReservedCharInUrn(urn.toString()));
+  }
+
+  /**
+   * Create SQL to retrieve the asset-level deletion timestamp for an entity.
+   * Returns a query that selects deleted_ts where it is NOT NULL (i.e., the entity was deleted via deleteAll/softDeleteAsset).
+   * @param urn entity urn
+   * @param isTestMode whether the test mode is enabled or not
+   * @return SQL statement to get the asset deletion timestamp
+   */
+  public static String createGetAssetDeletionTimestampSql(@Nonnull Urn urn, boolean isTestMode) {
+    final String tableName = isTestMode ? getTestTableName(urn) : getTableName(urn);
+    return String.format(SQL_GET_ASSET_DELETION_TIMESTAMP_TEMPLATE, tableName, escapeReservedCharInUrn(urn.toString()));
   }
 
   /**

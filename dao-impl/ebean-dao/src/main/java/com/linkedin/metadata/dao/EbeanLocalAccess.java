@@ -346,6 +346,17 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   }
 
   @Override
+  @Nullable
+  public Timestamp getAssetDeletionTimestamp(@Nonnull URN urn, boolean isTestMode) {
+    final String sql = SQLStatementUtils.createGetAssetDeletionTimestampSql(urn, isTestMode);
+    final SqlRow sqlRow = _server.createSqlQuery(sql).findOne();
+    if (sqlRow == null) {
+      return null;
+    }
+    return sqlRow.getTimestamp("deleted_ts");
+  }
+
+  @Override
   public List<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       @Nullable URN lastUrn, int pageSize) {
     SqlQuery sqlQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, lastUrn, pageSize);
