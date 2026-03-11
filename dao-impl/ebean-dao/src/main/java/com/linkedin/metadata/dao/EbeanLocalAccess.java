@@ -147,7 +147,8 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
     // newValue is null if aspect is to be soft-deleted.
     if (newValue == null) {
-      return sqlUpdate.setParameter("metadata", DELETED_VALUE).execute();
+      String deletedValue = EBeanDAOUtils.buildDeletedValue(timestamp, actor);
+      return sqlUpdate.setParameter("metadata", deletedValue).execute();
     }
 
     AuditedAspect auditedAspect = new AuditedAspect()
@@ -342,6 +343,17 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     // Update this to mark deleted_TS to NOW based on URN
     final String deleteSqlStatement = SQLStatementUtils.createSoftDeleteAssetSql(urn, isTestMode);
     return _server.createSqlUpdate(deleteSqlStatement).execute();
+  }
+
+  @Override
+  @Nullable
+  public Timestamp getAssetDeletionTimestamp(@Nonnull URN urn, boolean isTestMode) {
+    final String sql = SQLStatementUtils.createGetAssetDeletionTimestampSql(urn, isTestMode);
+    final SqlRow sqlRow = _server.createSqlQuery(sql).findOne();
+    if (sqlRow == null) {
+      return null;
+    }
+    return sqlRow.getTimestamp("deleted_ts");
   }
 
   @Override

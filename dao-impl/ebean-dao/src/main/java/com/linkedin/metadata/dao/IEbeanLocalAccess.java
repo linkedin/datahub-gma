@@ -183,6 +183,18 @@ public interface IEbeanLocalAccess<URN extends Urn> {
      int start, int pageSize);
 
   /**
+   * Check if an entity has been asset-deleted (deleted_ts IS NOT NULL) and return the deletion timestamp.
+   * This is used to detect asset-level deletions that are invisible to batchGetUnion() because it filters
+   * by deleted_ts IS NULL.
+   *
+   * @param urn        {@link Urn} for the entity
+   * @param isTestMode whether the operation is in test mode or not
+   * @return the deletion timestamp if the entity is asset-deleted, null otherwise
+   */
+  @Nullable
+  Timestamp getAssetDeletionTimestamp(@Nonnull URN urn, boolean isTestMode);
+
+  /**
    * Ensure table schemas are up-to-date according to db evolution scripts.
    */
   void ensureSchemaUpToDate();

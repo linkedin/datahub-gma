@@ -837,6 +837,22 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
           _localAccess.batchGetUnion(Collections.singletonList(new AspectKey<>(aspectClass, urn, LATEST_VERSION)), 1, 0,
               true, isTestMode);
       result = results.isEmpty() ? null : results.get(0);
+
+      // Gap 4 fix: batchGetUnion filters by deleted_ts IS NULL, so asset-deleted entities return no rows.
+      // Check if the entity was deleted at the asset level (deleted_ts IS NOT NULL) to prevent stale
+      // backfills from resurrecting deleted entities.
+      if (result == null) {
+        final Timestamp assetDeletionTs = _localAccess.getAssetDeletionTimestamp(urn, isTestMode);
+        if (assetDeletionTs != null) {
+          log.info("Entity {} is asset-deleted (deleted_ts={}). Returning soft-deleted marker for aspect {}.",
+              urn, assetDeletionTs, aspectClass.getCanonicalName());
+          result = new EbeanMetadataAspect();
+          result.setKey(new PrimaryKey(urn.toString(), aspectClass.getCanonicalName(), LATEST_VERSION));
+          result.setMetadata(buildDeletedValue(assetDeletionTs.getTime(), "asset-deletion"));
+          result.setCreatedOn(assetDeletionTs);
+          result.setCreatedBy("asset-deletion");
+        }
+      }
     }
     return result;
   }
