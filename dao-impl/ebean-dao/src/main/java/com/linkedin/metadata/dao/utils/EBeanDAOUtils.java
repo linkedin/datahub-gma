@@ -1,6 +1,7 @@
 package com.linkedin.metadata.dao.utils;
 
 import com.linkedin.common.urn.Urn;
+import com.linkedin.data.DataMap;
 import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.template.DataTemplateUtil;
 import com.linkedin.data.template.RecordTemplate;
@@ -12,6 +13,7 @@ import com.linkedin.metadata.annotations.ModelType;
 import com.linkedin.metadata.aspect.AuditedAspect;
 import com.linkedin.metadata.aspect.SoftDeletedAspect;
 import com.linkedin.metadata.dao.EbeanMetadataAspect;
+import com.linkedin.metadata.dao.EntityDeletionInfo;
 import com.linkedin.metadata.dao.ListResult;
 import com.linkedin.metadata.query.AspectField;
 import com.linkedin.metadata.query.Condition;
@@ -255,6 +257,72 @@ public class EBeanDAOUtils {
 
       return columns.stream().map(columnName -> readSqlRow(sqlRow, entry.getValue()));
     }).collect(Collectors.toList());
+  }
+
+  /**
+   * Parse a list of {@link SqlRow} results (from a SELECT * on an entity table) into a map of
+   * URN to {@link EntityDeletionInfo}. Each row must contain urn, deleted_ts, and a_status columns.
+   * Rows that cannot be parsed as a valid URN are skipped with a warning.
+   *
+   * @param sqlRows list of {@link SqlRow} from entity table query
+   * @param urnClass URN class for deserialization
+   * @param <URN> URN type
+   * @return map of URN to {@link EntityDeletionInfo}
+   */
+  public static <URN extends Urn> Map<URN, EntityDeletionInfo> convertSqlRowsToEntityDeletionInfoMap(
+      @Nonnull List<SqlRow> sqlRows, @Nonnull Class<URN> urnClass) {
+    final Map<URN, EntityDeletionInfo> result = new HashMap<>();
+    for (SqlRow row : sqlRows) {
+      final String urnStr = row.getString("urn");
+      try {
+        result.put(getUrn(urnStr, urnClass), toEntityDeletionInfo(row));
+      } catch (IllegalArgumentException e) {
+        log.warn("Failed to parse URN string: {}, skipping row", urnStr, e);
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Parse a single {@link SqlRow} from an entity table SELECT * into an {@link EntityDeletionInfo}.
+   * Extracts deletion eligibility fields from a_status (statusRemoved, statusLastModifiedOn)
+   * and collects all aspect columns for Kafka archival.
+   *
+   * @param row {@link SqlRow} from entity table query
+   * @return {@link EntityDeletionInfo}
+   */
+  @Nonnull
+  static EntityDeletionInfo toEntityDeletionInfo(@Nonnull SqlRow row) {
+    // Collect all aspect columns (a_* prefixed, non-null), same pattern as readSqlRows()
+    final Map<String, String> aspectColumnValues = new HashMap<>();
+    for (String key : row.keySet()) {
+      if (key.startsWith(SQLSchemaUtils.ASPECT_PREFIX) && row.get(key) != null) {
+        aspectColumnValues.put(key, row.getString(key));
+      }
+    }
+
+    // Parse a_status using RecordUtils (same pattern as readSqlRows / isSoftDeletedAspect)
+    boolean statusRemoved = false;
+    String statusLastModifiedOn = null;
+    final String statusJson = row.getString("a_status");
+    if (statusJson != null) {
+      final DataMap statusData = RecordUtils.toDataMap(statusJson);
+      final Object lastModObj = statusData.get("lastmodifiedon");
+      if (lastModObj != null) {
+        statusLastModifiedOn = lastModObj.toString();
+      }
+      final Object aspectObj = statusData.get("aspect");
+      if (aspectObj instanceof DataMap) {
+        statusRemoved = Boolean.TRUE.equals(((DataMap) aspectObj).get("removed"));
+      }
+    }
+
+    return EntityDeletionInfo.builder()
+        .deletedTs(row.getTimestamp("deleted_ts"))
+        .statusRemoved(statusRemoved)
+        .statusLastModifiedOn(statusLastModifiedOn)
+        .aspectColumns(aspectColumnValues)
+        .build();
   }
 
   /**

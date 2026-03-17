@@ -345,6 +345,27 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   }
 
   @Override
+  public Map<URN, EntityDeletionInfo> readDeletionInfoBatch(@Nonnull List<URN> urns, boolean isTestMode) {
+    if (urns.isEmpty()) {
+      return Collections.emptyMap();
+    }
+
+    final String sql = SQLStatementUtils.createReadAllColumnsByUrnsSql(urns, isTestMode);
+    return EBeanDAOUtils.convertSqlRowsToEntityDeletionInfoMap(
+        _server.createSqlQuery(sql).findList(), _urnClass);
+  }
+
+  @Override
+  public int batchSoftDeleteAssets(@Nonnull List<URN> urns, @Nonnull String cutoffTimestamp, boolean isTestMode) {
+    if (urns.isEmpty()) {
+      return 0;
+    }
+
+    final String sql = SQLStatementUtils.createBatchSoftDeleteAssetSql(urns, cutoffTimestamp, isTestMode);
+    return _server.createSqlUpdate(sql).execute();
+  }
+
+  @Override
   public List<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       @Nullable URN lastUrn, int pageSize) {
     SqlQuery sqlQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, lastUrn, pageSize);

@@ -73,6 +73,9 @@ ALTER TABLE metadata_entity_bar ADD a_urn JSON;
 ALTER TABLE metadata_entity_foo ADD COLUMN i_urn$fooId VARCHAR(255)
     GENERATED ALWAYS AS (JSON_UNQUOTE(JSON_EXTRACT(a_urn, '$."\\\/fooId"')));
 
+-- add status aspect to foo entity (used by batch delete tests)
+ALTER TABLE metadata_entity_foo ADD a_status JSON;
+
 -- add foo aspect to foo entity
 ALTER TABLE metadata_entity_foo ADD a_aspectfoo JSON;
 

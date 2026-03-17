@@ -83,6 +83,15 @@ public class SQLStatementUtils {
   public static final String SQL_INSERT_ASSET_VALUES = "VALUES (:urn, :lastmodifiedon, :lastmodifiedby,";
   // Delete prefix of the sql statement for deleting from metadata_aspect table
   public static final String SQL_SOFT_DELETE_ASSET_WITH_URN = "UPDATE %s SET deleted_ts = NOW() WHERE urn = '%s';";
+
+  private static final String SQL_READ_ALL_COLUMNS_BY_URNS_TEMPLATE = "SELECT * FROM %s WHERE urn IN (%s)";
+
+  private static final String SQL_BATCH_SOFT_DELETE_ASSET_TEMPLATE =
+      "UPDATE %s SET deleted_ts = NOW()"
+          + " WHERE urn IN (%s)"
+          + " AND deleted_ts IS NULL"
+          + " AND JSON_EXTRACT(a_status, '$.aspect.removed') = true"
+          + " AND JSON_EXTRACT(a_status, '$.lastmodifiedon') < '%s'";
   // closing bracket for the sql statement INSERT prefix
   // e.g. INSERT INTO metadata_aspect (urn, a_urn, lastmodifiedon, lastmodifiedby)
   public static final String CLOSING_BRACKET = ") ";
@@ -300,6 +309,43 @@ public class SQLStatementUtils {
   public static <ASPECT extends RecordTemplate> String createSoftDeleteAssetSql(@Nonnull Urn urn, boolean isTestMode) {
     final String tableName = isTestMode ? getTestTableName(urn) : getTableName(urn);
     return String.format(SQL_SOFT_DELETE_ASSET_WITH_URN, tableName, urn);
+  }
+
+  /**
+   * Create SELECT * SQL statement for reading all columns for a batch of URNs.
+   * Used by batch deletion to read entity data for validation and Kafka archival.
+   *
+   * @param urns list of URNs to read
+   * @param isTestMode whether the test mode is enabled or not
+   * @return select all columns sql
+   */
+  public static String createReadAllColumnsByUrnsSql(@Nonnull List<? extends Urn> urns, boolean isTestMode) {
+    final Urn firstUrn = urns.get(0);
+    final String tableName = isTestMode ? getTestTableName(firstUrn) : getTableName(firstUrn);
+    final String urnList = urns.stream()
+        .map(urn -> "'" + escapeReservedCharInUrn(urn.toString()) + "'")
+        .collect(Collectors.joining(", "));
+    return String.format(SQL_READ_ALL_COLUMNS_BY_URNS_TEMPLATE, tableName, urnList);
+  }
+
+  /**
+   * Create batch soft-delete SQL statement with guard clauses for defense-in-depth.
+   * The UPDATE includes conditions (deleted_ts IS NULL, Status.removed = true, lastmodifiedon &lt; cutoff)
+   * to protect against race conditions between validation SELECT and this UPDATE.
+   *
+   * @param urns list of URNs to soft-delete
+   * @param cutoffTimestamp only delete if Status.lastmodifiedon is before this timestamp
+   * @param isTestMode whether the test mode is enabled or not
+   * @return batch soft-delete sql
+   */
+  public static String createBatchSoftDeleteAssetSql(@Nonnull List<? extends Urn> urns,
+      @Nonnull String cutoffTimestamp, boolean isTestMode) {
+    final Urn firstUrn = urns.get(0);
+    final String tableName = isTestMode ? getTestTableName(firstUrn) : getTableName(firstUrn);
+    final String urnList = urns.stream()
+        .map(urn -> "'" + escapeReservedCharInUrn(urn.toString()) + "'")
+        .collect(Collectors.joining(", "));
+    return String.format(SQL_BATCH_SOFT_DELETE_ASSET_TEMPLATE, tableName, urnList, cutoffTimestamp);
   }
 
   /**
