@@ -301,7 +301,6 @@ public class EBeanDAOUtils {
       }
     }
 
-    // Parse a_status using RecordUtils (same pattern as readSqlRows / isSoftDeletedAspect)
     boolean statusRemoved = false;
     String statusLastModifiedOn = null;
     final String statusJson = row.getString("a_status");

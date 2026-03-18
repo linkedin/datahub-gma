@@ -1,15 +1,17 @@
 # Batch Deletion DAO Support
 
-**PR scope:** datahub-gma only
-**Project:** META-23501 — Metadata Graph Stale Metadata Cleanup Phase 2
+**PR scope:** datahub-gma only **Project:** META-23501 — Metadata Graph Stale Metadata Cleanup Phase 2
 
 ---
 
 ## Why
 
-Stale metadata cleanup jobs need to soft-delete entities in bulk. The existing `softDeleteAsset()` method operates on a single URN. This change adds two new DAO operations that work on a batch of URNs in exactly two DB round-trips, regardless of batch size.
+Stale metadata cleanup jobs need to soft-delete entities in bulk. The existing `softDeleteAsset()` method operates on a
+single URN. This change adds two new DAO operations that work on a batch of URNs in exactly two DB round-trips,
+regardless of batch size.
 
-The DAO layer is intentionally kept simple: pure SQL, no business logic, no Kafka. The consuming service (`metadata-graph-assets`) handles validation, Kafka archival, and per-URN result reporting.
+The DAO layer is intentionally kept simple: pure SQL, no business logic, no Kafka. The consuming service
+(`metadata-graph-assets`) handles validation, Kafka archival, and per-URN result reporting.
 
 ---
 
@@ -17,7 +19,8 @@ The DAO layer is intentionally kept simple: pure SQL, no business logic, no Kafk
 
 ### `EntityDeletionInfo` (new, `dao-api`)
 
-An immutable value object returned by the batch read operation. Contains the fields a caller needs to determine whether each entity is eligible for deletion:
+An immutable value object returned by the batch read operation. Contains the fields a caller needs to determine whether
+each entity is eligible for deletion:
 
 - `deletedTs` — whether the entity is already soft-deleted
 - `statusRemoved` — whether the entity's Status aspect has `removed = true`
@@ -28,20 +31,25 @@ Presence in the returned map means the entity exists. Absence means it was not f
 
 ### Two new `IEbeanLocalAccess` methods
 
-**`readDeletionInfoBatch`** — reads deletion-relevant fields for a list of URNs in a single `SELECT *`. Returns a map of URN → `EntityDeletionInfo` for all URNs found. URNs not present in the DB are simply absent from the result — the caller treats absence as "not found."
+**`readDeletionInfoBatch`** — reads deletion-relevant fields for a list of URNs in a single `SELECT *`. Returns a map of
+URN → `EntityDeletionInfo` for all URNs found. URNs not present in the DB are simply absent from the result — the caller
+treats absence as "not found."
 
-**`batchSoftDeleteAssets`** — soft-deletes a list of URNs in a single `UPDATE`. The WHERE clause embeds all safety guard conditions (not already deleted, Status.removed = true, lastmodifiedon before cutoff) as defense-in-depth against race conditions between the SELECT and UPDATE.
+**`batchSoftDeleteAssets`** — soft-deletes a list of URNs in a single `UPDATE`. The WHERE clause embeds all safety guard
+conditions (not already deleted, Status.removed = true, lastmodifiedon before cutoff) as defense-in-depth against race
+conditions between the SELECT and UPDATE.
 
 ### Layered implementation (no logic in `EbeanLocalAccess`)
 
-Following the established pattern of `batchGetUnion`, `EbeanLocalAccess` methods are thin: they delegate SQL generation to `SQLStatementUtils` and result parsing to `EBeanDAOUtils`. No SQL strings or parsing logic live directly in `EbeanLocalAccess`.
-
 - **`SQLStatementUtils`**: two new factory methods that build the SELECT and UPDATE statements
-- **`EBeanDAOUtils`**: two new methods that parse `SqlRow` results into `EntityDeletionInfo`. Status fields are extracted using `RecordUtils.toDataMap()` (the same Pegasus data framework used throughout the codebase — no manual JSON parsing).
+- **`EBeanDAOUtils`**: two new methods that parse `SqlRow` results into `EntityDeletionInfo`. Status fields are
+  extracted using `RecordUtils.toDataMap()` (the same Pegasus data framework used throughout the codebase — no manual
+  JSON parsing).
 
 ### `InstrumentedEbeanLocalAccess`
 
-Both new methods are wired through the existing `instrument()` decorator, consistent with every other method on this class.
+Both new methods are wired through the existing `instrument()` decorator, consistent with every other method on this
+class.
 
 ---
 
@@ -54,7 +62,8 @@ caller → readDeletionInfoBatch(urns)      // 1 SELECT
          → batchSoftDeleteAssets(eligible, cutoff)  // 1 UPDATE
 ```
 
-The two methods are designed to be called together in sequence. The `aspectColumns` field in `EntityDeletionInfo` carries the full entity state needed for Kafka archival between the two calls.
+The two methods are designed to be called together in sequence. The `aspectColumns` field in `EntityDeletionInfo`
+carries the full entity state needed for Kafka archival between the two calls.
 
 ---
 
@@ -62,9 +71,12 @@ The two methods are designed to be called together in sequence. The `aspectColum
 
 ### `EbeanLocalAccessTest` — integration tests against embedded MariaDB
 
-Tests verify actual SQL execution and result correctness end-to-end. Each test inserts rows directly via raw SQL to control `a_status` and `deleted_ts` precisely, then asserts on the returned `EntityDeletionInfo` values or on DB state after the UPDATE.
+Tests verify actual SQL execution and result correctness end-to-end. Each test inserts rows directly via raw SQL to
+control `a_status` and `deleted_ts` precisely, then asserts on the returned `EntityDeletionInfo` values or on DB state
+after the UPDATE.
 
 **`readDeletionInfoBatch`:**
+
 - Happy path: returns correct `statusRemoved`, `statusLastModifiedOn`, `deletedTs`, and `aspectColumns` for found URNs
 - Empty input: returns empty map
 - URNs not in DB: absent from result map
@@ -72,6 +84,7 @@ Tests verify actual SQL execution and result correctness end-to-end. Each test i
 - Already soft-deleted URN: `deletedTs` is non-null in result
 
 **`batchSoftDeleteAssets`:**
+
 - Happy path: eligible URNs are soft-deleted, returns correct affected row count
 - Empty input: returns 0
 - `Status.removed = false`: guard clause blocks deletion
@@ -79,11 +92,13 @@ Tests verify actual SQL execution and result correctness end-to-end. Each test i
 - Already soft-deleted (`deleted_ts` set): guard clause blocks re-deletion
 - Mixed batch: only eligible URNs are deleted; ineligible ones are untouched
 
-The test SQL schema (both `ebean-local-access-create-all.sql` files) was extended with an `a_status` column on `metadata_entity_foo` to support these tests.
+The test SQL schema (both `ebean-local-access-create-all.sql` files) was extended with an `a_status` column on
+`metadata_entity_foo` to support these tests.
 
 ### `InstrumentedEbeanLocalAccessTest` — mock-based unit tests
 
-Verifies that `InstrumentedEbeanLocalAccess` correctly delegates both new methods to the underlying `IEbeanLocalAccess` and records latency via `BaseDaoBenchmarkMetrics`. No database required.
+Verifies that `InstrumentedEbeanLocalAccess` correctly delegates both new methods to the underlying `IEbeanLocalAccess`
+and records latency via `BaseDaoBenchmarkMetrics`. No database required.
 
 ---
 
@@ -91,5 +106,7 @@ Verifies that `InstrumentedEbeanLocalAccess` correctly delegates both new method
 
 - **DAO layer is Kafka-free.** No archival, no event publishing. The shared library stays generic.
 - **Exactly 2 DB calls per batch.** No per-URN queries.
-- **Guard clauses in the UPDATE.** Even if a caller skips the SELECT validation, the UPDATE will not soft-delete entities that don't meet all safety conditions.
-- **`a_status` column is the only schema assumption.** The two methods rely on `a_status` existing in the entity table. All other aspect columns are collected generically by column name prefix.
+- **Guard clauses in the UPDATE.** Even if a caller skips the SELECT validation, the UPDATE will not soft-delete
+  entities that don't meet all safety conditions.
+- **`a_status` column is the only schema assumption.** The two methods rely on `a_status` existing in the entity table.
+  All other aspect columns are collected generically by column name prefix.

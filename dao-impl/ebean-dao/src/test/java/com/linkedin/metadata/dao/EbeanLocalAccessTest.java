@@ -545,7 +545,7 @@ public class EbeanLocalAccessTest {
   }
 
   @Test
-  public void testReadDeletionInfoBatch_happyPath() {
+  public void testReadDeletionInfoBatchHappyPath() {
     // Given: 3 URNs with known status
     String oldTimestamp = "2025-01-01 00:00:00.000";
     insertFooEntityWithStatus(500, makeStatusJson(true, oldTimestamp), null);
@@ -576,13 +576,13 @@ public class EbeanLocalAccessTest {
   }
 
   @Test
-  public void testReadDeletionInfoBatch_emptyList() {
+  public void testReadDeletionInfoBatchEmptyList() {
     Map<FooUrn, EntityDeletionInfo> result = _ebeanLocalAccessFoo.readDeletionInfoBatch(Collections.emptyList(), false);
     assertTrue(result.isEmpty());
   }
 
   @Test
-  public void testReadDeletionInfoBatch_nonExistentUrns() {
+  public void testReadDeletionInfoBatchNonExistentUrns() {
     List<FooUrn> urns = Collections.singletonList(makeFooUrn(9998));
     Map<FooUrn, EntityDeletionInfo> result = _ebeanLocalAccessFoo.readDeletionInfoBatch(urns, false);
     // Non-existent URNs are simply absent from the map
@@ -590,7 +590,7 @@ public class EbeanLocalAccessTest {
   }
 
   @Test
-  public void testReadDeletionInfoBatch_mixedExistAndNonExist() {
+  public void testReadDeletionInfoBatchMixedExistAndNonExist() {
     String statusJson = makeStatusJson(true, "2025-01-01 00:00:00.000");
     insertFooEntityWithStatus(510, statusJson, null);
 
@@ -606,7 +606,7 @@ public class EbeanLocalAccessTest {
   }
 
   @Test
-  public void testReadDeletionInfoBatch_alreadySoftDeleted() {
+  public void testReadDeletionInfoBatchAlreadySoftDeleted() {
     String statusJson = makeStatusJson(true, "2025-01-01 00:00:00.000");
     insertFooEntityWithStatus(520, statusJson, "2025-06-01 00:00:00.000");
 
@@ -622,7 +622,7 @@ public class EbeanLocalAccessTest {
   // ==================== batchSoftDeleteAssets tests ====================
 
   @Test
-  public void testBatchSoftDeleteAssets_happyPath() {
+  public void testBatchSoftDeleteAssetsHappyPath() {
     // Given: URNs with Status.removed=true and old lastmodifiedon
     String oldTimestamp = "2025-01-01 00:00:00.000";
     insertFooEntityWithStatus(600, makeStatusJson(true, oldTimestamp), null);
@@ -649,13 +649,13 @@ public class EbeanLocalAccessTest {
   }
 
   @Test
-  public void testBatchSoftDeleteAssets_emptyList() {
+  public void testBatchSoftDeleteAssetsEmptyList() {
     int rowsAffected = _ebeanLocalAccessFoo.batchSoftDeleteAssets(Collections.emptyList(), "2026-01-01 00:00:00.000", false);
     assertEquals(rowsAffected, 0);
   }
 
   @Test
-  public void testBatchSoftDeleteAssets_guardsPreventDeletion_statusNotRemoved() {
+  public void testBatchSoftDeleteAssetsGuardsStatusNotRemoved() {
     // Given: URN with Status.removed=false
     insertFooEntityWithStatus(610, makeStatusJson(false, "2025-01-01 00:00:00.000"), null);
 
@@ -671,7 +671,7 @@ public class EbeanLocalAccessTest {
   }
 
   @Test
-  public void testBatchSoftDeleteAssets_guardsPreventDeletion_retentionNotMet() {
+  public void testBatchSoftDeleteAssetsGuardsRetentionNotMet() {
     // Given: URN with Status.removed=true but recent lastmodifiedon
     String recentTimestamp = "2026-03-01 00:00:00.000";
     insertFooEntityWithStatus(620, makeStatusJson(true, recentTimestamp), null);
@@ -686,7 +686,7 @@ public class EbeanLocalAccessTest {
   }
 
   @Test
-  public void testBatchSoftDeleteAssets_guardsPreventDeletion_alreadyDeleted() {
+  public void testBatchSoftDeleteAssetsGuardsAlreadyDeleted() {
     // Given: URN already soft-deleted
     insertFooEntityWithStatus(630, makeStatusJson(true, "2025-01-01 00:00:00.000"), "2025-06-01 00:00:00.000");
 
@@ -700,7 +700,7 @@ public class EbeanLocalAccessTest {
   }
 
   @Test
-  public void testBatchSoftDeleteAssets_mixedEligibility() {
+  public void testBatchSoftDeleteAssetsMixedEligibility() {
     // Given: mix of eligible and ineligible URNs
     String oldTimestamp = "2025-01-01 00:00:00.000";
     insertFooEntityWithStatus(640, makeStatusJson(true, oldTimestamp), null);   // eligible
