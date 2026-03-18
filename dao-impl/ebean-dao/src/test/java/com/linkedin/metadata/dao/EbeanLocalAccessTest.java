@@ -726,4 +726,16 @@ public class EbeanLocalAccessTest {
     SqlRow row642 = _server.createSqlQuery("SELECT deleted_ts FROM metadata_entity_foo WHERE urn = 'urn:li:foo:642'").findOne();
     assertNotNull(row642.getTimestamp("deleted_ts"));
   }
+
+  @Test(expectedExceptions = IllegalArgumentException.class)
+  public void testBatchSoftDeleteAssetsRejectsInvalidTimestampFormat() {
+    List<FooUrn> urns = Collections.singletonList(makeFooUrn(0));
+    _ebeanLocalAccessFoo.batchSoftDeleteAssets(urns, "2026-01-01T00:00:00Z", false);
+  }
+
+  @Test(expectedExceptions = IllegalArgumentException.class)
+  public void testBatchSoftDeleteAssetsRejectsSqlInjection() {
+    List<FooUrn> urns = Collections.singletonList(makeFooUrn(0));
+    _ebeanLocalAccessFoo.batchSoftDeleteAssets(urns, "'; DROP TABLE metadata_entity_foo; --", false);
+  }
 }

@@ -44,6 +44,8 @@ public class SQLStatementUtils {
       .addEscape('\'', "''")
       .addEscape('\\', "\\\\").build();
 
+  private static final String TIMESTAMP_FORMAT_PATTERN = "\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}";
+
   public static final String SOFT_DELETED_CHECK = "JSON_EXTRACT(%s, '$.gma_deleted') IS NULL"; // true when not soft deleted
 
   public static final String DELETED_TS_IS_NULL_CHECK = "deleted_ts IS NULL"; // true when the deleted_ts is NULL, meaning the record is not soft deleted
@@ -340,6 +342,10 @@ public class SQLStatementUtils {
    */
   public static String createBatchSoftDeleteAssetSql(@Nonnull List<? extends Urn> urns,
       @Nonnull String cutoffTimestamp, boolean isTestMode) {
+    if (!cutoffTimestamp.matches(TIMESTAMP_FORMAT_PATTERN)) {
+      throw new IllegalArgumentException(
+          "cutoffTimestamp must be in yyyy-MM-dd HH:mm:ss.SSS format, got: " + cutoffTimestamp);
+    }
     final Urn firstUrn = urns.get(0);
     final String tableName = isTestMode ? getTestTableName(firstUrn) : getTableName(firstUrn);
     final String urnList = urns.stream()
