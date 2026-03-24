@@ -72,6 +72,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
   // TODO confirm if the default page size is 1000 in other code context.
   private static final int DEFAULT_PAGE_SIZE = 1000;
+  private static final int MAX_BATCH_DELETE_SIZE = 2000;
   private static final String ASPECT_JSON_PLACEHOLDER = "__PLACEHOLDER__";
   private static final String DEFAULT_ACTOR = "urn:li:principal:UNKNOWN";
   private static final String EBEAN_SERVER_CONFIG = "EbeanServerConfig";
@@ -350,6 +351,10 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     if (urns.isEmpty()) {
       return Collections.emptyMap();
     }
+    if (urns.size() > MAX_BATCH_DELETE_SIZE) {
+      throw new IllegalArgumentException(
+          String.format("Batch size %d exceeds maximum of %d", urns.size(), MAX_BATCH_DELETE_SIZE));
+    }
 
     final Urn firstUrn = urns.get(0);
     final String tableName = isTestMode ? getTestTableName(firstUrn) : getTableName(firstUrn);
@@ -374,6 +379,10 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       @Nonnull String statusColumnName, boolean isTestMode) {
     if (urns.isEmpty()) {
       return 0;
+    }
+    if (urns.size() > MAX_BATCH_DELETE_SIZE) {
+      throw new IllegalArgumentException(
+          String.format("Batch size %d exceeds maximum of %d", urns.size(), MAX_BATCH_DELETE_SIZE));
     }
 
     final String sql = SQLStatementUtils.createBatchSoftDeleteAssetSql(urns, cutoffTimestamp, statusColumnName,
