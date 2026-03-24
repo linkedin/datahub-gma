@@ -260,7 +260,7 @@ public class EBeanDAOUtils {
   }
 
   /**
-   * Parse a list of {@link SqlRow} results (from a SELECT * on an entity table) into a map of
+   * Parse a list of {@link SqlRow} results from an entity table into a map of
    * URN to {@link EntityDeletionInfo}. Each row must contain urn, deleted_ts, and the Status aspect column.
    * Rows that cannot be parsed as a valid URN are skipped with a warning.
    *
@@ -285,7 +285,7 @@ public class EBeanDAOUtils {
   }
 
   /**
-   * Parse a single {@link SqlRow} from an entity table SELECT * into an {@link EntityDeletionInfo}.
+   * Parse a single {@link SqlRow} from an entity table query into an {@link EntityDeletionInfo}.
    * Extracts deletion eligibility fields from the Status aspect column (statusRemoved, statusLastModifiedOn)
    * and collects all aspect columns for Kafka archival.
    *
