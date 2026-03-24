@@ -351,9 +351,22 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       return Collections.emptyMap();
     }
 
-    final String sql = SQLStatementUtils.createReadAllColumnsByUrnsSql(urns, isTestMode);
+    final Urn firstUrn = urns.get(0);
+    final String tableName = isTestMode ? getTestTableName(firstUrn) : getTableName(firstUrn);
+    final List<String> columns = getDeletionInfoColumns(tableName);
+    final String sql = SQLStatementUtils.createReadDeletionInfoByUrnsSql(urns, columns, isTestMode);
     return EBeanDAOUtils.convertSqlRowsToEntityDeletionInfoMap(
         _server.createSqlQuery(sql).findList(), _urnClass, statusColumnName);
+  }
+
+  /**
+   * Returns the column list needed for batch deletion info: urn, deleted_ts, and all aspect columns (a_*).
+   * Excludes index columns (i_*) and other derived columns to reduce data transfer.
+   */
+  private List<String> getDeletionInfoColumns(@Nonnull String tableName) {
+    return validator.getColumns(tableName).stream()
+        .filter(c -> c.equals("urn") || c.equals("deleted_ts") || c.startsWith(ASPECT_PREFIX))
+        .collect(Collectors.toList());
   }
 
   @Override

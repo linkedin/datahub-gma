@@ -99,6 +99,21 @@ public class SchemaValidatorUtil {
   }
 
   /**
+   * Returns all column names (lowercase) for the given table, using the cache.
+   *
+   * @param tableName Table name
+   * @return set of lowercase column names
+   */
+  @Nonnull
+  public Set<String> getColumns(@Nonnull String tableName) {
+    String lowerTable = tableName.toLowerCase();
+    return columnCache.get(lowerTable, tbl -> {
+      log.info("Refreshing column cache for table '{}'", tbl);
+      return loadColumns(tbl);
+    });
+  }
+
+  /**
    * Checks whether the given index exists in the specified table.
    *
    * @param tableName Table name

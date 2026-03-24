@@ -86,7 +86,7 @@ public class SQLStatementUtils {
   // Delete prefix of the sql statement for deleting from metadata_aspect table
   public static final String SQL_SOFT_DELETE_ASSET_WITH_URN = "UPDATE %s SET deleted_ts = NOW() WHERE urn = '%s';";
 
-  private static final String SQL_READ_ALL_COLUMNS_BY_URNS_TEMPLATE = "SELECT * FROM %s WHERE urn IN (%s)";
+  private static final String SQL_READ_COLUMNS_BY_URNS_TEMPLATE = "SELECT %s FROM %s WHERE urn IN (%s)";
 
   private static final String SQL_BATCH_SOFT_DELETE_ASSET_TEMPLATE =
       "UPDATE %s SET deleted_ts = NOW()"
@@ -314,20 +314,24 @@ public class SQLStatementUtils {
   }
 
   /**
-   * Create SELECT * SQL statement for reading all columns for a batch of URNs.
-   * Used by batch deletion to read entity data for validation and Kafka archival.
+   * Create SELECT SQL statement for reading deletion-relevant columns for a batch of URNs.
+   * Selects only urn, deleted_ts, and aspect columns (a_* prefix), excluding index columns (i_*)
+   * and other derived columns to reduce data transfer.
    *
    * @param urns list of URNs to read
+   * @param columns list of column names to select
    * @param isTestMode whether the test mode is enabled or not
-   * @return select all columns sql
+   * @return select columns sql
    */
-  public static String createReadAllColumnsByUrnsSql(@Nonnull List<? extends Urn> urns, boolean isTestMode) {
+  public static String createReadDeletionInfoByUrnsSql(@Nonnull List<? extends Urn> urns,
+      @Nonnull List<String> columns, boolean isTestMode) {
     final Urn firstUrn = urns.get(0);
     final String tableName = isTestMode ? getTestTableName(firstUrn) : getTableName(firstUrn);
     final String urnList = urns.stream()
         .map(urn -> "'" + escapeReservedCharInUrn(urn.toString()) + "'")
         .collect(Collectors.joining(", "));
-    return String.format(SQL_READ_ALL_COLUMNS_BY_URNS_TEMPLATE, tableName, urnList);
+    final String columnList = String.join(", ", columns);
+    return String.format(SQL_READ_COLUMNS_BY_URNS_TEMPLATE, columnList, tableName, urnList);
   }
 
   /**
