@@ -261,21 +261,22 @@ public class EBeanDAOUtils {
 
   /**
    * Parse a list of {@link SqlRow} results (from a SELECT * on an entity table) into a map of
-   * URN to {@link EntityDeletionInfo}. Each row must contain urn, deleted_ts, and a_status columns.
+   * URN to {@link EntityDeletionInfo}. Each row must contain urn, deleted_ts, and the Status aspect column.
    * Rows that cannot be parsed as a valid URN are skipped with a warning.
    *
    * @param sqlRows list of {@link SqlRow} from entity table query
    * @param urnClass URN class for deserialization
+   * @param statusColumnName the entity table column name for the Status aspect (e.g. "a_status")
    * @param <URN> URN type
    * @return map of URN to {@link EntityDeletionInfo}
    */
   public static <URN extends Urn> Map<URN, EntityDeletionInfo> convertSqlRowsToEntityDeletionInfoMap(
-      @Nonnull List<SqlRow> sqlRows, @Nonnull Class<URN> urnClass) {
+      @Nonnull List<SqlRow> sqlRows, @Nonnull Class<URN> urnClass, @Nonnull String statusColumnName) {
     final Map<URN, EntityDeletionInfo> result = new HashMap<>();
     for (SqlRow row : sqlRows) {
       final String urnStr = row.getString("urn");
       try {
-        result.put(getUrn(urnStr, urnClass), toEntityDeletionInfo(row));
+        result.put(getUrn(urnStr, urnClass), toEntityDeletionInfo(row, statusColumnName));
       } catch (IllegalArgumentException e) {
         log.warn("Failed to parse URN string: {}, skipping row", urnStr, e);
       }
@@ -285,14 +286,15 @@ public class EBeanDAOUtils {
 
   /**
    * Parse a single {@link SqlRow} from an entity table SELECT * into an {@link EntityDeletionInfo}.
-   * Extracts deletion eligibility fields from a_status (statusRemoved, statusLastModifiedOn)
+   * Extracts deletion eligibility fields from the Status aspect column (statusRemoved, statusLastModifiedOn)
    * and collects all aspect columns for Kafka archival.
    *
    * @param row {@link SqlRow} from entity table query
+   * @param statusColumnName the entity table column name for the Status aspect (e.g. "a_status")
    * @return {@link EntityDeletionInfo}
    */
   @Nonnull
-  static EntityDeletionInfo toEntityDeletionInfo(@Nonnull SqlRow row) {
+  static EntityDeletionInfo toEntityDeletionInfo(@Nonnull SqlRow row, @Nonnull String statusColumnName) {
     // Collect all aspect columns (a_* prefixed, non-null), same pattern as readSqlRows()
     final Map<String, String> aspectColumnValues = new HashMap<>();
     for (String key : row.keySet()) {
@@ -303,7 +305,7 @@ public class EBeanDAOUtils {
 
     boolean statusRemoved = false;
     String statusLastModifiedOn = null;
-    final String statusJson = row.getString("a_status");
+    final String statusJson = row.getString(statusColumnName);
     if (statusJson != null) {
       final DataMap statusData = RecordUtils.toDataMap(statusJson);
       final Object lastModObj = statusData.get("lastmodifiedon");

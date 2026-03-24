@@ -92,8 +92,8 @@ public class SQLStatementUtils {
       "UPDATE %s SET deleted_ts = NOW()"
           + " WHERE urn IN (%s)"
           + " AND deleted_ts IS NULL"
-          + " AND JSON_EXTRACT(a_status, '$.aspect.removed') = true"
-          + " AND JSON_EXTRACT(a_status, '$.lastmodifiedon') < '%s'";
+          + " AND JSON_EXTRACT(%s, '$.aspect.removed') = true"
+          + " AND JSON_EXTRACT(%s, '$.lastmodifiedon') < '%s'";
   // closing bracket for the sql statement INSERT prefix
   // e.g. INSERT INTO metadata_aspect (urn, a_urn, lastmodifiedon, lastmodifiedby)
   public static final String CLOSING_BRACKET = ") ";
@@ -337,11 +337,12 @@ public class SQLStatementUtils {
    *
    * @param urns list of URNs to soft-delete
    * @param cutoffTimestamp only delete if Status.lastmodifiedon is before this timestamp
+   * @param statusColumnName the entity table column name for the Status aspect (e.g. "a_status")
    * @param isTestMode whether the test mode is enabled or not
    * @return batch soft-delete sql
    */
   public static String createBatchSoftDeleteAssetSql(@Nonnull List<? extends Urn> urns,
-      @Nonnull String cutoffTimestamp, boolean isTestMode) {
+      @Nonnull String cutoffTimestamp, @Nonnull String statusColumnName, boolean isTestMode) {
     if (!cutoffTimestamp.matches(TIMESTAMP_FORMAT_PATTERN)) {
       throw new IllegalArgumentException(
           "cutoffTimestamp must be in yyyy-MM-dd HH:mm:ss.SSS format, got: " + cutoffTimestamp);
@@ -351,7 +352,8 @@ public class SQLStatementUtils {
     final String urnList = urns.stream()
         .map(urn -> "'" + escapeReservedCharInUrn(urn.toString()) + "'")
         .collect(Collectors.joining(", "));
-    return String.format(SQL_BATCH_SOFT_DELETE_ASSET_TEMPLATE, tableName, urnList, cutoffTimestamp);
+    return String.format(SQL_BATCH_SOFT_DELETE_ASSET_TEMPLATE, tableName, urnList, statusColumnName,
+        statusColumnName, cutoffTimestamp);
   }
 
   /**

@@ -103,10 +103,12 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * URNs not found in the database will not have entries in the returned map.
    *
    * @param urns list of URNs to check
+   * @param statusColumnName the entity table column name for the Status aspect (e.g. "a_status")
    * @param isTestMode whether to use test schema
    * @return map of URN to {@link EntityDeletionInfo}
    */
-  Map<URN, EntityDeletionInfo> readDeletionInfoBatch(@Nonnull List<URN> urns, boolean isTestMode);
+  Map<URN, EntityDeletionInfo> readDeletionInfoBatch(@Nonnull List<URN> urns, @Nonnull String statusColumnName,
+      boolean isTestMode);
 
   /**
    * Batch soft-delete entities by setting deleted_ts = NOW() for URNs that meet all deletion criteria.
@@ -115,10 +117,12 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    *
    * @param urns list of URNs to soft-delete
    * @param cutoffTimestamp only delete if Status.lastmodifiedon is before this timestamp
+   * @param statusColumnName the entity table column name for the Status aspect (e.g. "a_status")
    * @param isTestMode whether to use test schema
    * @return number of rows actually soft-deleted
    */
-  int batchSoftDeleteAssets(@Nonnull List<URN> urns, @Nonnull String cutoffTimestamp, boolean isTestMode);
+  int batchSoftDeleteAssets(@Nonnull List<URN> urns, @Nonnull String cutoffTimestamp,
+      @Nonnull String statusColumnName, boolean isTestMode);
 
   /**
    * Returns list of urns that satisfy the given filter conditions.

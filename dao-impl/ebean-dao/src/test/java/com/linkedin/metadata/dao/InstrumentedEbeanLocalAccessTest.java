@@ -219,26 +219,26 @@ public class InstrumentedEbeanLocalAccessTest {
   @Test
   public void testReadDeletionInfoBatchDelegatesAndRecordsLatency() {
     Map<TestUrn, EntityDeletionInfo> expected = new HashMap<>();
-    when(_mockDelegate.readDeletionInfoBatch(any(), anyBoolean())).thenReturn(expected);
+    when(_mockDelegate.readDeletionInfoBatch(any(), any(), anyBoolean())).thenReturn(expected);
 
     List<TestUrn> urns = Collections.singletonList(null);
-    Map<TestUrn, EntityDeletionInfo> result = _instrumented.readDeletionInfoBatch(urns, false);
+    Map<TestUrn, EntityDeletionInfo> result = _instrumented.readDeletionInfoBatch(urns, "a_status", false);
 
     assertSame(result, expected);
-    verify(_mockDelegate).readDeletionInfoBatch(urns, false);
+    verify(_mockDelegate).readDeletionInfoBatch(urns, "a_status", false);
     verify(_mockMetrics).recordOperationLatency(eq("readDeletionInfoBatch.urns_1"), eq("test"), anyLong());
     verify(_mockMetrics, never()).recordOperationError(anyString(), anyString(), anyString());
   }
 
   @Test
   public void testBatchSoftDeleteAssetsDelegatesAndRecordsLatency() {
-    when(_mockDelegate.batchSoftDeleteAssets(any(), any(), anyBoolean())).thenReturn(5);
+    when(_mockDelegate.batchSoftDeleteAssets(any(), any(), any(), anyBoolean())).thenReturn(5);
 
     List<TestUrn> urns = Collections.singletonList(null);
-    int result = _instrumented.batchSoftDeleteAssets(urns, "2026-01-01", false);
+    int result = _instrumented.batchSoftDeleteAssets(urns, "2026-01-01", "a_status", false);
 
     assertEquals(result, 5);
-    verify(_mockDelegate).batchSoftDeleteAssets(urns, "2026-01-01", false);
+    verify(_mockDelegate).batchSoftDeleteAssets(urns, "2026-01-01", "a_status", false);
     verify(_mockMetrics).recordOperationLatency(eq("batchSoftDeleteAssets.urns_1"), eq("test"), anyLong());
     verify(_mockMetrics, never()).recordOperationError(anyString(), anyString(), anyString());
   }
