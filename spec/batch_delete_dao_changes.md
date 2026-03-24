@@ -31,10 +31,11 @@ Presence in the returned map means the entity exists. Absence means it was not f
 
 ### Two new `IEbeanLocalAccess` methods
 
-**`readDeletionInfoBatch`** — reads deletion-relevant fields for a list of URNs in a single SELECT (explicit column list:
-`urn`, `deleted_ts`, and all `a_*` aspect columns — index columns are excluded). The caller passes the Status aspect's
-column name so the DAO can parse it without hardcoding `a_status`. Returns a map of URN → `EntityDeletionInfo` for all
-URNs found. URNs not present in the DB are simply absent from the result — the caller treats absence as "not found."
+**`readDeletionInfoBatch`** — reads deletion-relevant fields for a list of URNs in a single SELECT (explicit column
+list: `urn`, `deleted_ts`, and all `a_*` aspect columns — index columns are excluded). The caller passes the Status
+aspect's column name so the DAO can parse it without hardcoding `a_status`. Returns a map of URN → `EntityDeletionInfo`
+for all URNs found. URNs not present in the DB are simply absent from the result — the caller treats absence as "not
+found."
 
 **`batchSoftDeleteAssets`** — soft-deletes a list of URNs in a single `UPDATE`. The caller passes the Status aspect's
 column name, which is used in the WHERE clause guard conditions (not already deleted, Status.removed = true,
