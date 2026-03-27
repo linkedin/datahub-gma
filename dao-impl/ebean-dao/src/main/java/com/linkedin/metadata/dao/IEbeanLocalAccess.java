@@ -98,6 +98,30 @@ public interface IEbeanLocalAccess<URN extends Urn> {
   int softDeleteAsset(@Nonnull URN urn, boolean isTestMode);
 
   /**
+   * Read deletion-relevant fields for a batch of URNs in a single SELECT.
+   * Returns deletion-relevant fields for validation and all aspect columns for Kafka archival.
+   * URNs not found in the database will not have entries in the returned map.
+   *
+   * @param urns list of URNs to check
+   * @param isTestMode whether to use test schema
+   * @return map of URN to {@link EntityDeletionInfo}
+   */
+  Map<URN, EntityDeletionInfo> readDeletionInfoBatch(@Nonnull List<URN> urns, boolean isTestMode);
+
+  /**
+   * Batch soft-delete entities by setting deleted_ts = NOW() for URNs that meet all deletion criteria.
+   * The UPDATE includes guard clauses (deleted_ts IS NULL, Status.removed = true, lastmodifiedon &lt; cutoff)
+   * as defense-in-depth against race conditions. The Status aspect column name is resolved internally via
+   * {@link com.linkedin.metadata.dao.utils.SQLSchemaUtils#getAspectColumnName}.
+   *
+   * @param urns list of URNs to soft-delete
+   * @param cutoffTimestamp only delete if Status.lastmodifiedon is before this timestamp
+   * @param isTestMode whether to use test schema
+   * @return number of rows actually soft-deleted
+   */
+  int batchSoftDeleteAssets(@Nonnull List<URN> urns, @Nonnull String cutoffTimestamp, boolean isTestMode);
+
+  /**
    * Returns list of urns that satisfy the given filter conditions.
    *
    * <p>Results are ordered by the order criterion but defaults to sorting lexicographically by the string

@@ -1,0 +1,10 @@
+namespace com.linkedin.common
+
+/**
+ * Test stub for com.linkedin.common.Status — the real Status aspect lives in metadata-models.
+ * This stub exists so that batch deletion tests can resolve the Status column name via
+ * SQLSchemaUtils.getAspectColumnName() without depending on the downstream metadata-models MP.
+ */
+record Status {
+  removed: boolean = false
+}

@@ -100,6 +100,18 @@ public class InstrumentedEbeanLocalAccess<URN extends Urn> implements IEbeanLoca
   }
 
   @Override
+  public Map<URN, EntityDeletionInfo> readDeletionInfoBatch(@Nonnull List<URN> urns, boolean isTestMode) {
+    return instrument("readDeletionInfoBatch.urns_" + urns.size(),
+        () -> _delegate.readDeletionInfoBatch(urns, isTestMode));
+  }
+
+  @Override
+  public int batchSoftDeleteAssets(@Nonnull List<URN> urns, @Nonnull String cutoffTimestamp, boolean isTestMode) {
+    return instrument("batchSoftDeleteAssets.urns_" + urns.size(),
+        () -> _delegate.batchSoftDeleteAssets(urns, cutoffTimestamp, isTestMode));
+  }
+
+  @Override
   public List<URN> listUrns(@Nullable IndexFilter indexFilter,
       @Nullable IndexSortCriterion indexSortCriterion, @Nullable URN lastUrn, int pageSize) {
     return instrument("listUrns.cursor",
