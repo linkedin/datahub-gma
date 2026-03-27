@@ -20,6 +20,7 @@ import com.linkedin.metadata.query.SortOrder;
 import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectBaz;
 import com.linkedin.testing.AspectFoo;
+import com.linkedin.testing.FooAsset;
 import com.linkedin.testing.urn.BurgerUrn;
 import com.linkedin.testing.urn.FooUrn;
 import io.ebean.Ebean;
@@ -72,6 +73,7 @@ public class EbeanLocalAccessTest {
 
   @BeforeClass
   public void init() {
+    GlobalAssetRegistry.register(FooUrn.ENTITY_TYPE, FooAsset.class);
     _server = EmbeddedMariaInstance.getServer(EbeanLocalAccessTest.class.getSimpleName());
     _ebeanLocalAccessFoo = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()),
         FooUrn.class, new FooUrnPathExtractor(), _ebeanConfig.isNonDollarVirtualColumnsEnabled());
@@ -558,7 +560,7 @@ public class EbeanLocalAccessTest {
     urns.add(makeFooUrn(502));
 
     // When
-    Map<FooUrn, EntityDeletionInfo> result = _ebeanLocalAccessFoo.readDeletionInfoBatch(urns, "a_status", false);
+    Map<FooUrn, EntityDeletionInfo> result = _ebeanLocalAccessFoo.readDeletionInfoBatch(urns, false);
 
     // Then: all 3 returned with correct fields
     assertEquals(result.size(), 3);
@@ -577,14 +579,14 @@ public class EbeanLocalAccessTest {
 
   @Test
   public void testReadDeletionInfoBatchEmptyList() {
-    Map<FooUrn, EntityDeletionInfo> result = _ebeanLocalAccessFoo.readDeletionInfoBatch(Collections.emptyList(), "a_status", false);
+    Map<FooUrn, EntityDeletionInfo> result = _ebeanLocalAccessFoo.readDeletionInfoBatch(Collections.emptyList(), false);
     assertTrue(result.isEmpty());
   }
 
   @Test
   public void testReadDeletionInfoBatchNonExistentUrns() {
     List<FooUrn> urns = Collections.singletonList(makeFooUrn(9998));
-    Map<FooUrn, EntityDeletionInfo> result = _ebeanLocalAccessFoo.readDeletionInfoBatch(urns, "a_status", false);
+    Map<FooUrn, EntityDeletionInfo> result = _ebeanLocalAccessFoo.readDeletionInfoBatch(urns, false);
     // Non-existent URNs are simply absent from the map
     assertFalse(result.containsKey(makeFooUrn(9998)));
   }
@@ -598,7 +600,7 @@ public class EbeanLocalAccessTest {
     urns.add(makeFooUrn(510));   // exists
     urns.add(makeFooUrn(9997));  // does not exist
 
-    Map<FooUrn, EntityDeletionInfo> result = _ebeanLocalAccessFoo.readDeletionInfoBatch(urns, "a_status", false);
+    Map<FooUrn, EntityDeletionInfo> result = _ebeanLocalAccessFoo.readDeletionInfoBatch(urns, false);
 
     assertEquals(result.size(), 1);
     assertTrue(result.containsKey(makeFooUrn(510)));
@@ -611,7 +613,7 @@ public class EbeanLocalAccessTest {
     insertFooEntityWithStatus(520, statusJson, "2025-06-01 00:00:00.000");
 
     List<FooUrn> urns = Collections.singletonList(makeFooUrn(520));
-    Map<FooUrn, EntityDeletionInfo> result = _ebeanLocalAccessFoo.readDeletionInfoBatch(urns, "a_status", false);
+    Map<FooUrn, EntityDeletionInfo> result = _ebeanLocalAccessFoo.readDeletionInfoBatch(urns, false);
 
     assertEquals(result.size(), 1);
     EntityDeletionInfo info = result.get(makeFooUrn(520));
@@ -636,7 +638,7 @@ public class EbeanLocalAccessTest {
     String cutoffTimestamp = "2026-01-01 00:00:00.000";
 
     // When
-    int rowsAffected = _ebeanLocalAccessFoo.batchSoftDeleteAssets(urns, cutoffTimestamp, "a_status", false);
+    int rowsAffected = _ebeanLocalAccessFoo.batchSoftDeleteAssets(urns, cutoffTimestamp, false);
 
     // Then: both rows soft-deleted
     assertEquals(rowsAffected, 2);
@@ -650,7 +652,7 @@ public class EbeanLocalAccessTest {
 
   @Test
   public void testBatchSoftDeleteAssetsEmptyList() {
-    int rowsAffected = _ebeanLocalAccessFoo.batchSoftDeleteAssets(Collections.emptyList(), "2026-01-01 00:00:00.000", "a_status", false);
+    int rowsAffected = _ebeanLocalAccessFoo.batchSoftDeleteAssets(Collections.emptyList(), "2026-01-01 00:00:00.000", false);
     assertEquals(rowsAffected, 0);
   }
 
@@ -662,7 +664,7 @@ public class EbeanLocalAccessTest {
     List<FooUrn> urns = Collections.singletonList(makeFooUrn(610));
 
     // When: cutoff is in the future (would pass retention check)
-    int rowsAffected = _ebeanLocalAccessFoo.batchSoftDeleteAssets(urns, "2026-01-01 00:00:00.000", "a_status", false);
+    int rowsAffected = _ebeanLocalAccessFoo.batchSoftDeleteAssets(urns, "2026-01-01 00:00:00.000", false);
 
     // Then: guard clause prevents deletion
     assertEquals(rowsAffected, 0);
@@ -679,7 +681,7 @@ public class EbeanLocalAccessTest {
     List<FooUrn> urns = Collections.singletonList(makeFooUrn(620));
 
     // When: cutoff is BEFORE the lastmodifiedon (retention window not met)
-    int rowsAffected = _ebeanLocalAccessFoo.batchSoftDeleteAssets(urns, "2026-02-01 00:00:00.000", "a_status", false);
+    int rowsAffected = _ebeanLocalAccessFoo.batchSoftDeleteAssets(urns, "2026-02-01 00:00:00.000", false);
 
     // Then: guard clause prevents deletion
     assertEquals(rowsAffected, 0);
@@ -693,7 +695,7 @@ public class EbeanLocalAccessTest {
     List<FooUrn> urns = Collections.singletonList(makeFooUrn(630));
 
     // When
-    int rowsAffected = _ebeanLocalAccessFoo.batchSoftDeleteAssets(urns, "2026-01-01 00:00:00.000", "a_status", false);
+    int rowsAffected = _ebeanLocalAccessFoo.batchSoftDeleteAssets(urns, "2026-01-01 00:00:00.000", false);
 
     // Then: guard clause prevents re-deletion
     assertEquals(rowsAffected, 0);
@@ -713,7 +715,7 @@ public class EbeanLocalAccessTest {
     urns.add(makeFooUrn(642));
 
     // When
-    int rowsAffected = _ebeanLocalAccessFoo.batchSoftDeleteAssets(urns, "2026-01-01 00:00:00.000", "a_status", false);
+    int rowsAffected = _ebeanLocalAccessFoo.batchSoftDeleteAssets(urns, "2026-01-01 00:00:00.000", false);
 
     // Then: only 2 eligible rows deleted
     assertEquals(rowsAffected, 2);
@@ -730,12 +732,12 @@ public class EbeanLocalAccessTest {
   @Test(expectedExceptions = IllegalArgumentException.class)
   public void testBatchSoftDeleteAssetsRejectsInvalidTimestampFormat() {
     List<FooUrn> urns = Collections.singletonList(makeFooUrn(0));
-    _ebeanLocalAccessFoo.batchSoftDeleteAssets(urns, "2026-01-01T00:00:00Z", "a_status", false);
+    _ebeanLocalAccessFoo.batchSoftDeleteAssets(urns, "2026-01-01T00:00:00Z", false);
   }
 
   @Test(expectedExceptions = IllegalArgumentException.class)
   public void testBatchSoftDeleteAssetsRejectsSqlInjection() {
     List<FooUrn> urns = Collections.singletonList(makeFooUrn(0));
-    _ebeanLocalAccessFoo.batchSoftDeleteAssets(urns, "'; DROP TABLE metadata_entity_foo; --", "a_status", false);
+    _ebeanLocalAccessFoo.batchSoftDeleteAssets(urns, "'; DROP TABLE metadata_entity_foo; --", false);
   }
 }

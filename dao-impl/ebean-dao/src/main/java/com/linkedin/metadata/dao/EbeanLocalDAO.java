@@ -753,17 +753,15 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   /**
    * Delegates to {@link IEbeanLocalAccess#readDeletionInfoBatch}.
    */
-  public Map<URN, EntityDeletionInfo> readDeletionInfoBatch(@Nonnull List<URN> urns,
-      @Nonnull String statusColumnName, boolean isTestMode) {
-    return _localAccess.readDeletionInfoBatch(urns, statusColumnName, isTestMode);
+  public Map<URN, EntityDeletionInfo> readDeletionInfoBatch(@Nonnull List<URN> urns, boolean isTestMode) {
+    return _localAccess.readDeletionInfoBatch(urns, isTestMode);
   }
 
   /**
    * Delegates to {@link IEbeanLocalAccess#batchSoftDeleteAssets}.
    */
-  public int batchSoftDeleteAssets(@Nonnull List<URN> urns, @Nonnull String cutoffTimestamp,
-      @Nonnull String statusColumnName, boolean isTestMode) {
-    return _localAccess.batchSoftDeleteAssets(urns, cutoffTimestamp, statusColumnName, isTestMode);
+  public int batchSoftDeleteAssets(@Nonnull List<URN> urns, @Nonnull String cutoffTimestamp, boolean isTestMode) {
+    return _localAccess.batchSoftDeleteAssets(urns, cutoffTimestamp, isTestMode);
   }
 
   @Override

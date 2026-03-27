@@ -32,13 +32,12 @@ Presence in the returned map means the entity exists. Absence means it was not f
 ### Two new `IEbeanLocalAccess` methods
 
 **`readDeletionInfoBatch`** — reads deletion-relevant fields for a list of URNs in a single SELECT (explicit column
-list: `urn`, `deleted_ts`, and all `a_*` aspect columns — index columns are excluded). The caller passes the Status
-aspect's column name so the DAO can parse it without hardcoding `a_status`. Returns a map of URN → `EntityDeletionInfo`
-for all URNs found. URNs not present in the DB are simply absent from the result — the caller treats absence as "not
-found."
+list: `urn`, `deleted_ts`, and all `a_*` aspect columns — index columns are excluded). The Status aspect column name is
+resolved internally via `SQLSchemaUtils.getAspectColumnName()`. Returns a map of URN → `EntityDeletionInfo` for all URNs
+found. URNs not present in the DB are simply absent from the result — the caller treats absence as "not found."
 
-**`batchSoftDeleteAssets`** — soft-deletes a list of URNs in a single `UPDATE`. The caller passes the Status aspect's
-column name, which is used in the WHERE clause guard conditions (not already deleted, Status.removed = true,
+**`batchSoftDeleteAssets`** — soft-deletes a list of URNs in a single `UPDATE`. The Status aspect column name is
+resolved internally, and is used in the WHERE clause guard conditions (not already deleted, Status.removed = true,
 lastmodifiedon before cutoff) as defense-in-depth against race conditions between the SELECT and UPDATE.
 
 ### Layered implementation (no logic in `EbeanLocalAccess`)
@@ -110,7 +109,7 @@ and records latency via `BaseDaoBenchmarkMetrics`. No database required.
 - **Exactly 2 DB calls per batch.** No per-URN queries.
 - **Guard clauses in the UPDATE.** Even if a caller skips the SELECT validation, the UPDATE will not soft-delete
   entities that don't meet all safety conditions.
-- **No hardcoded column names.** The Status aspect column name is passed by the caller, so entity types that map Status
-  to a different column (e.g. `a_foo_bar`) work without changes. All other aspect columns are collected generically by
-  the `a_` prefix.
+- **No hardcoded column names.** The Status aspect column name is resolved internally via
+  `SQLSchemaUtils.getAspectColumnName()`, consistent with how all other DAO methods resolve column names. Entity types
+  that map Status to a different column (e.g. `a_foo_bar`) work without changes.
 - **Batch size limit.** Both methods reject batches exceeding 2000 URNs as defense-in-depth against overwhelming the DB.
