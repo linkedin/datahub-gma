@@ -74,6 +74,8 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
   // TODO confirm if the default page size is 1000 in other code context.
   private static final int DEFAULT_PAGE_SIZE = 1000;
+  private static final int MAX_BATCH_DELETE_SIZE = 2000;
+  private static final String STATUS_ASPECT_FQCN = "com.linkedin.common.Status";
   private static final String ASPECT_JSON_PLACEHOLDER = "__PLACEHOLDER__";
   private static final String DEFAULT_ACTOR = "urn:li:principal:UNKNOWN";
   private static final String EBEAN_SERVER_CONFIG = "EbeanServerConfig";
@@ -294,6 +296,58 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     // Update this to mark deleted_TS to NOW based on URN
     final String deleteSqlStatement = SQLStatementUtils.createSoftDeleteAssetSql(urn, isTestMode);
     return _server.createSqlUpdate(deleteSqlStatement).execute();
+  }
+
+  @Override
+  public Map<URN, EntityDeletionInfo> readDeletionInfoBatch(@Nonnull List<URN> urns, boolean isTestMode) {
+    if (urns.isEmpty()) {
+      return Collections.emptyMap();
+    }
+    if (urns.size() > MAX_BATCH_DELETE_SIZE) {
+      throw new IllegalArgumentException(
+          String.format("Batch size %d exceeds maximum of %d", urns.size(), MAX_BATCH_DELETE_SIZE));
+    }
+
+    final String statusColumnName = getStatusColumnName();
+    final Urn firstUrn = urns.get(0);
+    final String tableName = isTestMode ? getTestTableName(firstUrn) : getTableName(firstUrn);
+    final List<String> columns = getDeletionInfoColumns(tableName);
+    final String sql = SQLStatementUtils.createReadDeletionInfoByUrnsSql(urns, columns, isTestMode);
+    return EBeanDAOUtils.convertSqlRowsToEntityDeletionInfoMap(
+        _server.createSqlQuery(sql).findList(), _urnClass, statusColumnName);
+  }
+
+  /**
+   * Returns the column list needed for batch deletion info: urn, deleted_ts, and all aspect columns (a_*).
+   * Excludes index columns (i_*) and other derived columns to reduce data transfer.
+   */
+  private List<String> getDeletionInfoColumns(@Nonnull String tableName) {
+    return validator.getColumns(tableName).stream()
+        .filter(c -> c.equals("urn") || c.equals("deleted_ts") || c.startsWith(ASPECT_PREFIX))
+        .collect(Collectors.toList());
+  }
+
+  /**
+   * Resolves the entity table column name for the Status aspect via {@link SQLSchemaUtils}.
+   */
+  private String getStatusColumnName() {
+    return getAspectColumnName(_entityType, STATUS_ASPECT_FQCN);
+  }
+
+  @Override
+  public int batchSoftDeleteAssets(@Nonnull List<URN> urns, @Nonnull String cutoffTimestamp, boolean isTestMode) {
+    if (urns.isEmpty()) {
+      return 0;
+    }
+    if (urns.size() > MAX_BATCH_DELETE_SIZE) {
+      throw new IllegalArgumentException(
+          String.format("Batch size %d exceeds maximum of %d", urns.size(), MAX_BATCH_DELETE_SIZE));
+    }
+
+    final String statusColumnName = getStatusColumnName();
+    final String sql = SQLStatementUtils.createBatchSoftDeleteAssetSql(urns, cutoffTimestamp, statusColumnName,
+        isTestMode);
+    return _server.createSqlUpdate(sql).execute();
   }
 
   @Override

@@ -21,6 +21,7 @@ import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectBaz;
 import com.linkedin.testing.AspectFoo;
+import com.linkedin.testing.FooAsset;
 import com.linkedin.testing.urn.BurgerUrn;
 import com.linkedin.testing.urn.FooUrn;
 import io.ebean.Ebean;
@@ -74,6 +75,7 @@ public class EbeanLocalAccessTest {
 
   @BeforeClass
   public void init() {
+    GlobalAssetRegistry.register(FooUrn.ENTITY_TYPE, FooAsset.class);
     _server = EmbeddedMariaInstance.getServer(EbeanLocalAccessTest.class.getSimpleName());
     _ebeanLocalAccessFoo = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()),
         FooUrn.class, new FooUrnPathExtractor(), _ebeanConfig.isNonDollarVirtualColumnsEnabled());
@@ -672,5 +674,223 @@ public class EbeanLocalAccessTest {
         "Emitter from IngestionTrackingContext should be persisted");
     assertEquals(Long.valueOf(emitTime), results.get(0).getEmitTime(), 
         "EmitTime from IngestionTrackingContext should be persisted");
+  }
+
+  // ==================== readDeletionInfoBatch tests ====================
+
+  /**
+   * Helper to insert a row into metadata_entity_foo with specific a_status JSON via raw SQL.
+   * Uses URN IDs starting at 500+ to avoid collisions with the 0-99 range from setupTest().
+   */
+  private void insertFooEntityWithStatus(int id, String statusJson, String deletedTs) {
+    String urn = "urn:li:foo:" + id;
+    String deletedTsClause = deletedTs != null ? "'" + deletedTs + "'" : "NULL";
+    String statusClause = statusJson != null ? "'" + statusJson + "'" : "NULL";
+    String sql = String.format(
+        "INSERT INTO metadata_entity_foo (urn, lastmodifiedon, lastmodifiedby, a_status, deleted_ts) "
+            + "VALUES ('%s', NOW(), 'testActor', %s, %s) "
+            + "ON DUPLICATE KEY UPDATE a_status = %s, deleted_ts = %s",
+        urn, statusClause, deletedTsClause, statusClause, deletedTsClause);
+    _server.createSqlUpdate(sql).execute();
+  }
+
+  private static String makeStatusJson(boolean removed, String lastModifiedOn) {
+    return String.format("{\"aspect\":{\"removed\":%s},\"lastmodifiedon\":\"%s\",\"lastmodifiedby\":\"urn:li:corpuser:testActor\"}",
+        removed, lastModifiedOn);
+  }
+
+  @Test
+  public void testReadDeletionInfoBatchHappyPath() {
+    // Given: 3 URNs with known status
+    String oldTimestamp = "2025-01-01 00:00:00.000";
+    insertFooEntityWithStatus(500, makeStatusJson(true, oldTimestamp), null);
+    insertFooEntityWithStatus(501, makeStatusJson(false, oldTimestamp), null);
+    insertFooEntityWithStatus(502, makeStatusJson(true, oldTimestamp), null);
+
+    List<FooUrn> urns = new ArrayList<>();
+    urns.add(makeFooUrn(500));
+    urns.add(makeFooUrn(501));
+    urns.add(makeFooUrn(502));
+
+    // When
+    Map<FooUrn, EntityDeletionInfo> result = _ebeanLocalAccessFoo.readDeletionInfoBatch(urns, false);
+
+    // Then: all 3 returned with correct fields
+    assertEquals(result.size(), 3);
+
+    EntityDeletionInfo info500 = result.get(makeFooUrn(500));
+    assertNotNull(info500);
+    assertNull(info500.getDeletedTs());
+    assertTrue(info500.isStatusRemoved());
+    assertNotNull(info500.getAspectColumns());
+    assertTrue(info500.getAspectColumns().containsKey("a_status"));
+
+    EntityDeletionInfo info501 = result.get(makeFooUrn(501));
+    assertNotNull(info501);
+    assertFalse(info501.isStatusRemoved());
+  }
+
+  @Test
+  public void testReadDeletionInfoBatchEmptyList() {
+    Map<FooUrn, EntityDeletionInfo> result = _ebeanLocalAccessFoo.readDeletionInfoBatch(Collections.emptyList(), false);
+    assertTrue(result.isEmpty());
+  }
+
+  @Test
+  public void testReadDeletionInfoBatchNonExistentUrns() {
+    List<FooUrn> urns = Collections.singletonList(makeFooUrn(9998));
+    Map<FooUrn, EntityDeletionInfo> result = _ebeanLocalAccessFoo.readDeletionInfoBatch(urns, false);
+    // Non-existent URNs are simply absent from the map
+    assertFalse(result.containsKey(makeFooUrn(9998)));
+  }
+
+  @Test
+  public void testReadDeletionInfoBatchMixedExistAndNonExist() {
+    String statusJson = makeStatusJson(true, "2025-01-01 00:00:00.000");
+    insertFooEntityWithStatus(510, statusJson, null);
+
+    List<FooUrn> urns = new ArrayList<>();
+    urns.add(makeFooUrn(510));   // exists
+    urns.add(makeFooUrn(9997));  // does not exist
+
+    Map<FooUrn, EntityDeletionInfo> result = _ebeanLocalAccessFoo.readDeletionInfoBatch(urns, false);
+
+    assertEquals(result.size(), 1);
+    assertTrue(result.containsKey(makeFooUrn(510)));
+    assertFalse(result.containsKey(makeFooUrn(9997)));
+  }
+
+  @Test
+  public void testReadDeletionInfoBatchAlreadySoftDeleted() {
+    String statusJson = makeStatusJson(true, "2025-01-01 00:00:00.000");
+    insertFooEntityWithStatus(520, statusJson, "2025-06-01 00:00:00.000");
+
+    List<FooUrn> urns = Collections.singletonList(makeFooUrn(520));
+    Map<FooUrn, EntityDeletionInfo> result = _ebeanLocalAccessFoo.readDeletionInfoBatch(urns, false);
+
+    assertEquals(result.size(), 1);
+    EntityDeletionInfo info = result.get(makeFooUrn(520));
+    assertNotNull(info);
+    assertNotNull(info.getDeletedTs());
+  }
+
+  // ==================== batchSoftDeleteAssets tests ====================
+
+  @Test
+  public void testBatchSoftDeleteAssetsHappyPath() {
+    // Given: URNs with Status.removed=true and old lastmodifiedon
+    String oldTimestamp = "2025-01-01 00:00:00.000";
+    insertFooEntityWithStatus(600, makeStatusJson(true, oldTimestamp), null);
+    insertFooEntityWithStatus(601, makeStatusJson(true, oldTimestamp), null);
+
+    List<FooUrn> urns = new ArrayList<>();
+    urns.add(makeFooUrn(600));
+    urns.add(makeFooUrn(601));
+
+    // Cutoff is after the lastmodifiedon, so these should be eligible
+    String cutoffTimestamp = "2026-01-01 00:00:00.000";
+
+    // When
+    int rowsAffected = _ebeanLocalAccessFoo.batchSoftDeleteAssets(urns, cutoffTimestamp, false);
+
+    // Then: both rows soft-deleted
+    assertEquals(rowsAffected, 2);
+
+    // Verify deleted_ts is set in DB
+    SqlRow row600 = _server.createSqlQuery("SELECT deleted_ts FROM metadata_entity_foo WHERE urn = 'urn:li:foo:600'").findOne();
+    assertNotNull(row600.getTimestamp("deleted_ts"));
+    SqlRow row601 = _server.createSqlQuery("SELECT deleted_ts FROM metadata_entity_foo WHERE urn = 'urn:li:foo:601'").findOne();
+    assertNotNull(row601.getTimestamp("deleted_ts"));
+  }
+
+  @Test
+  public void testBatchSoftDeleteAssetsEmptyList() {
+    int rowsAffected = _ebeanLocalAccessFoo.batchSoftDeleteAssets(Collections.emptyList(), "2026-01-01 00:00:00.000", false);
+    assertEquals(rowsAffected, 0);
+  }
+
+  @Test
+  public void testBatchSoftDeleteAssetsGuardsStatusNotRemoved() {
+    // Given: URN with Status.removed=false
+    insertFooEntityWithStatus(610, makeStatusJson(false, "2025-01-01 00:00:00.000"), null);
+
+    List<FooUrn> urns = Collections.singletonList(makeFooUrn(610));
+
+    // When: cutoff is in the future (would pass retention check)
+    int rowsAffected = _ebeanLocalAccessFoo.batchSoftDeleteAssets(urns, "2026-01-01 00:00:00.000", false);
+
+    // Then: guard clause prevents deletion
+    assertEquals(rowsAffected, 0);
+    SqlRow row = _server.createSqlQuery("SELECT deleted_ts FROM metadata_entity_foo WHERE urn = 'urn:li:foo:610'").findOne();
+    assertNull(row.getTimestamp("deleted_ts"));
+  }
+
+  @Test
+  public void testBatchSoftDeleteAssetsGuardsRetentionNotMet() {
+    // Given: URN with Status.removed=true but recent lastmodifiedon
+    String recentTimestamp = "2026-03-01 00:00:00.000";
+    insertFooEntityWithStatus(620, makeStatusJson(true, recentTimestamp), null);
+
+    List<FooUrn> urns = Collections.singletonList(makeFooUrn(620));
+
+    // When: cutoff is BEFORE the lastmodifiedon (retention window not met)
+    int rowsAffected = _ebeanLocalAccessFoo.batchSoftDeleteAssets(urns, "2026-02-01 00:00:00.000", false);
+
+    // Then: guard clause prevents deletion
+    assertEquals(rowsAffected, 0);
+  }
+
+  @Test
+  public void testBatchSoftDeleteAssetsGuardsAlreadyDeleted() {
+    // Given: URN already soft-deleted
+    insertFooEntityWithStatus(630, makeStatusJson(true, "2025-01-01 00:00:00.000"), "2025-06-01 00:00:00.000");
+
+    List<FooUrn> urns = Collections.singletonList(makeFooUrn(630));
+
+    // When
+    int rowsAffected = _ebeanLocalAccessFoo.batchSoftDeleteAssets(urns, "2026-01-01 00:00:00.000", false);
+
+    // Then: guard clause prevents re-deletion
+    assertEquals(rowsAffected, 0);
+  }
+
+  @Test
+  public void testBatchSoftDeleteAssetsMixedEligibility() {
+    // Given: mix of eligible and ineligible URNs
+    String oldTimestamp = "2025-01-01 00:00:00.000";
+    insertFooEntityWithStatus(640, makeStatusJson(true, oldTimestamp), null);   // eligible
+    insertFooEntityWithStatus(641, makeStatusJson(false, oldTimestamp), null);  // ineligible: not removed
+    insertFooEntityWithStatus(642, makeStatusJson(true, oldTimestamp), null);   // eligible
+
+    List<FooUrn> urns = new ArrayList<>();
+    urns.add(makeFooUrn(640));
+    urns.add(makeFooUrn(641));
+    urns.add(makeFooUrn(642));
+
+    // When
+    int rowsAffected = _ebeanLocalAccessFoo.batchSoftDeleteAssets(urns, "2026-01-01 00:00:00.000", false);
+
+    // Then: only 2 eligible rows deleted
+    assertEquals(rowsAffected, 2);
+
+    // Verify: 640 and 642 deleted, 641 not
+    SqlRow row640 = _server.createSqlQuery("SELECT deleted_ts FROM metadata_entity_foo WHERE urn = 'urn:li:foo:640'").findOne();
+    assertNotNull(row640.getTimestamp("deleted_ts"));
+    SqlRow row641 = _server.createSqlQuery("SELECT deleted_ts FROM metadata_entity_foo WHERE urn = 'urn:li:foo:641'").findOne();
+    assertNull(row641.getTimestamp("deleted_ts"));
+    SqlRow row642 = _server.createSqlQuery("SELECT deleted_ts FROM metadata_entity_foo WHERE urn = 'urn:li:foo:642'").findOne();
+    assertNotNull(row642.getTimestamp("deleted_ts"));
+  }
+
+  @Test(expectedExceptions = IllegalArgumentException.class)
+  public void testBatchSoftDeleteAssetsRejectsInvalidTimestampFormat() {
+    List<FooUrn> urns = Collections.singletonList(makeFooUrn(0));
+    _ebeanLocalAccessFoo.batchSoftDeleteAssets(urns, "2026-01-01T00:00:00Z", false);
+  }
+
+  @Test(expectedExceptions = IllegalArgumentException.class)
+  public void testBatchSoftDeleteAssetsRejectsSqlInjection() {
+    List<FooUrn> urns = Collections.singletonList(makeFooUrn(0));
+    _ebeanLocalAccessFoo.batchSoftDeleteAssets(urns, "'; DROP TABLE metadata_entity_foo; --", false);
   }
 }

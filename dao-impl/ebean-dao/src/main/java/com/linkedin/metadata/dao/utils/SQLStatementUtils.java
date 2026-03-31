@@ -44,6 +44,8 @@ public class SQLStatementUtils {
       .addEscape('\'', "''")
       .addEscape('\\', "\\\\").build();
 
+  private static final String TIMESTAMP_FORMAT_PATTERN = "\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}";
+
   public static final String SOFT_DELETED_CHECK = "JSON_EXTRACT(%s, '$.gma_deleted') IS NULL"; // true when not soft deleted
 
   public static final String DELETED_TS_IS_NULL_CHECK = "deleted_ts IS NULL"; // true when the deleted_ts is NULL, meaning the record is not soft deleted
@@ -83,6 +85,15 @@ public class SQLStatementUtils {
   public static final String SQL_INSERT_ASSET_VALUES = "VALUES (:urn, :lastmodifiedon, :lastmodifiedby,";
   // Delete prefix of the sql statement for deleting from metadata_aspect table
   public static final String SQL_SOFT_DELETE_ASSET_WITH_URN = "UPDATE %s SET deleted_ts = NOW() WHERE urn = '%s';";
+
+  private static final String SQL_READ_COLUMNS_BY_URNS_TEMPLATE = "SELECT %s FROM %s WHERE urn IN (%s)";
+
+  private static final String SQL_BATCH_SOFT_DELETE_ASSET_TEMPLATE =
+      "UPDATE %s SET deleted_ts = NOW()"
+          + " WHERE urn IN (%s)"
+          + " AND deleted_ts IS NULL"
+          + " AND JSON_EXTRACT(%s, '$.aspect.removed') = true"
+          + " AND JSON_EXTRACT(%s, '$.lastmodifiedon') < '%s'";
   // closing bracket for the sql statement INSERT prefix
   // e.g. INSERT INTO metadata_aspect (urn, a_urn, lastmodifiedon, lastmodifiedby)
   public static final String CLOSING_BRACKET = ") ";
@@ -300,6 +311,53 @@ public class SQLStatementUtils {
   public static <ASPECT extends RecordTemplate> String createSoftDeleteAssetSql(@Nonnull Urn urn, boolean isTestMode) {
     final String tableName = isTestMode ? getTestTableName(urn) : getTableName(urn);
     return String.format(SQL_SOFT_DELETE_ASSET_WITH_URN, tableName, urn);
+  }
+
+  /**
+   * Create SELECT SQL statement for reading deletion-relevant columns for a batch of URNs.
+   * Selects only urn, deleted_ts, and aspect columns (a_* prefix), excluding index columns (i_*)
+   * and other derived columns to reduce data transfer.
+   *
+   * @param urns list of URNs to read
+   * @param columns list of column names to select
+   * @param isTestMode whether the test mode is enabled or not
+   * @return select columns sql
+   */
+  public static String createReadDeletionInfoByUrnsSql(@Nonnull List<? extends Urn> urns,
+      @Nonnull List<String> columns, boolean isTestMode) {
+    final Urn firstUrn = urns.get(0);
+    final String tableName = isTestMode ? getTestTableName(firstUrn) : getTableName(firstUrn);
+    final String urnList = urns.stream()
+        .map(urn -> "'" + escapeReservedCharInUrn(urn.toString()) + "'")
+        .collect(Collectors.joining(", "));
+    final String columnList = String.join(", ", columns);
+    return String.format(SQL_READ_COLUMNS_BY_URNS_TEMPLATE, columnList, tableName, urnList);
+  }
+
+  /**
+   * Create batch soft-delete SQL statement with guard clauses for defense-in-depth.
+   * The UPDATE includes conditions (deleted_ts IS NULL, Status.removed = true, lastmodifiedon &lt; cutoff)
+   * to protect against race conditions between validation SELECT and this UPDATE.
+   *
+   * @param urns list of URNs to soft-delete
+   * @param cutoffTimestamp only delete if Status.lastmodifiedon is before this timestamp
+   * @param statusColumnName the entity table column name for the Status aspect (e.g. "a_status")
+   * @param isTestMode whether the test mode is enabled or not
+   * @return batch soft-delete sql
+   */
+  public static String createBatchSoftDeleteAssetSql(@Nonnull List<? extends Urn> urns,
+      @Nonnull String cutoffTimestamp, @Nonnull String statusColumnName, boolean isTestMode) {
+    if (!cutoffTimestamp.matches(TIMESTAMP_FORMAT_PATTERN)) {
+      throw new IllegalArgumentException(
+          "cutoffTimestamp must be in yyyy-MM-dd HH:mm:ss.SSS format, got: " + cutoffTimestamp);
+    }
+    final Urn firstUrn = urns.get(0);
+    final String tableName = isTestMode ? getTestTableName(firstUrn) : getTableName(firstUrn);
+    final String urnList = urns.stream()
+        .map(urn -> "'" + escapeReservedCharInUrn(urn.toString()) + "'")
+        .collect(Collectors.joining(", "));
+    return String.format(SQL_BATCH_SOFT_DELETE_ASSET_TEMPLATE, tableName, urnList, statusColumnName,
+        statusColumnName, cutoffTimestamp);
   }
 
   /**

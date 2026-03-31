@@ -1,0 +1,23 @@
+namespace com.linkedin.testing
+
+import com.linkedin.common.Status
+import com.linkedin.testing.localrelationship.AspectFooBar
+import com.linkedin.testing.localrelationship.AspectFooBaz
+import com.linkedin.testing.localrelationship.AspectFooBarBaz
+
+/**
+ * For unit tests — asset model for FooUrn entity type.
+ * Must include all aspects used across test classes for the foo entity,
+ * since GlobalAssetRegistry is a static singleton shared across test classes.
+ */
+record FooAsset {
+  urn: optional FooUrn
+  aspectfoo: optional AspectFoo,
+  aspectbar: optional AspectBar,
+  aspectbaz: optional AspectBaz,
+  aspectfoobar: optional AspectFooBar,
+  aspectfoobaz: optional AspectFooBaz,
+  aspectfoobarbaz: optional AspectFooBarBaz,
+  aspectattributes: optional AspectAttributes,
+  status: optional Status
+}

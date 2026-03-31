@@ -19,6 +19,7 @@ import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
 import com.linkedin.metadata.dao.retention.VersionBasedRetention;
 import com.linkedin.metadata.dao.storage.LocalDAOStorageConfig;
+import com.linkedin.metadata.dao.tracking.BaseDaoBenchmarkMetrics;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.urnpath.EmptyPathExtractor;
 import com.linkedin.metadata.dao.urnpath.UrnPathExtractor;
@@ -554,6 +555,19 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   /**
+   * Set benchmark metrics for DAO operation instrumentation. Wraps the underlying
+   * {@link IEbeanLocalAccess} with an {@link InstrumentedEbeanLocalAccess} decorator.
+   * No-op when {@code _localAccess} is {@code null} (OLD_SCHEMA_ONLY mode).
+   *
+   * @param metrics the benchmark metrics implementation to use
+   */
+  public void setBenchmarkMetrics(@Nonnull BaseDaoBenchmarkMetrics metrics) {
+    if (_localAccess != null) {
+      _localAccess = new InstrumentedEbeanLocalAccess<>(_localAccess, metrics, _urnClass);
+    }
+  }
+
+  /**
    * Ensure table schemas is up-to-date with db evolution scripts.
    */
   public void ensureSchemaUpToDate() {
@@ -757,6 +771,20 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       return 0;
     }
     return _localAccess.softDeleteAsset(urn, isTestMode);
+  }
+
+  /**
+   * Delegates to {@link IEbeanLocalAccess#readDeletionInfoBatch}.
+   */
+  public Map<URN, EntityDeletionInfo> readDeletionInfoBatch(@Nonnull List<URN> urns, boolean isTestMode) {
+    return _localAccess.readDeletionInfoBatch(urns, isTestMode);
+  }
+
+  /**
+   * Delegates to {@link IEbeanLocalAccess#batchSoftDeleteAssets}.
+   */
+  public int batchSoftDeleteAssets(@Nonnull List<URN> urns, @Nonnull String cutoffTimestamp, boolean isTestMode) {
+    return _localAccess.batchSoftDeleteAssets(urns, cutoffTimestamp, isTestMode);
   }
 
   @Override

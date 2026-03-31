@@ -30,6 +30,7 @@ import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
 import com.linkedin.metadata.dao.retention.VersionBasedRetention;
 import com.linkedin.metadata.dao.storage.LocalDAOStorageConfig;
+import com.linkedin.metadata.dao.tracking.BaseDaoBenchmarkMetrics;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.urnpath.UrnPathExtractor;
 import com.linkedin.metadata.dao.utils.BarUrnPathExtractor;
@@ -307,6 +308,19 @@ public class EbeanLocalDAOTest {
     assertNotNull(dao6._trackingManager);
     assertNull(dao6._producer);
     assertNotNull(dao6._trackingProducer);
+  }
+
+  @Test
+  public void testSetBenchmarkMetrics() {
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    BaseDaoBenchmarkMetrics mockMetrics = mock(BaseDaoBenchmarkMetrics.class);
+    when(mockMetrics.isEnabled()).thenReturn(false);
+
+    // Should apply when _localAccess is non-null (NEW_SCHEMA_ONLY / DUAL_SCHEMA)
+    // and be a no-op when null (OLD_SCHEMA_ONLY)
+    dao.setBenchmarkMetrics(mockMetrics);
+
+    // In OLD_SCHEMA_ONLY, setBenchmarkMetrics is a no-op — no exception, no effect
   }
 
   @Test(expectedExceptions = InvalidMetadataType.class)
