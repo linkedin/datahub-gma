@@ -156,19 +156,19 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     @NonNull
     protected final IngestionParams ingestionParams;
 
-    AspectUpdateLambda(ASPECT value) {
+    public AspectUpdateLambda(ASPECT value) {
       this.aspectClass = (Class<ASPECT>) value.getClass();
       this.updateLambda = (ignored) -> value;
       this.ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
     }
 
-    AspectUpdateLambda(@NonNull Class<ASPECT> aspectClass, @NonNull Function<Optional<ASPECT>, ASPECT> updateLambda) {
+    public AspectUpdateLambda(@NonNull Class<ASPECT> aspectClass, @NonNull Function<Optional<ASPECT>, ASPECT> updateLambda) {
       this.aspectClass = aspectClass;
       this.updateLambda = updateLambda;
       this.ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
     }
 
-    AspectUpdateLambda(@NonNull Class<ASPECT> aspectClass, @NonNull Function<Optional<ASPECT>, ASPECT> updateLambda,
+    public AspectUpdateLambda(@NonNull Class<ASPECT> aspectClass, @NonNull Function<Optional<ASPECT>, ASPECT> updateLambda,
         @NonNull IngestionParams ingestionParams) {
       this.aspectClass = aspectClass;
       this.updateLambda = updateLambda;
@@ -668,13 +668,31 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    */
   public List<ASPECT_UNION> addManyBatch(@Nonnull URN urn, @Nonnull List<? extends RecordTemplate> aspectValues,
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext) {
-    // Convert to AspectUpdateLambda to support test mode and ingestion params
+    // Convert to AspectUpdateLambda with default IngestionParams (LIVE mode)
     List<AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas = aspectValues.stream()
         .map(AspectUpdateLambda::new)
         .collect(Collectors.toList());
+    return batchUpsert(urn, aspectUpdateLambdas, auditStamp, trackingContext);
+  }
+
+  /**
+   * Transactional batch upsert with explicit AspectUpdateLambda support.
+   * Use this variant when you need to pass custom IngestionParams or collection update lambdas
+   * per aspect. Each AspectUpdateLambda bundles the aspect class, a transformation function
+   * (applied against the existing DB value), and IngestionParams.
+   *
+   * @param urn entity URN
+   * @param aspectUpdateLambdas list of aspect update lambdas to upsert
+   * @param auditStamp audit stamp for tracking
+   * @param trackingContext tracking context for ingestion
+   * @return list of aspect unions (with actual old values for proper MAE emission)
+   */
+  public List<ASPECT_UNION> batchUpsert(@Nonnull URN urn,
+      @Nonnull List<AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas,
+      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext) {
     // ingest aspects and process callbacks in a single transaction
     return runInTransactionWithRetry(() -> {
-          return addManyBatchWithCallbacks(urn, aspectUpdateLambdas, auditStamp, trackingContext);
+          return addManyBatchInternal(urn, aspectUpdateLambdas, auditStamp, trackingContext);
         }, DEFAULT_MAX_TRANSACTION_RETRY
     );
   }
@@ -682,7 +700,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   /**
    * Batch upsert with AspectUpdateLambda support (enables test mode and ingestion params).
    *
-   * <p>Note: This method is called WITHIN a transaction by addManyBatch(). 
+   * <p>Note: This method is called WITHIN a transaction by addManyBatch().
    * It should not handle its own transaction logic.
    *
    * <p>NOTE: This is structurally very similar to createAspectsWithCallbacks(), some future refactoring can be done to
@@ -697,7 +715,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    *       backfill, version, and timestamp skip conditions.</li>
    * </ul>
    */
-  List<ASPECT_UNION> addManyBatchWithCallbacks(@Nonnull URN urn,
+  List<ASPECT_UNION> addManyBatchInternal(@Nonnull URN urn,
       @Nonnull List<AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas,
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext) {
 
