@@ -65,6 +65,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.persistence.OptimisticLockException;
+import javax.persistence.PersistenceException;
 import javax.persistence.RollbackException;
 import javax.persistence.Table;
 import lombok.Value;
@@ -592,6 +593,12 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         break;
       } catch (RollbackException | DuplicateKeyException | OptimisticLockException exception) {
         lastException = exception;
+      } catch (PersistenceException exception) {
+        if (isTransientDatabaseException(exception)) {
+          lastException = exception;
+        } else {
+          throw exception;
+        }
       }
     } while (++retryCount <= maxTransactionRetry);
 
@@ -600,6 +607,26 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
 
     return result;
+  }
+
+  /**
+   * Checks if a {@link PersistenceException} wraps a transient database error that is safe to retry.
+   * Walks the cause chain looking for known transient SQL error messages such as closed connections
+   * or deadlocks that are caused by infrastructure issues rather than bad data.
+   */
+  private static boolean isTransientDatabaseException(@Nonnull PersistenceException exception) {
+    Throwable cause = exception;
+    while (cause != null) {
+      String message = cause.getMessage();
+      if (message != null && (message.contains("Connection is closed")
+          || message.contains("Deadlock found")
+          || message.contains("Lock wait timeout")
+          || message.contains("Communications link failure"))) {
+        return true;
+      }
+      cause = cause.getCause();
+    }
+    return false;
   }
 
   /**
