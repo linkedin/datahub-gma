@@ -73,6 +73,8 @@ import javax.annotation.Nullable;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NonNull;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
@@ -143,50 +145,53 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    *
    * @param <ASPECT> the type of the aspect being updated
    */
-  @AllArgsConstructor
-  @Value
+  @Getter
   public static class AspectUpdateLambda<ASPECT extends RecordTemplate> {
     @NonNull
-    Class<ASPECT> aspectClass;
+    protected final Class<ASPECT> aspectClass;
 
     @NonNull
-    Function<Optional<ASPECT>, ASPECT> updateLambda;
+    protected final Function<Optional<ASPECT>, ASPECT> updateLambda;
 
     @NonNull
-    IngestionParams ingestionParams;
+    protected final IngestionParams ingestionParams;
 
-    AspectUpdateLambda(ASPECT value) {
+    public AspectUpdateLambda(ASPECT value) {
       this.aspectClass = (Class<ASPECT>) value.getClass();
       this.updateLambda = (ignored) -> value;
       this.ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
     }
 
-    AspectUpdateLambda(@NonNull Class<ASPECT> aspectClass, @NonNull Function<Optional<ASPECT>, ASPECT> updateLambda) {
+    public AspectUpdateLambda(@NonNull Class<ASPECT> aspectClass, @NonNull Function<Optional<ASPECT>, ASPECT> updateLambda) {
       this.aspectClass = aspectClass;
       this.updateLambda = updateLambda;
       this.ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
+    }
+
+    public AspectUpdateLambda(@NonNull Class<ASPECT> aspectClass, @NonNull Function<Optional<ASPECT>, ASPECT> updateLambda,
+        @NonNull IngestionParams ingestionParams) {
+      this.aspectClass = aspectClass;
+      this.updateLambda = updateLambda;
+      this.ingestionParams = ingestionParams;
     }
   }
 
   /**
    * Immutable class to hold the details of a Create to an aspect.
    *
+   * <p>This class extends AspectUpdateLambda because create is conceptually a special case of update
+   * where the transformation function ignores the old value and always returns the new value.
+   *
    * <p>This class allows the wildcard capture in {@link #create(Urn, List, AuditStamp, IngestionTrackingContext, IngestionParams)}</p>
    *
-   * @param <ASPECT> the type of the aspect being updated
+   * @param <ASPECT> the type of the aspect being created
    */
-  @AllArgsConstructor
   @Value
-  public static class AspectCreateLambda<ASPECT extends RecordTemplate> {
-    @Nonnull
-    Class<ASPECT> aspectClass;
-
-    @Nonnull
-    IngestionParams ingestionParams;
+  @EqualsAndHashCode(callSuper = true)
+  public static class AspectCreateLambda<ASPECT extends RecordTemplate> extends AspectUpdateLambda<ASPECT> {
 
     public AspectCreateLambda(@Nonnull ASPECT value) {
-      this.aspectClass = (Class<ASPECT>) value.getClass();
-      ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
+      super(value); // Uses AspectUpdateLambda constructor that creates lambda: (ignored) -> value
     }
   }
 
@@ -195,6 +200,27 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   protected static class AspectUpdateResult<ASPECT extends RecordTemplate> {
     private ASPECT updatedAspect;
     private boolean skipProcessing;
+  }
+
+  /**
+   * Immutable class to package aspect update context for batch operations.
+   * Eliminates the need for multiple parallel lists by bundling related data together.
+   *
+   * <p>The 'newValue' field contains the final computed value after all transformations (lambda application,
+   * callback processing, lambda function registry). This is the value that will be persisted to the database.
+   *
+   * @param <ASPECT> the type of the aspect being updated
+   */
+  @Value
+  static class AspectUpdateContext<ASPECT extends RecordTemplate> {
+    @Nullable
+    ASPECT oldValue;
+
+    @Nonnull
+    ASPECT newValue;
+
+    @Nonnull
+    AspectUpdateLambda<ASPECT> lambda;
   }
 
   private static final String DEFAULT_ID_NAMESPACE = "global";
@@ -507,33 +533,6 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     final AuditStamp oldAuditStamp = latest.getExtraInfo() == null ? null : latest.getExtraInfo().getAudit();
     final Long oldEmitTime = latest.getExtraInfo() == null ? null : latest.getExtraInfo().getEmitTime();
 
-    final boolean isBackfillEvent = trackingContext != null
-        && trackingContext.hasBackfill() && trackingContext.isBackfill();
-    if (isBackfillEvent) {
-      boolean shouldBackfill =
-          // new value is being inserted. We should backfill
-          oldValue == null
-              || (
-              // tracking context should ideally always have emitTime. If it's not present, we will skip backfilling
-              trackingContext.hasEmitTime()
-                  && (
-                  // old emit time is available so we'll use it for comparison
-                  // if new event emit time > old event emit time, we'll backfill
-                  (oldEmitTime != null && trackingContext.getEmitTime() > oldEmitTime)
-                      // old emit time is not available, so we'll fall back to comparing new emit time against old audit time
-                      // old audit time represents the last modified time of the aspect
-                      || (oldEmitTime == null && oldAuditStamp != null && oldAuditStamp.hasTime() && trackingContext.getEmitTime() > oldAuditStamp.getTime())));
-
-      log.info("Encounter backfill event. Old value = null: {}. Tracking context: {}. Urn: {}. Aspect class: {}. Old audit stamp: {}. "
-              + "Old emit time: {}. "
-              + "Based on this information, shouldBackfill = {}.",
-          oldValue == null, trackingContext, urn, aspectClass, oldAuditStamp, oldEmitTime, shouldBackfill);
-
-      if (!shouldBackfill) {
-        return new AddResult<>(oldValue, oldValue, aspectClass);
-      }
-    }
-
     // TODO(yanyang) added for job-gms duplicity debug, throwaway afterwards
     if (log.isDebugEnabled()) {
       if ("AzkabanFlowInfo".equals(aspectClass.getSimpleName())) {
@@ -545,9 +544,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     final AuditStamp optimisticLockAuditStamp = extractOptimisticLockForAspectFromIngestionParamsIfPossible(ingestionParams, aspectClass, urn);
 
-    // Logic determines whether an update to aspect should be persisted.
+    // Unified logic determines whether an update to aspect should be persisted (includes backfill, equality, version, mode checks)
     if (!shouldUpdateAspect(ingestionParams.getIngestionMode(), urn, oldValue, newValue, aspectClass, auditStamp, equalityTester,
-        oldAuditStamp, optimisticLockAuditStamp)) {
+        oldAuditStamp, optimisticLockAuditStamp, trackingContext, oldEmitTime)) {
       return new AddResult<>(oldValue, oldValue, aspectClass);
     }
 
@@ -2010,7 +2009,37 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    */
   private <ASPECT extends RecordTemplate> boolean shouldUpdateAspect(IngestionMode ingestionMode, URN urn, ASPECT oldValue,
       ASPECT newValue, Class<ASPECT> aspectClass, AuditStamp auditStamp, EqualityTester<ASPECT> equalityTester,
-      AuditStamp oldValueAuditStamp, AuditStamp eTagAuditStamp) {
+      AuditStamp oldValueAuditStamp, AuditStamp eTagAuditStamp,
+      @Nullable IngestionTrackingContext trackingContext, @Nullable Long oldEmitTime) {
+
+    // Backfill logic: if this is a backfill event, check whether the new value is newer than the old value
+    final boolean isBackfillEvent = trackingContext != null
+        && trackingContext.hasBackfill() && trackingContext.isBackfill();
+    if (isBackfillEvent) {
+      boolean shouldBackfill =
+          // new value is being inserted. We should backfill
+          oldValue == null
+              || (
+              // tracking context should ideally always have emitTime. If it's not present, we will skip backfilling
+              trackingContext.hasEmitTime()
+                  && (
+                  // old emit time is available so we'll use it for comparison
+                  // if new event emit time > old event emit time, we'll backfill
+                  (oldEmitTime != null && trackingContext.getEmitTime() > oldEmitTime)
+                      // old emit time is not available, so we'll fall back to comparing new emit time against old audit time
+                      // old audit time represents the last modified time of the aspect
+                      || (oldEmitTime == null && oldValueAuditStamp != null && oldValueAuditStamp.hasTime()
+                          && trackingContext.getEmitTime() > oldValueAuditStamp.getTime())));
+
+      log.info("Encounter backfill event. Old value = null: {}. Tracking context: {}. Urn: {}. Aspect class: {}. Old audit stamp: {}. "
+              + "Old emit time: {}. "
+              + "Based on this information, shouldBackfill = {}.",
+          oldValue == null, trackingContext, urn, aspectClass, oldValueAuditStamp, oldEmitTime, shouldBackfill);
+
+      if (!shouldBackfill) {
+        return false;
+      }
+    }
 
     final boolean oldAndNewEqual = (oldValue == null && newValue == null) || (oldValue != null && newValue != null && equalityTester.equals(
         oldValue, newValue));
