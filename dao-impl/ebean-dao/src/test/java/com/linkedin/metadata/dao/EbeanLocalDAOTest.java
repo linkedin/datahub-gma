@@ -107,6 +107,7 @@ import java.util.stream.IntStream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.persistence.OptimisticLockException;
+import javax.persistence.PersistenceException;
 import javax.persistence.RollbackException;
 import org.mockito.ArgumentMatchers;
 import org.mockito.InOrder;
@@ -939,6 +940,67 @@ public class EbeanLocalDAOTest {
     when(mockQuery.setParameter(any(), any())).thenReturn(mockQuery);
 
     // additions for ebean find builder
+    ExpressionList mockEList = mock(ExpressionList.class);
+    OrderBy mockOrderBy = mock(OrderBy.class);
+    when(server.find(any())).thenReturn(mockQuery);
+    when(mockQuery.where()).thenReturn(mockEList);
+    when(mockEList.eq(any(), any())).thenReturn(mockEList);
+    when(mockEList.orderBy()).thenReturn(mockOrderBy);
+    when(mockOrderBy.desc(any())).thenReturn(mockQuery);
+
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(server, FooUrn.class);
+    dao.add(makeFooUrn(1), new AspectFoo().setValue("foo"), _dummyAuditStamp);
+  }
+
+  @Test(expectedExceptions = RetryLimitReached.class)
+  public void testAddRetriesOnTransientConnectionClosed() {
+    EbeanServer server = mock(EbeanServer.class);
+    Transaction mockTransaction = mock(Transaction.class);
+    SqlQuery mockSqlQuery = mock(SqlQuery.class);
+    when(server.beginTransaction()).thenReturn(mockTransaction);
+    when(server.find(any(), ArgumentMatchers.any(PrimaryKey.class))).thenReturn(null);
+    PersistenceException transientException =
+        new PersistenceException(new java.sql.SQLException("Connection is closed"));
+    doThrow(transientException).when(server).insert(any(EbeanMetadataAspect.class));
+    doThrow(transientException).when(server).createSqlUpdate(any());
+    when(server.createSqlQuery(any())).thenReturn(mockSqlQuery);
+    when(mockSqlQuery.findList()).thenReturn(Collections.emptyList());
+
+    Query mockQuery = mock(Query.class);
+    when(mockQuery.findList()).thenReturn(Collections.emptyList());
+    when(server.findNative(any(), any())).thenReturn(mockQuery);
+    when(mockQuery.setParameter(any(), any())).thenReturn(mockQuery);
+
+    ExpressionList mockEList = mock(ExpressionList.class);
+    OrderBy mockOrderBy = mock(OrderBy.class);
+    when(server.find(any())).thenReturn(mockQuery);
+    when(mockQuery.where()).thenReturn(mockEList);
+    when(mockEList.eq(any(), any())).thenReturn(mockEList);
+    when(mockEList.orderBy()).thenReturn(mockOrderBy);
+    when(mockOrderBy.desc(any())).thenReturn(mockQuery);
+
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(server, FooUrn.class);
+    dao.add(makeFooUrn(1), new AspectFoo().setValue("foo"), _dummyAuditStamp);
+  }
+
+  @Test(expectedExceptions = PersistenceException.class)
+  public void testAddDoesNotRetryNonTransientPersistenceException() {
+    EbeanServer server = mock(EbeanServer.class);
+    Transaction mockTransaction = mock(Transaction.class);
+    SqlQuery mockSqlQuery = mock(SqlQuery.class);
+    when(server.beginTransaction()).thenReturn(mockTransaction);
+    when(server.find(any(), ArgumentMatchers.any(PrimaryKey.class))).thenReturn(null);
+    PersistenceException nonTransientException = new PersistenceException("Unknown column 'foo' in field list");
+    doThrow(nonTransientException).when(server).insert(any(EbeanMetadataAspect.class));
+    doThrow(nonTransientException).when(server).createSqlUpdate(any());
+    when(server.createSqlQuery(any())).thenReturn(mockSqlQuery);
+    when(mockSqlQuery.findList()).thenReturn(Collections.emptyList());
+
+    Query mockQuery = mock(Query.class);
+    when(mockQuery.findList()).thenReturn(Collections.emptyList());
+    when(server.findNative(any(), any())).thenReturn(mockQuery);
+    when(mockQuery.setParameter(any(), any())).thenReturn(mockQuery);
+
     ExpressionList mockEList = mock(ExpressionList.class);
     OrderBy mockOrderBy = mock(OrderBy.class);
     when(server.find(any())).thenReturn(mockQuery);
