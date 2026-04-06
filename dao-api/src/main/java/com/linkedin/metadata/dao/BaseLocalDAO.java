@@ -146,6 +146,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * @param <ASPECT> the type of the aspect being updated
    */
   @Getter
+  @AllArgsConstructor
   public static class AspectUpdateLambda<ASPECT extends RecordTemplate> {
     @NonNull
     protected final Class<ASPECT> aspectClass;
@@ -166,13 +167,6 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       this.aspectClass = aspectClass;
       this.updateLambda = updateLambda;
       this.ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
-    }
-
-    public AspectUpdateLambda(@NonNull Class<ASPECT> aspectClass, @NonNull Function<Optional<ASPECT>, ASPECT> updateLambda,
-        @NonNull IngestionParams ingestionParams) {
-      this.aspectClass = aspectClass;
-      this.updateLambda = updateLambda;
-      this.ingestionParams = ingestionParams;
     }
   }
 
