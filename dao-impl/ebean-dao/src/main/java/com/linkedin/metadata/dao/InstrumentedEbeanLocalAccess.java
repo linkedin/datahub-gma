@@ -85,6 +85,15 @@ public class InstrumentedEbeanLocalAccess<URN extends Urn> implements IEbeanLoca
             auditStamp, ingestionTrackingContext, isTestMode));
   }
 
+  @Override
+  public <ASPECT_UNION extends RecordTemplate> int batchUpsert(@Nonnull URN urn,
+      @Nonnull List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts,
+      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext ingestionTrackingContext,
+      boolean isTestMode) {
+    return instrument("batchUpsert.aspects_" + updateContexts.size(),
+        () -> _delegate.batchUpsert(urn, updateContexts, auditStamp, ingestionTrackingContext, isTestMode));
+  }
+
   @Nonnull
   @Override
   public <ASPECT extends RecordTemplate> List<EbeanMetadataAspect> batchGetUnion(
