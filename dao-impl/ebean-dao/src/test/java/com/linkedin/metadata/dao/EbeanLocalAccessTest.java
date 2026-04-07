@@ -17,6 +17,7 @@ import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.query.IndexValue;
 import com.linkedin.metadata.query.SortOrder;
+import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectBaz;
 import com.linkedin.testing.AspectFoo;
@@ -32,6 +33,7 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -521,6 +523,157 @@ public class EbeanLocalAccessTest {
     assertEquals(createResult, 1);
     int numRowsDeleted = _ebeanLocalAccessFoo.softDeleteAsset(fooUrn, false);
     assertEquals(numRowsDeleted, 1);
+  }
+
+  // ===== batchUpsert() tests =====
+
+  @Test
+  public void testBatchUpsertMultipleAspects() {
+    // Arrange
+    FooUrn fooUrn = makeFooUrn(300);
+    AspectFoo foo = new AspectFoo().setValue("foo_value");
+    AspectBar bar = new AspectBar().setValue("bar_value");
+    List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts = Arrays.asList(
+        new BaseLocalDAO.AspectUpdateContext<>(null, foo, new BaseLocalDAO.AspectUpdateLambda<>(foo)),
+        new BaseLocalDAO.AspectUpdateContext<>(null, bar, new BaseLocalDAO.AspectUpdateLambda<>(bar))
+    );
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+
+    // Act
+    int result = _ebeanLocalAccessFoo.batchUpsert(fooUrn, updateContexts, auditStamp, null, false);
+
+    // Assert - verify return value
+    assertEquals(result, 1);
+    
+    // Verify AspectFoo was written with correct content
+    AspectKey<FooUrn, AspectFoo> fooKey = new AspectKey<>(AspectFoo.class, fooUrn, 0L);
+    List<EbeanMetadataAspect> fooResults = _ebeanLocalAccessFoo.batchGetUnion(
+        Collections.singletonList(fooKey), 1, 0, false, false);
+    assertEquals(1, fooResults.size());
+    assertEquals("{\"value\":\"foo_value\"}", fooResults.get(0).getMetadata());
+    assertEquals(fooUrn.toString(), fooResults.get(0).getKey().getUrn());
+    
+    // Verify AspectBar was written with correct content
+    AspectKey<FooUrn, AspectBar> barKey = new AspectKey<>(AspectBar.class, fooUrn, 0L);
+    List<EbeanMetadataAspect> barResults = _ebeanLocalAccessFoo.batchGetUnion(
+        Collections.singletonList(barKey), 1, 0, false, false);
+    assertEquals(1, barResults.size());
+    assertEquals("{\"value\":\"bar_value\"}", barResults.get(0).getMetadata());
+  }
+
+  @Test
+  public void testBatchUpsertSingleAspect() {
+    // Arrange
+    FooUrn fooUrn = makeFooUrn(301);
+    AspectFoo foo = new AspectFoo().setValue("single");
+    List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts = 
+        Collections.singletonList(new BaseLocalDAO.AspectUpdateContext<>(null, foo, new BaseLocalDAO.AspectUpdateLambda<>(foo)));
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+
+    // Act
+    int result = _ebeanLocalAccessFoo.batchUpsert(fooUrn, updateContexts, auditStamp, null, false);
+
+    // Assert - verify return value
+    assertEquals(result, 1);
+    
+    // Verify aspect was written with correct content
+    AspectKey<FooUrn, AspectFoo> aspectKey = new AspectKey<>(AspectFoo.class, fooUrn, 0L);
+    List<EbeanMetadataAspect> results = _ebeanLocalAccessFoo.batchGetUnion(
+        Collections.singletonList(aspectKey), 1, 0, false, false);
+    assertEquals(1, results.size());
+    assertEquals("{\"value\":\"single\"}", results.get(0).getMetadata());
+    assertEquals(fooUrn.toString(), results.get(0).getKey().getUrn());
+    assertEquals(AspectFoo.class.getCanonicalName(), results.get(0).getKey().getAspect());
+  }
+
+  @Test(expectedExceptions = NullPointerException.class)
+  public void testBatchUpsertWithNullAspect() {
+    // Arrange
+    FooUrn fooUrn = makeFooUrn(303);
+    AspectFoo foo = new AspectFoo().setValue("test");
+    // AspectUpdateContext constructor will throw NPE for null lambda due to @Nonnull
+    List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts = Arrays.asList(
+        new BaseLocalDAO.AspectUpdateContext<>(null, foo, new BaseLocalDAO.AspectUpdateLambda<>(foo)),
+        new BaseLocalDAO.AspectUpdateContext<>(null, null, null)  // null newValue and lambda should throw NPE
+    );
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+
+    // Act - should throw NPE from AspectUpdateContext constructor
+    _ebeanLocalAccessFoo.batchUpsert(fooUrn, updateContexts, auditStamp, null, false);
+  }
+
+  @Test
+  public void testBatchUpsertUpsertBehavior() {
+    // Arrange
+    FooUrn fooUrn = makeFooUrn(304);
+    AspectFoo foo1 = new AspectFoo().setValue("initial");
+    List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts1 = 
+        Collections.singletonList(new BaseLocalDAO.AspectUpdateContext<>(null, foo1, new BaseLocalDAO.AspectUpdateLambda<>(foo1)));
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+    
+    // First write
+    int result1 = _ebeanLocalAccessFoo.batchUpsert(fooUrn, updateContexts1, auditStamp, null, false);
+    assertEquals(result1, 1);
+    
+    // Verify initial value was written
+    AspectKey<FooUrn, AspectFoo> aspectKey = new AspectKey<>(AspectFoo.class, fooUrn, 0L);
+    List<EbeanMetadataAspect> initialResults = _ebeanLocalAccessFoo.batchGetUnion(
+        Collections.singletonList(aspectKey), 1, 0, false, false);
+    assertEquals(1, initialResults.size());
+    assertEquals("{\"value\":\"initial\"}", initialResults.get(0).getMetadata());
+    
+    // Act - upsert with new value
+    AspectFoo foo2 = new AspectFoo().setValue("updated");
+    List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts2 = 
+        Collections.singletonList(new BaseLocalDAO.AspectUpdateContext<>(null, foo2, new BaseLocalDAO.AspectUpdateLambda<>(foo2)));
+    int result2 = _ebeanLocalAccessFoo.batchUpsert(fooUrn, updateContexts2, auditStamp, null, false);
+
+    // Assert - MySQL returns 2 for ON DUPLICATE KEY UPDATE when updating existing row
+    assertEquals(result2, 2);
+    
+    // Verify value was updated in DB
+    List<EbeanMetadataAspect> updatedResults = _ebeanLocalAccessFoo.batchGetUnion(
+        Collections.singletonList(aspectKey), 1, 0, false, false);
+    assertEquals(1, updatedResults.size());
+    assertEquals("{\"value\":\"updated\"}", updatedResults.get(0).getMetadata());
+  }
+
+  /**
+   * Tests that batchUpsert() correctly persists IngestionTrackingContext fields (emitter, emitTime).
+   * Verifies that tracking metadata is stored in the AuditedAspect JSON and can be read back.
+   */
+  @Test
+  public void testBatchUpsertWithIngestionTrackingContext() {
+    // Arrange
+    FooUrn fooUrn = makeFooUrn(305);
+    AspectFoo foo = new AspectFoo().setValue("tracked_value");
+    List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts = 
+        Collections.singletonList(new BaseLocalDAO.AspectUpdateContext<>(null, foo, new BaseLocalDAO.AspectUpdateLambda<>(foo)));
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+    
+    long emitTime = System.currentTimeMillis();
+    IngestionTrackingContext trackingContext = new IngestionTrackingContext()
+        .setEmitter("test-emitter")
+        .setEmitTime(emitTime);
+
+    // Act
+    int result = _ebeanLocalAccessFoo.batchUpsert(fooUrn, updateContexts, auditStamp, trackingContext, false);
+
+    // Assert - verify return value
+    assertEquals(result, 1);
+    
+    // Verify aspect was written with correct content including IngestionTrackingContext fields
+    AspectKey<FooUrn, AspectFoo> aspectKey = new AspectKey<>(AspectFoo.class, fooUrn, 0L);
+    List<EbeanMetadataAspect> results = _ebeanLocalAccessFoo.batchGetUnion(
+        Collections.singletonList(aspectKey), 1, 0, false, false);
+    assertEquals(1, results.size());
+    assertEquals("{\"value\":\"tracked_value\"}", results.get(0).getMetadata());
+    
+    // Verify IngestionTrackingContext fields are persisted and readable
+    assertEquals("test-emitter", results.get(0).getEmitter(), 
+        "Emitter from IngestionTrackingContext should be persisted");
+    assertEquals(Long.valueOf(emitTime), results.get(0).getEmitTime(), 
+        "EmitTime from IngestionTrackingContext should be persisted");
   }
 
   // ==================== readDeletionInfoBatch tests ====================
