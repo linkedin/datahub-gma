@@ -12,7 +12,6 @@ import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.StringArray;
 import com.linkedin.metadata.aspect.AuditedAspect;
 import com.linkedin.metadata.backfill.BackfillMode;
-import com.linkedin.metadata.dao.EbeanLocalDAO.FindMethodology;
 import com.linkedin.metadata.dao.EbeanLocalDAO.SchemaConfig;
 import com.linkedin.metadata.dao.EbeanMetadataAspect.PrimaryKey;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder;
@@ -144,9 +143,6 @@ public class EbeanLocalDAOTest {
   // run the tests 1 time for each of EbeanLocalDAO.SchemaConfig values (3 total)
   private final SchemaConfig _schemaConfig;
 
-  // run the tests 1 time for each of EbeanLocalDAO.FindMethodology values (3 total)
-  private final FindMethodology _findMethodology;
-
   private final boolean _enableChangeLog;
 
   private static final String NEW_SCHEMA_CREATE_ALL_SQL = "ebean-local-dao-create-all.sql";
@@ -163,11 +159,10 @@ public class EbeanLocalDAOTest {
       .setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.OUTGOING);
 
   @Factory(dataProvider = "inputList")
-  public EbeanLocalDAOTest(SchemaConfig schemaConfig, FindMethodology findMethodology, boolean enableChangeLog,
+  public EbeanLocalDAOTest(SchemaConfig schemaConfig, boolean enableChangeLog,
       boolean nonDollarVirtualColumnEnabled) {
     _eBeanDAOConfig.setNonDollarVirtualColumnsEnabled(nonDollarVirtualColumnEnabled);
     _schemaConfig = schemaConfig;
-    _findMethodology = findMethodology;
     _enableChangeLog = enableChangeLog;
   }
 
@@ -185,20 +180,14 @@ public class EbeanLocalDAOTest {
     return new Object[][]{
 
         // tests with change history enabled (legacy mode)
-        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, true, true},
-        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, true, true},
-        {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID, true, true},
-        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, true, false},
-        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, true, false},
-        {SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL, true, false},
+        {SchemaConfig.OLD_SCHEMA_ONLY, true, true},
+        {SchemaConfig.NEW_SCHEMA_ONLY, true, true},
+        {SchemaConfig.DUAL_SCHEMA, true, false},
 
         // tests with change history disabled (cold-archive mode)
-        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, false, true},
-        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.UNIQUE_ID, false, true},
-        {SchemaConfig.DUAL_SCHEMA, FindMethodology.UNIQUE_ID, false, true},
-        {SchemaConfig.OLD_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, false, false},
-        {SchemaConfig.NEW_SCHEMA_ONLY, FindMethodology.DIRECT_SQL, false, false},
-        {SchemaConfig.DUAL_SCHEMA, FindMethodology.DIRECT_SQL, false, false},
+        {SchemaConfig.OLD_SCHEMA_ONLY, false, true},
+        {SchemaConfig.NEW_SCHEMA_ONLY, false, false},
+        {SchemaConfig.DUAL_SCHEMA, false, false},
 
     };
   }
@@ -231,7 +220,7 @@ public class EbeanLocalDAOTest {
   private <URN extends Urn> EbeanLocalDAO<EntityAspectUnion, URN> createDao(@Nonnull EbeanServer server,
       @Nonnull Class<URN> urnClass) {
     EbeanLocalDAO<EntityAspectUnion, URN> dao = new EbeanLocalDAO<>(EntityAspectUnion.class, _mockProducer, server,
-        EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()), urnClass, _schemaConfig, _findMethodology, _eBeanDAOConfig);
+        EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()), urnClass, _schemaConfig, _eBeanDAOConfig);
     // Since we added a_urn columns to both metadata_entity_foo and metadata_entity_bar tables in the SQL initialization scripts,
     // it is required that we set non-default UrnPathExtractors for the corresponding DAOs when initialized.
     if (urnClass == FooUrn.class) {

@@ -108,10 +108,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
   private boolean _noisyLogsEnabled = false;
 
-  // Which approach to be used for record retrieval when inserting a new record
-  // See GCN-38382
-  private FindMethodology _findMethodology = FindMethodology.UNIQUE_ID;
-
   // true if metadata change will be persisted into the change log table (metadata_aspect)
   private boolean _changeLogEnabled = true;
 
@@ -167,12 +163,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
           + "In old and dual schema modes, this setting is always disabled.");
       _overwriteLatestVersionEnabled = false;
     }
-  }
-
-  public enum FindMethodology {
-    UNIQUE_ID,      // (legacy) https://javadoc.io/static/io.ebean/ebean/11.19.2/io/ebean/EbeanServer.html#find-java.lang.Class-java.lang.Object-
-    DIRECT_SQL,     // https://javadoc.io/static/io.ebean/ebean/11.19.2/io/ebean/EbeanServer.html#findNative-java.lang.Class-java.lang.String-
-    QUERY_BUILDER   // https://javadoc.io/static/io.ebean/ebean/11.19.2/io/ebean/Ebean.html#find-java.lang.Class-
   }
 
   @Value
@@ -236,39 +226,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass, @Nonnull SchemaConfig schemaConfig,
       @Nonnull BaseTrackingManager trackingManager) {
     this(aspectUnionClass, producer, createServer(serverConfig), serverConfig, urnClass, schemaConfig, trackingManager);
-  }
-
-  /**
-   * Constructor for EbeanLocalDAO with the option to use an alternate Ebean find methodology for record insertion.
-   * See GCN-38382
-   *
-   * @param aspectUnionClass containing union of all supported aspects. Must be a valid aspect union defined in com.linkedin.metadata.aspect
-   * @param producer {@link BaseMetadataEventProducer} for the metadata event producer
-   * @param serverConfig {@link ServerConfig} that defines the configuration of EbeanServer instances
-   * @param urnClass Class of the entity URN
-   * @param findMethodology Enum indicating which find configuration to use
-   */
-  public EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
-      @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass, @Nonnull FindMethodology findMethodology) {
-    this(aspectUnionClass, producer, createServer(serverConfig), serverConfig, urnClass, findMethodology);
-  }
-
-  /**
-   * Constructor for EbeanLocalDAO with the option to use an alternate Ebean find methodology for record insertion.
-   * See GCN-38382
-   *
-   * @param aspectUnionClass containing union of all supported aspects. Must be a valid aspect union defined in com.linkedin.metadata.aspect
-   * @param producer {@link BaseTrackingMetadataEventProducer} for the metadata event producer
-   * @param serverConfig {@link ServerConfig} that defines the configuration of EbeanServer instances
-   * @param urnClass Class of the entity URN
-   * @param findMethodology Enum indicating which find configuration to use
-   * @param trackingManager {@link BaseTrackingManager} tracking manager for producing tracking requests
-   */
-  public EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass,
-      @Nonnull BaseTrackingMetadataEventProducer producer, @Nonnull ServerConfig serverConfig,
-      @Nonnull Class<URN> urnClass, @Nonnull FindMethodology findMethodology,
-      @Nonnull BaseTrackingManager trackingManager) {
-    this(aspectUnionClass, producer, createServer(serverConfig), serverConfig, urnClass, findMethodology, trackingManager);
   }
 
   /**
@@ -441,28 +398,11 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
   }
 
-  private EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
-      @Nonnull EbeanServer server, @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass, @Nonnull FindMethodology findMethodology) {
-    this(aspectUnionClass, producer, server, urnClass);
-    _findMethodology = findMethodology;
-  }
-
-  private EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass,
-      @Nonnull BaseTrackingMetadataEventProducer producer, @Nonnull EbeanServer server,
-      @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass, @Nonnull FindMethodology findMethodology,
-      @Nonnull BaseTrackingManager trackingManager) {
-    this(aspectUnionClass, producer, server, urnClass, trackingManager);
-    _findMethodology = findMethodology;
-  }
-
-  // Only called in testing (test all possible combos of SchemaConfig, FindMethodology)
   @VisibleForTesting
   EbeanLocalDAO(@Nonnull Class<ASPECT_UNION> aspectUnionClass, @Nonnull BaseMetadataEventProducer producer,
       @Nonnull EbeanServer server, @Nonnull ServerConfig serverConfig, @Nonnull Class<URN> urnClass,
-      @Nonnull SchemaConfig schemaConfig,
-      @Nonnull FindMethodology findMethodology, @Nonnull EBeanDAOConfig ebeanDAOConfig) {
+      @Nonnull SchemaConfig schemaConfig, @Nonnull EBeanDAOConfig ebeanDAOConfig) {
     this(aspectUnionClass, producer, server, serverConfig, urnClass, schemaConfig);
-    _findMethodology = findMethodology;
     if (schemaConfig != SchemaConfig.OLD_SCHEMA_ONLY) {
       _localAccess = new EbeanLocalAccess<>(server, serverConfig, urnClass, _urnPathExtractor, ebeanDAOConfig.isNonDollarVirtualColumnsEnabled());
     }
@@ -860,18 +800,7 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY || _schemaConfig == SchemaConfig.DUAL_SCHEMA) {
       final String aspectName = ModelUtils.getAspectName(aspectClass);
       final PrimaryKey key = new PrimaryKey(urn.toString(), aspectName, LATEST_VERSION);
-      if (_findMethodology == FindMethodology.DIRECT_SQL) {
-        result = findLatestMetadataAspect(_server, urn, aspectClass);
-        if (result == null) {
-          // Attempt 1: retry
-          result = _server.find(EbeanMetadataAspect.class, key);
-          if (log.isDebugEnabled()) {
-            log.debug("Attempt 1: Retried on {}, {}", urn, result);
-          }
-        }
-      } else {
-        result = _server.find(EbeanMetadataAspect.class, key);
-      }
+      result = _server.find(EbeanMetadataAspect.class, key);
     } else {
       // for new schema, get latest data from the new schema entity table. (Resolving the read de-coupling issue)
       final List<EbeanMetadataAspect> results =
