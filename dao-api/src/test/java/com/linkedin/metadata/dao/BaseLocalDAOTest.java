@@ -6,10 +6,11 @@ import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.ingestion.AspectCallbackMapKey;
+import com.linkedin.metadata.dao.ingestion.AspectCallbackRegistry;
+import com.linkedin.metadata.dao.ingestion.AspectCallbackResponse;
 import com.linkedin.metadata.dao.ingestion.AspectCallbackRoutingClient;
 import com.linkedin.metadata.dao.ingestion.SampleAspectCallbackRoutingClient;
 import com.linkedin.metadata.dao.ingestion.SampleLambdaFunctionRegistryImpl;
-import com.linkedin.metadata.dao.ingestion.AspectCallbackRegistry;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
@@ -107,6 +108,14 @@ public class BaseLocalDAOTest {
         @Nonnull List<? extends RecordTemplate> aspectValues, @Nonnull AuditStamp newAuditStamp,
         @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
       return aspectValues.size();
+    }
+
+    @Override
+    protected <ASPECT_UNION extends RecordTemplate> int batchUpsertAspects(@Nonnull FooUrn urn,
+        @Nonnull List<AspectUpdateContext<RecordTemplate>> updateContexts,
+        @Nonnull AuditStamp auditStamp,
+        @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
+      return updateContexts.size();
     }
 
     @Override
@@ -864,5 +873,332 @@ public class BaseLocalDAOTest {
   public void testAspectTimestampSkipWriteInvalidBothIsNull() {
     // invalid, should skip
     assertEquals(_dummyLocalDAO.aspectTimestampSkipWrite(null, null), false);
+  }
+
+  // ===== addManyBatch() Tests =====
+
+  @Test
+  public void testAddManyBatchMAEEmission() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectBar bar = new AspectBar().setValue("bar");
+    _dummyLocalDAO.setAlwaysEmitAuditEvent(true);
+    
+    when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(null, null));
+    when(_mockGetLatestFunction.apply(any(), eq(AspectBar.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectBar>(null, null));
+
+    _dummyLocalDAO.addManyBatch(urn, Arrays.asList(foo, bar), _dummyAuditStamp, null);
+
+    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
+    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, bar);
+    verify(_mockEventProducer, times(1))
+        .produceAspectSpecificMetadataAuditEvent(urn, null, foo, AspectFoo.class, _dummyAuditStamp, IngestionMode.LIVE);
+    verify(_mockEventProducer, times(1))
+        .produceAspectSpecificMetadataAuditEvent(urn, null, bar, AspectBar.class, _dummyAuditStamp, IngestionMode.LIVE);
+  }
+
+  @Test
+  public void testAddManyBatchMAEEmissionWithEqualitySkip() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectBar bar = new AspectBar().setValue("bar");
+    _dummyLocalDAO.setAlwaysEmitAuditEvent(false);
+    
+    // foo already exists with same value, bar is new
+    when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(foo, null));
+    when(_mockGetLatestFunction.apply(any(), eq(AspectBar.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectBar>(null, null));
+
+    List<EntityAspectUnion> results = _dummyLocalDAO.addManyBatch(urn, Arrays.asList(foo, bar), _dummyAuditStamp, null);
+
+    // Both aspects are returned, but foo should not emit MAE due to equality
+    assertEquals(results.size(), 2);
+    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, bar);
+    verify(_mockEventProducer, times(1))
+        .produceAspectSpecificMetadataAuditEvent(urn, null, bar, AspectBar.class, _dummyAuditStamp, IngestionMode.LIVE);
+  }
+
+  @Test
+  public void testAddManyBatchPreUpdateHook() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectBar bar = new AspectBar().setValue("bar");
+    BiConsumer<FooUrn, AspectFoo> fooHook = mock(BiConsumer.class);
+    BiConsumer<FooUrn, AspectBar> barHook = mock(BiConsumer.class);
+    
+    when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(null, null));
+    when(_mockGetLatestFunction.apply(any(), eq(AspectBar.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectBar>(null, null));
+
+    _dummyLocalDAO.addPreUpdateHook(AspectFoo.class, fooHook);
+    _dummyLocalDAO.addPreUpdateHook(AspectBar.class, barHook);
+    _dummyLocalDAO.addManyBatch(urn, Arrays.asList(foo, bar), _dummyAuditStamp, null);
+
+    verify(fooHook, times(1)).accept(urn, foo);
+    verify(barHook, times(1)).accept(urn, bar);
+    verifyNoMoreInteractions(fooHook, barHook);
+  }
+
+  @Test
+  public void testAddManyBatchPostUpdateHook() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectBar bar = new AspectBar().setValue("bar");
+    BiConsumer<FooUrn, AspectFoo> fooHook = mock(BiConsumer.class);
+    BiConsumer<FooUrn, AspectBar> barHook = mock(BiConsumer.class);
+    
+    when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(null, null));
+    when(_mockGetLatestFunction.apply(any(), eq(AspectBar.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectBar>(null, null));
+
+    _dummyLocalDAO.addPostUpdateHook(AspectFoo.class, fooHook);
+    _dummyLocalDAO.addPostUpdateHook(AspectBar.class, barHook);
+    _dummyLocalDAO.addManyBatch(urn, Arrays.asList(foo, bar), _dummyAuditStamp, null);
+
+    verify(fooHook, times(1)).accept(urn, foo);
+    verify(barHook, times(1)).accept(urn, bar);
+    verifyNoMoreInteractions(fooHook, barHook);
+  }
+
+  @Test
+  public void testAddManyBatchTransactionBehavior() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectBar bar = new AspectBar().setValue("bar");
+    
+    when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(null, null));
+    when(_mockGetLatestFunction.apply(any(), eq(AspectBar.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectBar>(null, null));
+
+    _dummyLocalDAO.addManyBatch(urn, Arrays.asList(foo, bar), _dummyAuditStamp, null);
+
+    // Should execute in a single transaction
+    verify(_mockTransactionRunner, times(1)).run(any());
+  }
+
+  @Test
+  public void testAddManyBatchWithTrackingContext() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    IngestionTrackingContext mockTrackingContext = mock(IngestionTrackingContext.class);
+    DummyLocalDAO<EntityAspectUnion> dummyLocalDAO = new DummyLocalDAO<>(EntityAspectUnion.class,
+        _mockGetLatestFunction, _mockTrackingEventProducer, _mockTrackingManager,
+        _dummyLocalDAO._transactionRunner);
+    dummyLocalDAO.setEmitAuditEvent(true);
+    dummyLocalDAO.setAlwaysEmitAuditEvent(true);
+    dummyLocalDAO.setEmitAspectSpecificAuditEvent(true);
+    dummyLocalDAO.setAlwaysEmitAspectSpecificAuditEvent(true);
+    
+    when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(null, null));
+
+    dummyLocalDAO.addManyBatch(urn, Collections.singletonList(foo), _dummyAuditStamp, mockTrackingContext);
+
+    verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, null, foo);
+    verify(_mockTrackingEventProducer, times(1))
+        .produceAspectSpecificMetadataAuditEvent(urn, null, foo, AspectFoo.class, _dummyAuditStamp, mockTrackingContext, IngestionMode.LIVE);
+  }
+
+  @Test(expectedExceptions = IllegalArgumentException.class)
+  public void testAddManyBatchRejectsDuplicateAspects() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo1 = new AspectFoo().setValue("foo1");
+    AspectFoo foo2 = new AspectFoo().setValue("foo2");
+    
+    // Should throw IllegalArgumentException due to duplicate aspect class
+    _dummyLocalDAO.addManyBatch(urn, Arrays.asList(foo1, foo2), _dummyAuditStamp, null);
+  }
+
+  @Test
+  public void testAddManyBatchReturnsAllAspects() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectBar bar = new AspectBar().setValue("bar");
+    
+    // Both aspects already exist with same values
+    when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(foo, null));
+    when(_mockGetLatestFunction.apply(any(), eq(AspectBar.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectBar>(bar, null));
+
+    List<EntityAspectUnion> results = _dummyLocalDAO.addManyBatch(urn, Arrays.asList(foo, bar), _dummyAuditStamp, null);
+
+    // Both aspects are returned in the result list
+    assertEquals(results.size(), 2);
+  }
+
+  // ===== addManyBatch() Callback Tests =====
+
+  @Test
+  public void testAddManyBatchWithSingleAspectCallback() throws URISyntaxException {
+    // Test case 1: Single aspect with callback that transforms value
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectFoo expectedTransformed = new AspectFoo().setValue("bar"); // SampleAspectCallbackRoutingClient transforms to "bar"
+    _dummyLocalDAO.setAlwaysEmitAuditEvent(true);
+
+    // Register callback for AspectFoo
+    Map<AspectCallbackMapKey, AspectCallbackRoutingClient> aspectCallbackMap = new HashMap<>();
+    aspectCallbackMap.put(new AspectCallbackMapKey(AspectFoo.class, urn.getEntityType()), new SampleAspectCallbackRoutingClient());
+    AspectCallbackRegistry aspectCallbackRegistry = new AspectCallbackRegistry(aspectCallbackMap);
+    _dummyLocalDAO.setAspectCallbackRegistry(aspectCallbackRegistry);
+
+    when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(null, null));
+
+    _dummyLocalDAO.addManyBatch(urn, Collections.singletonList(foo), _dummyAuditStamp, null);
+
+    // Verify MAE is emitted with the TRANSFORMED value ("bar"), not the original ("foo")
+    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, expectedTransformed);
+    verify(_mockEventProducer, times(1))
+        .produceAspectSpecificMetadataAuditEvent(urn, null, expectedTransformed, AspectFoo.class, _dummyAuditStamp, IngestionMode.LIVE);
+  }
+
+  @Test
+  public void testAddManyBatchWithSingleAspectCallbackSkipped() throws URISyntaxException {
+    // Test case 2: Single aspect with callback that skips processing
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    _dummyLocalDAO.setAlwaysEmitAuditEvent(true);
+
+    // Create a skip-processing callback client
+    AspectCallbackRoutingClient<AspectFoo> skipClient = new AspectCallbackRoutingClient<AspectFoo>() {
+      @Override
+      public AspectCallbackResponse<AspectFoo> routeAspectCallback(com.linkedin.common.urn.Urn urn, 
+          AspectFoo newAspectValue, Optional<AspectFoo> existingAspectValue) {
+        return new AspectCallbackResponse<>(newAspectValue);
+      }
+      @Override
+      public boolean isSkipProcessing() {
+        return true; // Skip processing
+      }
+    };
+
+    Map<AspectCallbackMapKey, AspectCallbackRoutingClient> aspectCallbackMap = new HashMap<>();
+    aspectCallbackMap.put(new AspectCallbackMapKey(AspectFoo.class, urn.getEntityType()), skipClient);
+    AspectCallbackRegistry aspectCallbackRegistry = new AspectCallbackRegistry(aspectCallbackMap);
+    _dummyLocalDAO.setAspectCallbackRegistry(aspectCallbackRegistry);
+
+    when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(null, null));
+
+    List<EntityAspectUnion> results = _dummyLocalDAO.addManyBatch(urn, Collections.singletonList(foo), _dummyAuditStamp, null);
+
+    // Aspect should be skipped - no MAE emitted, empty results
+    assertEquals(results.size(), 0);
+    verify(_mockEventProducer, never()).produceMetadataAuditEvent(any(), any(), any());
+  }
+
+  @Test
+  public void testAddManyBatchWithTwoAspectsWithCallbacksNeitherSkipped() throws URISyntaxException {
+    // Test case 3: Two aspects, both have callbacks, neither skipped
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectBar bar = new AspectBar().setValue("originalBar");
+    AspectFoo expectedFooTransformed = new AspectFoo().setValue("bar"); // SampleAspectCallbackRoutingClient transforms to "bar"
+    AspectBar expectedBarTransformed = new AspectBar().setValue("transformedBar");
+    _dummyLocalDAO.setAlwaysEmitAuditEvent(true);
+
+    // Create callback for AspectBar that transforms value
+    AspectCallbackRoutingClient<AspectBar> barCallback = new AspectCallbackRoutingClient<AspectBar>() {
+      @Override
+      public AspectCallbackResponse<AspectBar> routeAspectCallback(com.linkedin.common.urn.Urn urn,
+          AspectBar newAspectValue, Optional<AspectBar> existingAspectValue) {
+        AspectBar transformed = new AspectBar().setValue("transformedBar");
+        return new AspectCallbackResponse<>(transformed);
+      }
+    };
+
+    Map<AspectCallbackMapKey, AspectCallbackRoutingClient> aspectCallbackMap = new HashMap<>();
+    aspectCallbackMap.put(new AspectCallbackMapKey(AspectFoo.class, urn.getEntityType()), new SampleAspectCallbackRoutingClient());
+    aspectCallbackMap.put(new AspectCallbackMapKey(AspectBar.class, urn.getEntityType()), barCallback);
+    AspectCallbackRegistry aspectCallbackRegistry = new AspectCallbackRegistry(aspectCallbackMap);
+    _dummyLocalDAO.setAspectCallbackRegistry(aspectCallbackRegistry);
+
+    when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(null, null));
+    when(_mockGetLatestFunction.apply(any(), eq(AspectBar.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectBar>(null, null));
+
+    _dummyLocalDAO.addManyBatch(urn, Arrays.asList(foo, bar), _dummyAuditStamp, null);
+
+    // Both aspects should be transformed by their respective callbacks
+    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, expectedFooTransformed);
+    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, expectedBarTransformed);
+  }
+
+  @Test
+  public void testAddManyBatchWithTwoAspectsWithCallbacksOneSkipped() throws URISyntaxException {
+    // Test case 4: Two aspects with callbacks, one skipped
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectBar bar = new AspectBar().setValue("barValue"); // Use different value to avoid confusion with transformed foo
+    AspectFoo expectedFooTransformed = new AspectFoo().setValue("bar"); // SampleAspectCallbackRoutingClient transforms to "bar"
+    _dummyLocalDAO.setAlwaysEmitAuditEvent(true);
+
+    // Create skip-processing callback for AspectBar
+    AspectCallbackRoutingClient<AspectBar> skipBarCallback = new AspectCallbackRoutingClient<AspectBar>() {
+      @Override
+      public AspectCallbackResponse<AspectBar> routeAspectCallback(com.linkedin.common.urn.Urn urn,
+          AspectBar newAspectValue, Optional<AspectBar> existingAspectValue) {
+        return new AspectCallbackResponse<>(newAspectValue);
+      }
+      @Override
+      public boolean isSkipProcessing() {
+        return true;
+      }
+    };
+
+    Map<AspectCallbackMapKey, AspectCallbackRoutingClient> aspectCallbackMap = new HashMap<>();
+    aspectCallbackMap.put(new AspectCallbackMapKey(AspectFoo.class, urn.getEntityType()), new SampleAspectCallbackRoutingClient());
+    aspectCallbackMap.put(new AspectCallbackMapKey(AspectBar.class, urn.getEntityType()), skipBarCallback);
+    AspectCallbackRegistry aspectCallbackRegistry = new AspectCallbackRegistry(aspectCallbackMap);
+    _dummyLocalDAO.setAspectCallbackRegistry(aspectCallbackRegistry);
+
+    when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(null, null));
+    when(_mockGetLatestFunction.apply(any(), eq(AspectBar.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectBar>(null, null));
+
+    List<EntityAspectUnion> results = _dummyLocalDAO.addManyBatch(urn, Arrays.asList(foo, bar), _dummyAuditStamp, null);
+
+    // Only foo should be processed (transformed to "bar"), bar should be skipped
+    assertEquals(results.size(), 1);
+    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, expectedFooTransformed);
+    // Verify AspectBar was never emitted (it was skipped)
+    verify(_mockEventProducer, never()).produceMetadataAuditEvent(eq(urn), any(), isA(AspectBar.class));
+  }
+
+  @Test
+  public void testAddManyBatchWithMixedCallbackRegistration() throws URISyntaxException {
+    // Test case 5: Two aspects, only one has callback registered
+    FooUrn urn = new FooUrn(1);
+    AspectFoo foo = new AspectFoo().setValue("foo");
+    AspectBar bar = new AspectBar().setValue("barValue"); // Use different value to distinguish from transformed foo
+    AspectFoo expectedFooTransformed = new AspectFoo().setValue("bar"); // SampleAspectCallbackRoutingClient transforms to "bar"
+    _dummyLocalDAO.setAlwaysEmitAuditEvent(true);
+
+    // Only register callback for AspectFoo, not AspectBar
+    Map<AspectCallbackMapKey, AspectCallbackRoutingClient> aspectCallbackMap = new HashMap<>();
+    aspectCallbackMap.put(new AspectCallbackMapKey(AspectFoo.class, urn.getEntityType()), new SampleAspectCallbackRoutingClient());
+    AspectCallbackRegistry aspectCallbackRegistry = new AspectCallbackRegistry(aspectCallbackMap);
+    _dummyLocalDAO.setAspectCallbackRegistry(aspectCallbackRegistry);
+
+    when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(null, null));
+    when(_mockGetLatestFunction.apply(any(), eq(AspectBar.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectBar>(null, null));
+
+    _dummyLocalDAO.addManyBatch(urn, Arrays.asList(foo, bar), _dummyAuditStamp, null);
+
+    // Foo should be transformed by callback, bar should pass through unchanged
+    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, expectedFooTransformed);
+    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, bar);
   }
 }

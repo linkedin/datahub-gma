@@ -8,6 +8,7 @@ import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.UnionTemplate;
+import com.linkedin.metadata.dao.EbeanMetadataAspect.PrimaryKey;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
 import com.linkedin.metadata.dao.builder.LocalRelationshipBuilderRegistry;
 import com.linkedin.metadata.dao.exception.ModelConversionException;
@@ -65,7 +66,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.persistence.OptimisticLockException;
-import javax.persistence.PersistenceException;
 import javax.persistence.RollbackException;
 import javax.persistence.Table;
 import lombok.Value;
@@ -593,12 +593,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         break;
       } catch (RollbackException | DuplicateKeyException | OptimisticLockException exception) {
         lastException = exception;
-      } catch (PersistenceException exception) {
-        if (isTransientDatabaseException(exception)) {
-          lastException = exception;
-        } else {
-          throw exception;
-        }
       }
     } while (++retryCount <= maxTransactionRetry);
 
@@ -607,26 +601,6 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
 
     return result;
-  }
-
-  /**
-   * Checks if a {@link PersistenceException} wraps a transient database error that is safe to retry.
-   * Walks the cause chain looking for known transient SQL error messages such as closed connections
-   * or deadlocks that are caused by infrastructure issues rather than bad data.
-   */
-  private static boolean isTransientDatabaseException(@Nonnull PersistenceException exception) {
-    Throwable cause = exception;
-    while (cause != null) {
-      String message = cause.getMessage();
-      if (message != null && (message.contains("Connection is closed")
-          || message.contains("Deadlock found")
-          || message.contains("Lock wait timeout")
-          || message.contains("Communications link failure"))) {
-        return true;
-      }
-      cause = cause.getCause();
-    }
-    return false;
   }
 
   /**
@@ -764,6 +738,28 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
         RecordTemplate newValue = aspectValues.get(i);
         handleRelationshipIngestion(urn, newValue, null, aspectClass, isTestMode);
       }
+      return rows;
+    }, 1);
+  }
+
+  @Override
+  protected <ASPECT_UNION extends RecordTemplate> int batchUpsertAspects(@Nonnull URN urn,
+      @Nonnull List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts,
+      @Nonnull AuditStamp auditStamp,
+      @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
+    // Wrap in transaction with retry, just like createNewAssetWithAspects()
+    return runInTransactionWithRetry(() -> {
+      // Execute batch upsert - pass contexts directly
+      int rows = _localAccess.batchUpsert(urn, updateContexts, auditStamp, trackingContext, isTestMode);
+
+      // also insert any relationships associated with these aspects
+      // NOTE: basically if an aspect appears in the payload at all, "should I write this aspect" checks have already passed,
+      //       so its relationships are meant to be written (as well)
+      for (BaseLocalDAO.AspectUpdateContext<RecordTemplate> ctx : updateContexts) {
+        Class<RecordTemplate> aspectClass = (Class<RecordTemplate>) ctx.getLambda().getAspectClass();
+        handleRelationshipIngestion(urn, ctx.getNewValue(), ctx.getOldValue(), aspectClass, isTestMode);
+      }
+
       return rows;
     }, 1);
   }
