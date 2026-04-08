@@ -795,10 +795,13 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     // STEP 3: Execute batch SQL (1 query) - only for changed aspects
     if (!contextsToWrite.isEmpty()) {
+      // If ANY aspect in the batch has isTestMode=true, the entire batch runs in test mode.
+      // This follows the established precedent in createAssetWithAspects() (see PR #498) where the create pathway
+      // applies the same logic. The assumption is that test mode is a property of the ingestion request, not
+      // individual aspects — callers should never mix test and non-test aspects in a single batch.
       boolean isTestMode = contextsToWrite.stream()
           .anyMatch(ctx -> ctx.getLambda().getIngestionParams().isTestMode());
-      
-      // NOTE: basically if an aspect appears here then its relationships are meant to be written (as well)
+
       batchUpsertAspects(urn, contextsToWrite, auditStamp, trackingContext, isTestMode);
     }
 
