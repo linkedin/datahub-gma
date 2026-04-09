@@ -39,7 +39,7 @@ Status: **Draft**
 - [ ] Enable `werror` for all Java code.
 - [ ] Remove use of tuples library (not idiomatic Java - replace with helper classes / POJOs).
 - [x] Elasticsearch 7 support.
-- [ ] Java 11 support.
+- [x] Java 11 support.
 
 ---
 
