@@ -56,20 +56,13 @@ For consistency please import and auto format the code using
 
 ### Getting `Unsupported class file major version 57`
 
-You're probably using a Java version that's too new for gradle. Run the following command to check your Java version
+You're probably using a Java version that's too new for Gradle. Gradle 6.9.4 supports up to JDK 16. Run the following
+command to check your Java version
 
 ```
 java --version
 ```
 
-While it may be possible to build and run DataHub using newer versions of Java, we currently only support
-[Java 1.8](https://www.oracle.com/java/technologies/javase/javase-jdk8-downloads.html) (aka Java 8). Plan for Java 11
-migration is being discussed in [this issue](https://github.com/linkedin/datahub/issues/1699).
-
-### Getting `cannot find symbol` error for `javax.annotation.Generated`
-
-Similar to the previous issue, please use Java 1.8 to build the project.
-
-You can install multiple version of Java on a single machine and switch between them using the `JAVA_HOME` environment
-variable. See [this document](https://docs.oracle.com/cd/E21454_01/html/821-2531/inst_jdk_javahome_t.html) for more
-details.
+This project requires [Java 11](https://adoptium.net/) or later to build. If you have multiple JDK versions installed,
+you can switch between them using the `JAVA_HOME` environment variable. See
+[this document](https://docs.oracle.com/cd/E21454_01/html/821-2531/inst_jdk_javahome_t.html) for more details.

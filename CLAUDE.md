@@ -9,7 +9,7 @@ platform. It provides type-safe, schema-driven metadata management with event-dr
 storage backends (SQL via Ebean, Elasticsearch for search). Built on LinkedIn's Pegasus data framework and Rest.li for
 REST APIs.
 
-**Java version**: 1.8 (Java 8) — required, newer versions will cause build failures.
+**Java version**: 11 (Java 11) — minimum required version.
 
 ## Build Commands
 
