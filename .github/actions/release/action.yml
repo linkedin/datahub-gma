@@ -7,10 +7,6 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - uses: actions/setup-java@v3
-      with:
-        java-version: '11'
-        distribution: 'temurin'
     - id: get-tag
       run: echo "::set-output name=tag::$(./gradlew -q getVersion)"
       shell: bash
