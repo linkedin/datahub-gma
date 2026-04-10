@@ -164,15 +164,6 @@ public class SQLStatementUtils {
   private static final String DELETE_BY_SOURCE_AND_ASPECT = "UPDATE %s SET deleted_ts=NOW() "
       + "WHERE source = :source AND (aspect = :aspect OR aspect = :pegasus_aspect) AND deleted_ts IS NULL";
 
-  /**
-   *  Filter query has pagination params in the existing APIs. To accommodate this, we use subquery to include total result counts in the query response.
-   *  For example, we will build the following filter query statement:
-   *
-   *  <p>SELECT urn, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE i_aspectfoo$value >= 25\n"
-   *  AND i_aspectfoo$value < 50 AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL) as _total_count FROM metadata_entity_foo\n"
-   *  WHERE i_aspectfoo$value >= 25 AND i_aspectfoo$value < 50 AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL LIMIT :limit OFFSET :offset;
-   */
-  private static final String SQL_FILTER_TEMPLATE = "SELECT urn, (%s) as _total_count FROM %s";
   private static final String SQL_BROWSE_ASPECT_TEMPLATE =
       String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby, (SELECT COUNT(urn) FROM %%s) as _total_count "
           + "FROM %%s WHERE %s LIMIT %%d OFFSET %%d", SOFT_DELETED_CHECK);
@@ -389,26 +380,14 @@ public class SQLStatementUtils {
    * Create filter SQL statement.
    * @param entityType entity type from urn
    * @param indexFilter index filter
-   * @param hasTotalCount whether to calculate total count in SQL.
    * @param nonDollarVirtualColumnsEnabled  true if virtual column does not contain $, false otherwise
    * @return translated SQL where statement
    */
-  public static String createFilterSql(String entityType, @Nullable IndexFilter indexFilter, boolean hasTotalCount, boolean nonDollarVirtualColumnsEnabled,
+  public static String createFilterSql(String entityType, @Nullable IndexFilter indexFilter, boolean nonDollarVirtualColumnsEnabled,
       @Nonnull SchemaValidatorUtil schemaValidator) {
     final String tableName = getTableName(entityType);
     String whereClause = parseIndexFilter(entityType, indexFilter, nonDollarVirtualColumnsEnabled, schemaValidator);
-    String totalCountSql = String.format("SELECT COUNT(urn) FROM %s %s", tableName, whereClause);
-    StringBuilder sb = new StringBuilder();
-
-    if (hasTotalCount) {
-      sb.append(String.format(SQL_FILTER_TEMPLATE, totalCountSql, tableName));
-    } else {
-      sb.append("SELECT urn FROM ").append(tableName);
-    }
-
-    sb.append("\n");
-    sb.append(whereClause);
-    return sb.toString();
+    return "SELECT urn FROM " + tableName + "\n" + whereClause;
   }
 
   /**

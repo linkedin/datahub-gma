@@ -360,15 +360,24 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   @Override
   public ListResult<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       int start, int pageSize) {
-    final SqlQuery sqlQuery = createFilterSqlQuery(indexFilter, indexSortCriterion, start, pageSize);
-    final List<SqlRow> sqlRows = sqlQuery.findList();
-    if (sqlRows.isEmpty()) {
-      final List<SqlRow> totalCountResults = createFilterSqlQuery(indexFilter, indexSortCriterion, 0, DEFAULT_PAGE_SIZE).findList();
-      final int actualTotalCount = totalCountResults.isEmpty() ? 0 : totalCountResults.get(0).getInteger("_total_count");
-      return toListResult(actualTotalCount, start, pageSize);
+    // Run COUNT in a separate query/transaction so neither query exceeds the 5s kill threshold.
+    final String baseSql = SQLStatementUtils.createFilterSql(_entityType, indexFilter, _nonDollarVirtualColumnsEnabled, validator);
+    final String countSql = baseSql.replaceFirst("SELECT urn", "SELECT COUNT(urn) AS _total_count");
+    final SqlRow countRow = _server.createSqlQuery(countSql).findOne();
+    final int totalCount = (countRow == null) ? 0 : countRow.getInteger("_total_count");
+    if (totalCount == 0) {
+      return toListResult(0, start, pageSize);
     }
+
+    // Paginated URN query without embedded COUNT subquery.
+    StringBuilder selectSql = new StringBuilder(baseSql);
+    selectSql.append("\n");
+    selectSql.append(parseSortCriteria(_entityType, indexSortCriterion, _nonDollarVirtualColumnsEnabled, validator));
+    selectSql.append(String.format(" LIMIT %d", Math.max(pageSize, 0)));
+    selectSql.append(String.format(" OFFSET %d", Math.max(start, 0)));
+    final List<SqlRow> sqlRows = _server.createSqlQuery(selectSql.toString()).findList();
     final List<URN> values = sqlRows.stream().map(sqlRow -> getUrn(sqlRow.getString("urn"), _urnClass)).collect(Collectors.toList());
-    return toListResult(values, sqlRows, null, start, pageSize);
+    return toListResult(totalCount, start, pageSize, values);
   }
 
   @Override
@@ -491,29 +500,12 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   }
 
   /**
-   * Produce {@link SqlQuery} for list urn by offset (start) and limit (pageSize).
-   * @param indexFilter index filter conditions
-   * @param indexSortCriterion sorting criterion, default ACS
-   * @return SqlQuery a SQL query which can be executed by ebean server.
-   */
-  private SqlQuery createFilterSqlQuery(@Nullable IndexFilter indexFilter,
-      @Nullable IndexSortCriterion indexSortCriterion, int offset, int pageSize) {
-    StringBuilder filterSql = new StringBuilder();
-    filterSql.append(SQLStatementUtils.createFilterSql(_entityType, indexFilter, true, _nonDollarVirtualColumnsEnabled, validator));
-    filterSql.append("\n");
-    filterSql.append(parseSortCriteria(_entityType, indexSortCriterion, _nonDollarVirtualColumnsEnabled, validator));
-    filterSql.append(String.format(" LIMIT %d", Math.max(pageSize, 0)));
-    filterSql.append(String.format(" OFFSET %d", Math.max(offset, 0)));
-    return _server.createSqlQuery(filterSql.toString());
-  }
-
-  /**
    * Produce {@link SqlQuery} for list urns by last urn.
    */
   private SqlQuery createFilterSqlQuery(@Nullable IndexFilter indexFilter,
       @Nullable IndexSortCriterion indexSortCriterion, @Nullable URN lastUrn, int pageSize) {
     StringBuilder filterSql = new StringBuilder();
-    filterSql.append(SQLStatementUtils.createFilterSql(_entityType, indexFilter, false, _nonDollarVirtualColumnsEnabled, validator));
+    filterSql.append(SQLStatementUtils.createFilterSql(_entityType, indexFilter, _nonDollarVirtualColumnsEnabled, validator));
 
     if (lastUrn != null) {
       // because createFilterSql will always include a WHERE clause to filter by deleted_ts is NULL
@@ -562,6 +554,36 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     }
     return ListResult.<T>builder()
         .values(Collections.emptyList())
+        .metadata(null)
+        .nextStart(nextStart)
+        .havingMore(hasNext)
+        .totalCount(totalCount)
+        .totalPageCount(totalPageCount)
+        .pageSize(pageSize)
+        .build();
+  }
+
+  @Nonnull
+  protected <T> ListResult<T> toListResult(int totalCount, int start, int pageSize, @Nonnull List<T> values) {
+    if (pageSize == 0) {
+      pageSize = DEFAULT_PAGE_SIZE;
+    }
+    final int totalPageCount = ceilDiv(totalCount, pageSize);
+    boolean hasNext;
+    int nextStart;
+    if (values.size() < totalCount - start) {
+      hasNext = true;
+      nextStart = start + values.size();
+    } else if (values.size() == totalCount - start || totalCount == 0 || totalCount - start < 0) {
+      hasNext = false;
+      nextStart = ListResult.INVALID_NEXT_START;
+    } else {
+      throw new RuntimeException(
+          String.format("Row count (%d) is more than total count of (%d) starting from offset of (%s)", values.size(),
+              totalCount, start));
+    }
+    return ListResult.<T>builder()
+        .values(values)
         .metadata(null)
         .nextStart(nextStart)
         .havingMore(hasNext)
