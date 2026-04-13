@@ -73,6 +73,8 @@ import javax.annotation.Nullable;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NonNull;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
@@ -143,25 +145,25 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    *
    * @param <ASPECT> the type of the aspect being updated
    */
+  @Getter
   @AllArgsConstructor
-  @Value
   public static class AspectUpdateLambda<ASPECT extends RecordTemplate> {
     @NonNull
-    Class<ASPECT> aspectClass;
+    protected final Class<ASPECT> aspectClass;
 
     @NonNull
-    Function<Optional<ASPECT>, ASPECT> updateLambda;
+    protected final Function<Optional<ASPECT>, ASPECT> updateLambda;
 
     @NonNull
-    IngestionParams ingestionParams;
+    protected final IngestionParams ingestionParams;
 
-    AspectUpdateLambda(ASPECT value) {
+    public AspectUpdateLambda(ASPECT value) {
       this.aspectClass = (Class<ASPECT>) value.getClass();
       this.updateLambda = (ignored) -> value;
       this.ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
     }
 
-    AspectUpdateLambda(@NonNull Class<ASPECT> aspectClass, @NonNull Function<Optional<ASPECT>, ASPECT> updateLambda) {
+    public AspectUpdateLambda(@NonNull Class<ASPECT> aspectClass, @NonNull Function<Optional<ASPECT>, ASPECT> updateLambda) {
       this.aspectClass = aspectClass;
       this.updateLambda = updateLambda;
       this.ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
@@ -171,22 +173,19 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   /**
    * Immutable class to hold the details of a Create to an aspect.
    *
+   * <p>This class extends AspectUpdateLambda because create is conceptually a special case of update
+   * where the transformation function ignores the old value and always returns the new value.
+   *
    * <p>This class allows the wildcard capture in {@link #create(Urn, List, AuditStamp, IngestionTrackingContext, IngestionParams)}</p>
    *
-   * @param <ASPECT> the type of the aspect being updated
+   * @param <ASPECT> the type of the aspect being created
    */
-  @AllArgsConstructor
   @Value
-  public static class AspectCreateLambda<ASPECT extends RecordTemplate> {
-    @Nonnull
-    Class<ASPECT> aspectClass;
-
-    @Nonnull
-    IngestionParams ingestionParams;
-
+  @EqualsAndHashCode(callSuper = true)
+  public static class AspectCreateLambda<ASPECT extends RecordTemplate> extends AspectUpdateLambda<ASPECT> {
+    
     public AspectCreateLambda(@Nonnull ASPECT value) {
-      this.aspectClass = (Class<ASPECT>) value.getClass();
-      ingestionParams = new IngestionParams().setIngestionMode(IngestionMode.LIVE);
+      super(value); // Uses AspectUpdateLambda constructor that creates lambda: (ignored) -> value
     }
   }
 
@@ -195,6 +194,27 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   protected static class AspectUpdateResult<ASPECT extends RecordTemplate> {
     private ASPECT updatedAspect;
     private boolean skipProcessing;
+  }
+
+  /**
+   * Immutable class to package aspect update context for batch operations.
+   * Eliminates the need for multiple parallel lists by bundling related data together.
+   * 
+   * <p>The 'newValue' field contains the final computed value after all transformations (lambda application,
+   * callback processing, lambda function registry). This is the value that will be persisted to the database.
+   *
+   * @param <ASPECT> the type of the aspect being updated
+   */
+  @Value
+  static class AspectUpdateContext<ASPECT extends RecordTemplate> {
+    @Nullable
+    ASPECT oldValue;
+
+    @Nonnull
+    ASPECT newValue;
+    
+    @Nonnull
+    AspectUpdateLambda<ASPECT> lambda;
   }
 
   private static final String DEFAULT_ID_NAMESPACE = "global";
@@ -507,18 +527,6 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     final AuditStamp oldAuditStamp = latest.getExtraInfo() == null ? null : latest.getExtraInfo().getAudit();
     final Long oldEmitTime = latest.getExtraInfo() == null ? null : latest.getExtraInfo().getEmitTime();
 
-    final boolean isBackfillEvent = trackingContext != null
-        && trackingContext.hasBackfill() && trackingContext.isBackfill();
-    if (isBackfillEvent) {
-      boolean shouldBackfill = shouldBackfill(urn, latest, aspectClass, trackingContext);
-      log.info("Encounter backfill event. Old value = null: {}. isSoftDeleted: {}. Tracking context: {}. Urn: {}. "
-              + "Aspect class: {}. Old audit stamp: {}. Old emit time: {}. "
-              + "Based on this information, shouldBackfill = {}.",
-          oldValue == null, latest.isSoftDeleted(), trackingContext, urn, aspectClass, oldAuditStamp, oldEmitTime, shouldBackfill);
-      if (!shouldBackfill) {
-        return new AddResult<>(oldValue, oldValue, aspectClass);
-      }
-    }
     // TODO(yanyang) added for job-gms duplicity debug, throwaway afterwards
     if (log.isDebugEnabled()) {
       if ("AzkabanFlowInfo".equals(aspectClass.getSimpleName())) {
@@ -530,9 +538,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     final AuditStamp optimisticLockAuditStamp = extractOptimisticLockForAspectFromIngestionParamsIfPossible(ingestionParams, aspectClass, urn);
 
-    // Logic determines whether an update to aspect should be persisted.
+    // Unified logic determines whether an update to aspect should be persisted (includes backfill, equality, version, mode checks)
     if (!shouldUpdateAspect(ingestionParams.getIngestionMode(), urn, oldValue, newValue, aspectClass, auditStamp, equalityTester,
-        oldAuditStamp, optimisticLockAuditStamp)) {
+        oldAuditStamp, optimisticLockAuditStamp, trackingContext, oldEmitTime, latest.isSoftDeleted())) {
       return new AddResult<>(oldValue, oldValue, aspectClass);
     }
 
@@ -549,48 +557,49 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * Determines whether a backfill event should be applied.
+   * Determines whether a backfill event should be applied, with soft-delete awareness.
+   *
+   * <p>Three-way logic:
+   * <ol>
+   *   <li>oldValue==null && !isSoftDeleted: aspect never existed — allow unconditionally</li>
+   *   <li>oldValue==null && isSoftDeleted: aspect was deleted — compare emitTime > deletion timestamp</li>
+   *   <li>oldValue!=null: aspect exists — standard emitTime comparison</li>
+   * </ol>
    */
   private <ASPECT extends RecordTemplate> boolean shouldBackfill(
-      @Nonnull URN urn,
-      @Nonnull AspectEntry<ASPECT> latest,
-      @Nonnull Class<ASPECT> aspectClass,
-      @Nonnull IngestionTrackingContext trackingContext) {
-
-    final ASPECT oldValue = latest.getAspect();
-    final AuditStamp oldAuditStamp = latest.getExtraInfo() == null ? null : latest.getExtraInfo().getAudit();
-    final Long oldEmitTime = latest.getExtraInfo() == null ? null : latest.getExtraInfo().getEmitTime();
+      @Nonnull URN urn, @Nullable ASPECT oldValue, boolean isSoftDeleted,
+      @Nonnull Class<ASPECT> aspectClass, @Nonnull IngestionTrackingContext trackingContext,
+      @Nullable AuditStamp oldAuditStamp, @Nullable Long oldEmitTime) {
 
     // 1. Aspect has never existed (no value, not soft-deleted) — safe to backfill unconditionally.
-    // This is the only case where we allow backfill without an emitTime comparison.
-    if (oldValue == null && !latest.isSoftDeleted()) {
+    if (oldValue == null && !isSoftDeleted) {
       return true;
     }
 
-    // 2. All remaining cases require emitTime to determine staleness. Without emitTime we cannot safely compare, so reject the backfill.
+    // 2. All remaining cases require emitTime to determine staleness.
     if (!trackingContext.hasEmitTime()) {
       return false;
     }
     long emitTime = trackingContext.getEmitTime();
-    // 3. Aspect was soft-deleted (oldValue is null because the aspect was deleted, not because it never existed).
-    // Compare emitTime against the per-aspect deletion timestamp (from SoftDeletedAspect.deleted_timestamp,
-    // surfaced via oldAuditStamp) to prevent stale DLQ replays from resurrecting deleted aspects.
-    // Uses strict > (not >=) — an event at the exact same millisecond as the deletion is treated as stale,
-    // since it was likely in-flight when delete occurred.
+
+    // 3. Aspect was soft-deleted — compare emitTime against per-aspect deletion timestamp
+    // to prevent stale DLQ replays from resurrecting deleted aspects.
     if (oldValue == null) {
-      // If the deletion timestamp is missing or invalid, we can't safely compare — reject and warn.
       if (oldAuditStamp == null || !oldAuditStamp.hasTime()) {
-        log.warn("Soft-deleted entity has valid emitTime but missing/invalid deletion timestamp. Backfill will be rejected. Urn: {}. Aspect: {}. "
-            + "emitTime: {}. oldAuditStamp: {}.", urn, aspectClass, emitTime, oldAuditStamp);
+        log.warn("Soft-deleted entity has valid emitTime but missing/invalid deletion timestamp. "
+            + "Backfill will be rejected. Urn: {}. Aspect: {}. emitTime: {}. oldAuditStamp: {}.",
+            urn, aspectClass, emitTime, oldAuditStamp);
         return false;
       }
       return emitTime > oldAuditStamp.getTime();
     }
-    // 4. Aspect exists with a current value — standard staleness check. Prefer comparing against the old event's emitTime (most accurate).
+
+    // 4. Aspect exists — standard staleness check against old emitTime.
     if (oldEmitTime != null) {
       return emitTime > oldEmitTime;
     }
-    // 5. Old emitTime unavailable — fall back to the aspect's last-modified audit timestamp. This is less precise but the best available signal.
+
+    // 5. Fall back to audit timestamp if old emitTime unavailable.
     return oldAuditStamp != null && oldAuditStamp.hasTime() && emitTime > oldAuditStamp.getTime();
   }
 
@@ -678,6 +687,211 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
         .collect(Collectors.toList());
 
     return addMany(urn, aspectUpdateLambdas, auditStamp, DEFAULT_MAX_TRANSACTION_RETRY, trackingContext);
+  }
+
+  /**
+   * Batch upsert multiple aspects for a single URN using optimized batched read and write operations.
+   * This method processes all aspects through validation/callbacks before executing a single batch SQL update.
+   *
+   * <p>Differences from addMany():
+   * - Uses 2 queries (1 batched read + 1 batched write) instead of 2N queries (N reads + N writes)
+   * - DOES read old values for equality testing, backfill logic, and lambda functions
+   * - DOES support Lambda Function Registry transformations, aspect callbacks, validation, and pre/post-update hooks
+   * - DOES skip DB writes for unchanged aspects (equality testing)
+   * - DOES skip MAE emission for unchanged aspects
+   * - Only writes changed aspects in a single batch operation
+   *
+   * @param urn entity URN
+   * @param aspectValues list of aspect values to upsert
+   * @param auditStamp audit stamp for tracking
+   * @param trackingContext tracking context for ingestion
+   * @return list of aspect unions (with actual old values for proper MAE emission)
+   */
+  public List<ASPECT_UNION> addManyBatch(@Nonnull URN urn, @Nonnull List<? extends RecordTemplate> aspectValues,
+      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext) {
+    // Convert to AspectUpdateLambda with default IngestionParams (LIVE mode)
+    List<AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas = aspectValues.stream()
+        .map(AspectUpdateLambda::new)
+        .collect(Collectors.toList());
+    return batchUpsert(urn, aspectUpdateLambdas, auditStamp, trackingContext);
+  }
+
+  /**
+   * Transactional batch upsert with explicit AspectUpdateLambda support.
+   * Use this variant when you need to pass custom IngestionParams or collection update lambdas
+   * per aspect. Each AspectUpdateLambda bundles the aspect class, a transformation function
+   * (applied against the existing DB value), and IngestionParams.
+   *
+   * @param urn entity URN
+   * @param aspectUpdateLambdas list of aspect update lambdas to upsert
+   * @param auditStamp audit stamp for tracking
+   * @param trackingContext tracking context for ingestion
+   * @return list of aspect unions (with actual old values for proper MAE emission)
+   */
+  public List<ASPECT_UNION> batchUpsert(@Nonnull URN urn,
+      @Nonnull List<AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas,
+      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext) {
+    // ingest aspects and process callbacks in a single transaction
+    return runInTransactionWithRetry(() -> {
+          return addManyBatchInternal(urn, aspectUpdateLambdas, auditStamp, trackingContext);
+        }, DEFAULT_MAX_TRANSACTION_RETRY
+    );
+  }
+
+  /**
+   * Batch upsert with AspectUpdateLambda support (enables test mode and ingestion params).
+   *
+   * <p>Note: This method is called WITHIN a transaction by addManyBatch().
+   * It should not handle its own transaction logic.
+   *
+   * <p>NOTE: This is structurally very similar to createAspectsWithCallbacks(), some future refactoring can be done to
+   * share the logic between the two.
+   *
+   * <p><b>Aspect Skip Reasons:</b> An aspect may be skipped from processing/writing for the following reasons:
+   * <ul>
+   *   <li><b>Callback skip:</b> {@code aspectCallbackHelper()} returns {@code isSkipProcessing() == true} - 
+   *       the registered {@link AspectCallbackRoutingClient} explicitly requests skipping this aspect.</li>
+   *   <li><b>Callback returns null:</b> {@code aspectCallbackHelper()} returns a null updated aspect.</li>
+   *   <li><b>shouldUpdateAspect returns false:</b> See {@link #shouldUpdateAspect} for details on equality, 
+   *       backfill, version, and timestamp skip conditions.</li>
+   * </ul>
+   */
+  List<ASPECT_UNION> addManyBatchInternal(@Nonnull URN urn,
+      @Nonnull List<AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas,
+      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext) {
+
+    // Validate all aspects upfront
+    aspectUpdateLambdas.stream().map(AspectUpdateLambda::getAspectClass).forEach(this::checkValidAspect);
+
+    // Validate no duplicate aspect classes in the batch
+    Set<Class<? extends RecordTemplate>> seenAspectClasses = new HashSet<>();
+    for (AspectUpdateLambda<? extends RecordTemplate> lambda : aspectUpdateLambdas) {
+      Class<? extends RecordTemplate> aspectClass = lambda.getAspectClass();
+      if (!seenAspectClasses.add(aspectClass)) {
+        throw new IllegalArgumentException(
+            String.format("Duplicate aspect class %s found in batch update for urn %s. Each aspect class can only appear once per batch.",
+                aspectClass.getCanonicalName(), urn));
+      }
+    }
+
+    // STEP 1: Batched read of old values with extra info (1 query)
+    Map<Class<? extends RecordTemplate>, AspectWithExtraInfo<RecordTemplate>> oldValuesWithInfo = 
+        batchGetOldValuesWithExtraInfo(urn, aspectUpdateLambdas);
+
+    // STEP 2: Process all aspects through callbacks/validation pipeline
+    List<AddResult<RecordTemplate>> processedResults = new ArrayList<>();
+    List<AspectUpdateContext<RecordTemplate>> contextsToWrite = new ArrayList<>();
+
+    for (AspectUpdateLambda<? extends RecordTemplate> updateLambda : aspectUpdateLambdas) {
+      Class<RecordTemplate> aspectClass = (Class<RecordTemplate>) updateLambda.getAspectClass();
+      IngestionParams ingestionParams = updateLambda.getIngestionParams();
+      
+      // Extract old value and extra info from batched results
+      AspectWithExtraInfo<RecordTemplate> oldInfo = oldValuesWithInfo.get(aspectClass);
+      RecordTemplate oldAspect = oldInfo != null ? oldInfo.getAspect() : null;
+      Optional oldValue = Optional.ofNullable(oldAspect);
+      ExtraInfo oldExtraInfo = oldInfo != null ? oldInfo.getExtraInfo() : null;
+      AuditStamp oldAuditStamp = oldExtraInfo != null ? oldExtraInfo.getAudit() : null;
+      Long oldEmitTime = oldExtraInfo != null ? oldExtraInfo.getEmitTime() : null;
+
+      // Execute lambda WITH old value (not Optional.empty())
+      // NOTE: if the lambda is "empty" then it will return the value to be written (newValue) since that is how
+      // AspectUpdateLambda is defined and constructed
+      RecordTemplate newValue = (RecordTemplate) updateLambda.getUpdateLambda().apply(oldValue);
+
+      // Equality testing & backfill logic using unified shouldUpdateAspect
+      EqualityTester<RecordTemplate> equalityTester = getEqualityTester(aspectClass);
+      AuditStamp eTagAuditStamp = extractOptimisticLockForAspectFromIngestionParamsIfPossible(
+          ingestionParams, aspectClass, urn);
+      
+      if (!shouldUpdateAspect(ingestionParams.getIngestionMode(), urn, oldAspect, newValue,
+                              aspectClass, auditStamp, equalityTester, oldAuditStamp, eTagAuditStamp,
+                              trackingContext, oldEmitTime, false /* isSoftDeleted not tracked in batch path */)) {
+        // Skip this aspect - add as unchanged for MAE skip logic
+        processedResults.add(new AddResult<RecordTemplate>(oldAspect, oldAspect, aspectClass));
+        continue;
+      }
+
+      // Apply Lambda Function Registry transformations (with old value)
+      if (_lambdaFunctionRegistry != null && _lambdaFunctionRegistry.isRegistered(aspectClass)) {
+        newValue = updatePreIngestionLambdas(urn, oldValue, newValue);
+      }
+
+      // Aspect callbacks (with old value)
+      AspectUpdateResult callbackResult = aspectCallbackHelper(urn, newValue, oldValue, ingestionParams, auditStamp);
+      newValue = (RecordTemplate) callbackResult.getUpdatedAspect();
+      
+      if (newValue == null || callbackResult.isSkipProcessing()) {
+        continue;
+      }
+
+      // Validation
+      validateAgainstSchemaAndFillinDefault(newValue);
+
+      // Pre-update hooks
+      if (_aspectPreUpdateHooksMap.containsKey(aspectClass)) {
+        for (final BiConsumer<Urn, RecordTemplate> hook : _aspectPreUpdateHooksMap.get(aspectClass)) {
+          hook.accept(urn, newValue);
+        }
+      }
+
+      // Package context for batch write
+      processedResults.add(new AddResult<RecordTemplate>(oldAspect, newValue, aspectClass));
+      contextsToWrite.add(new AspectUpdateContext<>(oldAspect, newValue, (AspectUpdateLambda<RecordTemplate>) updateLambda));
+    }
+
+    // STEP 3: Execute batch SQL (1 query) - only for changed aspects
+    if (!contextsToWrite.isEmpty()) {
+      // If ANY aspect in the batch has isTestMode=true, the entire batch runs in test mode.
+      // This follows the established precedent in createAssetWithAspects() (see PR #498) where the create pathway
+      // applies the same logic. The assumption is that test mode is a property of the ingestion request, not
+      // individual aspects — callers should never mix test and non-test aspects in a single batch.
+      boolean isTestMode = contextsToWrite.stream()
+          .anyMatch(ctx -> ctx.getLambda().getIngestionParams().isTestMode());
+
+      batchUpsertAspects(urn, contextsToWrite, auditStamp, trackingContext, isTestMode);
+    }
+
+    // STEP 4: Post-transaction processing (with actual old values for MAE logic)
+    List<ASPECT_UNION> results = new ArrayList<>();
+    for (AddResult<RecordTemplate> addResult : processedResults) {
+      // unwrapAddResultToUnion() checks equality internally - won't emit MAE if old == new
+      ASPECT_UNION result = unwrapAddResultToUnion(urn, addResult, auditStamp, trackingContext);
+      results.add(result);
+    }
+
+    return results;
+  }
+
+  /**
+   * Batch read old values with extra info (audit stamps, emit time) for equality testing and backfill.
+   * Uses existing getWithExtraInfo() which performs a single batched query.
+   */
+  private Map<Class<? extends RecordTemplate>, AspectWithExtraInfo<RecordTemplate>> 
+      batchGetOldValuesWithExtraInfo(
+          @Nonnull URN urn,
+          @Nonnull List<AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas) {
+    
+    // Build aspect keys for batch get
+    Set<AspectKey<URN, ? extends RecordTemplate>> keys = aspectUpdateLambdas.stream()
+        .map(lambda -> new AspectKey<>(lambda.getAspectClass(), urn, LATEST_VERSION))
+        .collect(Collectors.toSet());
+    
+    // Single batched query - uses existing infrastructure
+    Map<AspectKey<URN, ? extends RecordTemplate>, AspectWithExtraInfo<? extends RecordTemplate>> results = 
+        getWithExtraInfo(keys);
+    
+    // Convert to class-based map for easier lookup
+    Map<Class<? extends RecordTemplate>, AspectWithExtraInfo<RecordTemplate>> byClass = new HashMap<>();
+    for (AspectUpdateLambda lambda : aspectUpdateLambdas) {
+      AspectKey key = new AspectKey<>(lambda.getAspectClass(), urn, LATEST_VERSION);
+      AspectWithExtraInfo info = (AspectWithExtraInfo<RecordTemplate>) results.get(key);
+      if (info != null) {
+        byClass.put(lambda.getAspectClass(), info);
+      }
+    }
+    
+    return byClass;
   }
 
   private <ASPECT extends RecordTemplate> AddResult<ASPECT> aspectUpdateHelper(URN urn, AspectUpdateLambda<ASPECT> updateTuple,
@@ -972,7 +1186,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * Add new aspects for an asset.
    * @param urn the URN for the entity the aspects are attached to
    * @param aspectValues the list of new aspect values to be added to the asset being created
-   * @param aspectCreateLambdas the list of aspect create lambdas to be executed
+   * @param aspectCreateLambdas the list of aspect create lambdas to be executed (must be positionally aligned with aspectValues)
    * @param auditStamp the audit stamp for the operation
    * @param maxTransactionRetry the maximum number of times to retry the transaction
    * @param trackingContext the tracking context for the operation
@@ -1356,6 +1570,22 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   protected abstract <ASPECT_UNION extends RecordTemplate> int createNewAssetWithAspects(@NonNull URN urn,
       @Nonnull List<AspectCreateLambda<? extends RecordTemplate>> aspectCreateLambdas,
       @Nonnull List<? extends RecordTemplate> aspectValues, @Nonnull AuditStamp newAuditStamp,
+      @Nullable IngestionTrackingContext trackingContext, boolean isTestMode);
+
+  /**
+   * Batch upsert multiple aspects for a single URN using a single SQL statement.
+   * Subclasses must implement this to perform the actual database operation.
+   *
+   * @param urn entity URN
+   * @param updateContexts list of aspect update contexts containing values, old values, and lambdas
+   * @param auditStamp audit stamp for tracking
+   * @param trackingContext tracking context for ingestion
+   * @param isTestMode whether the test mode is enabled or not
+   * @return number of rows affected
+   */
+  protected abstract <ASPECT_UNION extends RecordTemplate> int batchUpsertAspects(@Nonnull URN urn,
+      @Nonnull List<AspectUpdateContext<RecordTemplate>> updateContexts,
+      @Nonnull AuditStamp auditStamp,
       @Nullable IngestionTrackingContext trackingContext, boolean isTestMode);
 
   /**
@@ -2037,11 +2267,57 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
-   * The logic determines if we will update the aspect.
+   * Determines if an aspect update should be persisted to the database.
+   * 
+   * <p><b>Returns false (skip write) when:</b>
+   * <ul>
+   *   <li><b>Backfill with older data:</b> This is a backfill event ({@code trackingContext.isBackfill() == true}) 
+   *       and the new emit time is older than the existing data's emit time or audit stamp.</li>
+   *   <li><b>Equality check:</b> Old and new values are equal according to the {@link EqualityTester}.</li>
+   *   <li><b>Version skip:</b> New aspect has a lower version than the existing aspect 
+   *       (see {@link #aspectVersionSkipWrite}).</li>
+   *   <li><b>Timestamp/ETag skip:</b> Optimistic locking check fails - the eTag timestamp is older than 
+   *       the existing aspect's timestamp (see {@link #aspectTimestampSkipWrite}).</li>
+   * </ul>
+   * 
+   * <p><b>Returns true (force write) when:</b>
+   * <ul>
+   *   <li>{@code IngestionMode.LIVE_OVERRIDE} is set - forces the write regardless of other conditions.</li>
+   *   <li>Aspect has {@code @gma.aspect.ingestion Mode.FORCE_UPDATE} annotation and filter conditions match.</li>
+   * </ul>
    */
   private <ASPECT extends RecordTemplate> boolean shouldUpdateAspect(IngestionMode ingestionMode, URN urn, ASPECT oldValue,
       ASPECT newValue, Class<ASPECT> aspectClass, AuditStamp auditStamp, EqualityTester<ASPECT> equalityTester,
-      AuditStamp oldValueAuditStamp, AuditStamp eTagAuditStamp) {
+      AuditStamp oldValueAuditStamp, AuditStamp eTagAuditStamp, @Nullable IngestionTrackingContext trackingContext,
+      @Nullable Long oldEmitTime) {
+    return shouldUpdateAspect(ingestionMode, urn, oldValue, newValue, aspectClass, auditStamp, equalityTester,
+        oldValueAuditStamp, eTagAuditStamp, trackingContext, oldEmitTime, false);
+  }
+
+  private <ASPECT extends RecordTemplate> boolean shouldUpdateAspect(IngestionMode ingestionMode, URN urn, ASPECT oldValue,
+      ASPECT newValue, Class<ASPECT> aspectClass, AuditStamp auditStamp, EqualityTester<ASPECT> equalityTester,
+      AuditStamp oldValueAuditStamp, AuditStamp eTagAuditStamp, @Nullable IngestionTrackingContext trackingContext,
+      @Nullable Long oldEmitTime, boolean isSoftDeleted) {
+
+    // Backfill check - if this is a backfill event, verify it's newer than existing data.
+    // Handles soft-deleted aspects: oldValue==null + isSoftDeleted means the aspect was deleted,
+    // not that it never existed — must compare emitTime against deletion timestamp.
+    final boolean isBackfillEvent = trackingContext != null
+        && trackingContext.hasBackfill() && trackingContext.isBackfill();
+
+    if (isBackfillEvent) {
+      boolean shouldBackfill = shouldBackfill(urn, oldValue, isSoftDeleted, aspectClass, trackingContext,
+          oldValueAuditStamp, oldEmitTime);
+
+      log.info("Encounter backfill event. Old value = null: {}. isSoftDeleted: {}. Tracking context: {}. Urn: {}. "
+              + "Aspect class: {}. Old audit stamp: {}. Old emit time: {}. "
+              + "Based on this information, shouldBackfill = {}.",
+          oldValue == null, isSoftDeleted, trackingContext, urn, aspectClass, oldValueAuditStamp, oldEmitTime, shouldBackfill);
+
+      if (!shouldBackfill) {
+        return false;
+      }
+    }
 
     final boolean oldAndNewEqual = (oldValue == null && newValue == null) || (oldValue != null && newValue != null && equalityTester.equals(
         oldValue, newValue));

@@ -18,6 +18,10 @@ import com.linkedin.metadata.dao.EbeanMetadataAspect.PrimaryKey;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder;
 import com.linkedin.metadata.dao.equality.AlwaysFalseEqualityTester;
 import com.linkedin.metadata.dao.equality.DefaultEqualityTester;
+import com.linkedin.metadata.dao.ingestion.AspectCallbackMapKey;
+import com.linkedin.metadata.dao.ingestion.AspectCallbackRegistry;
+import com.linkedin.metadata.dao.ingestion.AspectCallbackResponse;
+import com.linkedin.metadata.dao.ingestion.AspectCallbackRoutingClient;
 import com.linkedin.metadata.dao.exception.InvalidMetadataType;
 import com.linkedin.metadata.dao.exception.RetryLimitReached;
 import com.linkedin.metadata.dao.localrelationship.SampleLocalRelationshipRegistryImpl;
@@ -4417,5 +4421,1137 @@ public class EbeanLocalDAOTest {
 
     // Should have 2 BelongsToV2 relationships (one for each relationship in AspectFooBar's belongsTos field)
     assertEquals(relationships.size(), 2);
+  }
+
+  /**
+   * Tests basic addManyBatch() functionality with multiple aspects.
+   * Verifies that multiple aspects can be inserted in a single batch and persisted correctly.
+   */
+  @Test
+  public void testAddManyBatch() throws URISyntaxException {
+    // addManyBatch requires _localAccess which is only initialized for NEW_SCHEMA_ONLY
+    if (_schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      return;
+    }
+    
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(5000);
+    
+    AspectFoo foo = new AspectFoo().setValue("batch_foo");
+    AspectBar bar = new AspectBar().setValue("batch_bar");
+    List<RecordTemplate> aspects = Arrays.asList(foo, bar);
+    
+    // Act - use addManyBatch
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, aspects, _dummyAuditStamp, null);
+    
+    // Assert - verify results returned
+    assertEquals(results.size(), 2);
+    assertNotNull(results.get(0));
+    assertNotNull(results.get(1));
+    
+    // Verify persistence via getLatest
+    BaseLocalDAO.AspectEntry<AspectFoo> fooEntry = dao.getLatest(fooUrn, AspectFoo.class, false);
+    assertNotNull(fooEntry.getAspect());
+    assertEquals("batch_foo", fooEntry.getAspect().getValue());
+    
+    BaseLocalDAO.AspectEntry<AspectBar> barEntry = dao.getLatest(fooUrn, AspectBar.class, false);
+    assertNotNull(barEntry.getAspect());
+    assertEquals("batch_bar", barEntry.getAspect().getValue());
+  }
+
+  /**
+   * Tests addManyBatch() upsert behavior.
+   * Verifies that calling addManyBatch() twice with different values updates the existing aspect.
+   */
+  @Test
+  public void testAddManyBatchUpsertBehavior() throws URISyntaxException {
+    if (_schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      return;
+    }
+    
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(5002);
+    
+    // First insert
+    AspectFoo foo1 = new AspectFoo().setValue("initial_batch");
+    List<EntityAspectUnion> results1 = dao.addManyBatch(fooUrn, Collections.singletonList(foo1), _dummyAuditStamp, null);
+    assertEquals(results1.size(), 1);
+    
+    // Verify initial persistence
+    BaseLocalDAO.AspectEntry<AspectFoo> initialEntry = dao.getLatest(fooUrn, AspectFoo.class, false);
+    assertNotNull(initialEntry.getAspect());
+    assertEquals("initial_batch", initialEntry.getAspect().getValue());
+    
+    // Upsert with new value
+    AspectFoo foo2 = new AspectFoo().setValue("updated_batch");
+    List<EntityAspectUnion> results2 = dao.addManyBatch(fooUrn, Collections.singletonList(foo2), _dummyAuditStamp, null);
+    
+    // Assert - both operations should return results
+    assertEquals(results2.size(), 1);
+    assertNotNull(results2.get(0));
+    
+    // Verify updated persistence
+    BaseLocalDAO.AspectEntry<AspectFoo> updatedEntry = dao.getLatest(fooUrn, AspectFoo.class, false);
+    assertNotNull(updatedEntry.getAspect());
+    assertEquals("updated_batch", updatedEntry.getAspect().getValue());
+  }
+
+  /**
+   * Tests addManyBatch() equality check skip behavior.
+   * Verifies that when an aspect value is unchanged, no database write occurs (audit timestamp unchanged).
+   */
+  @Test
+  public void testAddManyBatchWithEqualitySkip() throws URISyntaxException {
+    if (_schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      return;
+    }
+    
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(6000);
+    
+    // First write with timestamp T1
+    AuditStamp auditStamp1 = makeAuditStamp("actor1", _now);
+    AspectFoo foo1 = new AspectFoo().setValue("initial");
+    dao.addManyBatch(fooUrn, Collections.singletonList(foo1), auditStamp1, null);
+    
+    // Get audit timestamp after first write
+    BaseLocalDAO.AspectEntry<AspectFoo> entry1 = dao.getLatest(fooUrn, AspectFoo.class, false);
+    Long timestamp1 = entry1.getExtraInfo() != null ? entry1.getExtraInfo().getAudit().getTime() : null;
+    
+    // Second write with SAME value but DIFFERENT audit stamp - should skip due to equality
+    AuditStamp auditStamp2 = makeAuditStamp("actor2", _now + 1000);
+    AspectFoo foo2 = new AspectFoo().setValue("initial");
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, Collections.singletonList(foo2), auditStamp2, null);
+    
+    // Should return result
+    assertEquals(results.size(), 1);
+    assertNotNull(results.get(0));
+    
+    // Verify NO database write occurred - audit timestamp should be unchanged (still T1, not T2)
+    BaseLocalDAO.AspectEntry<AspectFoo> entry2 = dao.getLatest(fooUrn, AspectFoo.class, false);
+    Long timestamp2 = entry2.getExtraInfo() != null ? entry2.getExtraInfo().getAudit().getTime() : null;
+    assertEquals(timestamp1, timestamp2, "Audit timestamp should not change when value is equal - no DB write should occur");
+  }
+
+  /**
+   * Tests addManyBatch() backfill skip behavior.
+   * Verifies that backfill events with older timestamps do not overwrite newer data.
+   */
+  @Test
+  public void testAddManyBatchWithBackfillSkip() throws URISyntaxException {
+    if (_schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      return;
+    }
+    
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(6002);
+    
+    long now = System.currentTimeMillis();
+    
+    // First write with newer timestamp
+    AspectFoo foo1 = new AspectFoo().setValue("newer_data");
+    IngestionTrackingContext newerContext = new IngestionTrackingContext()
+        .setEmitter("test")
+        .setEmitTime(now + 1000)
+        .setBackfill(true);
+    dao.addManyBatch(fooUrn, Collections.singletonList(foo1), _dummyAuditStamp, newerContext);
+    
+    // Get audit timestamp and value after first write
+    BaseLocalDAO.AspectEntry<AspectFoo> entry1 = dao.getLatest(fooUrn, AspectFoo.class, false);
+    Long timestamp1 = entry1.getExtraInfo() != null ? entry1.getExtraInfo().getAudit().getTime() : null;
+    String value1 = entry1.getAspect() != null ? entry1.getAspect().getValue() : null;
+    
+    // Try to backfill with OLDER timestamp - should be skipped
+    AspectFoo foo2 = new AspectFoo().setValue("older_data");
+    IngestionTrackingContext olderContext = new IngestionTrackingContext()
+        .setEmitter("test")
+        .setEmitTime(now)  // Older timestamp
+        .setBackfill(true);
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, Collections.singletonList(foo2), 
+        _dummyAuditStamp, olderContext);
+    
+    // Should return result
+    assertEquals(results.size(), 1);
+    
+    // Verify NO database write occurred - audit timestamp and value should be unchanged
+    BaseLocalDAO.AspectEntry<AspectFoo> entry2 = dao.getLatest(fooUrn, AspectFoo.class, false);
+    Long timestamp2 = entry2.getExtraInfo() != null ? entry2.getExtraInfo().getAudit().getTime() : null;
+    String value2 = entry2.getAspect() != null ? entry2.getAspect().getValue() : null;
+    assertEquals(timestamp1, timestamp2, "Audit timestamp should not change when backfill event is older - no DB write should occur");
+    assertEquals(value1, value2, "Value should remain 'newer_data', not be overwritten by older backfill");
+  }
+
+  /**
+   * Tests addManyBatch() with mixed equality changes.
+   * Verifies that when some aspects are unchanged and others are changed, only changed aspects are updated.
+   * Note that this test basically tests a mix of outputs from the shouldUpdateAspect() method, I'm using
+   * "equality" as one of the criteria where it can return different values for different aspects.
+   */
+  @Test
+  public void testAddManyBatchMixedEqualityChanges() throws URISyntaxException {
+    if (_schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      return;
+    }
+    
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(6003);
+    
+    // First write - 2 aspects
+    AspectFoo foo1 = new AspectFoo().setValue("foo_v1");
+    AspectBar bar1 = new AspectBar().setValue("bar_v1");
+    dao.addManyBatch(fooUrn, Arrays.asList(foo1, bar1), _dummyAuditStamp, null);
+    
+    // Verify initial persistence
+    BaseLocalDAO.AspectEntry<AspectFoo> initialFooEntry = dao.getLatest(fooUrn, AspectFoo.class, false);
+    assertNotNull(initialFooEntry.getAspect());
+    assertEquals("foo_v1", initialFooEntry.getAspect().getValue());
+    
+    BaseLocalDAO.AspectEntry<AspectBar> initialBarEntry = dao.getLatest(fooUrn, AspectBar.class, false);
+    assertNotNull(initialBarEntry.getAspect());
+    assertEquals("bar_v1", initialBarEntry.getAspect().getValue());
+    
+    // Second write - Foo unchanged, Bar changed
+    AspectFoo foo2 = new AspectFoo().setValue("foo_v1");  // Same
+    AspectBar bar2 = new AspectBar().setValue("bar_v2");  // Different
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, Arrays.asList(foo2, bar2), 
+        _dummyAuditStamp, null);
+    
+    // Should return 2 results
+    assertEquals(results.size(), 2);
+    assertNotNull(results.get(0));
+    assertNotNull(results.get(1));
+    
+    // Verify persistence - Foo unchanged, Bar updated
+    BaseLocalDAO.AspectEntry<AspectFoo> finalFooEntry = dao.getLatest(fooUrn, AspectFoo.class, false);
+    assertNotNull(finalFooEntry.getAspect());
+    assertEquals("foo_v1", finalFooEntry.getAspect().getValue());
+    
+    BaseLocalDAO.AspectEntry<AspectBar> finalBarEntry = dao.getLatest(fooUrn, AspectBar.class, false);
+    assertNotNull(finalBarEntry.getAspect());
+    assertEquals("bar_v2", finalBarEntry.getAspect().getValue());
+  }
+
+  /**
+   * Tests addManyBatch() rejection of duplicate aspect classes.
+   * Verifies that passing two aspects of the same class throws IllegalArgumentException.
+   */
+  @Test
+  public void testAddManyBatchRelationshipsUpdateWithOldValues() throws URISyntaxException {
+    if (_schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      return;
+    }
+    
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(6004);
+    
+    // Try to update same aspect class twice in one batch - should throw
+    AspectFoo foo1 = new AspectFoo().setValue("value1");
+    AspectFoo foo2 = new AspectFoo().setValue("value2");
+    
+    try {
+      dao.addManyBatch(fooUrn, Arrays.asList(foo1, foo2), _dummyAuditStamp, null);
+      fail("Expected IllegalArgumentException for duplicate aspect classes");
+    } catch (IllegalArgumentException e) {
+      assertTrue(e.getMessage().contains("Duplicate aspect class"));
+      assertTrue(e.getMessage().contains("AspectFoo"));
+    }
+  }
+
+  /**
+   * Tests addManyBatch() when all aspects are rejected by shouldUpdateAspect() -- via equality check, for example.
+   * Verifies that no database write occurs when all aspects have unchanged values.
+   */
+  @Test
+  public void testAddManyBatchAllAspectsRejectedByEquality() throws URISyntaxException {
+    if (_schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      return;
+    }
+    
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(6005);
+    
+    // First write - create entity with multiple aspects
+    AspectFoo foo1 = new AspectFoo().setValue("foo_initial");
+    AspectBar bar1 = new AspectBar().setValue("bar_initial");
+    dao.addManyBatch(fooUrn, Arrays.asList(foo1, bar1), _dummyAuditStamp, null);
+    
+    // Capture the state after first write
+    BaseLocalDAO.AspectEntry<AspectFoo> fooEntry1 = dao.getLatest(fooUrn, AspectFoo.class, false);
+    BaseLocalDAO.AspectEntry<AspectBar> barEntry1 = dao.getLatest(fooUrn, AspectBar.class, false);
+    
+    Long fooTimestamp1 = fooEntry1.getExtraInfo() != null ? fooEntry1.getExtraInfo().getAudit().getTime() : null;
+    Long barTimestamp1 = barEntry1.getExtraInfo() != null ? barEntry1.getExtraInfo().getAudit().getTime() : null;
+    
+    // Query the database directly to check deleted_ts before second write
+    String urnString = fooUrn.toString();
+    String tableName = "metadata_entity_foo";
+    String query = String.format("SELECT deleted_ts FROM %s WHERE urn = '%s'", tableName, urnString);
+    
+    Long deletedTsBefore = _server.createSqlQuery(query)
+        .findOne()
+        .getLong("deleted_ts");
+    
+    // Second write - ALL aspects have SAME values (should be rejected by equality check)
+    AspectFoo foo2 = new AspectFoo().setValue("foo_initial");  // Same as foo1
+    AspectBar bar2 = new AspectBar().setValue("bar_initial");  // Same as bar1
+    
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, Arrays.asList(foo2, bar2), _dummyAuditStamp, null);
+    
+    // Should return results (even though no actual update occurred)
+    assertEquals(results.size(), 2);
+    assertNotNull(results.get(0));
+    assertNotNull(results.get(1));
+    
+    // Verify NO database write occurred for either aspect
+    BaseLocalDAO.AspectEntry<AspectFoo> fooEntry2 = dao.getLatest(fooUrn, AspectFoo.class, false);
+    BaseLocalDAO.AspectEntry<AspectBar> barEntry2 = dao.getLatest(fooUrn, AspectBar.class, false);
+    
+    Long fooTimestamp2 = fooEntry2.getExtraInfo() != null ? fooEntry2.getExtraInfo().getAudit().getTime() : null;
+    Long barTimestamp2 = barEntry2.getExtraInfo() != null ? barEntry2.getExtraInfo().getAudit().getTime() : null;
+    
+    // Audit timestamps should be unchanged (no DB write)
+    assertEquals(fooTimestamp1, fooTimestamp2, 
+        "AspectFoo audit timestamp should not change when value is equal - no DB write should occur");
+    assertEquals(barTimestamp1, barTimestamp2, 
+        "AspectBar audit timestamp should not change when value is equal - no DB write should occur");
+    
+    // CRITICAL: Verify deleted_ts was NOT set to NULL
+    // This is the key assertion - if all aspects are rejected by equality, the SQL should not execute
+    // and deleted_ts should remain unchanged (not be set to NULL which would incorrectly signal an update)
+    Long deletedTsAfter = _server.createSqlQuery(query)
+        .findOne()
+        .getLong("deleted_ts");
+    
+    assertEquals(deletedTsBefore, deletedTsAfter, 
+        "deleted_ts should NOT be modified when all aspects are rejected by equality check. "
+        + "Setting deleted_ts=NULL would incorrectly signal a successful update when no content changed.");
+    
+    // Additional verification: check lastmodifiedon and lastmodifiedby remain unchanged
+    String detailedQuery = String.format(
+        "SELECT lastmodifiedon, lastmodifiedby, deleted_ts FROM %s WHERE urn = '%s'", 
+        tableName, urnString);
+    
+    // Note: This test may fail if there's a bug where batchUpsert executes the SQL even when
+    // all aspects are rejected by equality checks, causing deleted_ts to be set to NULL and
+    // lastmodifiedon/lastmodifiedby to be updated despite no actual content changes.
+  }
+
+  // ===== Relationship Ingestion Tests for addManyBatch() =====
+
+  /**
+   * Tests that relationships are not updated when aspect equality check fails.
+   * Verifies that unchanged aspects do not trigger relationship updates.
+   */
+  @Test
+  public void testAddManyBatchRelationshipsNotWrittenWhenEqualityCheckFails() throws URISyntaxException {
+    if (_schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      return;
+    }
+
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> fooDao = createDao(FooUrn.class);
+    EbeanLocalDAO<EntityAspectUnion, BarUrn> barDao = createDao(BarUrn.class);
+    
+    // Enable relationship ingestion
+    fooDao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
+    barDao.setLocalRelationshipBuilderRegistry(new SampleLocalRelationshipRegistryImpl());
+
+    FooUrn fooUrn = makeFooUrn(7002);
+    BarUrn barUrn1 = BarUrn.createFromString("urn:li:bar:1");
+    BarUrn barUrn2 = BarUrn.createFromString("urn:li:bar:2");
+    BarUrn barUrn3 = BarUrn.createFromString("urn:li:bar:3");
+    BarUrn barUrn4 = BarUrn.createFromString("urn:li:bar:4");
+    
+    AuditStamp auditStamp = makeAuditStamp("foo", System.currentTimeMillis());
+
+    // Create bar entities
+    barDao.add(barUrn1, new AspectFoo().setValue("1"), auditStamp);
+    barDao.add(barUrn2, new AspectFoo().setValue("2"), auditStamp);
+    barDao.add(barUrn3, new AspectFoo().setValue("3"), auditStamp);
+    barDao.add(barUrn4, new AspectFoo().setValue("4"), auditStamp);
+
+    // First write - create initial aspects with relationships
+    AspectFooBar aspectFooBar1 = new AspectFooBar().setBars(new BarUrnArray(barUrn1, barUrn2));
+    BelongsToV2 belongsTo1 = new BelongsToV2().setDestination(BelongsToV2.Destination.create(barUrn3.toString()));
+    AspectFooBaz aspectFooBaz1 = new AspectFooBaz().setBelongsTos(new BelongsToV2Array(belongsTo1));
+    
+    fooDao.addManyBatch(fooUrn, Arrays.asList(aspectFooBar1, aspectFooBaz1), auditStamp, null);
+
+    // Verify initial relationships
+    EbeanLocalRelationshipQueryDAO queryDAO = new EbeanLocalRelationshipQueryDAO(_server);
+    queryDAO.setSchemaConfig(_schemaConfig);
+    
+    List<BelongsTo> initialBelongsTo = queryDAO.findRelationships(
+        FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class, EMPTY_FILTER, BelongsTo.class, OUTGOING_FILTER, 0, 10);
+    assertEquals(initialBelongsTo.size(), 2);
+    
+    List<BelongsToV2> initialBelongsToV2 = queryDAO.findRelationships(
+        FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class, EMPTY_FILTER, BelongsToV2.class, OUTGOING_FILTER, 0, 10);
+    assertEquals(initialBelongsToV2.size(), 1);
+
+    // Second write - one aspect unchanged (equality check fails), one aspect changed
+    // AspectFooBar unchanged - should NOT update relationships
+    AspectFooBar aspectFooBar2 = new AspectFooBar().setBars(new BarUrnArray(barUrn1, barUrn2));
+    // AspectFooBaz changed - SHOULD update relationships
+    BelongsToV2 belongsTo2 = new BelongsToV2().setDestination(BelongsToV2.Destination.create(barUrn4.toString()));
+    AspectFooBaz aspectFooBaz2 = new AspectFooBaz().setBelongsTos(new BelongsToV2Array(belongsTo2));
+    
+    fooDao.addManyBatch(fooUrn, Arrays.asList(aspectFooBar2, aspectFooBaz2), auditStamp, null);
+
+    // Verify relationships after second write
+    List<BelongsTo> finalBelongsTo = queryDAO.findRelationships(
+        FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class, EMPTY_FILTER, BelongsTo.class, OUTGOING_FILTER, 0, 10);
+    // BelongsTo should still be 2 (unchanged because AspectFooBar was equal)
+    assertEquals(finalBelongsTo.size(), 2, 
+        "BelongsTo relationships should remain unchanged when AspectFooBar equality check fails");
+    
+    List<BelongsToV2> finalBelongsToV2 = queryDAO.findRelationships(
+        FooSnapshot.class, EMPTY_FILTER, BarSnapshot.class, EMPTY_FILTER, BelongsToV2.class, OUTGOING_FILTER, 0, 10);
+    // BelongsToV2 should be updated - findRelationships only returns active (non-soft-deleted) records
+    assertEquals(finalBelongsToV2.size(), 1, "Should have 1 active BelongsToV2 relationship");
+    assertEquals(finalBelongsToV2.get(0).getDestination().getString(), barUrn4.toString(),
+        "BelongsToV2 should now point to barUrn4 (updated from barUrn3)");
+  }
+
+  // ===== AspectCallbackRegistry Integration Tests for addManyBatch() =====
+  // These tests verify that callback transformations are correctly persisted to the database
+
+  /**
+   * Tests addManyBatch() with a callback that transforms the aspect value.
+   * Verifies that the transformed value is persisted to the database, not the original.
+   */
+  @Test
+  public void testAddManyBatchWithSingleAspectCallbackPersistedToDB() throws URISyntaxException {
+    // Test case 1: Single aspect with callback that transforms value - verify DB has transformed value
+    if (_schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      return;
+    }
+
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(9001);
+
+    // Create callback that transforms AspectFoo value from "original" to "transformed"
+    AspectCallbackRoutingClient<AspectFoo> transformCallback = new AspectCallbackRoutingClient<AspectFoo>() {
+      @Override
+      public AspectCallbackResponse<AspectFoo> routeAspectCallback(Urn urn, AspectFoo newAspectValue, 
+          java.util.Optional<AspectFoo> existingAspectValue) {
+        AspectFoo transformed = new AspectFoo().setValue("transformed");
+        return new AspectCallbackResponse<>(transformed);
+      }
+    };
+
+    java.util.Map<AspectCallbackMapKey, AspectCallbackRoutingClient> callbackMap = new java.util.HashMap<>();
+    callbackMap.put(new AspectCallbackMapKey(AspectFoo.class, fooUrn.getEntityType()), transformCallback);
+    AspectCallbackRegistry registry = new AspectCallbackRegistry(callbackMap);
+    dao.setAspectCallbackRegistry(registry);
+
+    // Act
+    AspectFoo original = new AspectFoo().setValue("original");
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, java.util.Collections.singletonList(original), _dummyAuditStamp, null);
+
+    // Assert - verify result returned with TRANSFORMED value
+    assertEquals(results.size(), 1);
+    assertNotNull(results.get(0));
+    assertEquals(results.get(0).getAspectFoo().getValue(), "transformed", 
+        "Returned result should contain the callback-transformed value, not the original");
+
+    // Also verify DB contains the TRANSFORMED value
+    BaseLocalDAO.AspectEntry<AspectFoo> entry = dao.getLatest(fooUrn, AspectFoo.class, false);
+    assertNotNull(entry.getAspect());
+    assertEquals(entry.getAspect().getValue(), "transformed", 
+        "Database should contain the callback-transformed value, not the original");
+  }
+
+  /**
+   * Tests addManyBatch() with a callback that skips processing.
+   * Verifies that no results are returned when the callback skips the aspect.
+   */
+  @Test
+  public void testAddManyBatchWithSingleAspectCallbackSkipped() throws URISyntaxException {
+    // Test case 2: Single aspect with callback that skips processing - verify no results returned
+    if (_schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      return;
+    }
+
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(9002);
+
+    // Create callback that skips processing
+    AspectCallbackRoutingClient<AspectFoo> skipCallback = new AspectCallbackRoutingClient<AspectFoo>() {
+      @Override
+      public AspectCallbackResponse<AspectFoo> routeAspectCallback(Urn urn, AspectFoo newAspectValue, 
+          java.util.Optional<AspectFoo> existingAspectValue) {
+        return new AspectCallbackResponse<>(newAspectValue);
+      }
+      @Override
+      public boolean isSkipProcessing() {
+        return true;
+      }
+    };
+
+    java.util.Map<AspectCallbackMapKey, AspectCallbackRoutingClient> callbackMap = new java.util.HashMap<>();
+    callbackMap.put(new AspectCallbackMapKey(AspectFoo.class, fooUrn.getEntityType()), skipCallback);
+    AspectCallbackRegistry registry = new AspectCallbackRegistry(callbackMap);
+    dao.setAspectCallbackRegistry(registry);
+
+    // Act
+    AspectFoo foo = new AspectFoo().setValue("should_be_skipped");
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, java.util.Collections.singletonList(foo), _dummyAuditStamp, null);
+
+    // Assert - no results returned (skipped)
+    assertEquals(results.size(), 0, "No results should be returned when callback skips processing");
+  }
+
+  /**
+   * Tests addManyBatch() with two aspects, both having callbacks that transform values.
+   * Verifies that both aspects are transformed and persisted correctly.
+   */
+  @Test
+  public void testAddManyBatchWithTwoAspectsWithCallbacksNeitherSkipped() throws URISyntaxException {
+    // Test case 3: Two aspects, both have callbacks, neither skipped - verify both transformed
+    if (_schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      return;
+    }
+
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(9003);
+
+    // Create callback for AspectFoo
+    AspectCallbackRoutingClient<AspectFoo> fooCallback = new AspectCallbackRoutingClient<AspectFoo>() {
+      @Override
+      public AspectCallbackResponse<AspectFoo> routeAspectCallback(Urn urn, AspectFoo newAspectValue, 
+          java.util.Optional<AspectFoo> existingAspectValue) {
+        return new AspectCallbackResponse<>(new AspectFoo().setValue("foo_transformed"));
+      }
+    };
+
+    // Create callback for AspectBar
+    AspectCallbackRoutingClient<AspectBar> barCallback = new AspectCallbackRoutingClient<AspectBar>() {
+      @Override
+      public AspectCallbackResponse<AspectBar> routeAspectCallback(Urn urn, AspectBar newAspectValue, 
+          java.util.Optional<AspectBar> existingAspectValue) {
+        return new AspectCallbackResponse<>(new AspectBar().setValue("bar_transformed"));
+      }
+    };
+
+    java.util.Map<AspectCallbackMapKey, AspectCallbackRoutingClient> callbackMap = new java.util.HashMap<>();
+    callbackMap.put(new AspectCallbackMapKey(AspectFoo.class, fooUrn.getEntityType()), fooCallback);
+    callbackMap.put(new AspectCallbackMapKey(AspectBar.class, fooUrn.getEntityType()), barCallback);
+    AspectCallbackRegistry registry = new AspectCallbackRegistry(callbackMap);
+    dao.setAspectCallbackRegistry(registry);
+
+    // Act
+    AspectFoo foo = new AspectFoo().setValue("foo_original");
+    AspectBar bar = new AspectBar().setValue("bar_original");
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, java.util.Arrays.asList(foo, bar), _dummyAuditStamp, null);
+
+    // Assert - verify results contain BOTH transformed values
+    assertEquals(results.size(), 2);
+    
+    // Find AspectFoo and AspectBar in results (order may vary)
+    EntityAspectUnion fooResult = results.stream()
+        .filter(r -> r.getAspectFoo() != null)
+        .findFirst().orElse(null);
+    EntityAspectUnion barResult = results.stream()
+        .filter(r -> r.getAspectBar() != null)
+        .findFirst().orElse(null);
+    
+    assertNotNull(fooResult, "AspectFoo should be in results");
+    assertNotNull(barResult, "AspectBar should be in results");
+    assertEquals(fooResult.getAspectFoo().getValue(), "foo_transformed");
+    assertEquals(barResult.getAspectBar().getValue(), "bar_transformed");
+
+    // Verify persistence via getLatest
+    BaseLocalDAO.AspectEntry<AspectFoo> fooEntry = dao.getLatest(fooUrn, AspectFoo.class, false);
+    assertNotNull(fooEntry.getAspect());
+    assertEquals("foo_transformed", fooEntry.getAspect().getValue(), 
+        "Database should contain the callback-transformed AspectFoo value");
+    
+    BaseLocalDAO.AspectEntry<AspectBar> barEntry = dao.getLatest(fooUrn, AspectBar.class, false);
+    assertNotNull(barEntry.getAspect());
+    assertEquals("bar_transformed", barEntry.getAspect().getValue(), 
+        "Database should contain the callback-transformed AspectBar value");
+  }
+
+  /**
+   * Tests addManyBatch() with two aspects where one callback skips processing.
+   * Verifies that only the non-skipped aspect is returned and persisted.
+   */
+  @Test
+  public void testAddManyBatchWithTwoAspectsWithCallbacksOneSkipped() throws URISyntaxException {
+    // Test case 4: Two aspects with callbacks, one skipped - only one result returned
+    if (_schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      return;
+    }
+
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(9004);
+
+    // Create callback for AspectFoo (transforms)
+    AspectCallbackRoutingClient<AspectFoo> fooCallback = new AspectCallbackRoutingClient<AspectFoo>() {
+      @Override
+      public AspectCallbackResponse<AspectFoo> routeAspectCallback(Urn urn, AspectFoo newAspectValue, 
+          java.util.Optional<AspectFoo> existingAspectValue) {
+        return new AspectCallbackResponse<>(new AspectFoo().setValue("foo_transformed"));
+      }
+    };
+
+    // Create callback for AspectBar (skips)
+    AspectCallbackRoutingClient<AspectBar> barSkipCallback = new AspectCallbackRoutingClient<AspectBar>() {
+      @Override
+      public AspectCallbackResponse<AspectBar> routeAspectCallback(Urn urn, AspectBar newAspectValue, 
+          java.util.Optional<AspectBar> existingAspectValue) {
+        return new AspectCallbackResponse<>(newAspectValue);
+      }
+      @Override
+      public boolean isSkipProcessing() {
+        return true;
+      }
+    };
+
+    java.util.Map<AspectCallbackMapKey, AspectCallbackRoutingClient> callbackMap = new java.util.HashMap<>();
+    callbackMap.put(new AspectCallbackMapKey(AspectFoo.class, fooUrn.getEntityType()), fooCallback);
+    callbackMap.put(new AspectCallbackMapKey(AspectBar.class, fooUrn.getEntityType()), barSkipCallback);
+    AspectCallbackRegistry registry = new AspectCallbackRegistry(callbackMap);
+    dao.setAspectCallbackRegistry(registry);
+
+    // Act
+    AspectFoo foo = new AspectFoo().setValue("foo_original");
+    AspectBar bar = new AspectBar().setValue("bar_original");
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, java.util.Arrays.asList(foo, bar), _dummyAuditStamp, null);
+
+    // Assert - only 1 result (bar was skipped)
+    assertEquals(results.size(), 1, "Only AspectFoo should be returned (AspectBar was skipped)");
+    
+    // Verify the returned result is the transformed AspectFoo
+    assertNotNull(results.get(0).getAspectFoo());
+    assertEquals(results.get(0).getAspectFoo().getValue(), "foo_transformed");
+
+    // Verify persistence via getLatest - only AspectFoo should be persisted
+    BaseLocalDAO.AspectEntry<AspectFoo> fooEntry = dao.getLatest(fooUrn, AspectFoo.class, false);
+    assertNotNull(fooEntry.getAspect());
+    assertEquals("foo_transformed", fooEntry.getAspect().getValue(), 
+        "Database should contain the callback-transformed AspectFoo value");
+    
+    // AspectBar should NOT be persisted (callback skipped it)
+    BaseLocalDAO.AspectEntry<AspectBar> barEntry = dao.getLatest(fooUrn, AspectBar.class, false);
+    assertNull(barEntry.getAspect(), "AspectBar should not be persisted when callback skips processing");
+  }
+
+  /**
+   * Tests addManyBatch() with mixed callback registration (one aspect has callback, one doesn't).
+   * Verifies that the callback transforms its aspect while the other remains unchanged.
+   */
+  @Test
+  public void testAddManyBatchWithMixedCallbackRegistration() throws URISyntaxException {
+    // Test case 5: Two aspects, only one has callback - verify callback transforms its aspect, other unchanged
+    if (_schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      return;
+    }
+
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(9005);
+
+    // Create callback ONLY for AspectFoo
+    AspectCallbackRoutingClient<AspectFoo> fooCallback = new AspectCallbackRoutingClient<AspectFoo>() {
+      @Override
+      public AspectCallbackResponse<AspectFoo> routeAspectCallback(Urn urn, AspectFoo newAspectValue, 
+          java.util.Optional<AspectFoo> existingAspectValue) {
+        return new AspectCallbackResponse<>(new AspectFoo().setValue("foo_transformed"));
+      }
+    };
+
+    // Only register callback for AspectFoo, NOT for AspectBar
+    java.util.Map<AspectCallbackMapKey, AspectCallbackRoutingClient> callbackMap = new java.util.HashMap<>();
+    callbackMap.put(new AspectCallbackMapKey(AspectFoo.class, fooUrn.getEntityType()), fooCallback);
+    AspectCallbackRegistry registry = new AspectCallbackRegistry(callbackMap);
+    dao.setAspectCallbackRegistry(registry);
+
+    // Act
+    AspectFoo foo = new AspectFoo().setValue("foo_original");
+    AspectBar bar = new AspectBar().setValue("bar_original");
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, java.util.Arrays.asList(foo, bar), _dummyAuditStamp, null);
+
+    // Assert - both aspects should be returned
+    assertEquals(results.size(), 2);
+
+    // Find AspectFoo and AspectBar in results (order may vary)
+    EntityAspectUnion fooResult = results.stream()
+        .filter(r -> r.getAspectFoo() != null)
+        .findFirst().orElse(null);
+    EntityAspectUnion barResult = results.stream()
+        .filter(r -> r.getAspectBar() != null)
+        .findFirst().orElse(null);
+    
+    assertNotNull(fooResult, "AspectFoo should be in results");
+    assertNotNull(barResult, "AspectBar should be in results");
+    assertEquals(fooResult.getAspectFoo().getValue(), "foo_transformed", 
+        "AspectFoo should be transformed by callback");
+    assertEquals(barResult.getAspectBar().getValue(), "bar_original", 
+        "AspectBar should retain original value (no callback registered)");
+
+    // Verify persistence via getLatest
+    BaseLocalDAO.AspectEntry<AspectFoo> fooEntry = dao.getLatest(fooUrn, AspectFoo.class, false);
+    assertNotNull(fooEntry.getAspect());
+    assertEquals("foo_transformed", fooEntry.getAspect().getValue(), 
+        "Database should contain the callback-transformed AspectFoo value");
+    
+    BaseLocalDAO.AspectEntry<AspectBar> barEntry = dao.getLatest(fooUrn, AspectBar.class, false);
+    assertNotNull(barEntry.getAspect());
+    assertEquals("bar_original", barEntry.getAspect().getValue(), 
+        "Database should contain the original AspectBar value (no callback registered)");
+  }
+
+  // ===== LambdaFunctionRegistry Integration Tests for addManyBatch() =====
+  // These tests verify that lambda function transformations are correctly applied and persisted
+
+  /**
+   * Tests addManyBatch() with a lambda function that transforms the aspect value.
+   * Verifies that the transformed value is persisted to the database, not the original.
+   */
+  @Test
+  public void testAddManyBatchWithSingleLambdaFunctionPersistedToDB() throws URISyntaxException {
+    if (_schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      return;
+    }
+
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(9101);
+
+    // Create a lambda function that transforms AspectFoo value
+    com.linkedin.metadata.dao.ingestion.BaseLambdaFunction<AspectFoo> transformLambda = 
+        new com.linkedin.metadata.dao.ingestion.BaseLambdaFunction<AspectFoo>(AspectFoo.class) {
+          @Override
+          public <URN extends com.linkedin.common.urn.Urn> AspectFoo apply(URN urn, 
+              java.util.Optional<AspectFoo> oldAspect, AspectFoo newAspect) {
+            return new AspectFoo().setValue("lambda_transformed");
+          }
+        };
+
+    // Create registry with the lambda function
+    com.linkedin.metadata.dao.ingestion.LambdaFunctionRegistry registry = 
+        new com.linkedin.metadata.dao.ingestion.LambdaFunctionRegistry() {
+          @Override
+          public <ASPECT extends com.linkedin.data.template.RecordTemplate>
+              java.util.List<com.linkedin.metadata.dao.ingestion.BaseLambdaFunction>
+              getLambdaFunctions(ASPECT aspect) {
+            if (aspect instanceof AspectFoo) {
+              return java.util.Collections.singletonList(transformLambda);
+            }
+            return null;
+          }
+          @Override
+          public <ASPECT extends com.linkedin.data.template.RecordTemplate> boolean isRegistered(Class<ASPECT> aspectClass) {
+            return aspectClass == AspectFoo.class;
+          }
+        };
+    dao.setLambdaFunctionRegistry(registry);
+
+    // Act
+    AspectFoo original = new AspectFoo().setValue("original");
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, java.util.Collections.singletonList(original), _dummyAuditStamp, null);
+
+    // Assert - verify result returned with TRANSFORMED value
+    assertEquals(results.size(), 1);
+    assertNotNull(results.get(0));
+    assertEquals(results.get(0).getAspectFoo().getValue(), "lambda_transformed", 
+        "Returned result should contain the lambda-transformed value, not the original");
+
+    // Verify persistence via getLatest
+    BaseLocalDAO.AspectEntry<AspectFoo> entry = dao.getLatest(fooUrn, AspectFoo.class, false);
+    assertNotNull(entry.getAspect());
+    assertEquals("lambda_transformed", entry.getAspect().getValue(), 
+        "Database should contain the lambda-transformed value, not the original");
+  }
+
+  /**
+   * Tests addManyBatch() with two aspects, both having lambda functions that transform values.
+   * Verifies that both aspects are transformed and persisted correctly.
+   */
+  @Test
+  public void testAddManyBatchWithTwoLambdaFunctionsNeitherSkipped() throws URISyntaxException {
+    if (_schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      return;
+    }
+
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(9102);
+
+    // Create lambda functions for both aspects
+    com.linkedin.metadata.dao.ingestion.BaseLambdaFunction<AspectFoo> fooLambda = 
+        new com.linkedin.metadata.dao.ingestion.BaseLambdaFunction<AspectFoo>(AspectFoo.class) {
+          @Override
+          public <URN extends com.linkedin.common.urn.Urn> AspectFoo apply(URN urn, 
+              java.util.Optional<AspectFoo> oldAspect, AspectFoo newAspect) {
+            return new AspectFoo().setValue("foo_lambda_transformed");
+          }
+        };
+
+    com.linkedin.metadata.dao.ingestion.BaseLambdaFunction<AspectBar> barLambda = 
+        new com.linkedin.metadata.dao.ingestion.BaseLambdaFunction<AspectBar>(AspectBar.class) {
+          @Override
+          public <URN extends com.linkedin.common.urn.Urn> AspectBar apply(URN urn, 
+              java.util.Optional<AspectBar> oldAspect, AspectBar newAspect) {
+            return new AspectBar().setValue("bar_lambda_transformed");
+          }
+        };
+
+    // Create registry with both lambda functions
+    com.linkedin.metadata.dao.ingestion.LambdaFunctionRegistry registry = 
+        new com.linkedin.metadata.dao.ingestion.LambdaFunctionRegistry() {
+          @Override
+          public <ASPECT extends com.linkedin.data.template.RecordTemplate>
+              java.util.List<com.linkedin.metadata.dao.ingestion.BaseLambdaFunction>
+              getLambdaFunctions(ASPECT aspect) {
+            if (aspect instanceof AspectFoo) {
+              return java.util.Collections.singletonList(fooLambda);
+            } else if (aspect instanceof AspectBar) {
+              return java.util.Collections.singletonList(barLambda);
+            }
+            return null;
+          }
+          @Override
+          public <ASPECT extends com.linkedin.data.template.RecordTemplate> boolean isRegistered(Class<ASPECT> aspectClass) {
+            return aspectClass == AspectFoo.class || aspectClass == AspectBar.class;
+          }
+        };
+    dao.setLambdaFunctionRegistry(registry);
+
+    // Act
+    AspectFoo foo = new AspectFoo().setValue("foo_original");
+    AspectBar bar = new AspectBar().setValue("bar_original");
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, java.util.Arrays.asList(foo, bar), _dummyAuditStamp, null);
+
+    // Assert - verify results contain BOTH transformed values
+    assertEquals(results.size(), 2);
+    
+    EntityAspectUnion fooResult = results.stream()
+        .filter(r -> r.getAspectFoo() != null)
+        .findFirst().orElse(null);
+    EntityAspectUnion barResult = results.stream()
+        .filter(r -> r.getAspectBar() != null)
+        .findFirst().orElse(null);
+    
+    assertNotNull(fooResult, "AspectFoo should be in results");
+    assertNotNull(barResult, "AspectBar should be in results");
+    assertEquals(fooResult.getAspectFoo().getValue(), "foo_lambda_transformed");
+    assertEquals(barResult.getAspectBar().getValue(), "bar_lambda_transformed");
+
+    // Verify persistence via getLatest
+    BaseLocalDAO.AspectEntry<AspectFoo> fooEntry = dao.getLatest(fooUrn, AspectFoo.class, false);
+    assertNotNull(fooEntry.getAspect());
+    assertEquals("foo_lambda_transformed", fooEntry.getAspect().getValue(), 
+        "Database should contain the lambda-transformed AspectFoo value");
+    
+    BaseLocalDAO.AspectEntry<AspectBar> barEntry = dao.getLatest(fooUrn, AspectBar.class, false);
+    assertNotNull(barEntry.getAspect());
+    assertEquals("bar_lambda_transformed", barEntry.getAspect().getValue(), 
+        "Database should contain the lambda-transformed AspectBar value");
+  }
+
+  /**
+   * Tests addManyBatch() with mixed lambda registration (one aspect has lambda, one doesn't).
+   * Verifies that the lambda transforms its aspect while the other remains unchanged.
+   */
+  @Test
+  public void testAddManyBatchWithMixedLambdaRegistration() throws URISyntaxException {
+    if (_schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      return;
+    }
+
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(9103);
+
+    // Create lambda function ONLY for AspectFoo
+    com.linkedin.metadata.dao.ingestion.BaseLambdaFunction<AspectFoo> fooLambda = 
+        new com.linkedin.metadata.dao.ingestion.BaseLambdaFunction<AspectFoo>(AspectFoo.class) {
+          @Override
+          public <URN extends com.linkedin.common.urn.Urn> AspectFoo apply(URN urn, 
+              java.util.Optional<AspectFoo> oldAspect, AspectFoo newAspect) {
+            return new AspectFoo().setValue("foo_lambda_transformed");
+          }
+        };
+
+    // Only register lambda for AspectFoo, NOT for AspectBar
+    com.linkedin.metadata.dao.ingestion.LambdaFunctionRegistry registry = 
+        new com.linkedin.metadata.dao.ingestion.LambdaFunctionRegistry() {
+          @Override
+          public <ASPECT extends com.linkedin.data.template.RecordTemplate>
+              java.util.List<com.linkedin.metadata.dao.ingestion.BaseLambdaFunction>
+              getLambdaFunctions(ASPECT aspect) {
+            if (aspect instanceof AspectFoo) {
+              return java.util.Collections.singletonList(fooLambda);
+            }
+            return null;
+          }
+          @Override
+          public <ASPECT extends com.linkedin.data.template.RecordTemplate> boolean isRegistered(Class<ASPECT> aspectClass) {
+            return aspectClass == AspectFoo.class;
+          }
+        };
+    dao.setLambdaFunctionRegistry(registry);
+
+    // Act
+    AspectFoo foo = new AspectFoo().setValue("foo_original");
+    AspectBar bar = new AspectBar().setValue("bar_original");
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, java.util.Arrays.asList(foo, bar), _dummyAuditStamp, null);
+
+    // Assert - both aspects should be returned
+    assertEquals(results.size(), 2);
+
+    EntityAspectUnion fooResult = results.stream()
+        .filter(r -> r.getAspectFoo() != null)
+        .findFirst().orElse(null);
+    EntityAspectUnion barResult = results.stream()
+        .filter(r -> r.getAspectBar() != null)
+        .findFirst().orElse(null);
+    
+    assertNotNull(fooResult, "AspectFoo should be in results");
+    assertNotNull(barResult, "AspectBar should be in results");
+    assertEquals(fooResult.getAspectFoo().getValue(), "foo_lambda_transformed", 
+        "AspectFoo should be transformed by lambda");
+    assertEquals(barResult.getAspectBar().getValue(), "bar_original", 
+        "AspectBar should retain original value (no lambda registered)");
+
+    // Verify persistence via getLatest
+    BaseLocalDAO.AspectEntry<AspectFoo> fooEntry = dao.getLatest(fooUrn, AspectFoo.class, false);
+    assertNotNull(fooEntry.getAspect());
+    assertEquals("foo_lambda_transformed", fooEntry.getAspect().getValue(), 
+        "Database should contain the lambda-transformed AspectFoo value");
+    
+    BaseLocalDAO.AspectEntry<AspectBar> barEntry = dao.getLatest(fooUrn, AspectBar.class, false);
+    assertNotNull(barEntry.getAspect());
+    assertEquals("bar_original", barEntry.getAspect().getValue(), 
+        "Database should contain the original AspectBar value (no lambda registered)");
+  }
+
+  /**
+   * Tests addManyBatch() with a lambda function that merges old and new values.
+   * Verifies that the lambda receives the old value and can use it in the transformation.
+   */
+  @Test
+  public void testAddManyBatchWithLambdaMergingOldValue() throws URISyntaxException {
+    if (_schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      return;
+    }
+
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(9104);
+
+    // First, create an existing aspect
+    AspectFoo existingFoo = new AspectFoo().setValue("existing");
+    dao.addManyBatch(fooUrn, java.util.Collections.singletonList(existingFoo), _dummyAuditStamp, null);
+
+    // Create a lambda function that merges old and new values
+    com.linkedin.metadata.dao.ingestion.BaseLambdaFunction<AspectFoo> mergeLambda = 
+        new com.linkedin.metadata.dao.ingestion.BaseLambdaFunction<AspectFoo>(AspectFoo.class) {
+          @Override
+          public <URN extends com.linkedin.common.urn.Urn> AspectFoo apply(URN urn, 
+              java.util.Optional<AspectFoo> oldAspect, AspectFoo newAspect) {
+            String oldValue = oldAspect.isPresent() ? oldAspect.get().getValue() : "none";
+            String newValue = newAspect.getValue();
+            return new AspectFoo().setValue(oldValue + "_merged_with_" + newValue);
+          }
+        };
+
+    com.linkedin.metadata.dao.ingestion.LambdaFunctionRegistry registry = 
+        new com.linkedin.metadata.dao.ingestion.LambdaFunctionRegistry() {
+          @Override
+          public <ASPECT extends com.linkedin.data.template.RecordTemplate>
+              java.util.List<com.linkedin.metadata.dao.ingestion.BaseLambdaFunction>
+              getLambdaFunctions(ASPECT aspect) {
+            if (aspect instanceof AspectFoo) {
+              return java.util.Collections.singletonList(mergeLambda);
+            }
+            return null;
+          }
+          @Override
+          public <ASPECT extends com.linkedin.data.template.RecordTemplate> boolean isRegistered(Class<ASPECT> aspectClass) {
+            return aspectClass == AspectFoo.class;
+          }
+        };
+    dao.setLambdaFunctionRegistry(registry);
+
+    // Act - update with new value
+    AspectFoo newFoo = new AspectFoo().setValue("new");
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, java.util.Collections.singletonList(newFoo), _dummyAuditStamp, null);
+
+    // Assert - verify merged value
+    assertEquals(results.size(), 1);
+    assertNotNull(results.get(0));
+    assertEquals(results.get(0).getAspectFoo().getValue(), "existing_merged_with_new", 
+        "Returned result should contain the merged value from old and new");
+
+    // Verify persistence via getLatest
+    BaseLocalDAO.AspectEntry<AspectFoo> entry = dao.getLatest(fooUrn, AspectFoo.class, false);
+    assertNotNull(entry.getAspect());
+    assertEquals("existing_merged_with_new", entry.getAspect().getValue(), 
+        "Database should contain the merged value from old and new");
+  }
+
+  // ===== Comprehensive Integration Test for addManyBatch() =====
+
+  /**
+   * Comprehensive test for addManyBatch() with 4 aspects exercising different code paths:
+   * - AspectFoo: Skipped due to equality check (same value as existing, verified via unchanged timestamp)
+   * - AspectBar: Updated due to FORCE_UPDATE annotation (same value but write forced, verified via changed timestamp)
+   * - AspectFooBar: Transformed by callback before ingestion
+   * - AspectAttributes: Transformed by lambda before ingestion
+   *
+   * <p>All aspects have existing metadata before the batch update.
+   *
+   * <p>Note: AspectBar has @gma.aspect.ingestion with FORCE_UPDATE and filter: fooId=1 OR dummyId=10.
+   * Since FooUrnPathExtractor hardcodes dummyId=10, the FORCE_UPDATE is triggered even when values are equal.
+   */
+  @Test
+  public void testAddManyBatchComprehensiveWithAllCodePaths() throws URISyntaxException {
+    if (_schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      return;
+    }
+
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(9999);
+    
+    // Note: AspectBar has @gma.aspect.ingestion with FORCE_UPDATE and filter: fooId=1 OR dummyId=10
+    // Since FooUrnPathExtractor hardcodes dummyId=10, FORCE_UPDATE will be triggered for AspectBar
+    // even when values are equal. We use this to test FORCE_UPDATE behavior.
+
+    // ===== SETUP: Create existing metadata for all 4 aspects =====
+    AspectFoo existingFoo = new AspectFoo().setValue("foo_unchanged");  // Will be skipped due to equality
+    AspectBar existingBar = new AspectBar().setValue("bar_v1");  // Will be updated due to FORCE_UPDATE
+    AspectFooBar existingFooBar = new AspectFooBar().setBars(new BarUrnArray(makeBarUrn(1)));
+    AspectAttributes existingAttrs = new AspectAttributes().setAttributes(new StringArray("attr_v1"));
+    
+    // Use dao.add() to create existing data (without callback/lambda interference)
+    dao.add(fooUrn, existingFoo, _dummyAuditStamp, null, null);
+    dao.add(fooUrn, existingBar, _dummyAuditStamp, null, null);
+    dao.add(fooUrn, existingFooBar, _dummyAuditStamp, null, null);
+    dao.add(fooUrn, existingAttrs, _dummyAuditStamp, null, null);
+
+    // Verify existing data
+    assertEquals("foo_unchanged", dao.getLatest(fooUrn, AspectFoo.class, false).getAspect().getValue());
+    assertEquals("bar_v1", dao.getLatest(fooUrn, AspectBar.class, false).getAspect().getValue());
+    assertEquals(1, dao.getLatest(fooUrn, AspectFooBar.class, false).getAspect().getBars().size());
+    assertEquals("attr_v1", dao.getLatest(fooUrn, AspectAttributes.class, false).getAspect().getAttributes().get(0));
+
+    // ===== SETUP: Configure callback for AspectFooBar =====
+    // Pre-create the transformed URN to avoid exception handling in callback
+    final com.linkedin.testing.urn.BarUrn transformedBarUrn = makeBarUrn(999);
+    AspectCallbackRoutingClient<AspectFooBar> fooBarCallback = new AspectCallbackRoutingClient<AspectFooBar>() {
+      @Override
+      public AspectCallbackResponse<AspectFooBar> routeAspectCallback(com.linkedin.common.urn.Urn urn, 
+          AspectFooBar newAspectValue, java.util.Optional<AspectFooBar> existingAspectValue) {
+        // Transform by adding a specific bar URN
+        return new AspectCallbackResponse<>(new AspectFooBar().setBars(new BarUrnArray(transformedBarUrn)));
+      }
+    };
+    java.util.Map<AspectCallbackMapKey, AspectCallbackRoutingClient> callbackMap = new java.util.HashMap<>();
+    callbackMap.put(new AspectCallbackMapKey(AspectFooBar.class, fooUrn.getEntityType()), fooBarCallback);
+    AspectCallbackRegistry callbackRegistry = new AspectCallbackRegistry(callbackMap);
+    dao.setAspectCallbackRegistry(callbackRegistry);
+
+    // ===== SETUP: Configure lambda for AspectAttributes =====
+    com.linkedin.metadata.dao.ingestion.BaseLambdaFunction<AspectAttributes> attrsLambda = 
+        new com.linkedin.metadata.dao.ingestion.BaseLambdaFunction<AspectAttributes>(AspectAttributes.class) {
+          @Override
+          public <URN extends com.linkedin.common.urn.Urn> AspectAttributes apply(URN urn, 
+              java.util.Optional<AspectAttributes> oldAspect, AspectAttributes newAspect) {
+            return new AspectAttributes().setAttributes(new StringArray("attr_lambda_transformed"));
+          }
+        };
+    com.linkedin.metadata.dao.ingestion.LambdaFunctionRegistry lambdaRegistry = 
+        new com.linkedin.metadata.dao.ingestion.LambdaFunctionRegistry() {
+          @Override
+          public <ASPECT extends com.linkedin.data.template.RecordTemplate>
+              java.util.List<com.linkedin.metadata.dao.ingestion.BaseLambdaFunction>
+              getLambdaFunctions(ASPECT aspect) {
+            if (aspect instanceof AspectAttributes) {
+              return java.util.Collections.singletonList(attrsLambda);
+            }
+            return null;
+          }
+          @Override
+          public <ASPECT extends com.linkedin.data.template.RecordTemplate> boolean isRegistered(Class<ASPECT> aspectClass) {
+            return aspectClass == AspectAttributes.class;
+          }
+        };
+    dao.setLambdaFunctionRegistry(lambdaRegistry);
+
+    // Capture timestamps before batch update for verification
+    Long fooTimestampBefore = dao.getLatest(fooUrn, AspectFoo.class, false).getExtraInfo().getAudit().getTime();
+    Long barTimestampBefore = dao.getLatest(fooUrn, AspectBar.class, false).getExtraInfo().getAudit().getTime();
+
+    // ===== ACT: Batch update with 4 aspects =====
+    // AspectFoo: same value as existing (will be skipped due to equality - no FORCE_UPDATE annotation)
+    // AspectBar: same value as existing BUT will be updated due to FORCE_UPDATE annotation
+    // AspectFooBar: new value (will be transformed by callback)
+    // AspectAttributes: new value (will be transformed by lambda)
+    AspectFoo newFoo = new AspectFoo().setValue("foo_unchanged");  // Same as existing
+    AspectBar newBar = new AspectBar().setValue("bar_v1");  // Same as existing, but FORCE_UPDATE triggers write
+    AspectFooBar newFooBar = new AspectFooBar().setBars(new BarUrnArray(makeBarUrn(2)));
+    AspectAttributes newAttrs = new AspectAttributes().setAttributes(new StringArray("attr_v2"));
+
+    AuditStamp newAuditStamp = makeAuditStamp("actor_batch", System.currentTimeMillis());
+    List<EntityAspectUnion> results = dao.addManyBatch(fooUrn, 
+        java.util.Arrays.asList(newFoo, newBar, newFooBar, newAttrs), newAuditStamp, null);
+
+    // ===== ASSERT: Verify return values =====
+    assertEquals(results.size(), 4, "All 4 aspects should be returned");
+
+    // Find each aspect in results
+    EntityAspectUnion fooResult = results.stream()
+        .filter(r -> r.getAspectFoo() != null).findFirst().orElse(null);
+    EntityAspectUnion barResult = results.stream()
+        .filter(r -> r.getAspectBar() != null).findFirst().orElse(null);
+    EntityAspectUnion fooBarResult = results.stream()
+        .filter(r -> r.getAspectFooBar() != null).findFirst().orElse(null);
+    EntityAspectUnion attrsResult = results.stream()
+        .filter(r -> r.getAspectAttributes() != null).findFirst().orElse(null);
+
+    assertNotNull(fooResult, "AspectFoo should be in results");
+    assertNotNull(barResult, "AspectBar should be in results");
+    assertNotNull(fooBarResult, "AspectFooBar should be in results");
+    assertNotNull(attrsResult, "AspectAttributes should be in results");
+
+    // Verify return values
+    assertEquals(fooResult.getAspectFoo().getValue(), "foo_unchanged", 
+        "AspectFoo should have same value (equality skip returns old value)");
+    assertEquals(barResult.getAspectBar().getValue(), "bar_v1", 
+        "AspectBar should have same value (FORCE_UPDATE still returns the value)");
+    assertEquals(fooBarResult.getAspectFooBar().getBars().get(0), makeBarUrn(999), 
+        "AspectFooBar should have callback-transformed value (bar 999)");
+    assertEquals(attrsResult.getAspectAttributes().getAttributes().get(0), "attr_lambda_transformed", 
+        "AspectAttributes should have lambda-transformed value");
+
+    // ===== ASSERT: Verify persistence via getLatest =====
+    
+    // AspectFoo: Should remain unchanged (equality skip - no DB write)
+    BaseLocalDAO.AspectEntry<AspectFoo> fooEntry = dao.getLatest(fooUrn, AspectFoo.class, false);
+    assertNotNull(fooEntry.getAspect());
+    assertEquals("foo_unchanged", fooEntry.getAspect().getValue(), 
+        "Database should contain original AspectFoo value (equality skip)");
+    Long fooTimestampAfter = fooEntry.getExtraInfo().getAudit().getTime();
+    assertEquals(fooTimestampBefore, fooTimestampAfter, 
+        "AspectFoo audit timestamp should be unchanged (no DB write due to equality skip)");
+
+    // AspectBar: Should be updated due to FORCE_UPDATE annotation (even though value is same)
+    BaseLocalDAO.AspectEntry<AspectBar> barEntry = dao.getLatest(fooUrn, AspectBar.class, false);
+    assertNotNull(barEntry.getAspect());
+    assertEquals("bar_v1", barEntry.getAspect().getValue(), 
+        "Database should contain AspectBar value (FORCE_UPDATE triggered write)");
+    Long barTimestampAfter = barEntry.getExtraInfo().getAudit().getTime();
+    assertNotEquals(barTimestampBefore, barTimestampAfter, 
+        "AspectBar audit timestamp should be changed (FORCE_UPDATE triggered DB write)");
+
+    // AspectFooBar: Should be updated to callback-transformed value
+    BaseLocalDAO.AspectEntry<AspectFooBar> fooBarEntry = dao.getLatest(fooUrn, AspectFooBar.class, false);
+    assertNotNull(fooBarEntry.getAspect());
+    assertEquals(makeBarUrn(999), fooBarEntry.getAspect().getBars().get(0), 
+        "Database should contain callback-transformed AspectFooBar value (bar 999)");
+
+    // AspectAttributes: Should be updated to lambda-transformed value
+    BaseLocalDAO.AspectEntry<AspectAttributes> attrsEntry = dao.getLatest(fooUrn, AspectAttributes.class, false);
+    assertNotNull(attrsEntry.getAspect());
+    assertEquals("attr_lambda_transformed", attrsEntry.getAspect().getAttributes().get(0), 
+        "Database should contain lambda-transformed AspectAttributes value");
   }
 }

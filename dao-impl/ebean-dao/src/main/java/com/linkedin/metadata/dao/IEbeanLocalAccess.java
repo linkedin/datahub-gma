@@ -75,6 +75,22 @@ public interface IEbeanLocalAccess<URN extends Urn> {
       @Nullable IngestionTrackingContext ingestionTrackingContext, boolean isTestMode);
 
   /**
+   * Batch upsert multiple aspects for a single URN using multi-column UPDATE.
+   * This method generates a single SQL statement that updates all aspect columns at once.
+   *
+   * @param urn                      entity URN
+   * @param updateContexts           list of aspect update contexts containing values and lambdas
+   * @param auditStamp               audit stamp for tracking
+   * @param ingestionTrackingContext tracking context for ingestion
+   * @param isTestMode               whether the test mode is enabled or not
+   * @return number of rows inserted or updated
+   */
+  <ASPECT_UNION extends RecordTemplate> int batchUpsert(@Nonnull URN urn,
+      @Nonnull List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts,
+      @Nonnull AuditStamp auditStamp,
+      @Nullable IngestionTrackingContext ingestionTrackingContext, boolean isTestMode);
+
+  /**
    * Get read aspects from entity table. This a new schema implementation for batchGetUnion() in {@link EbeanLocalDAO}
    * @param keys {@link AspectKey} to retrieve aspect metadata
    * @param keysCount pagination key count limit
@@ -96,6 +112,30 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * @return number of rows deleted
    */
   int softDeleteAsset(@Nonnull URN urn, boolean isTestMode);
+
+  /**
+   * Read deletion-relevant fields for a batch of URNs in a single SELECT.
+   * Returns deletion-relevant fields for validation and all aspect columns for Kafka archival.
+   * URNs not found in the database will not have entries in the returned map.
+   *
+   * @param urns list of URNs to check
+   * @param isTestMode whether to use test schema
+   * @return map of URN to {@link EntityDeletionInfo}
+   */
+  Map<URN, EntityDeletionInfo> readDeletionInfoBatch(@Nonnull List<URN> urns, boolean isTestMode);
+
+  /**
+   * Batch soft-delete entities by setting deleted_ts = NOW() for URNs that meet all deletion criteria.
+   * The UPDATE includes guard clauses (deleted_ts IS NULL, Status.removed = true, lastmodifiedon &lt; cutoff)
+   * as defense-in-depth against race conditions. The Status aspect column name is resolved internally via
+   * {@link com.linkedin.metadata.dao.utils.SQLSchemaUtils#getAspectColumnName}.
+   *
+   * @param urns list of URNs to soft-delete
+   * @param cutoffTimestamp only delete if Status.lastmodifiedon is before this timestamp
+   * @param isTestMode whether to use test schema
+   * @return number of rows actually soft-deleted
+   */
+  int batchSoftDeleteAssets(@Nonnull List<URN> urns, @Nonnull String cutoffTimestamp, boolean isTestMode);
 
   /**
    * Returns list of urns that satisfy the given filter conditions.

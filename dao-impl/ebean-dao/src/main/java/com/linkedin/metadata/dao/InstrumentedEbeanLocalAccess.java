@@ -85,6 +85,15 @@ public class InstrumentedEbeanLocalAccess<URN extends Urn> implements IEbeanLoca
             auditStamp, ingestionTrackingContext, isTestMode));
   }
 
+  @Override
+  public <ASPECT_UNION extends RecordTemplate> int batchUpsert(@Nonnull URN urn,
+      @Nonnull List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts,
+      @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext ingestionTrackingContext,
+      boolean isTestMode) {
+    return instrument("batchUpsert.aspects_" + updateContexts.size(),
+        () -> _delegate.batchUpsert(urn, updateContexts, auditStamp, ingestionTrackingContext, isTestMode));
+  }
+
   @Nonnull
   @Override
   public <ASPECT extends RecordTemplate> List<EbeanMetadataAspect> batchGetUnion(
@@ -97,6 +106,18 @@ public class InstrumentedEbeanLocalAccess<URN extends Urn> implements IEbeanLoca
   @Override
   public int softDeleteAsset(@Nonnull URN urn, boolean isTestMode) {
     return instrument("softDeleteAsset", () -> _delegate.softDeleteAsset(urn, isTestMode));
+  }
+
+  @Override
+  public Map<URN, EntityDeletionInfo> readDeletionInfoBatch(@Nonnull List<URN> urns, boolean isTestMode) {
+    return instrument("readDeletionInfoBatch.urns_" + urns.size(),
+        () -> _delegate.readDeletionInfoBatch(urns, isTestMode));
+  }
+
+  @Override
+  public int batchSoftDeleteAssets(@Nonnull List<URN> urns, @Nonnull String cutoffTimestamp, boolean isTestMode) {
+    return instrument("batchSoftDeleteAssets.urns_" + urns.size(),
+        () -> _delegate.batchSoftDeleteAssets(urns, cutoffTimestamp, isTestMode));
   }
 
   @Override

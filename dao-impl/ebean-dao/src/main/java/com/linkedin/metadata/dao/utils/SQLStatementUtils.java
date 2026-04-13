@@ -44,6 +44,8 @@ public class SQLStatementUtils {
       .addEscape('\'', "''")
       .addEscape('\\', "\\\\").build();
 
+  private static final String TIMESTAMP_FORMAT_PATTERN = "\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}";
+
   public static final String SOFT_DELETED_CHECK = "JSON_EXTRACT(%s, '$.gma_deleted') IS NULL"; // true when not soft deleted
 
   public static final String DELETED_TS_IS_NULL_CHECK = "deleted_ts IS NULL"; // true when the deleted_ts is NULL, meaning the record is not soft deleted
@@ -83,12 +85,21 @@ public class SQLStatementUtils {
   public static final String SQL_INSERT_ASSET_VALUES = "VALUES (:urn, :lastmodifiedon, :lastmodifiedby,";
   // Delete prefix of the sql statement for deleting from metadata_aspect table
   public static final String SQL_SOFT_DELETE_ASSET_WITH_URN = "UPDATE %s SET deleted_ts = NOW() WHERE urn = '%s';";
+
+  private static final String SQL_READ_COLUMNS_BY_URNS_TEMPLATE = "SELECT %s FROM %s WHERE urn IN (%s)";
+
+  private static final String SQL_BATCH_SOFT_DELETE_ASSET_TEMPLATE =
+      "UPDATE %s SET deleted_ts = NOW()"
+          + " WHERE urn IN (%s)"
+          + " AND deleted_ts IS NULL"
+          + " AND JSON_EXTRACT(%s, '$.aspect.removed') = true"
+          + " AND JSON_EXTRACT(%s, '$.lastmodifiedon') < '%s'";
   // closing bracket for the sql statement INSERT prefix
   // e.g. INSERT INTO metadata_aspect (urn, a_urn, lastmodifiedon, lastmodifiedby)
   public static final String CLOSING_BRACKET = ") ";
   // deleted_ts check on create Statement SQL. This is used to set the deleted_ts to a non-null value
   // If a record that is NOT marked for deletion is attempted to be created again, an exception will be thrown
-  public static final String DELETED_TS_DUPLICATE_KEY_CHECK = "ON DUPLICATE KEY UPDATE ";
+  public static final String ON_DUPLICATE_KEY_UPDATE = "ON DUPLICATE KEY UPDATE ";
   public static final String DELETED_TS_SET_VALUE_CONDITIONALLY = ", deleted_ts = IF(deleted_ts IS NULL, CAST('DuplicateKeyException' AS UNSIGNED), NULL);";
   // "JSON_EXTRACT(%s, '$.gma_deleted') IS NOT NULL" is used to exclude soft-deleted entity which has no lastmodifiedon.
   // for details, see the known limitations on https://github.com/linkedin/datahub-gma/pull/311. Same reason for
@@ -153,15 +164,6 @@ public class SQLStatementUtils {
   private static final String DELETE_BY_SOURCE_AND_ASPECT = "UPDATE %s SET deleted_ts=NOW() "
       + "WHERE source = :source AND (aspect = :aspect OR aspect = :pegasus_aspect) AND deleted_ts IS NULL";
 
-  /**
-   *  Filter query has pagination params in the existing APIs. To accommodate this, we use subquery to include total result counts in the query response.
-   *  For example, we will build the following filter query statement:
-   *
-   *  <p>SELECT urn, (SELECT COUNT(urn) FROM metadata_entity_foo WHERE i_aspectfoo$value >= 25\n"
-   *  AND i_aspectfoo$value < 50 AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL) as _total_count FROM metadata_entity_foo\n"
-   *  WHERE i_aspectfoo$value >= 25 AND i_aspectfoo$value < 50 AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL LIMIT :limit OFFSET :offset;
-   */
-  private static final String SQL_FILTER_TEMPLATE = "SELECT urn, (%s) as _total_count FROM %s";
   private static final String SQL_BROWSE_ASPECT_TEMPLATE =
       String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby, (SELECT COUNT(urn) FROM %%s) as _total_count "
           + "FROM %%s WHERE %s LIMIT %%d OFFSET %%d", SOFT_DELETED_CHECK);
@@ -303,6 +305,53 @@ public class SQLStatementUtils {
   }
 
   /**
+   * Create SELECT SQL statement for reading deletion-relevant columns for a batch of URNs.
+   * Selects only urn, deleted_ts, and aspect columns (a_* prefix), excluding index columns (i_*)
+   * and other derived columns to reduce data transfer.
+   *
+   * @param urns list of URNs to read
+   * @param columns list of column names to select
+   * @param isTestMode whether the test mode is enabled or not
+   * @return select columns sql
+   */
+  public static String createReadDeletionInfoByUrnsSql(@Nonnull List<? extends Urn> urns,
+      @Nonnull List<String> columns, boolean isTestMode) {
+    final Urn firstUrn = urns.get(0);
+    final String tableName = isTestMode ? getTestTableName(firstUrn) : getTableName(firstUrn);
+    final String urnList = urns.stream()
+        .map(urn -> "'" + escapeReservedCharInUrn(urn.toString()) + "'")
+        .collect(Collectors.joining(", "));
+    final String columnList = String.join(", ", columns);
+    return String.format(SQL_READ_COLUMNS_BY_URNS_TEMPLATE, columnList, tableName, urnList);
+  }
+
+  /**
+   * Create batch soft-delete SQL statement with guard clauses for defense-in-depth.
+   * The UPDATE includes conditions (deleted_ts IS NULL, Status.removed = true, lastmodifiedon &lt; cutoff)
+   * to protect against race conditions between validation SELECT and this UPDATE.
+   *
+   * @param urns list of URNs to soft-delete
+   * @param cutoffTimestamp only delete if Status.lastmodifiedon is before this timestamp
+   * @param statusColumnName the entity table column name for the Status aspect (e.g. "a_status")
+   * @param isTestMode whether the test mode is enabled or not
+   * @return batch soft-delete sql
+   */
+  public static String createBatchSoftDeleteAssetSql(@Nonnull List<? extends Urn> urns,
+      @Nonnull String cutoffTimestamp, @Nonnull String statusColumnName, boolean isTestMode) {
+    if (!cutoffTimestamp.matches(TIMESTAMP_FORMAT_PATTERN)) {
+      throw new IllegalArgumentException(
+          "cutoffTimestamp must be in yyyy-MM-dd HH:mm:ss.SSS format, got: " + cutoffTimestamp);
+    }
+    final Urn firstUrn = urns.get(0);
+    final String tableName = isTestMode ? getTestTableName(firstUrn) : getTableName(firstUrn);
+    final String urnList = urns.stream()
+        .map(urn -> "'" + escapeReservedCharInUrn(urn.toString()) + "'")
+        .collect(Collectors.joining(", "));
+    return String.format(SQL_BATCH_SOFT_DELETE_ASSET_TEMPLATE, tableName, urnList, statusColumnName,
+        statusColumnName, cutoffTimestamp);
+  }
+
+  /**
    * Create Update with optimistic locking SQL statement. The SQL UPDATE use old_timestamp as a compareAndSet to check
    * if the current update is made on an unchange record. For example: UPDATE table WHERE modifiedon = :oldTimestamp.
    *
@@ -331,26 +380,14 @@ public class SQLStatementUtils {
    * Create filter SQL statement.
    * @param entityType entity type from urn
    * @param indexFilter index filter
-   * @param hasTotalCount whether to calculate total count in SQL.
    * @param nonDollarVirtualColumnsEnabled  true if virtual column does not contain $, false otherwise
    * @return translated SQL where statement
    */
-  public static String createFilterSql(String entityType, @Nullable IndexFilter indexFilter, boolean hasTotalCount, boolean nonDollarVirtualColumnsEnabled,
+  public static String createFilterSql(String entityType, @Nullable IndexFilter indexFilter, boolean nonDollarVirtualColumnsEnabled,
       @Nonnull SchemaValidatorUtil schemaValidator) {
     final String tableName = getTableName(entityType);
     String whereClause = parseIndexFilter(entityType, indexFilter, nonDollarVirtualColumnsEnabled, schemaValidator);
-    String totalCountSql = String.format("SELECT COUNT(urn) FROM %s %s", tableName, whereClause);
-    StringBuilder sb = new StringBuilder();
-
-    if (hasTotalCount) {
-      sb.append(String.format(SQL_FILTER_TEMPLATE, totalCountSql, tableName));
-    } else {
-      sb.append("SELECT urn FROM ").append(tableName);
-    }
-
-    sb.append("\n");
-    sb.append(whereClause);
-    return sb.toString();
+    return "SELECT urn FROM " + tableName + "\n" + whereClause;
   }
 
   /**
