@@ -104,20 +104,22 @@ public class SQLStatementUtils {
   // "JSON_EXTRACT(%s, '$.gma_deleted') IS NOT NULL" is used to exclude soft-deleted entity which has no lastmodifiedon.
   // for details, see the known limitations on https://github.com/linkedin/datahub-gma/pull/311. Same reason for
   // SQL_UPDATE_ASPECT_WITH_URN_TEMPLATE
+  // All UPDATE templates include deleted_ts = NULL to ensure any successful write revives an asset-deleted entity.
+  // Without this, the optimistic locking UPDATE path leaves deleted_ts set, making the entity invisible to reads.
   private static final String SQL_UPDATE_ASPECT_TEMPLATE =
-      "UPDATE %s SET %s = :metadata, lastmodifiedon = :lastmodifiedon, lastmodifiedby = :lastmodifiedby "
+      "UPDATE %s SET %s = :metadata, lastmodifiedon = :lastmodifiedon, lastmodifiedby = :lastmodifiedby, deleted_ts = NULL "
           + "WHERE urn = :urn and (JSON_EXTRACT(%s, '$.lastmodifiedon') = :oldTimestamp OR JSON_EXTRACT(%s, '$.gma_deleted') IS NOT NULL);";
 
   private static final String SQL_UPDATE_ASPECT_WITH_URN_TEMPLATE =
-      "UPDATE %s SET %s = :metadata, a_urn = :a_urn, lastmodifiedon = :lastmodifiedon, lastmodifiedby = :lastmodifiedby "
+      "UPDATE %s SET %s = :metadata, a_urn = :a_urn, lastmodifiedon = :lastmodifiedon, lastmodifiedby = :lastmodifiedby, deleted_ts = NULL "
           + "WHERE urn = :urn and (JSON_EXTRACT(%s, '$.lastmodifiedon') = :oldTimestamp OR JSON_EXTRACT(%s, '$.gma_deleted') IS NOT NULL);";
 
   private static final String SQL_UPDATE_ASPECT_TEMPLATE_WITH_SOFT_DELETE_OVERWRITE =
-      "UPDATE %s SET %s = :metadata, lastmodifiedon = :lastmodifiedon, lastmodifiedby = :lastmodifiedby "
+      "UPDATE %s SET %s = :metadata, lastmodifiedon = :lastmodifiedon, lastmodifiedby = :lastmodifiedby, deleted_ts = NULL "
           + "WHERE urn = :urn ;";
 
   private static final String SQL_UPDATE_ASPECT_WITH_URN_TEMPLATE_WITH_SOFT_DELETE_OVERWRITE = "UPDATE %s SET %s = "
-      + ":metadata, a_urn = :a_urn, lastmodifiedon = :lastmodifiedon, lastmodifiedby = :lastmodifiedby WHERE urn = :urn;";
+      + ":metadata, a_urn = :a_urn, lastmodifiedon = :lastmodifiedon, lastmodifiedby = :lastmodifiedby, deleted_ts = NULL WHERE urn = :urn;";
 
   private static final String SQL_READ_ASPECT_TEMPLATE =
       String.format("SELECT urn, %%s, lastmodifiedon, lastmodifiedby FROM %%s WHERE %s AND urn IN (", SOFT_DELETED_CHECK);
@@ -137,7 +139,7 @@ public class SQLStatementUtils {
           + "as _total_count FROM %%s WHERE %s LIMIT %%s OFFSET %%s", NONNULL_CHECK,  NONNULL_CHECK);
 
   private static final String SQL_READ_ASPECT_WITH_SOFT_DELETED_TEMPLATE =
-      "SELECT urn, %s, lastmodifiedon, lastmodifiedby FROM %s WHERE urn IN (";
+      "SELECT urn, %s, lastmodifiedon, lastmodifiedby, deleted_ts FROM %s WHERE urn IN (";
 
   private static final String INDEX_GROUP_BY_CRITERION = "SELECT count(*) as COUNT, %s FROM %s";
 
@@ -229,8 +231,10 @@ public class SQLStatementUtils {
     stringBuilder.append(String.format(sqlTemplate, columnName, tableName, columnName));
     stringBuilder.append(urnList);
     stringBuilder.append(RIGHT_PARENTHESIS);
-    stringBuilder.append(" AND ");
-    stringBuilder.append(DELETED_TS_IS_NULL_CHECK);
+    if (!includeSoftDeleted) {
+      stringBuilder.append(" AND ");
+      stringBuilder.append(DELETED_TS_IS_NULL_CHECK);
+    }
     return stringBuilder.toString();
   }
 

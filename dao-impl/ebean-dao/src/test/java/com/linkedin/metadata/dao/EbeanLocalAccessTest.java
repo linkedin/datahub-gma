@@ -924,4 +924,44 @@ public class EbeanLocalAccessTest {
     List<FooUrn> urns = Collections.singletonList(makeFooUrn(0));
     _ebeanLocalAccessFoo.batchSoftDeleteAssets(urns, "'; DROP TABLE metadata_entity_foo; --", false);
   }
+
+  // ===== Gap 4: Asset-level deletion visibility in batchGetUnion =====
+
+  @Test
+  public void testAssetDeletedEntityVisibleWithIncludeSoftDeleted() {
+    // Gap 4: After softDeleteAsset(), batchGetUnion(includeSoftDeleted=true) should return the row
+    // so that shouldBackfill() can detect the entity is deleted and reject stale backfills.
+    // deleteAll() sets both deleted_ts AND aspect-level {"gma_deleted": true} markers.
+    FooUrn fooUrn = makeFooUrn(400);
+    AspectFoo aspectFoo = new AspectFoo().setValue("gap4test");
+    AuditStamp auditStamp = makeAuditStamp("actor", System.currentTimeMillis());
+
+    // Step 1: Create entity with an aspect
+    _ebeanLocalAccessFoo.add(fooUrn, aspectFoo, AspectFoo.class, auditStamp, null, false);
+
+    // Verify: aspect is readable normally
+    AspectKey<FooUrn, AspectFoo> aspectKey = new AspectKey<>(AspectFoo.class, fooUrn, 0L);
+    List<EbeanMetadataAspect> results =
+        _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0, false, false);
+    assertEquals(1, results.size());
+    assertFalse(EBeanDAOUtils.isSoftDeletedMetadata(results.get(0).getMetadata()));
+
+    // Step 2: Asset-level delete (sets deleted_ts AND marks aspects as {"gma_deleted": true})
+    int deleted = _ebeanLocalAccessFoo.softDeleteAsset(fooUrn, false);
+    assertEquals(1, deleted);
+
+    // Step 3: batchGetUnion with includeSoftDeleted=false should NOT return the row (deleted_ts filters it)
+    results = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0, false, false);
+    assertEquals(0, results.size());
+
+    // Step 4: batchGetUnion with includeSoftDeleted=true SHOULD return the row (Gap 4 fix —
+    // no longer filtered by deleted_ts IS NULL)
+    results = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0, true, false);
+    assertEquals(1, results.size());
+
+    // Step 5: The returned aspect should be marked as soft-deleted via aspect-level {"gma_deleted": true}
+    EbeanMetadataAspect result = results.get(0);
+    assertEquals(fooUrn.toString(), result.getKey().getUrn());
+    assertTrue(EBeanDAOUtils.isSoftDeletedMetadata(result.getMetadata()));
+  }
 }

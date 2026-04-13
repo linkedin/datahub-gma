@@ -382,6 +382,11 @@ public class EBeanDAOUtils {
     } catch (URISyntaxException e) {
       throw new RuntimeException("Invalid urn format: " + urn, e);
     }
+    // Check for asset-level deletion: deleted_ts is non-null means the entire entity was deleted
+    // via softDeleteAsset(). deleted_ts is only in the SELECT when includeSoftDeleted=true.
+    final Timestamp assetDeletedTs = sqlRow.keySet().contains("deleted_ts") ? sqlRow.getTimestamp("deleted_ts") : null;
+    final boolean isAssetLevelDeleted = assetDeletedTs != null;
+
     if (isSoftDeletedAspect(sqlRow, columnName)) {
       primaryKey = new EbeanMetadataAspect.PrimaryKey(urn, aspectClass.getCanonicalName(), LATEST_VERSION);
 
@@ -399,6 +404,14 @@ public class EBeanDAOUtils {
       ebeanMetadataAspect.setCreatedOn(deletionTimestamp);
       ebeanMetadataAspect.setCreatedFor(sqlRow.getString("createdfor"));
       ebeanMetadataAspect.setMetadata(sqlRow.getString(columnName));
+    } else if (isAssetLevelDeleted) {
+      // Asset-level deletion: aspect column still has its value but entity row has deleted_ts set.
+      // Mark as soft-deleted using deleted_ts as the deletion timestamp.
+      primaryKey = new EbeanMetadataAspect.PrimaryKey(urn, aspectClass.getCanonicalName(), LATEST_VERSION);
+      ebeanMetadataAspect.setCreatedBy(sqlRow.getString("lastmodifiedby"));
+      ebeanMetadataAspect.setCreatedOn(assetDeletedTs);
+      ebeanMetadataAspect.setCreatedFor(sqlRow.getString("createdfor"));
+      ebeanMetadataAspect.setMetadata(DELETED_VALUE);
     } else {
       AuditedAspect auditedAspect = RecordUtils.toRecordTemplate(AuditedAspect.class, sqlRow.getString(columnName));
       primaryKey = new EbeanMetadataAspect.PrimaryKey(urn, auditedAspect.getCanonicalName(), LATEST_VERSION);
