@@ -67,9 +67,48 @@ public class EBeanDAOUtils {
       .toFormatter();
   public static final String DIFFERENT_RESULTS_TEMPLATE = "The results of %s from the new schema table and old schema table are not equal. Reason: %s. "
       + "Defaulting to using the value(s) from the old schema table.";
-  // String stored in metadata_aspect table for soft deleted aspect
+  /**
+   * Bare soft-delete marker (legacy format).
+   * @deprecated Use {@link #isSoftDeletedMetadata(String)} for detection and {@link #buildDeletedValue(long, String)} for writing.
+   */
+  @Deprecated
   private static final RecordTemplate DELETED_METADATA = new SoftDeletedAspect().setGma_deleted(true);
+  /**
+   * Bare soft-delete marker JSON (legacy format).
+   * @deprecated Use {@link #isSoftDeletedMetadata(String)} for detection and {@link #buildDeletedValue(long, String)} for writing.
+   */
+  @Deprecated
   public static final String DELETED_VALUE = RecordUtils.toJsonString(DELETED_METADATA);
+
+  /**
+   * Build an enriched soft-delete marker JSON with deletion audit metadata.
+   * @param deletedTimestamp the deletion timestamp in epoch millis
+   * @param deletedBy who deleted the aspect (corpuser URN or "backfill")
+   * @return JSON string like {"gma_deleted":true,"deleted_timestamp":1741286519000,"deleted_by":"..."}
+   */
+  public static String buildDeletedValue(long deletedTimestamp, @Nonnull String deletedBy) {
+    SoftDeletedAspect softDeletedAspect = new SoftDeletedAspect().setGma_deleted(true);
+    softDeletedAspect.setDeleted_timestamp(deletedTimestamp);
+    softDeletedAspect.setDeleted_by(deletedBy);
+    return RecordUtils.toJsonString(softDeletedAspect);
+  }
+
+  /**
+   * Check if a metadata JSON string represents a soft-deleted aspect.
+   * Handles both legacy format {"gma_deleted":true} and enriched format with extra fields.
+   */
+  public static boolean isSoftDeletedMetadata(@Nullable String metadata) {
+    if (metadata == null) {
+      return false;
+    }
+    try {
+      SoftDeletedAspect aspect = RecordUtils.toRecordTemplate(SoftDeletedAspect.class, metadata);
+      return aspect.hasGma_deleted() && aspect.isGma_deleted();
+    } catch (Exception e) {
+      log.debug("Failed to parse metadata as SoftDeletedAspect: {}", metadata, e);
+      return false;
+    }
+  }
   private static final long LATEST_VERSION = 0L;
 
   private EBeanDAOUtils() {
@@ -204,9 +243,7 @@ public class EBeanDAOUtils {
    */
   public static <ASPECT extends RecordTemplate> boolean isSoftDeletedAspect(@Nonnull EbeanMetadataAspect aspect,
       @Nonnull Class<ASPECT> aspectClass) {
-    // Convert metadata string to record template object
-    final RecordTemplate metadataRecord = RecordUtils.toRecordTemplate(aspectClass, aspect.getMetadata());
-    return metadataRecord.equals(DELETED_METADATA);
+    return isSoftDeletedMetadata(aspect.getMetadata());
   }
 
 
@@ -347,12 +384,21 @@ public class EBeanDAOUtils {
     }
     if (isSoftDeletedAspect(sqlRow, columnName)) {
       primaryKey = new EbeanMetadataAspect.PrimaryKey(urn, aspectClass.getCanonicalName(), LATEST_VERSION);
-      ebeanMetadataAspect.setCreatedBy(sqlRow.getString("lastmodifiedby"));
 
-      ebeanMetadataAspect.setCreatedOn(timeStampStringToTimeStamp(sqlRow.getString("lastmodifiedon")));
+      // Try to extract per-aspect deletion timestamp from the enriched soft-delete JSON.
+      // Fall back to entity-level lastmodifiedon for legacy rows that only have {"gma_deleted":true}.
+      SoftDeletedAspect softDeletedAspect = RecordUtils.toRecordTemplate(SoftDeletedAspect.class, sqlRow.getString(columnName));
+      Timestamp deletionTimestamp = softDeletedAspect.hasDeleted_timestamp()
+          ? new Timestamp(softDeletedAspect.getDeleted_timestamp())
+          : timeStampStringToTimeStamp(sqlRow.getString("lastmodifiedon"));
+      String deletedBy = softDeletedAspect.hasDeleted_by()
+          ? softDeletedAspect.getDeleted_by()
+          : sqlRow.getString("lastmodifiedby");
 
+      ebeanMetadataAspect.setCreatedBy(deletedBy);
+      ebeanMetadataAspect.setCreatedOn(deletionTimestamp);
       ebeanMetadataAspect.setCreatedFor(sqlRow.getString("createdfor"));
-      ebeanMetadataAspect.setMetadata(DELETED_VALUE);
+      ebeanMetadataAspect.setMetadata(sqlRow.getString(columnName));
     } else {
       AuditedAspect auditedAspect = RecordUtils.toRecordTemplate(AuditedAspect.class, sqlRow.getString(columnName));
       primaryKey = new EbeanMetadataAspect.PrimaryKey(urn, auditedAspect.getCanonicalName(), LATEST_VERSION);

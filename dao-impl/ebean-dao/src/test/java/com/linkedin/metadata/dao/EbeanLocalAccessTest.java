@@ -4,10 +4,12 @@ import com.google.common.io.Resources;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.urnpath.EmptyPathExtractor;
+import com.linkedin.metadata.dao.utils.EBeanDAOUtils;
 import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
 import com.linkedin.metadata.dao.utils.FooUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLIndexFilterUtils;
+import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
 import com.linkedin.metadata.dao.utils.SchemaValidatorUtil;
 import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.IndexCriterion;
@@ -523,6 +525,35 @@ public class EbeanLocalAccessTest {
     assertEquals(createResult, 1);
     int numRowsDeleted = _ebeanLocalAccessFoo.softDeleteAsset(fooUrn, false);
     assertEquals(numRowsDeleted, 1);
+  }
+
+  @Test
+  public void testSoftDeleteWritesEnrichedJson() {
+    // Given: an existing aspect
+    FooUrn fooUrn = makeFooUrn(300);
+    AspectFoo aspectFoo = new AspectFoo().setValue("toBeDeleted");
+    long deleteTime = System.currentTimeMillis();
+    AuditStamp auditStamp = makeAuditStamp("urn:li:corpuser:deleter", deleteTime);
+    _ebeanLocalAccessFoo.add(fooUrn, aspectFoo, AspectFoo.class, auditStamp, null, false);
+
+    // When: soft-delete the aspect (newValue = null)
+    _ebeanLocalAccessFoo.add(fooUrn, null, AspectFoo.class, auditStamp, null, false);
+
+    // Then: the stored JSON should contain deleted_timestamp and deleted_by
+    String aspectColumn = SQLSchemaUtils.getAspectColumnName("foo", AspectFoo.class);
+    String query = String.format("SELECT %s FROM metadata_entity_foo WHERE urn = '%s'", aspectColumn, fooUrn);
+    SqlRow row = _server.createSqlQuery(query).findOne();
+    assertNotNull(row);
+    String metadata = row.getString(aspectColumn);
+    assertNotNull(metadata);
+
+    // Verify it's detected as soft-deleted
+    assertTrue(EBeanDAOUtils.isSoftDeletedMetadata(metadata));
+
+    // Verify it contains the enriched fields
+    assertTrue(metadata.contains("deleted_timestamp"));
+    assertTrue(metadata.contains("deleted_by"));
+    assertTrue(metadata.contains("deleter"));
   }
 
   // ===== batchUpsert() tests =====

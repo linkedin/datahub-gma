@@ -875,6 +875,255 @@ public class BaseLocalDAOTest {
     assertEquals(_dummyLocalDAO.aspectTimestampSkipWrite(null, null), false);
   }
 
+  // --- Backfill test helpers ---
+
+  private DummyLocalDAO<EntityAspectUnion> createBackfillTestDAO() {
+    DummyLocalDAO<EntityAspectUnion> dao = new DummyLocalDAO<>(EntityAspectUnion.class,
+        _mockGetLatestFunction, _mockTrackingEventProducer, _mockTrackingManager,
+        _dummyLocalDAO._transactionRunner);
+    dao.setEmitAuditEvent(true);
+    dao.setAlwaysEmitAuditEvent(true);
+    dao.setEmitAspectSpecificAuditEvent(true);
+    dao.setAlwaysEmitAspectSpecificAuditEvent(true);
+    return dao;
+  }
+
+  private BaseLocalDAO.AspectEntry<AspectFoo> createSoftDeletedEntry(long deletionTime) {
+    AuditStamp deletionAuditStamp = makeAuditStamp("deleter", deletionTime);
+    ExtraInfo extraInfo = new ExtraInfo().setAudit(deletionAuditStamp);
+    return BaseLocalDAO.AspectEntry.<AspectFoo>builder()
+        .aspect(null)
+        .extraInfo(extraInfo)
+        .isSoftDeleted(true)
+        .build();
+  }
+
+  private BaseLocalDAO.AspectEntry<AspectFoo> createExistingEntry(AspectFoo aspect, long auditTime, Long emitTime) {
+    AuditStamp auditStamp = makeAuditStamp("creator", auditTime);
+    ExtraInfo extraInfo = new ExtraInfo().setAudit(auditStamp);
+    if (emitTime != null) {
+      extraInfo.setEmitTime(emitTime);
+    }
+    return new BaseLocalDAO.AspectEntry<>(aspect, extraInfo);
+  }
+
+  private void verifyBackfillNoop(FooUrn urn, IngestionTrackingContext ctx) {
+    verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, null, null);
+    verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(
+        urn, null, null, AspectFoo.class, _dummyAuditStamp, ctx, IngestionMode.LIVE);
+    verifyNoMoreInteractions(_mockTrackingEventProducer);
+  }
+
+  private void verifyBackfillSucceeded(FooUrn urn, AspectFoo newValue, IngestionTrackingContext ctx) {
+    verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, null, newValue);
+    verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(
+        urn, null, newValue, AspectFoo.class, _dummyAuditStamp, ctx, IngestionMode.LIVE);
+    verifyNoMoreInteractions(_mockTrackingEventProducer);
+  }
+
+  // --- Backfill soft-delete bug fix tests ---
+
+  @Test(description = "Backfill no-op: soft-deleted aspect with stale emitTime (step 3)")
+  public void testBackfillNoopWhenSoftDeletedAndEmitTimeIsStale() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    DummyLocalDAO<EntityAspectUnion> dao = createBackfillTestDAO();
+    expectGetLatest(urn, AspectFoo.class, Collections.singletonList(createSoftDeletedEntry(100L)));
+
+    IngestionTrackingContext ctx = new IngestionTrackingContext();
+    ctx.setBackfill(true);
+    ctx.setEmitTime(50L); // stale: 50 < 100
+
+    dao.add(urn, new AspectFoo().setValue("newFoo"), _dummyAuditStamp, ctx, null);
+    verifyBackfillNoop(urn, ctx);
+  }
+
+  @Test(description = "Backfill succeeds: soft-deleted aspect with newer emitTime (step 3)")
+  public void testBackfillSucceedsWhenSoftDeletedAndEmitTimeIsNewer() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo newFoo = new AspectFoo().setValue("resurrectedFoo");
+    DummyLocalDAO<EntityAspectUnion> dao = createBackfillTestDAO();
+    expectGetLatest(urn, AspectFoo.class, Collections.singletonList(createSoftDeletedEntry(100L)));
+
+    IngestionTrackingContext ctx = new IngestionTrackingContext();
+    ctx.setBackfill(true);
+    ctx.setEmitTime(200L); // newer: 200 > 100
+
+    dao.add(urn, newFoo, _dummyAuditStamp, ctx, null);
+    verifyBackfillSucceeded(urn, newFoo, ctx);
+  }
+
+  @Test(description = "Backfill no-op: soft-deleted aspect with no emitTime (step 2)")
+  public void testBackfillNoopWhenSoftDeletedAndNoEmitTime() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    DummyLocalDAO<EntityAspectUnion> dao = createBackfillTestDAO();
+    expectGetLatest(urn, AspectFoo.class, Collections.singletonList(createSoftDeletedEntry(100L)));
+
+    IngestionTrackingContext ctx = new IngestionTrackingContext();
+    ctx.setBackfill(true);
+    // No emitTime set
+
+    dao.add(urn, new AspectFoo().setValue("newFoo"), _dummyAuditStamp, ctx, null);
+    verifyBackfillNoop(urn, ctx);
+  }
+
+  @Test(description = "Backfill no-op: soft-deleted aspect with emitTime == deletion time (step 3 boundary)")
+  public void testBackfillNoopWhenSoftDeletedAndEmitTimeEqualsDeletionTime() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    DummyLocalDAO<EntityAspectUnion> dao = createBackfillTestDAO();
+    expectGetLatest(urn, AspectFoo.class, Collections.singletonList(createSoftDeletedEntry(100L)));
+
+    IngestionTrackingContext ctx = new IngestionTrackingContext();
+    ctx.setBackfill(true);
+    ctx.setEmitTime(100L); // boundary: 100 == 100
+
+    dao.add(urn, new AspectFoo().setValue("newFoo"), _dummyAuditStamp, ctx, null);
+    verifyBackfillNoop(urn, ctx);
+  }
+
+  // Step 1: Aspect never existed — unconditional backfill
+  @Test(description = "Backfill succeeds: aspect never existed (step 1)")
+  public void testBackfillSucceedsWhenAspectNeverExisted() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo newFoo = new AspectFoo().setValue("brandNew");
+    DummyLocalDAO<EntityAspectUnion> dao = createBackfillTestDAO();
+    expectGetLatest(urn, AspectFoo.class, Collections.singletonList(makeAspectEntry(null, null)));
+
+    IngestionTrackingContext ctx = new IngestionTrackingContext();
+    ctx.setBackfill(true);
+    // No emitTime needed — step 1 backfills unconditionally
+
+    dao.add(urn, newFoo, _dummyAuditStamp, ctx, null);
+    verifyBackfillSucceeded(urn, newFoo, ctx);
+  }
+
+  // Step 3: Soft-deleted with missing deletion timestamp — reject with warning
+  @Test(description = "Backfill no-op: soft-deleted aspect with missing deletion timestamp (step 3)")
+  public void testBackfillNoopWhenSoftDeletedAndMissingDeletionTimestamp() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    DummyLocalDAO<EntityAspectUnion> dao = createBackfillTestDAO();
+    // Soft-deleted entry with no audit stamp (missing deletion timestamp)
+    BaseLocalDAO.AspectEntry<AspectFoo> entry = BaseLocalDAO.AspectEntry.<AspectFoo>builder()
+        .aspect(null)
+        .extraInfo(null)
+        .isSoftDeleted(true)
+        .build();
+    expectGetLatest(urn, AspectFoo.class, Collections.singletonList(entry));
+
+    IngestionTrackingContext ctx = new IngestionTrackingContext();
+    ctx.setBackfill(true);
+    ctx.setEmitTime(200L);
+
+    dao.add(urn, new AspectFoo().setValue("newFoo"), _dummyAuditStamp, ctx, null);
+    verifyBackfillNoop(urn, ctx);
+  }
+
+  // Step 4: Existing aspect, oldEmitTime available, stale → reject
+  @Test(description = "Backfill no-op: existing aspect with stale emitTime vs oldEmitTime (step 4)")
+  public void testBackfillNoopWhenExistingAspectAndEmitTimeIsStale() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo existingFoo = new AspectFoo().setValue("existing");
+    DummyLocalDAO<EntityAspectUnion> dao = createBackfillTestDAO();
+    expectGetLatest(urn, AspectFoo.class,
+        Collections.singletonList(createExistingEntry(existingFoo, 100L, 150L)));
+
+    IngestionTrackingContext ctx = new IngestionTrackingContext();
+    ctx.setBackfill(true);
+    ctx.setEmitTime(50L); // stale: 50 < 150 (oldEmitTime)
+
+    dao.add(urn, new AspectFoo().setValue("newFoo"), _dummyAuditStamp, ctx, null);
+    // No-op: old==new==existingFoo (unchanged)
+    verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, existingFoo, existingFoo);
+    verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(
+        urn, existingFoo, existingFoo, AspectFoo.class, _dummyAuditStamp, ctx, IngestionMode.LIVE);
+    verifyNoMoreInteractions(_mockTrackingEventProducer);
+  }
+
+  // Step 4: Existing aspect, oldEmitTime available, newer → backfill
+  @Test(description = "Backfill succeeds: existing aspect with newer emitTime vs oldEmitTime (step 4)")
+  public void testBackfillSucceedsWhenExistingAspectAndEmitTimeIsNewer() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo existingFoo = new AspectFoo().setValue("existing");
+    AspectFoo newFoo = new AspectFoo().setValue("updated");
+    DummyLocalDAO<EntityAspectUnion> dao = createBackfillTestDAO();
+    expectGetLatest(urn, AspectFoo.class,
+        Collections.singletonList(createExistingEntry(existingFoo, 100L, 150L)));
+
+    IngestionTrackingContext ctx = new IngestionTrackingContext();
+    ctx.setBackfill(true);
+    ctx.setEmitTime(200L); // newer: 200 > 150 (oldEmitTime)
+
+    dao.add(urn, newFoo, _dummyAuditStamp, ctx, null);
+    verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, existingFoo, newFoo);
+    verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(
+        urn, existingFoo, newFoo, AspectFoo.class, _dummyAuditStamp, ctx, IngestionMode.LIVE);
+    verifyNoMoreInteractions(_mockTrackingEventProducer);
+  }
+
+  // Step 5: Existing aspect, no oldEmitTime, fallback to audit stamp, stale → reject
+  @Test(description = "Backfill no-op: existing aspect with stale emitTime vs audit stamp fallback (step 5)")
+  public void testBackfillNoopWhenExistingAspectAndFallbackAuditStampIsNewer() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo existingFoo = new AspectFoo().setValue("existing");
+    DummyLocalDAO<EntityAspectUnion> dao = createBackfillTestDAO();
+    // No emitTime on the existing entry — forces fallback to audit stamp
+    expectGetLatest(urn, AspectFoo.class,
+        Collections.singletonList(createExistingEntry(existingFoo, 150L, null)));
+
+    IngestionTrackingContext ctx = new IngestionTrackingContext();
+    ctx.setBackfill(true);
+    ctx.setEmitTime(50L); // stale: 50 < 150 (audit stamp time)
+
+    dao.add(urn, new AspectFoo().setValue("newFoo"), _dummyAuditStamp, ctx, null);
+    // No-op: old==new==existingFoo (unchanged)
+    verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, existingFoo, existingFoo);
+    verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(
+        urn, existingFoo, existingFoo, AspectFoo.class, _dummyAuditStamp, ctx, IngestionMode.LIVE);
+    verifyNoMoreInteractions(_mockTrackingEventProducer);
+  }
+
+  // Step 5: Existing aspect, no oldEmitTime, fallback to audit stamp, newer → backfill
+  @Test(description = "Backfill succeeds: existing aspect with newer emitTime vs audit stamp fallback (step 5)")
+  public void testBackfillSucceedsWhenExistingAspectAndFallbackAuditStampIsOlder() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo existingFoo = new AspectFoo().setValue("existing");
+    AspectFoo newFoo = new AspectFoo().setValue("updated");
+    DummyLocalDAO<EntityAspectUnion> dao = createBackfillTestDAO();
+    expectGetLatest(urn, AspectFoo.class,
+        Collections.singletonList(createExistingEntry(existingFoo, 100L, null)));
+
+    IngestionTrackingContext ctx = new IngestionTrackingContext();
+    ctx.setBackfill(true);
+    ctx.setEmitTime(200L); // newer: 200 > 100 (audit stamp time)
+
+    dao.add(urn, newFoo, _dummyAuditStamp, ctx, null);
+    verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, existingFoo, newFoo);
+    verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(
+        urn, existingFoo, newFoo, AspectFoo.class, _dummyAuditStamp, ctx, IngestionMode.LIVE);
+    verifyNoMoreInteractions(_mockTrackingEventProducer);
+  }
+
+  // Step 5: Existing aspect, no oldEmitTime, no audit stamp → reject
+  @Test(description = "Backfill no-op: existing aspect with no oldEmitTime and no audit stamp (step 5)")
+  public void testBackfillNoopWhenExistingAspectAndNoTimestampsAvailable() throws URISyntaxException {
+    FooUrn urn = new FooUrn(1);
+    AspectFoo existingFoo = new AspectFoo().setValue("existing");
+    DummyLocalDAO<EntityAspectUnion> dao = createBackfillTestDAO();
+    // No extraInfo at all — no emitTime, no audit stamp
+    expectGetLatest(urn, AspectFoo.class,
+        Collections.singletonList(new BaseLocalDAO.AspectEntry<>(existingFoo, null)));
+
+    IngestionTrackingContext ctx = new IngestionTrackingContext();
+    ctx.setBackfill(true);
+    ctx.setEmitTime(200L);
+
+    dao.add(urn, new AspectFoo().setValue("newFoo"), _dummyAuditStamp, ctx, null);
+    // No-op: old==new==existingFoo (unchanged)
+    verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, existingFoo, existingFoo);
+    verify(_mockTrackingEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(
+        urn, existingFoo, existingFoo, AspectFoo.class, _dummyAuditStamp, ctx, IngestionMode.LIVE);
+    verifyNoMoreInteractions(_mockTrackingEventProducer);
+  }
+
   // ===== addManyBatch() Tests =====
 
   @Test

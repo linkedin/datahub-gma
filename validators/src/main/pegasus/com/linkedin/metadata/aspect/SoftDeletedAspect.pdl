@@ -9,4 +9,14 @@ record SoftDeletedAspect {
    * Flag to indicate if the aspect is soft deleted in GMA
    */
   gma_deleted: boolean
+
+  /**
+   * Timestamp of when the aspect was soft deleted (epoch millis)
+   */
+  deleted_timestamp: optional long
+
+  /**
+   * Identity of who deleted the aspect (corpuser URN or "backfill" for backfilled rows)
+   */
+  deleted_by: optional string
 }

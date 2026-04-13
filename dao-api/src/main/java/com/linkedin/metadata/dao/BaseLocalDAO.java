@@ -523,7 +523,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nonnull AuditStamp auditStamp, @Nonnull EqualityTester<ASPECT> equalityTester,
       @Nullable IngestionTrackingContext trackingContext, @Nonnull IngestionParams ingestionParams) {
 
-    final ASPECT oldValue = latest.getAspect() == null ? null : latest.getAspect();
+    final ASPECT oldValue = latest.getAspect();
     final AuditStamp oldAuditStamp = latest.getExtraInfo() == null ? null : latest.getExtraInfo().getAudit();
     final Long oldEmitTime = latest.getExtraInfo() == null ? null : latest.getExtraInfo().getEmitTime();
 
@@ -540,7 +540,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     // Unified logic determines whether an update to aspect should be persisted (includes backfill, equality, version, mode checks)
     if (!shouldUpdateAspect(ingestionParams.getIngestionMode(), urn, oldValue, newValue, aspectClass, auditStamp, equalityTester,
-        oldAuditStamp, optimisticLockAuditStamp, trackingContext, oldEmitTime)) {
+        oldAuditStamp, optimisticLockAuditStamp, trackingContext, oldEmitTime, latest.isSoftDeleted())) {
       return new AddResult<>(oldValue, oldValue, aspectClass);
     }
 
@@ -548,12 +548,59 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     long largestVersion =
         saveLatest(urn, aspectClass, oldValue,
             optimisticLockAuditStamp != null ? optimisticLockAuditStamp : oldAuditStamp,
-            newValue, auditStamp, latest.isSoftDeleted, trackingContext, ingestionParams.isTestMode());
+            newValue, auditStamp, latest.isSoftDeleted(), trackingContext, ingestionParams.isTestMode());
 
     // Apply retention policy
     applyRetention(urn, aspectClass, getRetention(aspectClass), largestVersion);
 
     return new AddResult<>(oldValue, newValue, aspectClass);
+  }
+
+  /**
+   * Determines whether a backfill event should be applied, with soft-delete awareness.
+   *
+   * <p>Three-way logic:
+   * <ol>
+   *   <li>oldValue==null && !isSoftDeleted: aspect never existed — allow unconditionally</li>
+   *   <li>oldValue==null && isSoftDeleted: aspect was deleted — compare emitTime > deletion timestamp</li>
+   *   <li>oldValue!=null: aspect exists — standard emitTime comparison</li>
+   * </ol>
+   */
+  private <ASPECT extends RecordTemplate> boolean shouldBackfill(
+      @Nonnull URN urn, @Nullable ASPECT oldValue, boolean isSoftDeleted,
+      @Nonnull Class<ASPECT> aspectClass, @Nonnull IngestionTrackingContext trackingContext,
+      @Nullable AuditStamp oldAuditStamp, @Nullable Long oldEmitTime) {
+
+    // 1. Aspect has never existed (no value, not soft-deleted) — safe to backfill unconditionally.
+    if (oldValue == null && !isSoftDeleted) {
+      return true;
+    }
+
+    // 2. All remaining cases require emitTime to determine staleness.
+    if (!trackingContext.hasEmitTime()) {
+      return false;
+    }
+    long emitTime = trackingContext.getEmitTime();
+
+    // 3. Aspect was soft-deleted — compare emitTime against per-aspect deletion timestamp
+    // to prevent stale DLQ replays from resurrecting deleted aspects.
+    if (oldValue == null) {
+      if (oldAuditStamp == null || !oldAuditStamp.hasTime()) {
+        log.warn("Soft-deleted entity has valid emitTime but missing/invalid deletion timestamp. "
+            + "Backfill will be rejected. Urn: {}. Aspect: {}. emitTime: {}. oldAuditStamp: {}.",
+            urn, aspectClass, emitTime, oldAuditStamp);
+        return false;
+      }
+      return emitTime > oldAuditStamp.getTime();
+    }
+
+    // 4. Aspect exists — standard staleness check against old emitTime.
+    if (oldEmitTime != null) {
+      return emitTime > oldEmitTime;
+    }
+
+    // 5. Fall back to audit timestamp if old emitTime unavailable.
+    return oldAuditStamp != null && oldAuditStamp.hasTime() && emitTime > oldAuditStamp.getTime();
   }
 
   /**
@@ -622,7 +669,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     } else {
       // no atomic multiple updates: run each in its own transaction. This is the same as repeated calls to add
       results = aspectUpdateLambdas.stream().map(x -> runInTransactionWithRetry(() ->
-              aspectUpdateHelper(urn, x, auditStamp, trackingContext), maxTransactionRetry)).collect(Collectors.toList());
+          aspectUpdateHelper(urn, x, auditStamp, trackingContext), maxTransactionRetry)).collect(Collectors.toList());
     }
 
     // send the audit events etc
@@ -759,7 +806,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       
       if (!shouldUpdateAspect(ingestionParams.getIngestionMode(), urn, oldAspect, newValue,
                               aspectClass, auditStamp, equalityTester, oldAuditStamp, eTagAuditStamp,
-                              trackingContext, oldEmitTime)) {
+                              trackingContext, oldEmitTime, false /* isSoftDeleted not tracked in batch path */)) {
         // Skip this aspect - add as unchanged for MAE skip logic
         processedResults.add(new AddResult<RecordTemplate>(oldAspect, oldAspect, aspectClass));
         continue;
@@ -1158,8 +1205,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     // create aspects and process callbacks in a single transaction
     return runInTransactionWithRetry(() -> {
-      return createAspectsWithCallbacks(urn, aspectValues, aspectCreateLambdas, auditStamp, trackingContext);
-      }, maxTransactionRetry
+          return createAspectsWithCallbacks(urn, aspectValues, aspectCreateLambdas, auditStamp, trackingContext);
+        }, maxTransactionRetry
     );
   }
 
@@ -1235,18 +1282,18 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     final Map<Class<?>, RecordTemplate> results = new HashMap<>();
     runInTransactionWithRetry(() -> {
-        aspectClasses.forEach(aspectClass -> {
-          try {
-            RecordTemplate deletedAspect = delete(urn, aspectClass, auditStamp, maxTransactionRetry, trackingContext);
-            results.put(aspectClass, deletedAspect);
-          } catch (NullPointerException e) {
-            log.warn("Aspect {} for urn {} does not exist", aspectClass.getName(), urn);
-          }
-        });
+      aspectClasses.forEach(aspectClass -> {
+        try {
+          RecordTemplate deletedAspect = delete(urn, aspectClass, auditStamp, maxTransactionRetry, trackingContext);
+          results.put(aspectClass, deletedAspect);
+        } catch (NullPointerException e) {
+          log.warn("Aspect {} for urn {} does not exist", aspectClass.getName(), urn);
+        }
+      });
 
       permanentDelete(urn, nonNullIngestionParams.isTestMode());
       return results;
-      }, maxTransactionRetry);
+    }, maxTransactionRetry);
 
 
     Collection<RecordTemplate> deletedAspects = new ArrayList<>();
@@ -2243,23 +2290,30 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       ASPECT newValue, Class<ASPECT> aspectClass, AuditStamp auditStamp, EqualityTester<ASPECT> equalityTester,
       AuditStamp oldValueAuditStamp, AuditStamp eTagAuditStamp, @Nullable IngestionTrackingContext trackingContext,
       @Nullable Long oldEmitTime) {
+    return shouldUpdateAspect(ingestionMode, urn, oldValue, newValue, aspectClass, auditStamp, equalityTester,
+        oldValueAuditStamp, eTagAuditStamp, trackingContext, oldEmitTime, false);
+  }
 
-    // Backfill check - if this is a backfill event, verify it's newer than existing data
+  private <ASPECT extends RecordTemplate> boolean shouldUpdateAspect(IngestionMode ingestionMode, URN urn, ASPECT oldValue,
+      ASPECT newValue, Class<ASPECT> aspectClass, AuditStamp auditStamp, EqualityTester<ASPECT> equalityTester,
+      AuditStamp oldValueAuditStamp, AuditStamp eTagAuditStamp, @Nullable IngestionTrackingContext trackingContext,
+      @Nullable Long oldEmitTime, boolean isSoftDeleted) {
+
+    // Backfill check - if this is a backfill event, verify it's newer than existing data.
+    // Handles soft-deleted aspects: oldValue==null + isSoftDeleted means the aspect was deleted,
+    // not that it never existed — must compare emitTime against deletion timestamp.
     final boolean isBackfillEvent = trackingContext != null
         && trackingContext.hasBackfill() && trackingContext.isBackfill();
-    
+
     if (isBackfillEvent) {
-      boolean shouldBackfill = oldValue == null
-          || (trackingContext.hasEmitTime() 
-              && ((oldEmitTime != null && trackingContext.getEmitTime() > oldEmitTime)
-                  || (oldEmitTime == null && oldValueAuditStamp != null && oldValueAuditStamp.hasTime()
-                      && trackingContext.getEmitTime() > oldValueAuditStamp.getTime())));
-      
-      log.info("Encounter backfill event. Old value = null: {}. Tracking context: {}. Urn: {}. Aspect class: {}. Old audit stamp: {}. "
-              + "Old emit time: {}. "
+      boolean shouldBackfill = shouldBackfill(urn, oldValue, isSoftDeleted, aspectClass, trackingContext,
+          oldValueAuditStamp, oldEmitTime);
+
+      log.info("Encounter backfill event. Old value = null: {}. isSoftDeleted: {}. Tracking context: {}. Urn: {}. "
+              + "Aspect class: {}. Old audit stamp: {}. Old emit time: {}. "
               + "Based on this information, shouldBackfill = {}.",
-          oldValue == null, trackingContext, urn, aspectClass, oldValueAuditStamp, oldEmitTime, shouldBackfill);
-      
+          oldValue == null, isSoftDeleted, trackingContext, urn, aspectClass, oldValueAuditStamp, oldEmitTime, shouldBackfill);
+
       if (!shouldBackfill) {
         return false;
       }
