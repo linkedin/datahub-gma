@@ -946,7 +946,7 @@ public class EbeanLocalAccessTest {
     assertEquals(1, results.size());
     assertFalse(EBeanDAOUtils.isSoftDeletedMetadata(results.get(0).getMetadata()));
 
-    // Step 2: Asset-level delete (sets deleted_ts AND marks aspects as {"gma_deleted": true})
+    // Step 2: Asset-level delete (sets deleted_ts only; aspect columns are untouched at DB level)
     int deleted = _ebeanLocalAccessFoo.softDeleteAsset(fooUrn, false);
     assertEquals(1, deleted);
 
@@ -963,5 +963,43 @@ public class EbeanLocalAccessTest {
     EbeanMetadataAspect result = results.get(0);
     assertEquals(fooUrn.toString(), result.getKey().getUrn());
     assertTrue(EBeanDAOUtils.isSoftDeletedMetadata(result.getMetadata()));
+  }
+
+  @Test
+  public void testWriteToAssetDeletedEntityClearsDeletedTs() {
+    // Verify that a legitimate write to an asset-deleted entity clears deleted_ts,
+    // reviving the entity and making it visible to normal reads again.
+    FooUrn fooUrn = makeFooUrn(401);
+    AspectFoo aspectFoo = new AspectFoo().setValue("gap4_revive_test");
+    AuditStamp auditStamp = makeAuditStamp("actor", System.currentTimeMillis());
+
+    // Step 1: Create entity with an aspect
+    _ebeanLocalAccessFoo.add(fooUrn, aspectFoo, AspectFoo.class, auditStamp, null, false);
+
+    // Step 2: Asset-level delete
+    int deleted = _ebeanLocalAccessFoo.softDeleteAsset(fooUrn, false);
+    assertEquals(1, deleted);
+
+    // Verify deleted_ts is set in DB
+    SqlRow row = _server.createSqlQuery(
+        "SELECT deleted_ts FROM metadata_entity_foo WHERE urn = '" + fooUrn + "'").findOne();
+    assertNotNull(row.getTimestamp("deleted_ts"));
+
+    // Step 3: Write a new aspect value (simulates a legitimate, non-stale write)
+    AspectFoo updatedAspect = new AspectFoo().setValue("gap4_revived");
+    AuditStamp newAuditStamp = makeAuditStamp("actor", System.currentTimeMillis() + 1000);
+    _ebeanLocalAccessFoo.add(fooUrn, updatedAspect, AspectFoo.class, newAuditStamp, null, false);
+
+    // Step 4: Verify deleted_ts is cleared in DB
+    row = _server.createSqlQuery(
+        "SELECT deleted_ts FROM metadata_entity_foo WHERE urn = '" + fooUrn + "'").findOne();
+    assertNull(row.getTimestamp("deleted_ts"));
+
+    // Step 5: Entity should now be visible to normal reads (includeSoftDeleted=false)
+    AspectKey<FooUrn, AspectFoo> aspectKey = new AspectKey<>(AspectFoo.class, fooUrn, 0L);
+    List<EbeanMetadataAspect> results =
+        _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0, false, false);
+    assertEquals(1, results.size());
+    assertFalse(EBeanDAOUtils.isSoftDeletedMetadata(results.get(0).getMetadata()));
   }
 }

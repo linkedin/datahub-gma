@@ -718,6 +718,21 @@ public class SQLStatementUtilsTest {
     assertEquals(
         SQLStatementUtils.createAspectUpdateWithOptimisticLockSql(fooUrn, AspectFoo.class, false, false, false),
         expectedSql);
+
+    // softDeleteOverwrite=true with urnExtraction — should include deleted_ts = NULL
+    expectedSql =
+        "UPDATE metadata_entity_foo SET a_aspectfoo = "
+            + ":metadata, a_urn = :a_urn, lastmodifiedon = :lastmodifiedon, lastmodifiedby = :lastmodifiedby, deleted_ts = NULL WHERE urn = :urn;";
+    assertEquals(SQLStatementUtils.createAspectUpdateWithOptimisticLockSql(fooUrn, AspectFoo.class, true, false, true),
+        expectedSql);
+
+    // softDeleteOverwrite=true without urnExtraction — should include deleted_ts = NULL
+    expectedSql =
+        "UPDATE metadata_entity_foo SET a_aspectfoo = :metadata, lastmodifiedon = :lastmodifiedon, lastmodifiedby = :lastmodifiedby, deleted_ts = NULL "
+            + "WHERE urn = :urn ;";
+    assertEquals(
+        SQLStatementUtils.createAspectUpdateWithOptimisticLockSql(fooUrn, AspectFoo.class, false, false, true),
+        expectedSql);
   }
 
   @Test
