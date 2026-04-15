@@ -931,7 +931,7 @@ public class EbeanLocalAccessTest {
   public void testAssetDeletedEntityVisibleWithIncludeSoftDeleted() {
     // Gap 4: After softDeleteAsset(), batchGetUnion(includeSoftDeleted=true) should return the row
     // so that shouldBackfill() can detect the entity is deleted and reject stale backfills.
-    // deleteAll() sets both deleted_ts AND aspect-level {"gma_deleted": true} markers.
+    // softDeleteAsset() only sets deleted_ts; readSqlRow() synthesizes the soft-delete marker in memory.
     FooUrn fooUrn = makeFooUrn(400);
     AspectFoo aspectFoo = new AspectFoo().setValue("gap4test");
     AuditStamp auditStamp = makeAuditStamp("actor", System.currentTimeMillis());
@@ -959,7 +959,7 @@ public class EbeanLocalAccessTest {
     results = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0, true, false);
     assertEquals(1, results.size());
 
-    // Step 5: The returned aspect should be marked as soft-deleted via aspect-level {"gma_deleted": true}
+    // Step 5: The returned aspect should be marked as soft-deleted (readSqlRow() synthesizes {"gma_deleted": true})
     EbeanMetadataAspect result = results.get(0);
     assertEquals(fooUrn.toString(), result.getKey().getUrn());
     assertTrue(EBeanDAOUtils.isSoftDeletedMetadata(result.getMetadata()));

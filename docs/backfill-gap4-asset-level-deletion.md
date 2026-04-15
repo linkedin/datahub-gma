@@ -2,9 +2,10 @@
 
 ## Problem
 
-When an entire entity is deleted via `softDeleteAsset()`, the entity row's `deleted_ts` column is set to `NOW()` and all
-aspect columns are marked with `{"gma_deleted": true}`. The row becomes invisible to read queries because
-`batchGetUnion()` unconditionally filters `deleted_ts IS NULL` — even when `includeSoftDeleted=true`.
+When an entire entity is deleted via `deleteAll()`, each aspect is first marked with `{"gma_deleted": true}` (via
+individual `delete()` calls), then `softDeleteAsset()` sets `deleted_ts = NOW()` on the entity row. The row becomes
+invisible to read queries because `batchGetUnion()` unconditionally filters `deleted_ts IS NULL` — even when
+`includeSoftDeleted=true`.
 
 When a stale backfill event (e.g., DLQ replay) arrives for an aspect on this deleted entity:
 
@@ -57,8 +58,8 @@ WHERE JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL
 AND urn IN ('urn:li:foo:1')
 AND deleted_ts IS NULL
 
--- includeSoftDeleted=true (backfill path — now includes deleted rows)
-SELECT urn, a_aspectfoo, lastmodifiedon, lastmodifiedby
+-- includeSoftDeleted=true (backfill path — now includes deleted rows + deleted_ts)
+SELECT urn, a_aspectfoo, lastmodifiedon, lastmodifiedby, deleted_ts
 FROM metadata_entity_foo
 WHERE urn IN ('urn:li:foo:1')
 ```
