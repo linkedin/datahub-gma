@@ -146,12 +146,11 @@ public class SQLStatementUtilsTest {
             + "AND deleted_ts IS NULL";
     assertEquals(SQLStatementUtils.createAspectReadSql(AspectFoo.class, set, false, false), expectedSql);
 
-    //test when includedSoftDeleted is true
+    //test when includedSoftDeleted is true — should NOT filter deleted_ts, and should SELECT deleted_ts
     expectedSql =
-        "SELECT urn, a_aspectfoo, lastmodifiedon, lastmodifiedby "
+        "SELECT urn, a_aspectfoo, lastmodifiedon, lastmodifiedby, deleted_ts "
             + "FROM metadata_entity_foo "
-            + "WHERE urn IN ('urn:li:foo:1', 'urn:li:foo:2') "
-            + "AND deleted_ts IS NULL";
+            + "WHERE urn IN ('urn:li:foo:1', 'urn:li:foo:2')";
     assertEquals(SQLStatementUtils.createAspectReadSql(AspectFoo.class, set, true, false), expectedSql);
   }
 
@@ -707,17 +706,32 @@ public class SQLStatementUtilsTest {
     FooUrn fooUrn = makeFooUrn(1);
     String expectedSql =
         "UPDATE metadata_entity_foo SET a_aspectfoo = :metadata, a_urn = :a_urn, lastmodifiedon = :lastmodifiedon, "
-            + "lastmodifiedby = :lastmodifiedby WHERE urn = :urn and (JSON_EXTRACT(a_aspectfoo, '$.lastmodifiedon') = "
+            + "lastmodifiedby = :lastmodifiedby, deleted_ts = NULL WHERE urn = :urn and (JSON_EXTRACT(a_aspectfoo, '$.lastmodifiedon') = "
             + ":oldTimestamp OR JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NOT NULL);";
     assertEquals(SQLStatementUtils.createAspectUpdateWithOptimisticLockSql(fooUrn, AspectFoo.class, true, false, false),
         expectedSql);
 
     expectedSql =
         "UPDATE metadata_entity_foo SET a_aspectfoo = :metadata, lastmodifiedon = :lastmodifiedon, lastmodifiedby = "
-            + ":lastmodifiedby WHERE urn = :urn and (JSON_EXTRACT(a_aspectfoo, '$.lastmodifiedon') = :oldTimestamp "
+            + ":lastmodifiedby, deleted_ts = NULL WHERE urn = :urn and (JSON_EXTRACT(a_aspectfoo, '$.lastmodifiedon') = :oldTimestamp "
             + "OR JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NOT NULL);";
     assertEquals(
         SQLStatementUtils.createAspectUpdateWithOptimisticLockSql(fooUrn, AspectFoo.class, false, false, false),
+        expectedSql);
+
+    // softDeleteOverwrite=true with urnExtraction — should include deleted_ts = NULL
+    expectedSql =
+        "UPDATE metadata_entity_foo SET a_aspectfoo = "
+            + ":metadata, a_urn = :a_urn, lastmodifiedon = :lastmodifiedon, lastmodifiedby = :lastmodifiedby, deleted_ts = NULL WHERE urn = :urn;";
+    assertEquals(SQLStatementUtils.createAspectUpdateWithOptimisticLockSql(fooUrn, AspectFoo.class, true, false, true),
+        expectedSql);
+
+    // softDeleteOverwrite=true without urnExtraction — should include deleted_ts = NULL
+    expectedSql =
+        "UPDATE metadata_entity_foo SET a_aspectfoo = :metadata, lastmodifiedon = :lastmodifiedon, lastmodifiedby = :lastmodifiedby, deleted_ts = NULL "
+            + "WHERE urn = :urn ;";
+    assertEquals(
+        SQLStatementUtils.createAspectUpdateWithOptimisticLockSql(fooUrn, AspectFoo.class, false, false, true),
         expectedSql);
   }
 

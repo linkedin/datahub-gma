@@ -924,4 +924,82 @@ public class EbeanLocalAccessTest {
     List<FooUrn> urns = Collections.singletonList(makeFooUrn(0));
     _ebeanLocalAccessFoo.batchSoftDeleteAssets(urns, "'; DROP TABLE metadata_entity_foo; --", false);
   }
+
+  // ===== Gap 4: Asset-level deletion visibility in batchGetUnion =====
+
+  @Test
+  public void testAssetDeletedEntityVisibleWithIncludeSoftDeleted() {
+    // Gap 4: After softDeleteAsset(), batchGetUnion(includeSoftDeleted=true) should return the row
+    // so that shouldBackfill() can detect the entity is deleted and reject stale backfills.
+    // softDeleteAsset() only sets deleted_ts; readSqlRow() synthesizes the soft-delete marker in memory.
+    FooUrn fooUrn = makeFooUrn(400);
+    AspectFoo aspectFoo = new AspectFoo().setValue("gap4test");
+    AuditStamp auditStamp = makeAuditStamp("actor", System.currentTimeMillis());
+
+    // Step 1: Create entity with an aspect
+    _ebeanLocalAccessFoo.add(fooUrn, aspectFoo, AspectFoo.class, auditStamp, null, false);
+
+    // Verify: aspect is readable normally
+    AspectKey<FooUrn, AspectFoo> aspectKey = new AspectKey<>(AspectFoo.class, fooUrn, 0L);
+    List<EbeanMetadataAspect> results =
+        _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0, false, false);
+    assertEquals(1, results.size());
+    assertFalse(EBeanDAOUtils.isSoftDeletedMetadata(results.get(0).getMetadata()));
+
+    // Step 2: Asset-level delete (sets deleted_ts only; aspect columns are untouched at DB level)
+    int deleted = _ebeanLocalAccessFoo.softDeleteAsset(fooUrn, false);
+    assertEquals(1, deleted);
+
+    // Step 3: batchGetUnion with includeSoftDeleted=false should NOT return the row (deleted_ts filters it)
+    results = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0, false, false);
+    assertEquals(0, results.size());
+
+    // Step 4: batchGetUnion with includeSoftDeleted=true SHOULD return the row (Gap 4 fix —
+    // no longer filtered by deleted_ts IS NULL)
+    results = _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0, true, false);
+    assertEquals(1, results.size());
+
+    // Step 5: The returned aspect should be marked as soft-deleted (readSqlRow() synthesizes {"gma_deleted": true})
+    EbeanMetadataAspect result = results.get(0);
+    assertEquals(fooUrn.toString(), result.getKey().getUrn());
+    assertTrue(EBeanDAOUtils.isSoftDeletedMetadata(result.getMetadata()));
+  }
+
+  @Test
+  public void testWriteToAssetDeletedEntityClearsDeletedTs() {
+    // Verify that a legitimate write to an asset-deleted entity clears deleted_ts,
+    // reviving the entity and making it visible to normal reads again.
+    FooUrn fooUrn = makeFooUrn(401);
+    AspectFoo aspectFoo = new AspectFoo().setValue("gap4_revive_test");
+    AuditStamp auditStamp = makeAuditStamp("actor", System.currentTimeMillis());
+
+    // Step 1: Create entity with an aspect
+    _ebeanLocalAccessFoo.add(fooUrn, aspectFoo, AspectFoo.class, auditStamp, null, false);
+
+    // Step 2: Asset-level delete
+    int deleted = _ebeanLocalAccessFoo.softDeleteAsset(fooUrn, false);
+    assertEquals(1, deleted);
+
+    // Verify deleted_ts is set in DB
+    SqlRow row = _server.createSqlQuery(
+        "SELECT deleted_ts FROM metadata_entity_foo WHERE urn = '" + fooUrn + "'").findOne();
+    assertNotNull(row.getTimestamp("deleted_ts"));
+
+    // Step 3: Write a new aspect value (simulates a legitimate, non-stale write)
+    AspectFoo updatedAspect = new AspectFoo().setValue("gap4_revived");
+    AuditStamp newAuditStamp = makeAuditStamp("actor", System.currentTimeMillis() + 1000);
+    _ebeanLocalAccessFoo.add(fooUrn, updatedAspect, AspectFoo.class, newAuditStamp, null, false);
+
+    // Step 4: Verify deleted_ts is cleared in DB
+    row = _server.createSqlQuery(
+        "SELECT deleted_ts FROM metadata_entity_foo WHERE urn = '" + fooUrn + "'").findOne();
+    assertNull(row.getTimestamp("deleted_ts"));
+
+    // Step 5: Entity should now be visible to normal reads (includeSoftDeleted=false)
+    AspectKey<FooUrn, AspectFoo> aspectKey = new AspectKey<>(AspectFoo.class, fooUrn, 0L);
+    List<EbeanMetadataAspect> results =
+        _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0, false, false);
+    assertEquals(1, results.size());
+    assertFalse(EBeanDAOUtils.isSoftDeletedMetadata(results.get(0).getMetadata()));
+  }
 }
