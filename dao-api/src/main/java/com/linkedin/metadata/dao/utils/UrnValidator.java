@@ -1,10 +1,12 @@
 package com.linkedin.metadata.dao.utils;
 
+import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.metadata.dao.exception.InvalidUrnException;
 import com.linkedin.metadata.dao.exception.InvalidUrnException.Reason;
 import java.util.List;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import lombok.extern.slf4j.Slf4j;
 
 
@@ -48,15 +50,18 @@ public final class UrnValidator {
   /**
    * Validates a URN and logs rejection details before rethrowing.
    *
-   * @param operation label for the operation (e.g. "add", "create", "delete")
-   * @param urn the URN to validate
-   * @throws InvalidUrnException if any key part contains invalid content
+   * @param operation  label for the operation (e.g. "add", "create", "delete").
+   * @param auditStamp caller's audit stamp if available — used to record the actor URN in the
+   *                   rejection log for forensic tracing. Null is tolerated.
+   * @param urn        the URN to validate.
+   * @throws InvalidUrnException if any key part contains invalid content.
    */
-  public static void validateUrnForWrite(@Nonnull String operation, @Nonnull Urn urn) {
+  public static void validateUrnForWrite(@Nonnull String operation, @Nullable AuditStamp auditStamp,
+      @Nonnull Urn urn) {
     try {
       validateUrn(urn);
     } catch (InvalidUrnException e) {
-      logRejection(e, operation, urn.toString());
+      logRejection(e, operation, auditStamp, urn.toString());
       throw e;
     }
   }
@@ -98,7 +103,9 @@ public final class UrnValidator {
     List<String> parts = nested.getEntityKey().getParts();
     for (int i = 0; i < parts.size(); i++) {
       String nestedPath = parentPath + "." + nestedEntityType + ".key[" + i + "]";
-      validatePart(parts.get(i), parentEntityType, nestedPath);
+      // Use the nested URN's own entityType so the rejection exception accurately identifies
+      // which URN type contained the invalid part (not the outer parent).
+      validatePart(parts.get(i), nestedEntityType, nestedPath);
     }
   }
 
@@ -176,8 +183,16 @@ public final class UrnValidator {
   }
 
   private static void logRejection(@Nonnull InvalidUrnException e, @Nonnull String operation,
-      @Nonnull String fullUrn) {
-    log.warn("URN validation rejected {} for urn={} reason={} field={} value={}",
-        operation, quote(fullUrn), e.getReason(), e.getFieldPath(), e.getRawValue());
+      @Nullable AuditStamp auditStamp, @Nonnull String fullUrn) {
+    log.error(
+        "URN validation rejected operation={} entityType={} reason={} field={} value={} actor={} urn={}",
+        quote(operation), quote(e.getEntityType()), e.getReason(), quote(e.getFieldPath()),
+        e.getRawValue() == null ? "null" : quote(e.getRawValue()),
+        quote(actorOf(auditStamp)), quote(fullUrn));
+  }
+
+  @Nonnull
+  private static String actorOf(@Nullable AuditStamp stamp) {
+    return (stamp == null || !stamp.hasActor()) ? "unknown" : stamp.getActor().toString();
   }
 }

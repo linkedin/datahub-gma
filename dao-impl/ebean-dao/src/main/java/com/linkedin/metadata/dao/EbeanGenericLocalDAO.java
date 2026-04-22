@@ -88,7 +88,7 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
    */
   public void save(@Nonnull Urn urn, @Nonnull Class aspectClass, @Nonnull String metadata, @Nonnull AuditStamp auditStamp,
       @Nullable IngestionTrackingContext trackingContext, @Nullable IngestionMode ingestionMode) {
-    validateUrnForWrite("save", urn);
+    validateUrnForWrite("save", auditStamp, urn);
     saveCommon(urn, aspectClass, metadata, auditStamp, trackingContext, ingestionMode);
   }
 
@@ -196,7 +196,7 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
 
   @Override
   public void delete(@Nonnull Urn urn, @Nonnull Class aspectClass, @Nonnull AuditStamp auditStamp) {
-    validateUrnForWrite("delete", urn);
+    validateUrnForWrite("delete", auditStamp, urn);
     saveCommon(urn, aspectClass, null, auditStamp, null, null);
   }
 
