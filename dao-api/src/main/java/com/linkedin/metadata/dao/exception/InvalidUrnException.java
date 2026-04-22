@@ -2,6 +2,7 @@ package com.linkedin.metadata.dao.exception;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import lombok.Getter;
 
 
 /**
@@ -10,6 +11,7 @@ import javax.annotation.Nullable;
  * <p>Extends {@link IllegalArgumentException} so existing {@code catch (IllegalArgumentException)}
  * blocks in gRPC/Rest.li handlers automatically map it to an INVALID_ARGUMENT / 400 status.
  */
+@Getter
 public class InvalidUrnException extends IllegalArgumentException {
 
   public enum Reason {
@@ -30,25 +32,5 @@ public class InvalidUrnException extends IllegalArgumentException {
     this.reason = reason;
     this.fieldPath = fieldPath;
     this.rawValue = rawValue;
-  }
-
-  @Nonnull
-  public String getEntityType() {
-    return entityType;
-  }
-
-  @Nonnull
-  public Reason getReason() {
-    return reason;
-  }
-
-  @Nonnull
-  public String getFieldPath() {
-    return fieldPath;
-  }
-
-  @Nullable
-  public String getRawValue() {
-    return rawValue;
   }
 }
