@@ -37,7 +37,7 @@ public final class UrnValidator {
    * @param urn the URN to validate
    * @throws InvalidUrnException if any key part contains invalid content
    */
-  public static void validateUrn(@Nonnull Urn urn) {
+  private static void validateUrn(@Nonnull Urn urn) {
     String entityType = urn.getEntityType();
     List<String> parts = urn.getEntityKey().getParts();
     for (int i = 0; i < parts.size(); i++) {
@@ -67,15 +67,9 @@ public final class UrnValidator {
   }
 
   private static void validatePart(@Nonnull String part, @Nonnull String entityType, @Nonnull String path) {
-    if (isBlank(part)) {
-      throw new InvalidUrnException(entityType, Reason.BLANK_FIELD, path, quote(part),
-          String.format("URN %s is blank or whitespace-only at %s: %s codepoints=%s",
-              entityType, path, quote(part), codepointList(part)));
-    }
-
-    if (containsAnyWhitespace(part)) {
+    if (part.isEmpty() || containsAnyWhitespace(part)) {
       throw new InvalidUrnException(entityType, Reason.CONTAINS_WHITESPACE, path, quote(part),
-          String.format("URN %s contains whitespace at %s: %s codepoints=%s",
+          String.format("URN %s is empty or contains whitespace at %s: %s codepoints=%s",
               entityType, path, quote(part), codepointList(part)));
     }
 
@@ -90,36 +84,22 @@ public final class UrnValidator {
     }
   }
 
-  private static void validateNestedUrn(@Nonnull String urnString, @Nonnull String parentEntityType,
+  private static void validateNestedUrn(@Nonnull String urnString, @Nonnull String entityType,
       @Nonnull String parentPath) {
     Urn nested;
     try {
       nested = Urn.createFromString(urnString);
     } catch (Exception e) {
-      // If it can't be parsed as a URN, the string-level checks above already cover it.
-      return;
+      throw new InvalidUrnException(entityType, Reason.INVALID_NESTED_URN, parentPath, quote(urnString),
+          String.format("URN %s has unparseable nested URN at %s: %s error=%s",
+              entityType, parentPath, quote(urnString), e.getMessage()));
     }
     String nestedEntityType = nested.getEntityType();
     List<String> parts = nested.getEntityKey().getParts();
     for (int i = 0; i < parts.size(); i++) {
       String nestedPath = parentPath + "." + nestedEntityType + ".key[" + i + "]";
-      // Use the nested URN's own entityType so the rejection exception accurately identifies
-      // which URN type contained the invalid part (not the outer parent).
       validatePart(parts.get(i), nestedEntityType, nestedPath);
     }
-  }
-
-  static boolean isBlank(@Nonnull String value) {
-    if (value.isEmpty()) {
-      return true;
-    }
-    for (int i = 0; i < value.length(); i++) {
-      char c = value.charAt(i);
-      if (!Character.isWhitespace(c) && !Character.isSpaceChar(c)) {
-        return false;
-      }
-    }
-    return true;
   }
 
   static boolean containsAnyWhitespace(@Nonnull String value) {

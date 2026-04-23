@@ -15,9 +15,9 @@ import lombok.Getter;
 public class InvalidUrnException extends IllegalArgumentException {
 
   public enum Reason {
-    BLANK_FIELD,
     CONTAINS_WHITESPACE,
-    CONTROL_CHARACTER
+    CONTROL_CHARACTER,
+    INVALID_NESTED_URN
   }
 
   private final String entityType;
