@@ -1,10 +1,12 @@
 package com.linkedin.metadata.dao;
 
 import com.linkedin.common.AuditStamp;
+import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.data.template.SetMode;
 import com.linkedin.data.template.UnionTemplate;
 import com.linkedin.metadata.dao.builder.BaseLocalRelationshipBuilder.LocalRelationshipUpdates;
+import com.linkedin.metadata.dao.exception.InvalidUrnException;
 import com.linkedin.metadata.dao.ingestion.AspectCallbackMapKey;
 import com.linkedin.metadata.dao.ingestion.AspectCallbackRegistry;
 import com.linkedin.metadata.dao.ingestion.AspectCallbackResponse;
@@ -1449,5 +1451,85 @@ public class BaseLocalDAOTest {
     // Foo should be transformed by callback, bar should pass through unchanged
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, expectedFooTransformed);
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, null, bar);
+  }
+
+  // --- URN Validation Tests ---
+  // These tests use raw types to pass an invalid Urn (with whitespace in key parts) into the
+  // typed BaseLocalDAO methods. Generics are erased at runtime so the call works; the validation
+  // fires before any DB interaction.
+
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  private Urn makeInvalidUrn() throws URISyntaxException {
+    return Urn.createFromString("urn:li:foo: 1");
+  }
+
+  @Test(expectedExceptions = InvalidUrnException.class)
+  public void testAddRejectsInvalidUrn() throws Exception {
+    Urn badUrn = makeInvalidUrn();
+    BaseLocalDAO rawDao = _dummyLocalDAO;
+    rawDao.add(badUrn, new AspectFoo().setValue("test"), _dummyAuditStamp);
+  }
+
+  @Test(expectedExceptions = InvalidUrnException.class)
+  public void testAddManyRejectsInvalidUrn() throws Exception {
+    Urn badUrn = makeInvalidUrn();
+    BaseLocalDAO rawDao = _dummyLocalDAO;
+    rawDao.addMany(badUrn, Arrays.asList(new AspectFoo().setValue("test")), _dummyAuditStamp);
+  }
+
+  @Test(expectedExceptions = InvalidUrnException.class)
+  public void testAddManyBatchRejectsInvalidUrn() throws Exception {
+    Urn badUrn = makeInvalidUrn();
+    BaseLocalDAO rawDao = _dummyLocalDAO;
+    rawDao.addManyBatch(badUrn, Arrays.asList(new AspectFoo().setValue("test")), _dummyAuditStamp, null);
+  }
+
+  @Test(expectedExceptions = InvalidUrnException.class)
+  public void testCreateRejectsInvalidUrn() throws Exception {
+    Urn badUrn = makeInvalidUrn();
+    BaseLocalDAO rawDao = _dummyLocalDAO;
+    rawDao.create(badUrn, Arrays.asList(new AspectFoo().setValue("test")), _dummyAuditStamp, null, null);
+  }
+
+  @Test(expectedExceptions = InvalidUrnException.class)
+  public void testDeleteRejectsInvalidUrn() throws Exception {
+    Urn badUrn = makeInvalidUrn();
+    BaseLocalDAO rawDao = _dummyLocalDAO;
+    rawDao.delete(badUrn, AspectFoo.class, _dummyAuditStamp);
+  }
+
+  @Test(expectedExceptions = InvalidUrnException.class)
+  public void testDeleteManyRejectsInvalidUrn() throws Exception {
+    Urn badUrn = makeInvalidUrn();
+    BaseLocalDAO rawDao = _dummyLocalDAO;
+    rawDao.deleteMany(badUrn, Collections.singleton(AspectFoo.class), _dummyAuditStamp);
+  }
+
+  @Test(expectedExceptions = InvalidUrnException.class)
+  public void testDeleteAllRejectsInvalidUrn() throws Exception {
+    Urn badUrn = makeInvalidUrn();
+    BaseLocalDAO rawDao = _dummyLocalDAO;
+    rawDao.deleteAll(badUrn, Collections.singleton(AspectFoo.class), _dummyAuditStamp);
+  }
+
+  @Test
+  public void testValidUrnPassesValidation() throws Exception {
+    FooUrn validUrn = new FooUrn(1);
+    when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
+        .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(null, null));
+    _dummyLocalDAO.add(validUrn, new AspectFoo().setValue("test"), _dummyAuditStamp);
+    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(eq(validUrn), eq(null), any(AspectFoo.class));
+  }
+
+  @Test
+  public void testInvalidUrnExceptionIsIllegalArgumentException() throws Exception {
+    Urn badUrn = makeInvalidUrn();
+    BaseLocalDAO rawDao = _dummyLocalDAO;
+    try {
+      rawDao.add(badUrn, new AspectFoo().setValue("test"), _dummyAuditStamp);
+      fail("Expected InvalidUrnException");
+    } catch (IllegalArgumentException e) {
+      assertTrue(e instanceof InvalidUrnException);
+    }
   }
 }
