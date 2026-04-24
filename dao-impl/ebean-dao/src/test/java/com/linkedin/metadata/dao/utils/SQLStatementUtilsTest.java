@@ -172,18 +172,14 @@ public class SQLStatementUtilsTest {
 
     String sql1 = SQLStatementUtils.createFilterSql("foo", indexFilter, false, mockValidator);
     String expectedSql1 = "SELECT urn FROM metadata_entity_foo\n"
-        + "WHERE a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
-        + "AND i_aspectfoo$value >= 25\n" + "AND a_aspectfoo IS NOT NULL\n"
-        + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
+        + "WHERE i_aspectfoo$value >= 25\n"
         + "AND i_aspectfoo$value < 50\n" + "AND deleted_ts IS NULL";
 
     assertEquals(sql1, expectedSql1);
 
     String sql2 = SQLStatementUtils.createFilterSql("foo", indexFilter, true, mockValidator);
     String expectedSql2 = "SELECT urn FROM metadata_entity_foo\n"
-        + "WHERE a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
-        + "AND i_aspectfoo0value >= 25\n" + "AND a_aspectfoo IS NOT NULL\n"
-        + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
+        + "WHERE i_aspectfoo0value >= 25\n"
         + "AND i_aspectfoo0value < 50\n" + "AND deleted_ts IS NULL";
 
     assertEquals(sql2, expectedSql2);
@@ -203,8 +199,7 @@ public class SQLStatementUtilsTest {
 
     String sql1 = SQLStatementUtils.createFilterSql("foo", indexFilter, false, mockValidator);
     String expectedSql1 = "SELECT urn FROM metadata_entity_foo\n"
-        + "WHERE a_aspectfoobar IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoobar, '$.gma_deleted') IS NULL\n"
-        + "AND JSON_CONTAINS(i_aspectfoobar$bars, '\"bar1\"')\n" + "AND deleted_ts IS NULL";
+        + "WHERE JSON_CONTAINS(i_aspectfoobar$bars, '\"bar1\"')\n" + "AND deleted_ts IS NULL";
 
     assertEquals(sql1, expectedSql1);
   }
@@ -230,16 +225,14 @@ public class SQLStatementUtilsTest {
 
     String sql1 = SQLStatementUtils.createGroupBySql("foo", indexFilter, indexGroupByCriterion, false, mockValidator);
     assertEquals(sql1, "SELECT count(*) as COUNT, i_aspectfoo$value FROM metadata_entity_foo\n"
-        + "WHERE a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
-        + "AND i_aspectfoo$value >= 25\n" + "AND a_aspectfoo IS NOT NULL\n"
-        + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo$value < 50\n"
+        + "WHERE i_aspectfoo$value >= 25\n"
+        + "AND i_aspectfoo$value < 50\n"
         + "AND deleted_ts IS NULL\n" + "GROUP BY i_aspectfoo$value");
 
     String sql2 = SQLStatementUtils.createGroupBySql("foo", indexFilter, indexGroupByCriterion, true, mockValidator);
     assertEquals(sql2, "SELECT count(*) as COUNT, i_aspectfoo0value FROM metadata_entity_foo\n"
-        + "WHERE a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
-        + "AND i_aspectfoo0value >= 25\n" + "AND a_aspectfoo IS NOT NULL\n"
-        + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n" + "AND i_aspectfoo0value < 50\n"
+        + "WHERE i_aspectfoo0value >= 25\n"
+        + "AND i_aspectfoo0value < 50\n"
         + "AND deleted_ts IS NULL\n" + "GROUP BY i_aspectfoo0value");
   }
 
@@ -837,9 +830,8 @@ public class SQLStatementUtilsTest {
 
     String sql1 = SQLStatementUtils.createGroupBySql("foo", indexFilter, indexGroupByCriterion, false, mockValidator);
     assertEquals(sql1, "SELECT count(*) as COUNT, i_aspectbar$name FROM metadata_entity_foo\n"
-        + "WHERE a_aspectfoo IS NOT NULL\n" + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
-        + "AND i_aspectfoo$age >= 25\n" + "AND a_aspectbar IS NOT NULL\n"
-        + "AND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\n" + "AND i_aspectbar$name = 'PizzaMan'\n"
+        + "WHERE i_aspectfoo$age >= 25\n"
+        + "AND i_aspectbar$name = 'PizzaMan'\n"
         + "AND deleted_ts IS NULL\n" + "GROUP BY i_aspectbar$name");
   }
 
@@ -873,18 +865,14 @@ public class SQLStatementUtilsTest {
 
     String sql = SQLStatementUtils.createGroupBySql("foo", indexFilter, indexGroupByFunctionalIndex, false, mockValidator);
     assertEquals(sql, "SELECT count(*) as COUNT, (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024))) FROM metadata_entity_foo\n"
-        + "WHERE a_aspectbar IS NOT NULL\n"
-        + "AND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\n"
-        + "AND (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024))) = 'jhui'\n"
+        + "WHERE (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024))) = 'jhui'\n"
         + "AND deleted_ts IS NULL\n"
         + "GROUP BY (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024)))");
 
     // Case 1.2: (Stuff is present) filter is on a functional index, group by is on a column
     String sql2 = SQLStatementUtils.createGroupBySql("foo", indexFilter, indexGroupByCriterion, false, mockValidator);
     assertEquals(sql2, "SELECT count(*) as COUNT, i_aspectbar$name FROM metadata_entity_foo\n"
-        + "WHERE a_aspectbar IS NOT NULL\n"
-        + "AND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\n"
-        + "AND (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024))) = 'jhui'\n"
+        + "WHERE (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024))) = 'jhui'\n"
         + "AND deleted_ts IS NULL\n"
         + "GROUP BY i_aspectbar$name");
 
@@ -896,9 +884,7 @@ public class SQLStatementUtilsTest {
 
     String sql3 = SQLStatementUtils.createGroupBySql("foo", indexFilter, indexGroupByFunctionalIndex, false, mockValidator);
     assertEquals(sql3, "SELECT count(*) as COUNT, (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024))) FROM metadata_entity_foo\n"
-        + "WHERE a_aspectfoo IS NOT NULL\n"
-        + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
-        + "AND i_aspectfoo$age >= 25\n"
+        + "WHERE i_aspectfoo$age >= 25\n"
         + "AND deleted_ts IS NULL\n"
         + "GROUP BY (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024)))");
   }
@@ -931,11 +917,12 @@ public class SQLStatementUtilsTest {
     when(mockValidator.columnExists(anyString(), contains("i_aspectbar$name"))).thenReturn(true);
 
     String sql = SQLStatementUtils.createGroupBySql("foo", indexFilter, groupBy, false, mockValidator);
+    // AspectFoo/age column is missing (mocked as false above), so its path filter is skipped
+    // and the fallback null/deleted checks are added. AspectBar/name column exists, so its
+    // path filter handles exclusion and no null/deleted checks are needed.
     assertEquals(sql, "SELECT count(*) as COUNT, i_aspectbar$name FROM metadata_entity_foo\n"
         + "WHERE a_aspectfoo IS NOT NULL\n"
         + "AND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\n"
-        + "AND a_aspectbar IS NOT NULL\n"
-        + "AND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\n"
         + "AND i_aspectbar$name = 'PizzaMan'\n"
         + "AND deleted_ts IS NULL\n"
         + "GROUP BY i_aspectbar$name");
