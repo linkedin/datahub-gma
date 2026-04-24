@@ -96,11 +96,11 @@ public class SQLIndexFilterUtilsTest {
 
     String sql = SQLIndexFilterUtils.parseIndexFilter(FooUrn.ENTITY_TYPE, indexFilter, false, mockValidator);
     assertEquals(sql,
-        "WHERE a_aspectfoo IS NOT NULL\nAND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\nAND i_aspectfoo$id < 12\nAND deleted_ts IS NULL");
+        "WHERE i_aspectfoo$id < 12\nAND deleted_ts IS NULL");
 
     sql = SQLIndexFilterUtils.parseIndexFilter(FooUrn.ENTITY_TYPE, indexFilter, true, mockValidator);
     assertEquals(sql,
-        "WHERE a_aspectfoo IS NOT NULL\nAND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\nAND i_aspectfoo0id < 12\nAND deleted_ts IS NULL");
+        "WHERE i_aspectfoo0id < 12\nAND deleted_ts IS NULL");
   }
 
   private static void assertValidSql(String sql) {
@@ -127,7 +127,7 @@ public class SQLIndexFilterUtilsTest {
         SQLIndexFilterUtils.createIndexCriterion(AspectBar.class, "value_array", Condition.ARRAY_CONTAINS,
             IndexValue.create(12L)));
     final String expectedSql1 =
-        "WHERE a_aspectbar IS NOT NULL\nAND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\nAND JSON_CONTAINS((json_extract(`a_aspectbar`, '$.aspect.value_array')), '12')\nAND deleted_ts IS NULL";
+        "WHERE JSON_CONTAINS((json_extract(`a_aspectbar`, '$.aspect.value_array')), '12')\nAND deleted_ts IS NULL";
     assertValidSql(expectedSql1);  // assert that the expected SQL is valid to begin with
     assertEquals(SQLIndexFilterUtils.parseIndexFilter(FooUrn.ENTITY_TYPE, indexFilter, false, mockValidator),
         expectedSql1);
@@ -139,7 +139,7 @@ public class SQLIndexFilterUtilsTest {
         SQLIndexFilterUtils.createIndexCriterion(AspectBar.class, "value_array", Condition.ARRAY_CONTAINS,
             IndexValue.create("goop")));
     final String expectedSql11 =
-        "WHERE a_aspectbar IS NOT NULL\nAND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\nAND JSON_CONTAINS((json_extract(`a_aspectbar`, '$.aspect.value_array')), '\"goop\"')\nAND deleted_ts IS NULL";
+        "WHERE JSON_CONTAINS((json_extract(`a_aspectbar`, '$.aspect.value_array')), '\"goop\"')\nAND deleted_ts IS NULL";
     assertValidSql(expectedSql11);  // assert that the expected SQL is valid to begin with
     assertEquals(SQLIndexFilterUtils.parseIndexFilter(FooUrn.ENTITY_TYPE, indexFilter, false, mockValidator),
         expectedSql11);
@@ -150,7 +150,7 @@ public class SQLIndexFilterUtilsTest {
     indexCriterionArray.set(0,
         SQLIndexFilterUtils.createIndexCriterion(AspectBar.class, "value", Condition.CONTAIN, IndexValue.create(12L)));
     final String expectedSql20 =
-        "WHERE a_aspectbar IS NOT NULL\nAND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\nAND JSON_SEARCH((cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024))), 'one', '12') IS NOT NULL\nAND deleted_ts IS NULL";
+        "WHERE JSON_SEARCH((cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024))), 'one', '12') IS NOT NULL\nAND deleted_ts IS NULL";
     assertValidSql(expectedSql20);  // assert that the expected SQL is valid to begin with
     assertEquals(SQLIndexFilterUtils.parseIndexFilter(FooUrn.ENTITY_TYPE, indexFilter, false, mockValidator),
         expectedSql20);
@@ -162,7 +162,7 @@ public class SQLIndexFilterUtilsTest {
         SQLIndexFilterUtils.createIndexCriterion(AspectBar.class, "value_array", Condition.CONTAIN,
             IndexValue.create(12L)));
     final String expectedSql21 =
-        "WHERE a_aspectbar IS NOT NULL\nAND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\nAND JSON_SEARCH((cast(json_extract(`a_aspectbar`, '$.aspect.value_array') as char(128) array)), 'one', '12') IS NOT NULL\nAND deleted_ts IS NULL";
+        "WHERE JSON_SEARCH((cast(json_extract(`a_aspectbar`, '$.aspect.value_array') as char(128) array)), 'one', '12') IS NOT NULL\nAND deleted_ts IS NULL";
     assertValidSql(expectedSql21);  // assert that the expected SQL is valid to begin with
     assertEquals(SQLIndexFilterUtils.parseIndexFilter(FooUrn.ENTITY_TYPE, indexFilter, false, mockValidator),
         expectedSql21);
@@ -174,7 +174,7 @@ public class SQLIndexFilterUtilsTest {
         SQLIndexFilterUtils.createIndexCriterion(AspectBar.class, "annotation/ontologyIris", Condition.CONTAIN,
             IndexValue.create(12L)));
     final String expectedSql22 =
-        "WHERE a_aspectbar IS NOT NULL\nAND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\nAND JSON_SEARCH((cast(replace(json_unquote(json_extract(`a_aspectbar`,'$.aspect.annotation.ontologyIris[*]')),'\"','') as char(255))), 'one', '12') IS NOT NULL\nAND deleted_ts IS NULL";
+        "WHERE JSON_SEARCH((cast(replace(json_unquote(json_extract(`a_aspectbar`,'$.aspect.annotation.ontologyIris[*]')),'\"','') as char(255))), 'one', '12') IS NOT NULL\nAND deleted_ts IS NULL";
     assertValidSql(expectedSql22);  // assert that the expected SQL is valid to begin with
     assertEquals(SQLIndexFilterUtils.parseIndexFilter(FooUrn.ENTITY_TYPE, indexFilter, false, mockValidator),
         expectedSql22);
@@ -185,7 +185,7 @@ public class SQLIndexFilterUtilsTest {
     indexCriterionArray.set(0, SQLIndexFilterUtils.createIndexCriterion(AspectBar.class, "value", Condition.IN,
         IndexValue.create(new StringArray("six", "seven"))));
     final String expectedSql3 =
-        "WHERE a_aspectbar IS NOT NULL\nAND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\nAND (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024))) IN ('six', 'seven')\nAND deleted_ts IS NULL";
+        "WHERE (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024))) IN ('six', 'seven')\nAND deleted_ts IS NULL";
     assertValidSql(expectedSql3);  // assert that the expected SQL is valid to begin with
     assertEquals(SQLIndexFilterUtils.parseIndexFilter(FooUrn.ENTITY_TYPE, indexFilter, false, mockValidator),
         expectedSql3);
@@ -196,7 +196,7 @@ public class SQLIndexFilterUtilsTest {
     indexCriterionArray.set(0,
         SQLIndexFilterUtils.createIndexCriterion(AspectBar.class, "value", Condition.EQUAL, IndexValue.create("six")));
     final String expectedSql41 =
-        "WHERE a_aspectbar IS NOT NULL\nAND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\nAND (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024))) = 'six'\nAND deleted_ts IS NULL";
+        "WHERE (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024))) = 'six'\nAND deleted_ts IS NULL";
     assertValidSql(expectedSql41);  // assert that the expected SQL is valid to begin with
     assertEquals(SQLIndexFilterUtils.parseIndexFilter(FooUrn.ENTITY_TYPE, indexFilter, false, mockValidator),
         expectedSql41);
@@ -208,7 +208,7 @@ public class SQLIndexFilterUtilsTest {
         SQLIndexFilterUtils.createIndexCriterion(AspectBar.class, "value_array", Condition.EQUAL,
             IndexValue.create(new StringArray("six", "seven"))));
     final String expectedSql42 =
-        "WHERE a_aspectbar IS NOT NULL\nAND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\nAND (cast(json_extract(`a_aspectbar`, '$.aspect.value_array') as char(128) array)) = '[\"six\", \"seven\"]'\nAND deleted_ts IS NULL";
+        "WHERE (cast(json_extract(`a_aspectbar`, '$.aspect.value_array') as char(128) array)) = '[\"six\", \"seven\"]'\nAND deleted_ts IS NULL";
     assertValidSql(expectedSql42);  // assert that the expected SQL is valid to begin with
     assertEquals(SQLIndexFilterUtils.parseIndexFilter(FooUrn.ENTITY_TYPE, indexFilter, false, mockValidator),
         expectedSql42);
@@ -220,7 +220,7 @@ public class SQLIndexFilterUtilsTest {
         SQLIndexFilterUtils.createIndexCriterion(AspectBar.class, "annotation/ontologyIris", Condition.START_WITH,
             IndexValue.create("six")));
     final String expectedSql5 =
-        "WHERE a_aspectbar IS NOT NULL\nAND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\nAND (cast(replace(json_unquote(json_extract(`a_aspectbar`,'$.aspect.annotation.ontologyIris[*]')),'\"','') as char(255))) LIKE 'six%'\nAND deleted_ts IS NULL";
+        "WHERE (cast(replace(json_unquote(json_extract(`a_aspectbar`,'$.aspect.annotation.ontologyIris[*]')),'\"','') as char(255))) LIKE 'six%'\nAND deleted_ts IS NULL";
     assertValidSql(expectedSql5);  // assert that the expected SQL is valid to begin with
     assertEquals(SQLIndexFilterUtils.parseIndexFilter(FooUrn.ENTITY_TYPE, indexFilter, false, mockValidator),
         expectedSql5);
@@ -231,7 +231,7 @@ public class SQLIndexFilterUtilsTest {
     indexCriterionArray.set(0, SQLIndexFilterUtils.createIndexCriterion(AspectBar.class, "value", Condition.LESS_THAN,
         IndexValue.create(12L)));
     final String expectedSql10 =
-        "WHERE a_aspectbar IS NOT NULL\nAND JSON_EXTRACT(a_aspectbar, '$.gma_deleted') IS NULL\nAND (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024))) < 12\nAND deleted_ts IS NULL";
+        "WHERE (cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024))) < 12\nAND deleted_ts IS NULL";
     assertValidSql(expectedSql10);  // assert that the expected SQL is valid to begin with
     assertEquals(SQLIndexFilterUtils.parseIndexFilter(FooUrn.ENTITY_TYPE, indexFilter, false, mockValidator),
         expectedSql10);
