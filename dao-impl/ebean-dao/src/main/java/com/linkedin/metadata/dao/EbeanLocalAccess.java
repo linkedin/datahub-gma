@@ -13,6 +13,7 @@ import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLIndexFilterUtils;
 import com.linkedin.metadata.dao.utils.SQLStatementUtils;
 import com.linkedin.metadata.dao.utils.SchemaValidatorUtil;
+import com.linkedin.metadata.dao.utils.SharedSchemaCache;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.ExtraInfoArray;
@@ -92,7 +93,16 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     _entityType = ModelUtils.getEntityTypeFromUrnClass(_urnClass);
     _schemaEvolutionManager = createSchemaEvolutionManager(serverConfig);
     _nonDollarVirtualColumnsEnabled = nonDollarVirtualColumnsEnabled;
-    validator = new SchemaValidatorUtil(server);
+    validator = buildValidator(server, serverConfig);
+  }
+
+  private static SchemaValidatorUtil buildValidator(EbeanServer server, ServerConfig serverConfig) {
+    String dbUrl = serverConfig.getDataSourceConfig() != null
+        ? serverConfig.getDataSourceConfig().getUrl() : null;
+    if (dbUrl != null && !dbUrl.isEmpty()) {
+      return new SchemaValidatorUtil(SharedSchemaCache.getInstance(server, dbUrl));
+    }
+    return new SchemaValidatorUtil(server);
   }
 
   public void setUrnPathExtractor(@Nonnull UrnPathExtractor<URN> urnPathExtractor) {
@@ -101,6 +111,8 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
   public void ensureSchemaUpToDate() {
     _schemaEvolutionManager.ensureSchemaUpToDate();
+    // Pre-warm the shared cache for this entity's table so the first request is never slow.
+    validator.registerAndPreWarm(getTableName(_entityType));
   }
 
   @Override
