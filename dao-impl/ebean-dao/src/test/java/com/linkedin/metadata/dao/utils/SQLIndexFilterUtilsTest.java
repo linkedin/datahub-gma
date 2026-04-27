@@ -5,6 +5,7 @@ import com.linkedin.metadata.query.Condition;
 import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexCriterionArray;
 import com.linkedin.metadata.query.IndexFilter;
+import com.linkedin.metadata.query.IndexPathParams;
 import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.metadata.query.IndexValue;
 import com.linkedin.metadata.query.SortOrder;
@@ -311,5 +312,64 @@ public class SQLIndexFilterUtilsTest {
     // no enclosing parents in original statement
     assertEquals(SQLIndexFilterUtils.stripCastStatement("cast(json_extract(`a_aspectbar`, '$.aspect.value') as char(1024))"),
         "(json_extract(`a_aspectbar`, '$.aspect.value'))");
+  }
+
+  @Test
+  public void testParseIndexFilterBareNonUrnCriterionKeepsNullDeletedChecks() {
+    // A non-URN criterion without pathParams should keep the IS NOT NULL and gma_deleted checks,
+    // since there is no generated column comparison to exclude null/deleted aspects.
+    IndexCriterion bareCriterion = new IndexCriterion();
+    bareCriterion.setAspect(AspectFoo.class.getCanonicalName());
+    // No pathParams set
+
+    IndexFilter indexFilter = new IndexFilter();
+    indexFilter.setCriteria(new IndexCriterionArray(bareCriterion));
+
+    String sql = SQLIndexFilterUtils.parseIndexFilter(FooUrn.ENTITY_TYPE, indexFilter, false, mockValidator);
+    assertEquals(sql,
+        "WHERE a_aspectfoo IS NOT NULL\nAND JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL\nAND deleted_ts IS NULL");
+  }
+
+  @Test
+  public void testParseIndexFilterMissingColumnFallsBackToNullDeletedChecks() {
+    // When pathParams is present but the generated column doesn't exist, we should fall back
+    // to the null/deleted checks instead of silently skipping.
+    SchemaValidatorUtil missingColumnValidator = mock(SchemaValidatorUtil.class);
+    when(missingColumnValidator.columnExists(anyString(), anyString())).thenReturn(false);
+
+    IndexCriterion criterion = SQLIndexFilterUtils.createIndexCriterion(
+        AspectFoo.class, "nonexistent_field", Condition.EQUAL, IndexValue.create("bar"));
+
+    IndexFilter indexFilter = new IndexFilter();
+    indexFilter.setCriteria(new IndexCriterionArray(criterion));
+
+    String sql = SQLIndexFilterUtils.parseIndexFilter(FooUrn.ENTITY_TYPE, indexFilter, false, missingColumnValidator);
+    // Should have the null/deleted checks since the path filter couldn't be applied
+    assertTrue(sql.contains("a_aspectfoo IS NOT NULL"));
+    assertTrue(sql.contains("JSON_EXTRACT(a_aspectfoo, '$.gma_deleted') IS NULL"));
+    // Should NOT have the path filter (column doesn't exist)
+    assertFalse(sql.contains("nonexistent_field"));
+  }
+
+  @Test
+  public void testParseIndexFilterUrnCriterionSkipsNullDeletedChecks() {
+    // URN criteria should never have null/deleted checks, regardless of whether pathParams is present.
+    IndexCriterion urnCriterion = new IndexCriterion();
+    urnCriterion.setAspect(FooUrn.class.getCanonicalName());
+    IndexPathParams pathParams = new IndexPathParams();
+    pathParams.setPath("/id");
+    pathParams.setCondition(Condition.EQUAL);
+    pathParams.setValue(IndexValue.create(42L));
+    urnCriterion.setPathParams(pathParams);
+
+    IndexFilter indexFilter = new IndexFilter();
+    indexFilter.setCriteria(new IndexCriterionArray(urnCriterion));
+
+    String sql = SQLIndexFilterUtils.parseIndexFilter(FooUrn.ENTITY_TYPE, indexFilter, false, mockValidator);
+    // Should have the path filter
+    assertTrue(sql.contains("i_urn$id"));
+    // Should NOT have any aspect null/deleted checks
+    assertFalse(sql.contains("IS NOT NULL"));
+    assertFalse(sql.contains("gma_deleted"));
   }
 }
