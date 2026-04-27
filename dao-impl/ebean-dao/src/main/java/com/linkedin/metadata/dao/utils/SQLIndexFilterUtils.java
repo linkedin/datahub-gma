@@ -187,44 +187,29 @@ public class SQLIndexFilterUtils {
         final String aspect = indexCriterion.getAspect();
         final IndexPathParams pathParams = indexCriterion.getPathParams(GetMode.NULL);
 
-        if (!isUrn(aspect)) {
-          boolean hasEffectivePathFilter = false;
-
-          if (pathParams != null) {
-            validateConditionAndValue(indexCriterion);
-            final String indexedExpressionOrColumn =
-                getIndexedExpressionOrColumn(entityType, aspect, pathParams.getPath(), nonDollarVirtualColumnsEnabled, schemaValidator);
-            if (indexedExpressionOrColumn != null) {
-              // The generated column comparison already excludes rows where the aspect is NULL or
-              // soft-deleted (gma_deleted), because the generated column evaluates to NULL in both
-              // cases and NULL fails all SQL comparisons. No need for explicit aspect null/deleted checks.
-              hasEffectivePathFilter = true;
-              sqlFilters.add(parseSqlFilter(indexedExpressionOrColumn, pathParams.getCondition(), pathParams.getValue()));
-            } else {
-              log.warn("Skipping filter: Neither expression index nor virtual column found for Aspect '{}' and Path '{}' for Asset '{}'",
-                  aspect, pathParams.getPath(), entityType);
-            }
-          }
-
-          if (!hasEffectivePathFilter) {
-            // No effective path filter — need explicit aspect null and soft-deletion checks.
-            final String aspectColumn = getAspectColumnName(entityType, indexCriterion.getAspect());
-            sqlFilters.add(aspectColumn + " IS NOT NULL");
-            sqlFilters.add(String.format(SOFT_DELETED_CHECK, aspectColumn));
-          }
-        } else {
-          // URN criterion — only process path filter, no aspect null/deleted checks needed
-          if (pathParams != null) {
-            validateConditionAndValue(indexCriterion);
-            final String indexedExpressionOrColumn =
-                getIndexedExpressionOrColumn(entityType, aspect, pathParams.getPath(), nonDollarVirtualColumnsEnabled, schemaValidator);
-            if (indexedExpressionOrColumn == null) {
-              log.warn("Skipping filter: Neither expression index nor virtual column found for Aspect '{}' and Path '{}' for Asset '{}'",
-                  aspect, pathParams.getPath(), entityType);
-              continue;
-            }
+        // Process path filter (common to both URN and non-URN criteria)
+        boolean hasEffectivePathFilter = false;
+        if (pathParams != null) {
+          validateConditionAndValue(indexCriterion);
+          final String indexedExpressionOrColumn =
+              getIndexedExpressionOrColumn(entityType, aspect, pathParams.getPath(), nonDollarVirtualColumnsEnabled, schemaValidator);
+          if (indexedExpressionOrColumn != null) {
+            hasEffectivePathFilter = true;
             sqlFilters.add(parseSqlFilter(indexedExpressionOrColumn, pathParams.getCondition(), pathParams.getValue()));
+          } else {
+            log.warn("Skipping filter: Neither expression index nor virtual column found for Aspect '{}' and Path '{}' for Asset '{}'",
+                aspect, pathParams.getPath(), entityType);
           }
+        }
+
+        // For non-URN aspects, add null/deleted checks only when there is no effective path filter.
+        // When a path filter IS present, the generated column comparison already excludes rows where
+        // the aspect is NULL or soft-deleted (gma_deleted), because the generated column evaluates to
+        // NULL in both cases and NULL fails all SQL comparisons.
+        if (!isUrn(aspect) && !hasEffectivePathFilter) {
+          final String aspectColumn = getAspectColumnName(entityType, indexCriterion.getAspect());
+          sqlFilters.add(aspectColumn + " IS NOT NULL");
+          sqlFilters.add(String.format(SOFT_DELETED_CHECK, aspectColumn));
         }
       }
     }
