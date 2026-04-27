@@ -81,7 +81,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import static com.linkedin.metadata.dao.utils.IngestionUtils.*;
 import static com.linkedin.metadata.dao.utils.ModelUtils.*;
-import static com.linkedin.metadata.dao.utils.UrnValidator.validateUrnForWrite;
+import com.linkedin.metadata.dao.utils.UrnValidatorRegistry;
 
 
 /**
@@ -267,6 +267,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   // Enable updating multiple aspects within a single transaction
   private boolean _enableAtomicMultipleUpdate = false;
+
+  private UrnValidatorRegistry _urnValidatorRegistry = UrnValidatorRegistry.builder().build();
 
   private boolean _emitAuditEvent = false;
 
@@ -505,6 +507,13 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   }
 
   /**
+   * Sets the URN validator registry used to validate URNs on write paths.
+   */
+  public void setUrnValidatorRegistry(@Nonnull UrnValidatorRegistry urnValidatorRegistry) {
+    _urnValidatorRegistry = urnValidatorRegistry;
+  }
+
+  /**
    * Logic common to both {@link #add(Urn, Class, Function, AuditStamp)} and {@link #delete(Urn, Class, AuditStamp, int)} methods.
    *
    * @param urn urn the URN for the entity the aspect is attached to
@@ -657,7 +666,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nonnull AuditStamp auditStamp,
       int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext) {
 
-    validateUrnForWrite("addMany", auditStamp, urn);
+    _urnValidatorRegistry.validateUrnForWrite("addMany", auditStamp, urn);
 
     // first check that all the aspects are valid
     aspectUpdateLambdas.stream().map(AspectUpdateLambda::getAspectClass).forEach(this::checkValidAspect);
@@ -733,7 +742,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   public List<ASPECT_UNION> batchUpsert(@Nonnull URN urn,
       @Nonnull List<AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas,
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext) {
-    validateUrnForWrite("batchUpsert", auditStamp, urn);
+    _urnValidatorRegistry.validateUrnForWrite("batchUpsert", auditStamp, urn);
 
     // ingest aspects and process callbacks in a single transaction
     return runInTransactionWithRetry(() -> {
@@ -1172,7 +1181,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   @Nonnull
   public <ASPECT extends RecordTemplate> ASPECT add(@Nonnull URN urn, AspectUpdateLambda<ASPECT> updateLambda,
       @Nonnull AuditStamp auditStamp, int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext, boolean isRawUpdate) {
-    validateUrnForWrite("add", auditStamp, urn);
+    _urnValidatorRegistry.validateUrnForWrite("add", auditStamp, urn);
 
     final Class<ASPECT> aspectClass = updateLambda.getAspectClass();
     checkValidAspect(aspectClass);
@@ -1206,7 +1215,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nonnull AuditStamp auditStamp, int maxTransactionRetry,
       @Nullable IngestionTrackingContext trackingContext) {
 
-    validateUrnForWrite("create", auditStamp, urn);
+    _urnValidatorRegistry.validateUrnForWrite("create", auditStamp, urn);
 
     // check that all the aspects are valid
     aspectCreateLambdas.forEach(aspectCreateLambda -> checkValidAspect(aspectCreateLambda.getAspectClass()));
@@ -1285,7 +1294,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       @Nullable IngestionTrackingContext trackingContext,
       @Nullable IngestionParams ingestionParams) {
 
-    validateUrnForWrite("deleteAll", auditStamp, urn);
+    _urnValidatorRegistry.validateUrnForWrite("deleteAll", auditStamp, urn);
 
     IngestionParams nonNullIngestionParams = ingestionParams == null
         ? new IngestionParams().setIngestionMode(IngestionMode.LIVE).setTestMode(false) : ingestionParams;
@@ -1372,7 +1381,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       int maxTransactionRetry,
       @Nullable IngestionTrackingContext trackingContext) {
 
-    validateUrnForWrite("deleteMany", auditStamp, urn);
+    _urnValidatorRegistry.validateUrnForWrite("deleteMany", auditStamp, urn);
 
     // entire delete operation should be atomic
     final Collection<RecordTemplate> results = runInTransactionWithRetry(() -> aspectClasses.stream()
@@ -1417,7 +1426,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   @Nullable
   public <ASPECT extends RecordTemplate> ASPECT delete(@Nonnull URN urn, @Nonnull Class<ASPECT> aspectClass,
       @Nonnull AuditStamp auditStamp, int maxTransactionRetry, @Nullable IngestionTrackingContext trackingContext) {
-    validateUrnForWrite("delete", auditStamp, urn);
+    _urnValidatorRegistry.validateUrnForWrite("delete", auditStamp, urn);
     checkValidAspect(aspectClass);
 
     final AddResult<ASPECT> result = runInTransactionWithRetry(() -> {
