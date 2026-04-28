@@ -36,6 +36,7 @@ import com.linkedin.metadata.dao.urnpath.UrnPathExtractor;
 import com.linkedin.metadata.dao.utils.BarUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.EbeanServerUtils;
 import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
+import com.linkedin.metadata.dao.utils.SharedSchemaCache;
 import com.linkedin.metadata.dao.utils.FooUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.ModelUtils;
 import com.linkedin.metadata.dao.utils.RecordUtils;
@@ -217,6 +218,11 @@ public class EbeanLocalDAOTest {
       } else {
         _server.execute(Ebean.createSqlUpdate(readSQLfromFile(NEW_SCHEMA_CREATE_ALL_SQL)));
       }
+      // The SharedSchemaCache is a static singleton keyed by JDBC URL. The DROP+CREATE above removes
+      // any virtual columns that addIndex() added dynamically during a previous test, so the cached
+      // column set is now stale. Clear it so the next columnExists() call queries information_schema
+      // fresh and sees only the columns that actually exist after the schema reset.
+      SharedSchemaCache.clearRegistry();
     }
     _mockProducer = mock(BaseMetadataEventProducer.class);
     _mockTrackingProducer = mock(BaseTrackingMetadataEventProducer.class);

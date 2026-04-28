@@ -195,7 +195,7 @@ public class SharedSchemaCache {
   }
 
   @VisibleForTesting
-  static void clearRegistry() {
+  public static void clearRegistry() {
     REGISTRY.clear();
   }
 }
