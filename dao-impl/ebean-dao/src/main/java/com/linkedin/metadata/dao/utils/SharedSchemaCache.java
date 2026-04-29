@@ -31,10 +31,14 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class SharedSchemaCache {
 
+  // Caffeine TTL: entries expire 10 min after last write; background refresh fires at 9 min to keep them warm.
   private static final long CACHE_TTL_MINUTES = 10;
-  // Refresh before TTL so the cache is always warm when Caffeine would evict
+  // Refresh interval is kept just under TTL so entries are never cold when Caffeine would evict them.
   private static final long REFRESH_INTERVAL_SECONDS = 9 * 60;
+  // Random per-host jitter (0-60s) added to the initial refresh delay so that a fleet of hosts
+  // (e.g. 7 metagalaxy pods all starting at deploy time) do not hammer information_schema simultaneously.
   private static final long JITTER_MAX_SECONDS = 60;
+  // Upper bound on the number of tables tracked across all databases; sized generously for safety.
   private static final int CACHE_MAX_SIZE = 1000;
 
   private static final String SQL_GET_ALL_COLUMNS =
@@ -93,19 +97,16 @@ public class SharedSchemaCache {
   // ── cache access ─────────────────────────────────────────────────────────────
 
   public boolean columnExists(@Nonnull String tableName, @Nonnull String columnName) {
-    Set<String> columns = columnCache.get(tableName.toLowerCase(), this::loadColumns);
-    return columns != null && columns.contains(columnName.toLowerCase());
+    return columnCache.get(tableName.toLowerCase(), this::loadColumns).contains(columnName.toLowerCase());
   }
 
   @Nonnull
   public Set<String> getColumns(@Nonnull String tableName) {
-    Set<String> cols = columnCache.get(tableName.toLowerCase(), this::loadColumns);
-    return cols != null ? cols : new HashSet<>();
+    return columnCache.get(tableName.toLowerCase(), this::loadColumns);
   }
 
   public boolean indexExists(@Nonnull String tableName, @Nonnull String indexName) {
-    Set<String> indexes = indexCache.get(tableName.toLowerCase(), this::loadIndexes);
-    return indexes != null && indexes.contains(indexName.toLowerCase());
+    return indexCache.get(tableName.toLowerCase(), this::loadIndexes).contains(indexName.toLowerCase());
   }
 
   @Nullable
@@ -114,8 +115,7 @@ public class SharedSchemaCache {
     String lowerIndex = indexName.toLowerCase();
     try {
       Map<String, String> indexes = indexExpressionCache.get(lowerTable, this::loadIndexesAndExpressions);
-      return SchemaValidatorUtil.cleanIndexExpression(
-          indexes != null ? indexes.getOrDefault(lowerIndex, null) : null);
+      return SchemaValidatorUtil.cleanIndexExpression(indexes.getOrDefault(lowerIndex, null));
     } catch (Exception e) {
       // MariaDB for local testing doesn't support EXPRESSION column
       log.info("Unable to load index expressions for table '{}': {}", lowerTable, e.getMessage());
