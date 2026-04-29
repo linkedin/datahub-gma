@@ -118,7 +118,7 @@ public class SharedSchemaCache {
           indexes != null ? indexes.getOrDefault(lowerIndex, null) : null);
     } catch (Exception e) {
       // MariaDB for local testing doesn't support EXPRESSION column
-      log.debug("Unable to load index expressions for table '{}': {}", lowerTable, e.getMessage());
+      log.info("Unable to load index expressions for table '{}': {}", lowerTable, e.getMessage());
       return null;
     }
   }
