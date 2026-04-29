@@ -149,7 +149,7 @@ public class SharedSchemaCache {
       columnCache.put(tableName, loadColumns(tableName));
       indexCache.put(tableName, loadIndexes(tableName));
       indexExpressionCache.put(tableName, loadIndexesAndExpressions(tableName));
-      log.debug("Schema cache refreshed for table '{}'", tableName);
+      log.info("Schema cache refreshed for table '{}'", tableName);
     } catch (Exception e) {
       log.warn("Schema cache refresh failed for table '{}': {}", tableName, e.getMessage());
     }
