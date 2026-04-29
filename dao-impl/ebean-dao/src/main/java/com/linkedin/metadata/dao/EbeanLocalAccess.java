@@ -113,7 +113,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     _schemaEvolutionManager.ensureSchemaUpToDate();
     // Pre-warm the shared cache for both the prod and test tables so the first request is never slow.
     validator.registerAndPreWarm(getTableName(_entityType));
-    validator.registerAndPreWarm(SQLSchemaUtils.getTestTableName(_entityType));
+    validator.registerAndPreWarm(getTestTableName(_entityType));
   }
 
   @Override

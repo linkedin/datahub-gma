@@ -14,7 +14,9 @@ import com.linkedin.metadata.dao.utils.RelationshipLookUpContext;
 import com.linkedin.metadata.dao.utils.SQLSchemaUtils;
 import com.linkedin.metadata.dao.utils.SQLStatementUtils;
 import com.linkedin.metadata.dao.utils.SchemaValidatorUtil;
+import com.linkedin.metadata.dao.utils.SharedSchemaCache;
 import com.linkedin.metadata.query.Condition;
+import io.ebean.config.ServerConfig;
 import com.linkedin.metadata.query.LocalRelationshipCriterion;
 import com.linkedin.metadata.query.LocalRelationshipCriterionArray;
 import com.linkedin.metadata.query.LocalRelationshipFilter;
@@ -66,6 +68,14 @@ public class EbeanLocalRelationshipQueryDAO {
   private EbeanLocalDAO.SchemaConfig _schemaConfig = EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY;
   private SchemaValidatorUtil _schemaValidatorUtil;
 
+  public EbeanLocalRelationshipQueryDAO(EbeanServer server, ServerConfig serverConfig,
+      EBeanDAOConfig eBeanDAOConfig) {
+    _server = server;
+    _eBeanDAOConfig = eBeanDAOConfig;
+    _schemaValidatorUtil = buildValidator(server, serverConfig);
+    _sqlGenerator = new MultiHopsTraversalSqlGenerator(SUPPORTED_CONDITIONS, _schemaValidatorUtil);
+  }
+
   public EbeanLocalRelationshipQueryDAO(EbeanServer server, EBeanDAOConfig eBeanDAOConfig) {
     _server = server;
     _eBeanDAOConfig = eBeanDAOConfig;
@@ -78,6 +88,15 @@ public class EbeanLocalRelationshipQueryDAO {
     _eBeanDAOConfig = new EBeanDAOConfig();
     _schemaValidatorUtil = new SchemaValidatorUtil(server);
     _sqlGenerator = new MultiHopsTraversalSqlGenerator(SUPPORTED_CONDITIONS, _schemaValidatorUtil);
+  }
+
+  private static SchemaValidatorUtil buildValidator(EbeanServer server, ServerConfig serverConfig) {
+    String dbUrl = serverConfig.getDataSourceConfig() != null
+        ? serverConfig.getDataSourceConfig().getUrl() : null;
+    if (dbUrl != null && !dbUrl.isEmpty()) {
+      return new SchemaValidatorUtil(SharedSchemaCache.getInstance(server, dbUrl));
+    }
+    return new SchemaValidatorUtil(server);
   }
 
   static final Map<Condition, String> SUPPORTED_CONDITIONS =
