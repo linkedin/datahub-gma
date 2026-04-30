@@ -102,10 +102,6 @@ public class SchemaValidatorUtil {
    */
   @VisibleForTesting
   void clearCaches() {
-    if (sharedCache != null) {
-      sharedCache.clearCaches();
-      return;
-    }
     indexCache.invalidateAll();
     columnCache.invalidateAll();
     indexExpressionCache.invalidateAll();
