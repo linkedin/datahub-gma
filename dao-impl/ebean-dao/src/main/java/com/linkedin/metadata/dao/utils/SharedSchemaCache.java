@@ -35,8 +35,9 @@ public class SharedSchemaCache {
   private static final long CACHE_TTL_MINUTES = 10;
   // Refresh interval is kept just under TTL so entries are never cold when Caffeine would evict them.
   private static final long REFRESH_INTERVAL_SECONDS = 9 * 60;
-  // Random per-host jitter (0-60s) added to the initial refresh delay so that a fleet of hosts
-  // (e.g. 7 metagalaxy pods all starting at deploy time) do not hammer information_schema simultaneously.
+  // Random per-host jitter (0-60s) subtracted from the initial refresh delay so that: (a) a fleet
+  // of hosts do not hammer information_schema simultaneously, and (b) the earliest possible refresh
+  // (9 min - 60s = 8 min) always leaves at least a 2-minute buffer before the 10-minute TTL.
   private static final long JITTER_MAX_SECONDS = 60;
   // Upper bound on the number of tables tracked across all databases; sized generously for safety.
   private static final int CACHE_MAX_SIZE = 1000;
@@ -139,7 +140,7 @@ public class SharedSchemaCache {
 
   private void scheduleBackgroundRefresh() {
     long jitterSeconds = ThreadLocalRandom.current().nextLong(0, JITTER_MAX_SECONDS + 1);
-    long initialDelay = REFRESH_INTERVAL_SECONDS + jitterSeconds;
+    long initialDelay = REFRESH_INTERVAL_SECONDS - jitterSeconds;
     ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(r -> {
       Thread t = new Thread(r, "shared-schema-cache-refresh");
       t.setDaemon(true);
