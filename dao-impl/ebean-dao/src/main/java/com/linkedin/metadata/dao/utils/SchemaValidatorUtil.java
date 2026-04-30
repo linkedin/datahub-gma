@@ -20,10 +20,18 @@ import lombok.extern.slf4j.Slf4j;
  * Utility class for validating presence of columns and indexes in MySQL tables
  * by querying information_schema. Uses Caffeine caches to reduce DB load and
  * support eventual consistency of schema evolution.
+ *
+ * <p>When constructed with a {@link SharedSchemaCache}, all cache operations delegate to that
+ * shared instance so that entity types on the same database share one set of caches instead of
+ * maintaining redundant per-entity copies.
  */
 @Slf4j
 public class SchemaValidatorUtil {
+  @Nullable
   private final EbeanServer server;
+
+  @Nullable
+  private final SharedSchemaCache sharedCache;
 
   // Cache: tableName → Set of index names
   // Configuration:
@@ -66,16 +74,37 @@ public class SchemaValidatorUtil {
 
   public SchemaValidatorUtil(EbeanServer server) {
     this.server = server;
+    this.sharedCache = null;
   }
 
   /**
-   * Clears all caches, including indexCache, columnCache, missingColumnCache, and missingIndexCache.
-   * Useful for testing.
+   * Constructs a {@link SchemaValidatorUtil} that delegates all cache operations to
+   * {@code sharedCache}. Use this when multiple entity types share the same database so that
+   * information_schema is queried once per database rather than once per entity type.
+   */
+  public SchemaValidatorUtil(@Nonnull SharedSchemaCache sharedCache) {
+    this.server = null;
+    this.sharedCache = sharedCache;
+  }
+
+  /**
+   * Registers {@code tableName} with the underlying {@link SharedSchemaCache} and pre-warms it.
+   * No-op when this instance was constructed with a plain {@link EbeanServer}.
+   */
+  public void registerAndPreWarm(@Nonnull String tableName) {
+    if (sharedCache != null) {
+      sharedCache.registerAndPreWarm(tableName);
+    }
+  }
+
+  /**
+   * Clears all caches. Useful for testing.
    */
   @VisibleForTesting
   void clearCaches() {
     indexCache.invalidateAll();
     columnCache.invalidateAll();
+    indexExpressionCache.invalidateAll();
   }
 
 
@@ -87,6 +116,9 @@ public class SchemaValidatorUtil {
    * @return true if column exists, false otherwise
    */
   public boolean columnExists(@Nonnull String tableName, @Nonnull String columnName) {
+    if (sharedCache != null) {
+      return sharedCache.columnExists(tableName, columnName);
+    }
     String lowerTable = tableName.toLowerCase();
     String lowerColumn = columnName.toLowerCase();
 
@@ -106,6 +138,9 @@ public class SchemaValidatorUtil {
    */
   @Nonnull
   public Set<String> getColumns(@Nonnull String tableName) {
+    if (sharedCache != null) {
+      return sharedCache.getColumns(tableName);
+    }
     String lowerTable = tableName.toLowerCase();
     return columnCache.get(lowerTable, tbl -> {
       log.info("Refreshing column cache for table '{}'", tbl);
@@ -121,6 +156,9 @@ public class SchemaValidatorUtil {
    * @return true if index exists, false otherwise
    */
   public boolean indexExists(@Nonnull String tableName, @Nonnull String indexName) {
+    if (sharedCache != null) {
+      return sharedCache.indexExists(tableName, indexName);
+    }
     String lowerTable = tableName.toLowerCase();
     String lowerIndex = indexName.toLowerCase();
 
@@ -170,6 +208,9 @@ public class SchemaValidatorUtil {
    */
   @Nullable
   public String getIndexExpression(@Nonnull String tableName, @Nonnull String indexName) {
+    if (sharedCache != null) {
+      return sharedCache.getIndexExpression(tableName, indexName);
+    }
     String lowerTable = tableName.toLowerCase();
     String lowerIndex = indexName.toLowerCase();
 

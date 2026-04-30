@@ -4,6 +4,8 @@ import com.google.common.io.Resources;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.metadata.dao.urnpath.EmptyPathExtractor;
 import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
+import com.linkedin.metadata.dao.utils.SchemaValidatorUtil;
+import java.lang.reflect.Field;
 import com.linkedin.metadata.dao.utils.FooUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.dao.utils.SQLIndexFilterUtils;
@@ -77,6 +79,14 @@ public class EbeanLocalAccessTestWithoutServiceIdentifier {
     _ebeanLocalAccessBurger = new EbeanLocalAccess<>(_server, EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName()),
         BurgerUrn.class, new EmptyPathExtractor<>(), _ebeanConfig.isNonDollarVirtualColumnsEnabled());
     _now = System.currentTimeMillis();
+  }
+
+  @BeforeMethod
+  public void resetValidatorInstance() throws Exception {
+    Field validatorField = _ebeanLocalAccessFoo.getClass().getDeclaredField("validator");
+    validatorField.setAccessible(true);
+    SchemaValidatorUtil freshValidator = new SchemaValidatorUtil(_server);
+    validatorField.set(_ebeanLocalAccessFoo, freshValidator);
   }
 
   @BeforeMethod
