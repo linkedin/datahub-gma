@@ -41,6 +41,7 @@ import static com.linkedin.metadata.dao.utils.EbeanServerUtils.*;
 import static com.linkedin.metadata.dao.utils.IngestionUtils.*;
 import static com.linkedin.metadata.dao.utils.RecordUtils.toRecordTemplate;
 import static com.linkedin.metadata.dao.utils.SQLStatementUtils.*;
+import com.linkedin.metadata.dao.utils.UrnValidatorRegistry;
 
 
 /**
@@ -56,6 +57,8 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
 
   private Map<Class, GenericEqualityTester> _equalityTesters = new HashMap<>();
 
+  private UrnValidatorRegistry _urnValidatorRegistry = UrnValidatorRegistry.builder().build();
+
   private static final String BACKFILL_EMITTER = "dao_backfill_endpoint";
 
   public EbeanGenericLocalDAO(@Nonnull ServerConfig serverConfig, @Nonnull GenericMetadataProducer producer) {
@@ -68,6 +71,13 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
    */
   public void setEqualityTesters(Map<Class, GenericEqualityTester> equalityTesters) {
     _equalityTesters = equalityTesters;
+  }
+
+  /**
+   * Sets the URN validator registry used to validate URNs on write paths.
+   */
+  public void setUrnValidatorRegistry(@Nonnull UrnValidatorRegistry urnValidatorRegistry) {
+    _urnValidatorRegistry = urnValidatorRegistry;
   }
 
   /**
@@ -87,6 +97,7 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
    */
   public void save(@Nonnull Urn urn, @Nonnull Class aspectClass, @Nonnull String metadata, @Nonnull AuditStamp auditStamp,
       @Nullable IngestionTrackingContext trackingContext, @Nullable IngestionMode ingestionMode) {
+    _urnValidatorRegistry.validateUrnForWrite("save", auditStamp, urn);
     saveCommon(urn, aspectClass, metadata, auditStamp, trackingContext, ingestionMode);
   }
 
@@ -194,6 +205,7 @@ public class EbeanGenericLocalDAO implements GenericLocalDAO {
 
   @Override
   public void delete(@Nonnull Urn urn, @Nonnull Class aspectClass, @Nonnull AuditStamp auditStamp) {
+    _urnValidatorRegistry.validateUrnForWrite("delete", auditStamp, urn);
     saveCommon(urn, aspectClass, null, auditStamp, null, null);
   }
 
