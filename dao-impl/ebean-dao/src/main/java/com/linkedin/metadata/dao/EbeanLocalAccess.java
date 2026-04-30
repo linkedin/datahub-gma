@@ -99,10 +99,11 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   private static SchemaValidatorUtil buildValidator(EbeanServer server, ServerConfig serverConfig) {
     String dbUrl = serverConfig.getDataSourceConfig() != null
         ? serverConfig.getDataSourceConfig().getUrl() : null;
-    if (dbUrl != null && !dbUrl.isEmpty()) {
-      return new SchemaValidatorUtil(SharedSchemaCache.getInstance(server, dbUrl));
+    if (dbUrl == null || dbUrl.isEmpty()) {
+      throw new IllegalStateException(
+          "ServerConfig must have a DataSourceConfig with a non-empty URL to use SharedSchemaCache");
     }
-    return new SchemaValidatorUtil(server);
+    return new SchemaValidatorUtil(SharedSchemaCache.getInstance(server, dbUrl));
   }
 
   public void setUrnPathExtractor(@Nonnull UrnPathExtractor<URN> urnPathExtractor) {

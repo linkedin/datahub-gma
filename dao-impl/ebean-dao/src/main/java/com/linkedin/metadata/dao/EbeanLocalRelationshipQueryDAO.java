@@ -93,10 +93,11 @@ public class EbeanLocalRelationshipQueryDAO {
   private static SchemaValidatorUtil buildValidator(EbeanServer server, ServerConfig serverConfig) {
     String dbUrl = serverConfig.getDataSourceConfig() != null
         ? serverConfig.getDataSourceConfig().getUrl() : null;
-    if (dbUrl != null && !dbUrl.isEmpty()) {
-      return new SchemaValidatorUtil(SharedSchemaCache.getInstance(server, dbUrl));
+    if (dbUrl == null || dbUrl.isEmpty()) {
+      throw new IllegalStateException(
+          "ServerConfig must have a DataSourceConfig with a non-empty URL to use SharedSchemaCache");
     }
-    return new SchemaValidatorUtil(server);
+    return new SchemaValidatorUtil(SharedSchemaCache.getInstance(server, dbUrl));
   }
 
   static final Map<Condition, String> SUPPORTED_CONDITIONS =

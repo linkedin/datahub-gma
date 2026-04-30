@@ -97,16 +97,25 @@ public class SharedSchemaCache {
   // ── cache access ─────────────────────────────────────────────────────────────
 
   public boolean columnExists(@Nonnull String tableName, @Nonnull String columnName) {
-    return columnCache.get(tableName.toLowerCase(), this::loadColumns).contains(columnName.toLowerCase());
+    return columnCache.get(tableName.toLowerCase(), tbl -> {
+      log.info("Inline schema cache miss: loading columns for table '{}'", tbl);
+      return loadColumns(tbl);
+    }).contains(columnName.toLowerCase());
   }
 
   @Nonnull
   public Set<String> getColumns(@Nonnull String tableName) {
-    return columnCache.get(tableName.toLowerCase(), this::loadColumns);
+    return columnCache.get(tableName.toLowerCase(), tbl -> {
+      log.info("Inline schema cache miss: loading columns for table '{}'", tbl);
+      return loadColumns(tbl);
+    });
   }
 
   public boolean indexExists(@Nonnull String tableName, @Nonnull String indexName) {
-    return indexCache.get(tableName.toLowerCase(), this::loadIndexes).contains(indexName.toLowerCase());
+    return indexCache.get(tableName.toLowerCase(), tbl -> {
+      log.info("Inline schema cache miss: loading indexes for table '{}'", tbl);
+      return loadIndexes(tbl);
+    }).contains(indexName.toLowerCase());
   }
 
   @Nullable
@@ -114,7 +123,10 @@ public class SharedSchemaCache {
     String lowerTable = tableName.toLowerCase();
     String lowerIndex = indexName.toLowerCase();
     try {
-      Map<String, String> indexes = indexExpressionCache.get(lowerTable, this::loadIndexesAndExpressions);
+      Map<String, String> indexes = indexExpressionCache.get(lowerTable, tbl -> {
+        log.info("Inline schema cache miss: loading index expressions for table '{}'", tbl);
+        return loadIndexesAndExpressions(tbl);
+      });
       return SchemaValidatorUtil.cleanIndexExpression(indexes.getOrDefault(lowerIndex, null));
     } catch (Exception e) {
       // MariaDB for local testing doesn't support EXPRESSION column
