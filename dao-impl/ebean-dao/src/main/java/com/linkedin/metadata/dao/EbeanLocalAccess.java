@@ -113,6 +113,14 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     _urnPathExtractor = urnPathExtractor;
   }
 
+  /**
+   * {@inheritDoc}
+   *
+   * <p>Converts {@code Class<?>} keys to FQCN strings at config time so that callers get
+   * compile-time safety (a renamed or removed aspect class fails the build). Internally stores
+   * the FQCN-to-path map for comparison against {@link IndexCriterion#getAspect()} at resolve
+   * time.</p>
+   */
   @Override
   public void configureOptionalForceIndex(@Nullable String indexName,
       @Nullable Map<Class<? extends RecordTemplate>, String> requiredCriteria) {
