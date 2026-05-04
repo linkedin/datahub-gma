@@ -132,11 +132,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       return;
     }
     String tableName = getTableName(_entityType);
-    String sql = String.format(
-        "SELECT 1 FROM information_schema.STATISTICS"
-            + " WHERE table_schema = DATABASE() AND table_name = '%s' AND index_name = '%s' LIMIT 1",
-        tableName, _forceIndexName);
-    if (_server.createSqlQuery(sql).findOne() == null) {
+    if (!validator.indexExists(tableName, _forceIndexName)) {
       log.error("Configured forceIndexName '{}' does not exist on table '{}'. "
           + "Disabling FORCE INDEX hint to prevent query failures.", _forceIndexName, tableName);
       _forceIndexName = null;
