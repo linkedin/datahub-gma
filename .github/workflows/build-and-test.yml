@@ -38,7 +38,6 @@ jobs:
           name: test-reports
           path: /home/runner/work/datahub-gma/datahub-gma/dao-impl/ebean-dao/build/reports/tests/test/**
       - name: Upload coverage reports to Codecov
-        continue-on-error: true
         uses: codecov/codecov-action@v4.0.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
