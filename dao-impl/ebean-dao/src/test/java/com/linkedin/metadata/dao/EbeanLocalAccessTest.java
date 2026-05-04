@@ -130,7 +130,7 @@ public class EbeanLocalAccessTest {
     EbeanMetadataAspect ebeanMetadataAspect = ebeanMetadataAspectList.get(0);
 
     // Expect: the content of aspect foo is returned
-    assertEquals(AspectFoo.class, ebeanMetadataAspect.getKey().getAspect());
+    assertEquals(AspectFoo.class.getCanonicalName(), ebeanMetadataAspect.getKey().getAspect());
     assertEquals(fooUrn.toString(), ebeanMetadataAspect.getKey().getUrn());
     assertEquals("{\"value\":\"0\"}", ebeanMetadataAspect.getMetadata());
     assertEquals("urn:li:testActor:foo", ebeanMetadataAspect.getCreatedBy());
@@ -614,7 +614,7 @@ public class EbeanLocalAccessTest {
     assertEquals(1, results.size());
     assertEquals("{\"value\":\"single\"}", results.get(0).getMetadata());
     assertEquals(fooUrn.toString(), results.get(0).getKey().getUrn());
-    assertEquals(AspectFoo.class, results.get(0).getKey().getAspect());
+    assertEquals(AspectFoo.class.getCanonicalName(), results.get(0).getKey().getAspect());
   }
 
   @Test(expectedExceptions = NullPointerException.class)
