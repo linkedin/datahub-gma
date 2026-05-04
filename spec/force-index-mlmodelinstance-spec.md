@@ -65,9 +65,11 @@ Only structural fix that:
 ## 2. Solution overview
 
 Add `configureOptionalForceIndex(indexName, requiredCriteria)` to `datahub-gma`. The FORCE INDEX hint is only emitted
-when the `IndexFilter` contains criteria matching ALL configured (aspect, path) pairs -- ensuring the hint only fires
-for the exact composite query shape it was designed for. MGA registers the configuration on the mlmodelinstance DAO
-only. No other entity, no other code path affected.
+when the `IndexFilter`'s path-bearing criteria (those with `pathParams`) exactly match the configured (aspect, path)
+pairs -- same count, all match. Criteria without `pathParams` (aspect-existence checks that produce `IS NOT NULL` /
+soft-delete guards) are excluded from the comparison since they don't affect index choice. This is intentionally strict:
+if the filter shape changes, the hint deactivates and MySQL picks its own plan. MGA registers the configuration on the
+mlmodelinstance DAO only. No other entity, no other code path affected.
 
 ### End state -- generated SQL
 
@@ -156,7 +158,8 @@ public void configureOptionalForceIndex(@Nullable String indexName,
 }
 ```
 
-**`resolveForceIndex`** -- returns the index name only when ALL (aspect, path) pairs match the filter criteria:
+**`resolveForceIndex`** -- exact-matches the filter's path-bearing criteria against the configured pairs. Criteria
+without `pathParams` are excluded. Path comparison normalizes leading `/` to tolerate convention differences:
 
 ```java
 @Nullable
@@ -167,12 +170,21 @@ private String resolveForceIndex(@Nullable IndexFilter indexFilter) {
   if (indexFilter == null || !indexFilter.hasCriteria()) {
     return null;
   }
+  List<IndexCriterion> pathBearingCriteria = indexFilter.getCriteria().stream()
+      .filter(IndexCriterion::hasPathParams)
+      .collect(Collectors.toList());
+  if (pathBearingCriteria.size() != _forceIndexRequiredCriteria.size()) {
+    return null;
+  }
   boolean allMatch = _forceIndexRequiredCriteria.entrySet().stream().allMatch(required ->
-      indexFilter.getCriteria().stream().anyMatch(c ->
+      pathBearingCriteria.stream().anyMatch(c ->
           required.getKey().equals(c.getAspect())
-              && c.hasPathParams()
-              && required.getValue().equals(c.getPathParams().getPath())));
+              && normalizePath(required.getValue()).equals(normalizePath(c.getPathParams().getPath()))));
   return allMatch ? _forceIndexName : null;
+}
+
+private static String normalizePath(@Nonnull String path) {
+  return path.startsWith("/") ? path.substring(1) : path;
 }
 ```
 
@@ -266,9 +278,12 @@ Verify the actual runtime values before the MGA PR.
 
 Tests run against embedded MariaDB:
 
-- `testListUrnsWithOffsetAndForceIndex` -- FORCE INDEX activates when filter matches required (aspect, path) criteria.
-- `testForceIndexNotAppliedWhenFilterLacksRequiredAspect` -- wrong aspect in config, hint does not activate.
+- `testListUrnsWithOffsetAndForceIndex` -- FORCE INDEX activates when filter exactly matches required criteria.
+- `testForceIndexNotAppliedWhenFilterLacksRequiredAspect` -- wrong aspect, hint does not activate.
 - `testForceIndexNotAppliedWhenFilterLacksRequiredPath` -- right aspect but wrong path, hint does not activate.
+- `testForceIndexNotAppliedWhenFilterHasExtraPathCriteria` -- extra path-bearing criterion, hint does not activate.
+- `testForceIndexIgnoresAspectOnlyCriteria` -- aspect-only criteria (no pathParams) excluded from match.
+- `testForceIndexPathNormalization` -- config with leading `/`, filter without -- normalization makes them match.
 - `testListUrnsWithLastUrnIgnoresForceIndex` -- keyset-pagination path is unaffected.
 - `testListUrnsWithOffsetAndNullForceIndex` -- null config produces default behavior.
 - `testForceIndexNotAppliedWhenFilterIsNull` -- null IndexFilter, hint does not activate.
@@ -284,10 +299,10 @@ Tests run against embedded MariaDB:
 
 ## 5. Risks & mitigations
 
-| Risk                                                                             | Mitigation                                                                                                                    |
-| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Index renamed or dropped without updating MGA config                             | Startup validation auto-disables the hint and logs ERROR. Queries degrade to default plan instead of failing.                 |
-| MariaDB-embedded tests parse FORCE INDEX differently than prod MySQL 8.0         | Verified in CI -- embedded MariaDB accepts the syntax.                                                                        |
-| Future TiDB migration: TiDB accepts FORCE INDEX syntax but plan semantics differ | Per-entity opt-in means TiDB-backed entities can be left unconfigured.                                                        |
-| Other gma-using MPs accidentally adopt the hint                                  | Javadoc on `configureOptionalForceIndex` notes it's per-asset opt-in for known pathological queries. Default null.            |
-| Filter criteria path format mismatch (with/without leading `/`)                  | Verify actual runtime `IndexCriterion.pathParams.path` values before the MGA PR. Consider path normalization if formats vary. |
+| Risk                                                                             | Mitigation                                                                                                         |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Index renamed or dropped without updating MGA config                             | Startup validation auto-disables the hint and logs ERROR. Queries degrade to default plan instead of failing.      |
+| MariaDB-embedded tests parse FORCE INDEX differently than prod MySQL 8.0         | Verified in CI -- embedded MariaDB accepts the syntax.                                                             |
+| Future TiDB migration: TiDB accepts FORCE INDEX syntax but plan semantics differ | Per-entity opt-in means TiDB-backed entities can be left unconfigured.                                             |
+| Other gma-using MPs accidentally adopt the hint                                  | Javadoc on `configureOptionalForceIndex` notes it's per-asset opt-in for known pathological queries. Default null. |
+| Filter criteria path format mismatch (with/without leading `/`)                  | Path comparison normalizes leading `/` -- `"/status"` and `"status"` are treated as equal.                         |
