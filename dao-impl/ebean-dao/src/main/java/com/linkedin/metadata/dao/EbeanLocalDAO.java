@@ -152,8 +152,8 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * plan choice is pathologically bad for a specific query shape.
    *
    * @param indexName MySQL index name, or null to disable
-   * @param requiredAspect aspect class that must appear in the filter criteria for the hint
-   *                       to activate, or null to disable
+   * @param requiredAspect aspect class that must appear in the filter criteria for the force
+   *                       index to activate, or null to disable
    */
   public void configureOptionalForceIndex(@Nullable String indexName,
       @Nullable Class<? extends RecordTemplate> requiredAspect) {
