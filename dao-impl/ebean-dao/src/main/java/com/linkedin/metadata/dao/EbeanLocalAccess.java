@@ -402,10 +402,12 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   @Override
   public ListResult<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       int start, int pageSize) {
-    // Run COUNT in a separate query/transaction so neither query exceeds the 5s kill threshold.
+    // When configured, emit FORCE INDEX to override MySQL's prefer_ordering_index heuristic
+    // which can pick a full-table PRIMARY scan instead of the composite index at small LIMITs.
     final String effectiveForceIndex = resolveForceIndex(indexFilter);
     final String baseSql = SQLStatementUtils.createFilterSql(_entityType, indexFilter,
         _nonDollarVirtualColumnsEnabled, validator, effectiveForceIndex);
+    // Run COUNT in a separate query so neither query exceeds the 5s kill threshold.
     final String countSql = baseSql.replaceFirst("SELECT urn", "SELECT COUNT(urn) AS _total_count");
     final SqlRow countRow = _server.createSqlQuery(countSql).findOne();
     final int totalCount = (countRow == null) ? 0 : countRow.getInteger("_total_count");
