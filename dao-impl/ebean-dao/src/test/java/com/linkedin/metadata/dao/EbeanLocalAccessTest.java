@@ -1087,4 +1087,52 @@ public class EbeanLocalAccessTest {
     assertEquals(10, listUrns.getValues().size());
     assertEquals(75, listUrns.getTotalCount());
   }
+
+  @Test
+  public void testValidateForceIndexDisablesHintWhenIndexMissing() {
+    // Configure a non-existent index — validation should auto-disable and log an error.
+    _ebeanLocalAccessFoo.configureOptionalForceIndex("idx_does_not_exist", AspectFoo.class);
+    _ebeanLocalAccessFoo.validateForceIndex();
+
+    // After validation, the hint should be disabled. Querying with the required aspect
+    // in the filter should still work (no FORCE INDEX emitted).
+    IndexFilter indexFilter = new IndexFilter();
+    IndexCriterionArray indexCriterionArray = new IndexCriterionArray();
+    IndexCriterion indexCriterion =
+        SQLIndexFilterUtils.createIndexCriterion(AspectFoo.class, "value", Condition.GREATER_THAN_OR_EQUAL_TO,
+            IndexValue.create(25));
+    indexCriterionArray.add(indexCriterion);
+    indexFilter.setCriteria(indexCriterionArray);
+
+    IndexSortCriterion indexSortCriterion =
+        SQLIndexFilterUtils.createIndexSortCriterion(AspectFoo.class, "value", SortOrder.ASCENDING);
+
+    ListResult<FooUrn> listUrns = _ebeanLocalAccessFoo.listUrns(indexFilter, indexSortCriterion, 0, 10);
+    assertEquals(10, listUrns.getValues().size());
+    assertEquals(75, listUrns.getTotalCount());
+  }
+
+  @Test
+  public void testValidateForceIndexKeepsHintWhenIndexExists() {
+    // PRIMARY always exists — validation should keep the hint active.
+    _ebeanLocalAccessFoo.configureOptionalForceIndex("PRIMARY", AspectFoo.class);
+    _ebeanLocalAccessFoo.validateForceIndex();
+
+    IndexFilter indexFilter = new IndexFilter();
+    IndexCriterionArray indexCriterionArray = new IndexCriterionArray();
+    IndexCriterion indexCriterion =
+        SQLIndexFilterUtils.createIndexCriterion(AspectFoo.class, "value", Condition.GREATER_THAN_OR_EQUAL_TO,
+            IndexValue.create(25));
+    indexCriterionArray.add(indexCriterion);
+    indexFilter.setCriteria(indexCriterionArray);
+
+    IndexSortCriterion indexSortCriterion =
+        SQLIndexFilterUtils.createIndexSortCriterion(AspectFoo.class, "value", SortOrder.ASCENDING);
+
+    ListResult<FooUrn> listUrns = _ebeanLocalAccessFoo.listUrns(indexFilter, indexSortCriterion, 0, 10);
+    assertEquals(10, listUrns.getValues().size());
+    assertEquals(75, listUrns.getTotalCount());
+
+    _ebeanLocalAccessFoo.configureOptionalForceIndex(null, null);
+  }
 }

@@ -124,6 +124,24 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     // Pre-warm the shared cache for both the prod and test tables so the first request is never slow.
     validator.registerAndPreWarm(getTableName(_entityType));
     validator.registerAndPreWarm(getTestTableName(_entityType));
+    validateForceIndex();
+  }
+
+  void validateForceIndex() {
+    if (_forceIndexName == null) {
+      return;
+    }
+    String tableName = getTableName(_entityType);
+    String sql = String.format(
+        "SELECT 1 FROM information_schema.STATISTICS"
+            + " WHERE table_schema = DATABASE() AND table_name = '%s' AND index_name = '%s' LIMIT 1",
+        tableName, _forceIndexName);
+    if (_server.createSqlQuery(sql).findOne() == null) {
+      log.error("Configured forceIndexName '{}' does not exist on table '{}'. "
+          + "Disabling FORCE INDEX hint to prevent query failures.", _forceIndexName, tableName);
+      _forceIndexName = null;
+      _forceIndexRequiredAspect = null;
+    }
   }
 
   @Override
