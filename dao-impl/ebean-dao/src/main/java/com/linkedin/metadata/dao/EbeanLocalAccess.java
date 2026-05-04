@@ -17,6 +17,7 @@ import com.linkedin.metadata.dao.utils.SharedSchemaCache;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.ExtraInfoArray;
+import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
@@ -553,9 +554,13 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   }
 
   /**
-   * Returns the configured force index name only when the IndexFilter contains criteria
-   * matching ALL required (aspect, path) pairs, null otherwise. Path comparison strips
-   * leading '/' from both sides to tolerate convention differences between callers.
+   * Returns the configured force index name only when the IndexFilter's path-bearing criteria
+   * exactly match the required (aspect, path) pairs. Criteria without pathParams (aspect-existence
+   * checks that produce IS NOT NULL / soft-delete guards) are excluded from the comparison since
+   * they don't affect index choice. This is intentionally strict: FORCE INDEX is a hard directive
+   * that removes the optimizer's ability to choose a better index, so it should only activate for
+   * the exact query shape it was validated against. If the filter shape changes, the hint deactivates
+   * and MySQL picks its own plan.
    */
   @Nullable
   private String resolveForceIndex(@Nullable IndexFilter indexFilter) {
@@ -565,10 +570,15 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     if (indexFilter == null || !indexFilter.hasCriteria()) {
       return null;
     }
+    List<IndexCriterion> pathBearingCriteria = indexFilter.getCriteria().stream()
+        .filter(IndexCriterion::hasPathParams)
+        .collect(Collectors.toList());
+    if (pathBearingCriteria.size() != _forceIndexRequiredCriteria.size()) {
+      return null;
+    }
     boolean allMatch = _forceIndexRequiredCriteria.entrySet().stream().allMatch(required ->
-        indexFilter.getCriteria().stream().anyMatch(c ->
+        pathBearingCriteria.stream().anyMatch(c ->
             required.getKey().equals(c.getAspect())
-                && c.hasPathParams()
                 && normalizePath(required.getValue()).equals(normalizePath(c.getPathParams().getPath()))));
     return allMatch ? _forceIndexName : null;
   }
