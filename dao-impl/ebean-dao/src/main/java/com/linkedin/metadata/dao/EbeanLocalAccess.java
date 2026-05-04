@@ -72,6 +72,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   private final SchemaEvolutionManager _schemaEvolutionManager;
   private final boolean _nonDollarVirtualColumnsEnabled;
   private String _forceFilterIndexName;
+  private String _forceFilterIndexRequiredAspect;
 
   // TODO confirm if the default page size is 1000 in other code context.
   private static final int DEFAULT_PAGE_SIZE = 1000;
@@ -112,8 +113,9 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   }
 
   @Override
-  public void setForceFilterIndexName(@Nullable String forceIndexName) {
-    _forceFilterIndexName = forceIndexName;
+  public void setForceFilterIndex(@Nullable String indexName, @Nullable String requiredAspectFqcn) {
+    _forceFilterIndexName = indexName;
+    _forceFilterIndexRequiredAspect = requiredAspectFqcn;
   }
 
   public void ensureSchemaUpToDate() {
@@ -382,8 +384,9 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   public ListResult<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       int start, int pageSize) {
     // Run COUNT in a separate query/transaction so neither query exceeds the 5s kill threshold.
+    final String effectiveForceIndex = resolveForceIndex(indexFilter);
     final String baseSql = SQLStatementUtils.createFilterSql(_entityType, indexFilter,
-        _nonDollarVirtualColumnsEnabled, validator, _forceFilterIndexName);
+        _nonDollarVirtualColumnsEnabled, validator, effectiveForceIndex);
     final String countSql = baseSql.replaceFirst("SELECT urn", "SELECT COUNT(urn) AS _total_count");
     final SqlRow countRow = _server.createSqlQuery(countSql).findOne();
     final int totalCount = (countRow == null) ? 0 : countRow.getInteger("_total_count");
@@ -519,6 +522,23 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       resultMap.put(value, count);
     }
     return resultMap;
+  }
+
+  /**
+   * Returns the configured force index name only when the IndexFilter contains a criterion
+   * matching the required aspect, null otherwise.
+   */
+  @Nullable
+  private String resolveForceIndex(@Nullable IndexFilter indexFilter) {
+    if (_forceFilterIndexName == null || _forceFilterIndexRequiredAspect == null) {
+      return null;
+    }
+    if (indexFilter == null || !indexFilter.hasCriteria()) {
+      return null;
+    }
+    boolean hasRequiredAspect = indexFilter.getCriteria().stream()
+        .anyMatch(c -> _forceFilterIndexRequiredAspect.equals(c.getAspect()));
+    return hasRequiredAspect ? _forceFilterIndexName : null;
   }
 
   /**

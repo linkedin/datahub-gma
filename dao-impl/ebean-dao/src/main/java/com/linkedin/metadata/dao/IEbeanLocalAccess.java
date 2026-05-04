@@ -22,13 +22,15 @@ public interface IEbeanLocalAccess<URN extends Urn> {
   void setUrnPathExtractor(@Nonnull UrnPathExtractor<URN> urnPathExtractor);
 
   /**
-   * Configures a MySQL FORCE INDEX hint for the offset-pagination listUrns filter query.
-   * When set, generated SQL includes {@code FORCE INDEX (`indexName`)} between the table name
-   * and WHERE clause. Default is null (no hint).
+   * Configures a conditional MySQL FORCE INDEX hint for the offset-pagination listUrns filter
+   * query. The hint is only emitted when the {@link IndexFilter} contains a criterion whose
+   * aspect matches {@code requiredAspectFqcn}. Pass {@code null} for both to disable.
    *
-   * @param forceIndexName MySQL index name, or null to disable
+   * @param indexName MySQL index name, or null to disable
+   * @param requiredAspectFqcn FQCN of the aspect that must appear in the filter criteria
+   *                           for the hint to activate (e.g. {@code "com.linkedin.common.Status"})
    */
-  void setForceFilterIndexName(@Nullable String forceIndexName);
+  void setForceFilterIndex(@Nullable String indexName, @Nullable String requiredAspectFqcn);
 
   /**
    * Upsert aspect into entity table.

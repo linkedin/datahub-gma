@@ -146,16 +146,18 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   /**
-   * Configures a MySQL FORCE INDEX hint for the offset-pagination listUrns filter query.
-   * When set, generated SQL includes {@code FORCE INDEX (`indexName`)} between the table name
-   * and WHERE clause. Per-asset opt-in for cases where the optimizer's plan choice is
-   * pathologically bad and other mitigations are not viable.
+   * Configures a conditional MySQL FORCE INDEX hint for the offset-pagination listUrns filter
+   * query. The hint is only emitted when the {@link IndexFilter} contains a criterion whose
+   * aspect matches {@code requiredAspectFqcn}. Per-asset opt-in for cases where the optimizer's
+   * plan choice is pathologically bad for a specific query shape.
    *
-   * @param forceIndexName MySQL index name, or null to disable
+   * @param indexName MySQL index name, or null to disable
+   * @param requiredAspectFqcn FQCN of the aspect that must appear in the filter criteria
+   *                           for the hint to activate (e.g. {@code "com.linkedin.common.Status"})
    */
-  public void setForceFilterIndexName(@Nullable String forceIndexName) {
+  public void setForceFilterIndex(@Nullable String indexName, @Nullable String requiredAspectFqcn) {
     if (_localAccess != null) {
-      _localAccess.setForceFilterIndexName(forceIndexName);
+      _localAccess.setForceFilterIndex(indexName, requiredAspectFqcn);
     }
   }
 

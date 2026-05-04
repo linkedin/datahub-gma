@@ -1005,9 +1005,10 @@ public class EbeanLocalAccessTest {
 
   @Test
   public void testListUrnsWithOffsetAndForceIndex() {
-    // Given: metadata_entity_foo with fooUrns 0-99 and forceFilterIndexName configured
+    // Given: metadata_entity_foo with fooUrns 0-99 and force index configured for AspectFoo.
+    // The filter contains AspectFoo criterion, so the hint should activate.
     // MariaDB accepts FORCE INDEX syntax; this verifies the generated SQL executes without error.
-    _ebeanLocalAccessFoo.setForceFilterIndexName("PRIMARY");
+    _ebeanLocalAccessFoo.setForceFilterIndex("PRIMARY", AspectFoo.class.getCanonicalName());
 
     IndexFilter indexFilter = new IndexFilter();
     IndexCriterionArray indexCriterionArray = new IndexCriterionArray();
@@ -1025,28 +1026,50 @@ public class EbeanLocalAccessTest {
     assertEquals(10, listUrns.getValues().size());
     assertEquals(75, listUrns.getTotalCount());
 
-    // Clean up: reset to null so other tests are unaffected
-    _ebeanLocalAccessFoo.setForceFilterIndexName(null);
+    _ebeanLocalAccessFoo.setForceFilterIndex(null, null);
+  }
+
+  @Test
+  public void testForceIndexNotAppliedWhenFilterLacksRequiredAspect() {
+    // Force index is configured for AspectBar, but filter only contains AspectFoo criteria.
+    // The hint must NOT activate — query should still succeed with default plan.
+    _ebeanLocalAccessFoo.setForceFilterIndex("PRIMARY", AspectBar.class.getCanonicalName());
+
+    IndexFilter indexFilter = new IndexFilter();
+    IndexCriterionArray indexCriterionArray = new IndexCriterionArray();
+    IndexCriterion indexCriterion =
+        SQLIndexFilterUtils.createIndexCriterion(AspectFoo.class, "value", Condition.GREATER_THAN_OR_EQUAL_TO,
+            IndexValue.create(25));
+    indexCriterionArray.add(indexCriterion);
+    indexFilter.setCriteria(indexCriterionArray);
+
+    IndexSortCriterion indexSortCriterion =
+        SQLIndexFilterUtils.createIndexSortCriterion(AspectFoo.class, "value", SortOrder.ASCENDING);
+
+    ListResult<FooUrn> listUrns = _ebeanLocalAccessFoo.listUrns(indexFilter, indexSortCriterion, 0, 10);
+
+    assertEquals(10, listUrns.getValues().size());
+    assertEquals(75, listUrns.getTotalCount());
+
+    _ebeanLocalAccessFoo.setForceFilterIndex(null, null);
   }
 
   @Test
   public void testListUrnsWithLastUrnIgnoresForceIndex() throws URISyntaxException {
     // Keyset-pagination path must NOT include FORCE INDEX even when the field is configured.
-    _ebeanLocalAccessFoo.setForceFilterIndexName("PRIMARY");
+    _ebeanLocalAccessFoo.setForceFilterIndex("PRIMARY", AspectFoo.class.getCanonicalName());
 
     List<FooUrn> result = _ebeanLocalAccessFoo.listUrns(null, null, null, 10);
 
-    // If FORCE INDEX leaked into the keyset path we'd get a different SQL shape,
-    // but the result count should be the same as without the hint.
     assertEquals(10, result.size());
 
-    _ebeanLocalAccessFoo.setForceFilterIndexName(null);
+    _ebeanLocalAccessFoo.setForceFilterIndex(null, null);
   }
 
   @Test
   public void testListUrnsWithOffsetAndNullForceIndex() {
-    // Verify that null forceFilterIndexName produces identical results to default behavior.
-    _ebeanLocalAccessFoo.setForceFilterIndexName(null);
+    // Verify that null config produces identical results to default behavior.
+    _ebeanLocalAccessFoo.setForceFilterIndex(null, null);
 
     IndexFilter indexFilter = new IndexFilter();
     IndexCriterionArray indexCriterionArray = new IndexCriterionArray();
