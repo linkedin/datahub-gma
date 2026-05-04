@@ -217,6 +217,12 @@ public class InstrumentedEbeanLocalAccessTest {
   }
 
   @Test
+  public void testConfigureOptionalForceIndexDelegates() {
+    _instrumented.configureOptionalForceIndex("PRIMARY", AspectFoo.class);
+    verify(_mockDelegate).configureOptionalForceIndex("PRIMARY", AspectFoo.class);
+  }
+
+  @Test
   public void testReadDeletionInfoBatchDelegatesAndRecordsLatency() {
     Map<TestUrn, EntityDeletionInfo> expected = new HashMap<>();
     when(_mockDelegate.readDeletionInfoBatch(any(), anyBoolean())).thenReturn(expected);

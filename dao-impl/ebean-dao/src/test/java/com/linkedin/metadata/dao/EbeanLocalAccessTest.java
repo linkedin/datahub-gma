@@ -1135,4 +1135,28 @@ public class EbeanLocalAccessTest {
 
     _ebeanLocalAccessFoo.configureOptionalForceIndex(null, null);
   }
+
+  @Test
+  public void testForceIndexNotAppliedWhenFilterIsNull() {
+    // Force index configured but null IndexFilter passed — must not activate.
+    _ebeanLocalAccessFoo.configureOptionalForceIndex("PRIMARY", AspectFoo.class);
+
+    ListResult<FooUrn> listUrns = _ebeanLocalAccessFoo.listUrns(null, null, 0, 10);
+
+    assertEquals(10, listUrns.getValues().size());
+    assertEquals(100, listUrns.getTotalCount());
+
+    _ebeanLocalAccessFoo.configureOptionalForceIndex(null, null);
+  }
+
+  @Test
+  public void testValidateForceIndexNoOpWhenNotConfigured() {
+    // validateForceIndex with null _forceIndexName should be a no-op.
+    _ebeanLocalAccessFoo.configureOptionalForceIndex(null, null);
+    _ebeanLocalAccessFoo.validateForceIndex();
+
+    // Queries should still work normally.
+    ListResult<FooUrn> listUrns = _ebeanLocalAccessFoo.listUrns(null, null, 0, 10);
+    assertEquals(10, listUrns.getValues().size());
+  }
 }
