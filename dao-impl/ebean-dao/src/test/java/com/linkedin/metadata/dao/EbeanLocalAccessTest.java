@@ -1005,17 +1005,14 @@ public class EbeanLocalAccessTest {
 
   @Test
   public void testListUrnsWithOffsetAndForceIndex() {
-    // Given: metadata_entity_foo with fooUrns 0-99 and force index configured for AspectFoo.
-    // The filter contains AspectFoo criterion, so the hint should activate.
-    // MariaDB accepts FORCE INDEX syntax; this verifies the generated SQL executes without error.
-    _ebeanLocalAccessFoo.configureOptionalForceIndex("PRIMARY", AspectFoo.class);
+    // Filter contains (AspectFoo, "value") matching the required criteria — force index activates.
+    Map<Class<? extends RecordTemplate>, String> criteria = Collections.singletonMap(AspectFoo.class, "value");
+    _ebeanLocalAccessFoo.configureOptionalForceIndex("PRIMARY", criteria);
 
     IndexFilter indexFilter = new IndexFilter();
     IndexCriterionArray indexCriterionArray = new IndexCriterionArray();
-    IndexCriterion indexCriterion =
-        SQLIndexFilterUtils.createIndexCriterion(AspectFoo.class, "value", Condition.GREATER_THAN_OR_EQUAL_TO,
-            IndexValue.create(25));
-    indexCriterionArray.add(indexCriterion);
+    indexCriterionArray.add(SQLIndexFilterUtils.createIndexCriterion(
+        AspectFoo.class, "value", Condition.GREATER_THAN_OR_EQUAL_TO, IndexValue.create(25)));
     indexFilter.setCriteria(indexCriterionArray);
 
     IndexSortCriterion indexSortCriterion =
@@ -1031,16 +1028,37 @@ public class EbeanLocalAccessTest {
 
   @Test
   public void testForceIndexNotAppliedWhenFilterLacksRequiredAspect() {
-    // Force index is configured for AspectBar, but filter only contains AspectFoo criteria.
-    // The hint must NOT activate — query should still succeed with default plan.
-    _ebeanLocalAccessFoo.configureOptionalForceIndex("PRIMARY", AspectBar.class);
+    // Required criteria is (AspectBar, "value") but filter only has AspectFoo — must not activate.
+    Map<Class<? extends RecordTemplate>, String> criteria = Collections.singletonMap(AspectBar.class, "value");
+    _ebeanLocalAccessFoo.configureOptionalForceIndex("PRIMARY", criteria);
 
     IndexFilter indexFilter = new IndexFilter();
     IndexCriterionArray indexCriterionArray = new IndexCriterionArray();
-    IndexCriterion indexCriterion =
-        SQLIndexFilterUtils.createIndexCriterion(AspectFoo.class, "value", Condition.GREATER_THAN_OR_EQUAL_TO,
-            IndexValue.create(25));
-    indexCriterionArray.add(indexCriterion);
+    indexCriterionArray.add(SQLIndexFilterUtils.createIndexCriterion(
+        AspectFoo.class, "value", Condition.GREATER_THAN_OR_EQUAL_TO, IndexValue.create(25)));
+    indexFilter.setCriteria(indexCriterionArray);
+
+    IndexSortCriterion indexSortCriterion =
+        SQLIndexFilterUtils.createIndexSortCriterion(AspectFoo.class, "value", SortOrder.ASCENDING);
+
+    ListResult<FooUrn> listUrns = _ebeanLocalAccessFoo.listUrns(indexFilter, indexSortCriterion, 0, 10);
+
+    assertEquals(10, listUrns.getValues().size());
+    assertEquals(75, listUrns.getTotalCount());
+
+    _ebeanLocalAccessFoo.configureOptionalForceIndex(null, null);
+  }
+
+  @Test
+  public void testForceIndexNotAppliedWhenFilterLacksRequiredPath() {
+    // Required criteria is (AspectFoo, "other") but filter has (AspectFoo, "value") — path mismatch.
+    Map<Class<? extends RecordTemplate>, String> criteria = Collections.singletonMap(AspectFoo.class, "other");
+    _ebeanLocalAccessFoo.configureOptionalForceIndex("PRIMARY", criteria);
+
+    IndexFilter indexFilter = new IndexFilter();
+    IndexCriterionArray indexCriterionArray = new IndexCriterionArray();
+    indexCriterionArray.add(SQLIndexFilterUtils.createIndexCriterion(
+        AspectFoo.class, "value", Condition.GREATER_THAN_OR_EQUAL_TO, IndexValue.create(25)));
     indexFilter.setCriteria(indexCriterionArray);
 
     IndexSortCriterion indexSortCriterion =
@@ -1056,8 +1074,9 @@ public class EbeanLocalAccessTest {
 
   @Test
   public void testListUrnsWithLastUrnIgnoresForceIndex() throws URISyntaxException {
-    // Keyset-pagination path must NOT include FORCE INDEX even when the field is configured.
-    _ebeanLocalAccessFoo.configureOptionalForceIndex("PRIMARY", AspectFoo.class);
+    // Keyset-pagination path must NOT include FORCE INDEX even when configured.
+    Map<Class<? extends RecordTemplate>, String> criteria = Collections.singletonMap(AspectFoo.class, "value");
+    _ebeanLocalAccessFoo.configureOptionalForceIndex("PRIMARY", criteria);
 
     List<FooUrn> result = _ebeanLocalAccessFoo.listUrns(null, null, null, 10);
 
@@ -1068,15 +1087,12 @@ public class EbeanLocalAccessTest {
 
   @Test
   public void testListUrnsWithOffsetAndNullForceIndex() {
-    // Verify that null config produces identical results to default behavior.
     _ebeanLocalAccessFoo.configureOptionalForceIndex(null, null);
 
     IndexFilter indexFilter = new IndexFilter();
     IndexCriterionArray indexCriterionArray = new IndexCriterionArray();
-    IndexCriterion indexCriterion =
-        SQLIndexFilterUtils.createIndexCriterion(AspectFoo.class, "value", Condition.GREATER_THAN_OR_EQUAL_TO,
-            IndexValue.create(25));
-    indexCriterionArray.add(indexCriterion);
+    indexCriterionArray.add(SQLIndexFilterUtils.createIndexCriterion(
+        AspectFoo.class, "value", Condition.GREATER_THAN_OR_EQUAL_TO, IndexValue.create(25)));
     indexFilter.setCriteria(indexCriterionArray);
 
     IndexSortCriterion indexSortCriterion =
@@ -1090,18 +1106,14 @@ public class EbeanLocalAccessTest {
 
   @Test
   public void testValidateForceIndexDisablesHintWhenIndexMissing() {
-    // Configure a non-existent index — validation should auto-disable and log an error.
-    _ebeanLocalAccessFoo.configureOptionalForceIndex("idx_does_not_exist", AspectFoo.class);
+    Map<Class<? extends RecordTemplate>, String> criteria = Collections.singletonMap(AspectFoo.class, "value");
+    _ebeanLocalAccessFoo.configureOptionalForceIndex("idx_does_not_exist", criteria);
     _ebeanLocalAccessFoo.validateForceIndex();
 
-    // After validation, the hint should be disabled. Querying with the required aspect
-    // in the filter should still work (no FORCE INDEX emitted).
     IndexFilter indexFilter = new IndexFilter();
     IndexCriterionArray indexCriterionArray = new IndexCriterionArray();
-    IndexCriterion indexCriterion =
-        SQLIndexFilterUtils.createIndexCriterion(AspectFoo.class, "value", Condition.GREATER_THAN_OR_EQUAL_TO,
-            IndexValue.create(25));
-    indexCriterionArray.add(indexCriterion);
+    indexCriterionArray.add(SQLIndexFilterUtils.createIndexCriterion(
+        AspectFoo.class, "value", Condition.GREATER_THAN_OR_EQUAL_TO, IndexValue.create(25)));
     indexFilter.setCriteria(indexCriterionArray);
 
     IndexSortCriterion indexSortCriterion =
@@ -1114,16 +1126,14 @@ public class EbeanLocalAccessTest {
 
   @Test
   public void testValidateForceIndexKeepsHintWhenIndexExists() {
-    // PRIMARY always exists — validation should keep the hint active.
-    _ebeanLocalAccessFoo.configureOptionalForceIndex("PRIMARY", AspectFoo.class);
+    Map<Class<? extends RecordTemplate>, String> criteria = Collections.singletonMap(AspectFoo.class, "value");
+    _ebeanLocalAccessFoo.configureOptionalForceIndex("PRIMARY", criteria);
     _ebeanLocalAccessFoo.validateForceIndex();
 
     IndexFilter indexFilter = new IndexFilter();
     IndexCriterionArray indexCriterionArray = new IndexCriterionArray();
-    IndexCriterion indexCriterion =
-        SQLIndexFilterUtils.createIndexCriterion(AspectFoo.class, "value", Condition.GREATER_THAN_OR_EQUAL_TO,
-            IndexValue.create(25));
-    indexCriterionArray.add(indexCriterion);
+    indexCriterionArray.add(SQLIndexFilterUtils.createIndexCriterion(
+        AspectFoo.class, "value", Condition.GREATER_THAN_OR_EQUAL_TO, IndexValue.create(25)));
     indexFilter.setCriteria(indexCriterionArray);
 
     IndexSortCriterion indexSortCriterion =
@@ -1138,8 +1148,8 @@ public class EbeanLocalAccessTest {
 
   @Test
   public void testForceIndexNotAppliedWhenFilterIsNull() {
-    // Force index configured but null IndexFilter passed — must not activate.
-    _ebeanLocalAccessFoo.configureOptionalForceIndex("PRIMARY", AspectFoo.class);
+    Map<Class<? extends RecordTemplate>, String> criteria = Collections.singletonMap(AspectFoo.class, "value");
+    _ebeanLocalAccessFoo.configureOptionalForceIndex("PRIMARY", criteria);
 
     ListResult<FooUrn> listUrns = _ebeanLocalAccessFoo.listUrns(null, null, 0, 10);
 
@@ -1151,11 +1161,9 @@ public class EbeanLocalAccessTest {
 
   @Test
   public void testValidateForceIndexNoOpWhenNotConfigured() {
-    // validateForceIndex with null _forceIndexName should be a no-op.
     _ebeanLocalAccessFoo.configureOptionalForceIndex(null, null);
     _ebeanLocalAccessFoo.validateForceIndex();
 
-    // Queries should still work normally.
     ListResult<FooUrn> listUrns = _ebeanLocalAccessFoo.listUrns(null, null, 0, 10);
     assertEquals(10, listUrns.getValues().size());
   }

@@ -72,7 +72,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   private final SchemaEvolutionManager _schemaEvolutionManager;
   private final boolean _nonDollarVirtualColumnsEnabled;
   private String _forceIndexName;
-  private String _forceIndexRequiredAspect;
+  private Map<String, String> _forceIndexRequiredCriteria;
 
   // TODO confirm if the default page size is 1000 in other code context.
   private static final int DEFAULT_PAGE_SIZE = 1000;
@@ -114,9 +114,14 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
   @Override
   public void configureOptionalForceIndex(@Nullable String indexName,
-      @Nullable Class<? extends RecordTemplate> requiredAspect) {
+      @Nullable Map<Class<? extends RecordTemplate>, String> requiredCriteria) {
     _forceIndexName = indexName;
-    _forceIndexRequiredAspect = (requiredAspect != null) ? requiredAspect.getCanonicalName() : null;
+    if (requiredCriteria != null) {
+      _forceIndexRequiredCriteria = requiredCriteria.entrySet().stream()
+          .collect(Collectors.toMap(e -> e.getKey().getCanonicalName(), Map.Entry::getValue));
+    } else {
+      _forceIndexRequiredCriteria = null;
+    }
   }
 
   public void ensureSchemaUpToDate() {
@@ -142,7 +147,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       log.error("Configured forceIndexName '{}' does not exist on table '{}'. "
           + "Disabling FORCE INDEX hint to prevent query failures.", _forceIndexName, tableName);
       _forceIndexName = null;
-      _forceIndexRequiredAspect = null;
+      _forceIndexRequiredCriteria = null;
     }
   }
 
@@ -548,20 +553,23 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   }
 
   /**
-   * Returns the configured force index name only when the IndexFilter contains a criterion
-   * matching the required aspect, null otherwise.
+   * Returns the configured force index name only when the IndexFilter contains criteria
+   * matching ALL required (aspect, path) pairs, null otherwise.
    */
   @Nullable
   private String resolveForceIndex(@Nullable IndexFilter indexFilter) {
-    if (_forceIndexName == null || _forceIndexRequiredAspect == null) {
+    if (_forceIndexName == null || _forceIndexRequiredCriteria == null || _forceIndexRequiredCriteria.isEmpty()) {
       return null;
     }
     if (indexFilter == null || !indexFilter.hasCriteria()) {
       return null;
     }
-    boolean hasRequiredAspect = indexFilter.getCriteria().stream()
-        .anyMatch(c -> _forceIndexRequiredAspect.equals(c.getAspect()));
-    return hasRequiredAspect ? _forceIndexName : null;
+    boolean allMatch = _forceIndexRequiredCriteria.entrySet().stream().allMatch(required ->
+        indexFilter.getCriteria().stream().anyMatch(c ->
+            required.getKey().equals(c.getAspect())
+                && c.hasPathParams()
+                && required.getValue().equals(c.getPathParams().getPath())));
+    return allMatch ? _forceIndexName : null;
   }
 
   /**

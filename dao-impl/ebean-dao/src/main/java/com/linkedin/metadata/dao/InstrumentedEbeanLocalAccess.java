@@ -58,8 +58,8 @@ public class InstrumentedEbeanLocalAccess<URN extends Urn> implements IEbeanLoca
 
   @Override
   public void configureOptionalForceIndex(@Nullable String indexName,
-      @Nullable Class<? extends RecordTemplate> requiredAspect) {
-    _delegate.configureOptionalForceIndex(indexName, requiredAspect);
+      @Nullable Map<Class<? extends RecordTemplate>, String> requiredCriteria) {
+    _delegate.configureOptionalForceIndex(indexName, requiredCriteria);
   }
 
   @Override
