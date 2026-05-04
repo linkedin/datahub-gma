@@ -282,48 +282,7 @@ Tests run against embedded MariaDB:
 
 ---
 
-## 5. Release sequence
-
-1. **datahub-gma PR** ([#616](https://github.com/linkedin/datahub-gma/pull/616)): all code + tests. Reviewed and merged.
-2. **datahub-gma release:** wait for the next version cut.
-3. **metadata-graph-assets PR:** bump datahub-gma dependency, add `configureOptionalForceIndex(...)` in
-   `MlModelInstanceLocalDaoFactory`. Reviewed and merged.
-4. **Deploy MGA to canary fabric** -- recommend `prod-lor1` since AIM-team failures concentrate there.
-5. **Verify on canary** (see SS7).
-6. **Roll to remaining prod fabrics** (ltx1, lva1).
-7. **Coordinate with AIM team** to remove the `count == 100 -> 1000` clamp in mlops-midtier.
-
----
-
-## 6. Pre-conditions
-
-- V24 composite index `idx_urn$model_urn$status` already exists in all prod fabrics (deployed via
-  [PR #882](https://github.com/linkedin-multiproduct/metadata-graph-assets/pull/882)). If missing, the startup
-  validation auto-disables the hint and logs an ERROR (queries degrade to default plan, not crash).
-- The `idx2_model_instance_status$status` drop
-  ([PR #898](https://github.com/linkedin-multiproduct/metadata-graph-assets/pull/898)) is independent -- FORCE INDEX
-  makes the optimizer's mis-pick irrelevant regardless.
-
----
-
-## 7. Verification on canary fabric
-
-After deploying the patched MGA to one prod fabric:
-
-1. **Confirm the SQL the app emits.** Enable MGA's slow-query log or add a debug log in `EbeanLocalAccess.listUrns`.
-   Confirm it contains `` FORCE INDEX (`idx_urn$model_urn$status`) `` for an mlmodelinstance filter call that includes
-   both `model_urn` and `status` criteria.
-2. **Run the failing query directly against MySQL** at `LIMIT 100` and verify:
-   - `EXPLAIN` shows `key = idx_urn$model_urn$status`, `rows` in the low thousands.
-   - Wall-clock completes in < 500 ms (preferably < 100 ms).
-3. **Watch the gRPC error rate dashboard for the patched fabric.** Expect: error rate on the patched fabric drops to
-   baseline within minutes.
-4. **Confirm no regression on other entities** by sampling non-mlmodelinstance filter calls -- their SQL must not
-   contain FORCE INDEX.
-
----
-
-## 8. Risks & mitigations
+## 5. Risks & mitigations
 
 | Risk                                                                             | Mitigation                                                                                                                    |
 | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
@@ -332,34 +291,3 @@ After deploying the patched MGA to one prod fabric:
 | Future TiDB migration: TiDB accepts FORCE INDEX syntax but plan semantics differ | Per-entity opt-in means TiDB-backed entities can be left unconfigured.                                                        |
 | Other gma-using MPs accidentally adopt the hint                                  | Javadoc on `configureOptionalForceIndex` notes it's per-asset opt-in for known pathological queries. Default null.            |
 | Filter criteria path format mismatch (with/without leading `/`)                  | Verify actual runtime `IndexCriterion.pathParams.path` values before the MGA PR. Consider path normalization if formats vary. |
-
----
-
-## 9. Rollback
-
-Two levels:
-
-1. **Per-fabric (fast):** revert the MGA wiring commit (`configureOptionalForceIndex` call in
-   `MlModelInstanceLocalDaoFactory.java`) and redeploy. The datahub-gma library change stays in place, dormant. Single
-   MGA deploy cycle (~1h).
-2. **Full revert:** revert both the MGA PR and the datahub-gma PR. No DDL state to reconcile.
-
----
-
-## 10. Acceptance criteria
-
-- `EXPLAIN` of the failing query at `LIMIT 100` in prod shows `key = idx_urn$model_urn$status`, `rows` in the low
-  thousands, completes in < 500 ms.
-- `MlModelInstanceAssetService.filter` `Code: Unknown` error rate drops to baseline on each rolled-out fabric.
-- AIM team's mlops-midtier `count == 100 -> 1000` clamp can be removed without re-introducing failures.
-- No regression in any non-mlmodelinstance filter query (no FORCE INDEX in sampled SQL; error rates unchanged).
-- Filter queries that lack the required (aspect, path) criteria do NOT receive the FORCE INDEX hint.
-
----
-
-## 11. Reference materials
-
-- Composite-index PR (V24): [PR #882](https://github.com/linkedin-multiproduct/metadata-graph-assets/pull/882)
-- Foot-gun-drop PR (V26): [PR #898](https://github.com/linkedin-multiproduct/metadata-graph-assets/pull/898)
-- datahub-gma implementation PR: [PR #616](https://github.com/linkedin/datahub-gma/pull/616)
-- LinkedIn MySQL fork version: `8.0.28-li.1`
