@@ -130,7 +130,7 @@ public class EbeanLocalAccessTest {
     EbeanMetadataAspect ebeanMetadataAspect = ebeanMetadataAspectList.get(0);
 
     // Expect: the content of aspect foo is returned
-    assertEquals(AspectFoo.class.getCanonicalName(), ebeanMetadataAspect.getKey().getAspect());
+    assertEquals(AspectFoo.class, ebeanMetadataAspect.getKey().getAspect());
     assertEquals(fooUrn.toString(), ebeanMetadataAspect.getKey().getUrn());
     assertEquals("{\"value\":\"0\"}", ebeanMetadataAspect.getMetadata());
     assertEquals("urn:li:testActor:foo", ebeanMetadataAspect.getCreatedBy());
@@ -614,7 +614,7 @@ public class EbeanLocalAccessTest {
     assertEquals(1, results.size());
     assertEquals("{\"value\":\"single\"}", results.get(0).getMetadata());
     assertEquals(fooUrn.toString(), results.get(0).getKey().getUrn());
-    assertEquals(AspectFoo.class.getCanonicalName(), results.get(0).getKey().getAspect());
+    assertEquals(AspectFoo.class, results.get(0).getKey().getAspect());
   }
 
   @Test(expectedExceptions = NullPointerException.class)
@@ -1008,7 +1008,7 @@ public class EbeanLocalAccessTest {
     // Given: metadata_entity_foo with fooUrns 0-99 and force index configured for AspectFoo.
     // The filter contains AspectFoo criterion, so the hint should activate.
     // MariaDB accepts FORCE INDEX syntax; this verifies the generated SQL executes without error.
-    _ebeanLocalAccessFoo.configureOptionalForceIndex("PRIMARY", AspectFoo.class.getCanonicalName());
+    _ebeanLocalAccessFoo.configureOptionalForceIndex("PRIMARY", AspectFoo.class);
 
     IndexFilter indexFilter = new IndexFilter();
     IndexCriterionArray indexCriterionArray = new IndexCriterionArray();
@@ -1033,7 +1033,7 @@ public class EbeanLocalAccessTest {
   public void testForceIndexNotAppliedWhenFilterLacksRequiredAspect() {
     // Force index is configured for AspectBar, but filter only contains AspectFoo criteria.
     // The hint must NOT activate — query should still succeed with default plan.
-    _ebeanLocalAccessFoo.configureOptionalForceIndex("PRIMARY", AspectBar.class.getCanonicalName());
+    _ebeanLocalAccessFoo.configureOptionalForceIndex("PRIMARY", AspectBar.class);
 
     IndexFilter indexFilter = new IndexFilter();
     IndexCriterionArray indexCriterionArray = new IndexCriterionArray();
@@ -1057,7 +1057,7 @@ public class EbeanLocalAccessTest {
   @Test
   public void testListUrnsWithLastUrnIgnoresForceIndex() throws URISyntaxException {
     // Keyset-pagination path must NOT include FORCE INDEX even when the field is configured.
-    _ebeanLocalAccessFoo.configureOptionalForceIndex("PRIMARY", AspectFoo.class.getCanonicalName());
+    _ebeanLocalAccessFoo.configureOptionalForceIndex("PRIMARY", AspectFoo.class);
 
     List<FooUrn> result = _ebeanLocalAccessFoo.listUrns(null, null, null, 10);
 

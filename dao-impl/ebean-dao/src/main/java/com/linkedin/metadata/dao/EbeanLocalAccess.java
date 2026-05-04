@@ -113,9 +113,10 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   }
 
   @Override
-  public void configureOptionalForceIndex(@Nullable String indexName, @Nullable String requiredAspectFqcn) {
+  public void configureOptionalForceIndex(@Nullable String indexName,
+      @Nullable Class<? extends RecordTemplate> requiredAspect) {
     _forceIndexName = indexName;
-    _forceIndexRequiredAspect = requiredAspectFqcn;
+    _forceIndexRequiredAspect = (requiredAspect != null) ? requiredAspect.getCanonicalName() : null;
   }
 
   public void ensureSchemaUpToDate() {
