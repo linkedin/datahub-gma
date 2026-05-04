@@ -127,6 +127,12 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     validateForceIndex();
   }
 
+  /**
+   * Verifies that the configured FORCE INDEX name exists on the entity table. If the index is
+   * missing (e.g. dropped without updating the application config), disables the hint and logs
+   * an ERROR so queries degrade to the default plan instead of failing with
+   * {@code ER_KEY_DOES_NOT_EXIST}.
+   */
   void validateForceIndex() {
     if (_forceIndexName == null) {
       return;
