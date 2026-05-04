@@ -1073,6 +1073,30 @@ public class EbeanLocalAccessTest {
   }
 
   @Test
+  public void testForceIndexPathNormalization() {
+    // Config uses "/value" (with leading slash), filter criterion uses "value" (without).
+    // Normalization should make them match.
+    Map<Class<? extends RecordTemplate>, String> criteria = Collections.singletonMap(AspectFoo.class, "/value");
+    _ebeanLocalAccessFoo.configureOptionalForceIndex("PRIMARY", criteria);
+
+    IndexFilter indexFilter = new IndexFilter();
+    IndexCriterionArray indexCriterionArray = new IndexCriterionArray();
+    indexCriterionArray.add(SQLIndexFilterUtils.createIndexCriterion(
+        AspectFoo.class, "value", Condition.GREATER_THAN_OR_EQUAL_TO, IndexValue.create(25)));
+    indexFilter.setCriteria(indexCriterionArray);
+
+    IndexSortCriterion indexSortCriterion =
+        SQLIndexFilterUtils.createIndexSortCriterion(AspectFoo.class, "value", SortOrder.ASCENDING);
+
+    ListResult<FooUrn> listUrns = _ebeanLocalAccessFoo.listUrns(indexFilter, indexSortCriterion, 0, 10);
+
+    assertEquals(10, listUrns.getValues().size());
+    assertEquals(75, listUrns.getTotalCount());
+
+    _ebeanLocalAccessFoo.configureOptionalForceIndex(null, null);
+  }
+
+  @Test
   public void testListUrnsWithLastUrnIgnoresForceIndex() throws URISyntaxException {
     // Keyset-pagination path must NOT include FORCE INDEX even when configured.
     Map<Class<? extends RecordTemplate>, String> criteria = Collections.singletonMap(AspectFoo.class, "value");

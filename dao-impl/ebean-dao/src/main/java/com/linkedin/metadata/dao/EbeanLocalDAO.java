@@ -152,8 +152,10 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * optimizer's plan choice is pathologically bad for a specific query shape.
    *
    * @param indexName MySQL index name, or null to disable
-   * @param requiredCriteria map of aspect class to path that must all appear in the filter
-   *                         criteria for the force index to activate, or null to disable
+   * @param requiredCriteria map of aspect class to path (e.g. {@code "/status"}, {@code "/model_urn"})
+   *                         that must all appear in the filter criteria for the force index to
+   *                         activate, or null to disable. Leading '/' in paths is optional --
+   *                         comparison is normalized.
    */
   public void configureOptionalForceIndex(@Nullable String indexName,
       @Nullable Map<Class<? extends RecordTemplate>, String> requiredCriteria) {

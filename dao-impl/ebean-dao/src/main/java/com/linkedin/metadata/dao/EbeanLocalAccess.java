@@ -554,7 +554,8 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
   /**
    * Returns the configured force index name only when the IndexFilter contains criteria
-   * matching ALL required (aspect, path) pairs, null otherwise.
+   * matching ALL required (aspect, path) pairs, null otherwise. Path comparison strips
+   * leading '/' from both sides to tolerate convention differences between callers.
    */
   @Nullable
   private String resolveForceIndex(@Nullable IndexFilter indexFilter) {
@@ -568,8 +569,12 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
         indexFilter.getCriteria().stream().anyMatch(c ->
             required.getKey().equals(c.getAspect())
                 && c.hasPathParams()
-                && required.getValue().equals(c.getPathParams().getPath())));
+                && normalizePath(required.getValue()).equals(normalizePath(c.getPathParams().getPath()))));
     return allMatch ? _forceIndexName : null;
+  }
+
+  private static String normalizePath(@Nonnull String path) {
+    return path.startsWith("/") ? path.substring(1) : path;
   }
 
   /**

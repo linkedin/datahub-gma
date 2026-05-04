@@ -27,8 +27,10 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * matching ALL of the required (aspect, path) pairs. Pass {@code null} for both to disable.
    *
    * @param indexName MySQL index name, or null to disable
-   * @param requiredCriteria map of aspect class to path that must all appear in the filter
-   *                         criteria for the force index to activate, or null to disable
+   * @param requiredCriteria map of aspect class to path (e.g. {@code "/status"}, {@code "/model_urn"})
+   *                         that must all appear in the filter criteria for the force index to
+   *                         activate, or null to disable. Leading '/' in paths is optional --
+   *                         comparison is normalized.
    */
   void configureOptionalForceIndex(@Nullable String indexName,
       @Nullable Map<Class<? extends RecordTemplate>, String> requiredCriteria);
