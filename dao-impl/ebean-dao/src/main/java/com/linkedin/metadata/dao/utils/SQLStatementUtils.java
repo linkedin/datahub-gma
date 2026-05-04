@@ -397,15 +397,15 @@ public class SQLStatementUtils {
    * @param entityType entity type from urn
    * @param indexFilter index filter
    * @param nonDollarVirtualColumnsEnabled  true if virtual column does not contain $, false otherwise
-   * @param forceIndex MySQL index name for FORCE INDEX hint, or null to omit
+   * @param forceIndexName MySQL index name for FORCE INDEX hint, or null to omit
    * @return translated SQL where statement
    */
   public static String createFilterSql(String entityType, @Nullable IndexFilter indexFilter, boolean nonDollarVirtualColumnsEnabled,
-      @Nonnull SchemaValidatorUtil schemaValidator, @Nullable String forceIndex) {
+      @Nonnull SchemaValidatorUtil schemaValidator, @Nullable String forceIndexName) {
     final String tableName = getTableName(entityType);
     final String whereClause = parseIndexFilter(entityType, indexFilter, nonDollarVirtualColumnsEnabled, schemaValidator);
-    final String forceClause = (forceIndex == null) ? "" : " FORCE INDEX (`" + forceIndex + "`)";
-    return "SELECT urn FROM " + tableName + forceClause + "\n" + whereClause;
+    final String forceIndex = (forceIndexName == null) ? "" : " FORCE INDEX (`" + forceIndexName + "`)";
+    return "SELECT urn FROM " + tableName + forceIndex + "\n" + whereClause;
   }
 
   /**
