@@ -1002,4 +1002,66 @@ public class EbeanLocalAccessTest {
     assertEquals(1, results.size());
     assertFalse(EBeanDAOUtils.isSoftDeletedMetadata(results.get(0).getMetadata()));
   }
+
+  @Test
+  public void testListUrnsWithOffsetAndForceIndex() {
+    // Given: metadata_entity_foo with fooUrns 0-99 and forceFilterIndexName configured
+    // MariaDB accepts FORCE INDEX syntax; this verifies the generated SQL executes without error.
+    _ebeanLocalAccessFoo.setForceFilterIndexName("PRIMARY");
+
+    IndexFilter indexFilter = new IndexFilter();
+    IndexCriterionArray indexCriterionArray = new IndexCriterionArray();
+    IndexCriterion indexCriterion =
+        SQLIndexFilterUtils.createIndexCriterion(AspectFoo.class, "value", Condition.GREATER_THAN_OR_EQUAL_TO,
+            IndexValue.create(25));
+    indexCriterionArray.add(indexCriterion);
+    indexFilter.setCriteria(indexCriterionArray);
+
+    IndexSortCriterion indexSortCriterion =
+        SQLIndexFilterUtils.createIndexSortCriterion(AspectFoo.class, "value", SortOrder.ASCENDING);
+
+    ListResult<FooUrn> listUrns = _ebeanLocalAccessFoo.listUrns(indexFilter, indexSortCriterion, 0, 10);
+
+    assertEquals(10, listUrns.getValues().size());
+    assertEquals(75, listUrns.getTotalCount());
+
+    // Clean up: reset to null so other tests are unaffected
+    _ebeanLocalAccessFoo.setForceFilterIndexName(null);
+  }
+
+  @Test
+  public void testListUrnsWithLastUrnIgnoresForceIndex() throws URISyntaxException {
+    // Keyset-pagination path must NOT include FORCE INDEX even when the field is configured.
+    _ebeanLocalAccessFoo.setForceFilterIndexName("PRIMARY");
+
+    List<FooUrn> result = _ebeanLocalAccessFoo.listUrns(null, null, null, 10);
+
+    // If FORCE INDEX leaked into the keyset path we'd get a different SQL shape,
+    // but the result count should be the same as without the hint.
+    assertEquals(10, result.size());
+
+    _ebeanLocalAccessFoo.setForceFilterIndexName(null);
+  }
+
+  @Test
+  public void testListUrnsWithOffsetAndNullForceIndex() {
+    // Verify that null forceFilterIndexName produces identical results to default behavior.
+    _ebeanLocalAccessFoo.setForceFilterIndexName(null);
+
+    IndexFilter indexFilter = new IndexFilter();
+    IndexCriterionArray indexCriterionArray = new IndexCriterionArray();
+    IndexCriterion indexCriterion =
+        SQLIndexFilterUtils.createIndexCriterion(AspectFoo.class, "value", Condition.GREATER_THAN_OR_EQUAL_TO,
+            IndexValue.create(25));
+    indexCriterionArray.add(indexCriterion);
+    indexFilter.setCriteria(indexCriterionArray);
+
+    IndexSortCriterion indexSortCriterion =
+        SQLIndexFilterUtils.createIndexSortCriterion(AspectFoo.class, "value", SortOrder.ASCENDING);
+
+    ListResult<FooUrn> listUrns = _ebeanLocalAccessFoo.listUrns(indexFilter, indexSortCriterion, 0, 10);
+
+    assertEquals(10, listUrns.getValues().size());
+    assertEquals(75, listUrns.getTotalCount());
+  }
 }

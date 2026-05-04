@@ -57,6 +57,11 @@ public class InstrumentedEbeanLocalAccess<URN extends Urn> implements IEbeanLoca
   }
 
   @Override
+  public void setForceFilterIndexName(@Nullable String forceIndexName) {
+    _delegate.setForceFilterIndexName(forceIndexName);
+  }
+
+  @Override
   public <ASPECT extends RecordTemplate> int add(@Nonnull URN urn, @Nullable ASPECT newValue,
       @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp,
       @Nullable IngestionTrackingContext ingestionTrackingContext, boolean isTestMode) {

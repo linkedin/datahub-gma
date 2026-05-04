@@ -71,6 +71,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   private UrnPathExtractor<URN> _urnPathExtractor;
   private final SchemaEvolutionManager _schemaEvolutionManager;
   private final boolean _nonDollarVirtualColumnsEnabled;
+  private String _forceFilterIndexName;
 
   // TODO confirm if the default page size is 1000 in other code context.
   private static final int DEFAULT_PAGE_SIZE = 1000;
@@ -108,6 +109,11 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
   public void setUrnPathExtractor(@Nonnull UrnPathExtractor<URN> urnPathExtractor) {
     _urnPathExtractor = urnPathExtractor;
+  }
+
+  @Override
+  public void setForceFilterIndexName(@Nullable String forceIndexName) {
+    _forceFilterIndexName = forceIndexName;
   }
 
   public void ensureSchemaUpToDate() {
@@ -376,7 +382,8 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   public ListResult<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       int start, int pageSize) {
     // Run COUNT in a separate query/transaction so neither query exceeds the 5s kill threshold.
-    final String baseSql = SQLStatementUtils.createFilterSql(_entityType, indexFilter, _nonDollarVirtualColumnsEnabled, validator);
+    final String baseSql = SQLStatementUtils.createFilterSql(_entityType, indexFilter,
+        _nonDollarVirtualColumnsEnabled, validator, _forceFilterIndexName);
     final String countSql = baseSql.replaceFirst("SELECT urn", "SELECT COUNT(urn) AS _total_count");
     final SqlRow countRow = _server.createSqlQuery(countSql).findOne();
     final int totalCount = (countRow == null) ? 0 : countRow.getInteger("_total_count");

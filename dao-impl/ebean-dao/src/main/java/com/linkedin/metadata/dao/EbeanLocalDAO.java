@@ -146,6 +146,20 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   /**
+   * Configures a MySQL FORCE INDEX hint for the offset-pagination listUrns filter query.
+   * When set, generated SQL includes {@code FORCE INDEX (`indexName`)} between the table name
+   * and WHERE clause. Per-asset opt-in for cases where the optimizer's plan choice is
+   * pathologically bad and other mitigations are not viable.
+   *
+   * @param forceIndexName MySQL index name, or null to disable
+   */
+  public void setForceFilterIndexName(@Nullable String forceIndexName) {
+    if (_localAccess != null) {
+      _localAccess.setForceFilterIndexName(forceIndexName);
+    }
+  }
+
+  /**
    * Set a flag to indicate whether noisy info logs are enabled. Should only be used for debugging.
    * @param noisyLogsEnabled whether the logs are enabled
    */
