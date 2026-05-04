@@ -71,8 +71,8 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   private UrnPathExtractor<URN> _urnPathExtractor;
   private final SchemaEvolutionManager _schemaEvolutionManager;
   private final boolean _nonDollarVirtualColumnsEnabled;
-  private String _forceFilterIndexName;
-  private String _forceFilterIndexRequiredAspect;
+  private String _forceIndexName;
+  private String _forceIndexRequiredAspect;
 
   // TODO confirm if the default page size is 1000 in other code context.
   private static final int DEFAULT_PAGE_SIZE = 1000;
@@ -113,9 +113,9 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   }
 
   @Override
-  public void setForceFilterIndex(@Nullable String indexName, @Nullable String requiredAspectFqcn) {
-    _forceFilterIndexName = indexName;
-    _forceFilterIndexRequiredAspect = requiredAspectFqcn;
+  public void configureOptionalForceIndex(@Nullable String indexName, @Nullable String requiredAspectFqcn) {
+    _forceIndexName = indexName;
+    _forceIndexRequiredAspect = requiredAspectFqcn;
   }
 
   public void ensureSchemaUpToDate() {
@@ -530,15 +530,15 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    */
   @Nullable
   private String resolveForceIndex(@Nullable IndexFilter indexFilter) {
-    if (_forceFilterIndexName == null || _forceFilterIndexRequiredAspect == null) {
+    if (_forceIndexName == null || _forceIndexRequiredAspect == null) {
       return null;
     }
     if (indexFilter == null || !indexFilter.hasCriteria()) {
       return null;
     }
     boolean hasRequiredAspect = indexFilter.getCriteria().stream()
-        .anyMatch(c -> _forceFilterIndexRequiredAspect.equals(c.getAspect()));
-    return hasRequiredAspect ? _forceFilterIndexName : null;
+        .anyMatch(c -> _forceIndexRequiredAspect.equals(c.getAspect()));
+    return hasRequiredAspect ? _forceIndexName : null;
   }
 
   /**

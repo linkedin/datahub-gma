@@ -30,7 +30,7 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * @param requiredAspectFqcn FQCN of the aspect that must appear in the filter criteria
    *                           for the hint to activate (e.g. {@code "com.linkedin.common.Status"})
    */
-  void setForceFilterIndex(@Nullable String indexName, @Nullable String requiredAspectFqcn);
+  void configureOptionalForceIndex(@Nullable String indexName, @Nullable String requiredAspectFqcn);
 
   /**
    * Upsert aspect into entity table.

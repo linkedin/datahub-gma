@@ -155,9 +155,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * @param requiredAspectFqcn FQCN of the aspect that must appear in the filter criteria
    *                           for the hint to activate (e.g. {@code "com.linkedin.common.Status"})
    */
-  public void setForceFilterIndex(@Nullable String indexName, @Nullable String requiredAspectFqcn) {
+  public void configureOptionalForceIndex(@Nullable String indexName, @Nullable String requiredAspectFqcn) {
     if (_localAccess != null) {
-      _localAccess.setForceFilterIndex(indexName, requiredAspectFqcn);
+      _localAccess.configureOptionalForceIndex(indexName, requiredAspectFqcn);
     }
   }
 

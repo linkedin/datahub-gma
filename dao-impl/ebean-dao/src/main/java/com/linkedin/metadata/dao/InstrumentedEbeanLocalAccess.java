@@ -57,8 +57,8 @@ public class InstrumentedEbeanLocalAccess<URN extends Urn> implements IEbeanLoca
   }
 
   @Override
-  public void setForceFilterIndex(@Nullable String indexName, @Nullable String requiredAspectFqcn) {
-    _delegate.setForceFilterIndex(indexName, requiredAspectFqcn);
+  public void configureOptionalForceIndex(@Nullable String indexName, @Nullable String requiredAspectFqcn) {
+    _delegate.configureOptionalForceIndex(indexName, requiredAspectFqcn);
   }
 
   @Override
