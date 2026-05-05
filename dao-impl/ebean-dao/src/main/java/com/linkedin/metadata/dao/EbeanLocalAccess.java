@@ -17,6 +17,7 @@ import com.linkedin.metadata.dao.utils.SharedSchemaCache;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.metadata.query.ExtraInfoArray;
+import com.linkedin.metadata.query.IndexCriterion;
 import com.linkedin.metadata.query.IndexFilter;
 import com.linkedin.metadata.query.IndexGroupByCriterion;
 import com.linkedin.metadata.query.IndexSortCriterion;
@@ -71,6 +72,8 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   private UrnPathExtractor<URN> _urnPathExtractor;
   private final SchemaEvolutionManager _schemaEvolutionManager;
   private final boolean _nonDollarVirtualColumnsEnabled;
+  private String _forceIndexName;
+  private Map<String, String> _forceIndexRequiredCriteria;
 
   // TODO confirm if the default page size is 1000 in other code context.
   private static final int DEFAULT_PAGE_SIZE = 1000;
@@ -110,11 +113,51 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     _urnPathExtractor = urnPathExtractor;
   }
 
+  /**
+   * {@inheritDoc}
+   *
+   * <p>Converts {@code Class<?>} keys to FQCN strings at config time so that callers get
+   * compile-time safety (a renamed or removed aspect class fails the build). Internally stores
+   * the FQCN-to-path map for comparison against {@link IndexCriterion#getAspect()} at resolve
+   * time.</p>
+   */
+  @Override
+  public void configureOptionalForceIndex(@Nullable String indexName,
+      @Nullable Map<Class<? extends RecordTemplate>, String> requiredCriteria) {
+    _forceIndexName = indexName;
+    if (requiredCriteria != null) {
+      _forceIndexRequiredCriteria = requiredCriteria.entrySet().stream()
+          .collect(Collectors.toMap(e -> e.getKey().getCanonicalName(), Map.Entry::getValue));
+    } else {
+      _forceIndexRequiredCriteria = null;
+    }
+  }
+
   public void ensureSchemaUpToDate() {
     _schemaEvolutionManager.ensureSchemaUpToDate();
     // Pre-warm the shared cache for both the prod and test tables so the first request is never slow.
     validator.registerAndPreWarm(getTableName(_entityType));
     validator.registerAndPreWarm(getTestTableName(_entityType));
+    validateForceIndex();
+  }
+
+  /**
+   * Verifies that the configured FORCE INDEX name exists on the entity table. If the index is
+   * missing (e.g. dropped without updating the application config), disables the hint and logs
+   * an ERROR so queries degrade to the default plan instead of failing with
+   * {@code ER_KEY_DOES_NOT_EXIST}.
+   */
+  void validateForceIndex() {
+    if (_forceIndexName == null) {
+      return;
+    }
+    String tableName = getTableName(_entityType);
+    if (!validator.indexExists(tableName, _forceIndexName)) {
+      log.error("Configured forceIndexName '{}' does not exist on table '{}'. "
+          + "Disabling FORCE INDEX hint to prevent query failures.", _forceIndexName, tableName);
+      _forceIndexName = null;
+      _forceIndexRequiredCriteria = null;
+    }
   }
 
   @Override
@@ -375,8 +418,12 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   @Override
   public ListResult<URN> listUrns(@Nullable IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
       int start, int pageSize) {
-    // Run COUNT in a separate query/transaction so neither query exceeds the 5s kill threshold.
-    final String baseSql = SQLStatementUtils.createFilterSql(_entityType, indexFilter, _nonDollarVirtualColumnsEnabled, validator);
+    // When configured, emit FORCE INDEX to override MySQL's prefer_ordering_index heuristic
+    // which can pick a full-table PRIMARY scan instead of the composite index at small LIMITs.
+    final String effectiveForceIndex = resolveForceIndex(indexFilter);
+    final String baseSql = SQLStatementUtils.createFilterSql(_entityType, indexFilter,
+        _nonDollarVirtualColumnsEnabled, validator, effectiveForceIndex);
+    // Run COUNT in a separate query so neither query exceeds the 5s kill threshold.
     final String countSql = baseSql.replaceFirst("SELECT urn", "SELECT COUNT(urn) AS _total_count");
     final SqlRow countRow = _server.createSqlQuery(countSql).findOne();
     final int totalCount = (countRow == null) ? 0 : countRow.getInteger("_total_count");
@@ -512,6 +559,40 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       resultMap.put(value, count);
     }
     return resultMap;
+  }
+
+  /**
+   * Returns the configured force index name only when the IndexFilter's path-bearing criteria
+   * exactly match the required (aspect, path) pairs. Criteria without pathParams (aspect-existence
+   * checks that produce IS NOT NULL / soft-delete guards) are excluded from the comparison since
+   * they don't affect index choice. This is intentionally strict: FORCE INDEX is a hard directive
+   * that removes the optimizer's ability to choose a better index, so it should only activate for
+   * the exact query shape it was validated against. If the filter shape changes, the hint deactivates
+   * and MySQL picks its own plan.
+   */
+  @Nullable
+  private String resolveForceIndex(@Nullable IndexFilter indexFilter) {
+    if (_forceIndexName == null || _forceIndexRequiredCriteria == null || _forceIndexRequiredCriteria.isEmpty()) {
+      return null;
+    }
+    if (indexFilter == null || !indexFilter.hasCriteria()) {
+      return null;
+    }
+    List<IndexCriterion> pathBearingCriteria = indexFilter.getCriteria().stream()
+        .filter(IndexCriterion::hasPathParams)
+        .collect(Collectors.toList());
+    if (pathBearingCriteria.size() != _forceIndexRequiredCriteria.size()) {
+      return null;
+    }
+    boolean allMatch = _forceIndexRequiredCriteria.entrySet().stream().allMatch(required ->
+        pathBearingCriteria.stream().anyMatch(c ->
+            required.getKey().equals(c.getAspect())
+                && normalizePath(required.getValue()).equals(normalizePath(c.getPathParams().getPath()))));
+    return allMatch ? _forceIndexName : null;
+  }
+
+  private static String normalizePath(@Nonnull String path) {
+    return path.startsWith("/") ? path.substring(1) : path;
   }
 
   /**

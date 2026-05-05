@@ -217,6 +217,14 @@ public class InstrumentedEbeanLocalAccessTest {
   }
 
   @Test
+  public void testConfigureOptionalForceIndexDelegates() {
+    Map<Class<? extends RecordTemplate>, String> criteria =
+        Collections.singletonMap(AspectFoo.class, "/value");
+    _instrumented.configureOptionalForceIndex("PRIMARY", criteria);
+    verify(_mockDelegate).configureOptionalForceIndex("PRIMARY", criteria);
+  }
+
+  @Test
   public void testReadDeletionInfoBatchDelegatesAndRecordsLatency() {
     Map<TestUrn, EntityDeletionInfo> expected = new HashMap<>();
     when(_mockDelegate.readDeletionInfoBatch(any(), anyBoolean())).thenReturn(expected);

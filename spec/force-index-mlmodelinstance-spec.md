@@ -1,0 +1,308 @@
+# Spec: FORCE INDEX hint for `MlModelInstanceAssetService.filter`
+
+**Status:** datahub-gma PR implemented ([#616](https://github.com/linkedin/datahub-gma/pull/616)), MGA wiring pending.
+**Owner:** MG team (oncall: `naulashchick`). **Last decision:** All other options (histograms, drop-foot-gun, invisible
+index, Hikari `prefer_ordering_index=off`, alternative composite indexes) are off the table. FORCE INDEX in code is the
+only remaining structural fix.
+
+---
+
+## 1. Background
+
+`MlModelInstanceAssetService.filter` (gRPC, served by `metadata-graph-assets`) intermittently fails for the AIM team
+with `Code: Unknown` empty-message errors, concentrated at `paging.count = 100` (97.8% of observed failures over a 48h
+window). The query gets killed by MySQL's 5s threshold.
+
+### Failing query shape
+
+App-generated; cannot be modified at the call site:
+
+```sql
+SELECT urn FROM metadata_entity_mlmodelinstance
+WHERE i_urn$model_urn IN (<~15 model URNs>)
+  AND a_model_instance_status IS NOT NULL
+  AND JSON_EXTRACT(a_model_instance_status, '$.gma_deleted') IS NULL
+  AND i_model_instance_status$status = 'ACTIVE'
+  AND deleted_ts IS NULL
+ORDER BY urn LIMIT 100 OFFSET 0;
+```
+
+### Root cause
+
+MySQL's `prefer_ordering_index=on` heuristic. At small `LIMIT`, the optimizer prefers a no-filesort plan that walks an
+index already ordered by `urn` (PRIMARY, or formerly `idx2_model_instance_status$status`), expecting to find `LIMIT`
+matching rows quickly. In practice the IN-list matches are sparsely distributed across urn-space, so the walk traverses
+millions of rows and times out.
+
+### Existing schema state on `metadata_entity_mlmodelinstance` (~1.47M rows, ~117 GB)
+
+- `PRIMARY KEY (urn)` -- clustered.
+- `idx_urn$model_urn (urn, i_urn$model_urn)` -- dead (urn never constrained).
+- `idx2_urn$model_urn (i_urn$model_urn)` -- useful for the IN-list seek.
+- `idx_urn$model_urn$status (i_urn$model_urn, i_model_instance_status$status)` -- composite added in
+  [PR #882](https://github.com/linkedin-multiproduct/metadata-graph-assets/pull/882) (Flyway V24). Useful for the
+  IN-list seek with status as second column.
+- `idx_model_instance_status$status (urn, i_model_instance_status$status)` -- dead.
+- `idx2_model_instance_status$status (i_model_instance_status$status)` -- formerly mis-picked at small `LIMIT`; dropped
+  via [PR #898](https://github.com/linkedin-multiproduct/metadata-graph-assets/pull/898) (Flyway V26). After drop, the
+  optimizer just shifted to PRIMARY scan with the same pathology.
+- `idx_model_instance_info$trained_model_urn (i_model_instance_info$trained_model_urn)` -- for `findByTrainedModelUrn`,
+  unrelated.
+
+### Why FORCE INDEX
+
+Only structural fix that:
+
+- Doesn't require running heavy DDL on a 117 GB prod table.
+- Doesn't require server-side stats/optimizer changes (which the MySQL SRE team declined).
+- Is bounded to one entity (not a global flag flip).
+- Is reversible without touching prod schema.
+
+`FORCE INDEX` (not `USE INDEX`): hard directive -- optimizer must use the named index. `USE INDEX` is only a suggestion.
+
+---
+
+## 2. Solution overview
+
+Add `configureOptionalForceIndex(indexName, requiredCriteria)` to `datahub-gma`. The FORCE INDEX hint is only emitted
+when the `IndexFilter`'s path-bearing criteria (those with `pathParams`) exactly match the configured (aspect, path)
+pairs -- same count, all match. Criteria without `pathParams` (aspect-existence checks that produce `IS NOT NULL` /
+soft-delete guards) are excluded from the comparison since they don't affect index choice. This is intentionally strict:
+if the filter shape changes, the hint deactivates and MySQL picks its own plan. MGA registers the configuration on the
+mlmodelinstance DAO only. No other entity, no other code path affected.
+
+### End state -- generated SQL
+
+For mlmodelinstance filter (when filter contains both `model_urn` and `status` criteria):
+
+```sql
+SELECT urn FROM metadata_entity_mlmodelinstance FORCE INDEX (`idx_urn$model_urn$status`)
+WHERE i_urn$model_urn IN (...) AND ... ORDER BY urn LIMIT 100 OFFSET 0;
+```
+
+Count query (auto-derived via `replaceFirst` from the same base SQL):
+
+```sql
+SELECT COUNT(urn) AS _total_count FROM metadata_entity_mlmodelinstance FORCE INDEX (`idx_urn$model_urn$status`)
+WHERE i_urn$model_urn IN (...) AND ...;
+```
+
+For every other entity, every other query shape, or when the filter lacks the required criteria: SQL output unchanged.
+
+---
+
+## 3. Code changes
+
+Two repos. `datahub-gma`: 5 production files + tests. `metadata-graph-assets`: 1 file.
+
+### 3.1. `datahub-gma` -- `SQLStatementUtils.createFilterSql`
+
+**Path:** `dao-impl/ebean-dao/src/main/java/com/linkedin/metadata/dao/utils/SQLStatementUtils.java`
+
+**Change:** New 5-arg overload with `@Nullable String forceIndexName`. Existing 4-arg delegates with `null`.
+
+```java
+public static String createFilterSql(String entityType, @Nullable IndexFilter indexFilter,
+    boolean nonDollarVirtualColumnsEnabled, @Nonnull SchemaValidatorUtil schemaValidator) {
+  return createFilterSql(entityType, indexFilter, nonDollarVirtualColumnsEnabled, schemaValidator, null);
+}
+
+public static String createFilterSql(String entityType, @Nullable IndexFilter indexFilter,
+    boolean nonDollarVirtualColumnsEnabled, @Nonnull SchemaValidatorUtil schemaValidator,
+    @Nullable String forceIndexName) {
+  final String tableName = getTableName(entityType);
+  final String whereClause = parseIndexFilter(entityType, indexFilter, nonDollarVirtualColumnsEnabled, schemaValidator);
+  final String forceIndex = (forceIndexName == null) ? "" : " FORCE INDEX (`" + forceIndexName + "`)";
+  return "SELECT urn FROM " + tableName + forceIndex + "\n" + whereClause;
+}
+```
+
+The FORCE INDEX clause sits between the table name and `\n<WHERE>`, so the existing
+`replaceFirst("SELECT urn", "SELECT COUNT(urn) AS _total_count")` count-query rewrite is unaffected.
+
+### 3.2. `datahub-gma` -- `IEbeanLocalAccess` interface
+
+**Path:** `dao-impl/ebean-dao/src/main/java/com/linkedin/metadata/dao/IEbeanLocalAccess.java`
+
+**Change:** Add `configureOptionalForceIndex` to the interface.
+
+```java
+void configureOptionalForceIndex(@Nullable String indexName,
+    @Nullable Map<Class<? extends RecordTemplate>, String> requiredCriteria);
+```
+
+### 3.3. `datahub-gma` -- `EbeanLocalAccess`
+
+**Path:** `dao-impl/ebean-dao/src/main/java/com/linkedin/metadata/dao/EbeanLocalAccess.java`
+
+**Fields:**
+
+```java
+private String _forceIndexName;
+private Map<String, String> _forceIndexRequiredCriteria;  // aspect FQCN -> path
+```
+
+**`configureOptionalForceIndex`** -- converts `Class<?>` keys to FQCN strings at config time for compile-time safety:
+
+```java
+@Override
+public void configureOptionalForceIndex(@Nullable String indexName,
+    @Nullable Map<Class<? extends RecordTemplate>, String> requiredCriteria) {
+  _forceIndexName = indexName;
+  if (requiredCriteria != null) {
+    _forceIndexRequiredCriteria = requiredCriteria.entrySet().stream()
+        .collect(Collectors.toMap(e -> e.getKey().getCanonicalName(), Map.Entry::getValue));
+  } else {
+    _forceIndexRequiredCriteria = null;
+  }
+}
+```
+
+**`resolveForceIndex`** -- exact-matches the filter's path-bearing criteria against the configured pairs. Criteria
+without `pathParams` are excluded. Path comparison normalizes leading `/` to tolerate convention differences:
+
+```java
+@Nullable
+private String resolveForceIndex(@Nullable IndexFilter indexFilter) {
+  if (_forceIndexName == null || _forceIndexRequiredCriteria == null || _forceIndexRequiredCriteria.isEmpty()) {
+    return null;
+  }
+  if (indexFilter == null || !indexFilter.hasCriteria()) {
+    return null;
+  }
+  List<IndexCriterion> pathBearingCriteria = indexFilter.getCriteria().stream()
+      .filter(IndexCriterion::hasPathParams)
+      .collect(Collectors.toList());
+  if (pathBearingCriteria.size() != _forceIndexRequiredCriteria.size()) {
+    return null;
+  }
+  boolean allMatch = _forceIndexRequiredCriteria.entrySet().stream().allMatch(required ->
+      pathBearingCriteria.stream().anyMatch(c ->
+          required.getKey().equals(c.getAspect())
+              && normalizePath(required.getValue()).equals(normalizePath(c.getPathParams().getPath()))));
+  return allMatch ? _forceIndexName : null;
+}
+
+private static String normalizePath(@Nonnull String path) {
+  return path.startsWith("/") ? path.substring(1) : path;
+}
+```
+
+**`validateForceIndex`** -- called during `ensureSchemaUpToDate()`. Uses `SchemaValidatorUtil.indexExists()` (cached).
+If the index is missing, logs ERROR and auto-disables the hint instead of crashing:
+
+```java
+void validateForceIndex() {
+  if (_forceIndexName == null) {
+    return;
+  }
+  String tableName = getTableName(_entityType);
+  if (!validator.indexExists(tableName, _forceIndexName)) {
+    log.error("Configured forceIndexName '{}' does not exist on table '{}'. "
+        + "Disabling FORCE INDEX hint to prevent query failures.", _forceIndexName, tableName);
+    _forceIndexName = null;
+    _forceIndexRequiredCriteria = null;
+  }
+}
+```
+
+**Offset-pagination `listUrns`** -- the only query path that receives the hint:
+
+```java
+@Override
+public ListResult<URN> listUrns(@Nullable IndexFilter indexFilter,
+    @Nullable IndexSortCriterion indexSortCriterion, int start, int pageSize) {
+  // When configured, emit FORCE INDEX to override MySQL's prefer_ordering_index heuristic
+  // which can pick a full-table PRIMARY scan instead of the composite index at small LIMITs.
+  final String effectiveForceIndex = resolveForceIndex(indexFilter);
+  final String baseSql = SQLStatementUtils.createFilterSql(_entityType, indexFilter,
+      _nonDollarVirtualColumnsEnabled, validator, effectiveForceIndex);
+  // Run COUNT in a separate query so neither query exceeds the 5s kill threshold.
+  final String countSql = baseSql.replaceFirst("SELECT urn", "SELECT COUNT(urn) AS _total_count");
+  // ... rest unchanged ...
+}
+```
+
+The keyset-pagination `listUrns(IndexFilter, IndexSortCriterion, URN lastUrn, int pageSize)` is NOT modified.
+
+### 3.4. `datahub-gma` -- `InstrumentedEbeanLocalAccess`
+
+**Path:** `dao-impl/ebean-dao/src/main/java/com/linkedin/metadata/dao/InstrumentedEbeanLocalAccess.java`
+
+Delegates `configureOptionalForceIndex` to the wrapped `_delegate`.
+
+### 3.5. `datahub-gma` -- `EbeanLocalDAO`
+
+**Path:** `dao-impl/ebean-dao/src/main/java/com/linkedin/metadata/dao/EbeanLocalDAO.java`
+
+Public `configureOptionalForceIndex` that delegates to `_localAccess` when non-null (NEW_SCHEMA mode). No constructor
+changes.
+
+### 3.6. `metadata-graph-assets` -- wire the hint for mlmodelinstance only
+
+**Path:**
+`metadata-graph-assets-dao-factories/src/main/java/com/linkedin/metadata/factory/aim/MlModelInstanceLocalDaoFactory.java`
+
+```diff
+   @Override
+   protected EbeanLocalDAO<InternalMlModelInstanceAspect, MlModelInstanceUrn> createInstance(@Nonnull ConfigView view) {
+     EbeanLocalDAO<InternalMlModelInstanceAspect, MlModelInstanceUrn> dao = super.createInstance(view);
+     dao.setUrnPathExtractor(new MlModelInstanceUrnPathExtractor());
+     dao.setUseAspectColumnForRelationshipRemoval(true);
++    Map<Class<? extends RecordTemplate>, String> forceIndexCriteria = new LinkedHashMap<>();
++    forceIndexCriteria.put(MlModelInstanceUrn.class, "/model_urn");
++    forceIndexCriteria.put(MlModelInstanceStatus.class, "/status");
++    dao.configureOptionalForceIndex("idx_urn$model_urn$status", forceIndexCriteria);
+     return dao;
+   }
+```
+
+**Note:** The path values (`"/model_urn"`, `"/status"`) must match the `IndexCriterion.pathParams.path` format sent by
+the gRPC client. The PDL spec for `IndexPathParams.path` documents the leading-`/` convention (e.g., `"/removed"`).
+Verify the actual runtime values before the MGA PR.
+
+---
+
+## 4. Tests
+
+### 4.1. `datahub-gma` unit tests
+
+**File:** `dao-impl/ebean-dao/src/test/java/com/linkedin/metadata/dao/utils/SQLStatementUtilsTest.java`
+
+- `testCreateFilterSqlWithForceIndex` -- null produces no hint (regression); non-null emits `FORCE INDEX`.
+- `testForceIndexCountQueryRewriteCompatibility` -- `replaceFirst` count rewrite preserves the FORCE INDEX clause.
+
+### 4.2. `datahub-gma` integration tests
+
+**File:** `dao-impl/ebean-dao/src/test/java/com/linkedin/metadata/dao/EbeanLocalAccessTest.java`
+
+Tests run against embedded MariaDB:
+
+- `testListUrnsWithOffsetAndForceIndex` -- FORCE INDEX activates when filter exactly matches required criteria.
+- `testForceIndexNotAppliedWhenFilterLacksRequiredAspect` -- wrong aspect, hint does not activate.
+- `testForceIndexNotAppliedWhenFilterLacksRequiredPath` -- right aspect but wrong path, hint does not activate.
+- `testForceIndexNotAppliedWhenFilterHasExtraPathCriteria` -- extra path-bearing criterion, hint does not activate.
+- `testForceIndexIgnoresAspectOnlyCriteria` -- aspect-only criteria (no pathParams) excluded from match.
+- `testForceIndexPathNormalization` -- config with leading `/`, filter without -- normalization makes them match.
+- `testListUrnsWithLastUrnIgnoresForceIndex` -- keyset-pagination path is unaffected.
+- `testListUrnsWithOffsetAndNullForceIndex` -- null config produces default behavior.
+- `testForceIndexNotAppliedWhenFilterIsNull` -- null IndexFilter, hint does not activate.
+- `testValidateForceIndexDisablesHintWhenIndexMissing` -- non-existent index auto-disabled at validation.
+- `testValidateForceIndexKeepsHintWhenIndexExists` -- PRIMARY index passes validation.
+- `testValidateForceIndexNoOpWhenNotConfigured` -- null config, validation is a no-op.
+
+**File:** `dao-impl/ebean-dao/src/test/java/com/linkedin/metadata/dao/InstrumentedEbeanLocalAccessTest.java`
+
+- `testConfigureOptionalForceIndexDelegates` -- verifies delegation to wrapped implementation.
+
+---
+
+## 5. Risks & mitigations
+
+| Risk                                                                             | Mitigation                                                                                                         |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Index renamed or dropped without updating MGA config                             | Startup validation auto-disables the hint and logs ERROR. Queries degrade to default plan instead of failing.      |
+| MariaDB-embedded tests parse FORCE INDEX differently than prod MySQL 8.0         | Verified in CI -- embedded MariaDB accepts the syntax.                                                             |
+| Future TiDB migration: TiDB accepts FORCE INDEX syntax but plan semantics differ | Per-entity opt-in means TiDB-backed entities can be left unconfigured.                                             |
+| Other gma-using MPs accidentally adopt the hint                                  | Javadoc on `configureOptionalForceIndex` notes it's per-asset opt-in for known pathological queries. Default null. |
+| Filter criteria path format mismatch (with/without leading `/`)                  | Path comparison normalizes leading `/` -- `"/status"` and `"status"` are treated as equal.                         |

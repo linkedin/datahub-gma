@@ -186,6 +186,52 @@ public class SQLStatementUtilsTest {
   }
 
   @Test
+  public void testCreateFilterSqlWithForceIndex() {
+    IndexFilter indexFilter = new IndexFilter();
+    IndexCriterionArray indexCriterionArray = new IndexCriterionArray();
+
+    IndexCriterion indexCriterion =
+        SQLIndexFilterUtils.createIndexCriterion(AspectFoo.class, "value", Condition.GREATER_THAN_OR_EQUAL_TO,
+            IndexValue.create(25));
+    indexCriterionArray.add(indexCriterion);
+    indexFilter.setCriteria(indexCriterionArray);
+
+    // null forceIndexName — identical to the 4-arg overload
+    String sqlNoHint = SQLStatementUtils.createFilterSql("foo", indexFilter, false, mockValidator, null);
+    String expectedNoHint = "SELECT urn FROM metadata_entity_foo\n"
+        + "WHERE i_aspectfoo$value >= 25\n" + "AND deleted_ts IS NULL";
+    assertEquals(sqlNoHint, expectedNoHint);
+
+    // non-null forceIndexName — FORCE INDEX clause between table name and WHERE
+    String sqlWithHint = SQLStatementUtils.createFilterSql("foo", indexFilter, false, mockValidator,
+        "idx_urn$model_urn$status");
+    String expectedWithHint = "SELECT urn FROM metadata_entity_foo FORCE INDEX (`idx_urn$model_urn$status`)\n"
+        + "WHERE i_aspectfoo$value >= 25\n" + "AND deleted_ts IS NULL";
+    assertEquals(sqlWithHint, expectedWithHint);
+  }
+
+  @Test
+  public void testForceIndexCountQueryRewriteCompatibility() {
+    IndexFilter indexFilter = new IndexFilter();
+    IndexCriterionArray indexCriterionArray = new IndexCriterionArray();
+    IndexCriterion indexCriterion =
+        SQLIndexFilterUtils.createIndexCriterion(AspectFoo.class, "value", Condition.EQUAL,
+            IndexValue.create(42));
+    indexCriterionArray.add(indexCriterion);
+    indexFilter.setCriteria(indexCriterionArray);
+
+    String baseSql = SQLStatementUtils.createFilterSql("foo", indexFilter, false, mockValidator,
+        "idx_urn$model_urn$status");
+    String countSql = baseSql.replaceFirst("SELECT urn", "SELECT COUNT(urn) AS _total_count");
+
+    // COUNT rewrite must preserve the FORCE INDEX clause
+    String expectedCountSql = "SELECT COUNT(urn) AS _total_count FROM metadata_entity_foo"
+        + " FORCE INDEX (`idx_urn$model_urn$status`)\n"
+        + "WHERE i_aspectfoo$value = 42\n" + "AND deleted_ts IS NULL";
+    assertEquals(countSql, expectedCountSql);
+  }
+
+  @Test
   public void testCreateFilterSqlWithArrayContainsCondition() {
     IndexFilter indexFilter = new IndexFilter();
     IndexCriterionArray indexCriterionArray = new IndexCriterionArray();
