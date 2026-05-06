@@ -1130,8 +1130,12 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       _localRelationshipWriterDAO.removeRelationships(urn, aspectClass, relationships);
       return Collections.emptyList();
     }
-    // process relationship ingestion
-    _localRelationshipWriterDAO.processLocalRelationshipUpdates(urn, aspectClass, localRelationshipUpdates, isTestMode);
+    // process relationship ingestion. Skip when there are no relationships to write — the @Transactional wrapper on
+    // processLocalRelationshipUpdates would otherwise open + commit a no-op transaction per aspect, which costs
+    // multiple MySQL round-trips per call on slow DB hosts.
+    if (!localRelationshipUpdates.isEmpty()) {
+      _localRelationshipWriterDAO.processLocalRelationshipUpdates(urn, aspectClass, localRelationshipUpdates, isTestMode);
+    }
     if (_noisyLogsEnabled && !localRelationshipUpdates.isEmpty()) {
       log.info("Relationships successfully ingested in handleRelationshipIngestion for urn: {}, aspectClass: {}. "
           + "LocalRelationshipUpdates: {}", urn, aspectClass, localRelationshipUpdates);
