@@ -97,6 +97,10 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     _schemaEvolutionManager = createSchemaEvolutionManager(serverConfig);
     _nonDollarVirtualColumnsEnabled = nonDollarVirtualColumnsEnabled;
     validator = buildValidator(server, serverConfig);
+    // Pre-warm at construction time so the cache is hot before the first request,
+    // regardless of whether ensureSchemaUpToDate() is called by the service.
+    validator.registerAndPreWarm(getTableName(_entityType));
+    validator.registerAndPreWarm(getTestTableName(_entityType));
   }
 
   private static SchemaValidatorUtil buildValidator(EbeanServer server, ServerConfig serverConfig) {
@@ -135,9 +139,6 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
   public void ensureSchemaUpToDate() {
     _schemaEvolutionManager.ensureSchemaUpToDate();
-    // Pre-warm the shared cache for both the prod and test tables so the first request is never slow.
-    validator.registerAndPreWarm(getTableName(_entityType));
-    validator.registerAndPreWarm(getTestTableName(_entityType));
     validateForceIndex();
   }
 
