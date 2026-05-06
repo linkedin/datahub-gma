@@ -1006,7 +1006,7 @@ public class EbeanLocalAccessTest {
   @Test
   public void testListUrnsWithOffsetAndForceIndex() {
     // Filter contains (AspectFoo, "value") matching the required criteria — force index activates.
-    Map<Class<? extends RecordTemplate>, String> criteria = Collections.singletonMap(AspectFoo.class, "value");
+    Map<Class<?>, String> criteria = Collections.singletonMap(AspectFoo.class, "value");
     _ebeanLocalAccessFoo.configureOptionalForceIndex("PRIMARY", criteria);
 
     IndexFilter indexFilter = new IndexFilter();
@@ -1029,7 +1029,7 @@ public class EbeanLocalAccessTest {
   @Test
   public void testForceIndexNotAppliedWhenFilterLacksRequiredAspect() {
     // Required criteria is (AspectBar, "value") but filter only has AspectFoo — must not activate.
-    Map<Class<? extends RecordTemplate>, String> criteria = Collections.singletonMap(AspectBar.class, "value");
+    Map<Class<?>, String> criteria = Collections.singletonMap(AspectBar.class, "value");
     _ebeanLocalAccessFoo.configureOptionalForceIndex("PRIMARY", criteria);
 
     IndexFilter indexFilter = new IndexFilter();
@@ -1052,7 +1052,7 @@ public class EbeanLocalAccessTest {
   @Test
   public void testForceIndexNotAppliedWhenFilterLacksRequiredPath() {
     // Required criteria is (AspectFoo, "other") but filter has (AspectFoo, "value") — path mismatch.
-    Map<Class<? extends RecordTemplate>, String> criteria = Collections.singletonMap(AspectFoo.class, "other");
+    Map<Class<?>, String> criteria = Collections.singletonMap(AspectFoo.class, "other");
     _ebeanLocalAccessFoo.configureOptionalForceIndex("PRIMARY", criteria);
 
     IndexFilter indexFilter = new IndexFilter();
@@ -1076,7 +1076,7 @@ public class EbeanLocalAccessTest {
   public void testForceIndexPathNormalization() {
     // Config uses "/value" (with leading slash), filter criterion uses "value" (without).
     // Normalization should make them match.
-    Map<Class<? extends RecordTemplate>, String> criteria = Collections.singletonMap(AspectFoo.class, "/value");
+    Map<Class<?>, String> criteria = Collections.singletonMap(AspectFoo.class, "/value");
     _ebeanLocalAccessFoo.configureOptionalForceIndex("PRIMARY", criteria);
 
     IndexFilter indexFilter = new IndexFilter();
@@ -1100,7 +1100,7 @@ public class EbeanLocalAccessTest {
   public void testForceIndexNotAppliedWhenFilterHasExtraPathCriteria() {
     // Exact match: config requires only (AspectFoo, "value"), but filter has two path-bearing
     // criteria. The extra criterion means a different query shape — force index must not activate.
-    Map<Class<? extends RecordTemplate>, String> criteria = Collections.singletonMap(AspectFoo.class, "value");
+    Map<Class<?>, String> criteria = Collections.singletonMap(AspectFoo.class, "value");
     _ebeanLocalAccessFoo.configureOptionalForceIndex("PRIMARY", criteria);
 
     IndexFilter indexFilter = new IndexFilter();
@@ -1127,7 +1127,7 @@ public class EbeanLocalAccessTest {
     // Criteria without pathParams (aspect-existence checks) should be excluded from the
     // exact match comparison. Config requires (AspectFoo, "value"); filter has that plus
     // an aspect-only criterion for AspectBar — should still activate.
-    Map<Class<? extends RecordTemplate>, String> criteria = Collections.singletonMap(AspectFoo.class, "value");
+    Map<Class<?>, String> criteria = Collections.singletonMap(AspectFoo.class, "value");
     _ebeanLocalAccessFoo.configureOptionalForceIndex("PRIMARY", criteria);
 
     IndexFilter indexFilter = new IndexFilter();
@@ -1151,7 +1151,7 @@ public class EbeanLocalAccessTest {
   @Test
   public void testListUrnsWithLastUrnIgnoresForceIndex() throws URISyntaxException {
     // Keyset-pagination path must NOT include FORCE INDEX even when configured.
-    Map<Class<? extends RecordTemplate>, String> criteria = Collections.singletonMap(AspectFoo.class, "value");
+    Map<Class<?>, String> criteria = Collections.singletonMap(AspectFoo.class, "value");
     _ebeanLocalAccessFoo.configureOptionalForceIndex("PRIMARY", criteria);
 
     List<FooUrn> result = _ebeanLocalAccessFoo.listUrns(null, null, null, 10);
@@ -1182,7 +1182,7 @@ public class EbeanLocalAccessTest {
 
   @Test
   public void testValidateForceIndexDisablesHintWhenIndexMissing() {
-    Map<Class<? extends RecordTemplate>, String> criteria = Collections.singletonMap(AspectFoo.class, "value");
+    Map<Class<?>, String> criteria = Collections.singletonMap(AspectFoo.class, "value");
     _ebeanLocalAccessFoo.configureOptionalForceIndex("idx_does_not_exist", criteria);
     _ebeanLocalAccessFoo.validateForceIndex();
 
@@ -1202,7 +1202,7 @@ public class EbeanLocalAccessTest {
 
   @Test
   public void testValidateForceIndexKeepsHintWhenIndexExists() {
-    Map<Class<? extends RecordTemplate>, String> criteria = Collections.singletonMap(AspectFoo.class, "value");
+    Map<Class<?>, String> criteria = Collections.singletonMap(AspectFoo.class, "value");
     _ebeanLocalAccessFoo.configureOptionalForceIndex("PRIMARY", criteria);
     _ebeanLocalAccessFoo.validateForceIndex();
 
@@ -1224,7 +1224,7 @@ public class EbeanLocalAccessTest {
 
   @Test
   public void testForceIndexNotAppliedWhenFilterIsNull() {
-    Map<Class<? extends RecordTemplate>, String> criteria = Collections.singletonMap(AspectFoo.class, "value");
+    Map<Class<?>, String> criteria = Collections.singletonMap(AspectFoo.class, "value");
     _ebeanLocalAccessFoo.configureOptionalForceIndex("PRIMARY", criteria);
 
     ListResult<FooUrn> listUrns = _ebeanLocalAccessFoo.listUrns(null, null, 0, 10);

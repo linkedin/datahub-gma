@@ -126,7 +126,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    */
   @Override
   public void configureOptionalForceIndex(@Nullable String indexName,
-      @Nullable Map<Class<? extends RecordTemplate>, String> requiredCriteria) {
+      @Nullable Map<Class<?>, String> requiredCriteria) {
     _forceIndexName = indexName;
     if (requiredCriteria != null) {
       _forceIndexRequiredCriteria = requiredCriteria.entrySet().stream()
