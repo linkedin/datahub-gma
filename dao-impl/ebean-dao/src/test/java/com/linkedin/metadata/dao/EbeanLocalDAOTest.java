@@ -4133,9 +4133,11 @@ public class EbeanLocalDAOTest {
     String checkColumnExistance = String.format("SELECT * FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '%s' AND"
         + " TABLE_NAME = '%s' AND COLUMN_NAME = '%s'", getDatabaseName(), getTableName(urn), fullIndexColumnName);
 
+    boolean schemaChanged = false;
     if (_server.createSqlQuery(checkColumnExistance).findList().isEmpty()) {
       String sqlUpdate = String.format("ALTER TABLE %s ADD COLUMN %s VARCHAR(255);", getTableName(urn), fullIndexColumnName);
       _server.execute(Ebean.createSqlUpdate(sqlUpdate));
+      schemaChanged = true;
     }
 
     checkColumnExistance = String.format("SELECT * FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '%s' AND"
@@ -4144,6 +4146,15 @@ public class EbeanLocalDAOTest {
     if (aspectColumnName != null && _server.createSqlQuery(checkColumnExistance).findList().isEmpty()) {
       String sqlUpdate = String.format("ALTER TABLE %s ADD COLUMN %s VARCHAR(255);", getTableName(urn), aspectColumnName);
       _server.execute(Ebean.createSqlUpdate(sqlUpdate));
+      schemaChanged = true;
+    }
+    // EbeanLocalAccess pre-warms the SharedSchemaCache in its constructor (capturing the schema
+    // at DAO construction time). The ALTER TABLE above adds a new virtual/aspect column AFTER
+    // construction, so the held cache is now stale. Clear the registry to invalidate every
+    // held instance's caches; subsequent columnExists()/indexExists() lookups then re-query
+    // information_schema and see the new column.
+    if (schemaChanged) {
+      SharedSchemaCache.clearRegistry();
     }
 
     // finally, we need to update the newly added column with the passed-in value.
