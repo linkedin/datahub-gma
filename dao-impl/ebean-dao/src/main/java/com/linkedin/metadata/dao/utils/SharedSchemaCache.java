@@ -210,6 +210,13 @@ public class SharedSchemaCache {
 
   @VisibleForTesting
   public static void clearRegistry() {
+    // Invalidate the in-memory caches on every held instance before dropping references from
+    // the registry. Callers that already hold a reference to a SharedSchemaCache (e.g. via
+    // EbeanLocalAccess.validator) will then see the cache miss on their next read instead of
+    // a stale entry.
+    for (SharedSchemaCache cache : REGISTRY.values()) {
+      cache.clearCaches();
+    }
     REGISTRY.clear();
   }
 }

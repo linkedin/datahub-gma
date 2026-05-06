@@ -42,7 +42,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -83,9 +82,6 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   private static final String DEFAULT_ACTOR = "urn:li:principal:UNKNOWN";
   private static final String EBEAN_SERVER_CONFIG = "EbeanServerConfig";
 
-  // key: table_name,
-  // value: Set(column1, column2, column3 ...)
-  private final Map<String, Set<String>> tableColumns = new ConcurrentHashMap<>();
   private final SchemaValidatorUtil validator;
 
   public EbeanLocalAccess(EbeanServer server, ServerConfig serverConfig, @Nonnull Class<URN> urnClass,
@@ -97,6 +93,13 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     _schemaEvolutionManager = createSchemaEvolutionManager(serverConfig);
     _nonDollarVirtualColumnsEnabled = nonDollarVirtualColumnsEnabled;
     validator = buildValidator(server, serverConfig);
+    // Pre-warm the shared cache for both the prod and test tables so the first request after
+    // JVM start never pays the inline information_schema query cost. Done here rather than in
+    // ensureSchemaUpToDate() because consumers that run schema migrations as a separate job
+    // (e.g., LinkedIn's prod deploy pattern) gate ensureSchemaUpToDate() off, so a pre-warm
+    // there would never run and the cold-start cache miss would still hit the request path.
+    validator.registerAndPreWarm(getTableName(_entityType));
+    validator.registerAndPreWarm(getTestTableName(_entityType));
   }
 
   private static SchemaValidatorUtil buildValidator(EbeanServer server, ServerConfig serverConfig) {
@@ -135,9 +138,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
   public void ensureSchemaUpToDate() {
     _schemaEvolutionManager.ensureSchemaUpToDate();
-    // Pre-warm the shared cache for both the prod and test tables so the first request is never slow.
-    validator.registerAndPreWarm(getTableName(_entityType));
-    validator.registerAndPreWarm(getTestTableName(_entityType));
+    // Cache pre-warm moved to constructor — see comment there for rationale.
     validateForceIndex();
   }
 
@@ -254,7 +255,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     String onDuplicateKeyClause = buildOnDuplicateKeyForCreate(urn, aspectCreateLambdas);
 
     // Use comprehensive helper to prepare SqlUpdate with all common logic
-    SqlUpdate sqlUpdate = prepareMultiColumnInsert(urn, aspectValues, aspectCreateLambdas, 
+    SqlUpdate sqlUpdate = prepareMultiColumnInsert(urn, aspectValues, aspectCreateLambdas,
         auditStamp, ingestionTrackingContext, onDuplicateKeyClause);
 
     return sqlUpdate.execute();
@@ -282,7 +283,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     // Extract parallel lists from contexts for prepareMultiColumnInsert
     List<RecordTemplate> aspectValues = new ArrayList<>();
     List<BaseLocalDAO.AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas = new ArrayList<>();
-    
+
     for (BaseLocalDAO.AspectUpdateContext<RecordTemplate> ctx : updateContexts) {
       aspectValues.add(ctx.getNewValue());
       aspectUpdateLambdas.add(ctx.getLambda());
@@ -292,7 +293,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     String onDuplicateKeyClause = buildOnDuplicateKeyForUpsert(urn, aspectUpdateLambdas);
 
     // Use comprehensive helper to prepare SqlUpdate with all common logic
-    SqlUpdate sqlUpdate = prepareMultiColumnInsert(urn, aspectValues, aspectUpdateLambdas, 
+    SqlUpdate sqlUpdate = prepareMultiColumnInsert(urn, aspectValues, aspectUpdateLambdas,
         auditStamp, ingestionTrackingContext, onDuplicateKeyClause);
 
     return sqlUpdate.execute();
@@ -889,21 +890,21 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       @Nonnull AuditStamp auditStamp,
       @Nullable IngestionTrackingContext ingestionTrackingContext,
       @Nonnull String onDuplicateKeyClause) {
-    
+
     // Validate that aspectValues and aspectLambdas have the same size
     if (aspectValues.size() != aspectLambdas.size()) {
       throw new IllegalArgumentException(
           String.format("Aspect values size (%d) must match aspect lambdas size (%d)",
               aspectValues.size(), aspectLambdas.size()));
     }
-    
+
     // Validate that no aspect values are null
     aspectValues.forEach(aspectValue -> {
       if (aspectValue == null) {
         throw new IllegalArgumentException("Aspect value cannot be null");
       }
     });
-    
+
     // Extract audit information
     final long timestamp = auditStamp.hasTime() ? auditStamp.getTime() : System.currentTimeMillis();
     final String actor = auditStamp.hasActor() ? auditStamp.getActor().toString() : DEFAULT_ACTOR;
@@ -969,7 +970,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     if (urnExtraction) {
       sqlUpdate.setParameter("a_urn", toJsonString(urn));
     }
-    
+
     // Set common parameters
     sqlUpdate.setParameter("urn", urn.toString())
         .setParameter("lastmodifiedon", utcTimestamp)
@@ -987,13 +988,13 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    * @return the ON DUPLICATE KEY UPDATE clause string
    */
   private String buildOnDuplicateKeyForCreate(
-      @Nonnull URN urn, 
+      @Nonnull URN urn,
       @Nonnull List<? extends BaseLocalDAO.AspectUpdateLambda<? extends RecordTemplate>> aspectLambdas) {
-    
+
     List<String> classNames = aspectLambdas.stream()
         .map(lambda -> lambda.getAspectClass().getCanonicalName())
         .collect(Collectors.toList());
-    
+
     StringBuilder onDuplicateKey = new StringBuilder();
     onDuplicateKey.append(ON_DUPLICATE_KEY_UPDATE);
     for (int i = 0; i < classNames.size(); i++) {
@@ -1016,13 +1017,13 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    * @return the ON DUPLICATE KEY UPDATE clause string
    */
   private String buildOnDuplicateKeyForUpsert(
-      @Nonnull URN urn, 
+      @Nonnull URN urn,
       @Nonnull List<? extends BaseLocalDAO.AspectUpdateLambda<? extends RecordTemplate>> aspectLambdas) {
-    
+
     List<String> classNames = aspectLambdas.stream()
         .map(lambda -> lambda.getAspectClass().getCanonicalName())
         .collect(Collectors.toList());
-    
+
     StringBuilder onDuplicateKey = new StringBuilder();
     onDuplicateKey.append(ON_DUPLICATE_KEY_UPDATE);
     for (int i = 0; i < classNames.size(); i++) {
