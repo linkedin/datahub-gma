@@ -218,7 +218,7 @@ public class InstrumentedEbeanLocalAccessTest {
 
   @Test
   public void testConfigureOptionalForceIndexDelegates() {
-    Map<Class<? extends RecordTemplate>, String> criteria =
+    Map<Class<?>, String> criteria =
         Collections.singletonMap(AspectFoo.class, "/value");
     _instrumented.configureOptionalForceIndex("PRIMARY", criteria);
     verify(_mockDelegate).configureOptionalForceIndex("PRIMARY", criteria);
