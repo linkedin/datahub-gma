@@ -39,6 +39,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
@@ -455,9 +456,14 @@ public class EbeanLocalAccessTest {
     FooUrn fooUrn = makeFooUrn(0);
     _ebeanLocalAccessFoo.add(fooUrn, null, AspectFoo.class, makeAuditStamp("foo", System.currentTimeMillis()), null, false);
     AspectKey<FooUrn, AspectFoo> aspectKey = new AspectKey(AspectFoo.class, fooUrn, 0L);
+
+    // With includeSoftDeleted=false: the row is still returned (gma_deleted check moved to Java),
+    // but the aspect is marked as soft-deleted. The upstream EbeanLocalDAO.toRecordTemplate() filters it
+    // to Optional.empty(). At batchGetUnion level, we get 1 result with soft-delete metadata.
     List<EbeanMetadataAspect> ebeanMetadataAspectList =
         _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0, false, false);
-    assertEquals(0, ebeanMetadataAspectList.size());
+    assertEquals(1, ebeanMetadataAspectList.size());
+    assertTrue(EBeanDAOUtils.isSoftDeletedMetadata(ebeanMetadataAspectList.get(0).getMetadata()));
 
     ebeanMetadataAspectList =
         _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0, true, false);
@@ -615,6 +621,84 @@ public class EbeanLocalAccessTest {
     assertEquals("{\"value\":\"single\"}", results.get(0).getMetadata());
     assertEquals(fooUrn.toString(), results.get(0).getKey().getUrn());
     assertEquals(AspectFoo.class.getCanonicalName(), results.get(0).getKey().getAspect());
+  }
+
+  @Test
+  public void testBatchGetUnionMultiAspectSingleQuery() {
+    // Write two different aspects for the same URN
+    FooUrn fooUrn = makeFooUrn(400);
+    AspectFoo foo = new AspectFoo().setValue("multi_foo");
+    AspectBar bar = new AspectBar().setValue("multi_bar");
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+    _ebeanLocalAccessFoo.add(fooUrn, foo, AspectFoo.class, auditStamp, null, false);
+    _ebeanLocalAccessFoo.add(fooUrn, bar, AspectBar.class, auditStamp, null, false);
+
+    // Fetch both aspects in a single batchGetUnion call — should use 1 SQL query
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys = Arrays.asList(
+        new AspectKey<>(AspectFoo.class, fooUrn, 0L),
+        new AspectKey<>(AspectBar.class, fooUrn, 0L)
+    );
+    List<EbeanMetadataAspect> results = _ebeanLocalAccessFoo.batchGetUnion(keys, 1000, 0, false, false);
+
+    assertEquals(2, results.size());
+    // Verify both aspects are returned with correct metadata
+    Map<String, String> aspectToValue = results.stream()
+        .collect(Collectors.toMap(r -> r.getKey().getAspect(), EbeanMetadataAspect::getMetadata));
+    assertEquals("{\"value\":\"multi_foo\"}", aspectToValue.get(AspectFoo.class.getCanonicalName()));
+    assertEquals("{\"value\":\"multi_bar\"}", aspectToValue.get(AspectBar.class.getCanonicalName()));
+  }
+
+  @Test
+  public void testBatchGetUnionMultiAspectWithNullAspect() {
+    // Write only one aspect, request two — one should be null
+    FooUrn fooUrn = makeFooUrn(401);
+    AspectFoo foo = new AspectFoo().setValue("only_foo");
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+    _ebeanLocalAccessFoo.add(fooUrn, foo, AspectFoo.class, auditStamp, null, false);
+
+    // Request both AspectFoo (present) and AspectBar (never written, null column)
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys = Arrays.asList(
+        new AspectKey<>(AspectFoo.class, fooUrn, 0L),
+        new AspectKey<>(AspectBar.class, fooUrn, 0L)
+    );
+    List<EbeanMetadataAspect> results = _ebeanLocalAccessFoo.batchGetUnion(keys, 1000, 0, false, false);
+
+    // Only AspectFoo should be returned — AspectBar is null
+    assertEquals(1, results.size());
+    assertEquals(AspectFoo.class.getCanonicalName(), results.get(0).getKey().getAspect());
+    assertEquals("{\"value\":\"only_foo\"}", results.get(0).getMetadata());
+  }
+
+  @Test
+  public void testBatchGetUnionMultiAspectWithSoftDeletedAspect() {
+    // Write two aspects, then soft-delete one
+    FooUrn fooUrn = makeFooUrn(402);
+    AspectFoo foo = new AspectFoo().setValue("present_foo");
+    AspectBar bar = new AspectBar().setValue("will_delete_bar");
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+    _ebeanLocalAccessFoo.add(fooUrn, foo, AspectFoo.class, auditStamp, null, false);
+    _ebeanLocalAccessFoo.add(fooUrn, bar, AspectBar.class, auditStamp, null, false);
+
+    // Soft-delete AspectBar
+    _ebeanLocalAccessFoo.add(fooUrn, null, AspectBar.class, auditStamp, null, false);
+
+    // Request both — AspectFoo should be present, AspectBar should be soft-deleted marker
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys = Arrays.asList(
+        new AspectKey<>(AspectFoo.class, fooUrn, 0L),
+        new AspectKey<>(AspectBar.class, fooUrn, 0L)
+    );
+    List<EbeanMetadataAspect> results = _ebeanLocalAccessFoo.batchGetUnion(keys, 1000, 0, false, false);
+
+    assertEquals(2, results.size());
+    Map<String, EbeanMetadataAspect> aspectMap = results.stream()
+        .collect(Collectors.toMap(r -> r.getKey().getAspect(), r -> r));
+
+    // AspectFoo: present with correct value
+    assertFalse(EBeanDAOUtils.isSoftDeletedMetadata(aspectMap.get(AspectFoo.class.getCanonicalName()).getMetadata()));
+    assertEquals("{\"value\":\"present_foo\"}", aspectMap.get(AspectFoo.class.getCanonicalName()).getMetadata());
+
+    // AspectBar: soft-deleted
+    assertTrue(EBeanDAOUtils.isSoftDeletedMetadata(aspectMap.get(AspectBar.class.getCanonicalName()).getMetadata()));
   }
 
   @Test(expectedExceptions = NullPointerException.class)

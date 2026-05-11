@@ -315,31 +315,32 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       boolean includeSoftDeleted, boolean isTestMode) {
 
     final int end = Math.min(aspectKeys.size(), position + keysCount);
-    final Map<Class<ASPECT>, Set<Urn>> keysToQueryMap = new HashMap<>();
+
+    // Collect all valid aspect columns and all URNs, validating column existence per aspect class.
+    final Set<Urn> allUrns = new HashSet<>();
+    final Map<String, Class<ASPECT>> columnToAspectClassMap = new LinkedHashMap<>();
     for (int index = position; index < end; index++) {
       final Urn entityUrn = aspectKeys.get(index).getUrn();
       final Class<ASPECT> aspectClass = (Class<ASPECT>) aspectKeys.get(index).getAspectClass();
-      if (validator.columnExists(isTestMode ? getTestTableName(entityUrn) : getTableName(entityUrn),
-          getAspectColumnName(entityUrn.getEntityType(), aspectClass))) {
-        keysToQueryMap.computeIfAbsent(aspectClass, unused -> new HashSet<>()).add(entityUrn);
+      final String tableName = isTestMode ? getTestTableName(entityUrn) : getTableName(entityUrn);
+      final String columnName = getAspectColumnName(entityUrn.getEntityType(), aspectClass);
+      if (validator.columnExists(tableName, columnName)) {
+        columnToAspectClassMap.putIfAbsent(columnName, aspectClass);
+        allUrns.add(entityUrn);
       }
     }
 
-    // each statement is for a single aspect class
-    Map<String, Class<ASPECT>> selectStatements = keysToQueryMap.entrySet()
-        .stream()
-        .collect(Collectors.toMap(
-            entry -> SQLStatementUtils.createAspectReadSql(entry.getKey(), entry.getValue(), includeSoftDeleted,
-                isTestMode), entry -> entry.getKey()));
-
-    // consolidate/join the results
-    final Map<SqlRow, Class<ASPECT>> sqlRows = new LinkedHashMap<>();
-    for (Map.Entry<String, Class<ASPECT>> entry : selectStatements.entrySet()) {
-      for (SqlRow sqlRow : _server.createSqlQuery(entry.getKey()).findList()) {
-        sqlRows.put(sqlRow, entry.getValue());
-      }
+    if (columnToAspectClassMap.isEmpty() || allUrns.isEmpty()) {
+      return Collections.emptyList();
     }
-    return EBeanDAOUtils.readSqlRows(sqlRows);
+
+    // Single SQL query selecting all aspect columns at once.
+    // gma_deleted is NOT filtered in SQL — handled per-column in Java by readMultiAspectSqlRows.
+    final String sql = SQLStatementUtils.createMultiAspectReadSql(
+        columnToAspectClassMap.keySet(), allUrns, includeSoftDeleted, isTestMode);
+    final List<SqlRow> sqlRows = _server.createSqlQuery(sql).findList();
+
+    return EBeanDAOUtils.readMultiAspectSqlRows(sqlRows, columnToAspectClassMap);
   }
 
   /**

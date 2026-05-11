@@ -297,6 +297,27 @@ public class EBeanDAOUtils {
   }
 
   /**
+   * Read {@link SqlRow} list from a multi-aspect query into a {@link EbeanMetadataAspect} list.
+   * Unlike {@link #readSqlRows(Map)}, this handles rows that contain MULTIPLE aspect columns.
+   * Each non-null aspect column in a row produces a separate EbeanMetadataAspect in the result.
+   * The gma_deleted check is done per-column in Java (not in SQL).
+   *
+   * @param sqlRows list of {@link SqlRow} from the multi-aspect query
+   * @param columnToAspectClassMap mapping of column name to aspect class for each requested aspect
+   * @param <ASPECT> aspect class type
+   * @return list of {@link EbeanMetadataAspect}
+   */
+  public static <ASPECT extends RecordTemplate> List<EbeanMetadataAspect> readMultiAspectSqlRows(
+      @Nonnull List<SqlRow> sqlRows,
+      @Nonnull Map<String, Class<ASPECT>> columnToAspectClassMap) {
+    return sqlRows.stream().flatMap(sqlRow ->
+        columnToAspectClassMap.entrySet().stream()
+            .filter(entry -> sqlRow.get(entry.getKey()) != null)
+            .map(entry -> readSqlRow(sqlRow, entry.getValue()))
+    ).collect(Collectors.toList());
+  }
+
+  /**
    * Parse a list of {@link SqlRow} results from an entity table into a map of
    * URN to {@link EntityDeletionInfo}. Each row must contain urn, deleted_ts, and the Status aspect column.
    * Rows that cannot be parsed as a valid URN are skipped with a warning.
