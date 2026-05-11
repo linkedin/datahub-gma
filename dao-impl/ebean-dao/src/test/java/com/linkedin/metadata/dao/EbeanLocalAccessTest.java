@@ -624,8 +624,8 @@ public class EbeanLocalAccessTest {
   }
 
   @Test
-  public void testBatchGetUnionMultiAspectSingleQuery() {
-    // Write two different aspects for the same URN
+  public void testBatchGetUnionMultiAspectReturnsCorrectResults() {
+    // Write two different aspects for the same URN, verify both returned correctly
     FooUrn fooUrn = makeFooUrn(400);
     AspectFoo foo = new AspectFoo().setValue("multi_foo");
     AspectBar bar = new AspectBar().setValue("multi_bar");
@@ -633,7 +633,7 @@ public class EbeanLocalAccessTest {
     _ebeanLocalAccessFoo.add(fooUrn, foo, AspectFoo.class, auditStamp, null, false);
     _ebeanLocalAccessFoo.add(fooUrn, bar, AspectBar.class, auditStamp, null, false);
 
-    // Fetch both aspects in a single batchGetUnion call — should use 1 SQL query
+    // Fetch both aspects in a single batchGetUnion call
     List<AspectKey<FooUrn, ? extends RecordTemplate>> keys = Arrays.asList(
         new AspectKey<>(AspectFoo.class, fooUrn, 0L),
         new AspectKey<>(AspectBar.class, fooUrn, 0L)
