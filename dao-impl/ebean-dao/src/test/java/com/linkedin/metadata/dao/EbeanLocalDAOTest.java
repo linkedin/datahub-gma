@@ -1393,7 +1393,7 @@ public class EbeanLocalDAOTest {
     ListResult<Long> results = dao.listVersions(AspectFoo.class, urn, 0, 5);
     if (!dao.isChangeLogEnabled()) {
       // when: change log is disabled,
-      // expect: listVersion should only return 1 result which is the LATEST_VERSION
+      // expect: listVersion should only return 1 result which is the 0L
       assertFalse(results.isHavingMore());
       assertEquals(results.getTotalCount(), 1);
       assertEquals(results.getValues(), versions.subList(0, 1));
@@ -3346,6 +3346,50 @@ public class EbeanLocalDAOTest {
   @Test
   public void testPageSizeGreaterThanResultsSize() {
     testGetWithQuerySize(1000);
+  }
+
+  @Test
+  public void testGetWithSmallPageSizeNoDuplicatesNewSchema() {
+    // Tests the position>0 short-circuit: with queryKeysCount=2 and 5 keys at 0L,
+    // the outer loop runs 3 times. For NEW_SCHEMA_ONLY, only the first call returns results;
+    // subsequent calls return empty to avoid duplicates.
+    if (_schemaConfig == SchemaConfig.OLD_SCHEMA_ONLY) {
+      return; // This test is specifically for NEW_SCHEMA_ONLY / DUAL_SCHEMA
+    }
+
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn urn1 = makeFooUrn(901);
+    FooUrn urn2 = makeFooUrn(902);
+    AuditStamp auditStamp = makeAuditStamp("tester", System.currentTimeMillis());
+
+    // Write 3 aspects across 2 URNs = 5 keys at 0L
+    dao.add(urn1, new AspectFoo().setValue("foo1"), auditStamp);
+    dao.add(urn1, new AspectBar().setValue("bar1"), auditStamp);
+    dao.add(urn2, new AspectFoo().setValue("foo2"), auditStamp);
+
+    Set<AspectKey<FooUrn, ? extends RecordTemplate>> keys = new HashSet<>(Arrays.asList(
+        new AspectKey<>(AspectFoo.class, urn1, 0L),
+        new AspectKey<>(AspectBar.class, urn1, 0L),
+        new AspectKey<>(AspectFoo.class, urn2, 0L),
+        new AspectKey<>(AspectBar.class, urn2, 0L),  // not present — should be Optional.empty()
+        new AspectKey<>(AspectBaz.class, urn1, 0L)   // not present — should be Optional.empty()
+    ));
+
+    dao.setQueryKeysCount(2);  // Force multiple pages: 5 keys / 2 per page = 3 iterations
+
+    Map<AspectKey<FooUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> results = dao.get(keys);
+
+    // Exactly 1 entry per key — no duplicates
+    assertEquals(5, results.size());
+
+    // Verify present aspects have correct values
+    assertTrue(results.get(new AspectKey<>(AspectFoo.class, urn1, 0L)).isPresent());
+    assertTrue(results.get(new AspectKey<>(AspectBar.class, urn1, 0L)).isPresent());
+    assertTrue(results.get(new AspectKey<>(AspectFoo.class, urn2, 0L)).isPresent());
+
+    // Verify absent aspects return Optional.empty()
+    assertFalse(results.get(new AspectKey<>(AspectBar.class, urn2, 0L)).isPresent());
+    assertFalse(results.get(new AspectKey<>(AspectBaz.class, urn1, 0L)).isPresent());
   }
 
   @Test

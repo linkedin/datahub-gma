@@ -921,6 +921,40 @@ public class EbeanLocalAccessTest {
     assertEquals(urnCount * 2, results.size());
   }
 
+  @Test
+  public void testBatchGetUnionUrnChunkingBoundary() {
+    // Test boundary at MAX_URNS_PER_QUERY (100): 99 (single query), 100 (single query), 101 (2 queries)
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+
+    // Write AspectFoo for 101 URNs (covers all boundary cases)
+    int urnStart = 1000;
+    for (int i = 0; i < 101; i++) {
+      _ebeanLocalAccessFoo.add(makeFooUrn(urnStart + i),
+          new AspectFoo().setValue("b_" + i), AspectFoo.class, auditStamp, null, false);
+    }
+
+    // 99 URNs — should use single query path (<=100)
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys99 = new ArrayList<>();
+    for (int i = 0; i < 99; i++) {
+      keys99.add(new AspectKey<>(AspectFoo.class, makeFooUrn(urnStart + i), 0L));
+    }
+    assertEquals(99, _ebeanLocalAccessFoo.batchGetUnion(keys99, keys99.size(), 0, false, false).size());
+
+    // 100 URNs — should use single query path (<=100)
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys100 = new ArrayList<>();
+    for (int i = 0; i < 100; i++) {
+      keys100.add(new AspectKey<>(AspectFoo.class, makeFooUrn(urnStart + i), 0L));
+    }
+    assertEquals(100, _ebeanLocalAccessFoo.batchGetUnion(keys100, keys100.size(), 0, false, false).size());
+
+    // 101 URNs — should use chunked path (>100): 100 + 1
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys101 = new ArrayList<>();
+    for (int i = 0; i < 101; i++) {
+      keys101.add(new AspectKey<>(AspectFoo.class, makeFooUrn(urnStart + i), 0L));
+    }
+    assertEquals(101, _ebeanLocalAccessFoo.batchGetUnion(keys101, keys101.size(), 0, false, false).size());
+  }
+
   @Test(expectedExceptions = NullPointerException.class)
   public void testBatchUpsertWithNullAspect() {
     // Arrange

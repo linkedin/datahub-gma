@@ -413,9 +413,11 @@ public class EbeanLocalAccessTestWithoutServiceIdentifier {
     assertEquals(1, ebeanMetadataAspectList.size());
     assertTrue(EBeanDAOUtils.isSoftDeletedMetadata(ebeanMetadataAspectList.get(0).getMetadata()));
 
+    // With includeSoftDeleted=true: same result — soft-deleted marker is returned
     ebeanMetadataAspectList =
         _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0, true, false);
-    assertFalse(ebeanMetadataAspectList.isEmpty());
+    assertEquals(1, ebeanMetadataAspectList.size());
     assertEquals(fooUrn.toString(), ebeanMetadataAspectList.get(0).getKey().getUrn());
+    assertTrue(EBeanDAOUtils.isSoftDeletedMetadata(ebeanMetadataAspectList.get(0).getMetadata()));
   }
 }

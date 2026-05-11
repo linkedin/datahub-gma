@@ -65,6 +65,11 @@ import static com.linkedin.metadata.dao.utils.SQLStatementUtils.*;
 @Slf4j
 public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN> {
   public static final String DATE_TIME_FORMAT = "yyyy-MM-dd HH:mm:ss.SSS";
+
+  // Maximum number of URNs per SQL IN clause. Keeps queries safe for MySQL query planner and packet limits.
+  // Aspect columns are always all selected in each chunk — only URN count is chunked.
+  static final int MAX_URNS_PER_QUERY = 100;
+
   private final EbeanServer _server;
   private final Class<URN> _urnClass;
   private final String _entityType;
@@ -314,10 +319,6 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    * @param includeSoftDeleted whether to include asset-level soft deleted entities (deleted_ts)
    * @param isTestMode whether the operation is in test mode or not
    */
-  // Maximum number of URNs per SQL IN clause. Keeps queries safe for MySQL query planner and packet limits.
-  // Aspect columns are always all selected in each chunk — only URN count is chunked.
-  static final int MAX_URNS_PER_QUERY = 100;
-
   @Override
   public <ASPECT extends RecordTemplate> List<EbeanMetadataAspect> batchGetUnion(
       @Nonnull List<AspectKey<URN, ? extends RecordTemplate>> aspectKeys, int keysCount, int position,
@@ -340,25 +341,44 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
     }
 
     if (columnToAspectClassMap.isEmpty()) {
+      log.info("[batchGetUnion] No valid aspect columns found for {} keys, returning empty", end - position);
       return Collections.emptyList();
     }
+
+    log.info("[batchGetUnion] keys={} uniqueUrns={} aspectColumns={} columns={} includeSoftDeleted={} isTestMode={}",
+        end - position, allUrns.size(), columnToAspectClassMap.size(),
+        columnToAspectClassMap.keySet(), includeSoftDeleted, isTestMode);
 
     // gma_deleted is NOT filtered in SQL — handled per-column in Java by readMultiAspectSqlRows.
     // Chunk by URN count to keep IN clause size safe for MySQL.
     if (allUrns.size() <= MAX_URNS_PER_QUERY) {
       final String sql = SQLStatementUtils.createMultiAspectReadSql(
           columnToAspectClassMap.keySet(), allUrns, includeSoftDeleted, isTestMode);
-      return EBeanDAOUtils.readMultiAspectSqlRows(_server.createSqlQuery(sql).findList(), columnToAspectClassMap);
+      log.info("[batchGetUnion] Executing single query: urns={} sql={}", allUrns.size(), sql);
+      final List<SqlRow> sqlRows = _server.createSqlQuery(sql).findList();
+      final List<EbeanMetadataAspect> results = EBeanDAOUtils.readMultiAspectSqlRows(sqlRows, columnToAspectClassMap);
+      log.info("[batchGetUnion] Single query returned {} DB rows, parsed into {} aspects", sqlRows.size(), results.size());
+      return results;
     }
 
     final List<EbeanMetadataAspect> results = new ArrayList<>();
     final List<Urn> urnList = new ArrayList<>(allUrns);
+    int chunkNum = 0;
+    final int totalChunks = (int) Math.ceil((double) urnList.size() / MAX_URNS_PER_QUERY);
+    log.info("[batchGetUnion] URN count {} exceeds MAX_URNS_PER_QUERY={}, splitting into {} chunks",
+        allUrns.size(), MAX_URNS_PER_QUERY, totalChunks);
     for (int i = 0; i < urnList.size(); i += MAX_URNS_PER_QUERY) {
+      chunkNum++;
       final Set<Urn> chunk = new HashSet<>(urnList.subList(i, Math.min(i + MAX_URNS_PER_QUERY, urnList.size())));
       final String sql = SQLStatementUtils.createMultiAspectReadSql(
           columnToAspectClassMap.keySet(), chunk, includeSoftDeleted, isTestMode);
-      results.addAll(EBeanDAOUtils.readMultiAspectSqlRows(_server.createSqlQuery(sql).findList(), columnToAspectClassMap));
+      log.info("[batchGetUnion] Chunk {}/{}: urns={} sql={}", chunkNum, totalChunks, chunk.size(), sql);
+      final List<SqlRow> sqlRows = _server.createSqlQuery(sql).findList();
+      final List<EbeanMetadataAspect> chunkResults = EBeanDAOUtils.readMultiAspectSqlRows(sqlRows, columnToAspectClassMap);
+      log.info("[batchGetUnion] Chunk {}/{}: {} DB rows, {} aspects parsed", chunkNum, totalChunks, sqlRows.size(), chunkResults.size());
+      results.addAll(chunkResults);
     }
+    log.info("[batchGetUnion] Total: {} aspects across {} chunks", results.size(), totalChunks);
     return results;
   }
 

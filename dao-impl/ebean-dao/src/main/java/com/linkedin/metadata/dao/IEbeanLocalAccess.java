@@ -120,8 +120,8 @@ public interface IEbeanLocalAccess<URN extends Urn> {
    * <p>URNs are chunked internally (max {@link EbeanLocalAccess#MAX_URNS_PER_QUERY} per SQL IN clause).
    *
    * @param keys {@link AspectKey} to retrieve aspect metadata
-   * @param keysCount pagination key count limit (ignored for new-schema; chunking is by URN count)
-   * @param position starting position of pagination (ignored for new-schema)
+   * @param keysCount controls how many keys from the list are processed (caller passes keys.size() to process all)
+   * @param position starting index into the keys list (caller passes 0 to start from the beginning)
    * @param includeSoftDeleted whether to include asset-level soft deleted entities (deleted_ts)
    * @param isTestMode whether the operation is in test mode or not
    * @param <ASPECT> metadata aspect value
