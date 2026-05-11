@@ -314,6 +314,10 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
    * @param includeSoftDeleted whether to include asset-level soft deleted entities (deleted_ts)
    * @param isTestMode whether the operation is in test mode or not
    */
+  // Maximum number of URNs per SQL IN clause. Keeps queries safe for MySQL query planner and packet limits.
+  // Aspect columns are always all selected in each chunk — only URN count is chunked.
+  static final int MAX_URNS_PER_QUERY = 100;
+
   @Override
   public <ASPECT extends RecordTemplate> List<EbeanMetadataAspect> batchGetUnion(
       @Nonnull List<AspectKey<URN, ? extends RecordTemplate>> aspectKeys, int keysCount, int position,
@@ -339,13 +343,23 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       return Collections.emptyList();
     }
 
-    // Single SQL query selecting all aspect columns at once.
     // gma_deleted is NOT filtered in SQL — handled per-column in Java by readMultiAspectSqlRows.
-    final String sql = SQLStatementUtils.createMultiAspectReadSql(
-        columnToAspectClassMap.keySet(), allUrns, includeSoftDeleted, isTestMode);
-    final List<SqlRow> sqlRows = _server.createSqlQuery(sql).findList();
+    // Chunk by URN count to keep IN clause size safe for MySQL.
+    if (allUrns.size() <= MAX_URNS_PER_QUERY) {
+      final String sql = SQLStatementUtils.createMultiAspectReadSql(
+          columnToAspectClassMap.keySet(), allUrns, includeSoftDeleted, isTestMode);
+      return EBeanDAOUtils.readMultiAspectSqlRows(_server.createSqlQuery(sql).findList(), columnToAspectClassMap);
+    }
 
-    return EBeanDAOUtils.readMultiAspectSqlRows(sqlRows, columnToAspectClassMap);
+    final List<EbeanMetadataAspect> results = new ArrayList<>();
+    final List<Urn> urnList = new ArrayList<>(allUrns);
+    for (int i = 0; i < urnList.size(); i += MAX_URNS_PER_QUERY) {
+      final Set<Urn> chunk = new HashSet<>(urnList.subList(i, Math.min(i + MAX_URNS_PER_QUERY, urnList.size())));
+      final String sql = SQLStatementUtils.createMultiAspectReadSql(
+          columnToAspectClassMap.keySet(), chunk, includeSoftDeleted, isTestMode);
+      results.addAll(EBeanDAOUtils.readMultiAspectSqlRows(_server.createSqlQuery(sql).findList(), columnToAspectClassMap));
+    }
+    return results;
   }
 
   /**
