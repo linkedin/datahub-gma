@@ -862,6 +862,65 @@ public class EbeanLocalAccessTest {
     assertEquals("{\"value\":\"exists\"}", results.get(0).getMetadata());
   }
 
+  @Test
+  public void testBatchGetUnionUrnChunkingOver100Urns() {
+    // Write AspectFoo for 120 URNs — exceeds MAX_URNS_PER_QUERY (100).
+    // batchGetUnion should internally chunk into 2 queries (100 + 20) and combine results.
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+    int urnStart = 600;
+    int urnCount = 120;
+    for (int i = 0; i < urnCount; i++) {
+      FooUrn urn = makeFooUrn(urnStart + i);
+      _ebeanLocalAccessFoo.add(urn, new AspectFoo().setValue("val_" + i), AspectFoo.class, auditStamp, null, false);
+    }
+
+    // Build keys for all 120 URNs × 1 aspect
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys = new ArrayList<>();
+    for (int i = 0; i < urnCount; i++) {
+      keys.add(new AspectKey<>(AspectFoo.class, makeFooUrn(urnStart + i), 0L));
+    }
+
+    List<EbeanMetadataAspect> results = _ebeanLocalAccessFoo.batchGetUnion(keys, keys.size(), 0, false, false);
+
+    // All 120 URNs should return results
+    assertEquals(urnCount, results.size());
+
+    // Verify each URN has correct data
+    Map<String, String> urnToMetadata = results.stream()
+        .collect(Collectors.toMap(r -> r.getKey().getUrn(), EbeanMetadataAspect::getMetadata));
+    for (int i = 0; i < urnCount; i++) {
+      String urn = makeFooUrn(urnStart + i).toString();
+      assertEquals("{\"value\":\"val_" + i + "\"}", urnToMetadata.get(urn),
+          "Mismatch for URN " + urn);
+    }
+  }
+
+  @Test
+  public void testBatchGetUnionUrnChunkingMultipleAspects() {
+    // 120 URNs × 2 aspects — verifies chunking works with multiple aspect columns
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+    int urnStart = 800;
+    int urnCount = 120;
+    for (int i = 0; i < urnCount; i++) {
+      FooUrn urn = makeFooUrn(urnStart + i);
+      _ebeanLocalAccessFoo.add(urn, new AspectFoo().setValue("foo_" + i), AspectFoo.class, auditStamp, null, false);
+      _ebeanLocalAccessFoo.add(urn, new AspectBar().setValue("bar_" + i), AspectBar.class, auditStamp, null, false);
+    }
+
+    // Build keys for all 120 URNs × 2 aspects = 240 keys
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys = new ArrayList<>();
+    for (int i = 0; i < urnCount; i++) {
+      FooUrn urn = makeFooUrn(urnStart + i);
+      keys.add(new AspectKey<>(AspectFoo.class, urn, 0L));
+      keys.add(new AspectKey<>(AspectBar.class, urn, 0L));
+    }
+
+    List<EbeanMetadataAspect> results = _ebeanLocalAccessFoo.batchGetUnion(keys, keys.size(), 0, false, false);
+
+    // 120 URNs × 2 aspects = 240 results
+    assertEquals(urnCount * 2, results.size());
+  }
+
   @Test(expectedExceptions = NullPointerException.class)
   public void testBatchUpsertWithNullAspect() {
     // Arrange
