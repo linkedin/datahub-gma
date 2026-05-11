@@ -1383,14 +1383,16 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
 
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
-      return _localAccess.batchGetUnion(keys, keysCount, position, false, false);
+      // For new schema, all aspects are columns in a single SELECT — no need for keysCount pagination.
+      // Pass all keys at once to produce 1 SQL query instead of ceil(keys/keysCount) queries.
+      return _localAccess.batchGetUnion(keys, keys.size(), 0, false, false);
     }
 
     if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
       // Compare results from both new and old schemas
       final List<EbeanMetadataAspect> resultsOldSchema = batchGetUnion(keys, keysCount, position);
       final List<EbeanMetadataAspect> resultsNewSchema =
-          _localAccess.batchGetUnion(keys, keysCount, position, false, false);
+          _localAccess.batchGetUnion(keys, keys.size(), 0, false, false);
       EBeanDAOUtils.compareResults(resultsOldSchema, resultsNewSchema, "batchGet");
       return resultsOldSchema;
     }
