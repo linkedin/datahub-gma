@@ -23,6 +23,7 @@ import com.linkedin.testing.AnnotatedRelationshipBar;
 import com.linkedin.testing.AnnotatedRelationshipBarArray;
 import com.linkedin.testing.AnnotatedRelationshipFoo;
 import com.linkedin.testing.AnnotatedRelationshipFooArray;
+import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.AspectWithDefaultValue;
 import com.linkedin.testing.CommonAspect;
@@ -42,6 +43,8 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -721,5 +724,111 @@ public class EBeanDAOUtilsTest {
     assertTrue(results.get(AnnotatedRelationshipFoo.class).contains(test2));
     assertTrue(results.get(AnnotatedRelationshipFoo.class).contains(test3));
     assertTrue(results.get(AnnotatedRelationshipBar.class).contains(new AnnotatedRelationshipBar()));
+  }
+
+  private SqlRow mockSqlRowForMultiAspect(String urn, Map<String, String> aspectValues) {
+    SqlRow sqlRow = mock(SqlRow.class);
+    when(sqlRow.getString("urn")).thenReturn(urn);
+    when(sqlRow.getString("lastmodifiedon")).thenReturn("2026-01-01 00:00:00");
+    when(sqlRow.getString("lastmodifiedby")).thenReturn("urn:li:corpuser:testuser");
+    when(sqlRow.getString("createdfor")).thenReturn(null);
+    when(sqlRow.keySet()).thenReturn(new LinkedHashSet<>(aspectValues.keySet()));
+    for (Map.Entry<String, String> entry : aspectValues.entrySet()) {
+      when(sqlRow.get(entry.getKey())).thenReturn(entry.getValue());
+      when(sqlRow.getString(entry.getKey())).thenReturn(entry.getValue());
+    }
+    return sqlRow;
+  }
+
+  private String buildAuditedAspectJson(String canonicalName, String aspectJson) {
+    return "{\"canonicalName\":\"" + canonicalName + "\",\"aspect\":" + aspectJson
+        + ",\"lastmodifiedby\":\"urn:li:corpuser:testuser\",\"lastmodifiedon\":\"2026-01-01 00:00:00\"}";
+  }
+
+  @Test
+  public void testReadMultiAspectSqlRowsMultipleColumns() {
+    String urn = "urn:li:foo:1";
+    String fooJson = buildAuditedAspectJson(AspectFoo.class.getCanonicalName(), "{\"value\":\"foo_val\"}");
+    String barJson = buildAuditedAspectJson(AspectBar.class.getCanonicalName(), "{\"value\":\"bar_val\"}");
+    Map<String, String> values = new LinkedHashMap<>();
+    values.put("a_aspectfoo", fooJson);
+    values.put("a_aspectbar", barJson);
+    SqlRow row = mockSqlRowForMultiAspect(urn, values);
+
+    Map<String, Class<RecordTemplate>> columnMap = new LinkedHashMap<>();
+    columnMap.put("a_aspectfoo", (Class) AspectFoo.class);
+    columnMap.put("a_aspectbar", (Class) AspectBar.class);
+
+    List<EbeanMetadataAspect> results = EBeanDAOUtils.readMultiAspectSqlRows(
+        Collections.singletonList(row), columnMap);
+
+    assertEquals(2, results.size());
+    assertEquals(urn, results.get(0).getKey().getUrn());
+    assertEquals(AspectFoo.class.getCanonicalName(), results.get(0).getKey().getAspect());
+    assertEquals(AspectBar.class.getCanonicalName(), results.get(1).getKey().getAspect());
+  }
+
+  @Test
+  public void testReadMultiAspectSqlRowsSkipsNullColumn() {
+    String urn = "urn:li:foo:2";
+    String fooJson = buildAuditedAspectJson(AspectFoo.class.getCanonicalName(), "{\"value\":\"present\"}");
+    Map<String, String> values = new LinkedHashMap<>();
+    values.put("a_aspectfoo", fooJson);
+    SqlRow row = mockSqlRowForMultiAspect(urn, values);
+    // a_aspectbar is not in the map → sqlRow.get("a_aspectbar") returns null (default mock behavior)
+
+    Map<String, Class<RecordTemplate>> columnMap = new LinkedHashMap<>();
+    columnMap.put("a_aspectfoo", (Class) AspectFoo.class);
+    columnMap.put("a_aspectbar", (Class) AspectBar.class);
+
+    List<EbeanMetadataAspect> results = EBeanDAOUtils.readMultiAspectSqlRows(
+        Collections.singletonList(row), columnMap);
+
+    assertEquals(1, results.size());
+    assertEquals(AspectFoo.class.getCanonicalName(), results.get(0).getKey().getAspect());
+  }
+
+  @Test
+  public void testReadMultiAspectSqlRowsEmptyInput() {
+    Map<String, Class<RecordTemplate>> columnMap = new LinkedHashMap<>();
+    columnMap.put("a_aspectfoo", (Class) AspectFoo.class);
+
+    List<EbeanMetadataAspect> results = EBeanDAOUtils.readMultiAspectSqlRows(
+        Collections.emptyList(), columnMap);
+
+    assertEquals(0, results.size());
+  }
+
+  @Test
+  public void testReadMultiAspectSqlRowsEmptyColumnMap() {
+    String urn = "urn:li:foo:3";
+    Map<String, String> values = new LinkedHashMap<>();
+    values.put("a_aspectfoo", "{\"value\":\"present\"}");
+    SqlRow row = mockSqlRowForMultiAspect(urn, values);
+
+    Map<String, Class<RecordTemplate>> emptyColumnMap = new LinkedHashMap<>();
+
+    List<EbeanMetadataAspect> results = EBeanDAOUtils.readMultiAspectSqlRows(
+        Collections.singletonList(row), emptyColumnMap);
+
+    assertEquals(0, results.size());
+  }
+
+  @Test
+  public void testReadMultiAspectSqlRowsSoftDeletedAspectStillEmitted() {
+    String urn = "urn:li:foo:4";
+    Map<String, String> values = new LinkedHashMap<>();
+    values.put("a_aspectfoo", "{\"gma_deleted\":true}");
+    SqlRow row = mockSqlRowForMultiAspect(urn, values);
+
+    Map<String, Class<RecordTemplate>> columnMap = new LinkedHashMap<>();
+    columnMap.put("a_aspectfoo", (Class) AspectFoo.class);
+
+    List<EbeanMetadataAspect> results = EBeanDAOUtils.readMultiAspectSqlRows(
+        Collections.singletonList(row), columnMap);
+
+    // Soft-deleted marker IS returned — callers must filter
+    assertEquals(1, results.size());
+    assertTrue(EBeanDAOUtils.isSoftDeletedMetadata(results.get(0).getMetadata()));
   }
 }

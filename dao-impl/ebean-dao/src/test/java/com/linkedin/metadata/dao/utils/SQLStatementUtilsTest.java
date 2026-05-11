@@ -28,6 +28,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1480,6 +1481,95 @@ public class SQLStatementUtilsTest {
 
     assertEquals(SQLStatementUtils.parseLocalRelationshipField(aspectCriterion4, null, PLACEHOLDER_TABLE_NAME,
         mockValidator, false), "i_urn$value");
+  }
+
+  @Test
+  public void testCreateMultiAspectReadSqlBasic() {
+    FooUrn fooUrn = makeFooUrn(1);
+    Set<String> columns = new LinkedHashSet<>(Arrays.asList("a_aspectfoo", "a_aspectbar"));
+    Set<Urn> urns = new HashSet<>(Collections.singletonList(fooUrn));
+
+    String sql = SQLStatementUtils.createMultiAspectReadSql(columns, urns, false, false);
+
+    assertTrue(sql.startsWith("SELECT urn, a_aspectfoo, a_aspectbar, lastmodifiedon, lastmodifiedby, createdfor FROM metadata_entity_foo"));
+    assertTrue(sql.contains("WHERE urn IN ("));
+    assertTrue(sql.contains(fooUrn.toString()));
+    assertTrue(sql.contains("AND deleted_ts IS NULL"));
+    assertFalse(sql.contains("deleted_ts,"));  // deleted_ts NOT in SELECT columns
+    assertFalse(sql.contains("JSON_EXTRACT"));  // no gma_deleted check in SQL
+  }
+
+  @Test
+  public void testCreateMultiAspectReadSqlIncludeSoftDeleted() {
+    FooUrn fooUrn = makeFooUrn(2);
+    Set<String> columns = new LinkedHashSet<>(Collections.singletonList("a_aspectfoo"));
+    Set<Urn> urns = new HashSet<>(Collections.singletonList(fooUrn));
+
+    String sql = SQLStatementUtils.createMultiAspectReadSql(columns, urns, true, false);
+
+    assertTrue(sql.contains("deleted_ts FROM"));  // deleted_ts in SELECT
+    assertFalse(sql.contains("AND deleted_ts IS NULL"));  // no deleted_ts filter
+  }
+
+  @Test
+  public void testCreateMultiAspectReadSqlTestMode() {
+    FooUrn fooUrn = makeFooUrn(3);
+    Set<String> columns = new LinkedHashSet<>(Collections.singletonList("a_aspectfoo"));
+    Set<Urn> urns = new HashSet<>(Collections.singletonList(fooUrn));
+
+    String sql = SQLStatementUtils.createMultiAspectReadSql(columns, urns, false, true);
+
+    assertTrue(sql.contains("FROM metadata_entity_foo_test"));
+  }
+
+  @Test
+  public void testCreateMultiAspectReadSqlMultipleUrns() {
+    FooUrn urn1 = makeFooUrn(10);
+    FooUrn urn2 = makeFooUrn(11);
+    Set<String> columns = new LinkedHashSet<>(Collections.singletonList("a_aspectfoo"));
+    Set<Urn> urns = new HashSet<>(Arrays.asList(urn1, urn2));
+
+    String sql = SQLStatementUtils.createMultiAspectReadSql(columns, urns, false, false);
+
+    assertTrue(sql.contains(urn1.toString()));
+    assertTrue(sql.contains(urn2.toString()));
+  }
+
+  @Test(expectedExceptions = IllegalArgumentException.class)
+  public void testCreateMultiAspectReadSqlEmptyUrns() {
+    SQLStatementUtils.createMultiAspectReadSql(
+        new LinkedHashSet<>(Collections.singletonList("a_aspectfoo")),
+        Collections.emptySet(), false, false);
+  }
+
+  @Test(expectedExceptions = IllegalArgumentException.class)
+  public void testCreateMultiAspectReadSqlEmptyColumns() {
+    FooUrn fooUrn = makeFooUrn(1);
+    SQLStatementUtils.createMultiAspectReadSql(
+        Collections.emptySet(),
+        new HashSet<>(Collections.singletonList(fooUrn)), false, false);
+  }
+
+  @Test(expectedExceptions = IllegalArgumentException.class)
+  public void testCreateMultiAspectReadSqlMixedEntityTypes() throws URISyntaxException {
+    FooUrn fooUrn = makeFooUrn(1);
+    BarUrn barUrn = BarUrn.createFromString("urn:li:bar:1");
+    Set<String> columns = new LinkedHashSet<>(Collections.singletonList("a_aspectfoo"));
+    Set<Urn> urns = new HashSet<>(Arrays.asList(fooUrn, barUrn));
+
+    SQLStatementUtils.createMultiAspectReadSql(columns, urns, false, false);
+  }
+
+  @Test
+  public void testCreateMultiAspectReadSqlEscapesSpecialChars() {
+    FooUrn fooUrn = makeFooUrn(1);
+    Set<String> columns = new LinkedHashSet<>(Collections.singletonList("a_aspectfoo"));
+    Set<Urn> urns = new HashSet<>(Collections.singletonList(fooUrn));
+
+    String sql = SQLStatementUtils.createMultiAspectReadSql(columns, urns, false, false);
+
+    // URN should be quoted in the IN clause
+    assertTrue(sql.contains("'" + fooUrn.toString() + "'"));
   }
 
 }

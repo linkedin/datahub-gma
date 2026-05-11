@@ -113,6 +113,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.persistence.OptimisticLockException;
 import javax.persistence.RollbackException;
+import java.lang.reflect.Field;
 import org.mockito.ArgumentMatchers;
 import org.mockito.InOrder;
 import org.mockito.MockedStatic;
@@ -1393,7 +1394,7 @@ public class EbeanLocalDAOTest {
     ListResult<Long> results = dao.listVersions(AspectFoo.class, urn, 0, 5);
     if (!dao.isChangeLogEnabled()) {
       // when: change log is disabled,
-      // expect: listVersion should only return 1 result which is the LATEST_VERSION
+      // expect: listVersion should only return 1 result which is the 0L
       assertFalse(results.isHavingMore());
       assertEquals(results.getTotalCount(), 1);
       assertEquals(results.getValues(), versions.subList(0, 1));
@@ -3346,6 +3347,59 @@ public class EbeanLocalDAOTest {
   @Test
   public void testPageSizeGreaterThanResultsSize() {
     testGetWithQuerySize(1000);
+  }
+
+  @Test
+  public void testGetWithSmallPageSizeNoDuplicatesNewSchema() throws Exception {
+    // Tests the position>0 short-circuit: with queryKeysCount=2 and 5 keys at 0L,
+    // the outer loop runs 3 times. For NEW_SCHEMA_ONLY, only the first call should hit
+    // _localAccess.batchGetUnion; subsequent calls return empty to avoid duplicate DB work.
+    if (_schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      return; // This test is specifically for NEW_SCHEMA_ONLY (DUAL_SCHEMA has its own paged comparison logic)
+    }
+
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn urn1 = makeFooUrn(901);
+    FooUrn urn2 = makeFooUrn(902);
+    AuditStamp auditStamp = makeAuditStamp("tester", System.currentTimeMillis());
+
+    // Write 3 aspects across 2 URNs at LATEST_VERSION (0L)
+    dao.add(urn1, new AspectFoo().setValue("foo1"), auditStamp);
+    dao.add(urn1, new AspectBar().setValue("bar1"), auditStamp);
+    dao.add(urn2, new AspectFoo().setValue("foo2"), auditStamp);
+
+    // Inject a Mockito spy on _localAccess so we can verify the call count
+    Field localAccessField = EbeanLocalDAO.class.getDeclaredField("_localAccess");
+    localAccessField.setAccessible(true);
+    @SuppressWarnings("unchecked")
+    IEbeanLocalAccess<FooUrn> originalLocalAccess = (IEbeanLocalAccess<FooUrn>) localAccessField.get(dao);
+    IEbeanLocalAccess<FooUrn> spy = Mockito.spy(originalLocalAccess);
+    localAccessField.set(dao, spy);
+
+    Set<AspectKey<FooUrn, ? extends RecordTemplate>> keys = new HashSet<>(Arrays.asList(
+        new AspectKey<>(AspectFoo.class, urn1, 0L),
+        new AspectKey<>(AspectBar.class, urn1, 0L),
+        new AspectKey<>(AspectFoo.class, urn2, 0L),
+        new AspectKey<>(AspectBar.class, urn2, 0L),  // not present — should be Optional.empty()
+        new AspectKey<>(AspectBaz.class, urn1, 0L)   // not present — should be Optional.empty()
+    ));
+
+    dao.setQueryKeysCount(2);  // Force outer loop to iterate 3 times: 5 keys / 2 per page
+
+    Map<AspectKey<FooUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> results = dao.get(keys);
+
+    // Verify the position>0 short-circuit: batchGetUnion should be called EXACTLY ONCE,
+    // not 3 times (which is what would happen if every page hit the DB).
+    Mockito.verify(spy, Mockito.times(1))
+        .batchGetUnion(Mockito.anyList(), Mockito.anyInt(), Mockito.anyInt(), Mockito.anyBoolean(), Mockito.anyBoolean());
+
+    // Exactly 1 entry per key — no duplicates from outer loop
+    assertEquals(5, results.size());
+    assertTrue(results.get(new AspectKey<>(AspectFoo.class, urn1, 0L)).isPresent());
+    assertTrue(results.get(new AspectKey<>(AspectBar.class, urn1, 0L)).isPresent());
+    assertTrue(results.get(new AspectKey<>(AspectFoo.class, urn2, 0L)).isPresent());
+    assertFalse(results.get(new AspectKey<>(AspectBar.class, urn2, 0L)).isPresent());
+    assertFalse(results.get(new AspectKey<>(AspectBaz.class, urn1, 0L)).isPresent());
   }
 
   @Test
