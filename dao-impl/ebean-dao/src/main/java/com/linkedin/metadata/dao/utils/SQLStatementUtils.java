@@ -260,6 +260,10 @@ public class SQLStatementUtils {
     }
 
     final Urn firstUrn = urns.iterator().next();
+    final String firstEntityType = firstUrn.getEntityType();
+    if (urns.stream().anyMatch(u -> !u.getEntityType().equals(firstEntityType))) {
+      throw new IllegalArgumentException("All URNs must belong to the same entity type");
+    }
     final String tableName = isTestMode ? getTestTableName(firstUrn) : getTableName(firstUrn);
 
     // Build column list: urn, <aspect columns>, lastmodifiedon, lastmodifiedby, createdfor [, deleted_ts]

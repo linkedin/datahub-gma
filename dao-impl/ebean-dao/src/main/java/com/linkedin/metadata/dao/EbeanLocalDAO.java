@@ -1384,13 +1384,21 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
 
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
       // For new schema, all aspects are columns in a single SELECT — no need for keysCount pagination.
-      // Pass all keys at once to produce 1 SQL query instead of ceil(keys/keysCount) queries.
+      // The first call (position=0) fetches everything; subsequent pages return empty to avoid duplicates.
+      if (position > 0) {
+        return Collections.emptyList();
+      }
       return _localAccess.batchGetUnion(keys, keys.size(), 0, false, false);
     }
 
     if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
-      // Compare results from both new and old schemas
+      // Compare results from both new and old schemas.
+      // Note: old-schema filters aspect-level soft-deletes in SQL, new-schema returns them as markers.
+      // compareResults may log expected mismatches for soft-deleted aspects.
       final List<EbeanMetadataAspect> resultsOldSchema = batchGetUnion(keys, keysCount, position);
+      if (position > 0) {
+        return resultsOldSchema;
+      }
       final List<EbeanMetadataAspect> resultsNewSchema =
           _localAccess.batchGetUnion(keys, keys.size(), 0, false, false);
       EBeanDAOUtils.compareResults(resultsOldSchema, resultsNewSchema, "batchGet");

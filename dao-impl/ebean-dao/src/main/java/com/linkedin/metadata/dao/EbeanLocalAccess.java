@@ -300,13 +300,18 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   }
 
   /**
-   * Construct and execute a SQL statement as follows.
-   * SELECT urn, aspect1, lastmodifiedon, lastmodifiedby FROM metadata_entity_foo WHERE JSON_EXTRACT(aspect1, '$.gma_deleted') IS NULL
-   * AND urn IN ('urn:1', 'urn:2', 'urn:3')
+   * Fetch aspects for the given keys in a single SQL query. Generates:
+   * SELECT urn, a_col1, a_col2, ..., lastmodifiedon, lastmodifiedby, createdfor
+   * FROM metadata_entity_foo WHERE urn IN (...) [AND deleted_ts IS NULL]
+   *
+   * <p>Aspect-level soft-deletes (gma_deleted) are NOT filtered in SQL — they are returned as marker rows
+   * and must be filtered by callers (e.g., EbeanLocalDAO.toRecordTemplate checks isSoftDeletedAspect).
+   * The includeSoftDeleted flag controls only asset-level deletion (deleted_ts column).
+   *
    * @param aspectKeys a List of keys (urn, aspect pairings) to query for
    * @param keysCount number of keys to query
    * @param position position of the key to start from
-   * @param includeSoftDeleted whether to include soft deleted aspect in the query
+   * @param includeSoftDeleted whether to include asset-level soft deleted entities (deleted_ts)
    * @param isTestMode whether the operation is in test mode or not
    */
   @Override
@@ -330,7 +335,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       }
     }
 
-    if (columnToAspectClassMap.isEmpty() || allUrns.isEmpty()) {
+    if (columnToAspectClassMap.isEmpty()) {
       return Collections.emptyList();
     }
 
