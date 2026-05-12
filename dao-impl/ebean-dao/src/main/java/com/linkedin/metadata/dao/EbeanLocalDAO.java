@@ -1319,6 +1319,16 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       final List<EbeanMetadataAspect> oneStatementResult = batchGetHelper(new ArrayList<>(keys), keysCount, position);
       finalResult.addAll(oneStatementResult);
     }
+
+    // For DUAL_SCHEMA: compare the accumulated old-schema results (paged) against a single
+    // unpaged new-schema fetch. Doing the comparison here (rather than per-page in batchGetHelper)
+    // ensures both sides cover the same key set when keys.size() > keysCount.
+    boolean nonLatestVersionFlag = keys.stream().anyMatch(key -> key.getVersion() != LATEST_VERSION);
+    if (!nonLatestVersionFlag && _schemaConfig == SchemaConfig.DUAL_SCHEMA && _localAccess != null) {
+      final List<EbeanMetadataAspect> resultsNewSchema =
+          _localAccess.batchGetUnion(new ArrayList<>(keys), keys.size(), 0, false, false);
+      EBeanDAOUtils.compareResults(finalResult, resultsNewSchema, "batchGet");
+    }
     return finalResult;
   }
 
@@ -1383,16 +1393,19 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
 
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
-      return _localAccess.batchGetUnion(keys, keysCount, position, false, false);
+      // For new schema, all aspects are columns in a single SELECT — no need for keysCount pagination.
+      // The first call (position=0) fetches everything; subsequent pages return empty to avoid duplicates.
+      if (position > 0) {
+        return Collections.emptyList();
+      }
+      return _localAccess.batchGetUnion(keys, keys.size(), 0, false, false);
     }
 
     if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
-      // Compare results from both new and old schemas
-      final List<EbeanMetadataAspect> resultsOldSchema = batchGetUnion(keys, keysCount, position);
-      final List<EbeanMetadataAspect> resultsNewSchema =
-          _localAccess.batchGetUnion(keys, keysCount, position, false, false);
-      EBeanDAOUtils.compareResults(resultsOldSchema, resultsNewSchema, "batchGet");
-      return resultsOldSchema;
+      // Return paginated old-schema results per page; the cross-schema comparison is hoisted to
+      // batchGet() so both sides cover the same key set (avoiding spurious mismatches when
+      // keys.size() > keysCount).
+      return batchGetUnion(keys, keysCount, position);
     }
 
     log.error("Please check that the SchemaConfig supplied to EbeanLocalDAO constructor is valid.");

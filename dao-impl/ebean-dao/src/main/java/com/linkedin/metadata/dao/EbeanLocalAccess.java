@@ -37,8 +37,8 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -65,6 +65,11 @@ import static com.linkedin.metadata.dao.utils.SQLStatementUtils.*;
 @Slf4j
 public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN> {
   public static final String DATE_TIME_FORMAT = "yyyy-MM-dd HH:mm:ss.SSS";
+
+  // Maximum number of URNs per SQL IN clause. Keeps queries safe for MySQL query planner and packet limits.
+  // Aspect columns are always all selected in each chunk — only URN count is chunked.
+  static final int MAX_URNS_PER_QUERY = 100;
+
   private final EbeanServer _server;
   private final Class<URN> _urnClass;
   private final String _entityType;
@@ -300,13 +305,18 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   }
 
   /**
-   * Construct and execute a SQL statement as follows.
-   * SELECT urn, aspect1, lastmodifiedon, lastmodifiedby FROM metadata_entity_foo WHERE JSON_EXTRACT(aspect1, '$.gma_deleted') IS NULL
-   * AND urn IN ('urn:1', 'urn:2', 'urn:3')
+   * Fetch aspects for the given keys in a single SQL query. Generates:
+   * SELECT urn, a_col1, a_col2, ..., lastmodifiedon, lastmodifiedby, createdfor
+   * FROM metadata_entity_foo WHERE urn IN (...) [AND deleted_ts IS NULL]
+   *
+   * <p>Aspect-level soft-deletes (gma_deleted) are NOT filtered in SQL — they are returned as marker rows
+   * and must be filtered by callers (e.g., EbeanLocalDAO.toRecordTemplate checks isSoftDeletedAspect).
+   * The includeSoftDeleted flag controls only asset-level deletion (deleted_ts column).
+   *
    * @param aspectKeys a List of keys (urn, aspect pairings) to query for
    * @param keysCount number of keys to query
    * @param position position of the key to start from
-   * @param includeSoftDeleted whether to include soft deleted aspect in the query
+   * @param includeSoftDeleted whether to include asset-level soft deleted entities (deleted_ts)
    * @param isTestMode whether the operation is in test mode or not
    */
   @Override
@@ -315,31 +325,38 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       boolean includeSoftDeleted, boolean isTestMode) {
 
     final int end = Math.min(aspectKeys.size(), position + keysCount);
-    final Map<Class<ASPECT>, Set<Urn>> keysToQueryMap = new HashMap<>();
+
+    // Collect all valid aspect columns and all URNs, validating column existence per aspect class.
+    // Use LinkedHashSet for allUrns so IN-clause order is deterministic across runs/JVMs.
+    final Set<Urn> allUrns = new LinkedHashSet<>();
+    final Map<String, Class<ASPECT>> columnToAspectClassMap = new LinkedHashMap<>();
     for (int index = position; index < end; index++) {
       final Urn entityUrn = aspectKeys.get(index).getUrn();
       final Class<ASPECT> aspectClass = (Class<ASPECT>) aspectKeys.get(index).getAspectClass();
-      if (validator.columnExists(isTestMode ? getTestTableName(entityUrn) : getTableName(entityUrn),
-          getAspectColumnName(entityUrn.getEntityType(), aspectClass))) {
-        keysToQueryMap.computeIfAbsent(aspectClass, unused -> new HashSet<>()).add(entityUrn);
+      final String tableName = isTestMode ? getTestTableName(entityUrn) : getTableName(entityUrn);
+      final String columnName = getAspectColumnName(entityUrn.getEntityType(), aspectClass);
+      if (validator.columnExists(tableName, columnName)) {
+        columnToAspectClassMap.putIfAbsent(columnName, aspectClass);
+        allUrns.add(entityUrn);
       }
     }
 
-    // each statement is for a single aspect class
-    Map<String, Class<ASPECT>> selectStatements = keysToQueryMap.entrySet()
-        .stream()
-        .collect(Collectors.toMap(
-            entry -> SQLStatementUtils.createAspectReadSql(entry.getKey(), entry.getValue(), includeSoftDeleted,
-                isTestMode), entry -> entry.getKey()));
-
-    // consolidate/join the results
-    final Map<SqlRow, Class<ASPECT>> sqlRows = new LinkedHashMap<>();
-    for (Map.Entry<String, Class<ASPECT>> entry : selectStatements.entrySet()) {
-      for (SqlRow sqlRow : _server.createSqlQuery(entry.getKey()).findList()) {
-        sqlRows.put(sqlRow, entry.getValue());
-      }
+    if (columnToAspectClassMap.isEmpty()) {
+      return Collections.emptyList();
     }
-    return EBeanDAOUtils.readSqlRows(sqlRows);
+
+    // gma_deleted is NOT filtered in SQL — handled per-column in Java by readMultiAspectSqlRows.
+    // Chunk by URN count to keep IN clause size safe for MySQL. Single-URN-batch case is handled
+    // by the same loop with a single iteration.
+    final List<EbeanMetadataAspect> results = new ArrayList<>();
+    final List<Urn> urnList = new ArrayList<>(allUrns);
+    for (int i = 0; i < urnList.size(); i += MAX_URNS_PER_QUERY) {
+      final Set<Urn> chunk = new LinkedHashSet<>(urnList.subList(i, Math.min(i + MAX_URNS_PER_QUERY, urnList.size())));
+      final String sql = SQLStatementUtils.createMultiAspectReadSql(
+          columnToAspectClassMap.keySet(), chunk, includeSoftDeleted, isTestMode);
+      results.addAll(EBeanDAOUtils.readMultiAspectSqlRows(_server.createSqlQuery(sql).findList(), columnToAspectClassMap));
+    }
+    return results;
   }
 
   /**
