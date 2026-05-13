@@ -1,44 +1,43 @@
 package com.linkedin.metadata.dao.tracking;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 
 /**
- * Interface for recording per-DAO-operation latency and error metrics.
+ * Interface for recording per-DAO-operation latency and count metrics with dimensional attributes.
  *
- * <p>Implementations collect histograms (latency) and counters (operation count, error count)
- * to benchmark DAO performance during the MySQL to TiDB migration evaluation.</p>
+ * <p>Each call records both a count (one increment) and a latency observation. Implementations
+ * are expected to emit one metric per dimension instead of baking dimensions into metric names,
+ * so consumers can aggregate or filter on individual attributes without enumerating every
+ * concrete metric series.
  *
- * <p>Follows the same pattern as {@link BaseTrackingManager} / {@link DummyTrackingManager}:
- * a no-op implementation ({@code NoOpDaoBenchmarkMetrics}) lives in the kernel (datahub-gma)
- * and the real Dropwizard-backed implementation lives in the service layer.</p>
+ * <p>A no-op implementation ({@link NoOpDaoBenchmarkMetrics}) lives in the kernel; concrete
+ * backends (OTEL, Dropwizard, etc.) live in the service layer.
  */
 public interface BaseDaoBenchmarkMetrics {
 
   /**
-   * Record the latency of a successful or failed DAO operation.
+   * Record a completed DAO operation with its dimensional attributes.
    *
-   * @param operationType the DAO operation name (e.g. "add", "batchGetUnion", "list")
-   * @param entityType    the entity type derived from the URN class (e.g. "dataset", "corpuser")
-   * @param latencyMs     wall-clock latency in milliseconds
+   * @param operation   pure operation name with no concatenation (e.g. {@code "add"},
+   *                    {@code "batchGetUnion"})
+   * @param entityType  entity type derived from the URN class (e.g. {@code "dataset"})
+   * @param aspect      aspect class simple name for per-aspect operations, or {@code null} when
+   *                    the operation is not per-aspect
+   * @param countBucket pre-bucketed count label ({@code "1"} through {@code "9"}, {@code "10+"})
+   *                    for batch operations, or {@code null} when there is no count dimension
+   * @param status      outcome string, e.g. {@code "success"} or {@code "failure"}
+   * @param errorClass  simple name of the thrown exception on failure, or {@code null} on success
+   * @param latencyMs   wall-clock latency of the operation in milliseconds
    */
-  void recordOperationLatency(@Nonnull String operationType, @Nonnull String entityType, long latencyMs);
+  void recordOperation(@Nonnull String operation, @Nonnull String entityType,
+      @Nullable String aspect, @Nullable String countBucket, @Nonnull String status,
+      @Nullable String errorClass, long latencyMs);
 
   /**
-   * Record an error that occurred during a DAO operation.
-   *
-   * @param operationType  the DAO operation name (e.g. "add", "create")
-   * @param entityType     the entity type derived from the URN class
-   * @param exceptionClass the simple class name of the thrown exception (e.g. "SQLException")
-   */
-  void recordOperationError(@Nonnull String operationType, @Nonnull String entityType,
-      @Nonnull String exceptionClass);
-
-  /**
-   * Whether metrics collection is enabled. Callers may short-circuit expensive
-   * instrumentation when this returns {@code false}.
-   *
-   * @return true if metrics are being collected
+   * Whether metrics collection is enabled. Callers may short-circuit instrumentation when
+   * this returns {@code false}.
    */
   boolean isEnabled();
 }
