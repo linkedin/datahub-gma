@@ -1,4 +1,5 @@
 DROP TABLE IF EXISTS metadata_entity_foo;
+DROP TABLE IF EXISTS metadata_entity_foo_test;
 DROP TABLE IF EXISTS metadata_entity_bar;
 DROP TABLE IF EXISTS metadata_entity_burger;
 DROP TABLE IF EXISTS metadata_aspect;
@@ -14,6 +15,16 @@ CREATE TABLE IF NOT EXISTS metadata_entity_foo (
     createdfor VARCHAR(255),
     deleted_ts datetime(6) DEFAULT NULL,
     CONSTRAINT pk_metadata_entity_foo PRIMARY KEY (urn)
+);
+
+-- initialize foo test entity table (mirror of metadata_entity_foo, used for isTestMode writes)
+CREATE TABLE IF NOT EXISTS metadata_entity_foo_test (
+    urn VARCHAR(100) NOT NULL,
+    lastmodifiedon TIMESTAMP NOT NULL,
+    lastmodifiedby VARCHAR(255) NOT NULL,
+    createdfor VARCHAR(255),
+    deleted_ts datetime(6) DEFAULT NULL,
+    CONSTRAINT pk_metadata_entity_foo_test PRIMARY KEY (urn)
 );
 
 -- initialize bar entity table
@@ -68,6 +79,7 @@ CREATE TABLE IF NOT EXISTS metadata_relationship_belongsto (
 );
 
 ALTER TABLE metadata_entity_foo ADD a_urn JSON;
+ALTER TABLE metadata_entity_foo_test ADD a_urn JSON;
 ALTER TABLE metadata_entity_bar ADD a_urn JSON;
 
 ALTER TABLE metadata_entity_foo ADD COLUMN i_urn$fooId VARCHAR(255)
@@ -78,6 +90,7 @@ ALTER TABLE metadata_entity_foo ADD a_status JSON;
 
 -- add foo aspect to foo entity
 ALTER TABLE metadata_entity_foo ADD a_aspectfoo JSON;
+ALTER TABLE metadata_entity_foo_test ADD a_aspectfoo JSON;
 
 -- add foo aspect to bar entity
 ALTER TABLE metadata_entity_bar ADD a_aspectfoo JSON;

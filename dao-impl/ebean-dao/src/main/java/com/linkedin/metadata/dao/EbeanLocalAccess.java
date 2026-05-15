@@ -256,7 +256,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
     // Use comprehensive helper to prepare SqlUpdate with all common logic
     SqlUpdate sqlUpdate = prepareMultiColumnInsert(urn, aspectValues, aspectCreateLambdas,
-        auditStamp, ingestionTrackingContext, onDuplicateKeyClause);
+        auditStamp, ingestionTrackingContext, onDuplicateKeyClause, isTestMode);
 
     return sqlUpdate.execute();
   }
@@ -294,7 +294,7 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
     // Use comprehensive helper to prepare SqlUpdate with all common logic
     SqlUpdate sqlUpdate = prepareMultiColumnInsert(urn, aspectValues, aspectUpdateLambdas,
-        auditStamp, ingestionTrackingContext, onDuplicateKeyClause);
+        auditStamp, ingestionTrackingContext, onDuplicateKeyClause, isTestMode);
 
     return sqlUpdate.execute();
   }
@@ -889,7 +889,8 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
       @Nonnull List<? extends BaseLocalDAO.AspectUpdateLambda<? extends RecordTemplate>> aspectLambdas,
       @Nonnull AuditStamp auditStamp,
       @Nullable IngestionTrackingContext ingestionTrackingContext,
-      @Nonnull String onDuplicateKeyClause) {
+      @Nonnull String onDuplicateKeyClause,
+      boolean isTestMode) {
 
     // Validate that aspectValues and aspectLambdas have the same size
     if (aspectValues.size() != aspectLambdas.size()) {
@@ -942,7 +943,8 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
     // Build complete SQL statement with ON DUPLICATE KEY clause
     String insertStatement = insertIntoSql.toString() + insertSqlValues.toString() + onDuplicateKeyClause;
-    insertStatement = String.format(insertStatement, getTableName(urn));
+    insertStatement = String.format(insertStatement,
+        isTestMode ? getTestTableName(urn) : getTableName(urn));
 
     // Create SqlUpdate and set all parameters
     SqlUpdate sqlUpdate = _server.createSqlUpdate(insertStatement);
