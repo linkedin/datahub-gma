@@ -701,10 +701,38 @@ public class EbeanLocalAccessTest {
     assertEquals("{\"value\":\"tracked_value\"}", results.get(0).getMetadata());
     
     // Verify IngestionTrackingContext fields are persisted and readable
-    assertEquals("test-emitter", results.get(0).getEmitter(), 
+    assertEquals("test-emitter", results.get(0).getEmitter(),
         "Emitter from IngestionTrackingContext should be persisted");
-    assertEquals(Long.valueOf(emitTime), results.get(0).getEmitTime(), 
+    assertEquals(Long.valueOf(emitTime), results.get(0).getEmitTime(),
         "EmitTime from IngestionTrackingContext should be persisted");
+  }
+
+  /**
+   * Tests that batchUpsert() with isTestMode=true writes to the test table rather than the
+   * production table. Regression coverage for the previously-dropped flag in
+   * {@code prepareMultiColumnInsert}, which used to hardcode {@code getTableName(urn)}.
+   */
+  @Test
+  public void testBatchUpsertWithTestModeWritesToTestTable() {
+    // Arrange
+    FooUrn fooUrn = makeFooUrn(310);
+    AspectFoo foo = new AspectFoo().setValue("test_mode_value");
+    List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts =
+        Collections.singletonList(new BaseLocalDAO.AspectUpdateContext<>(null, foo,
+            new BaseLocalDAO.AspectUpdateLambda<>(foo)));
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+
+    // Act
+    int result = _ebeanLocalAccessFoo.batchUpsert(fooUrn, updateContexts, auditStamp, null, true);
+
+    // Assert - row should land in the test table, readable via batchGetUnion with isTestMode=true
+    assertEquals(result, 1);
+    AspectKey<FooUrn, AspectFoo> aspectKey = new AspectKey<>(AspectFoo.class, fooUrn, 0L);
+    List<EbeanMetadataAspect> testTableResults = _ebeanLocalAccessFoo.batchGetUnion(
+        Collections.singletonList(aspectKey), 1, 0, false, true);
+    assertEquals(1, testTableResults.size());
+    assertEquals("{\"value\":\"test_mode_value\"}", testTableResults.get(0).getMetadata());
+    assertEquals(fooUrn.toString(), testTableResults.get(0).getKey().getUrn());
   }
 
   // ==================== readDeletionInfoBatch tests ====================
