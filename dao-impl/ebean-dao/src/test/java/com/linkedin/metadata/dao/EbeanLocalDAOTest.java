@@ -4551,6 +4551,67 @@ public class EbeanLocalDAOTest {
   }
 
   /**
+   * Regression test for the callback/equality ordering fix in addManyBatch().
+   *
+   * <p>Before the fix, addManyBatch() evaluated shouldUpdateAspect() on the RAW pre-callback value
+   * but persisted the POST-callback value. For an aspect whose callback deterministically rewrites
+   * the incoming value (modeling SchemaDefinition, whose callback enriches the raw aspect with
+   * normalizedSchema/baseSemanticVersion), re-ingesting the same raw value produced raw != stored on
+   * every crawl, so the equality check never skipped and every no-op re-ingest wrote a new version.
+   *
+   * <p>After the fix the equality check runs on the post-callback value, which equals the stored
+   * value, so the redundant write is suppressed. We assert the audit timestamp is unchanged on the
+   * second ingest -- exactly like {@link #testAddManyBatchWithEqualitySkip()} but with a transforming
+   * callback in the path.
+   */
+  @Test
+  public void testAddManyBatchCallbackNoOpReingestSkips() throws URISyntaxException {
+    if (_schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      return;
+    }
+
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    FooUrn fooUrn = makeFooUrn(6005);
+
+    // Enriching callback: any incoming AspectFoo is rewritten to the fixed value "merged", just as a
+    // real callback enriches the raw aspect into a stable merged value before it is persisted.
+    AspectCallbackRoutingClient<AspectFoo> enrichCallback = new AspectCallbackRoutingClient<AspectFoo>() {
+      @Override
+      public AspectCallbackResponse<AspectFoo> routeAspectCallback(Urn urn, AspectFoo newAspectValue,
+          java.util.Optional<AspectFoo> existingAspectValue) {
+        return new AspectCallbackResponse<>(new AspectFoo().setValue("merged"));
+      }
+    };
+    java.util.Map<AspectCallbackMapKey, AspectCallbackRoutingClient> callbackMap = new java.util.HashMap<>();
+    callbackMap.put(new AspectCallbackMapKey(AspectFoo.class, fooUrn.getEntityType()), enrichCallback);
+    dao.setAspectCallbackRegistry(new AspectCallbackRegistry(callbackMap));
+
+    // First ingest at T1 - persists the post-callback "merged" value.
+    AuditStamp auditStamp1 = makeAuditStamp("actor1", _now);
+    dao.addManyBatch(fooUrn, Collections.singletonList(new AspectFoo().setValue("raw")), auditStamp1, null);
+
+    BaseLocalDAO.AspectEntry<AspectFoo> entry1 = dao.getLatest(fooUrn, AspectFoo.class, false);
+    assertNotNull(entry1.getAspect());
+    assertEquals(entry1.getAspect().getValue(), "merged");
+    Long timestamp1 = entry1.getExtraInfo() != null ? entry1.getExtraInfo().getAudit().getTime() : null;
+
+    // Second ingest of the SAME raw value at a LATER T2. The callback again yields "merged", which
+    // equals the stored value, so shouldUpdateAspect() must skip and NO new version is written.
+    AuditStamp auditStamp2 = makeAuditStamp("actor2", _now + 1000);
+    List<EntityAspectUnion> results =
+        dao.addManyBatch(fooUrn, Collections.singletonList(new AspectFoo().setValue("raw")), auditStamp2, null);
+
+    assertEquals(results.size(), 1);
+
+    BaseLocalDAO.AspectEntry<AspectFoo> entry2 = dao.getLatest(fooUrn, AspectFoo.class, false);
+    Long timestamp2 = entry2.getExtraInfo() != null ? entry2.getExtraInfo().getAudit().getTime() : null;
+    assertEquals(timestamp1, timestamp2,
+        "Re-ingesting the same raw value through a transforming callback must skip the write: the "
+            + "post-callback value equals the stored value, so no new version should be written");
+    assertEquals(entry2.getAspect().getValue(), "merged");
+  }
+
+  /**
    * Tests addManyBatch() backfill skip behavior.
    * Verifies that backfill events with older timestamps do not overwrite newer data.
    */
