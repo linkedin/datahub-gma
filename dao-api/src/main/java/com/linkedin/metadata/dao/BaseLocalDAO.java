@@ -812,19 +812,6 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       // AspectUpdateLambda is defined and constructed
       RecordTemplate newValue = (RecordTemplate) updateLambda.getUpdateLambda().apply(oldValue);
 
-      // Equality testing & backfill logic using unified shouldUpdateAspect
-      EqualityTester<RecordTemplate> equalityTester = getEqualityTester(aspectClass);
-      AuditStamp eTagAuditStamp = extractOptimisticLockForAspectFromIngestionParamsIfPossible(
-          ingestionParams, aspectClass, urn);
-      
-      if (!shouldUpdateAspect(ingestionParams.getIngestionMode(), urn, oldAspect, newValue,
-                              aspectClass, auditStamp, equalityTester, oldAuditStamp, eTagAuditStamp,
-                              trackingContext, oldEmitTime, false /* isSoftDeleted not tracked in batch path */)) {
-        // Skip this aspect - add as unchanged for MAE skip logic
-        processedResults.add(new AddResult<RecordTemplate>(oldAspect, oldAspect, aspectClass));
-        continue;
-      }
-
       // Apply Lambda Function Registry transformations (with old value)
       if (_lambdaFunctionRegistry != null && _lambdaFunctionRegistry.isRegistered(aspectClass)) {
         newValue = updatePreIngestionLambdas(urn, oldValue, newValue);
@@ -833,8 +820,26 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       // Aspect callbacks (with old value)
       AspectUpdateResult callbackResult = aspectCallbackHelper(urn, newValue, oldValue, ingestionParams, auditStamp);
       newValue = (RecordTemplate) callbackResult.getUpdatedAspect();
-      
+
       if (newValue == null || callbackResult.isSkipProcessing()) {
+        continue;
+      }
+
+      // Equality testing & backfill logic using unified shouldUpdateAspect.
+      // Run this AFTER the callback so we compare the post-callback (merged) value against the
+      // stored (also post-callback) value, matching the per-aspect aspectUpdateHelper path.
+      // Comparing the raw pre-callback newValue here caused callback-transformed aspects (e.g.
+      // SchemaDefinition, which the callback enriches with normalizedSchema/baseSemanticVersion)
+      // to never compare equal to the stored merged value, so every no-op re-ingest wrote a row.
+      EqualityTester<RecordTemplate> equalityTester = getEqualityTester(aspectClass);
+      AuditStamp eTagAuditStamp = extractOptimisticLockForAspectFromIngestionParamsIfPossible(
+          ingestionParams, aspectClass, urn);
+
+      if (!shouldUpdateAspect(ingestionParams.getIngestionMode(), urn, oldAspect, newValue,
+                              aspectClass, auditStamp, equalityTester, oldAuditStamp, eTagAuditStamp,
+                              trackingContext, oldEmitTime, false /* isSoftDeleted not tracked in batch path */)) {
+        // Skip this aspect - add as unchanged for MAE skip logic
+        processedResults.add(new AddResult<RecordTemplate>(oldAspect, oldAspect, aspectClass));
         continue;
       }
 
