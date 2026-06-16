@@ -25,10 +25,12 @@ import com.linkedin.testing.AspectBaz;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.FooAsset;
 import com.linkedin.testing.urn.BurgerUrn;
+import com.linkedin.metadata.dao.utils.SharedSchemaCache;
 import com.linkedin.testing.urn.FooUrn;
 import io.ebean.Ebean;
 import io.ebean.EbeanServer;
 import io.ebean.SqlRow;
+import io.ebean.config.ServerConfig;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.net.URISyntaxException;
@@ -1270,5 +1272,58 @@ public class EbeanLocalAccessTest {
 
     ListResult<FooUrn> listUrns = _ebeanLocalAccessFoo.listUrns(null, null, 0, 10);
     assertEquals(10, listUrns.getValues().size());
+  }
+
+  /**
+   * Regression test for #618 (datahub-gma 0.6.185). #615 pre-warmed the shared schema cache at the
+   * end of {@link EbeanLocalAccess#ensureSchemaUpToDate()}; #618 moved that pre-warm to the
+   * constructor. For consumers that build their schema in-JVM at boot (i.e. that call
+   * ensureSchemaUpToDate(), e.g. integration tests / dev deploys with skipSchemaUpdate=false), the
+   * constructor pre-warm runs BEFORE the schema-evolution DDL, so it caches an empty/incomplete
+   * view that is then pinned for the cache TTL — making columnExists()/indexExists() report missing
+   * columns and reads silently drop aspects. ensureSchemaUpToDate() must re-warm the cache after
+   * applying the DDL so it reflects the complete, post-migration schema.
+   *
+   * <p>Uses a freshly-constructed access (the production shared-cache validator, not the per-method
+   * local one injected by {@link #resetValidatorInstance()}) and stubs out the Flyway evolution so
+   * the test isolates the re-warm behavior. Reflection mirrors the existing validator-injection
+   * pattern in {@code resetValidatorInstance()}.</p>
+   */
+  @Test
+  public void testEnsureSchemaUpToDateReWarmsSharedSchemaCache() throws Exception {
+    final ServerConfig serverConfig = EmbeddedMariaInstance.SERVER_CONFIG_MAP.get(_server.getName());
+    final String dbUrl = serverConfig.getDataSourceConfig().getUrl();
+
+    // Start from a clean registry so the freshly-constructed access owns the shared cache.
+    SharedSchemaCache.clearRegistry();
+
+    // Construct an access on the shared-cache path; its constructor pre-warms metadata_entity_foo
+    // with the columns that exist now (no a_rewarmprobe column yet).
+    EbeanLocalAccess<FooUrn> access = new EbeanLocalAccess<>(_server, serverConfig, FooUrn.class,
+        new FooUrnPathExtractor(), _ebeanConfig.isNonDollarVirtualColumnsEnabled());
+
+    final SharedSchemaCache sharedCache = SharedSchemaCache.getInstance(_server, dbUrl);
+    assertFalse(sharedCache.columnExists("metadata_entity_foo", "a_rewarmprobe"));
+
+    // Simulate schema evolution adding a column AFTER construction (what the boot-time DDL does).
+    _server.execute(Ebean.createSqlUpdate("ALTER TABLE metadata_entity_foo ADD a_rewarmprobe JSON"));
+
+    // The cache is now stale: the constructor pre-warm predates the ALTER, so without a re-warm the
+    // new column stays invisible for the whole TTL.
+    assertFalse(sharedCache.columnExists("metadata_entity_foo", "a_rewarmprobe"));
+
+    // Stub the Flyway evolution to a no-op so the test isolates only the re-warm.
+    Field semField = EbeanLocalAccess.class.getDeclaredField("_schemaEvolutionManager");
+    semField.setAccessible(true);
+    semField.set(access, mock(SchemaEvolutionManager.class));
+
+    access.ensureSchemaUpToDate();
+
+    // With the post-evolution re-warm, the shared cache now reflects the complete schema.
+    assertTrue("ensureSchemaUpToDate must re-warm the shared schema cache after evolution (regression #618)",
+        sharedCache.columnExists("metadata_entity_foo", "a_rewarmprobe"));
+
+    // Clean up the probe column (the @BeforeMethod recreate would also drop it, but be explicit).
+    _server.execute(Ebean.createSqlUpdate("ALTER TABLE metadata_entity_foo DROP COLUMN a_rewarmprobe"));
   }
 }

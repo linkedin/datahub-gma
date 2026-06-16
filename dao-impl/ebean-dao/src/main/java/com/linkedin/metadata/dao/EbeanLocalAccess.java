@@ -138,7 +138,10 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
   public void ensureSchemaUpToDate() {
     _schemaEvolutionManager.ensureSchemaUpToDate();
-    // Cache pre-warm moved to constructor — see comment there for rationale.
+    // Re-warm after applying the evolution DDL: the constructor pre-warm ran before these tables
+    // existed, so refresh the cache here so reads reflect the migrated schema.
+    validator.registerAndPreWarm(getTableName(_entityType));
+    validator.registerAndPreWarm(getTestTableName(_entityType));
     validateForceIndex();
   }
 
