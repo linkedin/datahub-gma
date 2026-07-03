@@ -1057,8 +1057,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     final boolean oldAndNewEqual = (oldValue == null && newValue == null)
         || (oldValue != null && newValue != null && equalityTester.equals(oldValue, newValue));
 
-    // Use the canonical URN from the DB if available (it may differ in case from the incoming MCE URN).
-    // Falls back to the incoming urn for new entities — canonicalUrn is always non-null.
+    // Use the canonical URN stored in AddResult (DB-stored URN if available, otherwise the incoming URN).
     @SuppressWarnings("unchecked")
     final URN maeUrn = (URN) result.getCanonicalUrn();
 

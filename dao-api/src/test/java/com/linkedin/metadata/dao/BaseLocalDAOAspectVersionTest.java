@@ -2,15 +2,13 @@ package com.linkedin.metadata.dao;
 
 import static com.linkedin.metadata.dao.BaseLocalDAOTest.DummyLocalDAO;
 import static com.linkedin.metadata.dao.BaseLocalDAOTest.DummyTransactionRunner;
+import static com.linkedin.metadata.dao.BaseLocalDAOTest.makeAspectEntry;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.data.DataMap;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
-import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
-import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.utils.RecordUtils;
 import com.linkedin.metadata.events.IngestionMode;
-import com.linkedin.metadata.query.ExtraInfo;
 import com.linkedin.testing.AspectVersioned;
 import com.linkedin.testing.EntityAspectUnionVersioned;
 import com.linkedin.testing.urn.FooUrn;
@@ -34,8 +32,6 @@ public class BaseLocalDAOAspectVersionTest {
   private DummyLocalDAO<EntityAspectUnionVersioned> _dummyLocalDAO;
   private AuditStamp _dummyAuditStamp;
   private BaseMetadataEventProducer _mockEventProducer;
-  private BaseTrackingMetadataEventProducer _mockTrackingEventProducer;
-  private BaseTrackingManager _mockTrackingManager;
   private BiFunction<FooUrn, Class<? extends RecordTemplate>, BaseLocalDAO.AspectEntry> _mockGetLatestFunction;
   private DummyTransactionRunner _mockTransactionRunner;
 
@@ -43,23 +39,12 @@ public class BaseLocalDAOAspectVersionTest {
   public void setup() {
     _mockGetLatestFunction = mock(BiFunction.class);
     _mockEventProducer = mock(BaseMetadataEventProducer.class);
-    _mockTrackingEventProducer = mock(BaseTrackingMetadataEventProducer.class);
-    _mockTrackingManager = mock(BaseTrackingManager.class);
     _mockTransactionRunner = spy(DummyTransactionRunner.class);
     _dummyLocalDAO = new DummyLocalDAO<EntityAspectUnionVersioned>(EntityAspectUnionVersioned.class,
         _mockGetLatestFunction, _mockEventProducer, _mockTransactionRunner);
     _dummyLocalDAO.setEmitAuditEvent(true);
     _dummyLocalDAO.setEmitAspectSpecificAuditEvent(true);
     _dummyAuditStamp = makeAuditStamp("foo", 1234);
-  }
-
-  private <T extends RecordTemplate> BaseLocalDAO.AspectEntry<T> makeAspectEntry(T aspect,
-      AuditStamp auditStamp) {
-    ExtraInfo extraInfo = null;
-    if (auditStamp != null) {
-      extraInfo = new ExtraInfo().setAudit(auditStamp);
-    }
-    return new BaseLocalDAO.AspectEntry<>(aspect, extraInfo);
   }
 
   private <T extends RecordTemplate> void expectGetLatest(FooUrn urn, Class<T> aspectClass,
@@ -86,8 +71,8 @@ public class BaseLocalDAOAspectVersionTest {
 
     _dummyLocalDAO.setAlwaysEmitAuditEvent(false);
     expectGetLatest(urn, AspectVersioned.class,
-        Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(foo1, _dummyAuditStamp),
-            makeAspectEntry(ver010101, auditStamp2), makeAspectEntry(ver020101, auditStamp3), makeAspectEntry(ver020201OldValue, auditStamp4)));
+        Arrays.asList(makeAspectEntry(null, null, null), makeAspectEntry(foo1, _dummyAuditStamp, urn),
+            makeAspectEntry(ver010101, auditStamp2, urn), makeAspectEntry(ver020101, auditStamp3, urn), makeAspectEntry(ver020201OldValue, auditStamp4, urn)));
 
     _dummyLocalDAO.add(urn, foo1, _dummyAuditStamp);
     _dummyLocalDAO.add(urn, ver010101, auditStamp2);
@@ -118,7 +103,7 @@ public class BaseLocalDAOAspectVersionTest {
 
     _dummyLocalDAO.setAlwaysEmitAuditEvent(false);
     expectGetLatest(urn, AspectVersioned.class,
-        Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(ver020101, _dummyAuditStamp)));
+        Arrays.asList(makeAspectEntry(null, null, null), makeAspectEntry(ver020101, _dummyAuditStamp, urn)));
 
     _dummyLocalDAO.add(urn, ver020101, _dummyAuditStamp);
     _dummyLocalDAO.add(urn, foo1, _dummyAuditStamp);
