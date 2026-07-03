@@ -14,8 +14,6 @@ import com.linkedin.metadata.dao.ingestion.AspectCallbackRoutingClient;
 import com.linkedin.metadata.dao.ingestion.SampleAspectCallbackRoutingClient;
 import com.linkedin.metadata.dao.ingestion.SampleLambdaFunctionRegistryImpl;
 import com.linkedin.metadata.dao.producer.BaseMetadataEventProducer;
-import com.linkedin.metadata.dao.AspectWithExtraInfo;
-import com.linkedin.metadata.dao.ListResult;
 import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
 import com.linkedin.metadata.dao.retention.VersionBasedRetention;
@@ -301,14 +299,20 @@ public class BaseLocalDAOTest {
     }
 
     @Override
-    protected int permanentDelete(@Nonnull BurgerUrn urn, boolean isTestMode) { return 1; }
+    protected int permanentDelete(@Nonnull BurgerUrn urn, boolean isTestMode) {
+      return 1;
+    }
 
     @Override
-    public <ASPECT extends RecordTemplate> void updateEntityTables(@Nonnull BurgerUrn urn, @Nonnull Class<ASPECT> aspectClass) {}
+    public <ASPECT extends RecordTemplate> void updateEntityTables(@Nonnull BurgerUrn urn,
+        @Nonnull Class<ASPECT> aspectClass) {
+    }
 
     @Override
     public <ASPECT extends RecordTemplate> List<LocalRelationshipUpdates> backfillLocalRelationships(
-        @Nonnull BurgerUrn urn, @Nonnull Class<ASPECT> aspectClass) { return null; }
+        @Nonnull BurgerUrn urn, @Nonnull Class<ASPECT> aspectClass) {
+      return null;
+    }
 
     @Nonnull
     @Override
@@ -322,68 +326,103 @@ public class BaseLocalDAOTest {
     }
 
     @Override
-    protected <ASPECT extends RecordTemplate> long getNextVersion(BurgerUrn urn, Class<ASPECT> aspectClass) { return 0; }
+    protected <ASPECT extends RecordTemplate> long getNextVersion(BurgerUrn urn, Class<ASPECT> aspectClass) {
+      return 0;
+    }
 
     @Override
     protected <ASPECT extends RecordTemplate> void applyVersionBasedRetention(Class<ASPECT> aspectClass, BurgerUrn urn,
-        VersionBasedRetention retention, long largestVersion) {}
+        VersionBasedRetention retention, long largestVersion) {
+    }
 
     @Override
     protected <ASPECT extends RecordTemplate> void applyTimeBasedRetention(Class<ASPECT> aspectClass, BurgerUrn urn,
-        TimeBasedRetention retention, long currentTime) {}
+        TimeBasedRetention retention, long currentTime) {
+    }
 
     @Override
-    public <ASPECT extends RecordTemplate> ListResult<Long> listVersions(Class<ASPECT> aspectClass, BurgerUrn urn, int start, int pageSize) { return null; }
+    public <ASPECT extends RecordTemplate> ListResult<Long> listVersions(Class<ASPECT> aspectClass, BurgerUrn urn,
+        int start, int pageSize) {
+      return null;
+    }
 
     @Override
-    public <ASPECT extends RecordTemplate> ListResult<BurgerUrn> listUrns(Class<ASPECT> aspectClass, int start, int pageSize) { return null; }
+    public <ASPECT extends RecordTemplate> ListResult<BurgerUrn> listUrns(Class<ASPECT> aspectClass, int start,
+        int pageSize) {
+      return null;
+    }
 
     @Override
     public List<BurgerUrn> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
-        @Nullable BurgerUrn lastUrn, int pageSize) { return null; }
+        @Nullable BurgerUrn lastUrn, int pageSize) {
+      return null;
+    }
 
     @Override
     public ListResult<BurgerUrn> listUrns(@Nonnull IndexFilter indexFilter,
-        @Nullable IndexSortCriterion indexSortCriterion, int start, int pageSize) { return ListResult.<BurgerUrn>builder().build(); }
+        @Nullable IndexSortCriterion indexSortCriterion, int start, int pageSize) {
+      return ListResult.<BurgerUrn>builder().build();
+    }
 
     @Override
-    public <ASPECT extends RecordTemplate> ListResult<ASPECT> list(Class<ASPECT> aspectClass, BurgerUrn urn, int start, int pageSize) { return null; }
+    public <ASPECT extends RecordTemplate> ListResult<ASPECT> list(Class<ASPECT> aspectClass, BurgerUrn urn, int start,
+        int pageSize) {
+      return null;
+    }
 
     @Override
-    public <ASPECT extends RecordTemplate> ListResult<ASPECT> list(Class<ASPECT> aspectClass, long version, int start, int pageSize) { return null; }
+    public <ASPECT extends RecordTemplate> ListResult<ASPECT> list(Class<ASPECT> aspectClass, long version, int start,
+        int pageSize) {
+      return null;
+    }
 
     @Override
-    public <ASPECT extends RecordTemplate> ListResult<ASPECT> list(Class<ASPECT> aspectClass, int start, int pageSize) { return null; }
+    public <ASPECT extends RecordTemplate> ListResult<ASPECT> list(Class<ASPECT> aspectClass, int start, int pageSize) {
+      return null;
+    }
 
     @Override
-    public Map<String, Long> countAggregate(@Nonnull IndexFilter indexFilter, @Nonnull IndexGroupByCriterion groupCriterion) { return Collections.emptyMap(); }
+    public Map<String, Long> countAggregate(@Nonnull IndexFilter indexFilter,
+        @Nonnull IndexGroupByCriterion groupCriterion) {
+      return Collections.emptyMap();
+    }
 
     @Override
-    public long newNumericId(String namespace, int maxTransactionRetry) { return 0; }
+    public long newNumericId(String namespace, int maxTransactionRetry) {
+      return 0;
+    }
 
     @Override
     protected <ASPECT extends RecordTemplate> void insert(@Nonnull BurgerUrn urn, @Nullable RecordTemplate value,
         @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, long version,
-        @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {}
+        @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
+    }
 
     @Override
-    public boolean exists(@Nonnull BurgerUrn urn) { return false; }
+    public boolean exists(@Nonnull BurgerUrn urn) {
+      return false;
+    }
 
     @Override
     protected <ASPECT extends RecordTemplate> void updateWithOptimisticLocking(@Nonnull BurgerUrn urn,
         @Nullable RecordTemplate value, @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp newAuditStamp,
         long version, @Nonnull Timestamp oldTimestamp, @Nullable IngestionTrackingContext trackingContext,
-        boolean isTestMode) {}
+        boolean isTestMode) {
+    }
 
     @Override
     @Nonnull
     public Map<AspectKey<BurgerUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> get(
-        Set<AspectKey<BurgerUrn, ? extends RecordTemplate>> aspectKeys) { return Collections.emptyMap(); }
+        Set<AspectKey<BurgerUrn, ? extends RecordTemplate>> aspectKeys) {
+      return Collections.emptyMap();
+    }
 
     @Override
     @Nonnull
     public Map<AspectKey<BurgerUrn, ? extends RecordTemplate>, AspectWithExtraInfo<? extends RecordTemplate>> getWithExtraInfo(
-        @Nonnull Set<AspectKey<BurgerUrn, ? extends RecordTemplate>> keys) { return Collections.emptyMap(); }
+        @Nonnull Set<AspectKey<BurgerUrn, ? extends RecordTemplate>> keys) {
+      return Collections.emptyMap();
+    }
   }
 
   private DummyLocalDAO<EntityAspectUnion> _dummyLocalDAO;
@@ -1322,7 +1361,7 @@ public class BaseLocalDAOTest {
     AspectFoo foo = new AspectFoo().setValue("foo");
     AspectBar bar = new AspectBar().setValue("bar");
     _dummyLocalDAO.setAlwaysEmitAuditEvent(true);
-    
+
     when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
         .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(null, null));
     when(_mockGetLatestFunction.apply(any(), eq(AspectBar.class)))
@@ -1344,7 +1383,7 @@ public class BaseLocalDAOTest {
     AspectFoo foo = new AspectFoo().setValue("foo");
     AspectBar bar = new AspectBar().setValue("bar");
     _dummyLocalDAO.setAlwaysEmitAuditEvent(false);
-    
+
     // foo already exists with same value, bar is new
     when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
         .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(foo, null));
@@ -1367,7 +1406,7 @@ public class BaseLocalDAOTest {
     AspectBar bar = new AspectBar().setValue("bar");
     BiConsumer<FooUrn, AspectFoo> fooHook = mock(BiConsumer.class);
     BiConsumer<FooUrn, AspectBar> barHook = mock(BiConsumer.class);
-    
+
     when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
         .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(null, null));
     when(_mockGetLatestFunction.apply(any(), eq(AspectBar.class)))
@@ -1389,7 +1428,7 @@ public class BaseLocalDAOTest {
     AspectBar bar = new AspectBar().setValue("bar");
     BiConsumer<FooUrn, AspectFoo> fooHook = mock(BiConsumer.class);
     BiConsumer<FooUrn, AspectBar> barHook = mock(BiConsumer.class);
-    
+
     when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
         .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(null, null));
     when(_mockGetLatestFunction.apply(any(), eq(AspectBar.class)))
@@ -1409,7 +1448,7 @@ public class BaseLocalDAOTest {
     FooUrn urn = new FooUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");
     AspectBar bar = new AspectBar().setValue("bar");
-    
+
     when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
         .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(null, null));
     when(_mockGetLatestFunction.apply(any(), eq(AspectBar.class)))
@@ -1433,7 +1472,7 @@ public class BaseLocalDAOTest {
     dummyLocalDAO.setAlwaysEmitAuditEvent(true);
     dummyLocalDAO.setEmitAspectSpecificAuditEvent(true);
     dummyLocalDAO.setAlwaysEmitAspectSpecificAuditEvent(true);
-    
+
     when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
         .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(null, null));
 
@@ -1449,7 +1488,7 @@ public class BaseLocalDAOTest {
     FooUrn urn = new FooUrn(1);
     AspectFoo foo1 = new AspectFoo().setValue("foo1");
     AspectFoo foo2 = new AspectFoo().setValue("foo2");
-    
+
     // Should throw IllegalArgumentException due to duplicate aspect class
     _dummyLocalDAO.addManyBatch(urn, Arrays.asList(foo1, foo2), _dummyAuditStamp, null);
   }
@@ -1459,7 +1498,7 @@ public class BaseLocalDAOTest {
     FooUrn urn = new FooUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");
     AspectBar bar = new AspectBar().setValue("bar");
-    
+
     // Both aspects already exist with same values
     when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
         .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(foo, null));
@@ -1509,7 +1548,7 @@ public class BaseLocalDAOTest {
     // Create a skip-processing callback client
     AspectCallbackRoutingClient<AspectFoo> skipClient = new AspectCallbackRoutingClient<AspectFoo>() {
       @Override
-      public AspectCallbackResponse<AspectFoo> routeAspectCallback(com.linkedin.common.urn.Urn urn, 
+      public AspectCallbackResponse<AspectFoo> routeAspectCallback(com.linkedin.common.urn.Urn urn,
           AspectFoo newAspectValue, Optional<AspectFoo> existingAspectValue) {
         return new AspectCallbackResponse<>(newAspectValue);
       }
