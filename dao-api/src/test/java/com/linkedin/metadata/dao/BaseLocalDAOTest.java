@@ -447,11 +447,24 @@ public class BaseLocalDAOTest {
     _dummyAuditStamp = makeAuditStamp("foo", 1234);
   }
 
-  private <T extends RecordTemplate> BaseLocalDAO.AspectEntry<T> makeAspectEntry(T aspect,
-      AuditStamp auditStamp) {
+  /**
+   * Builds a mock {@link BaseLocalDAO.AspectEntry} for use in tests.
+   *
+   * <p>{@code urn} should be set when simulating an existing DB row (i.e. the entity already exists
+   * in the store). In production, ExtraInfo always carries the stored URN so that MAE emissions use
+   * the canonical URN regardless of the casing in the incoming MCE.
+   *
+   * <p>Pass {@code null} for {@code urn} when simulating a brand-new entity that has no DB row yet
+   * — in that case ExtraInfo is absent and the incoming URN is used as the fallback.
+   */
+  static <T extends RecordTemplate> BaseLocalDAO.AspectEntry<T> makeAspectEntry(T aspect,
+      AuditStamp auditStamp, @Nullable Urn urn) {
     ExtraInfo extraInfo = null;
     if (auditStamp != null) {
       extraInfo = new ExtraInfo().setAudit(auditStamp);
+      if (urn != null) {
+        extraInfo.setUrn(urn);
+      }
     }
     return new BaseLocalDAO.AspectEntry<>(aspect, extraInfo);
   }
@@ -470,7 +483,7 @@ public class BaseLocalDAOTest {
     AspectFoo foo = new AspectFoo().setValue("foo");
     _dummyLocalDAO.setAlwaysEmitAuditEvent(true);
     expectGetLatest(urn, AspectFoo.class,
-        Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(foo, _dummyAuditStamp)));
+        Arrays.asList(makeAspectEntry(null, null, null), makeAspectEntry(foo, _dummyAuditStamp, urn)));
 
     _dummyLocalDAO.add(urn, foo, _dummyAuditStamp);
     _dummyLocalDAO.add(urn, foo, _dummyAuditStamp);
@@ -489,7 +502,7 @@ public class BaseLocalDAOTest {
     AspectFoo foo2 = new AspectFoo().setValue("foo2");
     _dummyLocalDAO.setAlwaysEmitAuditEvent(false);
     expectGetLatest(urn, AspectFoo.class,
-        Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(foo1, _dummyAuditStamp)));
+        Arrays.asList(makeAspectEntry(null, null, null), makeAspectEntry(foo1, _dummyAuditStamp, urn)));
 
     _dummyLocalDAO.add(urn, foo1, _dummyAuditStamp);
     AuditStamp auditStamp2 = makeAuditStamp("tester", 5678L);
@@ -512,7 +525,7 @@ public class BaseLocalDAOTest {
     AspectFoo foo3 = new AspectFoo().setValue("foo");
     _dummyLocalDAO.setAlwaysEmitAuditEvent(false);
     expectGetLatest(urn, AspectFoo.class,
-        Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(foo1, _dummyAuditStamp)));
+        Arrays.asList(makeAspectEntry(null, null, null), makeAspectEntry(foo1, _dummyAuditStamp, urn)));
 
     _dummyLocalDAO.add(urn, foo1, _dummyAuditStamp);
     _dummyLocalDAO.add(urn, foo2, _dummyAuditStamp);
@@ -530,7 +543,7 @@ public class BaseLocalDAOTest {
     AspectFoo foo = new AspectFoo().setValue("foo");
     _dummyLocalDAO.setAlwaysEmitAuditEvent(true);
     expectGetLatest(urn, AspectFoo.class,
-        Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(foo, _dummyAuditStamp)));
+        Arrays.asList(makeAspectEntry(null, null, null), makeAspectEntry(foo, _dummyAuditStamp, urn)));
 
     _dummyLocalDAO.add(urn, foo, _dummyAuditStamp);
     _dummyLocalDAO.delete(urn, AspectFoo.class, _dummyAuditStamp);
@@ -610,7 +623,7 @@ public class BaseLocalDAOTest {
     dummyLocalDAO.setEmitAspectSpecificAuditEvent(true);
     dummyLocalDAO.setAlwaysEmitAspectSpecificAuditEvent(true);
     expectGetLatest(urn, AspectFoo.class,
-        Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(foo, _dummyAuditStamp)));
+        Arrays.asList(makeAspectEntry(null, null, null), makeAspectEntry(foo, _dummyAuditStamp, urn)));
 
     dummyLocalDAO.add(urn, foo, _dummyAuditStamp, mockTrackingContext, null);
     dummyLocalDAO.add(urn, foo, _dummyAuditStamp, mockTrackingContext, null);
@@ -668,7 +681,7 @@ public class BaseLocalDAOTest {
     AspectFoo foo = new AspectFoo().setValue("foo");
     BiConsumer<FooUrn, AspectFoo> hook = mock(BiConsumer.class);
     expectGetLatest(urn, AspectFoo.class,
-        Collections.singletonList(makeAspectEntry(null, null)));
+        Collections.singletonList(makeAspectEntry(null, null, null)));
 
     _dummyLocalDAO.addPreUpdateHook(AspectFoo.class, hook);
     _dummyLocalDAO.add(urn, foo, _dummyAuditStamp);
@@ -701,7 +714,7 @@ public class BaseLocalDAOTest {
     AspectFoo foo = new AspectFoo().setValue("foo");
     BiConsumer<FooUrn, AspectFoo> hook = mock(BiConsumer.class);
     expectGetLatest(urn, AspectFoo.class,
-        Collections.singletonList(makeAspectEntry(null, null)));
+        Collections.singletonList(makeAspectEntry(null, null, null)));
 
     _dummyLocalDAO.addPostUpdateHook(AspectFoo.class, hook);
     _dummyLocalDAO.add(urn, foo, _dummyAuditStamp);
@@ -785,6 +798,7 @@ public class BaseLocalDAOTest {
     ExtraInfo extraInfo = new ExtraInfo();
     extraInfo.setAudit(oldAuditStamp);
     extraInfo.setEmitTime(oldEmitTime, SetMode.IGNORE_NULL);
+    extraInfo.setUrn(urn);
 
     DummyLocalDAO<EntityAspectUnion> dummyLocalDAO = new DummyLocalDAO<>(EntityAspectUnion.class,
         _mockGetLatestFunction, _mockTrackingEventProducer, _mockTrackingManager,
@@ -843,6 +857,7 @@ public class BaseLocalDAOTest {
     ExtraInfo extraInfo = new ExtraInfo();
     extraInfo.setAudit(oldAuditStamp);
     extraInfo.setEmitTime(oldEmitTime, SetMode.IGNORE_NULL);
+    extraInfo.setUrn(urn);
 
     DummyLocalDAO<EntityAspectUnion> dummyLocalDAO = new DummyLocalDAO<>(EntityAspectUnion.class,
         _mockGetLatestFunction, _mockTrackingEventProducer, _mockTrackingManager,
@@ -878,7 +893,7 @@ public class BaseLocalDAOTest {
     dummyLocalDAO.setAlwaysEmitAuditEvent(true);
     dummyLocalDAO.setEmitAspectSpecificAuditEvent(true);
     dummyLocalDAO.setAlwaysEmitAspectSpecificAuditEvent(true);
-    expectGetLatest(urn, AspectFoo.class, Collections.singletonList(makeAspectEntry(null, oldAuditStamp)));
+    expectGetLatest(urn, AspectFoo.class, Collections.singletonList(makeAspectEntry(null, oldAuditStamp, urn)));
 
     IngestionTrackingContext ingestionTrackingContext = new IngestionTrackingContext();
     ingestionTrackingContext.setBackfill(true);
@@ -911,7 +926,7 @@ public class BaseLocalDAOTest {
     dummyLocalDAO.setAlwaysEmitAspectSpecificAuditEvent(true);
     dummyLocalDAO.setLambdaFunctionRegistry(new SampleLambdaFunctionRegistryImpl());
     expectGetLatest(urn, AspectFooBar.class,
-        Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(fooBar1, _dummyAuditStamp)));
+        Arrays.asList(makeAspectEntry(null, null, null), makeAspectEntry(fooBar1, _dummyAuditStamp, urn)));
 
     dummyLocalDAO.add(urn, fooBar1, _dummyAuditStamp);
     verify(_mockTrackingEventProducer, times(1)).produceMetadataAuditEvent(urn, null, fooBar1);
@@ -1017,7 +1032,7 @@ public class BaseLocalDAOTest {
     AspectCallbackRegistry aspectCallbackRegistry = new AspectCallbackRegistry(aspectCallbackMap);
     _dummyLocalDAO.setAspectCallbackRegistry(aspectCallbackRegistry);
     expectGetLatest(urn, AspectFoo.class,
-        Arrays.asList(makeAspectEntry(null, null), makeAspectEntry(foo, _dummyAuditStamp)));
+        Arrays.asList(makeAspectEntry(null, null, null), makeAspectEntry(foo, _dummyAuditStamp, urn)));
 
     _dummyLocalDAO.add(urn, foo, _dummyAuditStamp);
 
@@ -1117,9 +1132,9 @@ public class BaseLocalDAOTest {
     return dao;
   }
 
-  private BaseLocalDAO.AspectEntry<AspectFoo> createSoftDeletedEntry(long deletionTime) {
+  private BaseLocalDAO.AspectEntry<AspectFoo> createSoftDeletedEntry(FooUrn urn, long deletionTime) {
     AuditStamp deletionAuditStamp = makeAuditStamp("deleter", deletionTime);
-    ExtraInfo extraInfo = new ExtraInfo().setAudit(deletionAuditStamp);
+    ExtraInfo extraInfo = new ExtraInfo().setAudit(deletionAuditStamp).setUrn(urn);
     return BaseLocalDAO.AspectEntry.<AspectFoo>builder()
         .aspect(null)
         .extraInfo(extraInfo)
@@ -1127,9 +1142,9 @@ public class BaseLocalDAOTest {
         .build();
   }
 
-  private BaseLocalDAO.AspectEntry<AspectFoo> createExistingEntry(AspectFoo aspect, long auditTime, Long emitTime) {
+  private BaseLocalDAO.AspectEntry<AspectFoo> createExistingEntry(FooUrn urn, AspectFoo aspect, long auditTime, Long emitTime) {
     AuditStamp auditStamp = makeAuditStamp("creator", auditTime);
-    ExtraInfo extraInfo = new ExtraInfo().setAudit(auditStamp);
+    ExtraInfo extraInfo = new ExtraInfo().setAudit(auditStamp).setUrn(urn);
     if (emitTime != null) {
       extraInfo.setEmitTime(emitTime);
     }
@@ -1156,7 +1171,7 @@ public class BaseLocalDAOTest {
   public void testBackfillNoopWhenSoftDeletedAndEmitTimeIsStale() throws URISyntaxException {
     FooUrn urn = new FooUrn(1);
     DummyLocalDAO<EntityAspectUnion> dao = createBackfillTestDAO();
-    expectGetLatest(urn, AspectFoo.class, Collections.singletonList(createSoftDeletedEntry(100L)));
+    expectGetLatest(urn, AspectFoo.class, Collections.singletonList(createSoftDeletedEntry(urn, 100L)));
 
     IngestionTrackingContext ctx = new IngestionTrackingContext();
     ctx.setBackfill(true);
@@ -1171,7 +1186,7 @@ public class BaseLocalDAOTest {
     FooUrn urn = new FooUrn(1);
     AspectFoo newFoo = new AspectFoo().setValue("resurrectedFoo");
     DummyLocalDAO<EntityAspectUnion> dao = createBackfillTestDAO();
-    expectGetLatest(urn, AspectFoo.class, Collections.singletonList(createSoftDeletedEntry(100L)));
+    expectGetLatest(urn, AspectFoo.class, Collections.singletonList(createSoftDeletedEntry(urn, 100L)));
 
     IngestionTrackingContext ctx = new IngestionTrackingContext();
     ctx.setBackfill(true);
@@ -1185,7 +1200,7 @@ public class BaseLocalDAOTest {
   public void testBackfillNoopWhenSoftDeletedAndNoEmitTime() throws URISyntaxException {
     FooUrn urn = new FooUrn(1);
     DummyLocalDAO<EntityAspectUnion> dao = createBackfillTestDAO();
-    expectGetLatest(urn, AspectFoo.class, Collections.singletonList(createSoftDeletedEntry(100L)));
+    expectGetLatest(urn, AspectFoo.class, Collections.singletonList(createSoftDeletedEntry(urn, 100L)));
 
     IngestionTrackingContext ctx = new IngestionTrackingContext();
     ctx.setBackfill(true);
@@ -1199,7 +1214,7 @@ public class BaseLocalDAOTest {
   public void testBackfillNoopWhenSoftDeletedAndEmitTimeEqualsDeletionTime() throws URISyntaxException {
     FooUrn urn = new FooUrn(1);
     DummyLocalDAO<EntityAspectUnion> dao = createBackfillTestDAO();
-    expectGetLatest(urn, AspectFoo.class, Collections.singletonList(createSoftDeletedEntry(100L)));
+    expectGetLatest(urn, AspectFoo.class, Collections.singletonList(createSoftDeletedEntry(urn, 100L)));
 
     IngestionTrackingContext ctx = new IngestionTrackingContext();
     ctx.setBackfill(true);
@@ -1215,7 +1230,7 @@ public class BaseLocalDAOTest {
     FooUrn urn = new FooUrn(1);
     AspectFoo newFoo = new AspectFoo().setValue("brandNew");
     DummyLocalDAO<EntityAspectUnion> dao = createBackfillTestDAO();
-    expectGetLatest(urn, AspectFoo.class, Collections.singletonList(makeAspectEntry(null, null)));
+    expectGetLatest(urn, AspectFoo.class, Collections.singletonList(makeAspectEntry(null, null, null)));
 
     IngestionTrackingContext ctx = new IngestionTrackingContext();
     ctx.setBackfill(true);
@@ -1253,7 +1268,7 @@ public class BaseLocalDAOTest {
     AspectFoo existingFoo = new AspectFoo().setValue("existing");
     DummyLocalDAO<EntityAspectUnion> dao = createBackfillTestDAO();
     expectGetLatest(urn, AspectFoo.class,
-        Collections.singletonList(createExistingEntry(existingFoo, 100L, 150L)));
+        Collections.singletonList(createExistingEntry(urn, existingFoo, 100L, 150L)));
 
     IngestionTrackingContext ctx = new IngestionTrackingContext();
     ctx.setBackfill(true);
@@ -1275,7 +1290,7 @@ public class BaseLocalDAOTest {
     AspectFoo newFoo = new AspectFoo().setValue("updated");
     DummyLocalDAO<EntityAspectUnion> dao = createBackfillTestDAO();
     expectGetLatest(urn, AspectFoo.class,
-        Collections.singletonList(createExistingEntry(existingFoo, 100L, 150L)));
+        Collections.singletonList(createExistingEntry(urn, existingFoo, 100L, 150L)));
 
     IngestionTrackingContext ctx = new IngestionTrackingContext();
     ctx.setBackfill(true);
@@ -1296,7 +1311,7 @@ public class BaseLocalDAOTest {
     DummyLocalDAO<EntityAspectUnion> dao = createBackfillTestDAO();
     // No emitTime on the existing entry — forces fallback to audit stamp
     expectGetLatest(urn, AspectFoo.class,
-        Collections.singletonList(createExistingEntry(existingFoo, 150L, null)));
+        Collections.singletonList(createExistingEntry(urn, existingFoo, 150L, null)));
 
     IngestionTrackingContext ctx = new IngestionTrackingContext();
     ctx.setBackfill(true);
@@ -1318,7 +1333,7 @@ public class BaseLocalDAOTest {
     AspectFoo newFoo = new AspectFoo().setValue("updated");
     DummyLocalDAO<EntityAspectUnion> dao = createBackfillTestDAO();
     expectGetLatest(urn, AspectFoo.class,
-        Collections.singletonList(createExistingEntry(existingFoo, 100L, null)));
+        Collections.singletonList(createExistingEntry(urn, existingFoo, 100L, null)));
 
     IngestionTrackingContext ctx = new IngestionTrackingContext();
     ctx.setBackfill(true);
