@@ -126,11 +126,15 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     }
   }
 
-  @Value
+  @Getter
+  @AllArgsConstructor
   static class AddResult<ASPECT extends RecordTemplate> {
     ASPECT oldValue;
     ASPECT newValue;
     Class<ASPECT> klass;
+    // The canonical URN as stored in the DB (may differ in case from the incoming MCE URN).
+    // For new entities with no existing DB row, this is set to the incoming MCE URN.
+    @Nonnull Urn canonicalUrn;
   }
 
   @Value
@@ -184,7 +188,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   @Value
   @EqualsAndHashCode(callSuper = true)
   public static class AspectCreateLambda<ASPECT extends RecordTemplate> extends AspectUpdateLambda<ASPECT> {
-    
+
     public AspectCreateLambda(@Nonnull ASPECT value) {
       super(value); // Uses AspectUpdateLambda constructor that creates lambda: (ignored) -> value
     }
@@ -200,7 +204,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   /**
    * Immutable class to package aspect update context for batch operations.
    * Eliminates the need for multiple parallel lists by bundling related data together.
-   * 
+   *
    * <p>The 'newValue' field contains the final computed value after all transformations (lambda application,
    * callback processing, lambda function registry). This is the value that will be persisted to the database.
    *
@@ -213,7 +217,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     @Nonnull
     ASPECT newValue;
-    
+
     @Nonnull
     AspectUpdateLambda<ASPECT> lambda;
   }
@@ -547,10 +551,16 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     final AuditStamp optimisticLockAuditStamp = extractOptimisticLockForAspectFromIngestionParamsIfPossible(ingestionParams, aspectClass, urn);
 
+    // Use the canonical URN from the DB row to ensure MAE doc IDs are consistent even when MCEs
+    // arrive with different-case URNs (e.g. lixTrackingArchive vs LixTrackingArchive).
+    // Extracted before shouldUpdateAspect so both the early-return (no-op) and update paths
+    // carry the canonical URN — needed when alwaysEmitAuditEvent=true emits MAE even for no-ops.
+    final Urn canonicalUrn = latest.getExtraInfo() != null ? latest.getExtraInfo().getUrn() : urn;
+
     // Unified logic determines whether an update to aspect should be persisted (includes backfill, equality, version, mode checks)
     if (!shouldUpdateAspect(ingestionParams.getIngestionMode(), urn, oldValue, newValue, aspectClass, auditStamp, equalityTester,
         oldAuditStamp, optimisticLockAuditStamp, trackingContext, oldEmitTime, latest.isSoftDeleted())) {
-      return new AddResult<>(oldValue, oldValue, aspectClass);
+      return new AddResult<>(oldValue, oldValue, aspectClass, canonicalUrn);
     }
 
     // Save the newValue as the latest version
@@ -562,7 +572,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     // Apply retention policy
     applyRetention(urn, aspectClass, getRetention(aspectClass), largestVersion);
 
-    return new AddResult<>(oldValue, newValue, aspectClass);
+    return new AddResult<>(oldValue, newValue, aspectClass, canonicalUrn);
   }
 
   /**
@@ -684,7 +694,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     }
 
     // send the audit events etc
-    return results.stream().map(x -> unwrapAddResultToUnion(urn, x, auditStamp, trackingContext)).collect(Collectors.toList());
+    return results.stream().map(x -> unwrapAddResultToUnion(x, auditStamp, trackingContext)).collect(Collectors.toList());
   }
 
   public List<ASPECT_UNION> addMany(@Nonnull URN urn, @Nonnull List<? extends RecordTemplate> aspectValues, @Nonnull AuditStamp auditStamp) {
@@ -762,10 +772,10 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    *
    * <p><b>Aspect Skip Reasons:</b> An aspect may be skipped from processing/writing for the following reasons:
    * <ul>
-   *   <li><b>Callback skip:</b> {@code aspectCallbackHelper()} returns {@code isSkipProcessing() == true} - 
+   *   <li><b>Callback skip:</b> {@code aspectCallbackHelper()} returns {@code isSkipProcessing() == true} -
    *       the registered {@link AspectCallbackRoutingClient} explicitly requests skipping this aspect.</li>
    *   <li><b>Callback returns null:</b> {@code aspectCallbackHelper()} returns a null updated aspect.</li>
-   *   <li><b>shouldUpdateAspect returns false:</b> See {@link #shouldUpdateAspect} for details on equality, 
+   *   <li><b>shouldUpdateAspect returns false:</b> See {@link #shouldUpdateAspect} for details on equality,
    *       backfill, version, and timestamp skip conditions.</li>
    * </ul>
    */
@@ -788,7 +798,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     }
 
     // STEP 1: Batched read of old values with extra info (1 query)
-    Map<Class<? extends RecordTemplate>, AspectWithExtraInfo<RecordTemplate>> oldValuesWithInfo = 
+    Map<Class<? extends RecordTemplate>, AspectWithExtraInfo<RecordTemplate>> oldValuesWithInfo =
         batchGetOldValuesWithExtraInfo(urn, aspectUpdateLambdas);
 
     // STEP 2: Process all aspects through callbacks/validation pipeline
@@ -798,7 +808,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     for (AspectUpdateLambda<? extends RecordTemplate> updateLambda : aspectUpdateLambdas) {
       Class<RecordTemplate> aspectClass = (Class<RecordTemplate>) updateLambda.getAspectClass();
       IngestionParams ingestionParams = updateLambda.getIngestionParams();
-      
+
       // Extract old value and extra info from batched results
       AspectWithExtraInfo<RecordTemplate> oldInfo = oldValuesWithInfo.get(aspectClass);
       RecordTemplate oldAspect = oldInfo != null ? oldInfo.getAspect() : null;
@@ -835,11 +845,15 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       AuditStamp eTagAuditStamp = extractOptimisticLockForAspectFromIngestionParamsIfPossible(
           ingestionParams, aspectClass, urn);
 
+      // Extract canonical URN before shouldUpdateAspect — no-op path also needs it
+      // (alwaysEmitAuditEvent=true emits MAE even when old == new)
+      final Urn batchCanonicalUrn = oldExtraInfo != null ? oldExtraInfo.getUrn() : urn;
+
       if (!shouldUpdateAspect(ingestionParams.getIngestionMode(), urn, oldAspect, newValue,
                               aspectClass, auditStamp, equalityTester, oldAuditStamp, eTagAuditStamp,
                               trackingContext, oldEmitTime, false /* isSoftDeleted not tracked in batch path */)) {
         // Skip this aspect - add as unchanged for MAE skip logic
-        processedResults.add(new AddResult<RecordTemplate>(oldAspect, oldAspect, aspectClass));
+        processedResults.add(new AddResult<>(oldAspect, oldAspect, aspectClass, batchCanonicalUrn));
         continue;
       }
 
@@ -854,7 +868,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       }
 
       // Package context for batch write
-      processedResults.add(new AddResult<RecordTemplate>(oldAspect, newValue, aspectClass));
+      processedResults.add(new AddResult<>(oldAspect, newValue, aspectClass, batchCanonicalUrn));
       contextsToWrite.add(new AspectUpdateContext<>(oldAspect, newValue, (AspectUpdateLambda<RecordTemplate>) updateLambda));
     }
 
@@ -874,7 +888,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     List<ASPECT_UNION> results = new ArrayList<>();
     for (AddResult<RecordTemplate> addResult : processedResults) {
       // unwrapAddResultToUnion() checks equality internally - won't emit MAE if old == new
-      ASPECT_UNION result = unwrapAddResultToUnion(urn, addResult, auditStamp, trackingContext);
+      ASPECT_UNION result = unwrapAddResultToUnion(addResult, auditStamp, trackingContext);
       results.add(result);
     }
 
@@ -885,20 +899,20 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * Batch read old values with extra info (audit stamps, emit time) for equality testing and backfill.
    * Uses existing getWithExtraInfo() which performs a single batched query.
    */
-  private Map<Class<? extends RecordTemplate>, AspectWithExtraInfo<RecordTemplate>> 
+  private Map<Class<? extends RecordTemplate>, AspectWithExtraInfo<RecordTemplate>>
       batchGetOldValuesWithExtraInfo(
           @Nonnull URN urn,
           @Nonnull List<AspectUpdateLambda<? extends RecordTemplate>> aspectUpdateLambdas) {
-    
+
     // Build aspect keys for batch get
     Set<AspectKey<URN, ? extends RecordTemplate>> keys = aspectUpdateLambdas.stream()
         .map(lambda -> new AspectKey<>(lambda.getAspectClass(), urn, LATEST_VERSION))
         .collect(Collectors.toSet());
-    
+
     // Single batched query - uses existing infrastructure
-    Map<AspectKey<URN, ? extends RecordTemplate>, AspectWithExtraInfo<? extends RecordTemplate>> results = 
+    Map<AspectKey<URN, ? extends RecordTemplate>, AspectWithExtraInfo<? extends RecordTemplate>> results =
         getWithExtraInfo(keys);
-    
+
     // Convert to class-based map for easier lookup
     Map<Class<? extends RecordTemplate>, AspectWithExtraInfo<RecordTemplate>> byClass = new HashMap<>();
     for (AspectUpdateLambda lambda : aspectUpdateLambdas) {
@@ -908,7 +922,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
         byClass.put(lambda.getAspectClass(), info);
       }
     }
-    
+
     return byClass;
   }
 
@@ -1010,27 +1024,27 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     for (RecordTemplate aspectValue : aspectValues) {
       // For each aspect, we need to trigger emit MAE
       // In new asset creation, old value is null
-      unwrapAddResult(urn, new AddResult<>(null, aspectValue, (Class<RecordTemplate>) aspectValue.getClass()),
+      unwrapAddResult(new AddResult<>(null, aspectValue, (Class<RecordTemplate>) aspectValue.getClass(), urn),
           auditStamp, trackingContext);
     }
     return numRows > 0 ? urn : null;
   }
 
-  private <ASPECT extends RecordTemplate> ASPECT_UNION unwrapAddResultToUnion(URN urn, AddResult<ASPECT> result,
+  private <ASPECT extends RecordTemplate> ASPECT_UNION unwrapAddResultToUnion(AddResult<ASPECT> result,
       @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext) {
     // handle post-update hooks and emit MAE + return the newValue
-    ASPECT rawResult = unwrapAddResult(urn, result, auditStamp, trackingContext);
+    ASPECT rawResult = unwrapAddResult(result, auditStamp, trackingContext);
 
     // package it into a union
     return ModelUtils.newEntityUnion(_aspectUnionClass, rawResult);
   }
 
-  private <ASPECT extends RecordTemplate> ASPECT unwrapAddResult(URN urn, AddResult<ASPECT> result, @Nonnull AuditStamp auditStamp,
+  private <ASPECT extends RecordTemplate> ASPECT unwrapAddResult(AddResult<ASPECT> result, @Nonnull AuditStamp auditStamp,
       @Nullable IngestionTrackingContext trackingContext) {
-    return unwrapAddResult(urn, result, auditStamp, trackingContext, false);
+    return unwrapAddResult(result, auditStamp, trackingContext, false);
   }
 
-  private <ASPECT extends RecordTemplate> ASPECT unwrapAddResult(URN urn, @Nonnull AddResult<ASPECT> result, @Nonnull AuditStamp auditStamp,
+  private <ASPECT extends RecordTemplate> ASPECT unwrapAddResult(@Nonnull AddResult<ASPECT> result, @Nonnull AuditStamp auditStamp,
       @Nullable IngestionTrackingContext trackingContext, boolean isDeletion) {
     if (trackingContext != null) {
       trackingContext.setBackfill(false); // reset backfill since MAE won't be a backfill event
@@ -1043,11 +1057,16 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     final boolean oldAndNewEqual = (oldValue == null && newValue == null)
         || (oldValue != null && newValue != null && equalityTester.equals(oldValue, newValue));
 
+    // Use the canonical URN from the DB if available (it may differ in case from the incoming MCE URN).
+    // Falls back to the incoming urn for new entities — canonicalUrn is always non-null.
+    @SuppressWarnings("unchecked")
+    final URN maeUrn = (URN) result.getCanonicalUrn();
+
     // Invoke post-update hooks if there's any
     // Note that we do NOT support post-update (or pre-update) hooks for deletion operations (yet). However, since
     //   newValue can in theory be NULL outside of deletion operations, we need to check for that here.
     if (_aspectPostUpdateHooksMap.containsKey(aspectClass) && !isDeletion) {
-      _aspectPostUpdateHooksMap.get(aspectClass).forEach(hook -> hook.accept(urn, newValue));
+      _aspectPostUpdateHooksMap.get(aspectClass).forEach(hook -> hook.accept(maeUrn, newValue));
     }
 
     // Produce MAE after a successful update
@@ -1055,9 +1074,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
       // https://jira01.corp.linkedin.com:8443/browse/APA-80115
       if (_alwaysEmitAuditEvent || !oldAndNewEqual) {
         if (_trackingProducer != null) {
-          _trackingProducer.produceMetadataAuditEvent(urn, oldValue, newValue);
+          _trackingProducer.produceMetadataAuditEvent(maeUrn, oldValue, newValue);
         } else {
-          _producer.produceMetadataAuditEvent(urn, oldValue, newValue);
+          _producer.produceMetadataAuditEvent(maeUrn, oldValue, newValue);
         }
       }
     }
@@ -1067,10 +1086,10 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     if (_emitAspectSpecificAuditEvent) {
       if (_alwaysEmitAspectSpecificAuditEvent || !oldAndNewEqual) {
         if (_trackingProducer != null) {
-          _trackingProducer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, aspectClass, auditStamp,
+          _trackingProducer.produceAspectSpecificMetadataAuditEvent(maeUrn, oldValue, newValue, aspectClass, auditStamp,
               trackingContext, IngestionMode.LIVE);
         } else {
-          _producer.produceAspectSpecificMetadataAuditEvent(urn, oldValue, newValue, aspectClass, auditStamp, IngestionMode.LIVE);
+          _producer.produceAspectSpecificMetadataAuditEvent(maeUrn, oldValue, newValue, aspectClass, auditStamp, IngestionMode.LIVE);
         }
       }
     }
@@ -1199,7 +1218,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     // skip MAE producing and post update hook in test mode or if the result is null (no actual update with addCommon)
     return result == null ? null : (updateLambda.getIngestionParams().isTestMode() ? result.newValue
-        : unwrapAddResult(urn, result, auditStamp, trackingContext));
+        : unwrapAddResult(result, auditStamp, trackingContext));
   }
 
   /**
@@ -1443,7 +1462,7 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     // TODO: add support for sending MAE for soft deleted aspects
     // FY25H2 Note: When performing an Aspect UPDATE, unwrapAddResultToUnion() is called, which emits MAE and does post-update hooks.
     //    When doing similar for DELETE, we should end up doing something similar, but specific to deletion.
-    return unwrapAddResult(urn, result, auditStamp, trackingContext, true);
+    return unwrapAddResult(result, auditStamp, trackingContext, true);
   }
 
   /**
@@ -2295,18 +2314,18 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
   /**
    * Determines if an aspect update should be persisted to the database.
-   * 
+   *
    * <p><b>Returns false (skip write) when:</b>
    * <ul>
-   *   <li><b>Backfill with older data:</b> This is a backfill event ({@code trackingContext.isBackfill() == true}) 
+   *   <li><b>Backfill with older data:</b> This is a backfill event ({@code trackingContext.isBackfill() == true})
    *       and the new emit time is older than the existing data's emit time or audit stamp.</li>
    *   <li><b>Equality check:</b> Old and new values are equal according to the {@link EqualityTester}.</li>
-   *   <li><b>Version skip:</b> New aspect has a lower version than the existing aspect 
+   *   <li><b>Version skip:</b> New aspect has a lower version than the existing aspect
    *       (see {@link #aspectVersionSkipWrite}).</li>
-   *   <li><b>Timestamp/ETag skip:</b> Optimistic locking check fails - the eTag timestamp is older than 
+   *   <li><b>Timestamp/ETag skip:</b> Optimistic locking check fails - the eTag timestamp is older than
    *       the existing aspect's timestamp (see {@link #aspectTimestampSkipWrite}).</li>
    * </ul>
-   * 
+   *
    * <p><b>Returns true (force write) when:</b>
    * <ul>
    *   <li>{@code IngestionMode.LIVE_OVERRIDE} is set - forces the write regardless of other conditions.</li>

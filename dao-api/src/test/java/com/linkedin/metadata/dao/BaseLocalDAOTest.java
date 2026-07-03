@@ -35,6 +35,7 @@ import com.linkedin.testing.MixedRecordArray;
 import com.linkedin.testing.MixedRecordNested;
 import com.linkedin.testing.localrelationship.AspectFooBar;
 import com.linkedin.testing.urn.BarUrn;
+import com.linkedin.testing.urn.BurgerUrn;
 import com.linkedin.testing.urn.FooUrn;
 import java.net.URISyntaxException;
 import java.sql.Timestamp;
@@ -251,6 +252,179 @@ public class BaseLocalDAOTest {
     }
   }
 
+  /**
+   * String-keyed DAO for testing case-insensitive URN canonicalization (e.g. lixTrackingArchive vs LixTrackingArchive).
+   * BurgerUrn uses a String ID, so two instances with different-case names are genuinely distinct objects.
+   */
+  static class DummyBurgerLocalDAO<ENTITY_ASPECT_UNION extends UnionTemplate> extends BaseLocalDAO<ENTITY_ASPECT_UNION, BurgerUrn> {
+
+    private final BiFunction<BurgerUrn, Class<? extends RecordTemplate>, AspectEntry> _getLatestFunction;
+    private final DummyTransactionRunner _transactionRunner;
+
+    public DummyBurgerLocalDAO(Class<ENTITY_ASPECT_UNION> aspectClass,
+        BiFunction<BurgerUrn, Class<? extends RecordTemplate>, AspectEntry> getLatestFunction,
+        BaseMetadataEventProducer eventProducer, DummyTransactionRunner transactionRunner) {
+      super(aspectClass, eventProducer, BurgerUrn.class, new EmptyPathExtractor<>());
+      _getLatestFunction = getLatestFunction;
+      _transactionRunner = transactionRunner;
+    }
+
+    @Nullable
+    @Override
+    public <ASPECT extends RecordTemplate> AuditStamp extractOptimisticLockForAspectFromIngestionParamsIfPossible(
+        @Nullable IngestionParams ingestionParams, @Nonnull Class<ASPECT> aspectClass, @Nonnull BurgerUrn urn) {
+      return null;
+    }
+
+    @Override
+    protected <ASPECT extends RecordTemplate> long saveLatest(BurgerUrn urn, Class<ASPECT> aspectClass, ASPECT oldEntry,
+        AuditStamp optimisticLockAuditStamp, ASPECT newEntry, AuditStamp newAuditStamp, boolean isSoftDeleted,
+        @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
+      return 0;
+    }
+
+    @Override
+    protected <ASPECT_UNION extends RecordTemplate> int createNewAssetWithAspects(@Nonnull BurgerUrn urn,
+        @Nonnull List<AspectCreateLambda<? extends RecordTemplate>> aspectCreateLambdas,
+        @Nonnull List<? extends RecordTemplate> aspectValues, @Nonnull AuditStamp newAuditStamp,
+        @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
+      return aspectValues.size();
+    }
+
+    @Override
+    protected <ASPECT_UNION extends RecordTemplate> int batchUpsertAspects(@Nonnull BurgerUrn urn,
+        @Nonnull List<AspectUpdateContext<RecordTemplate>> updateContexts,
+        @Nonnull AuditStamp auditStamp, @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
+      return updateContexts.size();
+    }
+
+    @Override
+    protected int permanentDelete(@Nonnull BurgerUrn urn, boolean isTestMode) {
+      return 1;
+    }
+
+    @Override
+    public <ASPECT extends RecordTemplate> void updateEntityTables(@Nonnull BurgerUrn urn,
+        @Nonnull Class<ASPECT> aspectClass) {
+    }
+
+    @Override
+    public <ASPECT extends RecordTemplate> List<LocalRelationshipUpdates> backfillLocalRelationships(
+        @Nonnull BurgerUrn urn, @Nonnull Class<ASPECT> aspectClass) {
+      return null;
+    }
+
+    @Nonnull
+    @Override
+    protected <T> T runInTransactionWithRetry(Supplier<T> block, int maxTransactionRetry) {
+      return _transactionRunner.run(block);
+    }
+
+    @Override
+    protected <ASPECT extends RecordTemplate> AspectEntry<ASPECT> getLatest(BurgerUrn urn, Class<ASPECT> aspectClass, boolean isTestMode) {
+      return _getLatestFunction.apply(urn, aspectClass);
+    }
+
+    @Override
+    protected <ASPECT extends RecordTemplate> long getNextVersion(BurgerUrn urn, Class<ASPECT> aspectClass) {
+      return 0;
+    }
+
+    @Override
+    protected <ASPECT extends RecordTemplate> void applyVersionBasedRetention(Class<ASPECT> aspectClass, BurgerUrn urn,
+        VersionBasedRetention retention, long largestVersion) {
+    }
+
+    @Override
+    protected <ASPECT extends RecordTemplate> void applyTimeBasedRetention(Class<ASPECT> aspectClass, BurgerUrn urn,
+        TimeBasedRetention retention, long currentTime) {
+    }
+
+    @Override
+    public <ASPECT extends RecordTemplate> ListResult<Long> listVersions(Class<ASPECT> aspectClass, BurgerUrn urn,
+        int start, int pageSize) {
+      return null;
+    }
+
+    @Override
+    public <ASPECT extends RecordTemplate> ListResult<BurgerUrn> listUrns(Class<ASPECT> aspectClass, int start,
+        int pageSize) {
+      return null;
+    }
+
+    @Override
+    public List<BurgerUrn> listUrns(@Nonnull IndexFilter indexFilter, @Nullable IndexSortCriterion indexSortCriterion,
+        @Nullable BurgerUrn lastUrn, int pageSize) {
+      return null;
+    }
+
+    @Override
+    public ListResult<BurgerUrn> listUrns(@Nonnull IndexFilter indexFilter,
+        @Nullable IndexSortCriterion indexSortCriterion, int start, int pageSize) {
+      return ListResult.<BurgerUrn>builder().build();
+    }
+
+    @Override
+    public <ASPECT extends RecordTemplate> ListResult<ASPECT> list(Class<ASPECT> aspectClass, BurgerUrn urn, int start,
+        int pageSize) {
+      return null;
+    }
+
+    @Override
+    public <ASPECT extends RecordTemplate> ListResult<ASPECT> list(Class<ASPECT> aspectClass, long version, int start,
+        int pageSize) {
+      return null;
+    }
+
+    @Override
+    public <ASPECT extends RecordTemplate> ListResult<ASPECT> list(Class<ASPECT> aspectClass, int start, int pageSize) {
+      return null;
+    }
+
+    @Override
+    public Map<String, Long> countAggregate(@Nonnull IndexFilter indexFilter,
+        @Nonnull IndexGroupByCriterion groupCriterion) {
+      return Collections.emptyMap();
+    }
+
+    @Override
+    public long newNumericId(String namespace, int maxTransactionRetry) {
+      return 0;
+    }
+
+    @Override
+    protected <ASPECT extends RecordTemplate> void insert(@Nonnull BurgerUrn urn, @Nullable RecordTemplate value,
+        @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp auditStamp, long version,
+        @Nullable IngestionTrackingContext trackingContext, boolean isTestMode) {
+    }
+
+    @Override
+    public boolean exists(@Nonnull BurgerUrn urn) {
+      return false;
+    }
+
+    @Override
+    protected <ASPECT extends RecordTemplate> void updateWithOptimisticLocking(@Nonnull BurgerUrn urn,
+        @Nullable RecordTemplate value, @Nonnull Class<ASPECT> aspectClass, @Nonnull AuditStamp newAuditStamp,
+        long version, @Nonnull Timestamp oldTimestamp, @Nullable IngestionTrackingContext trackingContext,
+        boolean isTestMode) {
+    }
+
+    @Override
+    @Nonnull
+    public Map<AspectKey<BurgerUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> get(
+        Set<AspectKey<BurgerUrn, ? extends RecordTemplate>> aspectKeys) {
+      return Collections.emptyMap();
+    }
+
+    @Override
+    @Nonnull
+    public Map<AspectKey<BurgerUrn, ? extends RecordTemplate>, AspectWithExtraInfo<? extends RecordTemplate>> getWithExtraInfo(
+        @Nonnull Set<AspectKey<BurgerUrn, ? extends RecordTemplate>> keys) {
+      return Collections.emptyMap();
+    }
+  }
+
   private DummyLocalDAO<EntityAspectUnion> _dummyLocalDAO;
   private AuditStamp _dummyAuditStamp;
   private BaseMetadataEventProducer _mockEventProducer;
@@ -367,6 +541,59 @@ public class BaseLocalDAOTest {
     verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(urn, foo, null);
     verify(_mockEventProducer, times(1))
         .produceAspectSpecificMetadataAuditEvent(urn, foo, null, AspectFoo.class, _dummyAuditStamp, IngestionMode.LIVE);
+    verifyNoMoreInteractions(_mockEventProducer);
+  }
+
+  /**
+   * Realistic test for the case where two HDFS clusters emit MCEs with different-case URNs for the
+   * same entity (e.g. "lixTrackingArchive" vs "LixTrackingArchive"). MySQL CI collation stores one
+   * row keyed on the first URN seen. Without the fix, each MCE would emit a MAE with its own
+   * incoming URN, creating two Elasticsearch documents with different IDs → duplicate browse results.
+   *
+   * <p>The fix: use ExtraInfo.getUrn() (the canonical DB-stored URN) for all MAE emissions.
+   * Both calls must produce MAE with the same canonical URN regardless of incoming case.
+   */
+  @Test
+  public void testBothCaseVariantsProduceSameCanonicalUrnInMAE() {
+    // Two BurgerUrns that differ only in case — exactly like lixTrackingArchive vs LixTrackingArchive
+    BurgerUrn lowerCaseUrn = new BurgerUrn("lixTrackingArchive");   // first MCE — creates the DB row
+    BurgerUrn upperCaseUrn = new BurgerUrn("LixTrackingArchive");   // second MCE — different-case variant
+
+    AspectFoo firstFoo = new AspectFoo().setValue("first");
+    AspectFoo secondFoo = new AspectFoo().setValue("second");
+
+    BiFunction<BurgerUrn, Class<? extends RecordTemplate>, BaseLocalDAO.AspectEntry> burgerGetLatest = mock(BiFunction.class);
+    DummyBurgerLocalDAO<EntityAspectUnion> burgerDAO = new DummyBurgerLocalDAO<>(
+        EntityAspectUnion.class, burgerGetLatest, _mockEventProducer, _mockTransactionRunner);
+    burgerDAO.setEmitAuditEvent(true);
+    burgerDAO.setEmitAspectSpecificAuditEvent(true);
+
+    // DB always stores lowerCaseUrn as the canonical URN in ExtraInfo
+    ExtraInfo extraInfoWithCanonical = new ExtraInfo().setAudit(_dummyAuditStamp).setUrn(lowerCaseUrn);
+    BaseLocalDAO.AspectEntry<AspectFoo> existingEntry = new BaseLocalDAO.AspectEntry<>(firstFoo, extraInfoWithCanonical);
+
+    // First call (lowerCaseUrn): no DB row yet → ExtraInfo is null → fallback to incoming urn
+    when(burgerGetLatest.apply(lowerCaseUrn, AspectFoo.class))
+        .thenReturn(new BaseLocalDAO.AspectEntry<>(null, null));
+    // Second call (upperCaseUrn): DB row exists → ExtraInfo.urn = lowerCaseUrn (canonical)
+    when(burgerGetLatest.apply(upperCaseUrn, AspectFoo.class))
+        .thenReturn(existingEntry);
+
+    burgerDAO.add(lowerCaseUrn, firstFoo, _dummyAuditStamp);   // creates the row
+    burgerDAO.add(upperCaseUrn, secondFoo, _dummyAuditStamp);  // upper-case variant updates same row
+
+    // First MAE: no ExtraInfo → falls back to incoming lowerCaseUrn ✓
+    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(lowerCaseUrn, null, firstFoo);
+    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(
+        lowerCaseUrn, null, firstFoo, AspectFoo.class, _dummyAuditStamp, IngestionMode.LIVE);
+    // Second MAE: ExtraInfo.urn = lowerCaseUrn → canonical URN used, NOT upperCaseUrn ✓
+    verify(_mockEventProducer, times(1)).produceMetadataAuditEvent(lowerCaseUrn, firstFoo, secondFoo);
+    verify(_mockEventProducer, times(1)).produceAspectSpecificMetadataAuditEvent(
+        lowerCaseUrn, firstFoo, secondFoo, AspectFoo.class, _dummyAuditStamp, IngestionMode.LIVE);
+    // The upper-case URN must never appear in any MAE
+    verify(_mockEventProducer, never()).produceMetadataAuditEvent(eq(upperCaseUrn), any(), any());
+    verify(_mockEventProducer, never()).produceAspectSpecificMetadataAuditEvent(
+        eq(upperCaseUrn), any(), any(), any(), any(), any(IngestionMode.class));
     verifyNoMoreInteractions(_mockEventProducer);
   }
 
@@ -1134,7 +1361,7 @@ public class BaseLocalDAOTest {
     AspectFoo foo = new AspectFoo().setValue("foo");
     AspectBar bar = new AspectBar().setValue("bar");
     _dummyLocalDAO.setAlwaysEmitAuditEvent(true);
-    
+
     when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
         .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(null, null));
     when(_mockGetLatestFunction.apply(any(), eq(AspectBar.class)))
@@ -1156,7 +1383,7 @@ public class BaseLocalDAOTest {
     AspectFoo foo = new AspectFoo().setValue("foo");
     AspectBar bar = new AspectBar().setValue("bar");
     _dummyLocalDAO.setAlwaysEmitAuditEvent(false);
-    
+
     // foo already exists with same value, bar is new
     when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
         .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(foo, null));
@@ -1179,7 +1406,7 @@ public class BaseLocalDAOTest {
     AspectBar bar = new AspectBar().setValue("bar");
     BiConsumer<FooUrn, AspectFoo> fooHook = mock(BiConsumer.class);
     BiConsumer<FooUrn, AspectBar> barHook = mock(BiConsumer.class);
-    
+
     when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
         .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(null, null));
     when(_mockGetLatestFunction.apply(any(), eq(AspectBar.class)))
@@ -1201,7 +1428,7 @@ public class BaseLocalDAOTest {
     AspectBar bar = new AspectBar().setValue("bar");
     BiConsumer<FooUrn, AspectFoo> fooHook = mock(BiConsumer.class);
     BiConsumer<FooUrn, AspectBar> barHook = mock(BiConsumer.class);
-    
+
     when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
         .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(null, null));
     when(_mockGetLatestFunction.apply(any(), eq(AspectBar.class)))
@@ -1221,7 +1448,7 @@ public class BaseLocalDAOTest {
     FooUrn urn = new FooUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");
     AspectBar bar = new AspectBar().setValue("bar");
-    
+
     when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
         .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(null, null));
     when(_mockGetLatestFunction.apply(any(), eq(AspectBar.class)))
@@ -1245,7 +1472,7 @@ public class BaseLocalDAOTest {
     dummyLocalDAO.setAlwaysEmitAuditEvent(true);
     dummyLocalDAO.setEmitAspectSpecificAuditEvent(true);
     dummyLocalDAO.setAlwaysEmitAspectSpecificAuditEvent(true);
-    
+
     when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
         .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(null, null));
 
@@ -1261,7 +1488,7 @@ public class BaseLocalDAOTest {
     FooUrn urn = new FooUrn(1);
     AspectFoo foo1 = new AspectFoo().setValue("foo1");
     AspectFoo foo2 = new AspectFoo().setValue("foo2");
-    
+
     // Should throw IllegalArgumentException due to duplicate aspect class
     _dummyLocalDAO.addManyBatch(urn, Arrays.asList(foo1, foo2), _dummyAuditStamp, null);
   }
@@ -1271,7 +1498,7 @@ public class BaseLocalDAOTest {
     FooUrn urn = new FooUrn(1);
     AspectFoo foo = new AspectFoo().setValue("foo");
     AspectBar bar = new AspectBar().setValue("bar");
-    
+
     // Both aspects already exist with same values
     when(_mockGetLatestFunction.apply(any(), eq(AspectFoo.class)))
         .thenReturn(new BaseLocalDAO.AspectEntry<AspectFoo>(foo, null));
@@ -1321,7 +1548,7 @@ public class BaseLocalDAOTest {
     // Create a skip-processing callback client
     AspectCallbackRoutingClient<AspectFoo> skipClient = new AspectCallbackRoutingClient<AspectFoo>() {
       @Override
-      public AspectCallbackResponse<AspectFoo> routeAspectCallback(com.linkedin.common.urn.Urn urn, 
+      public AspectCallbackResponse<AspectFoo> routeAspectCallback(com.linkedin.common.urn.Urn urn,
           AspectFoo newAspectValue, Optional<AspectFoo> existingAspectValue) {
         return new AspectCallbackResponse<>(newAspectValue);
       }
