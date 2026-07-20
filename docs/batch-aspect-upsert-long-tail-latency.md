@@ -24,17 +24,6 @@ Latency comparison (`Mga.Asset.Update`, call-weighted average, ms; `F` = per-asp
 | jiraissue | 1 | 18,486 | 17,922 | 0.99 | 1.06 | +7.07% |
 | samzajobinstance | 1 | 65,329 | 75,363 | 1.65 | 1.75 | +6.06% |
 
-For comparison, entities with higher aspect counts see the batch path win by a wide, consistent
-margin (e.g. `mlmodel/6`: 90.50ms → 10.00ms, `mlmodel/7`: 138.00ms → 6.00ms). Median improvement
-across all non-dataset/datasetinstance entities is -3.77% at bucket=1 vs. -39.83% at bucket>=2 —
-the benefit scales with aspect count, and single-aspect writes see little to no benefit (and in
-`dataset`/`datasetinstance`'s case, a regression).
-
-This matches the hypothesis that batch-upsert carries fixed per-call overhead that only pays for
-itself once there are multiple aspects to amortize it across. `dataset` and `datasetinstance` are
-overwhelmingly single-aspect writes in production (buckets 1-2 make up the vast majority of
-their call volume), so they're the entities most exposed to this fixed cost.
-
 ## Code-level comparison
 
 Traced both code paths in `dao-impl/ebean-dao`:
@@ -49,85 +38,47 @@ is cached (`ModelUtils.ASPECT_ALIAS_CACHE`, `SchemaValidatorUtil`'s column cache
 combination of small, avoidable object/collection allocations and duplicated work, stacked on
 every batch-upsert call, that the single-aspect path never pays.
 
-### 1. Old-value read: generic batch-get vs. targeted point read
+### 1. Old-value read: same SQL, heavier Java wrapping
 
-- Single-aspect: `aspectUpdateHelper()` → `getLatest()` → `queryLatest()` — a direct read by
-  primary key.
-- Batch: `addManyBatchInternal()` → `batchGetOldValuesWithExtraInfo()`
-  (`BaseLocalDAO.java:902`) → `getWithExtraInfo(Set<AspectKey>)` →
-  `EbeanLocalAccess.batchGetUnion()`. Even for a single aspect this:
-  - builds a `Set<AspectKey>` via `.stream().map().collect(Collectors.toSet())`,
-  - **constructs a second, duplicate `AspectKey` per lambda** just to look the result back up
-    (`BaseLocalDAO.java` inside `batchGetOldValuesWithExtraInfo`, right after the query),
-  - groups aspect classes into a `HashMap`, builds per-aspect-class SQL via
-    `Collectors.toMap(...)`, and merges results into a `LinkedHashMap<SqlRow, Class>` before
-    converting back via `EBeanDAOUtils.readSqlRows`.
-
-  All of this generic multi-key machinery runs for N=1 where `queryLatest()` would do a single
-  targeted read.
+In new schema (what MGA runs), the single-aspect path's `getLatest()` and the batch path's
+`batchGetOldValuesWithExtraInfo()` both funnel into the *same* `EbeanLocalAccess.batchGetUnion()`,
+which reads **only the specific aspect column(s) for the given urn** — not all aspects — so the
+read SQL is essentially identical for N=1 and is not where the gap comes from. The difference is
+the extra Java wrapping the batch path stacks around that identical read: building a
+`Set<AspectKey>` via streams, **constructing a second duplicate `AspectKey` per lambda** to look
+results back up, and grouping through a `HashMap`/`Collectors.toMap`/`LinkedHashMap<SqlRow, Class>`
+pipeline that the single-aspect call skips.
 
 ### 2. SQL construction: fixed template vs. hand-assembled per call
 
-- Single-aspect (`SQLStatementUtils.createAspectUpsertSql`): one `getAspectColumnName()` lookup
-  + **one** `String.format()` call against a small, fixed constant (`SQL_UPSERT_ASPECT_TEMPLATE`,
-  ~3 placeholders).
-- Batch (`EbeanLocalAccess.prepareMultiColumnInsert`, line 889, +
-  `buildOnDuplicateKeyForUpsert`, line 1024):
-  - Extracts `classNames` via `aspectLambdas.stream().map(...).collect(Collectors.toList())`
-    (`EbeanLocalAccess.java:919`) — stream/lambda allocation even for a single aspect.
-  - Builds the INSERT/VALUES clause with two separate `StringBuilder`s, calling
-    `getAspectColumnName()` in the loop.
-  - `buildOnDuplicateKeyForUpsert()` **re-derives `classNames` a second time**
-    (`EbeanLocalAccess.java:1028`, another stream+collect) and **calls `getAspectColumnName()`
-    again for the same aspects** — column-name resolution happens twice per aspect instead of
-    once.
-  - The fully-assembled SQL string (INSERT clause + VALUES clause + full ON DUPLICATE KEY
-    clause, now containing real column names and bind placeholders) is passed through
-    `String.format(insertStatement, tableName)` — this makes `String.format` scan the *entire*
-    composed SQL text hunting for `%s`, instead of the tiny fixed template the single-aspect path
-    uses. This scales with statement length even when there's only one aspect.
-  - Neither path caches SQL templates today (`SQLStatementUtils` has no `computeIfAbsent`/static
-    cache) — this isn't a regression from removed caching, the batch path's assembly is just
-    structurally heavier by construction.
+The single-aspect path (`SQLStatementUtils.createAspectUpsertSql`) does one `getAspectColumnName()`
+lookup and one `String.format()` against a small fixed template, whereas the batch path
+(`prepareMultiColumnInsert` + `buildOnDuplicateKeyForUpsert`) **derives `classNames` twice and
+resolves `getAspectColumnName()` twice per aspect**, assembling the statement with two
+`StringBuilder`s. The fully-composed SQL is then passed through `String.format(insertStatement,
+tableName)`, forcing a scan of the *entire* assembled string for `%s` rather than the tiny fixed
+template.
 
-### 3. Extra boilerplate/validation unique to the batch path, even at N=1
+### 3. Extra boilerplate/validation unique to the batch path
 
-- `batchUpsert()` (line 279) first unpacks `updateContexts` into two new parallel `ArrayList`s
-  (`aspectValues`, `aspectUpdateLambdas`) via a manual loop — an allocation the single-aspect path
-  skips entirely.
-- `prepareMultiColumnInsert()` then does a `size()` equality check plus an
-  `aspectValues.forEach(...)` null-check pass — a full traversal + lambda allocation for
-  validation that the single-aspect path does inline via one `if (newValue == null)` branch.
+`batchUpsert()` unpacks `updateContexts` into two parallel `ArrayList`s via a manual loop, then
+`prepareMultiColumnInsert()` adds a `size()` check and an `aspectValues.forEach(...)` null-check
+pass — allocations and traversals the single-aspect path replaces with a single inline
+`if (newValue == null)` branch.
 
-### Net picture
+## Why not do anything now
 
-Buckets >= 2 win because the fixed overhead above amortizes over more aspects (and multiple
-single-aspect round-trips/statements are collapsed into one). Bucket 1 pays the same fixed cost
-with nothing to amortize it against — exactly matching the production data, where `dataset/1` and
-`datasetinstance/1` (MGA's highest-volume, mostly single-aspect writes) show the smallest or
-negative improvement.
+On review, no immediate change is warranted. The overwhelming, wide-margin improvement the batch
+path delivers across the non-`dataset`-bucket-1 slices (frequently 40-90%+ latency reductions at
+higher aspect counts) far outweighs the ~0.1-0.2 ms (100-200 microsecond) regression seen on
+`dataset`/`datasetinstance` bucket-1 — even accounting for the fact that `dataset` bucket-1 is the
+single most common operation by call volume. The regression is small in absolute terms, the net
+effect across the workload is strongly positive, and the overheads above are hypotheses that
+haven't yet been confirmed as the dominant cost. This is documented for future reference rather
+than as an action item.
 
 ## Suggested follow-ups
 
-In priority order:
-
-1. **Special-case N=1 in `batchUpsert()`/`addManyBatchInternal()`**: fall through to the existing
-   single-aspect `add()` path instead of the generic batch machinery. This would likely close
-   most of the gap for `dataset`/`datasetinstance` bucket-1, which is MGA's dominant-volume case.
-2. **De-duplicate `classNames` derivation**: compute it once in `batchUpsert()`/
-   `prepareMultiColumnInsert()` and pass it into `buildOnDuplicateKeyFor*()` instead of
-   re-deriving it — removes one redundant stream pass and N redundant `getAspectColumnName()`
-   calls per write.
-3. **Avoid the double `AspectKey` construction** in `batchGetOldValuesWithExtraInfo()` — build
-   the class-keyed map directly from the same `AspectKey` instances used for the query instead of
-   re-constructing them.
-4. **Avoid the whole-string `String.format` scan**: replace
-   `String.format(insertStatement, tableName)` with a targeted substitution (e.g. building the
-   table name into the `StringBuilder` at the right position) so formatting cost doesn't scale
-   with the size of the already-assembled SQL text.
-
-## Appendix: raw production data
-
-Full per-entity, per-bucket latency and call-count tables (batch-upsert vs. per-aspect), plus
-median/weighted-average improvement rollups, are tracked in the companion analysis spreadsheet
-(MGA Batch-Upsert Latency Analysis) rather than duplicated here.
+Look into the hypotheses above — validate with allocation profiling and/or a JMH microbenchmark
+(N=1 batch vs. single-aspect path) to confirm which of the overheads actually dominate before
+committing to a fix.
