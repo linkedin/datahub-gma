@@ -2,26 +2,13 @@
 
 ## Summary
 
-Production latency data from the `metadata-graph-assets` (MGA) batch-upsert ramp shows that `BatchUpsert=true` wins
-decisively at higher aspect counts (`CountBucket >= 2`), but is flat or slightly _slower_ than the existing per-aspect
-`dao.add()` path at `CountBucket = 1` — most visibly on `dataset` and `datasetinstance`, which together dominate MGA's
-write volume.
+Latency observations from the asset service's batch-upsert rollout show that `BatchUpsert=true` wins decisively at
+higher aspect counts (multiple aspects written per call), but is flat or slightly _slower_ than the existing per-aspect
+`dao.add()` path when only a single aspect is written per call — the case that dominates write volume for
+single-aspect entities.
 
-This doc captures the production evidence and a code-level root-cause pass through `datahub-gma`'s batch-upsert
-implementation, comparing it against the existing single-aspect `add()`/`addWithOptimisticLocking()` path it's meant to
-replace.
-
-## Production evidence
-
-Latency comparison (`Mga.Asset.Update`, call-weighted average, ms; `F` = per-aspect path, `T` = batch-upsert path),
-sampled over a 72h window:
-
-| EntityType | Bucket | Calls (F)  | Calls (T)  | CW Avg (F) ms | CW Avg (T) ms | Avg % Δ    |
-| ---------- | ------ | ---------- | ---------- | ------------- | ------------- | ---------- |
-| dataset    | 1      | 42,986,088 | 45,223,150 | 0.308         | 0.441         | **+43.2%** |
-
-Positive `Avg % Δ` = regression (batch-upsert path is slower). `dataset` bucket-1 is MGA's highest-volume write, and the
-batch path is measurably slower on it — the core motivation for this analysis.
+This doc captures a code-level root-cause pass through `datahub-gma`'s batch-upsert implementation, comparing it against
+the existing single-aspect `add()`/`addWithOptimisticLocking()` path it's meant to replace.
 
 ## Code-level comparison
 
@@ -38,7 +25,7 @@ pays.
 
 ### 1. Old-value read: same SQL, heavier Java wrapping
 
-In new schema (what MGA runs), the single-aspect path's `getLatest()` and the batch path's
+In new schema, the single-aspect path's `getLatest()` and the batch path's
 `batchGetOldValuesWithExtraInfo()` both funnel into the _same_ `EbeanLocalAccess.batchGetUnion()`, which reads **only
 the specific aspect column(s) for the given urn** — not all aspects — so the read SQL is essentially identical for N=1
 and is not where the gap comes from. The difference is the extra Java wrapping the batch path stacks around that
@@ -63,12 +50,11 @@ traversals the single-aspect path replaces with a single inline `if (newValue ==
 
 ## Why not do anything now
 
-On review, no immediate change is warranted. The overwhelming, wide-margin improvement the batch path delivers across
-the non-`dataset`-bucket-1 slices (frequently 40-90%+ latency reductions at higher aspect counts) far outweighs the
-~0.1-0.2 ms (100-200 microsecond) regression seen on `dataset`/`datasetinstance` bucket-1 — even accounting for the fact
-that `dataset` bucket-1 is the single most common operation by call volume. The regression is small in absolute terms,
-the net effect across the workload is strongly positive, and the overheads above are hypotheses that haven't yet been
-confirmed as the dominant cost. This is documented for future reference rather than as an action item.
+On review, no immediate change is warranted. The batch path delivers a wide-margin latency improvement across
+multi-aspect writes that far outweighs the small regression seen on single-aspect writes — even accounting for the fact
+that single-aspect writes are the more common operation by volume. The regression is small in absolute terms, the net
+effect across the workload is strongly positive, and the overheads above are hypotheses that haven't yet been confirmed
+as the dominant cost. This is documented for future reference rather than as an action item.
 
 ## Suggested follow-ups
 

@@ -285,10 +285,10 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
 
     // TODO: This batch path carries fixed per-call overhead (duplicated AspectKey/classNames
     // derivation, extra collection/stream allocation, whole-string String.format on the assembled
-    // SQL) that only amortizes at aspect count >= 2. For single-aspect (N=1) writes it can be
-    // ~100-200us slower than the per-aspect add() path (most visibly dataset/datasetinstance
-    // bucket-1). This is intentionally left as-is today since the net workload win outweighs it;
-    // revisit if single-aspect batch-upsert latency becomes a problem. See
+    // SQL) that only amortizes when multiple aspects are written per call. For single-aspect
+    // (N=1) writes it can be modestly slower than the per-aspect add() path. This is intentionally
+    // left as-is today since the net workload win outweighs it; revisit if single-aspect
+    // batch-upsert latency becomes a problem. See
     // docs/batch-aspect-upsert-long-tail-latency.md for the analysis and hypotheses.
 
     // Extract parallel lists from contexts for prepareMultiColumnInsert
