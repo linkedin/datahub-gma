@@ -4,8 +4,8 @@
 
 Latency observations from the asset service's batch-upsert rollout show that `BatchUpsert=true` wins decisively at
 higher aspect counts (multiple aspects written per call), but is flat or slightly _slower_ than the existing per-aspect
-`dao.add()` path when only a single aspect is written per call — the case that dominates write volume for
-single-aspect entities.
+`dao.add()` path when only a single aspect is written per call — the case that dominates write volume for single-aspect
+entities.
 
 This doc captures a code-level root-cause pass through `datahub-gma`'s batch-upsert implementation, comparing it against
 the existing single-aspect `add()`/`addWithOptimisticLocking()` path it's meant to replace.
@@ -25,13 +25,12 @@ pays.
 
 ### 1. Old-value read: same SQL, heavier Java wrapping
 
-In new schema, the single-aspect path's `getLatest()` and the batch path's
-`batchGetOldValuesWithExtraInfo()` both funnel into the _same_ `EbeanLocalAccess.batchGetUnion()`, which reads **only
-the specific aspect column(s) for the given urn** — not all aspects — so the read SQL is essentially identical for N=1
-and is not where the gap comes from. The difference is the extra Java wrapping the batch path stacks around that
-identical read: building a `Set<AspectKey>` via streams, **constructing a second duplicate `AspectKey` per lambda** to
-look results back up, and grouping through a `HashMap`/`Collectors.toMap`/`LinkedHashMap<SqlRow, Class>` pipeline that
-the single-aspect call skips.
+In new schema, the single-aspect path's `getLatest()` and the batch path's `batchGetOldValuesWithExtraInfo()` both
+funnel into the _same_ `EbeanLocalAccess.batchGetUnion()`, which reads **only the specific aspect column(s) for the
+given urn** — not all aspects — so the read SQL is essentially identical for N=1 and is not where the gap comes from.
+The difference is the extra Java wrapping the batch path stacks around that identical read: building a `Set<AspectKey>`
+via streams, **constructing a second duplicate `AspectKey` per lambda** to look results back up, and grouping through a
+`HashMap`/`Collectors.toMap`/`LinkedHashMap<SqlRow, Class>` pipeline that the single-aspect call skips.
 
 ### 2. SQL construction: fixed template vs. hand-assembled per call
 
