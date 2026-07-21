@@ -16,13 +16,12 @@ replace.
 Latency comparison (`Mga.Asset.Update`, call-weighted average, ms; `F` = per-aspect path, `T` = batch-upsert path),
 sampled over a 72h window:
 
-| EntityType       | Bucket | Calls (F)   | Calls (T) | CW Avg (F) ms | CW Avg (T) ms | Avg % Δ      |
-| ---------------- | ------ | ----------- | --------- | ------------- | ------------- | ------------ |
-| dataset          | 1      | 53,665,724  | 975,262   | 2.74          | 1.27          | -53.65%      |
-| datasetinstance  | 1      | 108,304,383 | 4,533,395 | 2.58          | 3.84          | **+48.84%**  |
-| datasetinstance  | 2      | 947         | 321       | 6.99          | 14.46         | **+106.87%** |
-| jiraissue        | 1      | 18,486      | 17,922    | 0.99          | 1.06          | +7.07%       |
-| samzajobinstance | 1      | 65,329      | 75,363    | 1.65          | 1.75          | +6.06%       |
+| EntityType | Bucket | Calls (F)  | Calls (T)  | CW Avg (F) ms | CW Avg (T) ms | Avg % Δ    |
+| ---------- | ------ | ---------- | ---------- | ------------- | ------------- | ---------- |
+| dataset    | 1      | 42,986,088 | 45,223,150 | 0.308         | 0.441         | **+43.2%** |
+
+Positive `Avg % Δ` = regression (batch-upsert path is slower). `dataset` bucket-1 is MGA's highest-volume write, and the
+batch path is measurably slower on it — the core motivation for this analysis.
 
 ## Code-level comparison
 
