@@ -1,0 +1,296 @@
+package com.linkedin.metadata.dao;
+
+import com.linkedin.common.AuditStamp;
+import com.linkedin.data.template.RecordTemplate;
+import com.linkedin.metadata.dao.tracking.BaseDaoUsageEmitter;
+import com.linkedin.metadata.dao.tracking.DaoUsageTarget;
+import com.linkedin.metadata.events.IngestionTrackingContext;
+import com.linkedin.metadata.query.IndexFilter;
+import com.linkedin.metadata.query.IndexGroupByCriterion;
+import com.linkedin.metadata.query.IndexSortCriterion;
+import com.linkedin.testing.AspectBar;
+import com.linkedin.testing.AspectFoo;
+import com.linkedin.testing.urn.FooUrn;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import org.mockito.ArgumentCaptor;
+import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.Test;
+
+import static com.linkedin.testing.TestUtils.makeFooUrn;
+import static org.mockito.Mockito.*;
+import static org.testng.Assert.*;
+
+
+/**
+ * Tests for {@link UsageTrackingEbeanLocalAccess}. Verifies:
+ * <ul>
+ *   <li>Each captured operation maps to the right operationType, entityType, source and targets</li>
+ *   <li>batchGetUnion groups aspects per URN</li>
+ *   <li>Writes/deletes carry the caller from the audit stamp; reads and DELETE_ALL do not</li>
+ *   <li>Excluded, test-mode and backfill operations do not emit</li>
+ *   <li>The emitter is fail-open (its exceptions never propagate) and disabled = zero interaction</li>
+ *   <li>The delegate's return value is always passed through unchanged</li>
+ * </ul>
+ */
+public class UsageTrackingEbeanLocalAccessTest {
+
+  private IEbeanLocalAccess<FooUrn> _mockDelegate;
+  private BaseDaoUsageEmitter _mockEmitter;
+  private UsageTrackingEbeanLocalAccess<FooUrn> _usage;
+
+  private FooUrn _urn1;
+  private FooUrn _urn2;
+  private FooUrn _actor;
+  private AuditStamp _auditStamp;
+
+  @SuppressWarnings("unchecked")
+  @BeforeMethod
+  public void setUp() {
+    _mockDelegate = mock(IEbeanLocalAccess.class);
+    _mockEmitter = mock(BaseDaoUsageEmitter.class);
+    when(_mockEmitter.isEnabled()).thenReturn(true);
+
+    _usage = new UsageTrackingEbeanLocalAccess<>(_mockDelegate, _mockEmitter, FooUrn.class);
+
+    _urn1 = makeFooUrn(1);
+    _urn2 = makeFooUrn(2);
+    _actor = makeFooUrn(99);
+    _auditStamp = new AuditStamp().setActor(_actor).setTime(0L);
+  }
+
+  @SuppressWarnings("unchecked")
+  private ArgumentCaptor<List<DaoUsageTarget>> targetsCaptor() {
+    return ArgumentCaptor.forClass(List.class);
+  }
+
+  // ---------------------------------------------------------------------------------------
+  // Reads
+  // ---------------------------------------------------------------------------------------
+
+  @Test
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  public void testBatchGetUnionEmitsReadGroupedByUrn() {
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys = (List) Arrays.asList(
+        new AspectKey<>(AspectFoo.class, _urn1, 0L),
+        new AspectKey<>(AspectBar.class, _urn1, 0L),
+        new AspectKey<>(AspectFoo.class, _urn2, 0L));
+    List<EbeanMetadataAspect> expected = Collections.emptyList();
+    when(_mockDelegate.batchGetUnion(any(), anyInt(), anyInt(), anyBoolean(), anyBoolean()))
+        .thenReturn(expected);
+
+    List<EbeanMetadataAspect> result = _usage.batchGetUnion(keys, 3, 0, false, false);
+
+    assertSame(result, expected);
+    ArgumentCaptor<List<DaoUsageTarget>> targets = targetsCaptor();
+    verify(_mockEmitter).emit(eq("READ"), eq("foo"), eq("batchGetUnion"), isNull(), isNull(),
+        targets.capture());
+    List<DaoUsageTarget> captured = targets.getValue();
+    assertEquals(captured.size(), 2);
+    assertEquals(captured.get(0).getUrn(), _urn1.toString());
+    assertEquals(captured.get(0).getAspects(), Arrays.asList("AspectFoo", "AspectBar"));
+    assertEquals(captured.get(1).getUrn(), _urn2.toString());
+    assertEquals(captured.get(1).getAspects(), Collections.singletonList("AspectFoo"));
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  public void testListByUrnEmitsRead() {
+    ListResult<AspectFoo> expected = mock(ListResult.class);
+    when(_mockDelegate.list(any(Class.class), any(), anyInt(), anyInt())).thenReturn(expected);
+
+    ListResult<AspectFoo> result = _usage.list(AspectFoo.class, _urn1, 0, 10);
+
+    assertSame(result, expected);
+    ArgumentCaptor<List<DaoUsageTarget>> targets = targetsCaptor();
+    verify(_mockEmitter).emit(eq("READ"), eq("foo"), eq("list"), isNull(), isNull(),
+        targets.capture());
+    assertEquals(targets.getValue().get(0).getUrn(), _urn1.toString());
+    assertEquals(targets.getValue().get(0).getAspects(), Collections.singletonList("AspectFoo"));
+  }
+
+  // ---------------------------------------------------------------------------------------
+  // Writes / deletes
+  // ---------------------------------------------------------------------------------------
+
+  @Test
+  public void testAddWithValueEmitsWriteWithActor() {
+    when(_mockDelegate.add(any(), any(), any(), any(), any(), anyBoolean())).thenReturn(1);
+
+    int result = _usage.add(_urn1, new AspectFoo(), AspectFoo.class, _auditStamp, null, false);
+
+    assertEquals(result, 1);
+    ArgumentCaptor<List<DaoUsageTarget>> targets = targetsCaptor();
+    verify(_mockEmitter).emit(eq("WRITE"), eq("foo"), eq("add"), eq(_actor.toString()), isNull(),
+        targets.capture());
+    assertEquals(targets.getValue().get(0).getUrn(), _urn1.toString());
+    assertEquals(targets.getValue().get(0).getAspects(), Collections.singletonList("AspectFoo"));
+  }
+
+  @Test
+  public void testAddNullValueEmitsDelete() {
+    when(_mockDelegate.add(any(), any(), any(), any(), any(), anyBoolean())).thenReturn(1);
+
+    _usage.add(_urn1, null, AspectFoo.class, _auditStamp, null, false);
+
+    verify(_mockEmitter).emit(eq("DELETE"), eq("foo"), eq("add"), eq(_actor.toString()), isNull(),
+        any());
+  }
+
+  @Test
+  public void testAddWithOptimisticLockingEmitsWrite() {
+    when(_mockDelegate.addWithOptimisticLocking(any(), any(), any(), any(), any(), any(),
+        anyBoolean(), anyBoolean())).thenReturn(1);
+
+    _usage.addWithOptimisticLocking(_urn1, new AspectFoo(), AspectFoo.class, _auditStamp, null,
+        null, false, false);
+
+    verify(_mockEmitter).emit(eq("WRITE"), eq("foo"), eq("addWithOptimisticLocking"),
+        eq(_actor.toString()), isNull(), any());
+  }
+
+  @Test
+  public void testCreateEmitsWrite() {
+    when(_mockDelegate.create(any(), any(), any(), any(), any(), anyBoolean())).thenReturn(1);
+
+    int result = _usage.create(_urn1, Collections.singletonList(new AspectFoo()),
+        Collections.emptyList(), _auditStamp, null, false);
+
+    assertEquals(result, 1);
+    ArgumentCaptor<List<DaoUsageTarget>> targets = targetsCaptor();
+    verify(_mockEmitter).emit(eq("WRITE"), eq("foo"), eq("create"), eq(_actor.toString()), isNull(),
+        targets.capture());
+    assertEquals(targets.getValue().get(0).getAspects(), Collections.singletonList("AspectFoo"));
+  }
+
+  @Test
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  public void testBatchUpsertEmitsWrite() {
+    AspectFoo value = new AspectFoo();
+    BaseLocalDAO.AspectUpdateLambda lambda = new BaseLocalDAO.AspectUpdateLambda(value);
+    BaseLocalDAO.AspectUpdateContext ctx = new BaseLocalDAO.AspectUpdateContext(null, value, lambda);
+    List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> contexts =
+        (List) Collections.singletonList(ctx);
+    when(_mockDelegate.batchUpsert(any(), any(), any(), any(), anyBoolean())).thenReturn(1);
+
+    int result = _usage.batchUpsert(_urn1, contexts, _auditStamp, null, false);
+
+    assertEquals(result, 1);
+    ArgumentCaptor<List<DaoUsageTarget>> targets = targetsCaptor();
+    verify(_mockEmitter).emit(eq("WRITE"), eq("foo"), eq("batchUpsert"), eq(_actor.toString()),
+        isNull(), targets.capture());
+    assertEquals(targets.getValue().get(0).getUrn(), _urn1.toString());
+    assertEquals(targets.getValue().get(0).getAspects(), Collections.singletonList("AspectFoo"));
+  }
+
+  @Test
+  public void testSoftDeleteAssetEmitsDeleteAllWithEmptyAspects() {
+    when(_mockDelegate.softDeleteAsset(any(), anyBoolean())).thenReturn(1);
+
+    _usage.softDeleteAsset(_urn1, false);
+
+    ArgumentCaptor<List<DaoUsageTarget>> targets = targetsCaptor();
+    verify(_mockEmitter).emit(eq("DELETE_ALL"), eq("foo"), eq("softDeleteAsset"), isNull(),
+        isNull(), targets.capture());
+    assertEquals(targets.getValue().get(0).getUrn(), _urn1.toString());
+    assertTrue(targets.getValue().get(0).getAspects().isEmpty());
+  }
+
+  @Test
+  public void testImpersonatorPopulatedOnWrite() {
+    FooUrn impersonator = makeFooUrn(500);
+    AuditStamp stamp = new AuditStamp().setActor(_actor).setImpersonator(impersonator).setTime(0L);
+    when(_mockDelegate.add(any(), any(), any(), any(), any(), anyBoolean())).thenReturn(1);
+
+    _usage.add(_urn1, new AspectFoo(), AspectFoo.class, stamp, null, false);
+
+    verify(_mockEmitter).emit(eq("WRITE"), eq("foo"), eq("add"), eq(_actor.toString()),
+        eq(impersonator.toString()), any());
+  }
+
+  // ---------------------------------------------------------------------------------------
+  // Exclusions and safety
+  // ---------------------------------------------------------------------------------------
+
+  @Test
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  public void testTestModeSkipsEmission() {
+    when(_mockDelegate.add(any(), any(), any(), any(), any(), anyBoolean())).thenReturn(1);
+    when(_mockDelegate.batchGetUnion(any(), anyInt(), anyInt(), anyBoolean(), anyBoolean()))
+        .thenReturn(Collections.emptyList());
+
+    _usage.add(_urn1, new AspectFoo(), AspectFoo.class, _auditStamp, null, true);
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys =
+        (List) Collections.singletonList(new AspectKey<>(AspectFoo.class, _urn1, 0L));
+    _usage.batchGetUnion(keys, 1, 0, false, true);
+
+    verify(_mockEmitter, never()).emit(anyString(), anyString(), anyString(), any(), any(), any());
+  }
+
+  @Test
+  public void testBackfillSkipsEmission() {
+    IngestionTrackingContext backfillContext = new IngestionTrackingContext().setBackfill(true);
+    when(_mockDelegate.add(any(), any(), any(), any(), any(), anyBoolean())).thenReturn(1);
+
+    _usage.add(_urn1, new AspectFoo(), AspectFoo.class, _auditStamp, backfillContext, false);
+
+    verify(_mockEmitter, never()).emit(anyString(), anyString(), anyString(), any(), any(), any());
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  public void testExcludedMethodsDoNotEmit() {
+    when(_mockDelegate.exists(any())).thenReturn(true);
+    when(_mockDelegate.list(any(Class.class), anyInt(), anyInt())).thenReturn(mock(ListResult.class));
+    when(_mockDelegate.countAggregate(any(), any())).thenReturn(Collections.emptyMap());
+    when(_mockDelegate.batchSoftDeleteAssets(any(), any(), anyBoolean())).thenReturn(0);
+    when(_mockDelegate.readDeletionInfoBatch(any(), anyBoolean())).thenReturn(Collections.emptyMap());
+    when(_mockDelegate.listUrns(any(IndexFilter.class), any(IndexSortCriterion.class), anyInt(),
+        anyInt())).thenReturn(mock(ListResult.class));
+
+    _usage.exists(_urn1);
+    _usage.list(AspectFoo.class, 0, 10);
+    _usage.countAggregate(null, mock(IndexGroupByCriterion.class));
+    _usage.batchSoftDeleteAssets(Collections.singletonList(_urn1), "2026-01-01", false);
+    _usage.readDeletionInfoBatch(Collections.singletonList(_urn1), false);
+    _usage.listUrns(mock(IndexFilter.class), mock(IndexSortCriterion.class), 0, 10);
+    _usage.ensureSchemaUpToDate();
+
+    verify(_mockEmitter, never()).emit(anyString(), anyString(), anyString(), any(), any(), any());
+  }
+
+  @Test
+  public void testDisabledEmitterSkipsEmissionButDelegates() {
+    when(_mockEmitter.isEnabled()).thenReturn(false);
+    when(_mockDelegate.add(any(), any(), any(), any(), any(), anyBoolean())).thenReturn(7);
+
+    int result = _usage.add(_urn1, new AspectFoo(), AspectFoo.class, _auditStamp, null, false);
+
+    assertEquals(result, 7);
+    verify(_mockDelegate).add(any(), any(), any(), any(), any(), anyBoolean());
+    verify(_mockEmitter, never()).emit(anyString(), anyString(), anyString(), any(), any(), any());
+  }
+
+  @Test
+  public void testEmitterExceptionDoesNotPropagate() {
+    when(_mockDelegate.add(any(), any(), any(), any(), any(), anyBoolean())).thenReturn(3);
+    doThrow(new RuntimeException("boom")).when(_mockEmitter)
+        .emit(anyString(), anyString(), anyString(), any(), any(), any());
+
+    int result = _usage.add(_urn1, new AspectFoo(), AspectFoo.class, _auditStamp, null, false);
+
+    assertEquals(result, 3);
+  }
+
+  @Test
+  public void testConfigAndPassThroughMethodsDelegate() {
+    _usage.setUrnPathExtractor(null);
+    verify(_mockDelegate).setUrnPathExtractor(null);
+
+    _usage.configureOptionalForceIndex("PRIMARY", null);
+    verify(_mockDelegate).configureOptionalForceIndex("PRIMARY", null);
+
+    verify(_mockEmitter, never()).emit(anyString(), anyString(), anyString(), any(), any(), any());
+  }
+}
