@@ -20,6 +20,7 @@ import com.linkedin.metadata.dao.retention.TimeBasedRetention;
 import com.linkedin.metadata.dao.retention.VersionBasedRetention;
 import com.linkedin.metadata.dao.storage.LocalDAOStorageConfig;
 import com.linkedin.metadata.dao.tracking.BaseDaoBenchmarkMetrics;
+import com.linkedin.metadata.dao.tracking.BaseDaoUsageEmitter;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.urnpath.EmptyPathExtractor;
 import com.linkedin.metadata.dao.urnpath.UrnPathExtractor;
@@ -587,6 +588,24 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   public void setBenchmarkMetrics(@Nonnull BaseDaoBenchmarkMetrics metrics) {
     if (_localAccess != null) {
       _localAccess = new InstrumentedEbeanLocalAccess<>(_localAccess, metrics, _urnClass);
+    }
+  }
+
+  /**
+   * Set the usage emitter for DAO usage tracking. Wraps the underlying
+   * {@link IEbeanLocalAccess} with a {@link UsageTrackingEbeanLocalAccess} decorator that
+   * emits a usage event once per successful read / write / delete.
+   * No-op when {@code _localAccess} is {@code null} (OLD_SCHEMA_ONLY mode).
+   *
+   * <p>Purely additive: when this is never called the DAO behaves exactly as before, and the
+   * emitter is fire-and-forget (never throws into the call path). Composes with
+   * {@link #setBenchmarkMetrics} -- both decorate {@code _localAccess}.
+   *
+   * @param usageEmitter the usage emitter implementation to use
+   */
+  public void setUsageEmitter(@Nonnull BaseDaoUsageEmitter usageEmitter) {
+    if (_localAccess != null) {
+      _localAccess = new UsageTrackingEbeanLocalAccess<>(_localAccess, usageEmitter, _urnClass);
     }
   }
 
