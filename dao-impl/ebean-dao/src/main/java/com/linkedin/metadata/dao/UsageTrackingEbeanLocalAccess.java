@@ -4,6 +4,7 @@ import com.linkedin.common.AuditStamp;
 import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.tracking.BaseDaoUsageEmitter;
+import com.linkedin.metadata.dao.tracking.DaoReadContext;
 import com.linkedin.metadata.dao.tracking.DaoUsageTarget;
 import com.linkedin.metadata.dao.urnpath.UrnPathExtractor;
 import com.linkedin.metadata.events.IngestionTrackingContext;
@@ -147,7 +148,7 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
       boolean includeSoftDeleted, boolean isTestMode) {
     final List<EbeanMetadataAspect> result =
         _delegate.batchGetUnion(keys, keysCount, position, includeSoftDeleted, isTestMode);
-    if (_usageEmitter.isEnabled() && !isTestMode) {
+    if (_usageEmitter.isEnabled() && !isTestMode && !DaoReadContext.isInternalRead()) {
       safeEmit(OP_READ, "batchGetUnion", null, () -> targetsFromKeys(keys, keysCount, position));
     }
     return result;

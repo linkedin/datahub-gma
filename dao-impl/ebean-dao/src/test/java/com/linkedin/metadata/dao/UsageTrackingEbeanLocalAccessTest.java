@@ -3,6 +3,7 @@ package com.linkedin.metadata.dao;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.tracking.BaseDaoUsageEmitter;
+import com.linkedin.metadata.dao.tracking.DaoReadContext;
 import com.linkedin.metadata.dao.tracking.DaoUsageTarget;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.IndexFilter;
@@ -18,6 +19,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.mockito.ArgumentCaptor;
+import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
@@ -66,6 +68,45 @@ public class UsageTrackingEbeanLocalAccessTest {
   @SuppressWarnings("unchecked")
   private ArgumentCaptor<List<DaoUsageTarget>> targetsCaptor() {
     return ArgumentCaptor.forClass(List.class);
+  }
+
+  @AfterMethod
+  public void tearDown() {
+    // Defensive: never let an internal-read marker leak into the next test on a reused thread.
+    DaoReadContext.clear();
+  }
+
+  @Test
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  public void testInternalReadIsNotEmitted() {
+    when(_mockDelegate.batchGetUnion(any(), anyInt(), anyInt(), anyBoolean(), anyBoolean()))
+        .thenReturn(Collections.emptyList());
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys =
+        (List) Collections.singletonList(new AspectKey<>(AspectFoo.class, _urn1, 0L));
+
+    DaoReadContext.markInternalRead();
+    try {
+      _usage.batchGetUnion(keys, 1, 0, true, false);
+    } finally {
+      DaoReadContext.clear();
+    }
+
+    // Read-before-write is marked internal, so it is not counted as a consumer read.
+    verify(_mockEmitter, never()).emit(anyString(), anyString(), anyString(), any(), any(), any());
+  }
+
+  @Test
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  public void testConsumerReadStillEmittedAfterInternalMarkerCleared() {
+    when(_mockDelegate.batchGetUnion(any(), anyInt(), anyInt(), anyBoolean(), anyBoolean()))
+        .thenReturn(Collections.emptyList());
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys =
+        (List) Collections.singletonList(new AspectKey<>(AspectFoo.class, _urn1, 0L));
+
+    // Once the marker is cleared, a genuine consumer read is emitted as normal.
+    _usage.batchGetUnion(keys, 1, 0, false, false);
+
+    verify(_mockEmitter).emit(eq("READ"), eq("foo"), eq("batchGetUnion"), isNull(), isNull(), any());
   }
 
   // ---------------------------------------------------------------------------------------

@@ -22,6 +22,7 @@ import com.linkedin.metadata.dao.storage.LocalDAOStorageConfig;
 import com.linkedin.metadata.dao.tracking.BaseDaoBenchmarkMetrics;
 import com.linkedin.metadata.dao.tracking.BaseDaoUsageEmitter;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
+import com.linkedin.metadata.dao.tracking.DaoReadContext;
 import com.linkedin.metadata.dao.urnpath.EmptyPathExtractor;
 import com.linkedin.metadata.dao.urnpath.UrnPathExtractor;
 import com.linkedin.metadata.dao.utils.EBeanDAOUtils;
@@ -919,9 +920,16 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       }
     } else {
       // for new schema, get latest data from the new schema entity table. (Resolving the read de-coupling issue)
-      final List<EbeanMetadataAspect> results =
-          _localAccess.batchGetUnion(Collections.singletonList(new AspectKey<>(aspectClass, urn, LATEST_VERSION)), 1, 0,
-              true, isTestMode);
+      // Mark this as an internal read-before-write so usage instrumentation does not count it as a consumer read.
+      DaoReadContext.markInternalRead();
+      final List<EbeanMetadataAspect> results;
+      try {
+        results =
+            _localAccess.batchGetUnion(Collections.singletonList(new AspectKey<>(aspectClass, urn, LATEST_VERSION)), 1, 0,
+                true, isTestMode);
+      } finally {
+        DaoReadContext.clear();
+      }
       result = results.isEmpty() ? null : results.get(0);
     }
     return result;

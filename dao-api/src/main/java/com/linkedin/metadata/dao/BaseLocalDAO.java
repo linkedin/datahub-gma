@@ -35,6 +35,7 @@ import com.linkedin.metadata.dao.retention.TimeBasedRetention;
 import com.linkedin.metadata.dao.retention.VersionBasedRetention;
 import com.linkedin.metadata.dao.storage.LocalDAOStorageConfig;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
+import com.linkedin.metadata.dao.tracking.DaoReadContext;
 import com.linkedin.metadata.dao.tracking.TrackingUtils;
 import com.linkedin.metadata.dao.urnpath.UrnPathExtractor;
 import com.linkedin.metadata.dao.utils.ModelUtils;
@@ -909,9 +910,15 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
         .map(lambda -> new AspectKey<>(lambda.getAspectClass(), urn, LATEST_VERSION))
         .collect(Collectors.toSet());
 
-    // Single batched query - uses existing infrastructure
-    Map<AspectKey<URN, ? extends RecordTemplate>, AspectWithExtraInfo<? extends RecordTemplate>> results =
-        getWithExtraInfo(keys);
+    // Single batched query - uses existing infrastructure.
+    // Mark as an internal read-before-write so usage instrumentation does not count it as a consumer read.
+    DaoReadContext.markInternalRead();
+    final Map<AspectKey<URN, ? extends RecordTemplate>, AspectWithExtraInfo<? extends RecordTemplate>> results;
+    try {
+      results = getWithExtraInfo(keys);
+    } finally {
+      DaoReadContext.clear();
+    }
 
     // Convert to class-based map for easier lookup
     Map<Class<? extends RecordTemplate>, AspectWithExtraInfo<RecordTemplate>> byClass = new HashMap<>();
