@@ -11,9 +11,12 @@ import com.linkedin.metadata.query.IndexSortCriterion;
 import com.linkedin.testing.AspectBar;
 import com.linkedin.testing.AspectFoo;
 import com.linkedin.testing.urn.FooUrn;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import org.mockito.ArgumentCaptor;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -108,6 +111,65 @@ public class UsageTrackingEbeanLocalAccessTest {
         targets.capture());
     assertEquals(targets.getValue().get(0).getUrn(), _urn1.toString());
     assertEquals(targets.getValue().get(0).getAspects(), Collections.singletonList("AspectFoo"));
+  }
+
+  @Test
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  public void testBatchGetUnionEmitsOnlyThePagedWindow() {
+    // Callers page over the SAME full key list, advancing only position (see
+    // EbeanLocalDAO#batchGet). Each page must report only the window the delegate reads,
+    // otherwise every key is re-reported on every page.
+    final int totalKeys = 120;
+    final int keysCount = 50;
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys = new ArrayList<>();
+    for (int i = 0; i < totalKeys; i++) {
+      keys.add(new AspectKey<>(AspectFoo.class, makeFooUrn(i), 0L));
+    }
+    when(_mockDelegate.batchGetUnion(any(), anyInt(), anyInt(), anyBoolean(), anyBoolean()))
+        .thenReturn(Collections.emptyList());
+
+    for (int position = 0; position < totalKeys; position += keysCount) {
+      _usage.batchGetUnion((List) keys, keysCount, position, false, false);
+    }
+
+    ArgumentCaptor<List<DaoUsageTarget>> targets = targetsCaptor();
+    verify(_mockEmitter, times(3)).emit(eq("READ"), eq("foo"), eq("batchGetUnion"), isNull(),
+        isNull(), targets.capture());
+
+    List<List<DaoUsageTarget>> pages = targets.getAllValues();
+    assertEquals(pages.get(0).size(), keysCount);
+    assertEquals(pages.get(1).size(), keysCount);
+    assertEquals(pages.get(2).size(), totalKeys - (2 * keysCount));
+
+    // Every key reported exactly once across all pages.
+    Set<String> seen = new HashSet<>();
+    for (List<DaoUsageTarget> page : pages) {
+      for (DaoUsageTarget target : page) {
+        assertTrue(seen.add(target.getUrn()), "urn reported on more than one page: " + target.getUrn());
+      }
+    }
+    assertEquals(seen.size(), totalKeys);
+  }
+
+  @Test
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  public void testBatchGetUnionWindowIsClampedToKeyList() {
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys = (List) Arrays.asList(
+        new AspectKey<>(AspectFoo.class, _urn1, 0L),
+        new AspectKey<>(AspectFoo.class, _urn2, 0L));
+    when(_mockDelegate.batchGetUnion(any(), anyInt(), anyInt(), anyBoolean(), anyBoolean()))
+        .thenReturn(Collections.emptyList());
+
+    // Position past the end: nothing was read, so nothing is emitted.
+    _usage.batchGetUnion((List) keys, 50, 100, false, false);
+    verify(_mockEmitter, never()).emit(anyString(), anyString(), anyString(), any(), any(), any());
+
+    // keysCount larger than the list: clamps to the available keys.
+    _usage.batchGetUnion((List) keys, 50, 0, false, false);
+    ArgumentCaptor<List<DaoUsageTarget>> targets = targetsCaptor();
+    verify(_mockEmitter).emit(eq("READ"), eq("foo"), eq("batchGetUnion"), isNull(), isNull(),
+        targets.capture());
+    assertEquals(targets.getValue().size(), 2);
   }
 
   // ---------------------------------------------------------------------------------------
@@ -281,6 +343,21 @@ public class UsageTrackingEbeanLocalAccessTest {
     int result = _usage.add(_urn1, new AspectFoo(), AspectFoo.class, _auditStamp, null, false);
 
     assertEquals(result, 3);
+  }
+
+  @Test
+  public void testPartialAuditStampDoesNotPropagate() {
+    // actor is a required field: AuditStamp#getActor() uses GetMode.STRICT and throws on a
+    // partial record. Deriving the caller must stay inside the emitter's failure boundary so a
+    // malformed stamp cannot surface after the write has already succeeded.
+    when(_mockDelegate.add(any(), any(), any(), any(), any(), anyBoolean())).thenReturn(5);
+    AuditStamp partial = new AuditStamp().setTime(0L);
+
+    int result = _usage.add(_urn1, new AspectFoo(), AspectFoo.class, partial, null, false);
+
+    assertEquals(result, 5);
+    verify(_mockDelegate).add(any(), any(), any(), any(), any(), anyBoolean());
+    verify(_mockEmitter, never()).emit(anyString(), anyString(), anyString(), any(), any(), any());
   }
 
   @Test

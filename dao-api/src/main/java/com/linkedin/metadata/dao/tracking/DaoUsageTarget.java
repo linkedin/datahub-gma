@@ -9,10 +9,9 @@ import lombok.Value;
 /**
  * A neutral, model-agnostic descriptor of one entity touched by a DAO operation.
  *
- * <p>Holds only strings so the kernel stays free of any Avro / event-schema dependency
- * (see {@code checkGmaDoesNotDependOnModels}). The concrete
- * {@link BaseDaoUsageEmitter} implementation in the service layer maps these fields onto
- * the wire event.
+ * <p>Holds only strings so the kernel stays free of any Avro / event-schema dependency.
+ * The concrete {@link BaseDaoUsageEmitter} implementation in the service layer maps these
+ * fields onto the wire event.
  */
 @Value
 public class DaoUsageTarget {

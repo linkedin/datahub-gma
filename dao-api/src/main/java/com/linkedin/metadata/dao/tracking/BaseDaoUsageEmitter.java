@@ -12,8 +12,7 @@ import javax.annotation.Nullable;
  * never throw back into the DAO call path.
  *
  * <p>The kernel passes only neutral primitives ({@link String} and {@link DaoUsageTarget})
- * so it does not depend on any Avro / event-schema module (keeps
- * {@code checkGmaDoesNotDependOnModels} green). A no-op implementation
+ * so it does not depend on any Avro / event-schema module. A no-op implementation
  * ({@link NoOpDaoUsageEmitter}) lives in the kernel; the concrete producer-backed
  * implementation lives in the service layer.
  */

@@ -9,7 +9,7 @@ import javax.annotation.Nullable;
  * A no-op implementation of {@link BaseDaoUsageEmitter} that discards all usage events.
  *
  * <p>Used as the default when no producer-backed emitter is configured. With this
- * implementation the {@link UsageTrackingEbeanLocalAccess} decorator (and any other
+ * implementation the {@code UsageTrackingEbeanLocalAccess} decorator (and any other
  * caller) short-circuits on {@link #isEnabled()} and does zero work.
  */
 public class NoOpDaoUsageEmitter implements BaseDaoUsageEmitter {

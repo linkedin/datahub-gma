@@ -30,10 +30,11 @@ import lombok.extern.slf4j.Slf4j;
  *
  * <p>Fire-and-forget: each method delegates first and returns/throws exactly what the delegate
  * does; emission happens only after success and is wrapped so it can never alter the result or
- * throw. It short-circuits with zero overhead when the emitter is disabled, and skips test-mode
- * and backfill. Reads and writes/deletes are captured; global scans, discovery and maintenance
- * are delegated without emission. Writes carry the caller from the {@link AuditStamp}; reads
- * have none.
+ * throw. Writes and deletes emit only when the delegate reports at least one affected row, so a
+ * lost optimistic-locking race is not reported as a write. It short-circuits with zero overhead
+ * when the emitter is disabled, and skips test-mode and backfill. Reads and writes/deletes are
+ * captured; global scans, discovery and maintenance are delegated without emission. Writes carry
+ * the caller from the {@link AuditStamp}; reads have none.
  *
  * @param <URN> the URN type for this entity
  */
@@ -147,7 +148,7 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
     final List<EbeanMetadataAspect> result =
         _delegate.batchGetUnion(keys, keysCount, position, includeSoftDeleted, isTestMode);
     if (_usageEmitter.isEnabled() && !isTestMode) {
-      safeEmit(OP_READ, "batchGetUnion", null, null, () -> targetsFromKeys(keys));
+      safeEmit(OP_READ, "batchGetUnion", null, () -> targetsFromKeys(keys, keysCount, position));
     }
     return result;
   }
@@ -158,7 +159,7 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
       @Nonnull URN urn, int start, int pageSize) {
     final ListResult<ASPECT> result = _delegate.list(aspectClass, urn, start, pageSize);
     if (_usageEmitter.isEnabled()) {
-      safeEmit(OP_READ, "list", null, null,
+      safeEmit(OP_READ, "list", null,
           () -> singleTarget(urn, aspectClass.getSimpleName()));
     }
     return result;
@@ -174,9 +175,9 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
       @Nullable IngestionTrackingContext ingestionTrackingContext, boolean isTestMode) {
     final int result =
         _delegate.add(urn, newValue, aspectClass, auditStamp, ingestionTrackingContext, isTestMode);
-    if (_usageEmitter.isEnabled() && !isTestMode && !isBackfill(ingestionTrackingContext)) {
-      safeEmit(newValue != null ? OP_WRITE : OP_DELETE, "add", actorOf(auditStamp),
-          impersonatorOf(auditStamp), () -> singleTarget(urn, aspectClass.getSimpleName()));
+    if (result > 0 && _usageEmitter.isEnabled() && !isTestMode && !isBackfill(ingestionTrackingContext)) {
+      safeEmit(newValue != null ? OP_WRITE : OP_DELETE, "add", auditStamp,
+          () -> singleTarget(urn, aspectClass.getSimpleName()));
     }
     return result;
   }
@@ -188,10 +189,9 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
       boolean isTestMode, boolean softDeleteOverwrite) {
     final int result = _delegate.addWithOptimisticLocking(urn, newValue, aspectClass, auditStamp,
         oldTimestamp, ingestionTrackingContext, isTestMode, softDeleteOverwrite);
-    if (_usageEmitter.isEnabled() && !isTestMode && !isBackfill(ingestionTrackingContext)) {
+    if (result > 0 && _usageEmitter.isEnabled() && !isTestMode && !isBackfill(ingestionTrackingContext)) {
       safeEmit(newValue != null ? OP_WRITE : OP_DELETE, "addWithOptimisticLocking",
-          actorOf(auditStamp), impersonatorOf(auditStamp),
-          () -> singleTarget(urn, aspectClass.getSimpleName()));
+          auditStamp, () -> singleTarget(urn, aspectClass.getSimpleName()));
     }
     return result;
   }
@@ -204,8 +204,8 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
       boolean isTestMode) {
     final int result = _delegate.create(urn, aspectValues, aspectCreateLambdas, auditStamp,
         ingestionTrackingContext, isTestMode);
-    if (_usageEmitter.isEnabled() && !isTestMode && !isBackfill(ingestionTrackingContext)) {
-      safeEmit(OP_WRITE, "create", actorOf(auditStamp), impersonatorOf(auditStamp),
+    if (result > 0 && _usageEmitter.isEnabled() && !isTestMode && !isBackfill(ingestionTrackingContext)) {
+      safeEmit(OP_WRITE, "create", auditStamp,
           () -> singleTarget(urn, aspectSimpleNames(aspectValues)));
     }
     return result;
@@ -218,8 +218,8 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
       boolean isTestMode) {
     final int result =
         _delegate.batchUpsert(urn, updateContexts, auditStamp, ingestionTrackingContext, isTestMode);
-    if (_usageEmitter.isEnabled() && !isTestMode && !isBackfill(ingestionTrackingContext)) {
-      safeEmit(OP_WRITE, "batchUpsert", actorOf(auditStamp), impersonatorOf(auditStamp),
+    if (result > 0 && _usageEmitter.isEnabled() && !isTestMode && !isBackfill(ingestionTrackingContext)) {
+      safeEmit(OP_WRITE, "batchUpsert", auditStamp,
           () -> singleTarget(urn, aspectNamesFromContexts(updateContexts)));
     }
     return result;
@@ -228,9 +228,9 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
   @Override
   public int softDeleteAsset(@Nonnull URN urn, boolean isTestMode) {
     final int result = _delegate.softDeleteAsset(urn, isTestMode);
-    if (_usageEmitter.isEnabled() && !isTestMode) {
+    if (result > 0 && _usageEmitter.isEnabled() && !isTestMode) {
       // Whole-entity delete: no audit stamp on this path (actor null), empty aspect list.
-      safeEmit(OP_DELETE_ALL, "softDeleteAsset", null, null,
+      safeEmit(OP_DELETE_ALL, "softDeleteAsset", null,
           () -> Collections.singletonList(
               new DaoUsageTarget(urn.toString(), Collections.emptyList())));
     }
@@ -243,16 +243,20 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
 
   /**
    * Builds the targets and emits, swallowing any exception so usage capture can never affect
-   * the DAO call. Assumes {@link BaseDaoUsageEmitter#isEnabled()} has already been checked.
+   * the DAO call. The caller is derived from the audit stamp inside the try block so a
+   * malformed stamp cannot propagate into the DAO call path. Assumes
+   * {@link BaseDaoUsageEmitter#isEnabled()} has already been checked.
    */
   private void safeEmit(@Nonnull String operationType, @Nonnull String sourceOperation,
-      @Nullable String actorUrn, @Nullable String impersonatorUrn,
+      @Nullable AuditStamp auditStamp,
       @Nonnull Supplier<List<DaoUsageTarget>> targetsSupplier) {
     try {
       final List<DaoUsageTarget> targets = targetsSupplier.get();
       if (targets.isEmpty()) {
         return;
       }
+      final String actorUrn = auditStamp == null ? null : actorOf(auditStamp);
+      final String impersonatorUrn = auditStamp == null ? null : impersonatorOf(auditStamp);
       _usageEmitter.emit(operationType, _entityType, sourceOperation, actorUrn, impersonatorUrn,
           targets);
     } catch (Exception e) {
@@ -309,12 +313,20 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
   /**
    * Groups the read keys by URN, collecting the aspect simple names per URN so a multi-URN
    * {@code batchGetUnion} produces one {@link DaoUsageTarget} per distinct URN.
+   *
+   * <p>Only the {@code [position, position + keysCount)} window is walked, mirroring the page
+   * the delegate actually reads. Callers page over the same full key list, so emitting every
+   * key on every page would report {@code keys.size()} targets per page instead of one target
+   * set per key.
    */
   @Nonnull
   private static <URN extends Urn> List<DaoUsageTarget> targetsFromKeys(
-      @Nonnull List<AspectKey<URN, ? extends RecordTemplate>> keys) {
+      @Nonnull List<AspectKey<URN, ? extends RecordTemplate>> keys, int keysCount, int position) {
+    final int start = Math.max(0, position);
+    final int end = Math.min(keys.size(), start + Math.max(0, keysCount));
     final Map<String, List<String>> byUrn = new LinkedHashMap<>();
-    for (AspectKey<URN, ? extends RecordTemplate> key : keys) {
+    for (int index = start; index < end; index++) {
+      final AspectKey<URN, ? extends RecordTemplate> key = keys.get(index);
       byUrn.computeIfAbsent(key.getUrn().toString(), k -> new ArrayList<>())
           .add(key.getAspectClass().getSimpleName());
     }

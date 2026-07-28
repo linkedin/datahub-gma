@@ -604,6 +604,11 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * @param usageEmitter the usage emitter implementation to use
    */
   public void setUsageEmitter(@Nonnull BaseDaoUsageEmitter usageEmitter) {
+    if (_localAccess instanceof UsageTrackingEbeanLocalAccess) {
+      // Already decorated. Stacking a second decorator would emit every event twice.
+      log.warn("Usage emitter is already set on this DAO; ignoring the repeat call.");
+      return;
+    }
     if (_localAccess != null) {
       _localAccess = new UsageTrackingEbeanLocalAccess<>(_localAccess, usageEmitter, _urnClass);
     }
@@ -844,7 +849,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       }
       AuditStamp auditStamp = makeAuditStamp(result);
       ASPECT aspect = toRecordTemplate(aspectClass, result).orElse(null);
-      _localAccess.add(urn, aspect, aspectClass, auditStamp, null, false);
+      // Mark as backfill so this old->new schema migration is not reported as organic usage.
+      final IngestionTrackingContext backfillContext = new IngestionTrackingContext().setBackfill(true);
+      _localAccess.add(urn, aspect, aspectClass, auditStamp, backfillContext, false);
 
       // also insert any relationships associated with this aspect
       handleRelationshipIngestion(urn, aspect, null, aspectClass, false);
