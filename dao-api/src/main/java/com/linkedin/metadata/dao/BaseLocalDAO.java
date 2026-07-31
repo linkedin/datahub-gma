@@ -2157,12 +2157,15 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * Similar to {@link #getWithExtraInfo(Set)} but only using only one {@link AspectKey}.
    */
   @Nonnull
+  @SuppressWarnings("unchecked")
   public <ASPECT extends RecordTemplate> Optional<AspectWithExtraInfo<ASPECT>> getWithExtraInfo(
       @Nonnull AspectKey<URN, ASPECT> key) {
-    if (getWithExtraInfo(Collections.singleton(key)).containsKey(key)) {
-      return Optional.of((AspectWithExtraInfo<ASPECT>) getWithExtraInfo(Collections.singleton(key)).get(key));
-    }
-    return Optional.empty();
+    // Query once and null-check the result. Calling getWithExtraInfo twice (once to test
+    // containsKey, once to read) issued a redundant round trip for every single-key read, and with
+    // usage tracking enabled it emitted two READ events for one logical read.
+    final AspectWithExtraInfo<? extends RecordTemplate> result =
+        getWithExtraInfo(Collections.singleton(key)).get(key);
+    return result == null ? Optional.empty() : Optional.of((AspectWithExtraInfo<ASPECT>) result);
   }
 
   /**

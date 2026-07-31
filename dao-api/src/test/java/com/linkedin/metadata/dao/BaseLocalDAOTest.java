@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
@@ -249,6 +250,33 @@ public class BaseLocalDAOTest {
     public Map<AspectKey<FooUrn, ? extends RecordTemplate>, AspectWithExtraInfo<? extends RecordTemplate>> getWithExtraInfo(
         @Nonnull Set<AspectKey<FooUrn, ? extends RecordTemplate>> keys) {
       return Collections.emptyMap();
+    }
+  }
+
+  /**
+   * Counts calls to the batch {@link BaseLocalDAO#getWithExtraInfo(Set)} so tests can assert that a
+   * single-key read issues exactly one query.
+   */
+  static class CountingGetWithExtraInfoLocalDAO<ENTITY_ASPECT_UNION extends UnionTemplate>
+      extends DummyLocalDAO<ENTITY_ASPECT_UNION> {
+
+    final AtomicInteger _batchCallCount = new AtomicInteger(0);
+    private final Map<AspectKey<FooUrn, ? extends RecordTemplate>, AspectWithExtraInfo<? extends RecordTemplate>> _canned;
+
+    CountingGetWithExtraInfoLocalDAO(Class<ENTITY_ASPECT_UNION> aspectClass,
+        BiFunction<FooUrn, Class<? extends RecordTemplate>, AspectEntry> getLatestFunction,
+        BaseMetadataEventProducer eventProducer, DummyTransactionRunner transactionRunner,
+        Map<AspectKey<FooUrn, ? extends RecordTemplate>, AspectWithExtraInfo<? extends RecordTemplate>> canned) {
+      super(aspectClass, getLatestFunction, eventProducer, transactionRunner);
+      _canned = canned;
+    }
+
+    @Override
+    @Nonnull
+    public Map<AspectKey<FooUrn, ? extends RecordTemplate>, AspectWithExtraInfo<? extends RecordTemplate>> getWithExtraInfo(
+        @Nonnull Set<AspectKey<FooUrn, ? extends RecordTemplate>> keys) {
+      _batchCallCount.incrementAndGet();
+      return _canned;
     }
   }
 
@@ -1773,5 +1801,39 @@ public class BaseLocalDAOTest {
     } catch (IllegalArgumentException e) {
       assertTrue(e instanceof InvalidUrnException);
     }
+  }
+
+  @Test
+  public void testSingleKeyGetWithExtraInfoIssuesOneQueryWhenFound() throws Exception {
+    FooUrn urn = new FooUrn(1);
+    AspectKey<FooUrn, AspectFoo> key = new AspectKey<>(AspectFoo.class, urn, LATEST_VERSION);
+    AspectWithExtraInfo<AspectFoo> expected =
+        new AspectWithExtraInfo<>(new AspectFoo().setValue("bar"), new ExtraInfo());
+
+    CountingGetWithExtraInfoLocalDAO<EntityAspectUnion> dao =
+        new CountingGetWithExtraInfoLocalDAO<>(EntityAspectUnion.class, _mockGetLatestFunction, _mockEventProducer,
+            _mockTransactionRunner, Collections.singletonMap(key, expected));
+
+    Optional<AspectWithExtraInfo<AspectFoo>> result = dao.getWithExtraInfo(key);
+
+    assertTrue(result.isPresent());
+    assertEquals(result.get(), expected);
+    // Previously this method called the batch overload twice: once for containsKey, once to read.
+    assertEquals(dao._batchCallCount.get(), 1);
+  }
+
+  @Test
+  public void testSingleKeyGetWithExtraInfoIssuesOneQueryWhenMissing() throws Exception {
+    FooUrn urn = new FooUrn(1);
+    AspectKey<FooUrn, AspectFoo> key = new AspectKey<>(AspectFoo.class, urn, LATEST_VERSION);
+
+    CountingGetWithExtraInfoLocalDAO<EntityAspectUnion> dao =
+        new CountingGetWithExtraInfoLocalDAO<>(EntityAspectUnion.class, _mockGetLatestFunction, _mockEventProducer,
+            _mockTransactionRunner, Collections.emptyMap());
+
+    Optional<AspectWithExtraInfo<AspectFoo>> result = dao.getWithExtraInfo(key);
+
+    assertFalse(result.isPresent());
+    assertEquals(dao._batchCallCount.get(), 1);
   }
 }
