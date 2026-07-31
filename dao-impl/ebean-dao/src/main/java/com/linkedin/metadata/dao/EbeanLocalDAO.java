@@ -23,6 +23,7 @@ import com.linkedin.metadata.dao.tracking.BaseDaoBenchmarkMetrics;
 import com.linkedin.metadata.dao.tracking.BaseDaoUsageEmitter;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.tracking.DaoReadContext;
+import com.linkedin.metadata.dao.tracking.DaoUsageBuffer;
 import com.linkedin.metadata.dao.urnpath.EmptyPathExtractor;
 import com.linkedin.metadata.dao.urnpath.UrnPathExtractor;
 import com.linkedin.metadata.dao.utils.EBeanDAOUtils;
@@ -634,22 +635,40 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Override
   protected <T> T runInTransactionWithRetry(@Nonnull Supplier<T> block, int maxTransactionRetry) {
     int retryCount = 0;
-    Exception lastException;
+    Exception lastException = null;
 
     T result = null;
-    do {
-      try (Transaction transaction = _server.beginTransaction()) {
-        result = block.get();
-        transaction.commit();
-        lastException = null;
-        break;
-      } catch (RollbackException | DuplicateKeyException | OptimisticLockException exception) {
-        lastException = exception;
-      }
-    } while (++retryCount <= maxTransactionRetry);
+    boolean committed = false;
+    // Usage emissions from this transaction are buffered and released only after the outermost
+    // commit, so a rolled-back write is never reported and a retry is reported once.
+    // enter() and exit() must stay paired with nothing between them that can throw.
+    final int usageMark = DaoUsageBuffer.enter();
+    List<Runnable> pendingUsage = Collections.emptyList();
+    try {
+      do {
+        // Drop whatever the previous attempt buffered before trying again.
+        DaoUsageBuffer.truncateTo(usageMark);
+        try (Transaction transaction = _server.beginTransaction()) {
+          result = block.get();
+          transaction.commit();
+          committed = true;
+          lastException = null;
+          break;
+        } catch (RollbackException | DuplicateKeyException | OptimisticLockException exception) {
+          lastException = exception;
+        }
+      } while (++retryCount <= maxTransactionRetry);
+    } finally {
+      pendingUsage = DaoUsageBuffer.exit(usageMark, committed);
+    }
 
     if (lastException != null) {
       throw new RetryLimitReached("Failed to add after " + maxTransactionRetry + " retries", lastException);
+    }
+
+    // Flush outside the transaction: emission must not be able to affect it, or vice versa.
+    for (Runnable emission : pendingUsage) {
+      emission.run();
     }
 
     return result;

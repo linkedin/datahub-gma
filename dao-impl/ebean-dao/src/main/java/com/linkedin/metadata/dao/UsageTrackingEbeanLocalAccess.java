@@ -5,6 +5,7 @@ import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.tracking.BaseDaoUsageEmitter;
 import com.linkedin.metadata.dao.tracking.DaoReadContext;
+import com.linkedin.metadata.dao.tracking.DaoUsageBuffer;
 import com.linkedin.metadata.dao.tracking.DaoUsageTarget;
 import com.linkedin.metadata.dao.urnpath.UrnPathExtractor;
 import com.linkedin.metadata.events.IngestionTrackingContext;
@@ -153,7 +154,7 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
     final List<EbeanMetadataAspect> result =
         _delegate.batchGetUnion(keys, keysCount, position, includeSoftDeleted, isTestMode);
     if (_usageEmitter.isEnabled() && !isTestMode && !DaoReadContext.isInternalRead()) {
-      safeEmit(OP_READ, "batchGetUnion", null, () -> entityTypeFromKeys(keys, keysCount, position),
+      emitRead("batchGetUnion", () -> entityTypeFromKeys(keys, keysCount, position),
           () -> targetsFromKeys(keys, keysCount, position));
     }
     return result;
@@ -165,7 +166,7 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
       @Nonnull URN urn, int start, int pageSize) {
     final ListResult<ASPECT> result = _delegate.list(aspectClass, urn, start, pageSize);
     if (_usageEmitter.isEnabled() && !DaoReadContext.isInternalRead()) {
-      safeEmit(OP_READ, "list", null, urn::getEntityType,
+      emitRead("list", urn::getEntityType,
           () -> singleTarget(urn, aspectClass.getSimpleName()));
     }
     return result;
@@ -182,8 +183,8 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
     final int result =
         _delegate.add(urn, newValue, aspectClass, auditStamp, ingestionTrackingContext, isTestMode);
     if (result > 0 && _usageEmitter.isEnabled() && !isTestMode && !isBackfill(ingestionTrackingContext)) {
-      safeEmit(newValue != null ? OP_WRITE : OP_DELETE, "add", auditStamp, urn::getEntityType,
-          () -> singleTarget(urn, aspectClass.getSimpleName()));
+      emitWriteOnCommit(newValue != null ? OP_WRITE : OP_DELETE, "add", auditStamp,
+          urn::getEntityType, () -> singleTarget(urn, aspectClass.getSimpleName()));
     }
     return result;
   }
@@ -196,7 +197,7 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
     final int result = _delegate.addWithOptimisticLocking(urn, newValue, aspectClass, auditStamp,
         oldTimestamp, ingestionTrackingContext, isTestMode, softDeleteOverwrite);
     if (result > 0 && _usageEmitter.isEnabled() && !isTestMode && !isBackfill(ingestionTrackingContext)) {
-      safeEmit(newValue != null ? OP_WRITE : OP_DELETE, "addWithOptimisticLocking",
+      emitWriteOnCommit(newValue != null ? OP_WRITE : OP_DELETE, "addWithOptimisticLocking",
           auditStamp, urn::getEntityType, () -> singleTarget(urn, aspectClass.getSimpleName()));
     }
     return result;
@@ -211,7 +212,7 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
     final int result = _delegate.create(urn, aspectValues, aspectCreateLambdas, auditStamp,
         ingestionTrackingContext, isTestMode);
     if (result > 0 && _usageEmitter.isEnabled() && !isTestMode && !isBackfill(ingestionTrackingContext)) {
-      safeEmit(OP_WRITE, "create", auditStamp, urn::getEntityType,
+      emitWriteOnCommit(OP_WRITE, "create", auditStamp, urn::getEntityType,
           () -> singleTarget(urn, aspectSimpleNames(aspectValues)));
     }
     return result;
@@ -225,7 +226,7 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
     final int result =
         _delegate.batchUpsert(urn, updateContexts, auditStamp, ingestionTrackingContext, isTestMode);
     if (result > 0 && _usageEmitter.isEnabled() && !isTestMode && !isBackfill(ingestionTrackingContext)) {
-      safeEmit(OP_WRITE, "batchUpsert", auditStamp, urn::getEntityType,
+      emitWriteOnCommit(OP_WRITE, "batchUpsert", auditStamp, urn::getEntityType,
           () -> singleTarget(urn, aspectNamesFromContexts(updateContexts)));
     }
     return result;
@@ -236,7 +237,7 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
     final int result = _delegate.softDeleteAsset(urn, isTestMode);
     if (result > 0 && _usageEmitter.isEnabled() && !isTestMode) {
       // Whole-entity delete: no audit stamp on this path (actor null), empty aspect list.
-      safeEmit(OP_DELETE_ALL, "softDeleteAsset", null, urn::getEntityType,
+      emitWriteOnCommit(OP_DELETE_ALL, "softDeleteAsset", null, urn::getEntityType,
           () -> Collections.singletonList(
               new DaoUsageTarget(urn.toString(), Collections.emptyList())));
     }
@@ -252,10 +253,12 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
    * the DAO call. The caller is derived from the audit stamp inside the try block so a
    * malformed stamp cannot propagate into the DAO call path. Assumes
    * {@link BaseDaoUsageEmitter#isEnabled()} has already been checked.
+   *
+   * @param deferUntilCommit when true the emission is held until the enclosing transaction commits
    */
   private void safeEmit(@Nonnull String operationType, @Nonnull String sourceOperation,
       @Nullable AuditStamp auditStamp, @Nonnull Supplier<String> entityTypeSupplier,
-      @Nonnull Supplier<List<DaoUsageTarget>> targetsSupplier) {
+      @Nonnull Supplier<List<DaoUsageTarget>> targetsSupplier, boolean deferUntilCommit) {
     try {
       final List<DaoUsageTarget> targets = targetsSupplier.get();
       if (targets.isEmpty()) {
@@ -267,10 +270,52 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
       }
       final String actorUrn = auditStamp == null ? null : actorOf(auditStamp);
       final String impersonatorUrn = auditStamp == null ? null : impersonatorOf(auditStamp);
+      // Everything is resolved eagerly here so a deferred emission cannot observe state that
+      // changed between the write and the commit.
+      final Runnable emission =
+          () -> emitQuietly(operationType, entityType, sourceOperation, actorUrn, impersonatorUrn,
+              targets);
+      if (deferUntilCommit) {
+        DaoUsageBuffer.record(emission);
+      } else {
+        emission.run();
+      }
+    } catch (Exception e) {
+      // Fire-and-forget: never propagate an emission failure to the caller.
+      log.warn("Failed to emit usage event for {} {}", operationType, sourceOperation, e);
+    }
+  }
+
+  /**
+   * Emits a read immediately. A read that was served happened regardless of whether a later write
+   * in the same transaction rolls back.
+   */
+  private void emitRead(@Nonnull String sourceOperation, @Nonnull Supplier<String> entityTypeSupplier,
+      @Nonnull Supplier<List<DaoUsageTarget>> targetsSupplier) {
+    safeEmit(OP_READ, sourceOperation, null, entityTypeSupplier, targetsSupplier, false);
+  }
+
+  /**
+   * Holds a write or delete until the enclosing transaction commits, so a rolled-back write is
+   * never reported and a retried transaction is reported once.
+   */
+  private void emitWriteOnCommit(@Nonnull String operationType, @Nonnull String sourceOperation,
+      @Nullable AuditStamp auditStamp, @Nonnull Supplier<String> entityTypeSupplier,
+      @Nonnull Supplier<List<DaoUsageTarget>> targetsSupplier) {
+    safeEmit(operationType, sourceOperation, auditStamp, entityTypeSupplier, targetsSupplier, true);
+  }
+
+  /**
+   * Performs the actual emission, guarded so a failure can never escape -- including when it runs
+   * later at transaction-commit time, away from the original call site.
+   */
+  private void emitQuietly(@Nonnull String operationType, @Nonnull String entityType,
+      @Nonnull String sourceOperation, @Nullable String actorUrn, @Nullable String impersonatorUrn,
+      @Nonnull List<DaoUsageTarget> targets) {
+    try {
       _usageEmitter.emit(operationType, entityType, sourceOperation, actorUrn, impersonatorUrn,
           targets);
     } catch (Exception e) {
-      // Fire-and-forget: never propagate an emission failure to the caller.
       log.warn("Failed to emit usage event for {} {}", operationType, sourceOperation, e);
     }
   }

@@ -5,6 +5,7 @@ import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.tracking.BaseDaoUsageEmitter;
 import com.linkedin.metadata.dao.tracking.DaoReadContext;
+import com.linkedin.metadata.dao.tracking.DaoUsageBuffer;
 import com.linkedin.metadata.dao.tracking.DaoUsageTarget;
 import com.linkedin.metadata.events.IngestionTrackingContext;
 import com.linkedin.metadata.query.IndexFilter;
@@ -139,6 +140,59 @@ public class UsageTrackingEbeanLocalAccessTest {
     usage.add(mlModelUrn, new AspectFoo().setValue("v"), AspectFoo.class, _auditStamp, null, false);
 
     verify(_mockEmitter).emit(eq("WRITE"), eq("mlModel"), eq("add"), any(), any(), any());
+  }
+
+  @Test
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  public void testWriteIsHeldUntilTransactionCommits() {
+    when(_mockDelegate.add(any(), any(), any(), any(), any(), anyBoolean())).thenReturn(1);
+
+    final int mark = DaoUsageBuffer.enter();
+    try {
+      _usage.add(_urn1, new AspectFoo().setValue("v"), AspectFoo.class, _auditStamp, null, false);
+      // The write has run but the transaction has not committed, so nothing is reported yet.
+      verify(_mockEmitter, never()).emit(anyString(), anyString(), anyString(), any(), any(), any());
+    } finally {
+      DaoUsageBuffer.exit(mark, true).forEach(Runnable::run);
+    }
+
+    verify(_mockEmitter, times(1)).emit(eq("WRITE"), eq("foo"), eq("add"), any(), any(), any());
+  }
+
+  @Test
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  public void testWriteIsNotEmittedWhenTransactionRollsBack() {
+    when(_mockDelegate.add(any(), any(), any(), any(), any(), anyBoolean())).thenReturn(1);
+
+    final int mark = DaoUsageBuffer.enter();
+    try {
+      _usage.add(_urn1, new AspectFoo().setValue("v"), AspectFoo.class, _auditStamp, null, false);
+    } finally {
+      DaoUsageBuffer.exit(mark, false).forEach(Runnable::run);
+    }
+
+    // A rolled-back write never happened, so it must not be reported.
+    verify(_mockEmitter, never()).emit(anyString(), anyString(), anyString(), any(), any(), any());
+  }
+
+  @Test
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  public void testReadIsEmittedImmediatelyInsideTransaction() {
+    when(_mockDelegate.batchGetUnion(any(), anyInt(), anyInt(), anyBoolean(), anyBoolean()))
+        .thenReturn(Collections.emptyList());
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys =
+        (List) Collections.singletonList(new AspectKey<>(AspectFoo.class, _urn1, 0L));
+
+    final int mark = DaoUsageBuffer.enter();
+    try {
+      _usage.batchGetUnion(keys, 1, 0, false, false);
+      // A read that was served happened, whether or not a later write in the same transaction
+      // rolls back, so reads are not deferred.
+      verify(_mockEmitter, times(1))
+          .emit(eq("READ"), eq("foo"), eq("batchGetUnion"), isNull(), isNull(), any());
+    } finally {
+      DaoUsageBuffer.exit(mark, false);
+    }
   }
 
   // ---------------------------------------------------------------------------------------
