@@ -94,6 +94,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   private final static int DEFAULT_BATCH_SIZE = 50;
   private int _queryKeysCount = DEFAULT_BATCH_SIZE;
   private IEbeanLocalAccess<URN> _localAccess;
+  // Tracks whether the usage decorator has been installed. A structural check on _localAccess only
+  // sees the outermost layer, so it misses a usage decorator buried under another decorator.
+  private boolean _usageTrackingInstalled = false;
   private EbeanLocalRelationshipWriterDAO _localRelationshipWriterDAO;
   private LocalRelationshipBuilderRegistry _localRelationshipBuilderRegistry = null;
   private SchemaConfig _schemaConfig = SchemaConfig.OLD_SCHEMA_ONLY;
@@ -600,18 +603,19 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    *
    * <p>Purely additive: when this is never called the DAO behaves exactly as before, and the
    * emitter is fire-and-forget (never throws into the call path). Composes with
-   * {@link #setBenchmarkMetrics} -- both decorate {@code _localAccess}.
+   * {@link #setBenchmarkMetrics} -- both decorate {@code _localAccess}, in either order.
    *
    * @param usageEmitter the usage emitter implementation to use
    */
   public void setUsageEmitter(@Nonnull BaseDaoUsageEmitter usageEmitter) {
-    if (_localAccess instanceof UsageTrackingEbeanLocalAccess) {
-      // Already decorated. Stacking a second decorator would emit every event twice.
+    if (_usageTrackingInstalled) {
+      // Stacking a second decorator would emit every event twice.
       log.warn("Usage emitter is already set on this DAO; ignoring the repeat call.");
       return;
     }
     if (_localAccess != null) {
-      _localAccess = new UsageTrackingEbeanLocalAccess<>(_localAccess, usageEmitter, _urnClass);
+      _localAccess = new UsageTrackingEbeanLocalAccess<>(_localAccess, usageEmitter);
+      _usageTrackingInstalled = true;
     }
   }
 

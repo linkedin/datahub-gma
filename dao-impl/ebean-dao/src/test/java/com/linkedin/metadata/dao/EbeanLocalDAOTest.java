@@ -31,6 +31,7 @@ import com.linkedin.metadata.dao.retention.TimeBasedRetention;
 import com.linkedin.metadata.dao.retention.VersionBasedRetention;
 import com.linkedin.metadata.dao.storage.LocalDAOStorageConfig;
 import com.linkedin.metadata.dao.tracking.BaseDaoBenchmarkMetrics;
+import com.linkedin.metadata.dao.tracking.BaseDaoUsageEmitter;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.urnpath.UrnPathExtractor;
 import com.linkedin.metadata.dao.utils.BarUrnPathExtractor;
@@ -327,6 +328,29 @@ public class EbeanLocalDAOTest {
     dao.setBenchmarkMetrics(mockMetrics);
 
     // In OLD_SCHEMA_ONLY, setBenchmarkMetrics is a no-op — no exception, no effect
+  }
+
+  @Test
+  public void testSetUsageEmitterIsIdempotentUnderOtherDecorators() throws Exception {
+    if (_schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      // Only the new-schema path routes writes through _localAccess, where the decorator lives.
+      return;
+    }
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    BaseDaoUsageEmitter mockEmitter = mock(BaseDaoUsageEmitter.class);
+    when(mockEmitter.isEnabled()).thenReturn(true);
+    BaseDaoBenchmarkMetrics mockMetrics = mock(BaseDaoBenchmarkMetrics.class);
+    when(mockMetrics.isEnabled()).thenReturn(false);
+
+    // setBenchmarkMetrics buries the usage decorator one layer down, so a structural instanceof
+    // check on the outermost layer would miss it and stack a second usage decorator.
+    dao.setUsageEmitter(mockEmitter);
+    dao.setBenchmarkMetrics(mockMetrics);
+    dao.setUsageEmitter(mockEmitter);
+
+    dao.add(makeFooUrn(1), new AspectFoo().setValue("foo"), _dummyAuditStamp);
+
+    verify(mockEmitter, times(1)).emit(eq("WRITE"), anyString(), anyString(), any(), any(), any());
   }
 
   @Test(expectedExceptions = InvalidMetadataType.class)

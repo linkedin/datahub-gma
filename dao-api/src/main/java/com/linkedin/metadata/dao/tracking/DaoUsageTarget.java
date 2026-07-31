@@ -1,5 +1,6 @@
 package com.linkedin.metadata.dao.tracking;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import javax.annotation.Nonnull;
@@ -31,6 +32,9 @@ public class DaoUsageTarget {
 
   public DaoUsageTarget(@Nonnull String urn, @Nonnull List<String> aspects) {
     this.urn = urn;
-    this.aspects = Collections.unmodifiableList(aspects);
+    // Copy before wrapping: unmodifiableList is only a view, so without the copy the caller could
+    // still mutate the list afterwards. Targets are handed to an asynchronous emitter, so they may
+    // be read on another thread well after construction.
+    this.aspects = Collections.unmodifiableList(new ArrayList<>(aspects));
   }
 }

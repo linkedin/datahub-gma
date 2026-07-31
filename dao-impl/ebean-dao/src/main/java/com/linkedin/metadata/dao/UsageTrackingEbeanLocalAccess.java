@@ -37,6 +37,10 @@ import lombok.extern.slf4j.Slf4j;
  * captured; global scans, discovery and maintenance are delegated without emission. Writes carry
  * the caller from the {@link AuditStamp}; reads have none.
  *
+ * <p>The entity type is taken from {@link Urn#getEntityType()} on the URN being operated on, so it
+ * matches the canonical entity type used elsewhere (e.g. {@code mlModel}) rather than a value
+ * derived from the URN class name.
+ *
  * @param <URN> the URN type for this entity
  */
 @Slf4j
@@ -49,21 +53,17 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
 
   private final IEbeanLocalAccess<URN> _delegate;
   private final BaseDaoUsageEmitter _usageEmitter;
-  private final String _entityType;
 
   /**
    * Creates a usage-tracking wrapper around the given local-access implementation.
    *
    * @param delegate     the real local-access implementation to wrap
    * @param usageEmitter the usage emitter (may be a no-op)
-   * @param urnClass     the URN class, used to derive the entity type name once at construction
    */
   public UsageTrackingEbeanLocalAccess(@Nonnull IEbeanLocalAccess<URN> delegate,
-      @Nonnull BaseDaoUsageEmitter usageEmitter, @Nonnull Class<URN> urnClass) {
+      @Nonnull BaseDaoUsageEmitter usageEmitter) {
     _delegate = delegate;
     _usageEmitter = usageEmitter;
-    // Same derivation as InstrumentedEbeanLocalAccess to keep the entity dimension consistent.
-    _entityType = urnClass.getSimpleName().replace("Urn", "").toLowerCase();
   }
 
   // ---------------------------------------------------------------------------------------
@@ -149,7 +149,8 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
     final List<EbeanMetadataAspect> result =
         _delegate.batchGetUnion(keys, keysCount, position, includeSoftDeleted, isTestMode);
     if (_usageEmitter.isEnabled() && !isTestMode && !DaoReadContext.isInternalRead()) {
-      safeEmit(OP_READ, "batchGetUnion", null, () -> targetsFromKeys(keys, keysCount, position));
+      safeEmit(OP_READ, "batchGetUnion", null, () -> entityTypeFromKeys(keys, keysCount, position),
+          () -> targetsFromKeys(keys, keysCount, position));
     }
     return result;
   }
@@ -160,7 +161,7 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
       @Nonnull URN urn, int start, int pageSize) {
     final ListResult<ASPECT> result = _delegate.list(aspectClass, urn, start, pageSize);
     if (_usageEmitter.isEnabled()) {
-      safeEmit(OP_READ, "list", null,
+      safeEmit(OP_READ, "list", null, urn::getEntityType,
           () -> singleTarget(urn, aspectClass.getSimpleName()));
     }
     return result;
@@ -177,7 +178,7 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
     final int result =
         _delegate.add(urn, newValue, aspectClass, auditStamp, ingestionTrackingContext, isTestMode);
     if (result > 0 && _usageEmitter.isEnabled() && !isTestMode && !isBackfill(ingestionTrackingContext)) {
-      safeEmit(newValue != null ? OP_WRITE : OP_DELETE, "add", auditStamp,
+      safeEmit(newValue != null ? OP_WRITE : OP_DELETE, "add", auditStamp, urn::getEntityType,
           () -> singleTarget(urn, aspectClass.getSimpleName()));
     }
     return result;
@@ -192,7 +193,7 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
         oldTimestamp, ingestionTrackingContext, isTestMode, softDeleteOverwrite);
     if (result > 0 && _usageEmitter.isEnabled() && !isTestMode && !isBackfill(ingestionTrackingContext)) {
       safeEmit(newValue != null ? OP_WRITE : OP_DELETE, "addWithOptimisticLocking",
-          auditStamp, () -> singleTarget(urn, aspectClass.getSimpleName()));
+          auditStamp, urn::getEntityType, () -> singleTarget(urn, aspectClass.getSimpleName()));
     }
     return result;
   }
@@ -206,7 +207,7 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
     final int result = _delegate.create(urn, aspectValues, aspectCreateLambdas, auditStamp,
         ingestionTrackingContext, isTestMode);
     if (result > 0 && _usageEmitter.isEnabled() && !isTestMode && !isBackfill(ingestionTrackingContext)) {
-      safeEmit(OP_WRITE, "create", auditStamp,
+      safeEmit(OP_WRITE, "create", auditStamp, urn::getEntityType,
           () -> singleTarget(urn, aspectSimpleNames(aspectValues)));
     }
     return result;
@@ -220,7 +221,7 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
     final int result =
         _delegate.batchUpsert(urn, updateContexts, auditStamp, ingestionTrackingContext, isTestMode);
     if (result > 0 && _usageEmitter.isEnabled() && !isTestMode && !isBackfill(ingestionTrackingContext)) {
-      safeEmit(OP_WRITE, "batchUpsert", auditStamp,
+      safeEmit(OP_WRITE, "batchUpsert", auditStamp, urn::getEntityType,
           () -> singleTarget(urn, aspectNamesFromContexts(updateContexts)));
     }
     return result;
@@ -231,7 +232,7 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
     final int result = _delegate.softDeleteAsset(urn, isTestMode);
     if (result > 0 && _usageEmitter.isEnabled() && !isTestMode) {
       // Whole-entity delete: no audit stamp on this path (actor null), empty aspect list.
-      safeEmit(OP_DELETE_ALL, "softDeleteAsset", null,
+      safeEmit(OP_DELETE_ALL, "softDeleteAsset", null, urn::getEntityType,
           () -> Collections.singletonList(
               new DaoUsageTarget(urn.toString(), Collections.emptyList())));
     }
@@ -249,21 +250,37 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
    * {@link BaseDaoUsageEmitter#isEnabled()} has already been checked.
    */
   private void safeEmit(@Nonnull String operationType, @Nonnull String sourceOperation,
-      @Nullable AuditStamp auditStamp,
+      @Nullable AuditStamp auditStamp, @Nonnull Supplier<String> entityTypeSupplier,
       @Nonnull Supplier<List<DaoUsageTarget>> targetsSupplier) {
     try {
       final List<DaoUsageTarget> targets = targetsSupplier.get();
       if (targets.isEmpty()) {
         return;
       }
+      final String entityType = entityTypeSupplier.get();
+      if (entityType == null) {
+        return;
+      }
       final String actorUrn = auditStamp == null ? null : actorOf(auditStamp);
       final String impersonatorUrn = auditStamp == null ? null : impersonatorOf(auditStamp);
-      _usageEmitter.emit(operationType, _entityType, sourceOperation, actorUrn, impersonatorUrn,
+      _usageEmitter.emit(operationType, entityType, sourceOperation, actorUrn, impersonatorUrn,
           targets);
     } catch (Exception e) {
       // Fire-and-forget: never propagate an emission failure to the caller.
       log.warn("Failed to emit usage event for {} {}", operationType, sourceOperation, e);
     }
+  }
+
+  /**
+   * Entity type for a read, taken from the first key in the window the delegate actually read.
+   * Returns {@code null} when the window is empty, in which case there is nothing to report.
+   */
+  @Nullable
+  private static <URN extends Urn> String entityTypeFromKeys(
+      @Nonnull List<AspectKey<URN, ? extends RecordTemplate>> keys, int keysCount, int position) {
+    final int start = Math.max(0, position);
+    final int end = Math.min(keys.size(), start + Math.max(0, keysCount));
+    return start < end ? keys.get(start).getUrn().getEntityType() : null;
   }
 
   private static boolean isBackfill(@Nullable IngestionTrackingContext ingestionTrackingContext) {

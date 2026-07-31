@@ -1,6 +1,7 @@
 package com.linkedin.metadata.dao;
 
 import com.linkedin.common.AuditStamp;
+import com.linkedin.common.urn.Urn;
 import com.linkedin.data.template.RecordTemplate;
 import com.linkedin.metadata.dao.tracking.BaseDaoUsageEmitter;
 import com.linkedin.metadata.dao.tracking.DaoReadContext;
@@ -56,7 +57,7 @@ public class UsageTrackingEbeanLocalAccessTest {
     _mockEmitter = mock(BaseDaoUsageEmitter.class);
     when(_mockEmitter.isEnabled()).thenReturn(true);
 
-    _usage = new UsageTrackingEbeanLocalAccess<>(_mockDelegate, _mockEmitter, FooUrn.class);
+    _usage = new UsageTrackingEbeanLocalAccess<>(_mockDelegate, _mockEmitter);
 
     _urn1 = makeFooUrn(1);
     _urn2 = makeFooUrn(2);
@@ -121,6 +122,23 @@ public class UsageTrackingEbeanLocalAccessTest {
     }
 
     verify(_mockEmitter, never()).emit(anyString(), anyString(), anyString(), any(), any(), any());
+  }
+
+  @Test
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  public void testEntityTypeComesFromUrnNotUrnClassName() throws Exception {
+    // A camelCase entity type distinguishes urn.getEntityType() from the old derivation, which
+    // lowercased the URN class name and would have produced "mlmodel" (and "" for a raw Urn).
+    IEbeanLocalAccess<Urn> mockDelegate = mock(IEbeanLocalAccess.class);
+    UsageTrackingEbeanLocalAccess<Urn> usage =
+        new UsageTrackingEbeanLocalAccess<>(mockDelegate, _mockEmitter);
+    Urn mlModelUrn = new Urn("mlModel", "some-model");
+
+    when(mockDelegate.add(any(), any(), any(), any(), any(), anyBoolean())).thenReturn(1);
+
+    usage.add(mlModelUrn, new AspectFoo().setValue("v"), AspectFoo.class, _auditStamp, null, false);
+
+    verify(_mockEmitter).emit(eq("WRITE"), eq("mlModel"), eq("add"), any(), any(), any());
   }
 
   // ---------------------------------------------------------------------------------------
