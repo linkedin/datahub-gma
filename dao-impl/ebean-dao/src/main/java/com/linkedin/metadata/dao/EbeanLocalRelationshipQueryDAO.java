@@ -56,6 +56,8 @@ public class EbeanLocalRelationshipQueryDAO {
   public static final String RELATIONSHIP_RETURN_TYPE = "relationship.return.type";
   public static final String MG_INTERNAL_ASSET_RELATIONSHIP_TYPE = "AssetRelationship.proto";
   private static final int FILTER_BATCH_SIZE = 200;
+  // Hard upper bound on keyset page size to keep per-page DB work bounded.
+  private static final int MAX_KEYSET_PAGE_SIZE = 1000;
   private static final String IDX_DESTINATION_DELETED_TS = "idx_destination_deleted_ts";
   private static final String FORCE_IDX_ON_DESTINATION = " FORCE INDEX (idx_destination_deleted_ts) ";
   private static final String DESTINATION_FIELD =  "destination";
@@ -280,6 +282,174 @@ public class EbeanLocalRelationshipQueryDAO {
         .map(row -> RecordUtils.toRecordTemplate(relationshipType, row.getString("metadata")))
         .collect(Collectors.toList());
   }
+
+  /**
+   * Keyset (seek) paginated, current-only ({@code deleted_ts IS NULL}) variant of
+   * {@link #findRelationships(Class, LocalRelationshipFilter, Class, LocalRelationshipFilter, Class,
+   * LocalRelationshipFilter, int, int)} that walks the matching set in bounded pages. Ranked/
+   * non-current pagination is unsupported because it could not bound the per-page DB work.
+   *
+   * <p>First page: pass {@code cursor = null}; the DAO captures {@code maxId}, the largest
+   * relationship row id when paging starts ({@code COALESCE(MAX(id), 0)}), and returns rows with
+   * {@code 0 < rt.id <= maxId} ordered by id, up to {@code pageSize}. Later inserts get larger ids
+   * and are excluded, keeping the scan finite. Continuation: pass the next cursor from the previous
+   * {@link RelationshipKeysetPage}. The combined pages are not a point-in-time snapshot: existing
+   * rows updated or soft-deleted between page calls can change which rows a later page returns (see
+   * {@link RelationshipKeysetCursor}).</p>
+   *
+   * <p>Supported only when {@code SchemaConfig} is {@code NEW_SCHEMA_ONLY} or {@code DUAL_SCHEMA};
+   * {@code OLD_SCHEMA_ONLY} throws {@link UnsupportedOperationException}.</p>
+   *
+   * @param sourceEntityClass the source entity class to query
+   * @param sourceEntityFilter the filter to apply to the source entity when querying
+   * @param destinationEntityClass the destination entity class
+   * @param destinationEntityFilter the filter to apply to the destination entity when querying
+   * @param relationshipType the type of relationship to query
+   * @param relationshipFilter the filter to apply to relationship when querying
+   * @param pageSize the maximum number of relationships to return per page. Must be between 1 and
+   *                 1000 inclusive.
+   * @param cursor the cursor from the previous page, or {@code null} for the first page.
+   * @return a page of relationship records plus a next cursor (null when the scan is exhausted).
+   * @throws UnsupportedOperationException when the DAO is in {@code OLD_SCHEMA_ONLY} mode.
+   */
+  @Nonnull
+  public <SRC_SNAPSHOT extends RecordTemplate, DEST_SNAPSHOT extends RecordTemplate, RELATIONSHIP extends RecordTemplate>
+      RelationshipKeysetPage<RELATIONSHIP> findRelationshipsByKeyset(
+      @Nullable Class<SRC_SNAPSHOT> sourceEntityClass, @Nonnull LocalRelationshipFilter sourceEntityFilter,
+      @Nullable Class<DEST_SNAPSHOT> destinationEntityClass, @Nonnull LocalRelationshipFilter destinationEntityFilter,
+      @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter, int pageSize,
+      @Nullable RelationshipKeysetCursor cursor) {
+    validateEntityFilter(sourceEntityFilter, sourceEntityClass);
+    validateEntityFilter(destinationEntityFilter, destinationEntityClass);
+    validateRelationshipFilter(relationshipFilter, false);
+
+    String destTableName = null;
+    if (destinationEntityClass != null) {
+      destTableName = SQLSchemaUtils.getTableName(ModelUtils.getUrnTypeFromSnapshot(destinationEntityClass));
+    }
+
+    String sourceTableName = null;
+    if (sourceEntityClass != null) {
+      sourceTableName = SQLSchemaUtils.getTableName(ModelUtils.getUrnTypeFromSnapshot(sourceEntityClass));
+    }
+
+    final String relationshipTableName = SQLSchemaUtils.getRelationshipTableName(relationshipType);
+
+    final KeysetScanResult scan = findRelationshipsByKeysetCore(relationshipTableName, sourceTableName,
+        sourceEntityFilter, destTableName, destinationEntityFilter, relationshipFilter, pageSize, cursor);
+
+    final List<RELATIONSHIP> relationships = new ArrayList<>(scan.getRows().size());
+    for (SqlRow row : scan.getRows()) {
+      relationships.add(RecordUtils.toRecordTemplate(relationshipType, row.getString(METADATA)));
+    }
+
+    return new RelationshipKeysetPage<>(relationships, scan.getHighWaterId(), scan.getNextCursor());
+  }
+
+  /**
+   * Shared row-level keyset core for {@link #findRelationshipsByKeyset}: captures the first-page
+   * {@code maxId} (largest row id when paging starts), runs the current-only keyset SQL, validates
+   * strictly increasing id progress and computes the next cursor. Callers resolve their own table
+   * names/filters and map the returned rows. Supported only for {@code NEW_SCHEMA_ONLY} and
+   * {@code DUAL_SCHEMA}; {@code OLD_SCHEMA_ONLY} throws {@link UnsupportedOperationException} before
+   * any SQL is built or executed.
+   */
+  @Nonnull
+  private KeysetScanResult findRelationshipsByKeysetCore(@Nonnull final String relationshipTableName,
+      @Nullable final String sourceTableName, @Nullable final LocalRelationshipFilter sourceEntityFilter,
+      @Nullable final String destTableName, @Nullable final LocalRelationshipFilter destinationEntityFilter,
+      @Nonnull final LocalRelationshipFilter relationshipFilter, final int pageSize,
+      @Nullable final RelationshipKeysetCursor cursor) {
+    if (pageSize < 1 || pageSize > MAX_KEYSET_PAGE_SIZE) {
+      throw new IllegalArgumentException(
+          "pageSize must be between 1 and " + MAX_KEYSET_PAGE_SIZE + " but was " + pageSize);
+    }
+    if (_schemaConfig == EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY) {
+      throw new UnsupportedOperationException(
+          "Keyset pagination is not supported in OLD_SCHEMA_ONLY mode; use NEW_SCHEMA_ONLY or DUAL_SCHEMA.");
+    }
+
+    final long lastId;
+    final long maxId;
+    if (cursor == null) {
+      lastId = 0L;
+      maxId = fetchHighWaterId(relationshipTableName);
+    } else {
+      lastId = cursor.getLastId();
+      maxId = cursor.getMaxId();
+    }
+
+    // Nothing left to scan (empty table, or the previous page reached maxId).
+    if (lastId >= maxId) {
+      return new KeysetScanResult(Collections.emptyList(), maxId, null);
+    }
+
+    final String sql = buildFindRelationshipKeysetSQL(relationshipTableName, relationshipFilter, sourceTableName,
+        sourceEntityFilter, destTableName, destinationEntityFilter, pageSize, lastId, maxId);
+
+    final List<SqlRow> rows = executeSqlWithIndexCheck(sql, relationshipTableName);
+
+    long previousId = lastId;
+    long lastRowId = lastId;
+    for (SqlRow row : rows) {
+      final long id = row.getLong("id");
+      if (id <= previousId) {
+        throw new IllegalStateException(String.format(
+            "Relationship ids must strictly increase during keyset pagination but saw id %d after %d in table '%s'",
+            id, previousId, relationshipTableName));
+      }
+      previousId = id;
+      lastRowId = id;
+    }
+
+    // A next cursor is only warranted when the page was full and did not reach maxId.
+    RelationshipKeysetCursor nextCursor = null;
+    if (rows.size() == pageSize && lastRowId < maxId) {
+      nextCursor = new RelationshipKeysetCursor(lastRowId, maxId);
+    }
+
+    return new KeysetScanResult(rows, maxId, nextCursor);
+  }
+
+  /**
+   * Immutable holder for one keyset page's raw rows, {@code maxId} and next cursor.
+   */
+  private static final class KeysetScanResult {
+    private final List<SqlRow> _rows;
+    private final long _highWaterId;
+    private final RelationshipKeysetCursor _nextCursor;
+
+    KeysetScanResult(@Nonnull List<SqlRow> rows, long highWaterId,
+        @Nullable RelationshipKeysetCursor nextCursor) {
+      _rows = rows;
+      _highWaterId = highWaterId;
+      _nextCursor = nextCursor;
+    }
+
+    @Nonnull
+    List<SqlRow> getRows() {
+      return _rows;
+    }
+
+    long getHighWaterId() {
+      return _highWaterId;
+    }
+
+    @Nullable
+    RelationshipKeysetCursor getNextCursor() {
+      return _nextCursor;
+    }
+  }
+
+  /**
+   * Returns COALESCE(MAX(id), 0), the largest relationship row id ({@code maxId}), for the table.
+   */
+  private long fetchHighWaterId(@Nonnull final String relationshipTableName) {
+    final String sql = "SELECT COALESCE(MAX(id), 0) AS max_id FROM " + relationshipTableName;
+    final List<SqlRow> rows = _server.createSqlQuery(sql).findList();
+    return rows.isEmpty() ? 0L : rows.get(0).getLong("max_id");
+  }
+
   /**
    * Finds a list of relationships of a specific type (Urn) based on the given filters if applicable.
    *
@@ -862,6 +1032,89 @@ public class EbeanLocalRelationshipQueryDAO {
     if (includeNonCurrentRelationships) {
       sqlBuilder.append(") ranked_rows WHERE row_num = 1");
     }
+
+    return sqlBuilder.toString();
+  }
+
+  /**
+   * Keyset (seek) pagination counterpart of {@link #buildFindRelationshipSQL}: same join/filter
+   * construction plus keyset bounds ({@code rt.id > lastId AND rt.id <= maxId}, {@code maxId} being
+   * the largest relationship row id when paging starts), ascending id order and
+   * {@code LIMIT pageSize}. Kept separate to leave {@link #buildFindRelationshipSQL} untouched.
+   *
+   * <p>Always current-only ({@code deleted_ts IS NULL}); ranked/non-current pagination is
+   * unsupported because it could not bound the per-page DB work.</p>
+   *
+   * <p>Supported only for {@code NEW_SCHEMA_ONLY} and {@code DUAL_SCHEMA}; {@code OLD_SCHEMA_ONLY}
+   * throws {@link UnsupportedOperationException}.</p>
+   */
+  @Nonnull
+  @VisibleForTesting
+  public String buildFindRelationshipKeysetSQL(@Nonnull final String relationshipTableName,
+      @Nonnull LocalRelationshipFilter relationshipFilter, @Nullable final String sourceTableName,
+      @Nullable LocalRelationshipFilter sourceEntityFilter, @Nullable final String destTableName,
+      @Nullable LocalRelationshipFilter destinationEntityFilter, int pageSize, long lastId, long maxId) {
+    if (pageSize < 1 || pageSize > MAX_KEYSET_PAGE_SIZE) {
+      throw new IllegalArgumentException(
+          "pageSize must be between 1 and " + MAX_KEYSET_PAGE_SIZE + " but was " + pageSize);
+    }
+    if (_schemaConfig == EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY) {
+      throw new UnsupportedOperationException(
+          "Keyset pagination is not supported in OLD_SCHEMA_ONLY mode; use NEW_SCHEMA_ONLY or DUAL_SCHEMA.");
+    }
+
+    relationshipFilter = LogicalExpressionLocalRelationshipCriterionUtils.normalizeLocalRelationshipFilter(relationshipFilter);
+    sourceEntityFilter = LogicalExpressionLocalRelationshipCriterionUtils.normalizeLocalRelationshipFilter(sourceEntityFilter);
+    destinationEntityFilter = LogicalExpressionLocalRelationshipCriterionUtils.normalizeLocalRelationshipFilter(destinationEntityFilter);
+
+    // Cursor bounds are validated non-negative longs, so inlining them is safe and matches the
+    // existing flow that inlines filter values (including colon-bearing urns) without named params.
+    final String maxIdPredicate = "rt.id <= " + maxId;
+    final String lastIdPredicate = "rt.id > " + lastId;
+    final StringBuilder sqlBuilder = new StringBuilder();
+
+    sqlBuilder.append("SELECT rt.*");
+    sqlBuilder.append(" FROM ").append(relationshipTableName).append(" rt ");
+
+    final List<Triplet<LocalRelationshipFilter, String, String>> filters = new ArrayList<>();
+
+    if (_schemaConfig == EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY || _schemaConfig == EbeanLocalDAO.SchemaConfig.DUAL_SCHEMA) {
+      if (destTableName != null) {
+        sqlBuilder.append("INNER JOIN ").append(destTableName).append(" dt ON dt.urn=rt.destination ");
+
+        if (destinationEntityFilter != null) {
+          filters.add(new Triplet<>(destinationEntityFilter, "dt", destTableName));
+        }
+      } else if (destinationEntityFilter != null) {
+        validateEntityFilterOnlyOneUrn(destinationEntityFilter);
+        filters.add(new Triplet<>(destinationEntityFilter, "rt", relationshipTableName));
+      }
+
+      if (sourceTableName != null) {
+        sqlBuilder.append("INNER JOIN ").append(sourceTableName).append(" st ON st.urn=rt.source ");
+
+        if (sourceEntityFilter != null) {
+          filters.add(new Triplet<>(sourceEntityFilter, "st", sourceTableName));
+        }
+      }
+
+      filters.add(new Triplet<>(relationshipFilter, "rt", relationshipTableName));
+
+      final String whereClause = SQLStatementUtils.whereClause(SUPPORTED_CONDITIONS,
+          _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled(), _schemaValidatorUtil,
+          filters.toArray(new Triplet[filters.size()]));
+
+      sqlBuilder.append("WHERE rt.deleted_ts is NULL");
+      if (whereClause != null) {
+        sqlBuilder.append(" AND ").append(whereClause);
+      }
+      sqlBuilder.append(" AND ").append(lastIdPredicate).append(" AND ").append(maxIdPredicate);
+    } else {
+      // OLD_SCHEMA_ONLY is rejected above; only NEW_SCHEMA_ONLY and DUAL_SCHEMA are supported here.
+      throw new RuntimeException("The schema config must be set to DUAL_SCHEMA or NEW_SCHEMA_ONLY.");
+    }
+
+    sqlBuilder.append(" ORDER BY rt.id ASC LIMIT ").append(pageSize);
 
     return sqlBuilder.toString();
   }
