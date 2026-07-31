@@ -1925,7 +1925,11 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   private <ASPECT extends RecordTemplate> Optional<ASPECT> backfill(@Nonnull BackfillMode mode,
       @Nonnull Class<ASPECT> aspectClass, @Nonnull URN urn) {
     checkValidAspect(aspectClass);
-    Optional<ASPECT> aspect = get(aspectClass, urn, LATEST_VERSION);
+    // Backfill is a system operation, not consumer traffic, so its read is not counted as usage.
+    final Optional<ASPECT> aspect;
+    try (DaoReadContext.Scope ignored = DaoReadContext.markInternalRead()) {
+      aspect = get(aspectClass, urn, LATEST_VERSION);
+    }
     aspect.ifPresent(value -> backfill(mode, value, urn));
     return aspect;
   }
@@ -1972,8 +1976,11 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     Set<Class<? extends RecordTemplate>> aspectToBackfill =
         aspectClasses == null ? getValidAspectTypes(_aspectUnionClass) : aspectClasses;
     checkValidAspects(aspectToBackfill);
-    final Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> urnToAspects =
-        get(aspectToBackfill, urns);
+    // Backfill is a system operation, not consumer traffic, so its read is not counted as usage.
+    final Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> urnToAspects;
+    try (DaoReadContext.Scope ignored = DaoReadContext.markInternalRead()) {
+      urnToAspects = get(aspectToBackfill, urns);
+    }
     urnToAspects.forEach((urn, aspects) -> {
       aspects.forEach((aspectClass, aspect) -> aspect.ifPresent(value -> backfill(mode, value, urn)));
     });
@@ -2012,7 +2019,10 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   public Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfillEntityTables(
       @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nonnull Set<URN> urns) {
     urns.forEach(urn -> aspectClasses.forEach(aspect -> updateEntityTables(urn, aspect)));
-    return get(aspectClasses, urns);
+    // Backfill is a system operation, not consumer traffic, so its read is not counted as usage.
+    try (DaoReadContext.Scope ignored = DaoReadContext.markInternalRead()) {
+      return get(aspectClasses, urns);
+    }
   }
 
   /**

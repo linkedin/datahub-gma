@@ -871,7 +871,11 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       if (_noisyLogsEnabled) {
         log.info("Backfilling local relationships for urn: {}, aspectClass: {}", urn, aspectClass);
       }
-          List<EbeanMetadataAspect> results = batchGet(Collections.singleton(key), 1);
+      // Backfill is a system operation, not consumer traffic, so its read is not counted as usage.
+      final List<EbeanMetadataAspect> results;
+      try (DaoReadContext.Scope ignored = DaoReadContext.markInternalRead()) {
+        results = batchGet(Collections.singleton(key), 1);
+      }
       if (results.isEmpty()) {
         if (_noisyLogsEnabled) {
           log.info("Not backfilling any relationships because no aspect data was found for urn: {}, aspectClass: {}", urn, aspectClass);

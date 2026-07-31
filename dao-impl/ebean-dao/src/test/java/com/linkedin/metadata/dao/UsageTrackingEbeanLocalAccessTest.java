@@ -188,6 +188,23 @@ public class UsageTrackingEbeanLocalAccessTest {
 
   @Test
   @SuppressWarnings({"unchecked", "rawtypes"})
+  public void testListByUrnIsNotEmittedInsideInternalScope() {
+    ListResult<AspectFoo> expected = mock(ListResult.class);
+    when(_mockDelegate.list(any(Class.class), any(), anyInt(), anyInt())).thenReturn(expected);
+
+    // Every captured read honors the marker, not just batchGetUnion, so a read taken inside a
+    // marked region (e.g. backfill) is never billed to a consumer.
+    ListResult<AspectFoo> result;
+    try (DaoReadContext.Scope ignored = DaoReadContext.markInternalRead()) {
+      result = _usage.list(AspectFoo.class, _urn1, 0, 10);
+    }
+
+    assertSame(result, expected);
+    verify(_mockEmitter, never()).emit(anyString(), anyString(), anyString(), any(), any(), any());
+  }
+
+  @Test
+  @SuppressWarnings({"unchecked", "rawtypes"})
   public void testBatchGetUnionEmitsOnlyThePagedWindow() {
     // Callers page over the SAME full key list, advancing only position (see
     // EbeanLocalDAO#batchGet). Each page must report only the window the delegate reads,

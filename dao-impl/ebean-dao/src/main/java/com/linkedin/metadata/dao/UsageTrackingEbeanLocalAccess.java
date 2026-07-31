@@ -37,6 +37,10 @@ import lombok.extern.slf4j.Slf4j;
  * captured; global scans, discovery and maintenance are delegated without emission. Writes carry
  * the caller from the {@link AuditStamp}; reads have none.
  *
+ * <p>All captured reads honor {@link DaoReadContext}: a read taken inside a marked scope is not
+ * attributable to a consumer (read-before-write, backfill) and is skipped, so the rule is the same
+ * for every read method rather than special-cased per method.
+ *
  * <p>The entity type is taken from {@link Urn#getEntityType()} on the URN being operated on, so it
  * matches the canonical entity type used elsewhere (e.g. {@code mlModel}) rather than a value
  * derived from the URN class name.
@@ -160,7 +164,7 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
   public <ASPECT extends RecordTemplate> ListResult<ASPECT> list(@Nonnull Class<ASPECT> aspectClass,
       @Nonnull URN urn, int start, int pageSize) {
     final ListResult<ASPECT> result = _delegate.list(aspectClass, urn, start, pageSize);
-    if (_usageEmitter.isEnabled()) {
+    if (_usageEmitter.isEnabled() && !DaoReadContext.isInternalRead()) {
       safeEmit(OP_READ, "list", null, urn::getEntityType,
           () -> singleTarget(urn, aspectClass.getSimpleName()));
     }
