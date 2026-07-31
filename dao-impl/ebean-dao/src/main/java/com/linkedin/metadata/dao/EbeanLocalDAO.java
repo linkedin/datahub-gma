@@ -921,14 +921,11 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     } else {
       // for new schema, get latest data from the new schema entity table. (Resolving the read de-coupling issue)
       // Mark this as an internal read-before-write so usage instrumentation does not count it as a consumer read.
-      DaoReadContext.markInternalRead();
       final List<EbeanMetadataAspect> results;
-      try {
+      try (DaoReadContext.Scope ignored = DaoReadContext.markInternalRead()) {
         results =
             _localAccess.batchGetUnion(Collections.singletonList(new AspectKey<>(aspectClass, urn, LATEST_VERSION)), 1, 0,
                 true, isTestMode);
-      } finally {
-        DaoReadContext.clear();
       }
       result = results.isEmpty() ? null : results.get(0);
     }

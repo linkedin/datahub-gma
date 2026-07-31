@@ -19,7 +19,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.mockito.ArgumentCaptor;
-import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
@@ -70,12 +69,6 @@ public class UsageTrackingEbeanLocalAccessTest {
     return ArgumentCaptor.forClass(List.class);
   }
 
-  @AfterMethod
-  public void tearDown() {
-    // Defensive: never let an internal-read marker leak into the next test on a reused thread.
-    DaoReadContext.clear();
-  }
-
   @Test
   @SuppressWarnings({"unchecked", "rawtypes"})
   public void testInternalReadIsNotEmitted() {
@@ -84,11 +77,8 @@ public class UsageTrackingEbeanLocalAccessTest {
     List<AspectKey<FooUrn, ? extends RecordTemplate>> keys =
         (List) Collections.singletonList(new AspectKey<>(AspectFoo.class, _urn1, 0L));
 
-    DaoReadContext.markInternalRead();
-    try {
+    try (DaoReadContext.Scope ignored = DaoReadContext.markInternalRead()) {
       _usage.batchGetUnion(keys, 1, 0, true, false);
-    } finally {
-      DaoReadContext.clear();
     }
 
     // Read-before-write is marked internal, so it is not counted as a consumer read.
@@ -97,16 +87,40 @@ public class UsageTrackingEbeanLocalAccessTest {
 
   @Test
   @SuppressWarnings({"unchecked", "rawtypes"})
-  public void testConsumerReadStillEmittedAfterInternalMarkerCleared() {
+  public void testConsumerReadStillEmittedAfterInternalScopeCloses() {
     when(_mockDelegate.batchGetUnion(any(), anyInt(), anyInt(), anyBoolean(), anyBoolean()))
         .thenReturn(Collections.emptyList());
     List<AspectKey<FooUrn, ? extends RecordTemplate>> keys =
         (List) Collections.singletonList(new AspectKey<>(AspectFoo.class, _urn1, 0L));
 
-    // Once the marker is cleared, a genuine consumer read is emitted as normal.
+    // A read-before-write inside the scope is skipped...
+    try (DaoReadContext.Scope ignored = DaoReadContext.markInternalRead()) {
+      _usage.batchGetUnion(keys, 1, 0, true, false);
+    }
+    // ...and once the scope closes, a genuine consumer read is emitted as normal.
     _usage.batchGetUnion(keys, 1, 0, false, false);
 
-    verify(_mockEmitter).emit(eq("READ"), eq("foo"), eq("batchGetUnion"), isNull(), isNull(), any());
+    verify(_mockEmitter, times(1))
+        .emit(eq("READ"), eq("foo"), eq("batchGetUnion"), isNull(), isNull(), any());
+  }
+
+  @Test
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  public void testNestedInternalScopesDoNotUnmarkOuterRead() {
+    when(_mockDelegate.batchGetUnion(any(), anyInt(), anyInt(), anyBoolean(), anyBoolean()))
+        .thenReturn(Collections.emptyList());
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys =
+        (List) Collections.singletonList(new AspectKey<>(AspectFoo.class, _urn1, 0L));
+
+    try (DaoReadContext.Scope outer = DaoReadContext.markInternalRead()) {
+      try (DaoReadContext.Scope inner = DaoReadContext.markInternalRead()) {
+        _usage.batchGetUnion(keys, 1, 0, true, false);
+      }
+      // The inner scope closing must not unmark the outer region, so this read is still internal.
+      _usage.batchGetUnion(keys, 1, 0, true, false);
+    }
+
+    verify(_mockEmitter, never()).emit(anyString(), anyString(), anyString(), any(), any(), any());
   }
 
   // ---------------------------------------------------------------------------------------

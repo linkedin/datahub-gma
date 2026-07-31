@@ -912,12 +912,9 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
 
     // Single batched query - uses existing infrastructure.
     // Mark as an internal read-before-write so usage instrumentation does not count it as a consumer read.
-    DaoReadContext.markInternalRead();
     final Map<AspectKey<URN, ? extends RecordTemplate>, AspectWithExtraInfo<? extends RecordTemplate>> results;
-    try {
+    try (DaoReadContext.Scope ignored = DaoReadContext.markInternalRead()) {
       results = getWithExtraInfo(keys);
-    } finally {
-      DaoReadContext.clear();
     }
 
     // Convert to class-based map for easier lookup
