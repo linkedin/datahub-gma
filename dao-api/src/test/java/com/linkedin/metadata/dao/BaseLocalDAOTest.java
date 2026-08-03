@@ -18,6 +18,7 @@ import com.linkedin.metadata.dao.producer.BaseTrackingMetadataEventProducer;
 import com.linkedin.metadata.dao.retention.TimeBasedRetention;
 import com.linkedin.metadata.dao.retention.VersionBasedRetention;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
+import com.linkedin.metadata.dao.tracking.DaoReadContext;
 import com.linkedin.metadata.dao.urnpath.EmptyPathExtractor;
 import com.linkedin.metadata.events.IngestionMode;
 import com.linkedin.metadata.events.IngestionTrackingContext;
@@ -47,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
@@ -249,6 +251,62 @@ public class BaseLocalDAOTest {
     public Map<AspectKey<FooUrn, ? extends RecordTemplate>, AspectWithExtraInfo<? extends RecordTemplate>> getWithExtraInfo(
         @Nonnull Set<AspectKey<FooUrn, ? extends RecordTemplate>> keys) {
       return Collections.emptyMap();
+    }
+  }
+
+  /**
+   * Records whether the internal-read marker was set while the DAO performed its read, so tests can
+   * assert that backfill reads are marked and ordinary consumer reads are not.
+   */
+  static class MarkerRecordingLocalDAO<ENTITY_ASPECT_UNION extends UnionTemplate>
+      extends DummyLocalDAO<ENTITY_ASPECT_UNION> {
+
+    final List<Boolean> _markerDuringGet = new ArrayList<>();
+
+    MarkerRecordingLocalDAO(Class<ENTITY_ASPECT_UNION> aspectClass,
+        BiFunction<FooUrn, Class<? extends RecordTemplate>, AspectEntry> getLatestFunction,
+        BaseMetadataEventProducer eventProducer, DummyTransactionRunner transactionRunner) {
+      super(aspectClass, getLatestFunction, eventProducer, transactionRunner);
+    }
+
+    @Override
+    @Nonnull
+    public Map<AspectKey<FooUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> get(
+        Set<AspectKey<FooUrn, ? extends RecordTemplate>> aspectKeys) {
+      _markerDuringGet.add(DaoReadContext.isInternalRead());
+      // Mirror the real implementations, which map every requested key (to an empty Optional when
+      // absent) rather than omitting it.
+      Map<AspectKey<FooUrn, ? extends RecordTemplate>, Optional<? extends RecordTemplate>> results =
+          new HashMap<>();
+      aspectKeys.forEach(key -> results.put(key, Optional.empty()));
+      return results;
+    }
+  }
+
+  /**
+   * Counts calls to the batch {@link BaseLocalDAO#getWithExtraInfo(Set)} so tests can assert that a
+   * single-key read issues exactly one query.
+   */
+  static class CountingGetWithExtraInfoLocalDAO<ENTITY_ASPECT_UNION extends UnionTemplate>
+      extends DummyLocalDAO<ENTITY_ASPECT_UNION> {
+
+    final AtomicInteger _batchCallCount = new AtomicInteger(0);
+    private final Map<AspectKey<FooUrn, ? extends RecordTemplate>, AspectWithExtraInfo<? extends RecordTemplate>> _canned;
+
+    CountingGetWithExtraInfoLocalDAO(Class<ENTITY_ASPECT_UNION> aspectClass,
+        BiFunction<FooUrn, Class<? extends RecordTemplate>, AspectEntry> getLatestFunction,
+        BaseMetadataEventProducer eventProducer, DummyTransactionRunner transactionRunner,
+        Map<AspectKey<FooUrn, ? extends RecordTemplate>, AspectWithExtraInfo<? extends RecordTemplate>> canned) {
+      super(aspectClass, getLatestFunction, eventProducer, transactionRunner);
+      _canned = canned;
+    }
+
+    @Override
+    @Nonnull
+    public Map<AspectKey<FooUrn, ? extends RecordTemplate>, AspectWithExtraInfo<? extends RecordTemplate>> getWithExtraInfo(
+        @Nonnull Set<AspectKey<FooUrn, ? extends RecordTemplate>> keys) {
+      _batchCallCount.incrementAndGet();
+      return _canned;
     }
   }
 
@@ -1773,5 +1831,92 @@ public class BaseLocalDAOTest {
     } catch (IllegalArgumentException e) {
       assertTrue(e instanceof InvalidUrnException);
     }
+  }
+
+  @Test
+  public void testBackfillReadsAreMarkedInternal() throws Exception {
+    MarkerRecordingLocalDAO<EntityAspectUnion> dao =
+        new MarkerRecordingLocalDAO<>(EntityAspectUnion.class, _mockGetLatestFunction, _mockEventProducer,
+            _mockTransactionRunner);
+    FooUrn urn = new FooUrn(1);
+
+    dao.backfill(Collections.singleton(AspectFoo.class), Collections.singleton(urn));
+
+    // Backfill is a system operation; its read must not be counted as consumer usage.
+    assertEquals(dao._markerDuringGet, Collections.singletonList(true));
+  }
+
+  @Test
+  public void testSingleAspectBackfillReadIsMarkedInternal() throws Exception {
+    MarkerRecordingLocalDAO<EntityAspectUnion> dao =
+        new MarkerRecordingLocalDAO<>(EntityAspectUnion.class, _mockGetLatestFunction, _mockEventProducer,
+            _mockTransactionRunner);
+    FooUrn urn = new FooUrn(1);
+
+    dao.backfill(AspectFoo.class, urn);
+
+    assertEquals(dao._markerDuringGet, Collections.singletonList(true));
+  }
+
+  @Test
+  public void testConsumerReadIsNotMarkedInternal() throws Exception {
+    MarkerRecordingLocalDAO<EntityAspectUnion> dao =
+        new MarkerRecordingLocalDAO<>(EntityAspectUnion.class, _mockGetLatestFunction, _mockEventProducer,
+            _mockTransactionRunner);
+    FooUrn urn = new FooUrn(1);
+
+    dao.get(Collections.singleton(AspectFoo.class), Collections.singleton(urn));
+
+    // An ordinary read is genuine consumer traffic and stays unmarked.
+    assertEquals(dao._markerDuringGet, Collections.singletonList(false));
+  }
+
+  @Test
+  public void testMarkerDoesNotLeakAfterBackfill() throws Exception {
+    MarkerRecordingLocalDAO<EntityAspectUnion> dao =
+        new MarkerRecordingLocalDAO<>(EntityAspectUnion.class, _mockGetLatestFunction, _mockEventProducer,
+            _mockTransactionRunner);
+    FooUrn urn = new FooUrn(1);
+
+    dao.backfill(Collections.singleton(AspectFoo.class), Collections.singleton(urn));
+    dao.get(Collections.singleton(AspectFoo.class), Collections.singleton(urn));
+
+    // The scope closes on the way out of backfill, so the following consumer read is still counted.
+    assertEquals(dao._markerDuringGet, Arrays.asList(true, false));
+    assertFalse(DaoReadContext.isInternalRead());
+  }
+
+  @Test
+  public void testSingleKeyGetWithExtraInfoIssuesOneQueryWhenFound() throws Exception {
+    FooUrn urn = new FooUrn(1);
+    AspectKey<FooUrn, AspectFoo> key = new AspectKey<>(AspectFoo.class, urn, LATEST_VERSION);
+    AspectWithExtraInfo<AspectFoo> expected =
+        new AspectWithExtraInfo<>(new AspectFoo().setValue("bar"), new ExtraInfo());
+
+    CountingGetWithExtraInfoLocalDAO<EntityAspectUnion> dao =
+        new CountingGetWithExtraInfoLocalDAO<>(EntityAspectUnion.class, _mockGetLatestFunction, _mockEventProducer,
+            _mockTransactionRunner, Collections.singletonMap(key, expected));
+
+    Optional<AspectWithExtraInfo<AspectFoo>> result = dao.getWithExtraInfo(key);
+
+    assertTrue(result.isPresent());
+    assertEquals(result.get(), expected);
+    // Previously this method called the batch overload twice: once for containsKey, once to read.
+    assertEquals(dao._batchCallCount.get(), 1);
+  }
+
+  @Test
+  public void testSingleKeyGetWithExtraInfoIssuesOneQueryWhenMissing() throws Exception {
+    FooUrn urn = new FooUrn(1);
+    AspectKey<FooUrn, AspectFoo> key = new AspectKey<>(AspectFoo.class, urn, LATEST_VERSION);
+
+    CountingGetWithExtraInfoLocalDAO<EntityAspectUnion> dao =
+        new CountingGetWithExtraInfoLocalDAO<>(EntityAspectUnion.class, _mockGetLatestFunction, _mockEventProducer,
+            _mockTransactionRunner, Collections.emptyMap());
+
+    Optional<AspectWithExtraInfo<AspectFoo>> result = dao.getWithExtraInfo(key);
+
+    assertFalse(result.isPresent());
+    assertEquals(dao._batchCallCount.get(), 1);
   }
 }

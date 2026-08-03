@@ -20,7 +20,10 @@ import com.linkedin.metadata.dao.retention.TimeBasedRetention;
 import com.linkedin.metadata.dao.retention.VersionBasedRetention;
 import com.linkedin.metadata.dao.storage.LocalDAOStorageConfig;
 import com.linkedin.metadata.dao.tracking.BaseDaoBenchmarkMetrics;
+import com.linkedin.metadata.dao.tracking.BaseDaoUsageEmitter;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
+import com.linkedin.metadata.dao.tracking.DaoReadContext;
+import com.linkedin.metadata.dao.tracking.DaoUsageBuffer;
 import com.linkedin.metadata.dao.urnpath.EmptyPathExtractor;
 import com.linkedin.metadata.dao.urnpath.UrnPathExtractor;
 import com.linkedin.metadata.dao.utils.EBeanDAOUtils;
@@ -92,6 +95,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   private final static int DEFAULT_BATCH_SIZE = 50;
   private int _queryKeysCount = DEFAULT_BATCH_SIZE;
   private IEbeanLocalAccess<URN> _localAccess;
+  // Tracks whether the usage decorator has been installed. A structural check on _localAccess only
+  // sees the outermost layer, so it misses a usage decorator buried under another decorator.
+  private boolean _usageTrackingInstalled = false;
   private EbeanLocalRelationshipWriterDAO _localRelationshipWriterDAO;
   private LocalRelationshipBuilderRegistry _localRelationshipBuilderRegistry = null;
   private SchemaConfig _schemaConfig = SchemaConfig.OLD_SCHEMA_ONLY;
@@ -591,6 +597,33 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   }
 
   /**
+   * Set the usage emitter for DAO usage tracking. Wraps the underlying
+   * {@link IEbeanLocalAccess} with a {@link UsageTrackingEbeanLocalAccess} decorator that
+   * emits a usage event once per successful read / write / delete.
+   * No-op when {@code _localAccess} is {@code null} (OLD_SCHEMA_ONLY mode).
+   *
+   * <p>Purely additive: when this is never called the DAO behaves exactly as before, and the
+   * emitter is fire-and-forget (never throws into the call path). Composes with
+   * {@link #setBenchmarkMetrics} -- both decorate {@code _localAccess}, in either order.
+   *
+   * @param usageEmitter the usage emitter implementation to use
+   */
+  public void setUsageEmitter(@Nonnull BaseDaoUsageEmitter usageEmitter) {
+    if (_usageTrackingInstalled) {
+      // Stacking a second decorator would emit every event twice.
+      log.warn("Usage emitter is already set on this DAO; ignoring the repeat call.");
+      return;
+    }
+    if (_localAccess != null) {
+      _localAccess = new UsageTrackingEbeanLocalAccess<>(_localAccess, usageEmitter);
+      _usageTrackingInstalled = true;
+      // Arm the transaction buffer now that this process has a live emitter; until this call
+      // runInTransactionWithRetry's enter()/exit() are no-ops (zero overhead when never installed).
+      DaoUsageBuffer.arm();
+    }
+  }
+
+  /**
    * Ensure table schemas is up-to-date with db evolution scripts.
    */
   public void ensureSchemaUpToDate() {
@@ -605,22 +638,40 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   @Override
   protected <T> T runInTransactionWithRetry(@Nonnull Supplier<T> block, int maxTransactionRetry) {
     int retryCount = 0;
-    Exception lastException;
+    Exception lastException = null;
 
     T result = null;
-    do {
-      try (Transaction transaction = _server.beginTransaction()) {
-        result = block.get();
-        transaction.commit();
-        lastException = null;
-        break;
-      } catch (RollbackException | DuplicateKeyException | OptimisticLockException exception) {
-        lastException = exception;
-      }
-    } while (++retryCount <= maxTransactionRetry);
+    boolean committed = false;
+    // Usage emissions from this transaction are buffered and released only after the outermost
+    // commit, so a rolled-back write is never reported and a retry is reported once.
+    // enter() and exit() must stay paired with nothing between them that can throw.
+    final int usageMark = DaoUsageBuffer.enter();
+    List<Runnable> pendingUsage = Collections.emptyList();
+    try {
+      do {
+        // Drop whatever the previous attempt buffered before trying again.
+        DaoUsageBuffer.truncateTo(usageMark);
+        try (Transaction transaction = _server.beginTransaction()) {
+          result = block.get();
+          transaction.commit();
+          committed = true;
+          lastException = null;
+          break;
+        } catch (RollbackException | DuplicateKeyException | OptimisticLockException exception) {
+          lastException = exception;
+        }
+      } while (++retryCount <= maxTransactionRetry);
+    } finally {
+      pendingUsage = DaoUsageBuffer.exit(usageMark, committed);
+    }
 
     if (lastException != null) {
       throw new RetryLimitReached("Failed to add after " + maxTransactionRetry + " retries", lastException);
+    }
+
+    // Flush outside the transaction: emission must not be able to affect it, or vice versa.
+    for (Runnable emission : pendingUsage) {
+      emission.run();
     }
 
     return result;
@@ -825,7 +876,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       }
       AuditStamp auditStamp = makeAuditStamp(result);
       ASPECT aspect = toRecordTemplate(aspectClass, result).orElse(null);
-      _localAccess.add(urn, aspect, aspectClass, auditStamp, null, false);
+      // Mark as backfill so this old->new schema migration is not reported as organic usage.
+      final IngestionTrackingContext backfillContext = new IngestionTrackingContext().setBackfill(true);
+      _localAccess.add(urn, aspect, aspectClass, auditStamp, backfillContext, false);
 
       // also insert any relationships associated with this aspect
       handleRelationshipIngestion(urn, aspect, null, aspectClass, false);
@@ -840,7 +893,11 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       if (_noisyLogsEnabled) {
         log.info("Backfilling local relationships for urn: {}, aspectClass: {}", urn, aspectClass);
       }
-          List<EbeanMetadataAspect> results = batchGet(Collections.singleton(key), 1);
+      // Backfill is a system operation, not consumer traffic, so its read is not counted as usage.
+      final List<EbeanMetadataAspect> results;
+      try (DaoReadContext.Scope ignored = DaoReadContext.markInternalRead()) {
+        results = batchGet(Collections.singleton(key), 1);
+      }
       if (results.isEmpty()) {
         if (_noisyLogsEnabled) {
           log.info("Not backfilling any relationships because no aspect data was found for urn: {}, aspectClass: {}", urn, aspectClass);
@@ -893,9 +950,13 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
       }
     } else {
       // for new schema, get latest data from the new schema entity table. (Resolving the read de-coupling issue)
-      final List<EbeanMetadataAspect> results =
-          _localAccess.batchGetUnion(Collections.singletonList(new AspectKey<>(aspectClass, urn, LATEST_VERSION)), 1, 0,
-              true, isTestMode);
+      // Mark this as an internal read-before-write so usage instrumentation does not count it as a consumer read.
+      final List<EbeanMetadataAspect> results;
+      try (DaoReadContext.Scope ignored = DaoReadContext.markInternalRead()) {
+        results =
+            _localAccess.batchGetUnion(Collections.singletonList(new AspectKey<>(aspectClass, urn, LATEST_VERSION)), 1, 0,
+                true, isTestMode);
+      }
       result = results.isEmpty() ? null : results.get(0);
     }
     return result;

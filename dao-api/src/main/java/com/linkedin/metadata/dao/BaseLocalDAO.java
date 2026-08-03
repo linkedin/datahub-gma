@@ -35,6 +35,7 @@ import com.linkedin.metadata.dao.retention.TimeBasedRetention;
 import com.linkedin.metadata.dao.retention.VersionBasedRetention;
 import com.linkedin.metadata.dao.storage.LocalDAOStorageConfig;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
+import com.linkedin.metadata.dao.tracking.DaoReadContext;
 import com.linkedin.metadata.dao.tracking.TrackingUtils;
 import com.linkedin.metadata.dao.urnpath.UrnPathExtractor;
 import com.linkedin.metadata.dao.utils.ModelUtils;
@@ -909,9 +910,12 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
         .map(lambda -> new AspectKey<>(lambda.getAspectClass(), urn, LATEST_VERSION))
         .collect(Collectors.toSet());
 
-    // Single batched query - uses existing infrastructure
-    Map<AspectKey<URN, ? extends RecordTemplate>, AspectWithExtraInfo<? extends RecordTemplate>> results =
-        getWithExtraInfo(keys);
+    // Single batched query - uses existing infrastructure.
+    // Mark as an internal read-before-write so usage instrumentation does not count it as a consumer read.
+    final Map<AspectKey<URN, ? extends RecordTemplate>, AspectWithExtraInfo<? extends RecordTemplate>> results;
+    try (DaoReadContext.Scope ignored = DaoReadContext.markInternalRead()) {
+      results = getWithExtraInfo(keys);
+    }
 
     // Convert to class-based map for easier lookup
     Map<Class<? extends RecordTemplate>, AspectWithExtraInfo<RecordTemplate>> byClass = new HashMap<>();
@@ -1921,7 +1925,11 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   private <ASPECT extends RecordTemplate> Optional<ASPECT> backfill(@Nonnull BackfillMode mode,
       @Nonnull Class<ASPECT> aspectClass, @Nonnull URN urn) {
     checkValidAspect(aspectClass);
-    Optional<ASPECT> aspect = get(aspectClass, urn, LATEST_VERSION);
+    // Backfill is a system operation, not consumer traffic, so its read is not counted as usage.
+    final Optional<ASPECT> aspect;
+    try (DaoReadContext.Scope ignored = DaoReadContext.markInternalRead()) {
+      aspect = get(aspectClass, urn, LATEST_VERSION);
+    }
     aspect.ifPresent(value -> backfill(mode, value, urn));
     return aspect;
   }
@@ -1968,8 +1976,11 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     Set<Class<? extends RecordTemplate>> aspectToBackfill =
         aspectClasses == null ? getValidAspectTypes(_aspectUnionClass) : aspectClasses;
     checkValidAspects(aspectToBackfill);
-    final Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> urnToAspects =
-        get(aspectToBackfill, urns);
+    // Backfill is a system operation, not consumer traffic, so its read is not counted as usage.
+    final Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> urnToAspects;
+    try (DaoReadContext.Scope ignored = DaoReadContext.markInternalRead()) {
+      urnToAspects = get(aspectToBackfill, urns);
+    }
     urnToAspects.forEach((urn, aspects) -> {
       aspects.forEach((aspectClass, aspect) -> aspect.ifPresent(value -> backfill(mode, value, urn)));
     });
@@ -2008,7 +2019,10 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
   public Map<URN, Map<Class<? extends RecordTemplate>, Optional<? extends RecordTemplate>>> backfillEntityTables(
       @Nonnull Set<Class<? extends RecordTemplate>> aspectClasses, @Nonnull Set<URN> urns) {
     urns.forEach(urn -> aspectClasses.forEach(aspect -> updateEntityTables(urn, aspect)));
-    return get(aspectClasses, urns);
+    // Backfill is a system operation, not consumer traffic, so its read is not counted as usage.
+    try (DaoReadContext.Scope ignored = DaoReadContext.markInternalRead()) {
+      return get(aspectClasses, urns);
+    }
   }
 
   /**
@@ -2153,12 +2167,15 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
    * Similar to {@link #getWithExtraInfo(Set)} but only using only one {@link AspectKey}.
    */
   @Nonnull
+  @SuppressWarnings("unchecked")
   public <ASPECT extends RecordTemplate> Optional<AspectWithExtraInfo<ASPECT>> getWithExtraInfo(
       @Nonnull AspectKey<URN, ASPECT> key) {
-    if (getWithExtraInfo(Collections.singleton(key)).containsKey(key)) {
-      return Optional.of((AspectWithExtraInfo<ASPECT>) getWithExtraInfo(Collections.singleton(key)).get(key));
-    }
-    return Optional.empty();
+    // Query once and null-check the result. Calling getWithExtraInfo twice (once to test
+    // containsKey, once to read) issued a redundant round trip for every single-key read, and with
+    // usage tracking enabled it emitted two READ events for one logical read.
+    final AspectWithExtraInfo<? extends RecordTemplate> result =
+        getWithExtraInfo(Collections.singleton(key)).get(key);
+    return result == null ? Optional.empty() : Optional.of((AspectWithExtraInfo<ASPECT>) result);
   }
 
   /**
