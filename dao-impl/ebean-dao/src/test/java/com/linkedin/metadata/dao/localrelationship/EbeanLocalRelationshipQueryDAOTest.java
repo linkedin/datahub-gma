@@ -13,6 +13,8 @@ import com.linkedin.metadata.dao.EbeanLocalDAO;
 import com.linkedin.metadata.dao.EbeanLocalRelationshipQueryDAO;
 import com.linkedin.metadata.dao.EbeanLocalRelationshipWriterDAO;
 import com.linkedin.metadata.dao.IEbeanLocalAccess;
+import com.linkedin.metadata.dao.RelationshipKeysetCursor;
+import com.linkedin.metadata.dao.RelationshipKeysetPage;
 import com.linkedin.metadata.dao.urnpath.EmptyPathExtractor;
 import com.linkedin.metadata.dao.utils.EBeanDAOUtils;
 import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
@@ -2190,4 +2192,414 @@ public class EbeanLocalRelationshipQueryDAOTest {
     assertEquals(results.size(), 1);
     assertEquals(results.get(0).getRelatedTo().getBelongsToV2().getDestination().getString(), problematicUrn);
   }
+
+  // -------------------------------------------------------------------------
+  // Keyset (seek) pagination: typed API, model and baseline SQL builder
+  // -------------------------------------------------------------------------
+
+  private LocalRelationshipFilter emptyFilter() {
+    return new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray());
+  }
+
+  private LocalRelationshipFilter outgoingEmptyFilter() {
+    return new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray())
+        .setDirection(RelationshipDirection.OUTGOING);
+  }
+
+  private List<FooUrn> addReportsToChain(int count, FooUrn destination) throws URISyntaxException {
+    List<FooUrn> sources = new ArrayList<>();
+    for (int i = 1; i <= count; i++) {
+      FooUrn source = new FooUrn(100 + i);
+      _localRelationshipWriterDAO.addRelationships(source, AspectFoo.class,
+          Collections.singletonList(new ReportsTo().setSource(source).setDestination(destination)), false);
+      sources.add(source);
+    }
+    return sources;
+  }
+
+  private RelationshipKeysetPage<ReportsTo> keysetPage(int pageSize, RelationshipKeysetCursor cursor) {
+    return _localRelationshipQueryDAO.findRelationshipsByKeyset(
+        null, emptyFilter(), null, emptyFilter(), ReportsTo.class, outgoingEmptyFilter(), pageSize, cursor);
+  }
+
+  private List<ReportsTo> drainKeyset(int pageSize) {
+    List<ReportsTo> all = new ArrayList<>();
+    RelationshipKeysetCursor cursor = null;
+    do {
+      RelationshipKeysetPage<ReportsTo> page = keysetPage(pageSize, cursor);
+      all.addAll(page.getRelationships());
+      cursor = page.getNextCursor();
+    } while (cursor != null);
+    return all;
+  }
+
+  @Test
+  public void testBuildFindRelationshipKeysetSQL() {
+    // Unlike the existing offset builder, the keyset builder adds `id > lastId`, `id <= maxId`,
+    // `ORDER BY rt.id ASC` and a finite LIMIT.
+    String sql = _localRelationshipQueryDAO.buildFindRelationshipKeysetSQL("relationship_table_name",
+        new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
+        "source_table_name", null, "destination_table_name", null,
+        10, 5, 20);
+
+    assertEquals(sql,
+        "SELECT rt.* FROM relationship_table_name rt INNER JOIN destination_table_name dt ON dt.urn=rt.destination "
+            + "INNER JOIN source_table_name st ON st.urn=rt.source WHERE rt.deleted_ts is NULL "
+            + "AND rt.id > 5 AND rt.id <= 20 ORDER BY rt.id ASC LIMIT 10");
+  }
+
+  @Test
+  public void testBuildFindRelationshipKeysetSQLWithSource() {
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Alice"),
+        Condition.EQUAL,
+        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+    LocalRelationshipFilter srcFilter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
+
+    String sql = _localRelationshipQueryDAO.buildFindRelationshipKeysetSQL("relationship_table_name",
+        new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
+        "metadata_entity_foo", srcFilter, "destination_table_name", null,
+        10, 5, 20);
+
+    assertEquals(sql,
+        "SELECT rt.* FROM relationship_table_name rt INNER JOIN destination_table_name dt ON dt.urn=rt.destination "
+            + "INNER JOIN metadata_entity_foo st ON st.urn=rt.source WHERE rt.deleted_ts is NULL AND st.i_aspectfoo"
+            + (_eBeanDAOConfig.isNonDollarVirtualColumnsEnabled() ? "0" : "$") + "value='Alice' "
+            + "AND rt.id > 5 AND rt.id <= 20 ORDER BY rt.id ASC LIMIT 10");
+  }
+
+  @Test
+  public void testBuildFindRelationshipKeysetSQLRejectsInvalidPageSize() {
+    // Zero and negative are rejected.
+    expectThrows(IllegalArgumentException.class, () ->
+        _localRelationshipQueryDAO.buildFindRelationshipKeysetSQL("relationship_table_name",
+            new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
+            null, null, null, null, 0, 0, 20));
+    expectThrows(IllegalArgumentException.class, () ->
+        _localRelationshipQueryDAO.buildFindRelationshipKeysetSQL("relationship_table_name",
+            new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
+            null, null, null, null, -1, 0, 20));
+    // Above the hard upper bound of 1000 is rejected.
+    expectThrows(IllegalArgumentException.class, () ->
+        _localRelationshipQueryDAO.buildFindRelationshipKeysetSQL("relationship_table_name",
+            new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
+            null, null, null, null, 1001, 0, 20));
+  }
+
+  @Test
+  public void testKeysetPaginationRejectedInOldSchemaMode() throws URISyntaxException {
+    addReportsToChain(2, new FooUrn(1));
+    _localRelationshipQueryDAO.setSchemaConfig(EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY);
+
+    // Typed API rejects OLD_SCHEMA_ONLY before building/executing any SQL.
+    expectThrows(UnsupportedOperationException.class, () -> keysetPage(3, null));
+
+    // The public SQL builder rejects OLD_SCHEMA_ONLY as well.
+    expectThrows(UnsupportedOperationException.class, () ->
+        _localRelationshipQueryDAO.buildFindRelationshipKeysetSQL("relationship_table_name",
+            new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
+            null, null, null, null, 10, 5, 20));
+  }
+
+  @Test
+  public void testFindRelationshipsByKeysetEmptyTable() {
+    RelationshipKeysetPage<ReportsTo> page = keysetPage(3, null);
+    assertTrue(page.getRelationships().isEmpty());
+    assertNull(page.getNextCursor());
+    assertEquals(page.getHighWaterId(), 0L);
+  }
+
+  @Test
+  public void testFindRelationshipsByKeysetRejectsInvalidPageSize() {
+    expectThrows(IllegalArgumentException.class, () -> keysetPage(0, null));
+    expectThrows(IllegalArgumentException.class, () -> keysetPage(-1, null));
+    // Above the hard upper bound of 1000 is rejected.
+    expectThrows(IllegalArgumentException.class, () -> keysetPage(1001, null));
+  }
+
+  @Test
+  public void testFindRelationshipsByKeysetFewerThanPageSize() throws URISyntaxException {
+    addReportsToChain(2, new FooUrn(1));
+    RelationshipKeysetPage<ReportsTo> page = keysetPage(5, null);
+    assertEquals(page.getRelationships().size(), 2);
+    assertNull(page.getNextCursor());
+    assertEquals(page.getHighWaterId(), 2L);
+  }
+
+  @Test
+  public void testFindRelationshipsByKeysetExactlyPageSize() throws URISyntaxException {
+    addReportsToChain(3, new FooUrn(1));
+
+    // A full page whose last matching row equals maxId ends the scan: no next cursor.
+    RelationshipKeysetPage<ReportsTo> first = keysetPage(3, null);
+    assertEquals(first.getRelationships().size(), 3);
+    assertNull(first.getNextCursor());
+    assertEquals(first.getHighWaterId(), 3L);
+  }
+
+  @Test
+  public void testFindRelationshipsByKeysetFullPageBelowMaxIdYieldsFinalEmptyQuery()
+      throws URISyntaxException {
+    FooUrn dest = new FooUrn(1);
+    // Insert 3 rows (ids 1..3), then soft-delete the last two by re-pointing their sources.
+    List<FooUrn> sources = addReportsToChain(3, dest);
+    // Re-adding source #2 and #3 soft-deletes ids 2 and 3 and inserts ids 4 and 5.
+    _localRelationshipWriterDAO.addRelationships(sources.get(1), AspectFoo.class,
+        Collections.singletonList(new ReportsTo().setSource(sources.get(1)).setDestination(new FooUrn(2))), false);
+    _localRelationshipWriterDAO.addRelationships(sources.get(2), AspectFoo.class,
+        Collections.singletonList(new ReportsTo().setSource(sources.get(2)).setDestination(new FooUrn(2))), false);
+
+    // Current rows toward dest #1: only id 1. High-water id is 5 because later nonmatching rows
+    // (ids 4/5 pointing elsewhere) set maxId. A page size of 1 fills fully with id 1 (below maxId
+    // 5), so a next cursor is produced; that continuation query is empty because ids 2 and 3 are
+    // soft-deleted and 4/5 point elsewhere, so one final empty page is needed to end the scan.
+    LocalRelationshipCriterion relCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(
+        LocalRelationshipValue.create(dest.toString()), Condition.EQUAL, new UrnField().setName("destination"));
+    LocalRelationshipFilter relationshipFilter = new LocalRelationshipFilter()
+        .setCriteria(new LocalRelationshipCriterionArray(relCriterion))
+        .setDirection(RelationshipDirection.OUTGOING);
+
+    RelationshipKeysetPage<ReportsTo> first = _localRelationshipQueryDAO.findRelationshipsByKeyset(
+        null, emptyFilter(), null, emptyFilter(), ReportsTo.class, relationshipFilter, 1, null);
+    assertEquals(first.getRelationships().size(), 1);
+    assertNotNull(first.getNextCursor());
+    assertEquals(first.getNextCursor().getMaxId(), 5L);
+
+    RelationshipKeysetPage<ReportsTo> second = _localRelationshipQueryDAO.findRelationshipsByKeyset(
+        null, emptyFilter(), null, emptyFilter(), ReportsTo.class, relationshipFilter, 1, first.getNextCursor());
+    assertTrue(second.getRelationships().isEmpty());
+    assertNull(second.getNextCursor());
+  }
+
+  @Test
+  public void testFindRelationshipsByKeysetMultiPageOrderedComplete() throws URISyntaxException {
+    Set<FooUrn> expectedSources = new java.util.HashSet<>(addReportsToChain(7, new FooUrn(1)));
+
+    List<ReportsTo> drained = drainKeyset(2);
+
+    assertEquals(drained.size(), 7);
+    Set<FooUrn> actualSources = drained.stream()
+        .map(r -> makeFooUrn(r.getSource().toString()))
+        .collect(Collectors.toSet());
+    // No duplicates and all sources present.
+    assertEquals(actualSources.size(), 7);
+    assertEquals(actualSources, expectedSources);
+  }
+
+  @Test
+  public void testFindRelationshipsByKeysetHighWaterExcludesLaterInsert() throws URISyntaxException {
+    addReportsToChain(5, new FooUrn(1));
+
+    // Capture the high-water id on the first page.
+    RelationshipKeysetCursor cursor = null;
+    List<ReportsTo> drained = new ArrayList<>();
+    RelationshipKeysetPage<ReportsTo> page = keysetPage(2, null);
+    drained.addAll(page.getRelationships());
+    cursor = page.getNextCursor();
+    assertEquals(page.getHighWaterId(), 5L);
+
+    // Insert more rows after the scan started; they must not be observed. These later inserts are
+    // deterministically excluded by the fixed maxId (best effort only covers updates/deletes of
+    // existing ids). Use distinct sources (200+) so no existing relationship is superseded.
+    for (int i = 1; i <= 3; i++) {
+      FooUrn src = new FooUrn(200 + i);
+      _localRelationshipWriterDAO.addRelationships(src, AspectFoo.class,
+          Collections.singletonList(new ReportsTo().setSource(src).setDestination(new FooUrn(2))), false);
+    }
+
+    while (cursor != null) {
+      page = keysetPage(2, cursor);
+      drained.addAll(page.getRelationships());
+      cursor = page.getNextCursor();
+    }
+
+    assertEquals(drained.size(), 5);
+  }
+
+  @Test
+  public void testFindRelationshipsByKeysetSoftDeletedGaps() throws URISyntaxException {
+    FooUrn dest = new FooUrn(1);
+    FooUrn a = new FooUrn(101);
+    FooUrn b = new FooUrn(102);
+    FooUrn c = new FooUrn(103);
+    _localRelationshipWriterDAO.addRelationships(a, AspectFoo.class,
+        Collections.singletonList(new ReportsTo().setSource(a).setDestination(dest)), false);
+    _localRelationshipWriterDAO.addRelationships(b, AspectFoo.class,
+        Collections.singletonList(new ReportsTo().setSource(b).setDestination(dest)), false);
+    _localRelationshipWriterDAO.addRelationships(c, AspectFoo.class,
+        Collections.singletonList(new ReportsTo().setSource(c).setDestination(dest)), false);
+
+    // Re-adding B soft-deletes its first row and inserts a new one, creating an id gap.
+    _localRelationshipWriterDAO.addRelationships(b, AspectFoo.class,
+        Collections.singletonList(new ReportsTo().setSource(b).setDestination(dest)), false);
+
+    List<ReportsTo> drained = drainKeyset(2);
+
+    // Verifies a soft-deleted id sitting between live rows does not stop or skip the later live
+    // rows (distinct from the final-empty case: the gap is mid-scan, not a trailing empty page).
+    // Only the three current (non-deleted) relationships are returned, gap skipped.
+    assertEquals(drained.size(), 3);
+    Set<FooUrn> actual = drained.stream()
+        .map(r -> makeFooUrn(r.getSource().toString()))
+        .collect(Collectors.toSet());
+    assertEquals(actual, ImmutableSet.of(a, b, c));
+  }
+
+  @Test
+  public void testFindRelationshipsByKeysetWithSourceFilter() throws URISyntaxException {
+    FooUrn alice = new FooUrn(1);
+    FooUrn bob = new FooUrn(2);
+    _fooUrnEBeanLocalAccess.add(alice, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp(), null, false);
+    _fooUrnEBeanLocalAccess.add(bob, new AspectFoo().setValue("Bob"), AspectFoo.class, new AuditStamp(), null, false);
+
+    FooUrn boss = new FooUrn(9);
+    _localRelationshipWriterDAO.addRelationships(alice, AspectFoo.class,
+        Collections.singletonList(new ReportsTo().setSource(alice).setDestination(boss)), false);
+    _localRelationshipWriterDAO.addRelationships(bob, AspectFoo.class,
+        Collections.singletonList(new ReportsTo().setSource(bob).setDestination(boss)), false);
+
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Alice"),
+        Condition.EQUAL,
+        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+    LocalRelationshipFilter srcFilter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
+
+    RelationshipKeysetPage<ReportsTo> page = _localRelationshipQueryDAO.findRelationshipsByKeyset(
+        FooSnapshot.class, srcFilter, null, emptyFilter(), ReportsTo.class,
+        outgoingEmptyFilter(), 5, null);
+
+    assertEquals(page.getRelationships().size(), 1);
+    assertEquals(makeFooUrn(page.getRelationships().get(0).getSource().toString()), alice);
+  }
+
+  @Test
+  public void testFindRelationshipsByKeysetWithDestinationFilter() throws URISyntaxException {
+    FooUrn worker = new FooUrn(1);
+    FooUrn alice = new FooUrn(2);
+    FooUrn bob = new FooUrn(3);
+    _fooUrnEBeanLocalAccess.add(alice, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp(), null, false);
+    _fooUrnEBeanLocalAccess.add(bob, new AspectFoo().setValue("Bob"), AspectFoo.class, new AuditStamp(), null, false);
+
+    _localRelationshipWriterDAO.addRelationships(worker, AspectFoo.class,
+        Collections.singletonList(new ReportsTo().setSource(worker).setDestination(alice)), false);
+    // A second source reporting to bob so the destination filter has something to exclude.
+    _localRelationshipWriterDAO.addRelationships(new FooUrn(4), AspectFoo.class,
+        Collections.singletonList(new ReportsTo().setSource(new FooUrn(4)).setDestination(bob)), false);
+
+    LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Alice"),
+        Condition.EQUAL,
+        new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
+    LocalRelationshipFilter destFilter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
+
+    RelationshipKeysetPage<ReportsTo> page = _localRelationshipQueryDAO.findRelationshipsByKeyset(
+        null, emptyFilter(), FooSnapshot.class, destFilter, ReportsTo.class,
+        outgoingEmptyFilter(), 5, null);
+
+    assertEquals(page.getRelationships().size(), 1);
+    assertEquals(makeFooUrn(page.getRelationships().get(0).getDestination().toString()), alice);
+  }
+
+  @Test
+  public void testFindRelationshipsByKeysetWithRelationshipFilter() throws URISyntaxException {
+    FooUrn worker = new FooUrn(1);
+    FooUrn alice = new FooUrn(2);
+    _fooUrnEBeanLocalAccess.add(worker, new AspectFoo().setValue("Worker"), AspectFoo.class, new AuditStamp(), null, false);
+    _fooUrnEBeanLocalAccess.add(alice, new AspectFoo().setValue("Alice"), AspectFoo.class, new AuditStamp(), null, false);
+
+    _localRelationshipWriterDAO.addRelationships(worker, AspectFoo.class,
+        Collections.singletonList(new ReportsTo().setSource(worker).setDestination(alice)), false);
+    _localRelationshipWriterDAO.addRelationships(new FooUrn(3), AspectFoo.class,
+        Collections.singletonList(new ReportsTo().setSource(new FooUrn(3)).setDestination(new FooUrn(4))), false);
+
+    LocalRelationshipCriterion relCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(
+        LocalRelationshipValue.create(alice.toString()), Condition.EQUAL, new UrnField().setName("destination"));
+    LocalRelationshipFilter relationshipFilter = new LocalRelationshipFilter()
+        .setCriteria(new LocalRelationshipCriterionArray(relCriterion))
+        .setDirection(RelationshipDirection.OUTGOING);
+
+    RelationshipKeysetPage<ReportsTo> page = _localRelationshipQueryDAO.findRelationshipsByKeyset(
+        null, emptyFilter(), null, emptyFilter(), ReportsTo.class, relationshipFilter, 5, null);
+
+    assertEquals(page.getRelationships().size(), 1);
+    assertEquals(makeFooUrn(page.getRelationships().get(0).getDestination().toString()), alice);
+  }
+
+  @Test
+  public void testFindRelationshipsByKeysetBestEffortMembershipUnderConcurrentReplacement()
+      throws URISyntaxException {
+    FooUrn dest = new FooUrn(1);
+    FooUrn a = new FooUrn(101);
+    FooUrn b = new FooUrn(102);
+    FooUrn c = new FooUrn(103);
+    FooUrn d = new FooUrn(104);
+    // Ids 1..4, all current, all pointing at dest.
+    _localRelationshipWriterDAO.addRelationships(a, AspectFoo.class,
+        Collections.singletonList(new ReportsTo().setSource(a).setDestination(dest)), false);
+    _localRelationshipWriterDAO.addRelationships(b, AspectFoo.class,
+        Collections.singletonList(new ReportsTo().setSource(b).setDestination(dest)), false);
+    _localRelationshipWriterDAO.addRelationships(c, AspectFoo.class,
+        Collections.singletonList(new ReportsTo().setSource(c).setDestination(dest)), false);
+    _localRelationshipWriterDAO.addRelationships(d, AspectFoo.class,
+        Collections.singletonList(new ReportsTo().setSource(d).setDestination(dest)), false);
+
+    // Page 1 (size 2) captures the insertion high-water id maxId = 4 and returns ids 1,2 (a, b).
+    RelationshipKeysetPage<ReportsTo> first = keysetPage(2, null);
+    assertEquals(first.getHighWaterId(), 4L);
+    assertNotNull(first.getNextCursor());
+    List<ReportsTo> drained = new ArrayList<>(first.getRelationships());
+
+    // Between pages, "concurrently" replace c: this soft-deletes id 3 (which is <= maxId) and
+    // inserts a fresh current row id 5 (which is > maxId). The replacement row is excluded by the
+    // fixed maxId bound and the original id 3 is soft-deleted, so c may disappear from the scan even
+    // though it was current when the scan began. Because each page is a separate statement, maxId is
+    // only an insertion high-water mark, not a stable/complete snapshot: this is the documented
+    // best-effort membership behavior, chosen so the scan stays finite.
+    _localRelationshipWriterDAO.addRelationships(c, AspectFoo.class,
+        Collections.singletonList(new ReportsTo().setSource(c).setDestination(dest)), false);
+
+    RelationshipKeysetCursor cursor = first.getNextCursor();
+    while (cursor != null) {
+      RelationshipKeysetPage<ReportsTo> page = keysetPage(2, cursor);
+      drained.addAll(page.getRelationships());
+      cursor = page.getNextCursor();
+    }
+
+    // c is missing: the scan reflects rows current when each page ran, not a snapshot of the
+    // rows that were current when the scan started.
+    Set<FooUrn> actual = drained.stream()
+        .map(r -> makeFooUrn(r.getSource().toString()))
+        .collect(Collectors.toSet());
+    assertEquals(actual, ImmutableSet.of(a, b, d));
+    assertFalse(actual.contains(c));
+  }
+
+  @Test
+  public void testRelationshipKeysetCursorValidationAndGetters() {
+    RelationshipKeysetCursor cursor = new RelationshipKeysetCursor(3, 10);
+    assertEquals(cursor.getLastId(), 3L);
+    assertEquals(cursor.getMaxId(), 10L);
+
+    expectThrows(IllegalArgumentException.class, () -> new RelationshipKeysetCursor(-1, 10));
+    expectThrows(IllegalArgumentException.class, () -> new RelationshipKeysetCursor(3, -1));
+    expectThrows(IllegalArgumentException.class, () -> new RelationshipKeysetCursor(11, 10));
+  }
+
+  @Test
+  public void testRelationshipKeysetPageDefensiveAndValidation() throws URISyntaxException {
+    List<ReportsTo> source = new ArrayList<>();
+    source.add(new ReportsTo().setSource(new FooUrn(1)).setDestination(new FooUrn(2)));
+    RelationshipKeysetPage<ReportsTo> page =
+        new RelationshipKeysetPage<>(source, 10, new RelationshipKeysetCursor(5, 10));
+
+    // Defensive copy: mutating the input list cannot alter the returned page contents.
+    source.clear();
+    assertEquals(page.getRelationships().size(), 1);
+    assertNotNull(page.getNextCursor());
+    expectThrows(UnsupportedOperationException.class, () -> page.getRelationships().add(null));
+
+    // next cursor maxId must match highWaterId.
+    expectThrows(IllegalArgumentException.class, () ->
+        new RelationshipKeysetPage<>(new ArrayList<ReportsTo>(), 10, new RelationshipKeysetCursor(5, 9)));
+    expectThrows(IllegalArgumentException.class, () ->
+        new RelationshipKeysetPage<ReportsTo>(null, 10, null));
+  }
+
 }
