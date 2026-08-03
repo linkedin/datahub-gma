@@ -29,17 +29,26 @@ public interface BaseDaoUsageEmitter {
    * @param actorUrn         string form of the caller URN for writes; {@code null} for reads
    *                         (no audit stamp is available on the read path in v1)
    * @param impersonatorUrn  string form of the service-on-behalf-of URN, or {@code null}
-   * @param targets          per-URN targets ({@code {urn, aspects[]}}); {@code aspects} is
-   *                         empty for a whole-entity {@code DELETE_ALL}
+   * @param targets          per-URN targets ({@code {urn, aspects[]}}); {@code aspects} may be
+   *                         empty (whole-entity {@code DELETE_ALL}, or a {@code create} with no
+   *                         aspects) -- use {@code operationType}, not an empty list, to identify
+   *                         the operation kind
    */
   void emit(@Nonnull String operationType, @Nonnull String entityType,
       @Nonnull String sourceOperation, @Nullable String actorUrn,
       @Nullable String impersonatorUrn, @Nonnull List<DaoUsageTarget> targets);
 
   /**
-   * Whether usage emission is enabled. Callers short-circuit all instrumentation (building
-   * targets, deriving the caller, etc.) when this returns {@code false}, giving zero
-   * overhead in the default / disabled configuration.
+   * Whether usage emission is enabled.
+   *
+   * <p>Invoked on every captured DAO operation, synchronously on the caller's thread and -- on
+   * write paths -- inside an open transaction. Implementations MUST therefore be a cheap local
+   * read, e.g. a {@code volatile boolean} field refreshed out of band. They MUST NOT perform
+   * I/O, acquire locks, or consult a remote config or feature-flag service on this call path.
+   *
+   * <p>Callers short-circuit all instrumentation (building targets, deriving the caller) when
+   * this returns {@code false}. The "zero overhead when disabled" property of the DAO depends
+   * on this method honoring the above.
    */
   boolean isEnabled();
 }

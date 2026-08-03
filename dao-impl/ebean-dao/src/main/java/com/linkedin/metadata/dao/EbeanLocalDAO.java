@@ -617,6 +617,9 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     if (_localAccess != null) {
       _localAccess = new UsageTrackingEbeanLocalAccess<>(_localAccess, usageEmitter);
       _usageTrackingInstalled = true;
+      // Arm the transaction buffer now that this process has a live emitter; until this call
+      // runInTransactionWithRetry's enter()/exit() are no-ops (zero overhead when never installed).
+      DaoUsageBuffer.arm();
     }
   }
 

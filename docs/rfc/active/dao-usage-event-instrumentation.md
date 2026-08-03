@@ -27,7 +27,8 @@ Same kernel-interface / service-implementation split as `BaseDaoBenchmarkMetrics
 ### `DaoUsageTarget` value type
 
 Located in `dao-api/.../tracking/DaoUsageTarget.java`. Holds `{String urn, List<String> aspects}` — one per distinct URN
-touched by an operation. `aspects` is empty for a whole-entity delete.
+touched by an operation. `aspects` may be empty — a whole-entity `DELETE_ALL`, or a `create` with no aspect values. Do
+not infer the operation kind from an empty `aspects` list; `operationType` is the authoritative discriminator.
 
 ### `NoOpDaoUsageEmitter`
 
@@ -40,26 +41,35 @@ Located in `dao-impl/ebean-dao/.../UsageTrackingEbeanLocalAccess.java`.
 
 Implements `IEbeanLocalAccess<URN>`, delegates every call to the real implementation first, and emits only **after** a
 successful delegate call — wrapped so emission can never change the return value or propagate an exception. When
-`isEnabled()` returns `false`, delegation is direct with zero overhead. Entity type is derived from the URN class simple
-name at construction (same as `InstrumentedEbeanLocalAccess`). Test-mode and backfill operations are skipped.
+`isEnabled()` returns `false`, delegation is direct with zero overhead. Entity type comes from `urn.getEntityType()` on
+each operation. Test-mode, backfill, and internal read-before-write operations are skipped.
 
 ### `EbeanLocalDAO.setUsageEmitter()`
 
 A setter that wraps the internal `_localAccess` with the decorator. No-op when `_localAccess` is `null` (OLD_SCHEMA_ONLY
 mode). Composes with `setBenchmarkMetrics` — both decorate `_localAccess`. Consistent with existing setter patterns.
 
-### `DaoReadContext` (internal read-before-write filter)
+### `DaoReadContext` (internal-read filter)
 
-Located in `dao-api/.../tracking/DaoReadContext.java`. A thread-local boolean flag that lets the decorator distinguish a
-genuine consumer read from the DAO's own internal read-before-write.
+Located in `dao-api/.../tracking/DaoReadContext.java`. A thread-local marker that lets the decorator distinguish a
+genuine consumer read from a read the DAO issues internally — the read-before-write every write/delete performs
+(`queryLatest`, `batchGetOldValuesWithExtraInfo`) and the old→new backfill reads (`backfill`, `backfillEntityTables`,
+`backfillLocalRelationships`). Each is wrapped with
+`try (DaoReadContext.Scope ignored = DaoReadContext.markInternalRead())`, and the decorator skips read emission while
+the marker is set. The `Scope` restores the previous marker state on close rather than clearing unconditionally, so
+nested internal reads compose safely; mark → read → restore runs synchronously on one thread, so the marker cannot leak.
+Consumer reads never set it and are still emitted.
 
-Every aspect write/delete performs a read-modify-write: it reads the current value before writing. In new-schema mode
-that internal read flows through the same decorator as consumer reads and would otherwise be counted as one. The write
-paths set the flag around that internal read (cleared in a `finally`) — `queryLatest` for single-aspect
-add/update/delete and `batchGetOldValuesWithExtraInfo` for `batchUpsert` — and the decorator skips `batchGetUnion`
-emission while the flag is set. The set → read → clear happens synchronously on one thread with no async boundary, so
-the flag is reliable and cannot leak. Consumer reads take a different entry path, never set the flag, and are still
-emitted.
+### `DaoUsageBuffer` (commit-gated write emission)
+
+Located in `dao-api/.../tracking/DaoUsageBuffer.java`. A thread-local buffer that holds write/delete emissions until the
+enclosing transaction commits: the decorator sits below the transaction boundary, so emitting inline would report writes
+that later roll back and re-report them on every retry. `EbeanLocalDAO.runInTransactionWithRetry` brackets the
+transaction with `enter()` / `exit()`; writes `record()` into the open frame (non-transactional paths run immediately,
+reads are never buffered). A depth counter flushes only at the outermost commit (Ebean nests via savepoints), a rollback
+discards the frame, and each retry truncates back to its entry mark so a retried write is reported once. The buffer is
+armed only once an emitter is installed, so it stays zero-overhead otherwise, and `enter()` / `exit()` must stay paired
+in a `finally` or an unexited frame leaks.
 
 ---
 
@@ -95,11 +105,12 @@ much to trust v1 numbers; none affect write-side data or the safety of the instr
 - **Only new/dual-schema DAOs are instrumented.** The decorator wraps the new-schema access layer, so an
   `OLD_SCHEMA_ONLY` DAO emits nothing, and historical (non-latest-version) reads served from the legacy path are not
   emitted.
-- **Read counts are an upper bound on volume.** Internal read-before-writes are excluded via `DaoReadContext`, but the
-  uninstrumented legacy/historical paths above still make read counts incomplete — treat them as a lower bound on
-  distinct consumers.
-- **Writes reflect committed change, not attempts.** Emission is gated on affected-row count (`> 0`) and happens inside
-  the write transaction, so a rolled-back or retried write can over-count and a no-op upsert does not emit.
+- **Read counts are a lower bound.** Internal read-before-writes and backfill reads are excluded via `DaoReadContext`,
+  and the uninstrumented legacy/historical paths above are not captured at all, so recorded read volume undercounts real
+  reads — treat it as a lower bound, especially for distinct consumers.
+- **Writes reflect committed change, not attempts.** Emission is gated on affected-row count (`> 0`) and buffered until
+  the enclosing transaction commits (see `DaoUsageBuffer`), so a rolled-back write is never reported and a retried write
+  is reported once rather than once per attempt. A no-op upsert (zero affected rows) does not emit.
 
 Read-side caller attribution is a proposed follow-up. Until it lands, treat read events as anonymous and do not use them
 for consumer-dependency decisions.

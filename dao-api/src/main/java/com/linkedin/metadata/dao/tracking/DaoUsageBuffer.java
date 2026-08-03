@@ -22,8 +22,9 @@ import javax.annotation.Nonnull;
  * later write rolls back.
  *
  * <p>Callers MUST pair {@link #enter()} with {@link #exit} in a {@code finally}, with nothing that
- * can throw in between: a frame that is never exited leaves the thread buffering forever, silently
- * dropping every later emission on it.
+ * can throw in between: a frame that is never exited stays open on the thread forever, so every
+ * later {@link #record} on that pooled thread keeps appending to {@code pending} and nothing ever
+ * flushes -- an unbounded memory leak, not merely lost emissions.
  */
 public final class DaoUsageBuffer {
 
@@ -35,16 +36,37 @@ public final class DaoUsageBuffer {
 
   private static final ThreadLocal<Frame> STATE = new ThreadLocal<>();
 
+  /**
+   * Process-wide gate. Stays {@code false} until an emitter is installed on any DAO
+   * ({@code EbeanLocalDAO#setUsageEmitter} calls {@link #arm()}), so a process that never enables
+   * usage tracking pays nothing: {@link #enter()} returns before touching the thread-local or
+   * allocating a {@link Frame}. Never disarmed -- installation is a one-time startup event.
+   */
+  private static volatile boolean armed = false;
+
   private DaoUsageBuffer() {
+  }
+
+  /**
+   * Arms the buffer so subsequent {@link #enter()} calls actually buffer. Idempotent; called once
+   * when the first usage emitter is installed on a DAO.
+   */
+  public static void arm() {
+    armed = true;
   }
 
   /**
    * Opens a transaction frame on the current thread.
    *
    * @return the mark for {@link #truncateTo} and {@link #exit}: the number of emissions already
-   *         buffered by enclosing frames, which this frame must not discard
+   *         buffered by enclosing frames, which this frame must not discard; {@code -1} when the
+   *         buffer is disarmed, which both {@link #truncateTo} and {@link #exit} treat as a no-op
    */
   public static int enter() {
+    if (!armed) {
+      // No emitter installed in this process: skip the thread-local and the Frame allocation.
+      return -1;
+    }
     Frame frame = STATE.get();
     if (frame == null) {
       frame = new Frame();

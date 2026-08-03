@@ -59,6 +59,9 @@ public class UsageTrackingEbeanLocalAccessTest {
     when(_mockEmitter.isEnabled()).thenReturn(true);
 
     _usage = new UsageTrackingEbeanLocalAccess<>(_mockDelegate, _mockEmitter);
+    // Installing an emitter arms the transaction buffer; these tests drive enter()/exit() directly,
+    // so arm it here to mirror a DAO that has had setUsageEmitter() called.
+    DaoUsageBuffer.arm();
 
     _urn1 = makeFooUrn(1);
     _urn2 = makeFooUrn(2);
@@ -401,6 +404,37 @@ public class UsageTrackingEbeanLocalAccessTest {
         isNull(), targets.capture());
     assertEquals(targets.getValue().get(0).getUrn(), _urn1.toString());
     assertTrue(targets.getValue().get(0).getAspects().isEmpty());
+  }
+
+  @Test
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  public void testZeroAffectedRowsSuppressesEmission() {
+    // Every write/delete method gates emission on the delegate reporting an affected row
+    // (result > 0). A no-op operation (result == 0) must not emit. Covers all five gated methods:
+    // add, addWithOptimisticLocking, create, batchUpsert, softDeleteAsset.
+    AspectFoo value = new AspectFoo();
+    BaseLocalDAO.AspectUpdateLambda lambda = new BaseLocalDAO.AspectUpdateLambda(value);
+    BaseLocalDAO.AspectUpdateContext ctx = new BaseLocalDAO.AspectUpdateContext(null, value, lambda);
+    List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> contexts =
+        (List) Collections.singletonList(ctx);
+
+    when(_mockDelegate.add(any(), any(), any(), any(), any(), anyBoolean())).thenReturn(0);
+    when(_mockDelegate.addWithOptimisticLocking(any(), any(), any(), any(), any(), any(),
+        anyBoolean(), anyBoolean())).thenReturn(0);
+    when(_mockDelegate.create(any(), any(), any(), any(), any(), anyBoolean())).thenReturn(0);
+    when(_mockDelegate.batchUpsert(any(), any(), any(), any(), anyBoolean())).thenReturn(0);
+    when(_mockDelegate.softDeleteAsset(any(), anyBoolean())).thenReturn(0);
+
+    _usage.add(_urn1, value, AspectFoo.class, _auditStamp, null, false);
+    _usage.addWithOptimisticLocking(_urn1, value, AspectFoo.class, _auditStamp, null, null, false,
+        false);
+    _usage.create(_urn1, Collections.singletonList(value), Collections.emptyList(), _auditStamp,
+        null, false);
+    _usage.batchUpsert(_urn1, contexts, _auditStamp, null, false);
+    _usage.softDeleteAsset(_urn1, false);
+
+    // No affected rows on any path -> no usage events at all.
+    verify(_mockEmitter, never()).emit(anyString(), anyString(), anyString(), any(), any(), any());
   }
 
   @Test

@@ -24,8 +24,10 @@ public class DaoUsageTarget {
   String urn;
 
   /**
-   * Simple names of the aspects touched for this URN. Empty for a whole-entity delete
-   * ({@code DELETE_ALL}) where no specific aspect applies.
+   * Simple names of the aspects touched for this URN. May be empty -- e.g. a whole-entity
+   * {@code DELETE_ALL}, or a {@code create} with no aspect values. Do NOT infer the operation
+   * kind from an empty list; use the event's {@code operationType} as the authoritative
+   * discriminator.
    */
   @Nonnull
   List<String> aspects;

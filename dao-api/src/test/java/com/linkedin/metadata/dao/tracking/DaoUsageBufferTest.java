@@ -4,12 +4,19 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import static org.testng.Assert.*;
 
 
 public class DaoUsageBufferTest {
+
+  @BeforeMethod
+  public void setUp() {
+    // The buffer only buffers once an emitter has been installed; these tests drive it directly.
+    DaoUsageBuffer.arm();
+  }
 
   @Test
   public void testRecordRunsImmediatelyWhenNoTransaction() {
@@ -137,9 +144,9 @@ public class DaoUsageBufferTest {
   }
 
   /**
-   * A frame that is entered but never exited would leave the thread buffering forever, silently
-   * dropping every later emission on it. The transaction runner pairs enter/exit in a finally, so
-   * an exception escaping the block must still close the frame.
+   * A frame that is entered but never exited would stay open on the thread forever, so every later
+   * emission on it keeps buffering and never flushes (a leak). The transaction runner pairs
+   * enter/exit in a finally, so an exception escaping the block must still close the frame.
    */
   @Test
   public void testFrameIsClosedWhenBlockThrows() {
