@@ -33,6 +33,7 @@ import com.linkedin.metadata.dao.storage.LocalDAOStorageConfig;
 import com.linkedin.metadata.dao.tracking.BaseDaoBenchmarkMetrics;
 import com.linkedin.metadata.dao.tracking.BaseDaoUsageEmitter;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
+import com.linkedin.metadata.dao.tracking.NoOpDaoUsageEmitter;
 import com.linkedin.metadata.dao.urnpath.UrnPathExtractor;
 import com.linkedin.metadata.dao.utils.BarUrnPathExtractor;
 import com.linkedin.metadata.dao.utils.EbeanServerUtils;
@@ -346,6 +347,27 @@ public class EbeanLocalDAOTest {
     // check on the outermost layer would miss it and stack a second usage decorator.
     dao.setUsageEmitter(mockEmitter);
     dao.setBenchmarkMetrics(mockMetrics);
+    dao.setUsageEmitter(mockEmitter);
+
+    dao.add(makeFooUrn(1), new AspectFoo().setValue("foo"), _dummyAuditStamp);
+
+    verify(mockEmitter, times(1)).emit(eq("WRITE"), anyString(), anyString(), any(), any(), any());
+  }
+
+  @Test
+  public void testSetUsageEmitterIgnoresNoOpAndStaysOpenForARealEmitter() throws Exception {
+    if (_schemaConfig != SchemaConfig.NEW_SCHEMA_ONLY) {
+      // Only the new-schema path routes writes through _localAccess, where the decorator lives.
+      return;
+    }
+    EbeanLocalDAO<EntityAspectUnion, FooUrn> dao = createDao(FooUrn.class);
+    BaseDaoUsageEmitter mockEmitter = mock(BaseDaoUsageEmitter.class);
+    when(mockEmitter.isEnabled()).thenReturn(true);
+
+    // A no-op emitter means "not configured". If it consumed the single-shot install, a real
+    // emitter wired afterwards -- which happens under non-deterministic injection order -- would
+    // be silently dropped and the service would emit nothing.
+    dao.setUsageEmitter(new NoOpDaoUsageEmitter());
     dao.setUsageEmitter(mockEmitter);
 
     dao.add(makeFooUrn(1), new AspectFoo().setValue("foo"), _dummyAuditStamp);

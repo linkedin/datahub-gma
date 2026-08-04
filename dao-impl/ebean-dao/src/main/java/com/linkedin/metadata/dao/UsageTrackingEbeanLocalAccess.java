@@ -153,7 +153,7 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
       boolean includeSoftDeleted, boolean isTestMode) {
     final List<EbeanMetadataAspect> result =
         _delegate.batchGetUnion(keys, keysCount, position, includeSoftDeleted, isTestMode);
-    if (_usageEmitter.isEnabled() && !isTestMode && !DaoReadContext.isInternalRead()) {
+    if (emissionEnabled() && !isTestMode && !DaoReadContext.isInternalRead()) {
       emitRead("batchGetUnion", () -> entityTypeFromKeys(keys, keysCount, position),
           () -> targetsFromKeys(keys, keysCount, position));
     }
@@ -165,7 +165,7 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
   public <ASPECT extends RecordTemplate> ListResult<ASPECT> list(@Nonnull Class<ASPECT> aspectClass,
       @Nonnull URN urn, int start, int pageSize) {
     final ListResult<ASPECT> result = _delegate.list(aspectClass, urn, start, pageSize);
-    if (_usageEmitter.isEnabled() && !DaoReadContext.isInternalRead()) {
+    if (emissionEnabled() && !DaoReadContext.isInternalRead()) {
       emitRead("list", urn::getEntityType,
           () -> singleTarget(urn, aspectClass.getSimpleName()));
     }
@@ -182,7 +182,7 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
       @Nullable IngestionTrackingContext ingestionTrackingContext, boolean isTestMode) {
     final int result =
         _delegate.add(urn, newValue, aspectClass, auditStamp, ingestionTrackingContext, isTestMode);
-    if (result > 0 && _usageEmitter.isEnabled() && !isTestMode && !isBackfill(ingestionTrackingContext)) {
+    if (result > 0 && emissionEnabled() && !isTestMode && !isBackfill(ingestionTrackingContext)) {
       emitWriteOnCommit(newValue != null ? OP_WRITE : OP_DELETE, "add", auditStamp,
           urn::getEntityType, () -> singleTarget(urn, aspectClass.getSimpleName()));
     }
@@ -196,7 +196,7 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
       boolean isTestMode, boolean softDeleteOverwrite) {
     final int result = _delegate.addWithOptimisticLocking(urn, newValue, aspectClass, auditStamp,
         oldTimestamp, ingestionTrackingContext, isTestMode, softDeleteOverwrite);
-    if (result > 0 && _usageEmitter.isEnabled() && !isTestMode && !isBackfill(ingestionTrackingContext)) {
+    if (result > 0 && emissionEnabled() && !isTestMode && !isBackfill(ingestionTrackingContext)) {
       emitWriteOnCommit(newValue != null ? OP_WRITE : OP_DELETE, "addWithOptimisticLocking",
           auditStamp, urn::getEntityType, () -> singleTarget(urn, aspectClass.getSimpleName()));
     }
@@ -211,7 +211,7 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
       boolean isTestMode) {
     final int result = _delegate.create(urn, aspectValues, aspectCreateLambdas, auditStamp,
         ingestionTrackingContext, isTestMode);
-    if (result > 0 && _usageEmitter.isEnabled() && !isTestMode && !isBackfill(ingestionTrackingContext)) {
+    if (result > 0 && emissionEnabled() && !isTestMode && !isBackfill(ingestionTrackingContext)) {
       emitWriteOnCommit(OP_WRITE, "create", auditStamp, urn::getEntityType,
           () -> singleTarget(urn, aspectSimpleNames(aspectValues)));
     }
@@ -225,7 +225,7 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
       boolean isTestMode) {
     final int result =
         _delegate.batchUpsert(urn, updateContexts, auditStamp, ingestionTrackingContext, isTestMode);
-    if (result > 0 && _usageEmitter.isEnabled() && !isTestMode && !isBackfill(ingestionTrackingContext)) {
+    if (result > 0 && emissionEnabled() && !isTestMode && !isBackfill(ingestionTrackingContext)) {
       emitWriteOnCommit(OP_WRITE, "batchUpsert", auditStamp, urn::getEntityType,
           () -> singleTarget(urn, aspectNamesFromContexts(updateContexts)));
     }
@@ -235,7 +235,7 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
   @Override
   public int softDeleteAsset(@Nonnull URN urn, boolean isTestMode) {
     final int result = _delegate.softDeleteAsset(urn, isTestMode);
-    if (result > 0 && _usageEmitter.isEnabled() && !isTestMode) {
+    if (result > 0 && emissionEnabled() && !isTestMode) {
       // Whole-entity delete: no audit stamp on this path (actor null), empty aspect list.
       emitWriteOnCommit(OP_DELETE_ALL, "softDeleteAsset", null, urn::getEntityType,
           () -> Collections.singletonList(
@@ -247,6 +247,25 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
   // ---------------------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------------------
+
+  /**
+   * Whether emission is on. {@link BaseDaoUsageEmitter} is a public extension point, so this call
+   * lands in third-party code; it is guarded because it is evaluated on the DAO call path, for
+   * writes inside the open transaction of {@code runInTransactionWithRetry}. An escaping throwable
+   * there is not one of the retryable types, so it would abort the retry loop before
+   * {@code commit()} and roll back a write that had already succeeded. Failing closed keeps usage
+   * capture fail-open.
+   *
+   * @return true when the emitter reports enabled, false on any throwable
+   */
+  private boolean emissionEnabled() {
+    try {
+      return _usageEmitter.isEnabled();
+    } catch (Throwable t) {
+      log.warn("Usage emitter isEnabled() threw; treating usage emission as disabled.", t);
+      return false;
+    }
+  }
 
   /**
    * Builds the targets and emits, swallowing any exception so usage capture can never affect
@@ -280,9 +299,12 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
       } else {
         emission.run();
       }
-    } catch (Exception e) {
-      // Fire-and-forget: never propagate an emission failure to the caller.
-      log.warn("Failed to emit usage event for {} {}", operationType, sourceOperation, e);
+    } catch (Throwable t) {
+      // Fire-and-forget: never propagate an emission failure to the caller. Throwable, not
+      // Exception: a caller-supplied emitter can fail to link rather than throw -- for example
+      // when its serialization library resolves to a conflicting version -- and the resulting
+      // Error would otherwise fail the caller's read or write.
+      log.warn("Failed to emit usage event for {} {}", operationType, sourceOperation, t);
     }
   }
 
@@ -315,11 +337,13 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
     try {
       _usageEmitter.emit(operationType, entityType, sourceOperation, actorUrn, impersonatorUrn,
           targets);
-    } catch (Exception e) {
-      log.warn("Failed to emit usage event for {} {}", operationType, sourceOperation, e);
+    } catch (Throwable t) {
+      // Throwable, not Exception: a LinkageError raised while linking the emit call site is thrown
+      // at the invocation, so the implementation's own internal guard never sees it. This runs at
+      // transaction-commit time for writes, where an escaping error would fail a durable write.
+      log.warn("Failed to emit usage event for {} {}", operationType, sourceOperation, t);
     }
   }
-
   /**
    * Entity type for a read, taken from the first key in the window the delegate actually read.
    * Returns {@code null} when the window is empty, in which case there is nothing to report.

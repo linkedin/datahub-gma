@@ -32,8 +32,13 @@ not infer the operation kind from an empty `aspects` list; `operationType` is th
 
 ### `NoOpDaoUsageEmitter`
 
-Located in `dao-api/.../tracking/NoOpDaoUsageEmitter.java`. All methods no-op; `isEnabled()` returns `false`. The
-default when no emitter is configured. Follows the `NoOpDaoBenchmarkMetrics` pattern.
+Located in `dao-api/.../tracking/NoOpDaoUsageEmitter.java`. All methods no-op; `isEnabled()` returns `false`. Follows
+the `NoOpDaoBenchmarkMetrics` pattern.
+
+Note that this is _not_ the mechanism by which tracking is off by default — a DAO that never has `setUsageEmitter`
+called simply leaves `_localAccess` undecorated, which is strictly cheaper than routing through a no-op. Passing a
+`NoOpDaoUsageEmitter` to `setUsageEmitter` is therefore treated as "not configured" and installs nothing, so it cannot
+consume the single-shot install and silently block a real emitter wired later.
 
 ### `UsageTrackingEbeanLocalAccess` decorator
 
