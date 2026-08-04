@@ -127,15 +127,18 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     }
   }
 
+  // Note: intentionally NOT static so it can reference the outer class's URN type parameter directly,
+  // ensuring canonicalUrn stays entity-specific (e.g. DatasetInstanceUrn) instead of the base Urn.
   @Getter
   @AllArgsConstructor
-  static class AddResult<ASPECT extends RecordTemplate> {
+  class AddResult<ASPECT extends RecordTemplate> {
     ASPECT oldValue;
     ASPECT newValue;
     Class<ASPECT> klass;
-    // The canonical URN as stored in the DB (may differ in case from the incoming MCE URN).
-    // For new entities with no existing DB row, this is set to the incoming MCE URN.
-    @Nonnull Urn canonicalUrn;
+    // The canonical URN as stored in the DB (may differ in case from the incoming MCE URN), reconstructed
+    // as the entity-specific URN type (not the base Urn) so hooks/producers expecting URN don't get a
+    // ClassCastException. For new entities with no existing DB row, this is set to the incoming MCE URN.
+    @Nonnull URN canonicalUrn;
   }
 
   @Value
@@ -556,7 +559,11 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
     // arrive with different-case URNs (e.g. lixTrackingArchive vs LixTrackingArchive).
     // Extracted before shouldUpdateAspect so both the early-return (no-op) and update paths
     // carry the canonical URN — needed when alwaysEmitAuditEvent=true emits MAE even for no-ops.
-    final Urn canonicalUrn = latest.getExtraInfo() != null ? latest.getExtraInfo().getUrn() : urn;
+    // Reconstructed as the entity-specific URN type (not ExtraInfo's base Urn) via reflection so
+    // downstream hooks/producers typed on URN (e.g. DatasetInstanceUrn) don't get a ClassCastException.
+    final URN canonicalUrn = latest.getExtraInfo() != null
+        ? ModelUtils.getUrnFromString(latest.getExtraInfo().getUrn().toString(), _urnClass)
+        : urn;
 
     // Unified logic determines whether an update to aspect should be persisted (includes backfill, equality, version, mode checks)
     if (!shouldUpdateAspect(ingestionParams.getIngestionMode(), urn, oldValue, newValue, aspectClass, auditStamp, equalityTester,
@@ -847,8 +854,11 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
           ingestionParams, aspectClass, urn);
 
       // Extract canonical URN before shouldUpdateAspect — no-op path also needs it
-      // (alwaysEmitAuditEvent=true emits MAE even when old == new)
-      final Urn batchCanonicalUrn = oldExtraInfo != null ? oldExtraInfo.getUrn() : urn;
+      // (alwaysEmitAuditEvent=true emits MAE even when old == new). Reconstructed as the
+      // entity-specific URN type — see addCommon() for why this must not be the base Urn.
+      final URN batchCanonicalUrn = oldExtraInfo != null
+          ? ModelUtils.getUrnFromString(oldExtraInfo.getUrn().toString(), _urnClass)
+          : urn;
 
       if (!shouldUpdateAspect(ingestionParams.getIngestionMode(), urn, oldAspect, newValue,
                               aspectClass, auditStamp, equalityTester, oldAuditStamp, eTagAuditStamp,
@@ -1062,8 +1072,8 @@ public abstract class BaseLocalDAO<ASPECT_UNION extends UnionTemplate, URN exten
         || (oldValue != null && newValue != null && equalityTester.equals(oldValue, newValue));
 
     // Use the canonical URN stored in AddResult (DB-stored URN if available, otherwise the incoming URN).
-    @SuppressWarnings("unchecked")
-    final URN maeUrn = (URN) result.getCanonicalUrn();
+    // Already the correctly-typed URN (see addCommon()/addManyBatchInternal()) — no cast needed.
+    final URN maeUrn = result.getCanonicalUrn();
 
     // Invoke post-update hooks if there's any
     // Note that we do NOT support post-update (or pre-update) hooks for deletion operations (yet). However, since

@@ -668,6 +668,63 @@ public class BaseLocalDAOTest {
     verifyNoMoreInteractions(_mockEventProducer);
   }
 
+  /**
+   * Concrete (non-mock) BiConsumer implementation typed on BurgerUrn. A Mockito mock would not
+   * reproduce the original bug: the compiler-generated bridge method (accept(Object, Object) ->
+   * accept(BurgerUrn, ASPECT)) that performs the unchecked cast only exists on real generated
+   * classes, not on mock proxies. This class is required to genuinely exercise that cast.
+   */
+  static class RecordingBurgerPostUpdateHook<ASPECT extends RecordTemplate> implements BiConsumer<BurgerUrn, ASPECT> {
+    final List<BurgerUrn> urnsSeen = new ArrayList<>();
+    final List<ASPECT> aspectsSeen = new ArrayList<>();
+
+    @Override
+    public void accept(BurgerUrn urn, ASPECT aspect) {
+      urnsSeen.add(urn);
+      aspectsSeen.add(aspect);
+    }
+  }
+
+  /**
+   * Regression test for a ClassCastException that occurred when a post-update hook typed on a
+   * concrete URN subclass (e.g. BurgerUrn) was invoked with the canonical URN. Before the fix,
+   * canonicalUrn was the loosely-typed base Urn from ExtraInfo.getUrn(), unchecked-cast to URN
+   * in unwrapAddResult() — this only failed on the second write to an entity, since the first
+   * write has no ExtraInfo and falls back to the correctly-typed incoming urn.
+   *
+   * <p>The fix reconstructs canonicalUrn as the entity-specific URN type via
+   * ModelUtils.getUrnFromString(str, _urnClass), so the hook always receives a properly-typed
+   * BurgerUrn and no ClassCastException is thrown.
+   */
+  @Test
+  public void testPostUpdateHookReceivesTypedUrnOnSecondWrite() {
+    BurgerUrn urn = new BurgerUrn("burgerKing");
+    AspectFoo firstFoo = new AspectFoo().setValue("first");
+    AspectFoo secondFoo = new AspectFoo().setValue("second");
+
+    BiFunction<BurgerUrn, Class<? extends RecordTemplate>, BaseLocalDAO.AspectEntry> burgerGetLatest = mock(BiFunction.class);
+    DummyBurgerLocalDAO<EntityAspectUnion> burgerDAO = new DummyBurgerLocalDAO<>(
+        EntityAspectUnion.class, burgerGetLatest, _mockEventProducer, _mockTransactionRunner);
+
+    RecordingBurgerPostUpdateHook<AspectFoo> postUpdateHook = new RecordingBurgerPostUpdateHook<>();
+    burgerDAO.addPostUpdateHook(AspectFoo.class, postUpdateHook);
+
+    // First call: no DB row yet → ExtraInfo is null → falls back to incoming urn.
+    when(burgerGetLatest.apply(urn, AspectFoo.class))
+        .thenReturn(new BaseLocalDAO.AspectEntry<>(null, null));
+    burgerDAO.add(urn, firstFoo, _dummyAuditStamp);
+
+    // Second call: DB row exists → ExtraInfo.urn is set → canonicalUrn must be reconstructed as
+    // a BurgerUrn (not the loosely-typed base Urn) so the hook below doesn't throw a CCE.
+    ExtraInfo extraInfoWithCanonical = new ExtraInfo().setAudit(_dummyAuditStamp).setUrn(urn);
+    when(burgerGetLatest.apply(urn, AspectFoo.class))
+        .thenReturn(new BaseLocalDAO.AspectEntry<>(firstFoo, extraInfoWithCanonical));
+    burgerDAO.add(urn, secondFoo, _dummyAuditStamp);
+
+    assertEquals(postUpdateHook.urnsSeen, Arrays.asList(urn, urn));
+    assertEquals(postUpdateHook.aspectsSeen, Arrays.asList(firstFoo, secondFoo));
+  }
+
   @Test
   public void testMAEv5WithTracking() throws URISyntaxException {
     FooUrn urn = new FooUrn(1);
