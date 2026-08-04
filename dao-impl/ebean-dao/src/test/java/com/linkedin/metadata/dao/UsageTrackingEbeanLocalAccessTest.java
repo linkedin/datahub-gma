@@ -524,6 +524,47 @@ public class UsageTrackingEbeanLocalAccessTest {
   }
 
   @Test
+  public void testIsEnabledThrowingDoesNotPropagateOnWrite() {
+    // isEnabled() lands in third-party code and is evaluated inside the open transaction of
+    // runInTransactionWithRetry. A throwable escaping here is not a retryable type, so it would
+    // abort the retry loop before commit() and roll back a write that had already succeeded.
+    when(_mockDelegate.add(any(), any(), any(), any(), any(), anyBoolean())).thenReturn(3);
+    when(_mockEmitter.isEnabled()).thenThrow(new RuntimeException("gate blew up"));
+
+    int result = _usage.add(_urn1, new AspectFoo(), AspectFoo.class, _auditStamp, null, false);
+
+    assertEquals(result, 3);
+    verify(_mockEmitter, never()).emit(anyString(), anyString(), anyString(), any(), any(), any());
+  }
+
+  @Test
+  public void testIsEnabledThrowingDoesNotPropagateOnRead() {
+    when(_mockDelegate.batchGetUnion(any(), anyInt(), anyInt(), anyBoolean(), anyBoolean()))
+        .thenReturn(Collections.emptyList());
+    when(_mockEmitter.isEnabled()).thenThrow(new RuntimeException("gate blew up"));
+
+    // A served read must not be turned into a failure by the usage gate.
+    _usage.batchGetUnion(Collections.emptyList(), 0, 0, false, false);
+
+    verify(_mockEmitter, never()).emit(anyString(), anyString(), anyString(), any(), any(), any());
+  }
+
+  @Test
+  public void testEmitterLinkageErrorDoesNotPropagate() {
+    // A caller-supplied emitter can fail to link rather than throw -- e.g. when its serialization
+    // library resolves to a conflicting version. A LinkageError raised while linking the emit call
+    // site is thrown at the invocation, so the implementation's own internal guard never sees it
+    // and the decorator has to absorb it.
+    when(_mockDelegate.add(any(), any(), any(), any(), any(), anyBoolean())).thenReturn(3);
+    doThrow(new NoClassDefFoundError("com/example/usage/UsageEventRecord"))
+        .when(_mockEmitter).emit(anyString(), anyString(), anyString(), any(), any(), any());
+
+    int result = _usage.add(_urn1, new AspectFoo(), AspectFoo.class, _auditStamp, null, false);
+
+    assertEquals(result, 3);
+  }
+
+  @Test
   public void testPartialAuditStampDoesNotPropagate() {
     // actor is a required field: AuditStamp#getActor() uses GetMode.STRICT and throws on a
     // partial record. Deriving the caller must stay inside the emitter's failure boundary so a

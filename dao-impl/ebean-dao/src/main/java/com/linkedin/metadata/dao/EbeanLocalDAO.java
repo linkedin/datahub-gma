@@ -24,6 +24,7 @@ import com.linkedin.metadata.dao.tracking.BaseDaoUsageEmitter;
 import com.linkedin.metadata.dao.tracking.BaseTrackingManager;
 import com.linkedin.metadata.dao.tracking.DaoReadContext;
 import com.linkedin.metadata.dao.tracking.DaoUsageBuffer;
+import com.linkedin.metadata.dao.tracking.NoOpDaoUsageEmitter;
 import com.linkedin.metadata.dao.urnpath.EmptyPathExtractor;
 import com.linkedin.metadata.dao.urnpath.UrnPathExtractor;
 import com.linkedin.metadata.dao.utils.EBeanDAOUtils;
@@ -606,9 +607,19 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    * emitter is fire-and-forget (never throws into the call path). Composes with
    * {@link #setBenchmarkMetrics} -- both decorate {@code _localAccess}, in either order.
    *
+   * <p>Single-shot per DAO: a repeat call is ignored, because stacking a second decorator would
+   * emit every event twice. Passing a {@link NoOpDaoUsageEmitter} is treated as "not configured"
+   * and installs nothing -- otherwise it would consume the one-shot and silently block a real
+   * emitter wired later, which is a live risk under non-deterministic dependency-injection order.
+   *
    * @param usageEmitter the usage emitter implementation to use
    */
   public void setUsageEmitter(@Nonnull BaseDaoUsageEmitter usageEmitter) {
+    if (usageEmitter instanceof NoOpDaoUsageEmitter) {
+      // "No emitter configured" is already expressed by leaving _localAccess undecorated, which is
+      // strictly cheaper. Returning early also leaves the one-shot open for a real emitter.
+      return;
+    }
     if (_usageTrackingInstalled) {
       // Stacking a second decorator would emit every event twice.
       log.warn("Usage emitter is already set on this DAO; ignoring the repeat call.");
@@ -670,8 +681,14 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
 
     // Flush outside the transaction: emission must not be able to affect it, or vice versa.
+    // Guarded per emission so one bad emission can neither fail a caller whose write is already
+    // durable nor silently drop the emissions queued behind it.
     for (Runnable emission : pendingUsage) {
-      emission.run();
+      try {
+        emission.run();
+      } catch (Throwable t) {
+        log.warn("Failed to flush buffered usage emission after commit.", t);
+      }
     }
 
     return result;
