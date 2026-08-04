@@ -2286,18 +2286,28 @@ public class EbeanLocalRelationshipQueryDAOTest {
   }
 
   @Test
-  public void testKeysetPaginationRejectedInOldSchemaMode() throws URISyntaxException {
+  public void testKeysetPaginationRejectedInNonNewSchemaModes() throws URISyntaxException {
     addReportsToChain(2, new FooUrn(1));
-    _localRelationshipQueryDAO.setSchemaConfig(EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY);
 
-    // Typed API rejects OLD_SCHEMA_ONLY before building/executing any SQL.
-    expectThrows(UnsupportedOperationException.class, () -> keysetPage(3, null));
+    // Keyset pagination is supported only in NEW_SCHEMA_ONLY. Both OLD_SCHEMA_ONLY and the
+    // deprecated DUAL_SCHEMA must be rejected before building/executing any SQL, on the typed API
+    // and the public SQL builder alike. Restore NEW_SCHEMA_ONLY after each assertion so the mode
+    // cannot leak into subsequent assertions or tests.
+    for (EbeanLocalDAO.SchemaConfig rejectedConfig : new EbeanLocalDAO.SchemaConfig[]{
+        EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY, EbeanLocalDAO.SchemaConfig.DUAL_SCHEMA}) {
+      _localRelationshipQueryDAO.setSchemaConfig(rejectedConfig);
 
-    // The public SQL builder rejects OLD_SCHEMA_ONLY as well.
-    expectThrows(UnsupportedOperationException.class, () ->
-        _localRelationshipQueryDAO.buildFindRelationshipKeysetSQL("relationship_table_name",
-            new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
-            null, null, null, null, 10, 5, 20));
+      // Typed API rejects the mode before building/executing any SQL.
+      expectThrows(UnsupportedOperationException.class, () -> keysetPage(3, null));
+
+      // The public SQL builder rejects the mode as well.
+      expectThrows(UnsupportedOperationException.class, () ->
+          _localRelationshipQueryDAO.buildFindRelationshipKeysetSQL("relationship_table_name",
+              new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
+              null, null, null, null, 10, 5, 20));
+
+      _localRelationshipQueryDAO.setSchemaConfig(EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY);
+    }
   }
 
   @Test
@@ -2600,6 +2610,172 @@ public class EbeanLocalRelationshipQueryDAOTest {
         new RelationshipKeysetPage<>(new ArrayList<ReportsTo>(), 10, new RelationshipKeysetCursor(5, 9)));
     expectThrows(IllegalArgumentException.class, () ->
         new RelationshipKeysetPage<ReportsTo>(null, 10, null));
+  }
+
+  // -------------------------------------------------------------------------
+  // V4 keyset (seek) pagination: behavioral tests
+  // -------------------------------------------------------------------------
+
+  @Test
+  public void testFindRelationshipsV4ByKeysetMultiPageWrappedRecordsWithLogicalFilters()
+      throws URISyntaxException {
+    FooUrn owner = new FooUrn(1000);
+    _fooUrnEBeanLocalAccess.add(owner, new AspectFoo().setValue("Owner"), AspectFoo.class, new AuditStamp(), null, false);
+
+    // Five cars, each with aspect value "Car", each belongs-to the same owner.
+    List<FooUrn> cars = new ArrayList<>();
+    for (int i = 1; i <= 5; i++) {
+      FooUrn car = new FooUrn(i);
+      _fooUrnEBeanLocalAccess.add(car, new AspectFoo().setValue("Car"), AspectFoo.class, new AuditStamp(), null, false);
+      BelongsToV2 belongsTo = new BelongsToV2();
+      belongsTo.setDestination(BelongsToV2.Destination.create(owner.toString()));
+      _localRelationshipWriterDAO.addRelationships(car, AspectFoo.class, Collections.singletonList(belongsTo), false);
+      cars.add(car);
+    }
+
+    // Source nonmatch: a "Truck" belongs-to the owner; excluded by the source aspect filter.
+    FooUrn truck = new FooUrn(2000);
+    _fooUrnEBeanLocalAccess.add(truck, new AspectFoo().setValue("Truck"), AspectFoo.class, new AuditStamp(), null, false);
+    BelongsToV2 truckBelongsTo = new BelongsToV2();
+    truckBelongsTo.setDestination(BelongsToV2.Destination.create(owner.toString()));
+    _localRelationshipWriterDAO.addRelationships(truck, AspectFoo.class, Collections.singletonList(truckBelongsTo), false);
+
+    // Destination nonmatch: a "Car" belongs-to a "Stranger"; excluded solely by the destination
+    // aspect filter (destination value != "Owner"). The relationship filter is intentionally an
+    // empty logical OUTGOING filter here, so this row is excluded by the destination filter alone;
+    // relationship-filter behavior is covered independently by the non-MG destination test.
+    FooUrn stranger = new FooUrn(3000);
+    _fooUrnEBeanLocalAccess.add(stranger, new AspectFoo().setValue("Stranger"), AspectFoo.class, new AuditStamp(), null, false);
+    FooUrn strayCar = new FooUrn(6);
+    _fooUrnEBeanLocalAccess.add(strayCar, new AspectFoo().setValue("Car"), AspectFoo.class, new AuditStamp(), null, false);
+    BelongsToV2 strayBelongsTo = new BelongsToV2();
+    strayBelongsTo.setDestination(BelongsToV2.Destination.create(stranger.toString()));
+    _localRelationshipWriterDAO.addRelationships(strayCar, AspectFoo.class, Collections.singletonList(strayBelongsTo), false);
+
+    // Logical source filter: source foo aspect value == "Car".
+    LocalRelationshipFilter srcFilter = new LocalRelationshipFilter().setLogicalExpressionCriteria(
+        wrapCriterionAsLogicalExpression(EBeanDAOUtils.buildRelationshipFieldCriterion(
+            LocalRelationshipValue.create("Car"), Condition.EQUAL,
+            new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"))));
+
+    // Logical destination filter: destination foo aspect value == "Owner".
+    LocalRelationshipFilter destFilter = new LocalRelationshipFilter().setLogicalExpressionCriteria(
+        wrapCriterionAsLogicalExpression(EBeanDAOUtils.buildRelationshipFieldCriterion(
+            LocalRelationshipValue.create("Owner"), Condition.EQUAL,
+            new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"))));
+
+    // Empty logical OUTGOING relationship filter: matches every belongs-to row, so each row is
+    // included or excluded purely by the source and destination entity filters. This keeps the
+    // multi-page test focused on the entity filters; relationship-filter behavior is exercised
+    // independently by the non-MG destination test.
+    LocalRelationshipFilter relationshipFilter = new LocalRelationshipFilter()
+        .setLogicalExpressionCriteria(new LogicalExpressionLocalRelationshipCriterion())
+        .setDirection(RelationshipDirection.OUTGOING);
+
+    Map<String, Object> wrapOptions = new HashMap<>();
+    wrapOptions.put(RELATIONSHIP_RETURN_TYPE, MG_INTERNAL_ASSET_RELATIONSHIP_TYPE);
+
+    List<AssetRelationship> drained = new ArrayList<>();
+    int pages = 0;
+    RelationshipKeysetCursor cursor = null;
+    do {
+      RelationshipKeysetPage<AssetRelationship> page = _localRelationshipQueryDAO.findRelationshipsV4ByKeyset(
+          "foo", srcFilter, "foo", destFilter, BelongsToV2.class, relationshipFilter,
+          AssetRelationship.class, wrapOptions, 2, cursor);
+      assertEquals(page.getHighWaterId(), 7L);
+      drained.addAll(page.getRelationships());
+      cursor = page.getNextCursor();
+      pages++;
+    } while (cursor != null);
+
+    // 5 matching rows (nonmatching source/destination rows excluded) over pages of size 2
+    // => 3 pages, no duplicates, all wrapped. maxId spans the two nonmatching rows too.
+    assertEquals(pages, 3);
+    assertEquals(drained.size(), 5);
+    Set<String> actualSources = new java.util.HashSet<>();
+    for (AssetRelationship rel : drained) {
+      actualSources.add(rel.getSource());
+      assertEquals(rel.getRelatedTo().getBelongsToV2().getDestination().getString(), owner.toString());
+    }
+    Set<String> expectedSources = cars.stream().map(FooUrn::toString).collect(Collectors.toSet());
+    assertEquals(actualSources, expectedSources);
+  }
+
+  @Test
+  public void testFindRelationshipsV4ByKeysetNonMgDestinationTypeResolvesNoTable() throws URISyntaxException {
+    // GQS non-MG destination usage: GQS passes the literal destination entity type "NON_MG_ASSET"
+    // with a null destination filter. "NON_MG_ASSET" is not a registered MG entity type, so
+    // getMgEntityTableName returns null and no destination entity table is joined. Guards against
+    // accidentally requiring a destination entity table for the V4 keyset wrapper.
+    FooUrn source = new FooUrn(1);
+    _fooUrnEBeanLocalAccess.add(source, new AspectFoo().setValue("Car"), AspectFoo.class, new AuditStamp(), null, false);
+
+    // Non-MG destination: an external dataset urn with no metadata_entity table.
+    String nonMgDestination = "urn:li:dataset:(urn:li:dataPlatform:hdfs,/data/tracking/events,PROD)";
+    BelongsToV2 belongsTo = new BelongsToV2();
+    belongsTo.setDestination(BelongsToV2.Destination.create(nonMgDestination));
+    _localRelationshipWriterDAO.addRelationships(source, AspectFoo.class, Collections.singletonList(belongsTo), false);
+
+    // Source aspect filter still applies; the relationship filter pins the non-MG destination urn.
+    LocalRelationshipFilter srcFilter = new LocalRelationshipFilter().setLogicalExpressionCriteria(
+        wrapCriterionAsLogicalExpression(EBeanDAOUtils.buildRelationshipFieldCriterion(
+            LocalRelationshipValue.create("Car"), Condition.EQUAL,
+            new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"))));
+    LocalRelationshipFilter relationshipFilter = new LocalRelationshipFilter()
+        .setLogicalExpressionCriteria(wrapCriterionAsLogicalExpression(
+            EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create(nonMgDestination),
+                Condition.EQUAL, new UrnField().setName("destination"))))
+        .setDirection(RelationshipDirection.OUTGOING);
+
+    Map<String, Object> wrapOptions = new HashMap<>();
+    wrapOptions.put(RELATIONSHIP_RETURN_TYPE, MG_INTERNAL_ASSET_RELATIONSHIP_TYPE);
+
+    // Non-MG destination type "NON_MG_ASSET" (as GQS passes) with a null destination filter.
+    RelationshipKeysetPage<AssetRelationship> page = _localRelationshipQueryDAO.findRelationshipsV4ByKeyset(
+        "foo", srcFilter, "NON_MG_ASSET", null, BelongsToV2.class, relationshipFilter,
+        AssetRelationship.class, wrapOptions, 10, null);
+
+    assertEquals(page.getHighWaterId(), 1L);
+    assertNull(page.getNextCursor());
+    assertEquals(page.getRelationships().size(), 1);
+    AssetRelationship wrapped = page.getRelationships().get(0);
+    assertEquals(wrapped.getSource(), source.toString());
+    assertEquals(wrapped.getRelatedTo().getBelongsToV2().getDestination().getString(), nonMgDestination);
+  }
+
+  @Test
+  public void testFindRelationshipsV4ByKeysetRejectsInvalidWrapOptions() {
+    LocalRelationshipFilter emptyLogical = new LocalRelationshipFilter()
+        .setLogicalExpressionCriteria(new LogicalExpressionLocalRelationshipCriterion())
+        .setDirection(RelationshipDirection.OUTGOING);
+
+    // null wrapOptions.
+    expectThrows(IllegalArgumentException.class, () ->
+        _localRelationshipQueryDAO.findRelationshipsV4ByKeyset(
+            null, null, null, null, ReportsTo.class, emptyLogical, AssetRelationship.class, null, 2, null));
+
+    // wrapOptions missing the AssetRelationship return-type marker.
+    Map<String, Object> badWrapOptions = new HashMap<>();
+    badWrapOptions.put(RELATIONSHIP_RETURN_TYPE, "SomethingElse");
+    expectThrows(IllegalArgumentException.class, () ->
+        _localRelationshipQueryDAO.findRelationshipsV4ByKeyset(
+            null, null, null, null, ReportsTo.class, emptyLogical, AssetRelationship.class, badWrapOptions, 2, null));
+  }
+
+  @Test
+  public void testFindRelationshipsV4ByKeysetRejectsCriteriaField() {
+    Map<String, Object> wrapOptions = new HashMap<>();
+    wrapOptions.put(RELATIONSHIP_RETURN_TYPE, MG_INTERNAL_ASSET_RELATIONSHIP_TYPE);
+
+    // V4 requires logical-expression filters; the legacy criteria field must be rejected.
+    LocalRelationshipFilter criteriaRelationshipFilter = new LocalRelationshipFilter()
+        .setCriteria(new LocalRelationshipCriterionArray())
+        .setDirection(RelationshipDirection.OUTGOING);
+
+    expectThrows(IllegalArgumentException.class, () ->
+        _localRelationshipQueryDAO.findRelationshipsV4ByKeyset(
+            null, null, null, null, ReportsTo.class, criteriaRelationshipFilter,
+            AssetRelationship.class, wrapOptions, 2, null));
   }
 
 }

@@ -297,8 +297,8 @@ public class EbeanLocalRelationshipQueryDAO {
    * rows updated or soft-deleted between page calls can change which rows a later page returns (see
    * {@link RelationshipKeysetCursor}).</p>
    *
-   * <p>Supported only when {@code SchemaConfig} is {@code NEW_SCHEMA_ONLY} or {@code DUAL_SCHEMA};
-   * {@code OLD_SCHEMA_ONLY} throws {@link UnsupportedOperationException}.</p>
+   * <p>Supported only when {@code SchemaConfig} is {@code NEW_SCHEMA_ONLY}; {@code OLD_SCHEMA_ONLY}
+   * and {@code DUAL_SCHEMA} (deprecated) throw {@link UnsupportedOperationException}.</p>
    *
    * @param sourceEntityClass the source entity class to query
    * @param sourceEntityFilter the filter to apply to the source entity when querying
@@ -310,7 +310,7 @@ public class EbeanLocalRelationshipQueryDAO {
    *                 1000 inclusive.
    * @param cursor the cursor from the previous page, or {@code null} for the first page.
    * @return a page of relationship records plus a next cursor (null when the scan is exhausted).
-   * @throws UnsupportedOperationException when the DAO is in {@code OLD_SCHEMA_ONLY} mode.
+   * @throws UnsupportedOperationException when the DAO is not in {@code NEW_SCHEMA_ONLY} mode.
    */
   @Nonnull
   public <SRC_SNAPSHOT extends RecordTemplate, DEST_SNAPSHOT extends RecordTemplate, RELATIONSHIP extends RecordTemplate>
@@ -347,12 +347,77 @@ public class EbeanLocalRelationshipQueryDAO {
   }
 
   /**
-   * Shared row-level keyset core for {@link #findRelationshipsByKeyset}: captures the first-page
-   * {@code maxId} (largest row id when paging starts), runs the current-only keyset SQL, validates
-   * strictly increasing id progress and computes the next cursor. Callers resolve their own table
-   * names/filters and map the returned rows. Supported only for {@code NEW_SCHEMA_ONLY} and
-   * {@code DUAL_SCHEMA}; {@code OLD_SCHEMA_ONLY} throws {@link UnsupportedOperationException} before
-   * any SQL is built or executed.
+   * Keyset (seek) paginated, current-only ({@code deleted_ts IS NULL}) variant of
+   * {@link #findRelationshipsV4(String, LocalRelationshipFilter, String, LocalRelationshipFilter,
+   * Class, LocalRelationshipFilter, Class, Map, int, int, RelationshipLookUpContext)} that walks the
+   * matching set in bounded pages and returns the same wrapped {@code ASSET_RELATIONSHIP} records.
+   * Validates V4 logical-expression filters and the {@code wrapOptions} contract. Ranked/non-current
+   * pagination is unsupported because it could not bound the per-page DB work.
+   *
+   * <p>First page: pass {@code cursor = null}; the DAO captures {@code maxId}, the largest
+   * relationship row id when paging starts ({@code COALESCE(MAX(id), 0)}), and returns rows with
+   * {@code 0 < rt.id <= maxId} ordered by id, up to {@code pageSize}. Continuation: pass the next
+   * cursor from the previous {@link RelationshipKeysetPage}. Later inserts get larger ids and are
+   * excluded, keeping the scan finite. The combined pages are not a point-in-time snapshot: existing
+   * rows updated or soft-deleted between page calls can change which rows a later page returns (see
+   * {@link RelationshipKeysetCursor}).</p>
+   *
+   * <p>Supported only when {@code SchemaConfig} is {@code NEW_SCHEMA_ONLY}; {@code OLD_SCHEMA_ONLY}
+   * and {@code DUAL_SCHEMA} (deprecated) throw {@link UnsupportedOperationException}.</p>
+   *
+   * @param sourceEntityType type of source entity to query (e.g. "dataset")
+   * @param sourceEntityFilter filter on the source entity (not applicable to non-MG entities); criteria must be null, use logicalExpressionCriteria
+   * @param destinationEntityType type of destination entity to query (e.g. "dataset")
+   * @param destinationEntityFilter filter on the destination entity (not applicable to non-MG entities); criteria must be null, use logicalExpressionCriteria
+   * @param relationshipType the type of relationship to query
+   * @param relationshipFilter filter on the relationship; criteria must be null, use logicalExpressionCriteria
+   * @param assetRelationshipClass the wrapper class for the relationship type
+   * @param wrapOptions options to wrap the relationship. Must carry the AssetRelationship return type marker.
+   * @param pageSize the maximum number of relationships to return per page. Must be between 1 and
+   *                 1000 inclusive.
+   * @param cursor the cursor from the previous page, or {@code null} for the first page.
+   * @return a page of wrapped relationship records plus a next cursor (null when the scan is exhausted).
+   * @throws IllegalArgumentException when {@code wrapOptions} does not carry {@code RELATIONSHIP_RETURN_TYPE}
+   *         set to {@code MG_INTERNAL_ASSET_RELATIONSHIP_TYPE}.
+   * @throws UnsupportedOperationException when the DAO is not in {@code NEW_SCHEMA_ONLY} mode.
+   */
+  @Nonnull
+  public <ASSET_RELATIONSHIP extends RecordTemplate, RELATIONSHIP extends RecordTemplate>
+      RelationshipKeysetPage<ASSET_RELATIONSHIP> findRelationshipsV4ByKeyset(
+      @Nullable String sourceEntityType, @Nullable LocalRelationshipFilter sourceEntityFilter,
+      @Nullable String destinationEntityType, @Nullable LocalRelationshipFilter destinationEntityFilter,
+      @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter,
+      @Nonnull Class<ASSET_RELATIONSHIP> assetRelationshipClass, @Nullable Map<String, Object> wrapOptions,
+      int pageSize, @Nullable RelationshipKeysetCursor cursor) {
+    validateAssetRelationshipWrapOptions(wrapOptions, "findRelationshipsV4ByKeyset");
+
+    validateEntityTypeAndFilter(sourceEntityFilter, sourceEntityType, true);
+    validateEntityTypeAndFilter(destinationEntityFilter, destinationEntityType, true);
+    validateRelationshipFilter(relationshipFilter, true);
+
+    final String sourceTableName = getMgEntityTableName(sourceEntityType);
+    final String destTableName = getMgEntityTableName(destinationEntityType);
+    final String relationshipTableName = SQLSchemaUtils.getRelationshipTableName(relationshipType);
+
+    final KeysetScanResult scan = findRelationshipsByKeysetCore(relationshipTableName, sourceTableName,
+        sourceEntityFilter, destTableName, destinationEntityFilter, relationshipFilter, pageSize, cursor);
+
+    final List<ASSET_RELATIONSHIP> relationships = new ArrayList<>(scan.getRows().size());
+    for (SqlRow row : scan.getRows()) {
+      relationships.add(createAssetRelationshipWrapperForRelationship(
+          relationshipType, assetRelationshipClass, row.getString(METADATA), row.getString(SOURCE), wrapOptions));
+    }
+
+    return new RelationshipKeysetPage<>(relationships, scan.getHighWaterId(), scan.getNextCursor());
+  }
+
+  /**
+   * Shared row-level keyset core for {@link #findRelationshipsByKeyset} and
+   * {@link #findRelationshipsV4ByKeyset}: captures the first-page {@code maxId} (largest row id when
+   * paging starts), runs the current-only keyset SQL, validates strictly increasing id progress and
+   * computes the next cursor. Callers resolve their own table names/filters and map the returned
+   * rows. Supported only for {@code NEW_SCHEMA_ONLY}; {@code OLD_SCHEMA_ONLY} and {@code DUAL_SCHEMA}
+   * (deprecated) throw {@link UnsupportedOperationException} before any SQL is built or executed.
    */
   @Nonnull
   private KeysetScanResult findRelationshipsByKeysetCore(@Nonnull final String relationshipTableName,
@@ -364,11 +429,11 @@ public class EbeanLocalRelationshipQueryDAO {
       throw new IllegalArgumentException(
           "pageSize must be between 1 and " + MAX_KEYSET_PAGE_SIZE + " but was " + pageSize);
     }
-    if (_schemaConfig == EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY) {
+    if (_schemaConfig != EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY) {
       throw new UnsupportedOperationException(
-          "Keyset pagination is not supported in OLD_SCHEMA_ONLY mode; use NEW_SCHEMA_ONLY or DUAL_SCHEMA.");
+          "Keyset pagination is only supported in NEW_SCHEMA_ONLY mode; OLD_SCHEMA_ONLY and DUAL_SCHEMA "
+              + "(deprecated) are rejected.");
     }
-
     final long lastId;
     final long maxId;
     if (cursor == null) {
@@ -540,10 +605,7 @@ public class EbeanLocalRelationshipQueryDAO {
       @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter,
       @Nonnull Class<ASSET_RELATIONSHIP> assetRelationshipClass, @Nullable Map<String, Object> wrapOptions,
       int offset, int count, RelationshipLookUpContext relationshipLookUpContext) {
-    if (wrapOptions == null || !wrapOptions.containsKey(RELATIONSHIP_RETURN_TYPE)
-        || !MG_INTERNAL_ASSET_RELATIONSHIP_TYPE.equals(wrapOptions.get(RELATIONSHIP_RETURN_TYPE))) {
-      throw new IllegalArgumentException("Please check your use of the findRelationshipsV3 method.");
-    }
+    validateAssetRelationshipWrapOptions(wrapOptions, "findRelationshipsV3");
 
     List<SqlRow> sqlRows = findRelationshipsV2V3V4Core(
         sourceEntityType, sourceEntityFilter, destinationEntityType, destinationEntityFilter,
@@ -582,10 +644,7 @@ public class EbeanLocalRelationshipQueryDAO {
       @Nonnull Class<RELATIONSHIP> relationshipType, @Nonnull LocalRelationshipFilter relationshipFilter,
       @Nonnull Class<ASSET_RELATIONSHIP> assetRelationshipClass, @Nullable Map<String, Object> wrapOptions,
       int offset, int count, RelationshipLookUpContext relationshipLookUpContext) {
-    if (wrapOptions == null || !wrapOptions.containsKey(RELATIONSHIP_RETURN_TYPE)
-        || !MG_INTERNAL_ASSET_RELATIONSHIP_TYPE.equals(wrapOptions.get(RELATIONSHIP_RETURN_TYPE))) {
-      throw new IllegalArgumentException("Please check your use of the findRelationshipsV3 method.");
-    }
+    validateAssetRelationshipWrapOptions(wrapOptions, "findRelationshipsV4");
 
     List<SqlRow> sqlRows = findRelationshipsV2V3V4Core(
         sourceEntityType, sourceEntityFilter, destinationEntityType, destinationEntityFilter,
@@ -595,6 +654,25 @@ public class EbeanLocalRelationshipQueryDAO {
         .map(row -> createAssetRelationshipWrapperForRelationship(
             relationshipType, assetRelationshipClass, row.getString(METADATA), row.getString(SOURCE), wrapOptions))
         .collect(Collectors.toList());
+  }
+
+  /**
+   * Validates that {@code wrapOptions} carries the AssetRelationship return-type marker required by
+   * the V3/V4 asset-relationship APIs. Shared by {@link #findRelationshipsV3}, {@link #findRelationshipsV4}
+   * and {@link #findRelationshipsV4ByKeyset} to avoid duplicating the contract check.
+   *
+   * @param wrapOptions the wrap options supplied by the caller
+   * @param methodName the calling method name, surfaced in the error message
+   * @throws IllegalArgumentException when {@code wrapOptions} is null or does not carry
+   *         {@code RELATIONSHIP_RETURN_TYPE} set to {@code MG_INTERNAL_ASSET_RELATIONSHIP_TYPE}.
+   */
+  private static void validateAssetRelationshipWrapOptions(@Nullable Map<String, Object> wrapOptions,
+      @Nonnull String methodName) {
+    if (wrapOptions == null || !wrapOptions.containsKey(RELATIONSHIP_RETURN_TYPE)
+        || !MG_INTERNAL_ASSET_RELATIONSHIP_TYPE.equals(wrapOptions.get(RELATIONSHIP_RETURN_TYPE))) {
+      throw new IllegalArgumentException(methodName + " requires wrapOptions to carry key '"
+          + RELATIONSHIP_RETURN_TYPE + "' set to '" + MG_INTERNAL_ASSET_RELATIONSHIP_TYPE + "'.");
+    }
   }
 
   /**
@@ -1045,8 +1123,8 @@ public class EbeanLocalRelationshipQueryDAO {
    * <p>Always current-only ({@code deleted_ts IS NULL}); ranked/non-current pagination is
    * unsupported because it could not bound the per-page DB work.</p>
    *
-   * <p>Supported only for {@code NEW_SCHEMA_ONLY} and {@code DUAL_SCHEMA}; {@code OLD_SCHEMA_ONLY}
-   * throws {@link UnsupportedOperationException}.</p>
+   * <p>Supported only for {@code NEW_SCHEMA_ONLY}; {@code OLD_SCHEMA_ONLY} and {@code DUAL_SCHEMA}
+   * (deprecated) throw {@link UnsupportedOperationException} before any SQL is built.</p>
    */
   @Nonnull
   @VisibleForTesting
@@ -1058,9 +1136,10 @@ public class EbeanLocalRelationshipQueryDAO {
       throw new IllegalArgumentException(
           "pageSize must be between 1 and " + MAX_KEYSET_PAGE_SIZE + " but was " + pageSize);
     }
-    if (_schemaConfig == EbeanLocalDAO.SchemaConfig.OLD_SCHEMA_ONLY) {
+    if (_schemaConfig != EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY) {
       throw new UnsupportedOperationException(
-          "Keyset pagination is not supported in OLD_SCHEMA_ONLY mode; use NEW_SCHEMA_ONLY or DUAL_SCHEMA.");
+          "Keyset pagination is only supported in NEW_SCHEMA_ONLY mode; OLD_SCHEMA_ONLY and DUAL_SCHEMA "
+              + "(deprecated) are rejected.");
     }
 
     relationshipFilter = LogicalExpressionLocalRelationshipCriterionUtils.normalizeLocalRelationshipFilter(relationshipFilter);
@@ -1078,7 +1157,7 @@ public class EbeanLocalRelationshipQueryDAO {
 
     final List<Triplet<LocalRelationshipFilter, String, String>> filters = new ArrayList<>();
 
-    if (_schemaConfig == EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY || _schemaConfig == EbeanLocalDAO.SchemaConfig.DUAL_SCHEMA) {
+    if (_schemaConfig == EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY) {
       if (destTableName != null) {
         sqlBuilder.append("INNER JOIN ").append(destTableName).append(" dt ON dt.urn=rt.destination ");
 
@@ -1110,8 +1189,8 @@ public class EbeanLocalRelationshipQueryDAO {
       }
       sqlBuilder.append(" AND ").append(lastIdPredicate).append(" AND ").append(maxIdPredicate);
     } else {
-      // OLD_SCHEMA_ONLY is rejected above; only NEW_SCHEMA_ONLY and DUAL_SCHEMA are supported here.
-      throw new RuntimeException("The schema config must be set to DUAL_SCHEMA or NEW_SCHEMA_ONLY.");
+      // OLD_SCHEMA_ONLY and DUAL_SCHEMA are rejected above; only NEW_SCHEMA_ONLY is supported here.
+      throw new RuntimeException("The schema config must be set to NEW_SCHEMA_ONLY.");
     }
 
     sqlBuilder.append(" ORDER BY rt.id ASC LIMIT ").append(pageSize);
