@@ -1,6 +1,10 @@
 package com.linkedin.metadata.dao;
 
-import java.sql.Timestamp;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
+import java.util.regex.Pattern;
 import javax.annotation.Nonnull;
 import lombok.Getter;
 
@@ -21,6 +25,10 @@ import lombok.Getter;
  * {@code lastId <= maxId} always holds.</p>
  */
 public final class RelationshipKeysetCursor {
+  private static final Pattern SCAN_START_TIME_PATTERN =
+      Pattern.compile("\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{6}");
+  private static final DateTimeFormatter SCAN_START_TIME_FORMATTER =
+      DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss.SSSSSS").withResolverStyle(ResolverStyle.STRICT);
 
   @Getter
   private final long lastId;
@@ -29,8 +37,9 @@ public final class RelationshipKeysetCursor {
   @Getter
   @Nonnull
   private final String relationshipTableName;
+  @Getter
   @Nonnull
-  private final Timestamp scanStartTime;
+  private final String scanStartTime;
 
   /**
    * Creates a cursor.
@@ -43,7 +52,7 @@ public final class RelationshipKeysetCursor {
    * @param relationshipTableName relationship table this cursor belongs to. Must not be null or
    *                              empty.
    */
-  public RelationshipKeysetCursor(long lastId, long maxId, @Nonnull Timestamp scanStartTime,
+  public RelationshipKeysetCursor(long lastId, long maxId, @Nonnull String scanStartTime,
       @Nonnull String relationshipTableName) {
     if (lastId < 0) {
       throw new IllegalArgumentException("lastId must be non-negative but was " + lastId);
@@ -58,24 +67,27 @@ public final class RelationshipKeysetCursor {
     if (scanStartTime == null) {
       throw new IllegalArgumentException("scanStartTime must not be null");
     }
+    if (scanStartTime.trim().isEmpty()) {
+      throw new IllegalArgumentException("scanStartTime must not be empty");
+    }
+    validateScanStartTime(scanStartTime);
     if (relationshipTableName == null || relationshipTableName.trim().isEmpty()) {
       throw new IllegalArgumentException("relationshipTableName must not be null or empty");
     }
     this.lastId = lastId;
     this.maxId = maxId;
-    this.scanStartTime = copyTimestamp(scanStartTime);
+    this.scanStartTime = scanStartTime;
     this.relationshipTableName = relationshipTableName;
   }
 
-  @Nonnull
-  public Timestamp getScanStartTime() {
-    return copyTimestamp(scanStartTime);
-  }
-
-  @Nonnull
-  private static Timestamp copyTimestamp(@Nonnull Timestamp timestamp) {
-    Timestamp copy = new Timestamp(timestamp.getTime());
-    copy.setNanos(timestamp.getNanos());
-    return copy;
+  private static void validateScanStartTime(@Nonnull String scanStartTime) {
+    if (!SCAN_START_TIME_PATTERN.matcher(scanStartTime).matches()) {
+      throw new IllegalArgumentException("scanStartTime must use yyyy-MM-dd HH:mm:ss.SSSSSS");
+    }
+    try {
+      LocalDateTime.parse(scanStartTime, SCAN_START_TIME_FORMATTER);
+    } catch (DateTimeParseException e) {
+      throw new IllegalArgumentException("scanStartTime must use yyyy-MM-dd HH:mm:ss.SSSSSS", e);
+    }
   }
 }

@@ -25,8 +25,6 @@ import io.ebean.EbeanServer;
 import io.ebean.SqlQuery;
 import io.ebean.SqlRow;
 import java.sql.SQLException;
-import java.sql.Timestamp;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -64,8 +62,6 @@ public class EbeanLocalRelationshipQueryDAO {
   private static final String IDX_DESTINATION_DELETED_TS = "idx_destination_deleted_ts";
   private static final String FORCE_IDX_ON_DESTINATION = " FORCE INDEX (idx_destination_deleted_ts) ";
   private static final String DESTINATION_FIELD =  "destination";
-  private static final DateTimeFormatter MYSQL_TIMESTAMP_6_FORMATTER =
-      DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS");
   private final EbeanServer _server;
   private final MultiHopsTraversalSqlGenerator _sqlGenerator;
 
@@ -443,7 +439,7 @@ public class EbeanLocalRelationshipQueryDAO {
     }
     final long lastId;
     final long maxId;
-    final Timestamp scanStartTime;
+    final String scanStartTime;
     if (cursor == null) {
       lastId = 0L;
       final KeysetScanStart scanStart = fetchScanStart(relationshipTableName);
@@ -467,6 +463,7 @@ public class EbeanLocalRelationshipQueryDAO {
     // Query current rows first. If a row is soft-deleted between the two reads, Query B may also see
     // the same id; mergeKeysetRows dedups that id. Running B first could turn the race into a drop.
     final List<SqlRow> currentRows = executeSqlWithIndexCheck(currentSql, relationshipTableName);
+    // No-op seam that tests override to inject a soft-delete between Query A and Query B.
     afterKeysetCurrentRowsFetched(relationshipTableName, currentRows);
     final long deletedUpperId = currentRows.size() == pageSize ? currentRows.get(currentRows.size() - 1).getLong("id")
         : maxId;
@@ -547,11 +544,14 @@ public class EbeanLocalRelationshipQueryDAO {
    */
   private static final class KeysetScanStart {
     private final long _maxId;
-    private final Timestamp _scanStartTime;
+    private final String _scanStartTime;
 
-    KeysetScanStart(long maxId, @Nonnull Timestamp scanStartTime) {
+    KeysetScanStart(long maxId, @Nonnull String scanStartTime) {
       _maxId = maxId;
-      _scanStartTime = copyTimestamp(scanStartTime);
+      if (StringUtils.isBlank(scanStartTime)) {
+        throw new IllegalArgumentException("scanStartTime must not be null or empty");
+      }
+      _scanStartTime = scanStartTime;
     }
 
     long getMaxId() {
@@ -559,8 +559,8 @@ public class EbeanLocalRelationshipQueryDAO {
     }
 
     @Nonnull
-    Timestamp getScanStartTime() {
-      return copyTimestamp(_scanStartTime);
+    String getScanStartTime() {
+      return _scanStartTime;
     }
   }
 
@@ -603,12 +603,11 @@ public class EbeanLocalRelationshipQueryDAO {
     final String sql =
         "SELECT COALESCE(MAX(id), 0) AS max_id, DATE_FORMAT(NOW(6), '%Y-%m-%d %H:%i:%s.%f') AS scan_start_time FROM "
             + relationshipTableName;
-    final List<SqlRow> rows = _server.createSqlQuery(sql).findList();
-    if (rows.isEmpty()) {
+    final SqlRow row = _server.createSqlQuery(sql).findOne();
+    if (row == null) {
       throw new IllegalStateException("Scan-start query returned no rows for table " + relationshipTableName);
     }
-    return new KeysetScanStart(rows.get(0).getLong("max_id"),
-        Timestamp.valueOf(rows.get(0).getString("scan_start_time")));
+    return new KeysetScanStart(row.getLong("max_id"), row.getString("scan_start_time"));
   }
 
   /**
@@ -1243,9 +1242,9 @@ public class EbeanLocalRelationshipQueryDAO {
       @Nonnull LocalRelationshipFilter relationshipFilter, @Nullable final String sourceTableName,
       @Nullable LocalRelationshipFilter sourceEntityFilter, @Nullable final String destTableName,
       @Nullable LocalRelationshipFilter destinationEntityFilter, int pageSize, long lastId, long maxId,
-      @Nonnull Timestamp scanStartTime) {
-    if (scanStartTime == null) {
-      throw new IllegalArgumentException("scanStartTime must not be null");
+      @Nonnull String scanStartTime) {
+    if (StringUtils.isBlank(scanStartTime)) {
+      throw new IllegalArgumentException("scanStartTime must not be null or empty");
     }
     return buildFindRelationshipKeysetSQL(relationshipTableName, relationshipFilter, sourceTableName, sourceEntityFilter,
         destTableName, destinationEntityFilter, pageSize, lastId, maxId,
@@ -1346,24 +1345,24 @@ public class EbeanLocalRelationshipQueryDAO {
     try {
       return _server.createSqlQuery(sql).findList();
     } catch (PersistenceException e) {
-      handleSqlExecutionException(e, relationshipTableName);
+      throwIfMissingIndex(e, relationshipTableName);
       throw new RuntimeException("Failed to execute SQL query for relationships", e);
     }
   }
 
   private List<SqlRow> executeSqlWithIndexCheck(String sql, String relationshipTableName,
-      @Nonnull Timestamp scanStartTime) {
+      @Nonnull String scanStartTime) {
     try {
       SqlQuery query = _server.createSqlQuery(sql);
-      query.setParameter("scanStartTime", formatTimestamp6(scanStartTime));
+      query.setParameter("scanStartTime", scanStartTime);
       return query.findList();
     } catch (PersistenceException e) {
-      handleSqlExecutionException(e, relationshipTableName);
+      throwIfMissingIndex(e, relationshipTableName);
       throw new RuntimeException("Failed to execute SQL query for relationships", e);
     }
   }
 
-  private void handleSqlExecutionException(PersistenceException e, String relationshipTableName) {
+  private void throwIfMissingIndex(PersistenceException e, String relationshipTableName) {
     Throwable cause = e.getCause();
     if (cause instanceof SQLException && cause.getMessage() != null
         && cause.getMessage().contains("doesn't exist in table")) {
@@ -1374,18 +1373,6 @@ public class EbeanLocalRelationshipQueryDAO {
       log.error(errorMsg);
       throw new IllegalStateException(errorMsg, e);
     }
-  }
-
-  @Nonnull
-  private static Timestamp copyTimestamp(@Nonnull Timestamp timestamp) {
-    Timestamp copy = new Timestamp(timestamp.getTime());
-    copy.setNanos(timestamp.getNanos());
-    return copy;
-  }
-
-  @Nonnull
-  private static String formatTimestamp6(@Nonnull Timestamp timestamp) {
-    return timestamp.toLocalDateTime().format(MYSQL_TIMESTAMP_6_FORMATTER);
   }
 
 }
