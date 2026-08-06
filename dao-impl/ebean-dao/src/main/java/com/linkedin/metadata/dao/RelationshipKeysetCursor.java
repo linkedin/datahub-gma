@@ -48,7 +48,10 @@ public final class RelationshipKeysetCursor {
    *               Must be non-negative.
    * @param maxId largest relationship row id when paging starts; bounds the scan. Must be
    *              non-negative and {@code >= lastId}.
-   * @param scanStartTime database time when the scan started. Must not be null.
+   * @param scanStartTime database time when the scan started, as a database-local timestamp in
+   *                      exactly {@code yyyy-MM-dd HH:mm:ss.SSSSSS} form. Six fractional digits are
+   *                      required: {@code deleted_ts} is {@code DATETIME(6)}, and coarser precision
+   *                      would place a delete before a scan it actually followed. Must not be null.
    * @param relationshipTableName relationship table this cursor belongs to. Must not be null or
    *                              empty.
    */

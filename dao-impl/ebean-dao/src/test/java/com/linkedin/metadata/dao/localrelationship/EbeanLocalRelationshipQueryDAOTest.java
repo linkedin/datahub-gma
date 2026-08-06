@@ -2752,6 +2752,8 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     List<ReportsTo> drained = new ArrayList<>();
     RelationshipKeysetPage<ReportsTo> first = keysetPage(observingQueryDAO, 2, cursor);
+    // Direct enforcement of Query B's frontier. This pins the per-page work bound; it is not a
+    // proof of data correctness, since the merge would select the same rows without the cap.
     assertEquals(firstDeletedUpperId[0], 4L);
     assertSourcesInOrder(first.getRelationships(), sources.get(0), sources.get(1));
     assertNotNull(first.getNextCursor());

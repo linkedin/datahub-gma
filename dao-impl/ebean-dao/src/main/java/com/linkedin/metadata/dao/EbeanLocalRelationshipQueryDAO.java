@@ -465,6 +465,9 @@ public class EbeanLocalRelationshipQueryDAO {
     final List<SqlRow> currentRows = executeSqlWithIndexCheck(currentSql, relationshipTableName);
     // No-op seam that tests override to inject a soft-delete between Query A and Query B.
     afterKeysetCurrentRowsFetched(relationshipTableName, currentRows);
+    // Cap Query B at Query A's frontier when A filled the page. Query B is itself
+    // ORDER BY id LIMIT pageSize, so this bounds per-page work rather than changing which rows the
+    // merge selects: ids above A's last id would lose to lower ids in the merge regardless.
     final long deletedUpperId = currentRows.size() == pageSize ? currentRows.get(currentRows.size() - 1).getLong("id")
         : maxId;
     final String deletedSinceScanStartSql = buildFindRelationshipKeysetDeletedSinceScanStartSQL(
