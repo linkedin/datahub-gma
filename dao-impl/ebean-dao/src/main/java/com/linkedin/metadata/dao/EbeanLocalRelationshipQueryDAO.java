@@ -22,6 +22,7 @@ import com.linkedin.metadata.query.LocalRelationshipCriterionArray;
 import com.linkedin.metadata.query.LocalRelationshipFilter;
 import com.linkedin.metadata.query.RelationshipDirection;
 import io.ebean.EbeanServer;
+import io.ebean.SqlQuery;
 import io.ebean.SqlRow;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -284,7 +285,7 @@ public class EbeanLocalRelationshipQueryDAO {
   }
 
   /**
-   * Keyset (seek) paginated, current-only ({@code deleted_ts IS NULL}) variant of
+   * Keyset (seek) paginated, scan-start membership variant of
    * {@link #findRelationships(Class, LocalRelationshipFilter, Class, LocalRelationshipFilter, Class,
    * LocalRelationshipFilter, int, int)} that walks the matching set in bounded pages. Ranked/
    * non-current pagination is unsupported because it could not bound the per-page DB work.
@@ -293,9 +294,10 @@ public class EbeanLocalRelationshipQueryDAO {
    * relationship row id when paging starts ({@code COALESCE(MAX(id), 0)}), and returns rows with
    * {@code 0 < rt.id <= maxId} ordered by id, up to {@code pageSize}. Later inserts get larger ids
    * and are excluded, keeping the scan finite. Continuation: pass the next cursor from the previous
-   * {@link RelationshipKeysetPage}. The combined pages are not a point-in-time snapshot: existing
-   * rows updated or soft-deleted between page calls can change which rows a later page returns (see
-   * {@link RelationshipKeysetCursor}).</p>
+   * {@link RelationshipKeysetPage}. The cursor also carries a database scan-start timestamp. Later
+   * pages include rows that were current at scan start even if they were soft-deleted before that
+   * later page is read. Rows inserted after the scan started are still excluded by the fixed
+   * {@code maxId} bound.</p>
    *
    * <p>Supported only when {@code SchemaConfig} is {@code NEW_SCHEMA_ONLY}; {@code OLD_SCHEMA_ONLY}
    * and {@code DUAL_SCHEMA} (deprecated) throw {@link UnsupportedOperationException}.</p>
@@ -343,11 +345,11 @@ public class EbeanLocalRelationshipQueryDAO {
       relationships.add(RecordUtils.toRecordTemplate(relationshipType, row.getString(METADATA)));
     }
 
-    return new RelationshipKeysetPage<>(relationships, scan.getHighWaterId(), scan.getNextCursor());
+    return new RelationshipKeysetPage<>(relationships, scan.getMaxId(), scan.getNextCursor());
   }
 
   /**
-   * Keyset (seek) paginated, current-only ({@code deleted_ts IS NULL}) variant of
+   * Keyset (seek) paginated, scan-start membership variant of
    * {@link #findRelationshipsV4(String, LocalRelationshipFilter, String, LocalRelationshipFilter,
    * Class, LocalRelationshipFilter, Class, Map, int, int, RelationshipLookUpContext)} that walks the
    * matching set in bounded pages and returns the same wrapped {@code ASSET_RELATIONSHIP} records.
@@ -357,10 +359,10 @@ public class EbeanLocalRelationshipQueryDAO {
    * <p>First page: pass {@code cursor = null}; the DAO captures {@code maxId}, the largest
    * relationship row id when paging starts ({@code COALESCE(MAX(id), 0)}), and returns rows with
    * {@code 0 < rt.id <= maxId} ordered by id, up to {@code pageSize}. Continuation: pass the next
-   * cursor from the previous {@link RelationshipKeysetPage}. Later inserts get larger ids and are
-   * excluded, keeping the scan finite. The combined pages are not a point-in-time snapshot: existing
-   * rows updated or soft-deleted between page calls can change which rows a later page returns (see
-   * {@link RelationshipKeysetCursor}).</p>
+   * cursor from the previous {@link RelationshipKeysetPage}. The cursor also carries a database
+   * scan-start timestamp. Later pages include rows that were current at scan start even if they were
+   * soft-deleted before that later page is read. Rows inserted after the scan started are still
+   * excluded by the fixed {@code maxId} bound.</p>
    *
    * <p>Supported only when {@code SchemaConfig} is {@code NEW_SCHEMA_ONLY}; {@code OLD_SCHEMA_ONLY}
    * and {@code DUAL_SCHEMA} (deprecated) throw {@link UnsupportedOperationException}.</p>
@@ -408,16 +410,17 @@ public class EbeanLocalRelationshipQueryDAO {
           relationshipType, assetRelationshipClass, row.getString(METADATA), row.getString(SOURCE), wrapOptions));
     }
 
-    return new RelationshipKeysetPage<>(relationships, scan.getHighWaterId(), scan.getNextCursor());
+    return new RelationshipKeysetPage<>(relationships, scan.getMaxId(), scan.getNextCursor());
   }
 
   /**
    * Shared row-level keyset core for {@link #findRelationshipsByKeyset} and
    * {@link #findRelationshipsV4ByKeyset}: captures the first-page {@code maxId} (largest row id when
-   * paging starts), runs the current-only keyset SQL, validates strictly increasing id progress and
-   * computes the next cursor. Callers resolve their own table names/filters and map the returned
-   * rows. Supported only for {@code NEW_SCHEMA_ONLY}; {@code OLD_SCHEMA_ONLY} and {@code DUAL_SCHEMA}
-   * (deprecated) throw {@link UnsupportedOperationException} before any SQL is built or executed.
+   * paging starts) and database scan-start timestamp, runs the keyset SQL, validates strictly
+   * increasing id progress and computes the next cursor. Callers resolve their own table
+   * names/filters and map the returned rows. Supported only for {@code NEW_SCHEMA_ONLY};
+   * {@code OLD_SCHEMA_ONLY} and {@code DUAL_SCHEMA} (deprecated) throw
+   * {@link UnsupportedOperationException} before any SQL is built or executed.
    */
   @Nonnull
   private KeysetScanResult findRelationshipsByKeysetCore(@Nonnull final String relationshipTableName,
@@ -436,12 +439,17 @@ public class EbeanLocalRelationshipQueryDAO {
     }
     final long lastId;
     final long maxId;
+    final String scanStartTime;
     if (cursor == null) {
       lastId = 0L;
-      maxId = fetchHighWaterId(relationshipTableName);
+      final KeysetScanStart scanStart = fetchScanStart(relationshipTableName);
+      maxId = scanStart.getMaxId();
+      scanStartTime = scanStart.getScanStartTime();
     } else {
+      validateKeysetCursorTable(cursor, relationshipTableName);
       lastId = cursor.getLastId();
       maxId = cursor.getMaxId();
+      scanStartTime = cursor.getScanStartTime();
     }
 
     // Nothing left to scan (empty table, or the previous page reached maxId).
@@ -449,10 +457,27 @@ public class EbeanLocalRelationshipQueryDAO {
       return new KeysetScanResult(Collections.emptyList(), maxId, null);
     }
 
-    final String sql = buildFindRelationshipKeysetSQL(relationshipTableName, relationshipFilter, sourceTableName,
-        sourceEntityFilter, destTableName, destinationEntityFilter, pageSize, lastId, maxId);
+    final String currentSql = buildFindRelationshipKeysetCurrentSQL(relationshipTableName, relationshipFilter,
+        sourceTableName, sourceEntityFilter, destTableName, destinationEntityFilter, pageSize, lastId, maxId);
 
-    final List<SqlRow> rows = executeSqlWithIndexCheck(sql, relationshipTableName);
+    // Query current rows first. If a row is soft-deleted between the two reads, Query B may also see
+    // the same id; mergeKeysetRows dedups that id. Running B first could turn the race into a drop.
+    final List<SqlRow> currentRows = executeSqlWithIndexCheck(currentSql, relationshipTableName);
+    // No-op seam. The A/B race spans two separate statements, so there is no way to land a
+    // soft-delete between them from outside the DAO; tests override this to inject one
+    // deterministically instead of relying on timing.
+    afterKeysetCurrentRowsFetched(relationshipTableName, currentRows);
+    // Cap Query B at Query A's frontier when A filled the page. Query B is itself
+    // ORDER BY id LIMIT pageSize, so this bounds per-page work rather than changing which rows the
+    // merge selects: ids above A's last id would lose to lower ids in the merge regardless.
+    final long deletedUpperId = currentRows.size() == pageSize ? currentRows.get(currentRows.size() - 1).getLong("id")
+        : maxId;
+    final String deletedSinceScanStartSql = buildFindRelationshipKeysetDeletedSinceScanStartSQL(
+        relationshipTableName, relationshipFilter, sourceTableName, sourceEntityFilter, destTableName,
+        destinationEntityFilter, pageSize, lastId, deletedUpperId, scanStartTime);
+    final List<SqlRow> deletedSinceScanStartRows =
+        executeSqlWithIndexCheck(deletedSinceScanStartSql, relationshipTableName, scanStartTime);
+    final List<SqlRow> rows = mergeKeysetRows(currentRows, deletedSinceScanStartRows, pageSize);
 
     long previousId = lastId;
     long lastRowId = lastId;
@@ -470,10 +495,78 @@ public class EbeanLocalRelationshipQueryDAO {
     // A next cursor is only warranted when the page was full and did not reach maxId.
     RelationshipKeysetCursor nextCursor = null;
     if (rows.size() == pageSize && lastRowId < maxId) {
-      nextCursor = new RelationshipKeysetCursor(lastRowId, maxId);
+      nextCursor = new RelationshipKeysetCursor(lastRowId, maxId, scanStartTime, relationshipTableName);
     }
 
     return new KeysetScanResult(rows, maxId, nextCursor);
+  }
+
+  private static void validateKeysetCursorTable(@Nonnull RelationshipKeysetCursor cursor,
+      @Nonnull String relationshipTableName) {
+    final String cursorRelationshipTableName = cursor.getRelationshipTableName();
+    if (!cursorRelationshipTableName.equals(relationshipTableName)) {
+      throw new IllegalArgumentException("Relationship keyset cursor belongs to table '"
+          + cursorRelationshipTableName + "' but this query targets table '" + relationshipTableName + "'.");
+    }
+  }
+
+  @Nonnull
+  private static List<SqlRow> mergeKeysetRows(@Nonnull List<SqlRow> currentRows,
+      @Nonnull List<SqlRow> deletedSinceScanStartRows, int pageSize) {
+    List<SqlRow> merged = new ArrayList<>(Math.min(pageSize, currentRows.size() + deletedSinceScanStartRows.size()));
+    int currentIndex = 0;
+    int deletedIndex = 0;
+    while (merged.size() < pageSize
+        && (currentIndex < currentRows.size() || deletedIndex < deletedSinceScanStartRows.size())) {
+      if (currentIndex >= currentRows.size()) {
+        merged.add(deletedSinceScanStartRows.get(deletedIndex++));
+      } else if (deletedIndex >= deletedSinceScanStartRows.size()) {
+        merged.add(currentRows.get(currentIndex++));
+      } else {
+        long currentId = currentRows.get(currentIndex).getLong("id");
+        long deletedId = deletedSinceScanStartRows.get(deletedIndex).getLong("id");
+        if (currentId == deletedId) {
+          merged.add(currentRows.get(currentIndex++));
+          deletedIndex++;
+        } else if (currentId < deletedId) {
+          merged.add(currentRows.get(currentIndex++));
+        } else {
+          merged.add(deletedSinceScanStartRows.get(deletedIndex++));
+        }
+      }
+    }
+    return merged;
+  }
+
+  @VisibleForTesting
+  protected void afterKeysetCurrentRowsFetched(@Nonnull String relationshipTableName,
+      @Nonnull List<SqlRow> currentRows) {
+    // Test seam for deterministic simulation of a soft-delete between Query A and Query B.
+  }
+
+  /**
+   * Immutable holder for one keyset scan's largest row id and database start time.
+   */
+  private static final class KeysetScanStart {
+    private final long _maxId;
+    private final String _scanStartTime;
+
+    KeysetScanStart(long maxId, @Nonnull String scanStartTime) {
+      _maxId = maxId;
+      if (StringUtils.isBlank(scanStartTime)) {
+        throw new IllegalArgumentException("scanStartTime must not be null or empty");
+      }
+      _scanStartTime = scanStartTime;
+    }
+
+    long getMaxId() {
+      return _maxId;
+    }
+
+    @Nonnull
+    String getScanStartTime() {
+      return _scanStartTime;
+    }
   }
 
   /**
@@ -481,13 +574,13 @@ public class EbeanLocalRelationshipQueryDAO {
    */
   private static final class KeysetScanResult {
     private final List<SqlRow> _rows;
-    private final long _highWaterId;
+    private final long _maxId;
     private final RelationshipKeysetCursor _nextCursor;
 
-    KeysetScanResult(@Nonnull List<SqlRow> rows, long highWaterId,
+    KeysetScanResult(@Nonnull List<SqlRow> rows, long maxId,
         @Nullable RelationshipKeysetCursor nextCursor) {
       _rows = rows;
-      _highWaterId = highWaterId;
+      _maxId = maxId;
       _nextCursor = nextCursor;
     }
 
@@ -496,8 +589,8 @@ public class EbeanLocalRelationshipQueryDAO {
       return _rows;
     }
 
-    long getHighWaterId() {
-      return _highWaterId;
+    long getMaxId() {
+      return _maxId;
     }
 
     @Nullable
@@ -507,12 +600,17 @@ public class EbeanLocalRelationshipQueryDAO {
   }
 
   /**
-   * Returns COALESCE(MAX(id), 0), the largest relationship row id ({@code maxId}), for the table.
+   * Returns the largest relationship row id ({@code maxId}) and the database timestamp for the
+   * start of the scan. Both values come from one statement so the timestamp and max id are
+   * captured against the same DB clock.
    */
-  private long fetchHighWaterId(@Nonnull final String relationshipTableName) {
-    final String sql = "SELECT COALESCE(MAX(id), 0) AS max_id FROM " + relationshipTableName;
-    final List<SqlRow> rows = _server.createSqlQuery(sql).findList();
-    return rows.isEmpty() ? 0L : rows.get(0).getLong("max_id");
+  private KeysetScanStart fetchScanStart(@Nonnull final String relationshipTableName) {
+    final String sql =
+        "SELECT COALESCE(MAX(id), 0) AS max_id, DATE_FORMAT(NOW(6), '%Y-%m-%d %H:%i:%s.%f') AS scan_start_time FROM "
+            + relationshipTableName;
+    // Aggregate without GROUP BY, so this always yields exactly one row.
+    final SqlRow row = _server.createSqlQuery(sql).findOne();
+    return new KeysetScanStart(row.getLong("max_id"), row.getString("scan_start_time"));
   }
 
   /**
@@ -1115,23 +1213,53 @@ public class EbeanLocalRelationshipQueryDAO {
   }
 
   /**
-   * Keyset (seek) pagination counterpart of {@link #buildFindRelationshipSQL}: same join/filter
-   * construction plus keyset bounds ({@code rt.id > lastId AND rt.id <= maxId}, {@code maxId} being
-   * the largest relationship row id when paging starts), ascending id order and
-   * {@code LIMIT pageSize}. Kept separate to leave {@link #buildFindRelationshipSQL} untouched.
+   * Keyset (seek) pagination counterpart of {@link #buildFindRelationshipSQL} for rows that are
+   * still current: same join/filter construction plus {@code rt.deleted_ts IS NULL}, keyset bounds
+   * ({@code rt.id > lastId AND rt.id <= maxId}, {@code maxId} being the largest relationship row id
+   * when paging starts), ascending id order and {@code LIMIT pageSize}. Kept separate to leave
+   * {@link #buildFindRelationshipSQL} untouched.
    *
-   * <p>Always current-only ({@code deleted_ts IS NULL}); ranked/non-current pagination is
-   * unsupported because it could not bound the per-page DB work.</p>
+   * <p>Ranked/non-current pagination is unsupported because it could not bound the per-page DB
+   * work.</p>
    *
    * <p>Supported only for {@code NEW_SCHEMA_ONLY}; {@code OLD_SCHEMA_ONLY} and {@code DUAL_SCHEMA}
    * (deprecated) throw {@link UnsupportedOperationException} before any SQL is built.</p>
    */
   @Nonnull
   @VisibleForTesting
-  public String buildFindRelationshipKeysetSQL(@Nonnull final String relationshipTableName,
+  public String buildFindRelationshipKeysetCurrentSQL(@Nonnull final String relationshipTableName,
       @Nonnull LocalRelationshipFilter relationshipFilter, @Nullable final String sourceTableName,
       @Nullable LocalRelationshipFilter sourceEntityFilter, @Nullable final String destTableName,
       @Nullable LocalRelationshipFilter destinationEntityFilter, int pageSize, long lastId, long maxId) {
+    return buildFindRelationshipKeysetSQL(relationshipTableName, relationshipFilter, sourceTableName, sourceEntityFilter,
+        destTableName, destinationEntityFilter, pageSize, lastId, maxId, "rt.deleted_ts is NULL");
+  }
+
+  /**
+   * Supplementary keyset query for rows that were current when the scan started but were
+   * soft-deleted before this page is read.
+   */
+  @Nonnull
+  @VisibleForTesting
+  public String buildFindRelationshipKeysetDeletedSinceScanStartSQL(@Nonnull final String relationshipTableName,
+      @Nonnull LocalRelationshipFilter relationshipFilter, @Nullable final String sourceTableName,
+      @Nullable LocalRelationshipFilter sourceEntityFilter, @Nullable final String destTableName,
+      @Nullable LocalRelationshipFilter destinationEntityFilter, int pageSize, long lastId, long maxId,
+      @Nonnull String scanStartTime) {
+    if (StringUtils.isBlank(scanStartTime)) {
+      throw new IllegalArgumentException("scanStartTime must not be null or empty");
+    }
+    return buildFindRelationshipKeysetSQL(relationshipTableName, relationshipFilter, sourceTableName, sourceEntityFilter,
+        destTableName, destinationEntityFilter, pageSize, lastId, maxId,
+        "rt.deleted_ts > STR_TO_DATE(:scanStartTime, '%Y-%m-%d %H:%i:%s.%f')");
+  }
+
+  @Nonnull
+  private String buildFindRelationshipKeysetSQL(@Nonnull final String relationshipTableName,
+      @Nonnull LocalRelationshipFilter relationshipFilter, @Nullable final String sourceTableName,
+      @Nullable LocalRelationshipFilter sourceEntityFilter, @Nullable final String destTableName,
+      @Nullable LocalRelationshipFilter destinationEntityFilter, int pageSize, long lastId, long maxId,
+      @Nonnull String deletedTsPredicate) {
     if (pageSize < 1 || pageSize > MAX_KEYSET_PAGE_SIZE) {
       throw new IllegalArgumentException(
           "pageSize must be between 1 and " + MAX_KEYSET_PAGE_SIZE + " but was " + pageSize);
@@ -1183,7 +1311,7 @@ public class EbeanLocalRelationshipQueryDAO {
           _eBeanDAOConfig.isNonDollarVirtualColumnsEnabled(), _schemaValidatorUtil,
           filters.toArray(new Triplet[filters.size()]));
 
-      sqlBuilder.append("WHERE rt.deleted_ts is NULL");
+      sqlBuilder.append("WHERE ").append(deletedTsPredicate);
       if (whereClause != null) {
         sqlBuilder.append(" AND ").append(whereClause);
       }
@@ -1220,18 +1348,33 @@ public class EbeanLocalRelationshipQueryDAO {
     try {
       return _server.createSqlQuery(sql).findList();
     } catch (PersistenceException e) {
-      Throwable cause = e.getCause();
-      if (cause instanceof SQLException && cause.getMessage() != null
-          && cause.getMessage().contains("doesn't exist in table")) {
-        String errorMsg = String.format(
-            "Missing index when querying table '%s'. "
-                + "Make sure FORCE INDEX targets like idx_destination_deleted_ts or idx_source_deleted_ts are created.",
-            relationshipTableName);
-        log.error(errorMsg);
-        throw new IllegalStateException(errorMsg, e);
-      }
-
+      throwIfMissingIndex(e, relationshipTableName);
       throw new RuntimeException("Failed to execute SQL query for relationships", e);
+    }
+  }
+
+  private List<SqlRow> executeSqlWithIndexCheck(String sql, String relationshipTableName,
+      @Nonnull String scanStartTime) {
+    try {
+      SqlQuery query = _server.createSqlQuery(sql);
+      query.setParameter("scanStartTime", scanStartTime);
+      return query.findList();
+    } catch (PersistenceException e) {
+      throwIfMissingIndex(e, relationshipTableName);
+      throw new RuntimeException("Failed to execute SQL query for relationships", e);
+    }
+  }
+
+  private void throwIfMissingIndex(PersistenceException e, String relationshipTableName) {
+    Throwable cause = e.getCause();
+    if (cause instanceof SQLException && cause.getMessage() != null
+        && cause.getMessage().contains("doesn't exist in table")) {
+      String errorMsg = String.format(
+          "Missing index when querying table '%s'. "
+              + "Make sure FORCE INDEX targets like idx_destination_deleted_ts or idx_source_deleted_ts are created.",
+          relationshipTableName);
+      log.error(errorMsg);
+      throw new IllegalStateException(errorMsg, e);
     }
   }
 
