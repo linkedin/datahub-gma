@@ -349,7 +349,7 @@ public class EbeanLocalRelationshipQueryDAO {
       relationships.add(RecordUtils.toRecordTemplate(relationshipType, row.getString(METADATA)));
     }
 
-    return new RelationshipKeysetPage<>(relationships, scan.getHighWaterId(), scan.getNextCursor());
+    return new RelationshipKeysetPage<>(relationships, scan.getMaxId(), scan.getNextCursor());
   }
 
   /**
@@ -414,7 +414,7 @@ public class EbeanLocalRelationshipQueryDAO {
           relationshipType, assetRelationshipClass, row.getString(METADATA), row.getString(SOURCE), wrapOptions));
     }
 
-    return new RelationshipKeysetPage<>(relationships, scan.getHighWaterId(), scan.getNextCursor());
+    return new RelationshipKeysetPage<>(relationships, scan.getMaxId(), scan.getNextCursor());
   }
 
   /**
@@ -446,9 +446,9 @@ public class EbeanLocalRelationshipQueryDAO {
     final Timestamp scanStartTime;
     if (cursor == null) {
       lastId = 0L;
-      final KeysetHighWaterMark highWaterMark = fetchHighWaterMark(relationshipTableName);
-      maxId = highWaterMark.getMaxId();
-      scanStartTime = highWaterMark.getScanStartTime();
+      final KeysetScanStart scanStart = fetchScanStart(relationshipTableName);
+      maxId = scanStart.getMaxId();
+      scanStartTime = scanStart.getScanStartTime();
     } else {
       validateKeysetCursorTable(cursor, relationshipTableName);
       lastId = cursor.getLastId();
@@ -543,13 +543,13 @@ public class EbeanLocalRelationshipQueryDAO {
   }
 
   /**
-   * Immutable holder for one keyset scan's insertion high-water id and database start time.
+   * Immutable holder for one keyset scan's largest row id and database start time.
    */
-  private static final class KeysetHighWaterMark {
+  private static final class KeysetScanStart {
     private final long _maxId;
     private final Timestamp _scanStartTime;
 
-    KeysetHighWaterMark(long maxId, @Nonnull Timestamp scanStartTime) {
+    KeysetScanStart(long maxId, @Nonnull Timestamp scanStartTime) {
       _maxId = maxId;
       _scanStartTime = copyTimestamp(scanStartTime);
     }
@@ -569,13 +569,13 @@ public class EbeanLocalRelationshipQueryDAO {
    */
   private static final class KeysetScanResult {
     private final List<SqlRow> _rows;
-    private final long _highWaterId;
+    private final long _maxId;
     private final RelationshipKeysetCursor _nextCursor;
 
-    KeysetScanResult(@Nonnull List<SqlRow> rows, long highWaterId,
+    KeysetScanResult(@Nonnull List<SqlRow> rows, long maxId,
         @Nullable RelationshipKeysetCursor nextCursor) {
       _rows = rows;
-      _highWaterId = highWaterId;
+      _maxId = maxId;
       _nextCursor = nextCursor;
     }
 
@@ -584,8 +584,8 @@ public class EbeanLocalRelationshipQueryDAO {
       return _rows;
     }
 
-    long getHighWaterId() {
-      return _highWaterId;
+    long getMaxId() {
+      return _maxId;
     }
 
     @Nullable
@@ -596,18 +596,18 @@ public class EbeanLocalRelationshipQueryDAO {
 
   /**
    * Returns the largest relationship row id ({@code maxId}) and the database timestamp for the
-   * start of the scan. Both values come from one statement so the timestamp and high-water id are
+   * start of the scan. Both values come from one statement so the timestamp and max id are
    * captured against the same DB clock.
    */
-  private KeysetHighWaterMark fetchHighWaterMark(@Nonnull final String relationshipTableName) {
+  private KeysetScanStart fetchScanStart(@Nonnull final String relationshipTableName) {
     final String sql =
         "SELECT COALESCE(MAX(id), 0) AS max_id, DATE_FORMAT(NOW(6), '%Y-%m-%d %H:%i:%s.%f') AS scan_start_time FROM "
             + relationshipTableName;
     final List<SqlRow> rows = _server.createSqlQuery(sql).findList();
     if (rows.isEmpty()) {
-      throw new IllegalStateException("High-water query returned no rows for table " + relationshipTableName);
+      throw new IllegalStateException("Scan-start query returned no rows for table " + relationshipTableName);
     }
-    return new KeysetHighWaterMark(rows.get(0).getLong("max_id"),
+    return new KeysetScanStart(rows.get(0).getLong("max_id"),
         Timestamp.valueOf(rows.get(0).getString("scan_start_time")));
   }
 

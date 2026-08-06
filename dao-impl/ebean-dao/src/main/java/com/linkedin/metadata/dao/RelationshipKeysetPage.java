@@ -21,7 +21,7 @@ public final class RelationshipKeysetPage<R extends RecordTemplate> {
   @Nonnull
   private final List<R> relationships;
   @Getter
-  private final long highWaterId;
+  private final long maxId;
   @Getter
   @Nullable
   private final RelationshipKeysetCursor nextCursor;
@@ -31,29 +31,29 @@ public final class RelationshipKeysetPage<R extends RecordTemplate> {
    *
    * @param relationships the relationships in this page, in ascending {@code id} order. Copied
    *                      defensively and exposed as an unmodifiable list.
-   * @param highWaterId the largest relationship row {@code id} when paging started (the
-   *                    {@code maxId} captured on the first page), which bounds the scan. Must be
-   *                    non-negative.
+   * @param maxId the largest relationship row {@code id} at the time paging started, captured on
+   *              the first page. Bounds the scan so rows inserted mid-scan are excluded. Must be
+   *              non-negative.
    * @param nextCursor cursor to fetch the next page, or {@code null} if this is the last page.
-   *                   When non-null it must preserve the same {@code maxId} as {@code highWaterId}.
+   *                   When non-null its own {@code maxId} must equal this page's {@code maxId}.
    */
-  public RelationshipKeysetPage(@Nonnull List<R> relationships, long highWaterId,
+  public RelationshipKeysetPage(@Nonnull List<R> relationships, long maxId,
       @Nullable RelationshipKeysetCursor nextCursor) {
     if (relationships == null) {
       throw new IllegalArgumentException("relationships must not be null");
     }
-    if (highWaterId < 0) {
+    if (maxId < 0) {
       throw new IllegalArgumentException(
-          "highWaterId must be non-negative but was " + highWaterId);
+          "maxId must be non-negative but was " + maxId);
     }
-    if (nextCursor != null && nextCursor.getMaxId() != highWaterId) {
+    if (nextCursor != null && nextCursor.getMaxId() != maxId) {
       throw new IllegalArgumentException(
-          "nextCursor maxId (" + nextCursor.getMaxId() + ") must match highWaterId ("
-              + highWaterId + ")");
+          "nextCursor maxId (" + nextCursor.getMaxId() + ") must match page maxId ("
+              + maxId + ")");
     }
     this.relationships =
         Collections.unmodifiableList(new ArrayList<>(relationships));
-    this.highWaterId = highWaterId;
+    this.maxId = maxId;
     this.nextCursor = nextCursor;
   }
 }

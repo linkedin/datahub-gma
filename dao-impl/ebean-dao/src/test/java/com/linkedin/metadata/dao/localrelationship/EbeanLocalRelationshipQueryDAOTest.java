@@ -2335,7 +2335,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
     RelationshipKeysetPage<ReportsTo> page = keysetPage(3, null);
     assertTrue(page.getRelationships().isEmpty());
     assertNull(page.getNextCursor());
-    assertEquals(page.getHighWaterId(), 0L);
+    assertEquals(page.getMaxId(), 0L);
   }
 
   @Test
@@ -2352,7 +2352,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
     RelationshipKeysetPage<ReportsTo> page = keysetPage(5, null);
     assertEquals(page.getRelationships().size(), 2);
     assertNull(page.getNextCursor());
-    assertEquals(page.getHighWaterId(), 2L);
+    assertEquals(page.getMaxId(), 2L);
   }
 
   @Test
@@ -2363,7 +2363,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
     RelationshipKeysetPage<ReportsTo> first = keysetPage(3, null);
     assertEquals(first.getRelationships().size(), 3);
     assertNull(first.getNextCursor());
-    assertEquals(first.getHighWaterId(), 3L);
+    assertEquals(first.getMaxId(), 3L);
   }
 
   @Test
@@ -2380,7 +2380,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
     _server.createSqlUpdate("UPDATE metadata_relationship_reportsto SET deleted_ts='2000-01-01 00:00:00' "
         + "WHERE deleted_ts IS NOT NULL").execute();
 
-    // Current rows toward dest #1: only id 1. High-water id is 5 because later nonmatching rows
+    // Current rows toward dest #1: only id 1. Max id is 5 because later nonmatching rows
     // (ids 4/5 pointing elsewhere) set maxId. A page size of 1 fills fully with id 1 (below maxId
     // 5), so a next cursor is produced; that continuation query is empty because ids 2 and 3 are
     // soft-deleted and 4/5 point elsewhere, so one final empty page is needed to end the scan.
@@ -2435,16 +2435,16 @@ public class EbeanLocalRelationshipQueryDAOTest {
   }
 
   @Test
-  public void testFindRelationshipsByKeysetHighWaterExcludesLaterInsert() throws URISyntaxException {
+  public void testFindRelationshipsByKeysetMaxIdExcludesLaterInsert() throws URISyntaxException {
     addReportsToChain(5, new FooUrn(1));
 
-    // Capture the high-water id on the first page.
+    // Capture the max id on the first page.
     RelationshipKeysetCursor cursor = null;
     List<ReportsTo> drained = new ArrayList<>();
     RelationshipKeysetPage<ReportsTo> page = keysetPage(2, null);
     drained.addAll(page.getRelationships());
     cursor = page.getNextCursor();
-    assertEquals(page.getHighWaterId(), 5L);
+    assertEquals(page.getMaxId(), 5L);
 
     // Insert more rows after the scan started; they must not be observed. These later inserts are
     // deterministically excluded by the fixed maxId (best effort only covers updates/deletes of
@@ -2592,9 +2592,9 @@ public class EbeanLocalRelationshipQueryDAOTest {
     _localRelationshipWriterDAO.addRelationships(d, AspectFoo.class,
         Collections.singletonList(new ReportsTo().setSource(d).setDestination(dest)), false);
 
-    // Page 1 (size 2) captures the insertion high-water id maxId = 4 and returns ids 1,2 (a, b).
+    // Page 1 (size 2) captures the largest row id maxId = 4 and returns ids 1,2 (a, b).
     RelationshipKeysetPage<ReportsTo> first = keysetPage(2, null);
-    assertEquals(first.getHighWaterId(), 4L);
+    assertEquals(first.getMaxId(), 4L);
     assertNotNull(first.getNextCursor());
     List<ReportsTo> drained = new ArrayList<>(first.getRelationships());
 
@@ -2727,7 +2727,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
     assertNotNull(page.getNextCursor());
     expectThrows(UnsupportedOperationException.class, () -> page.getRelationships().add(null));
 
-    // next cursor maxId must match highWaterId.
+    // next cursor maxId must match maxId.
     expectThrows(IllegalArgumentException.class, () ->
         new RelationshipKeysetPage<>(new ArrayList<ReportsTo>(), 10,
             new RelationshipKeysetCursor(5, 9, Timestamp.valueOf("2026-08-05 12:34:56.789"), "metadata_relationship_reportsto")));
@@ -2805,7 +2805,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
       RelationshipKeysetPage<AssetRelationship> page = _localRelationshipQueryDAO.findRelationshipsV4ByKeyset(
           "foo", srcFilter, "foo", destFilter, BelongsToV2.class, relationshipFilter,
           AssetRelationship.class, wrapOptions, 2, cursor);
-      assertEquals(page.getHighWaterId(), 7L);
+      assertEquals(page.getMaxId(), 7L);
       drained.addAll(page.getRelationships());
       cursor = page.getNextCursor();
       pages++;
@@ -2858,7 +2858,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
         "foo", srcFilter, "NON_MG_ASSET", null, BelongsToV2.class, relationshipFilter,
         AssetRelationship.class, wrapOptions, 10, null);
 
-    assertEquals(page.getHighWaterId(), 1L);
+    assertEquals(page.getMaxId(), 1L);
     assertNull(page.getNextCursor());
     assertEquals(page.getRelationships().size(), 1);
     AssetRelationship wrapped = page.getRelationships().get(0);
