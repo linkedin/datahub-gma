@@ -1,5 +1,7 @@
 package com.linkedin.metadata.dao;
 
+import java.sql.Timestamp;
+import javax.annotation.Nonnull;
 import lombok.Getter;
 
 
@@ -7,14 +9,16 @@ import lombok.Getter;
  * Immutable position of a keyset (seek) pagination scan over a single relationship table, used by
  * {@link EbeanLocalRelationshipQueryDAO#findRelationshipsByKeyset}.
  *
- * <p>{@code lastId} is the id of the last row returned; the next page starts strictly after it
+ * <p>{@code scanStartTime} is captured from the database clock when the first page starts and is
+ * used by later pages to include rows that were current at scan start even if they were soft-deleted
+ * before a later page is read. {@code relationshipTableName} identifies the relationship table this
+ * cursor belongs to and is validated by the DAO before continuing a scan. {@code lastId} is the id
+ * of the last row returned; the next page starts strictly after it
  * ({@code rt.id > lastId}) and is {@code 0} for the first page. {@code maxId} is the largest
  * relationship row id when paging starts, captured on the first page
  * ({@code COALESCE(MAX(id), 0)}); every page is bounded by {@code rt.id <= maxId}. Later inserts get
- * larger ids and are excluded, which keeps the scan finite. The combined pages are not a
- * point-in-time snapshot: existing rows updated or soft-deleted between page calls can change which
- * rows a later page returns, so callers must not assume they see every row that was current when
- * paging started. Both values are non-negative and {@code lastId <= maxId} always holds.</p>
+ * larger ids and are excluded, which keeps the scan finite. Numeric values are non-negative and
+ * {@code lastId <= maxId} always holds.</p>
  */
 public final class RelationshipKeysetCursor {
 
@@ -22,6 +26,11 @@ public final class RelationshipKeysetCursor {
   private final long lastId;
   @Getter
   private final long maxId;
+  @Getter
+  @Nonnull
+  private final String relationshipTableName;
+  @Nonnull
+  private final Timestamp scanStartTime;
 
   /**
    * Creates a cursor.
@@ -30,8 +39,12 @@ public final class RelationshipKeysetCursor {
    *               Must be non-negative.
    * @param maxId largest relationship row id when paging starts; bounds the scan. Must be
    *              non-negative and {@code >= lastId}.
+   * @param scanStartTime database time when the scan started. Must not be null.
+   * @param relationshipTableName relationship table this cursor belongs to. Must not be null or
+   *                              empty.
    */
-  public RelationshipKeysetCursor(long lastId, long maxId) {
+  public RelationshipKeysetCursor(long lastId, long maxId, @Nonnull Timestamp scanStartTime,
+      @Nonnull String relationshipTableName) {
     if (lastId < 0) {
       throw new IllegalArgumentException("lastId must be non-negative but was " + lastId);
     }
@@ -42,7 +55,27 @@ public final class RelationshipKeysetCursor {
       throw new IllegalArgumentException(
           "lastId (" + lastId + ") must not be greater than maxId (" + maxId + ")");
     }
+    if (scanStartTime == null) {
+      throw new IllegalArgumentException("scanStartTime must not be null");
+    }
+    if (relationshipTableName == null || relationshipTableName.trim().isEmpty()) {
+      throw new IllegalArgumentException("relationshipTableName must not be null or empty");
+    }
     this.lastId = lastId;
     this.maxId = maxId;
+    this.scanStartTime = copyTimestamp(scanStartTime);
+    this.relationshipTableName = relationshipTableName;
+  }
+
+  @Nonnull
+  public Timestamp getScanStartTime() {
+    return copyTimestamp(scanStartTime);
+  }
+
+  @Nonnull
+  private static Timestamp copyTimestamp(@Nonnull Timestamp timestamp) {
+    Timestamp copy = new Timestamp(timestamp.getTime());
+    copy.setNanos(timestamp.getNanos());
+    return copy;
   }
 }

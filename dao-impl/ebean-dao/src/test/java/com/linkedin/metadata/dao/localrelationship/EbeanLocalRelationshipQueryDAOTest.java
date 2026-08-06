@@ -53,6 +53,7 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -2234,10 +2235,11 @@ public class EbeanLocalRelationshipQueryDAOTest {
   }
 
   @Test
-  public void testBuildFindRelationshipKeysetSQL() {
+  public void testBuildFindRelationshipKeysetCurrentSQL() {
     // Unlike the existing offset builder, the keyset builder adds `id > lastId`, `id <= maxId`,
-    // `ORDER BY rt.id ASC` and a finite LIMIT.
-    String sql = _localRelationshipQueryDAO.buildFindRelationshipKeysetSQL("relationship_table_name",
+    // `ORDER BY rt.id ASC` and a finite LIMIT. The current-row query keeps the original
+    // `deleted_ts is NULL` predicate so the hot path keeps the old index plan.
+    String sql = _localRelationshipQueryDAO.buildFindRelationshipKeysetCurrentSQL("relationship_table_name",
         new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
         "source_table_name", null, "destination_table_name", null,
         10, 5, 20);
@@ -2249,13 +2251,27 @@ public class EbeanLocalRelationshipQueryDAOTest {
   }
 
   @Test
+  public void testBuildFindRelationshipKeysetDeletedSinceScanStartSQL() {
+    String sql = _localRelationshipQueryDAO.buildFindRelationshipKeysetDeletedSinceScanStartSQL("relationship_table_name",
+        new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
+        "source_table_name", null, "destination_table_name", null,
+        10, 5, 20, Timestamp.valueOf("2026-08-05 12:34:56.789"));
+
+    assertEquals(sql,
+        "SELECT rt.* FROM relationship_table_name rt INNER JOIN destination_table_name dt ON dt.urn=rt.destination "
+            + "INNER JOIN source_table_name st ON st.urn=rt.source WHERE "
+            + "rt.deleted_ts > STR_TO_DATE(:scanStartTime, '%Y-%m-%d %H:%i:%s.%f') "
+            + "AND rt.id > 5 AND rt.id <= 20 ORDER BY rt.id ASC LIMIT 10");
+  }
+
+  @Test
   public void testBuildFindRelationshipKeysetSQLWithSource() {
     LocalRelationshipCriterion filterCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(LocalRelationshipValue.create("Alice"),
         Condition.EQUAL,
         new AspectField().setAspect(AspectFoo.class.getCanonicalName()).setPath("/value"));
     LocalRelationshipFilter srcFilter = new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray(filterCriterion));
 
-    String sql = _localRelationshipQueryDAO.buildFindRelationshipKeysetSQL("relationship_table_name",
+    String sql = _localRelationshipQueryDAO.buildFindRelationshipKeysetCurrentSQL("relationship_table_name",
         new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
         "metadata_entity_foo", srcFilter, "destination_table_name", null,
         10, 5, 20);
@@ -2271,18 +2287,22 @@ public class EbeanLocalRelationshipQueryDAOTest {
   public void testBuildFindRelationshipKeysetSQLRejectsInvalidPageSize() {
     // Zero and negative are rejected.
     expectThrows(IllegalArgumentException.class, () ->
-        _localRelationshipQueryDAO.buildFindRelationshipKeysetSQL("relationship_table_name",
+        _localRelationshipQueryDAO.buildFindRelationshipKeysetCurrentSQL("relationship_table_name",
             new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
             null, null, null, null, 0, 0, 20));
     expectThrows(IllegalArgumentException.class, () ->
-        _localRelationshipQueryDAO.buildFindRelationshipKeysetSQL("relationship_table_name",
+        _localRelationshipQueryDAO.buildFindRelationshipKeysetCurrentSQL("relationship_table_name",
             new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
             null, null, null, null, -1, 0, 20));
     // Above the hard upper bound of 1000 is rejected.
     expectThrows(IllegalArgumentException.class, () ->
-        _localRelationshipQueryDAO.buildFindRelationshipKeysetSQL("relationship_table_name",
+        _localRelationshipQueryDAO.buildFindRelationshipKeysetCurrentSQL("relationship_table_name",
             new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
             null, null, null, null, 1001, 0, 20));
+    expectThrows(IllegalArgumentException.class, () ->
+        _localRelationshipQueryDAO.buildFindRelationshipKeysetDeletedSinceScanStartSQL("relationship_table_name",
+            new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
+            null, null, null, null, 10, 0, 20, null));
   }
 
   @Test
@@ -2302,7 +2322,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
       // The public SQL builder rejects the mode as well.
       expectThrows(UnsupportedOperationException.class, () ->
-          _localRelationshipQueryDAO.buildFindRelationshipKeysetSQL("relationship_table_name",
+          _localRelationshipQueryDAO.buildFindRelationshipKeysetCurrentSQL("relationship_table_name",
               new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray()).setDirection(RelationshipDirection.UNDIRECTED),
               null, null, null, null, 10, 5, 20));
 
@@ -2357,6 +2377,8 @@ public class EbeanLocalRelationshipQueryDAOTest {
         Collections.singletonList(new ReportsTo().setSource(sources.get(1)).setDestination(new FooUrn(2))), false);
     _localRelationshipWriterDAO.addRelationships(sources.get(2), AspectFoo.class,
         Collections.singletonList(new ReportsTo().setSource(sources.get(2)).setDestination(new FooUrn(2))), false);
+    _server.createSqlUpdate("UPDATE metadata_relationship_reportsto SET deleted_ts='2000-01-01 00:00:00' "
+        + "WHERE deleted_ts IS NOT NULL").execute();
 
     // Current rows toward dest #1: only id 1. High-water id is 5 because later nonmatching rows
     // (ids 4/5 pointing elsewhere) set maxId. A page size of 1 fills fully with id 1 (below maxId
@@ -2384,7 +2406,24 @@ public class EbeanLocalRelationshipQueryDAOTest {
   public void testFindRelationshipsByKeysetMultiPageOrderedComplete() throws URISyntaxException {
     Set<FooUrn> expectedSources = new java.util.HashSet<>(addReportsToChain(7, new FooUrn(1)));
 
-    List<ReportsTo> drained = drainKeyset(2);
+    List<ReportsTo> drained = new ArrayList<>();
+    RelationshipKeysetCursor cursor = null;
+    Timestamp scanStartTime = null;
+    String relationshipTableName = SQLSchemaUtils.getRelationshipTableName(ReportsTo.class);
+    do {
+      RelationshipKeysetPage<ReportsTo> page = keysetPage(2, cursor);
+      drained.addAll(page.getRelationships());
+      cursor = page.getNextCursor();
+      if (cursor != null) {
+        assertNotNull(cursor.getScanStartTime());
+        assertEquals(cursor.getRelationshipTableName(), relationshipTableName);
+        if (scanStartTime == null) {
+          scanStartTime = cursor.getScanStartTime();
+        } else {
+          assertEquals(cursor.getScanStartTime(), scanStartTime);
+        }
+      }
+    } while (cursor != null);
 
     assertEquals(drained.size(), 7);
     Set<FooUrn> actualSources = drained.stream()
@@ -2441,6 +2480,9 @@ public class EbeanLocalRelationshipQueryDAOTest {
     // Re-adding B soft-deletes its first row and inserts a new one, creating an id gap.
     _localRelationshipWriterDAO.addRelationships(b, AspectFoo.class,
         Collections.singletonList(new ReportsTo().setSource(b).setDestination(dest)), false);
+    _server.createSqlUpdate("UPDATE metadata_relationship_reportsto SET deleted_ts='2000-01-01 00:00:00' "
+        + "WHERE source=:source AND deleted_ts IS NOT NULL")
+        .setParameter("source", b.toString()).execute();
 
     List<ReportsTo> drained = drainKeyset(2);
 
@@ -2533,7 +2575,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
   }
 
   @Test
-  public void testFindRelationshipsByKeysetBestEffortMembershipUnderConcurrentReplacement()
+  public void testFindRelationshipsByKeysetPreservesScanStartMembershipUnderConcurrentReplacement()
       throws URISyntaxException {
     FooUrn dest = new FooUrn(1);
     FooUrn a = new FooUrn(101);
@@ -2558,10 +2600,7 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     // Between pages, "concurrently" replace c: this soft-deletes id 3 (which is <= maxId) and
     // inserts a fresh current row id 5 (which is > maxId). The replacement row is excluded by the
-    // fixed maxId bound and the original id 3 is soft-deleted, so c may disappear from the scan even
-    // though it was current when the scan began. Because each page is a separate statement, maxId is
-    // only an insertion high-water mark, not a stable/complete snapshot: this is the documented
-    // best-effort membership behavior, chosen so the scan stays finite.
+    // fixed maxId bound, but the original id 3 is retained because it was alive at scan start.
     _localRelationshipWriterDAO.addRelationships(c, AspectFoo.class,
         Collections.singletonList(new ReportsTo().setSource(c).setDestination(dest)), false);
 
@@ -2572,32 +2611,115 @@ public class EbeanLocalRelationshipQueryDAOTest {
       cursor = page.getNextCursor();
     }
 
-    // c is missing: the scan reflects rows current when each page ran, not a snapshot of the
-    // rows that were current when the scan started.
     Set<FooUrn> actual = drained.stream()
         .map(r -> makeFooUrn(r.getSource().toString()))
         .collect(Collectors.toSet());
-    assertEquals(actual, ImmutableSet.of(a, b, d));
-    assertFalse(actual.contains(c));
+    assertEquals(actual, ImmutableSet.of(a, b, c, d));
+  }
+
+  @Test
+  public void testFindRelationshipsByKeysetDedupsRowDeletedBetweenCurrentAndDeletedQueries()
+      throws URISyntaxException {
+    FooUrn dest = new FooUrn(1);
+    FooUrn source = new FooUrn(101);
+    _localRelationshipWriterDAO.addRelationships(source, AspectFoo.class,
+        Collections.singletonList(new ReportsTo().setSource(source).setDestination(dest)), false);
+
+    boolean[] injected = {false};
+    EbeanLocalRelationshipQueryDAO racyQueryDAO = new EbeanLocalRelationshipQueryDAO(_server, _eBeanDAOConfig) {
+      @Override
+      protected void afterKeysetCurrentRowsFetched(String relationshipTableName,
+          List<io.ebean.SqlRow> currentRows) {
+        if (!injected[0] && !currentRows.isEmpty()
+            && relationshipTableName.equals(SQLSchemaUtils.getRelationshipTableName(ReportsTo.class))) {
+          injected[0] = true;
+          _server.createSqlUpdate("UPDATE metadata_relationship_reportsto "
+              + "SET deleted_ts='2099-01-01 00:00:00.000000' WHERE id=:id")
+              .setParameter("id", currentRows.get(0).getLong("id"))
+              .execute();
+        }
+      }
+    };
+
+    RelationshipKeysetPage<ReportsTo> page = racyQueryDAO.findRelationshipsByKeyset(
+        null, emptyFilter(), null, emptyFilter(), ReportsTo.class, outgoingEmptyFilter(), 10, null);
+
+    assertTrue(injected[0]);
+    assertEquals(page.getRelationships().size(), 1);
+    assertEquals(makeFooUrn(page.getRelationships().get(0).getSource().toString()), source);
+    assertNull(page.getNextCursor());
+  }
+
+  @Test
+  public void testFindRelationshipsByKeysetDoesNotDuplicateRelationshipRewrittenImmediatelyBeforeScan()
+      throws URISyntaxException {
+    FooUrn dest = new FooUrn(1);
+    FooUrn source = new FooUrn(101);
+    _localRelationshipWriterDAO.addRelationships(source, AspectFoo.class,
+        Collections.singletonList(new ReportsTo().setSource(source).setDestination(dest)), false);
+
+    // This rewrite completes before the first page captures scanStartTime. Only the replacement row
+    // was current at scan start, so the old soft-deleted row must not be returned too.
+    _localRelationshipWriterDAO.addRelationships(source, AspectFoo.class,
+        Collections.singletonList(new ReportsTo().setSource(source).setDestination(dest)), false);
+
+    io.ebean.SqlRow liveRow = _server.createSqlQuery("SELECT COUNT(*) AS live_count FROM metadata_relationship_reportsto "
+        + "WHERE source=:source AND deleted_ts IS NULL")
+        .setParameter("source", source.toString())
+        .findOne();
+    assertEquals(liveRow.getLong("live_count").longValue(), 1L);
+
+    List<ReportsTo> drained = drainKeyset(10);
+    assertEquals(drained.size(), 1);
+    assertEquals(makeFooUrn(drained.get(0).getSource().toString()), source);
   }
 
   @Test
   public void testRelationshipKeysetCursorValidationAndGetters() {
-    RelationshipKeysetCursor cursor = new RelationshipKeysetCursor(3, 10);
+    Timestamp scanStartTime = Timestamp.valueOf("2026-08-05 12:34:56.789");
+    RelationshipKeysetCursor cursor =
+        new RelationshipKeysetCursor(3, 10, scanStartTime, "metadata_relationship_reportsto");
     assertEquals(cursor.getLastId(), 3L);
     assertEquals(cursor.getMaxId(), 10L);
+    assertEquals(cursor.getScanStartTime(), scanStartTime);
+    assertEquals(cursor.getRelationshipTableName(), "metadata_relationship_reportsto");
+    scanStartTime.setTime(0);
+    assertNotEquals(cursor.getScanStartTime(), scanStartTime);
 
-    expectThrows(IllegalArgumentException.class, () -> new RelationshipKeysetCursor(-1, 10));
-    expectThrows(IllegalArgumentException.class, () -> new RelationshipKeysetCursor(3, -1));
-    expectThrows(IllegalArgumentException.class, () -> new RelationshipKeysetCursor(11, 10));
+    expectThrows(IllegalArgumentException.class, () ->
+        new RelationshipKeysetCursor(-1, 10, Timestamp.valueOf("2026-08-05 12:34:56.789"), "metadata_relationship_reportsto"));
+    expectThrows(IllegalArgumentException.class, () ->
+        new RelationshipKeysetCursor(3, -1, Timestamp.valueOf("2026-08-05 12:34:56.789"), "metadata_relationship_reportsto"));
+    expectThrows(IllegalArgumentException.class, () ->
+        new RelationshipKeysetCursor(11, 10, Timestamp.valueOf("2026-08-05 12:34:56.789"), "metadata_relationship_reportsto"));
+    expectThrows(IllegalArgumentException.class, () ->
+        new RelationshipKeysetCursor(3, 10, null, "metadata_relationship_reportsto"));
+    expectThrows(IllegalArgumentException.class, () ->
+        new RelationshipKeysetCursor(3, 10, Timestamp.valueOf("2026-08-05 12:34:56.789"), null));
+    expectThrows(IllegalArgumentException.class, () ->
+        new RelationshipKeysetCursor(3, 10, Timestamp.valueOf("2026-08-05 12:34:56.789"), ""));
+  }
+
+  @Test
+  public void testFindRelationshipsByKeysetRejectsCursorForDifferentRelationshipTable() {
+    String belongsToTable = SQLSchemaUtils.getRelationshipTableName(BelongsToV2.class);
+    String reportsToTable = SQLSchemaUtils.getRelationshipTableName(ReportsTo.class);
+    RelationshipKeysetCursor wrongTypeCursor =
+        new RelationshipKeysetCursor(0, 1, Timestamp.valueOf("2026-08-05 12:34:56.789"), belongsToTable);
+
+    IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> keysetPage(2, wrongTypeCursor));
+    assertTrue(exception.getMessage().contains(belongsToTable));
+    assertTrue(exception.getMessage().contains(reportsToTable));
   }
 
   @Test
   public void testRelationshipKeysetPageDefensiveAndValidation() throws URISyntaxException {
     List<ReportsTo> source = new ArrayList<>();
     source.add(new ReportsTo().setSource(new FooUrn(1)).setDestination(new FooUrn(2)));
+    RelationshipKeysetCursor nextCursor =
+        new RelationshipKeysetCursor(5, 10, Timestamp.valueOf("2026-08-05 12:34:56.789"), "metadata_relationship_reportsto");
     RelationshipKeysetPage<ReportsTo> page =
-        new RelationshipKeysetPage<>(source, 10, new RelationshipKeysetCursor(5, 10));
+        new RelationshipKeysetPage<>(source, 10, nextCursor);
 
     // Defensive copy: mutating the input list cannot alter the returned page contents.
     source.clear();
@@ -2607,7 +2729,8 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     // next cursor maxId must match highWaterId.
     expectThrows(IllegalArgumentException.class, () ->
-        new RelationshipKeysetPage<>(new ArrayList<ReportsTo>(), 10, new RelationshipKeysetCursor(5, 9)));
+        new RelationshipKeysetPage<>(new ArrayList<ReportsTo>(), 10,
+            new RelationshipKeysetCursor(5, 9, Timestamp.valueOf("2026-08-05 12:34:56.789"), "metadata_relationship_reportsto")));
     expectThrows(IllegalArgumentException.class, () ->
         new RelationshipKeysetPage<ReportsTo>(null, 10, null));
   }

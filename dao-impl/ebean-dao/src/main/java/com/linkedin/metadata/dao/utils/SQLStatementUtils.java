@@ -160,10 +160,10 @@ public class SQLStatementUtils {
   private static final String INSERT_LOCAL_RELATIONSHIPS_WITH_ASPECT_VALUES = "(:metadata%1$d, :source%1$d, :destination%1$d, :source_type%1$d,"
       + " :destination_type%1$d, :lastmodifiedon, :lastmodifiedby, :aspect)";
 
-  private static final String DELETE_BY_SOURCE = "UPDATE %s SET deleted_ts=NOW() "
+  private static final String DELETE_BY_SOURCE = "UPDATE %s SET deleted_ts=NOW(6) "
       + "WHERE source = :source AND deleted_ts IS NULL";
 
-  private static final String DELETE_BY_SOURCE_AND_ASPECT = "UPDATE %s SET deleted_ts=NOW() "
+  private static final String DELETE_BY_SOURCE_AND_ASPECT = "UPDATE %s SET deleted_ts=NOW(6) "
       + "WHERE source = :source AND (aspect = :aspect OR aspect = :pegasus_aspect) AND deleted_ts IS NULL";
 
   private static final String SQL_BROWSE_ASPECT_TEMPLATE =
