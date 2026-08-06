@@ -463,7 +463,9 @@ public class EbeanLocalRelationshipQueryDAO {
     // Query current rows first. If a row is soft-deleted between the two reads, Query B may also see
     // the same id; mergeKeysetRows dedups that id. Running B first could turn the race into a drop.
     final List<SqlRow> currentRows = executeSqlWithIndexCheck(currentSql, relationshipTableName);
-    // No-op seam that tests override to inject a soft-delete between Query A and Query B.
+    // No-op seam. The A/B race spans two separate statements, so there is no way to land a
+    // soft-delete between them from outside the DAO; tests override this to inject one
+    // deterministically instead of relying on timing.
     afterKeysetCurrentRowsFetched(relationshipTableName, currentRows);
     // Cap Query B at Query A's frontier when A filled the page. Query B is itself
     // ORDER BY id LIMIT pageSize, so this bounds per-page work rather than changing which rows the
@@ -606,10 +608,8 @@ public class EbeanLocalRelationshipQueryDAO {
     final String sql =
         "SELECT COALESCE(MAX(id), 0) AS max_id, DATE_FORMAT(NOW(6), '%Y-%m-%d %H:%i:%s.%f') AS scan_start_time FROM "
             + relationshipTableName;
+    // Aggregate without GROUP BY, so this always yields exactly one row.
     final SqlRow row = _server.createSqlQuery(sql).findOne();
-    if (row == null) {
-      throw new IllegalStateException("Scan-start query returned no rows for table " + relationshipTableName);
-    }
     return new KeysetScanStart(row.getLong("max_id"), row.getString("scan_start_time"));
   }
 
