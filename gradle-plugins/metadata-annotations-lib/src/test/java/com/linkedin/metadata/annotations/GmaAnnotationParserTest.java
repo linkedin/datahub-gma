@@ -5,10 +5,14 @@ import com.google.common.collect.ImmutableSetMultimap;
 import com.linkedin.data.schema.RecordDataSchema;
 import com.linkedin.data.template.DataTemplateUtil;
 import com.linkedin.data.template.StringArray;
+import com.linkedin.data.template.StringArrayMap;
+import com.linkedin.data.template.StringArrayMapMap;
+import com.linkedin.data.template.StringArrayMapMapArray;
 import com.linkedin.testing.AnnotatedAspectBar;
 import com.linkedin.testing.AnnotatedAspectFoo;
 import com.linkedin.testing.BarAspect;
 import com.linkedin.testing.CommonAspect;
+import com.linkedin.testing.CollectionAnnotatedAspectBar;
 import com.linkedin.testing.SearchAnnotatedAspectBar;
 
 import java.util.Optional;
@@ -116,4 +120,30 @@ public class GmaAnnotationParserTest {
   }
 
   // TODO: if add support for disallowing certain search annotations, add tests for them
+
+  @Test
+  public void parseAspectWithCollectionAnnotations() {
+    final Optional<GmaAnnotation> gma =
+        new GmaAnnotationParser().parse((RecordDataSchema) DataTemplateUtil.getSchema(CollectionAnnotatedAspectBar.class));
+
+    StringArray fooPaths = new StringArray("x.y", "x.z");
+    StringArrayMap fooMap = new StringArrayMap();
+    fooMap.put("paths", fooPaths);
+    StringArrayMapMap foo = new StringArrayMapMap();
+    foo.put("foo", fooMap);
+
+    StringArray barPaths = new StringArray("abc", "def");
+    StringArrayMap barMap = new StringArrayMap();
+    barMap.put("paths", barPaths);
+    StringArrayMapMap bar = new StringArrayMapMap();
+    bar.put("bar", barMap);
+
+    StringArrayMapMapArray primaryKeys = new StringArrayMapMapArray(foo, bar);
+    assertThat(gma).contains(new GmaAnnotation().setCollection(
+        new CollectionAnnotation()
+            .setIsCollection(true)
+            .setPrimaryKeys(primaryKeys)
+            .setDefaultUpdateBehavior(UpdateBehavior.REPLACE_BY_ACTOR)
+    ));
+  }
 }
