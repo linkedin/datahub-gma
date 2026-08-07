@@ -110,11 +110,27 @@ public interface IEbeanLocalAccess<URN extends Urn> {
       @Nullable IngestionTrackingContext ingestionTrackingContext, boolean isTestMode);
 
   /**
-   * Get read aspects from entity table. This a new schema implementation for batchGetUnion() in {@link EbeanLocalDAO}
+   * Fetch aspects from the entity table using a single multi-column SELECT per URN chunk.
+   * This is the new-schema implementation for batchGetUnion() in {@link EbeanLocalDAO}.
+   *
+   * <p>Aspect-level soft-deletes (gma_deleted) are always returned as marker rows — callers must
+   * filter them (e.g., via {@code EbeanLocalDAO.toRecordTemplate} which checks {@code isSoftDeletedAspect}).
+   * The {@code includeSoftDeleted} flag controls only asset-level deletion (deleted_ts column).
+   *
+   * <p>URNs are chunked internally (max {@link EbeanLocalAccess#MAX_URNS_PER_QUERY} per SQL IN clause).
+   *
+   * <p><b>Cross-product semantics:</b> the input {@code keys} are reduced to a unique set of URNs and a
+   * unique set of aspect columns. The query selects ALL collected aspect columns for ALL collected URNs.
+   * If a caller passes heterogeneous pairs like {@code [(urn1, AspectFoo), (urn2, AspectBar)]} and both
+   * URNs have both columns populated, this returns 4 {@link EbeanMetadataAspect} entries — not the 2
+   * requested. The internal callers in {@link EbeanLocalDAO} re-filter via {@code matchKeys}, but external
+   * callers requesting heterogeneous (urn, aspect) pairs must filter to the exact requested pairs themselves.
+   *
    * @param keys {@link AspectKey} to retrieve aspect metadata
-   * @param keysCount pagination key count limit
-   * @param position starting position of pagination
-   * @param includeSoftDeleted include soft deleted aspects, default false
+   * @param keysCount slice window: the method processes {@code aspectKeys[position .. min(size, position+keysCount))}
+   *                  when collecting URNs and aspect columns. Callers that want to process all keys pass {@code keys.size()}.
+   * @param position starting index for the slice window (callers that want to process all keys pass {@code 0})
+   * @param includeSoftDeleted whether to include asset-level soft deleted entities (deleted_ts)
    * @param isTestMode whether the operation is in test mode or not
    * @param <ASPECT> metadata aspect value
    * @return a list of {@link EbeanMetadataAspect} as get response
