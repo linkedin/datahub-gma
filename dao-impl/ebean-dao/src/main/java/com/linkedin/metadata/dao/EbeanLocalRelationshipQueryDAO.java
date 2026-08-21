@@ -20,6 +20,7 @@ import io.ebean.config.ServerConfig;
 import com.linkedin.metadata.query.LocalRelationshipCriterion;
 import com.linkedin.metadata.query.LocalRelationshipCriterionArray;
 import com.linkedin.metadata.query.LocalRelationshipFilter;
+import com.linkedin.metadata.query.LocalRelationshipValue;
 import com.linkedin.metadata.query.RelationshipDirection;
 import io.ebean.EbeanServer;
 import io.ebean.SqlQuery;
@@ -62,6 +63,8 @@ public class EbeanLocalRelationshipQueryDAO {
   private static final String IDX_DESTINATION_DELETED_TS = "idx_destination_deleted_ts";
   private static final String FORCE_IDX_ON_DESTINATION = " FORCE INDEX (idx_destination_deleted_ts) ";
   private static final String DESTINATION_FIELD =  "destination";
+  // Default UrnField.name (see UrnField.pdl); a destination entity filter joined on dt.urn carries it.
+  private static final String URN_FIELD = "urn";
   private final EbeanServer _server;
   private final MultiHopsTraversalSqlGenerator _sqlGenerator;
 
@@ -69,7 +72,7 @@ public class EbeanLocalRelationshipQueryDAO {
 
   private Set<String> _mgEntityTypeNameSet;
   private EbeanLocalDAO.SchemaConfig _schemaConfig = EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY;
-  private SchemaValidatorUtil _schemaValidatorUtil;
+  private final SchemaValidatorUtil _schemaValidatorUtil;
 
   public EbeanLocalRelationshipQueryDAO(EbeanServer server, ServerConfig serverConfig,
       EBeanDAOConfig eBeanDAOConfig) {
@@ -90,6 +93,19 @@ public class EbeanLocalRelationshipQueryDAO {
     _server = server;
     _eBeanDAOConfig = new EBeanDAOConfig();
     _schemaValidatorUtil = new SchemaValidatorUtil(server);
+    _sqlGenerator = new MultiHopsTraversalSqlGenerator(SUPPORTED_CONDITIONS, _schemaValidatorUtil);
+  }
+
+  /**
+   * Wires an explicit validator so tests can drive index presence without a live schema. Both the validator
+   * field and the SQL generator are built from the same instance, so the DAO is never left half-configured.
+   */
+  @VisibleForTesting
+  public EbeanLocalRelationshipQueryDAO(EbeanServer server, EBeanDAOConfig eBeanDAOConfig,
+      SchemaValidatorUtil schemaValidatorUtil) {
+    _server = server;
+    _eBeanDAOConfig = eBeanDAOConfig;
+    _schemaValidatorUtil = schemaValidatorUtil;
     _sqlGenerator = new MultiHopsTraversalSqlGenerator(SUPPORTED_CONDITIONS, _schemaValidatorUtil);
   }
 
@@ -1283,6 +1299,25 @@ public class EbeanLocalRelationshipQueryDAO {
     sqlBuilder.append("SELECT rt.*");
     sqlBuilder.append(" FROM ").append(relationshipTableName).append(" rt ");
 
+    // META-24159 (keyset builder only): force idx_destination_deleted_ts when the query pins rt.destination to
+    // exactly one urn (a direct, non-negated urn EQUAL or single-value IN leaf). InnoDB suffixes secondary
+    // indexes with the PK id, so (destination, deleted_ts) also satisfies ORDER BY rt.id ASC without a
+    // filesort. Joins/filters are always retained; the hint fires only when the index exists.
+    //
+    // Which filter pins the destination depends on the call shape, so all three are considered here rather
+    // than at the branch that happens to render each one. A caller that passes no destination entity class and
+    // an empty destination entity filter still pins the destination through the relationship filter, which is
+    // how reverse-lineage reads arrive.
+    final boolean destinationPinnedToOneUrn = destTableName != null
+        ? isDirectSingleUrnLeaf(destinationEntityFilter, URN_FIELD)
+        : isDirectSingleUrnLeaf(destinationEntityFilter, DESTINATION_FIELD)
+            || isDirectSingleUrnLeaf(relationshipFilter, DESTINATION_FIELD);
+
+    if (destinationPinnedToOneUrn
+        && _schemaValidatorUtil.indexExists(relationshipTableName, IDX_DESTINATION_DELETED_TS)) {
+      sqlBuilder.append(FORCE_IDX_ON_DESTINATION);
+    }
+
     final List<Triplet<LocalRelationshipFilter, String, String>> filters = new ArrayList<>();
 
     if (_schemaConfig == EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY) {
@@ -1324,6 +1359,65 @@ public class EbeanLocalRelationshipQueryDAO {
     sqlBuilder.append(" ORDER BY rt.id ASC LIMIT ").append(pageSize);
 
     return sqlBuilder.toString();
+  }
+
+  /**
+   * Whether {@code filter} is a single, direct, non-negated urn leaf pinning exactly one value
+   * ({@code urn EQUAL '<value>'} as a scalar string, or {@code urn IN ('<value>')} as a one-element
+   * array), eligible for the META-24159 {@code idx_destination_deleted_ts} hint. Any {@code AND}/
+   * {@code OR}/{@code NOT} wrapper, extra criteria, a non-urn field, a scalar {@code IN}, or a multi-
+   * value (or non-scalar {@code EQUAL}) value is ineligible. The urn field must be named
+   * {@code expectedUrnFieldName} ({@code "destination"} for the relationship filter, else {@code "urn"}).
+   */
+  private boolean isDirectSingleUrnLeaf(@Nullable final LocalRelationshipFilter filter,
+      @Nonnull final String expectedUrnFieldName) {
+    final LocalRelationshipCriterion leaf = topLevelDirectCriterion(filter);
+    if (leaf == null || !leaf.hasField() || !leaf.getField().isUrnField()) {
+      return false;
+    }
+
+    if (!expectedUrnFieldName.equals(leaf.getField().getUrnField().getName())) {
+      return false;
+    }
+
+    final LocalRelationshipValue value = leaf.getValue();
+    if (value == null) {
+      return false;
+    }
+
+    switch (leaf.getCondition()) {
+      case EQUAL:
+        return value.isString();
+      case IN:
+        return value.isArray() && value.getArray().size() == 1;
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * Returns the single top-level {@link LocalRelationshipCriterion} of {@code filter}, or
+   * {@code null} when it is empty, has more than one criterion, or wraps its criterion in any logical
+   * operation ({@code AND}/{@code OR}/{@code NOT}). The logical tree is intentionally not flattened,
+   * so negated or grouped filters stay ineligible for the single-destination hint.
+   */
+  @Nullable
+  private LocalRelationshipCriterion topLevelDirectCriterion(@Nullable final LocalRelationshipFilter filter) {
+    if (filter == null) {
+      return null;
+    }
+
+    if (filter.hasLogicalExpressionCriteria() && filter.getLogicalExpressionCriteria() != null) {
+      final LogicalExpressionLocalRelationshipCriterion node = filter.getLogicalExpressionCriteria();
+      if (node.hasExpr() && node.getExpr().isCriterion()) {
+        return node.getExpr().getCriterion();
+      }
+      return null;
+    }
+
+    // The only caller normalizes the filter first, which either moves `criteria` into
+    // `logicalExpressionCriteria` or leaves it empty, so a populated `criteria` never reaches here.
+    return null;
   }
 
   /**
