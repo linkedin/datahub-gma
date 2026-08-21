@@ -72,7 +72,7 @@ public class EbeanLocalRelationshipQueryDAO {
 
   private Set<String> _mgEntityTypeNameSet;
   private EbeanLocalDAO.SchemaConfig _schemaConfig = EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY;
-  private SchemaValidatorUtil _schemaValidatorUtil;
+  private final SchemaValidatorUtil _schemaValidatorUtil;
 
   public EbeanLocalRelationshipQueryDAO(EbeanServer server, ServerConfig serverConfig,
       EBeanDAOConfig eBeanDAOConfig) {
@@ -93,6 +93,19 @@ public class EbeanLocalRelationshipQueryDAO {
     _server = server;
     _eBeanDAOConfig = new EBeanDAOConfig();
     _schemaValidatorUtil = new SchemaValidatorUtil(server);
+    _sqlGenerator = new MultiHopsTraversalSqlGenerator(SUPPORTED_CONDITIONS, _schemaValidatorUtil);
+  }
+
+  /**
+   * Wires an explicit validator so tests can drive index presence without a live schema. Both the validator
+   * field and the SQL generator are built from the same instance, so the DAO is never left half-configured.
+   */
+  @VisibleForTesting
+  public EbeanLocalRelationshipQueryDAO(EbeanServer server, EBeanDAOConfig eBeanDAOConfig,
+      SchemaValidatorUtil schemaValidatorUtil) {
+    _server = server;
+    _eBeanDAOConfig = eBeanDAOConfig;
+    _schemaValidatorUtil = schemaValidatorUtil;
     _sqlGenerator = new MultiHopsTraversalSqlGenerator(SUPPORTED_CONDITIONS, _schemaValidatorUtil);
   }
 
@@ -1286,11 +1299,21 @@ public class EbeanLocalRelationshipQueryDAO {
     sqlBuilder.append("SELECT rt.*");
     sqlBuilder.append(" FROM ").append(relationshipTableName).append(" rt ");
 
-    // META-24159 (keyset builder only): when the destination filter pins exactly one urn (a direct,
-    // non-negated urn EQUAL or single-value IN leaf), force idx_destination_deleted_ts. InnoDB suffixes
-    // secondary indexes with the PK id, so (destination, deleted_ts) also satisfies ORDER BY rt.id ASC
-    // without a filesort. Joins/filters are always retained; the hint fires only when the index exists.
-    if (destTableName != null && isDirectSingleUrnLeaf(destinationEntityFilter, URN_FIELD)
+    // META-24159 (keyset builder only): force idx_destination_deleted_ts when the query pins rt.destination to
+    // exactly one urn (a direct, non-negated urn EQUAL or single-value IN leaf). InnoDB suffixes secondary
+    // indexes with the PK id, so (destination, deleted_ts) also satisfies ORDER BY rt.id ASC without a
+    // filesort. Joins/filters are always retained; the hint fires only when the index exists.
+    //
+    // Which filter pins the destination depends on the call shape, so all three are considered here rather
+    // than at the branch that happens to render each one. A caller that passes no destination entity class and
+    // an empty destination entity filter still pins the destination through the relationship filter, which is
+    // how reverse-lineage reads arrive.
+    final boolean destinationPinnedToOneUrn = destTableName != null
+        ? isDirectSingleUrnLeaf(destinationEntityFilter, URN_FIELD)
+        : isDirectSingleUrnLeaf(destinationEntityFilter, DESTINATION_FIELD)
+            || isDirectSingleUrnLeaf(relationshipFilter, DESTINATION_FIELD);
+
+    if (destinationPinnedToOneUrn
         && _schemaValidatorUtil.indexExists(relationshipTableName, IDX_DESTINATION_DELETED_TS)) {
       sqlBuilder.append(FORCE_IDX_ON_DESTINATION);
     }
@@ -1307,11 +1330,6 @@ public class EbeanLocalRelationshipQueryDAO {
       } else if (destinationEntityFilter != null) {
         validateEntityFilterOnlyOneUrn(destinationEntityFilter);
         filters.add(new Triplet<>(destinationEntityFilter, "rt", relationshipTableName));
-      } else if (isDirectSingleUrnLeaf(relationshipFilter, DESTINATION_FIELD)
-          && _schemaValidatorUtil.indexExists(relationshipTableName, IDX_DESTINATION_DELETED_TS)) {
-        // No destination entity table: a direct single-urn `destination` leaf pins rt.destination,
-        // so apply the same guarded idx_destination_deleted_ts hint.
-        sqlBuilder.append(FORCE_IDX_ON_DESTINATION);
       }
 
       if (sourceTableName != null) {
@@ -1397,10 +1415,8 @@ public class EbeanLocalRelationshipQueryDAO {
       return null;
     }
 
-    if (filter.hasCriteria() && filter.getCriteria().size() == 1) {
-      return filter.getCriteria().get(0);
-    }
-
+    // The only caller normalizes the filter first, which either moves `criteria` into
+    // `logicalExpressionCriteria` or leaves it empty, so a populated `criteria` never reaches here.
     return null;
   }
 

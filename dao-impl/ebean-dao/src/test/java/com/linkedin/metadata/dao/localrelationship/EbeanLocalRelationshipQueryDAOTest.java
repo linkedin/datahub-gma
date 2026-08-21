@@ -3074,19 +3074,16 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
   // Keyset (seek) pagination: META-24159 single-destination FORCE INDEX hint.
   // A DAO whose SchemaValidatorUtil is a mock so tests drive indexExists deterministically (the embedded
-  // relationship tables carry no idx_destination_deleted_ts); injected via reflection to avoid a
-  // test-only setter on the production class.
+  // relationship tables carry no idx_destination_deleted_ts). Uses the package-private constructor so the
+  // validator and the SQL generator are built from the same instance.
   private EbeanLocalRelationshipQueryDAO daoWithMockedIndex(boolean indexPresent) {
     SchemaValidatorUtil mockValidator = mock(SchemaValidatorUtil.class);
-    when(mockValidator.indexExists(anyString(), anyString())).thenReturn(indexPresent);
-    EbeanLocalRelationshipQueryDAO dao = new EbeanLocalRelationshipQueryDAO(_server, _eBeanDAOConfig);
-    try {
-      java.lang.reflect.Field field = EbeanLocalRelationshipQueryDAO.class.getDeclaredField("_schemaValidatorUtil");
-      field.setAccessible(true);
-      field.set(dao, mockValidator);
-    } catch (ReflectiveOperationException e) {
-      throw new RuntimeException(e);
-    }
+    // Pinned to the exact table and index name. The production constant is private, so the literal is used here
+    // deliberately: if that constant is ever changed, these tests fail rather than silently passing.
+    when(mockValidator.indexExists(eq("relationship_table_name"), eq("idx_destination_deleted_ts")))
+        .thenReturn(indexPresent);
+    EbeanLocalRelationshipQueryDAO dao =
+        new EbeanLocalRelationshipQueryDAO(_server, _eBeanDAOConfig, mockValidator);
     dao.setSchemaConfig(EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY);
     return dao;
   }
@@ -3174,6 +3171,24 @@ public class EbeanLocalRelationshipQueryDAOTest {
     assertForceIndexHint(sql, expectHint);
     assertFalse(sql.contains(" dt "), sql);
     assertTrue(sql.contains(expectedPredicate), sql);
+  }
+
+  /**
+   * Reverse-lineage reads pass no destination entity class and an empty destination entity filter, pinning the
+   * destination through the relationship filter instead. That is the shape this hint exists for, so it must be
+   * hinted even though a non-null destination entity filter is present.
+   */
+  @Test
+  public void testKeysetSqlHintsWhenDestinationEntityFilterIsEmptyAndRelationshipFilterPins() {
+    final LocalRelationshipFilter emptyDestinationEntityFilter =
+        new LocalRelationshipFilter().setCriteria(new LocalRelationshipCriterionArray());
+
+    String sql = daoWithMockedIndex(true).buildFindRelationshipKeysetCurrentSQL("relationship_table_name",
+        leafFilter(urnEqual("urn:li:foo:1", "destination")), null, null, null, emptyDestinationEntityFilter, 10, 5, 20);
+
+    assertForceIndexHint(sql, true);
+    assertFalse(sql.contains(" dt "), sql);
+    assertTrue(sql.contains("rt.destination='urn:li:foo:1'"), sql);
   }
 
   // Destination entity-table path: the INNER JOIN on dt is always retained, and the guard here requires
