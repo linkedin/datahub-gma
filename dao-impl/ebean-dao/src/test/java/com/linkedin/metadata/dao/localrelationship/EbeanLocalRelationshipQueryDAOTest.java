@@ -3073,14 +3073,19 @@ public class EbeanLocalRelationshipQueryDAOTest {
   }
 
   // Keyset (seek) pagination: META-24159 single-destination FORCE INDEX hint.
+
+  // Mirrors the private constant of the same name on EbeanLocalRelationshipQueryDAO. Declared here rather
+  // than widening the production constant's visibility, so a change to that constant fails these tests.
+  private static final String IDX_DESTINATION_DELETED_TS = "idx_destination_deleted_ts";
+  private static final String TEST_RELATIONSHIP_TABLE = "relationship_table_name";
+
   // A DAO whose SchemaValidatorUtil is a mock so tests drive indexExists deterministically (the embedded
-  // relationship tables carry no idx_destination_deleted_ts). Uses the package-private constructor so the
-  // validator and the SQL generator are built from the same instance.
+  // relationship tables carry no idx_destination_deleted_ts). Uses the constructor that wires the validator
+  // and the SQL generator from the same instance.
   private EbeanLocalRelationshipQueryDAO daoWithMockedIndex(boolean indexPresent) {
     SchemaValidatorUtil mockValidator = mock(SchemaValidatorUtil.class);
-    // Pinned to the exact table and index name. The production constant is private, so the literal is used here
-    // deliberately: if that constant is ever changed, these tests fail rather than silently passing.
-    when(mockValidator.indexExists(eq("relationship_table_name"), eq("idx_destination_deleted_ts")))
+    // Pinned to the exact table and index, so a typo in either fails rather than matching anything.
+    when(mockValidator.indexExists(eq(TEST_RELATIONSHIP_TABLE), eq(IDX_DESTINATION_DELETED_TS)))
         .thenReturn(indexPresent);
     EbeanLocalRelationshipQueryDAO dao =
         new EbeanLocalRelationshipQueryDAO(_server, _eBeanDAOConfig, mockValidator);
@@ -3129,8 +3134,8 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
   private static void assertForceIndexHint(String sql, boolean expected) {
     if (expected) {
-      assertTrue(sql.contains("FORCE INDEX (idx_destination_deleted_ts)"), sql);
-      assertTrue(sql.indexOf("FROM relationship_table_name rt") < sql.indexOf("FORCE INDEX"), sql);
+      assertTrue(sql.contains("FORCE INDEX (" + IDX_DESTINATION_DELETED_TS + ")"), sql);
+      assertTrue(sql.indexOf("FROM " + TEST_RELATIONSHIP_TABLE + " rt") < sql.indexOf("FORCE INDEX"), sql);
     } else {
       assertFalse(sql.contains("FORCE INDEX"), sql);
     }
