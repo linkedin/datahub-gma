@@ -27,4 +27,10 @@ record GmaAnnotation {
    * Information about GMA Search functionality.
    */
   search: optional SearchAnnotation
+
+  /**
+   * Information about collections
+   */
+  collection: optional CollectionAnnotation
+
 }

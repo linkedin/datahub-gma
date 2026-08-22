@@ -1,0 +1,32 @@
+namespace com.linkedin.testing
+
+/**
+ * For unit tests
+ */
+@gma.collection = {
+  "isCollection" : true,
+  "primaryKeys" : [ {
+    "foo" : {
+      "paths" : [ "x.y", "x.z" ]
+    }
+  }, {
+    "bar" : {
+      "paths" : [ "abc", "def" ]
+    }
+  } ],
+  "defaultUpdateBehavior" : "REPLACE_BY_ACTOR"
+}
+record CollectionAnnotatedAspectBar {
+
+  /** For unit tests */
+  stringField: string
+
+  /** For unit tests */
+  boolField: boolean
+
+  /** For unit tests */
+  longField: long
+
+  /** For unit tests */
+  arrayField: array[string]
+}
