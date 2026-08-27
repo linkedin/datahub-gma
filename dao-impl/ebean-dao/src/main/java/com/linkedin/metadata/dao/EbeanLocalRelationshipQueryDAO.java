@@ -63,6 +63,11 @@ public class EbeanLocalRelationshipQueryDAO {
   private static final String IDX_DESTINATION_DELETED_TS = "idx_destination_deleted_ts";
   private static final String FORCE_IDX_ON_DESTINATION = " FORCE INDEX (idx_destination_deleted_ts) ";
   private static final String DESTINATION_FIELD =  "destination";
+  private static final String IDX_SOURCE_DELETED_TS = "idx_source_deleted_ts";
+  private static final String FORCE_IDX_ON_SOURCE = " FORCE INDEX (idx_source_deleted_ts) ";
+  // The UrnField.name a source-pinning leaf carries. Deliberately separate from the public SOURCE
+  // constant above, which names a result-set column and a DataMap key rather than a filter field.
+  private static final String SOURCE_FIELD = "source";
   // Default UrnField.name (see UrnField.pdl); a destination entity filter joined on dt.urn carries it.
   private static final String URN_FIELD = "urn";
   private final EbeanServer _server;
@@ -1146,18 +1151,17 @@ public class EbeanLocalRelationshipQueryDAO {
         // non-mg entity case, applying dest filter on relationship table
         filters.add(new Triplet<>(destinationEntityFilter, "rt", relationshipTableName));
       } else if (filterHasNonEmptyCriteria(relationshipFilter)) {
-        // Apply FORCE INDEX if destination field is being filtered, and the index exists
+        // Apply FORCE INDEX if the destination or source field is being filtered, and the index exists.
+        // This branch is reached only when no destination entity join was appended, so the hint still lands
+        // directly after "FROM <table> rt" and ahead of the source join added below.
         final LocalRelationshipCriterionArray relationshipCriteria =
             flattenLogicalExpressionLocalRelationshipCriterion(relationshipFilter.getLogicalExpressionCriteria());
-        for (LocalRelationshipCriterion criterion : relationshipCriteria) {
-          LocalRelationshipCriterion.Field field = criterion.getField();
-          if (field.getUrnField() != null && DESTINATION_FIELD.equals(field.getUrnField().getName())) {
-            // Check if index exists on 'destination' before applying FORCE INDEX
-            if (_schemaValidatorUtil.indexExists(relationshipTableName, IDX_DESTINATION_DELETED_TS)) {
-              sqlBuilder.append(FORCE_IDX_ON_DESTINATION);
-            }
-            break;
-          }
+        // Destination is checked first and short-circuits, so a destination-filtered query keeps exactly the
+        // plan it had before META-24386 added the source arm.
+        if (!appendUrnFieldIndexHint(sqlBuilder, relationshipCriteria, relationshipTableName, DESTINATION_FIELD,
+            IDX_DESTINATION_DELETED_TS, FORCE_IDX_ON_DESTINATION)) {
+          appendUrnFieldIndexHint(sqlBuilder, relationshipCriteria, relationshipTableName, SOURCE_FIELD,
+              IDX_SOURCE_DELETED_TS, FORCE_IDX_ON_SOURCE);
         }
       }
 
@@ -1313,9 +1317,26 @@ public class EbeanLocalRelationshipQueryDAO {
         : isDirectSingleUrnLeaf(destinationEntityFilter, DESTINATION_FIELD)
             || isDirectSingleUrnLeaf(relationshipFilter, DESTINATION_FIELD);
 
+    // META-24386: the mirror image on the source side. Forward-lineage reads pin rt.source instead, and
+    // before this they got no hint at all, leaving them on the PRIMARY scan this hint exists to avoid.
+    //
+    // Two shapes can pin the source, not the three the destination has. When sourceTableName is null the
+    // builder below never renders sourceEntityFilter (the destination has an `else if` that moves its filter
+    // onto rt; the source has no such branch), so hinting from a filter that never reaches the WHERE clause
+    // would drive the plan off a predicate the query does not contain.
+    final boolean sourcePinnedToOneUrn = sourceTableName != null
+        ? isDirectSingleUrnLeaf(sourceEntityFilter, URN_FIELD)
+        : isDirectSingleUrnLeaf(relationshipFilter, SOURCE_FIELD);
+
+    // Only one FORCE INDEX can be emitted, so a query pinning both sides has to pick. Destination wins:
+    // it is the path already validated in production, so every currently hinted query stays byte identical.
+    // A both-pinned query selects the edges between one specific pair and is narrow under either index.
     if (destinationPinnedToOneUrn
         && _schemaValidatorUtil.indexExists(relationshipTableName, IDX_DESTINATION_DELETED_TS)) {
       sqlBuilder.append(FORCE_IDX_ON_DESTINATION);
+    } else if (sourcePinnedToOneUrn
+        && _schemaValidatorUtil.indexExists(relationshipTableName, IDX_SOURCE_DELETED_TS)) {
+      sqlBuilder.append(FORCE_IDX_ON_SOURCE);
     }
 
     final List<Triplet<LocalRelationshipFilter, String, String>> filters = new ArrayList<>();
@@ -1362,12 +1383,38 @@ public class EbeanLocalRelationshipQueryDAO {
   }
 
   /**
+   * Appends {@code forceIndexClause} to {@code sqlBuilder} when {@code criteria} contains a urn leaf named
+   * {@code urnFieldName} and {@code indexName} exists on {@code relationshipTableName}.
+   *
+   * <p>Returns whether such a leaf was found, independently of whether the hint was appended. A caller
+   * chaining destination then source uses that to stop after the first side the query filters on, so a
+   * destination-filtered query is never additionally considered for the source hint even when the
+   * destination index is absent.</p>
+   */
+  private boolean appendUrnFieldIndexHint(@Nonnull final StringBuilder sqlBuilder,
+      @Nonnull final LocalRelationshipCriterionArray criteria, @Nonnull final String relationshipTableName,
+      @Nonnull final String urnFieldName, @Nonnull final String indexName,
+      @Nonnull final String forceIndexClause) {
+    for (LocalRelationshipCriterion criterion : criteria) {
+      final LocalRelationshipCriterion.Field field = criterion.getField();
+      if (field.getUrnField() != null && urnFieldName.equals(field.getUrnField().getName())) {
+        if (_schemaValidatorUtil.indexExists(relationshipTableName, indexName)) {
+          sqlBuilder.append(forceIndexClause);
+        }
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
    * Whether {@code filter} is a single, direct, non-negated urn leaf pinning exactly one value
    * ({@code urn EQUAL '<value>'} as a scalar string, or {@code urn IN ('<value>')} as a one-element
-   * array), eligible for the META-24159 {@code idx_destination_deleted_ts} hint. Any {@code AND}/
-   * {@code OR}/{@code NOT} wrapper, extra criteria, a non-urn field, a scalar {@code IN}, or a multi-
-   * value (or non-scalar {@code EQUAL}) value is ineligible. The urn field must be named
-   * {@code expectedUrnFieldName} ({@code "destination"} for the relationship filter, else {@code "urn"}).
+   * array), eligible for the {@code idx_destination_deleted_ts} (META-24159) or
+   * {@code idx_source_deleted_ts} (META-24386) hint. Any {@code AND}/{@code OR}/{@code NOT} wrapper,
+   * extra criteria, a non-urn field, a scalar {@code IN}, or a multi-value (or non-scalar
+   * {@code EQUAL}) value is ineligible. The urn field must be named {@code expectedUrnFieldName}
+   * ({@code "destination"} or {@code "source"} for the relationship filter, else {@code "urn"}).
    */
   private boolean isDirectSingleUrnLeaf(@Nullable final LocalRelationshipFilter filter,
       @Nonnull final String expectedUrnFieldName) {

@@ -3077,16 +3077,26 @@ public class EbeanLocalRelationshipQueryDAOTest {
   // Mirrors the private constant of the same name on EbeanLocalRelationshipQueryDAO. Declared here rather
   // than widening the production constant's visibility, so a change to that constant fails these tests.
   private static final String IDX_DESTINATION_DELETED_TS = "idx_destination_deleted_ts";
+  private static final String IDX_SOURCE_DELETED_TS = "idx_source_deleted_ts";
   private static final String TEST_RELATIONSHIP_TABLE = "relationship_table_name";
 
   // A DAO whose SchemaValidatorUtil is a mock so tests drive indexExists deterministically (the embedded
   // relationship tables carry no idx_destination_deleted_ts). Uses the constructor that wires the validator
   // and the SQL generator from the same instance.
   private EbeanLocalRelationshipQueryDAO daoWithMockedIndex(boolean indexPresent) {
+    return daoWithMockedIndexes(indexPresent, false);
+  }
+
+  // Same, with the destination and source indexes controlled independently so the precedence and
+  // fall-through cases between the two hints can be driven directly.
+  private EbeanLocalRelationshipQueryDAO daoWithMockedIndexes(boolean destinationIndexPresent,
+      boolean sourceIndexPresent) {
     SchemaValidatorUtil mockValidator = mock(SchemaValidatorUtil.class);
     // Pinned to the exact table and index, so a typo in either fails rather than matching anything.
     when(mockValidator.indexExists(eq(TEST_RELATIONSHIP_TABLE), eq(IDX_DESTINATION_DELETED_TS)))
-        .thenReturn(indexPresent);
+        .thenReturn(destinationIndexPresent);
+    when(mockValidator.indexExists(eq(TEST_RELATIONSHIP_TABLE), eq(IDX_SOURCE_DELETED_TS)))
+        .thenReturn(sourceIndexPresent);
     EbeanLocalRelationshipQueryDAO dao =
         new EbeanLocalRelationshipQueryDAO(_server, _eBeanDAOConfig, mockValidator);
     dao.setSchemaConfig(EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY);
@@ -3297,5 +3307,129 @@ public class EbeanLocalRelationshipQueryDAOTest {
       cursor = page.getNextCursor();
     } while (cursor != null);
     return sources;
+  }
+
+  // --------------------------------------------------------------------------------------------
+  // Keyset (seek) pagination: META-24386 single-source FORCE INDEX hint.
+  // Mirrors the destination cases above; only the pinned side and the expected index differ.
+  // --------------------------------------------------------------------------------------------
+
+  private static void assertHintIndex(String sql, String expectedIndex) {
+    if (expectedIndex == null) {
+      assertFalse(sql.contains("FORCE INDEX"), sql);
+    } else {
+      assertTrue(sql.contains("FORCE INDEX (" + expectedIndex + ")"), sql);
+      assertTrue(sql.indexOf("FROM " + TEST_RELATIONSHIP_TABLE + " rt") < sql.indexOf("FORCE INDEX"), sql);
+    }
+    assertTrue(sql.endsWith("ORDER BY rt.id ASC LIMIT 10"), sql);
+  }
+
+  // Structural eligibility matrix on the relationship-filter `source` path, matching the destination
+  // matrix case for case so the two sides cannot drift apart.
+  @DataProvider(name = "relationshipFilterSourceCases")
+  public Object[][] relationshipFilterSourceCases() {
+    return new Object[][]{
+        {"source EQUAL, index present", leafFilter(urnEqual("urn:li:foo:1", "source")), true, true,
+            "rt.source='urn:li:foo:1'"},
+        {"single-value source IN, index present", leafFilter(urnIn("source", "urn:li:foo:1")), true, true,
+            "rt.source IN ('urn:li:foo:1')"},
+        {"eligible shape but index missing", leafFilter(urnEqual("urn:li:foo:1", "source")), false, false,
+            "rt.source='urn:li:foo:1'"},
+        {"NOT-wrapped source", groupFilter(Operator.NOT, urnEqual("urn:li:foo:1", "source")), true, false,
+            "(NOT rt.source='urn:li:foo:1')"},
+        {"OR-grouped sources", groupFilter(Operator.OR, urnEqual("urn:li:foo:1", "source"),
+            urnEqual("urn:li:foo:2", "source")), true, false,
+            "rt.source='urn:li:foo:1' OR rt.source='urn:li:foo:2'"},
+        {"multi-value source IN", leafFilter(urnIn("source", "urn:li:foo:1", "urn:li:foo:2")), true, false,
+            "rt.source IN ('urn:li:foo:1', 'urn:li:foo:2')"},
+        {"single-array source EQUAL", leafFilter(urnEqualArray("source", "urn:li:foo:1")), true, false,
+            "rt.source='('urn:li:foo:1')'"},
+        {"urn field not named source", leafFilter(urnEqual("urn:li:foo:1", null)), true, false,
+            "rt.urn='urn:li:foo:1'"}
+    };
+  }
+
+  @Test(dataProvider = "relationshipFilterSourceCases")
+  public void testKeysetSqlRelationshipFilterSourceHint(String desc, LocalRelationshipFilter relationshipFilter,
+      boolean indexPresent, boolean expectHint, String expectedPredicate) {
+    String sql = daoWithMockedIndexes(false, indexPresent).buildFindRelationshipKeysetCurrentSQL(
+        TEST_RELATIONSHIP_TABLE, relationshipFilter, null, null, null, null, 10, 5, 20);
+
+    assertHintIndex(sql, expectHint ? IDX_SOURCE_DELETED_TS : null);
+    assertFalse(sql.contains(" st "), sql);
+    assertTrue(sql.contains(expectedPredicate), sql);
+  }
+
+  /**
+   * Source entity-table path: the INNER JOIN on st is always retained, and the entity urn leaf must be
+   * named "urn" because it is rendered against st, not rt.
+   */
+  @Test
+  public void testKeysetSqlSourceEntityFilterJoinAndHint() {
+    String sql = daoWithMockedIndexes(false, true).buildFindRelationshipKeysetCurrentSQL(
+        TEST_RELATIONSHIP_TABLE, emptyLogicalRelationshipFilter(), "metadata_entity_foo",
+        leafFilter(urnEqual("urn:li:foo:1", null)), null, null, 10, 5, 20);
+
+    String join = "INNER JOIN metadata_entity_foo st ON st.urn=rt.source";
+    assertTrue(sql.contains(join), sql);
+    assertHintIndex(sql, IDX_SOURCE_DELETED_TS);
+    assertTrue(sql.indexOf("FORCE INDEX") < sql.indexOf(join), sql);
+    assertTrue(sql.contains("st.urn='urn:li:foo:1'"), sql);
+  }
+
+  /**
+   * The source side has only two pinning shapes where the destination has three. With no source entity
+   * class the builder never renders sourceEntityFilter at all (the destination has an `else if` that moves
+   * its filter onto rt; the source has no such branch), so an otherwise hint-eligible source entity filter
+   * must not produce a hint here. Hinting would drive the plan off a predicate absent from the WHERE clause.
+   */
+  @Test
+  public void testKeysetSqlNoSourceHintWhenSourceEntityFilterIsNotRendered() {
+    String sql = daoWithMockedIndexes(false, true).buildFindRelationshipKeysetCurrentSQL(
+        TEST_RELATIONSHIP_TABLE, emptyLogicalRelationshipFilter(), null,
+        leafFilter(urnEqual("urn:li:foo:1", "source")), null, null, 10, 5, 20);
+
+    assertHintIndex(sql, null);
+    assertFalse(sql.contains(" st "), sql);
+    // The filter really is absent from the query, which is what makes the hint unsound.
+    assertFalse(sql.contains("urn:li:foo:1"), sql);
+  }
+
+  /**
+   * Only one FORCE INDEX can be emitted. Destination wins so every query hinted before META-24386 keeps
+   * exactly the plan it had.
+   */
+  @Test
+  public void testKeysetSqlDestinationWinsWhenBothSidesPinned() {
+    String sql = daoWithMockedIndexes(true, true).buildFindRelationshipKeysetCurrentSQL(
+        TEST_RELATIONSHIP_TABLE,
+        groupFilter(Operator.AND, urnEqual("urn:li:foo:1", "destination"), urnEqual("urn:li:foo:2", "source")),
+        null, null, null, null, 10, 5, 20);
+
+    // An AND group is not a direct single leaf, so neither side is eligible through the relationship filter.
+    assertHintIndex(sql, null);
+
+    // Pin the destination through the relationship filter and the source through the entity join: both are
+    // eligible, and the destination hint is the one emitted.
+    String bothEligible = daoWithMockedIndexes(true, true).buildFindRelationshipKeysetCurrentSQL(
+        TEST_RELATIONSHIP_TABLE, leafFilter(urnEqual("urn:li:foo:1", "destination")),
+        "metadata_entity_foo", leafFilter(urnEqual("urn:li:foo:2", null)), null, null, 10, 5, 20);
+
+    assertHintIndex(bothEligible, IDX_DESTINATION_DELETED_TS);
+    assertFalse(bothEligible.contains(IDX_SOURCE_DELETED_TS), bothEligible);
+    assertTrue(bothEligible.contains("INNER JOIN metadata_entity_foo st ON st.urn=rt.source"), bothEligible);
+  }
+
+  /**
+   * When the destination is pinned but its index is absent, an eligible source still gets its hint rather
+   * than the query falling back to a full primary-key scan.
+   */
+  @Test
+  public void testKeysetSqlFallsThroughToSourceWhenDestinationIndexMissing() {
+    String sql = daoWithMockedIndexes(false, true).buildFindRelationshipKeysetCurrentSQL(
+        TEST_RELATIONSHIP_TABLE, leafFilter(urnEqual("urn:li:foo:1", "destination")),
+        "metadata_entity_foo", leafFilter(urnEqual("urn:li:foo:2", null)), null, null, 10, 5, 20);
+
+    assertHintIndex(sql, IDX_SOURCE_DELETED_TS);
   }
 }
