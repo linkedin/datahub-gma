@@ -70,6 +70,9 @@ public class EbeanLocalRelationshipQueryDAO {
   private static final String SOURCE_FIELD = "source";
   // Default UrnField.name (see UrnField.pdl); a destination entity filter joined on dt.urn carries it.
   private static final String URN_FIELD = "urn";
+  // Bounds the AND-tree walk that decides index-hint eligibility, so a pathologically nested filter
+  // cannot turn hint selection into deep recursion. Real filters nest one or two levels.
+  private static final int MAX_HINT_FILTER_DEPTH = 16;
   private final EbeanServer _server;
   private final MultiHopsTraversalSqlGenerator _sqlGenerator;
 
@@ -1156,9 +1159,9 @@ public class EbeanLocalRelationshipQueryDAO {
         // directly after "FROM <table> rt" and ahead of the source join added below.
         final LocalRelationshipCriterionArray relationshipCriteria =
             flattenLogicalExpressionLocalRelationshipCriterion(relationshipFilter.getLogicalExpressionCriteria());
-        // Destination is checked first, so a destination-filtered query keeps the plan it had before
-        // META-24386 added the source arm. The source arm is reached when the destination is not pinned,
-        // or is pinned but its index is absent, matching the keyset builder's else-if.
+        // Destination takes precedence, so a query pinning both sides is hinted on the destination.
+        // The source arm is reached when the destination is not pinned, or is pinned but its index is
+        // absent, matching the keyset builder's else-if.
         if (!appendUrnFieldIndexHint(sqlBuilder, relationshipCriteria, relationshipTableName, DESTINATION_FIELD,
             IDX_DESTINATION_DELETED_TS, FORCE_IDX_ON_DESTINATION)) {
           appendUrnFieldIndexHint(sqlBuilder, relationshipCriteria, relationshipTableName, SOURCE_FIELD,
@@ -1304,30 +1307,30 @@ public class EbeanLocalRelationshipQueryDAO {
     sqlBuilder.append("SELECT rt.*");
     sqlBuilder.append(" FROM ").append(relationshipTableName).append(" rt ");
 
-    // META-24159 (keyset builder only): force idx_destination_deleted_ts when the query pins rt.destination to
-    // exactly one urn (a direct, non-negated urn EQUAL or single-value IN leaf). InnoDB suffixes secondary
-    // indexes with the PK id, so (destination, deleted_ts) also satisfies ORDER BY rt.id ASC without a
-    // filesort. Joins/filters are always retained; the hint fires only when the index exists.
+    // META-24159: force idx_destination_deleted_ts when the query pins rt.destination to exactly one urn.
+    // InnoDB suffixes secondary indexes with the PK id, so (destination, deleted_ts) also satisfies
+    // ORDER BY rt.id ASC without a filesort. Joins/filters are always retained; the hint fires only when
+    // the index exists.
     //
     // Which filter pins the destination depends on the call shape, so all three are considered here rather
     // than at the branch that happens to render each one. A caller that passes no destination entity class and
     // an empty destination entity filter still pins the destination through the relationship filter, which is
     // how reverse-lineage reads arrive.
     final boolean destinationPinnedToOneUrn = destTableName != null
-        ? isDirectSingleUrnLeaf(destinationEntityFilter, URN_FIELD)
-        : isDirectSingleUrnLeaf(destinationEntityFilter, DESTINATION_FIELD)
-            || isDirectSingleUrnLeaf(relationshipFilter, DESTINATION_FIELD);
+        ? pinsUrnFieldToOneValue(destinationEntityFilter, URN_FIELD)
+        : pinsUrnFieldToOneValue(destinationEntityFilter, DESTINATION_FIELD)
+            || pinsUrnFieldToOneValue(relationshipFilter, DESTINATION_FIELD);
 
-    // META-24386: the mirror image on the source side. Forward-lineage reads pin rt.source instead, and
-    // before this they got no hint at all, leaving them on the PRIMARY scan this hint exists to avoid.
+    // META-24386: the mirror image on the source side. Forward-lineage reads pin rt.source, and the source
+    // index keeps them off the PRIMARY scan this hint exists to avoid.
     //
     // Two shapes can pin the source, not the three the destination has. When sourceTableName is null the
     // builder below never renders sourceEntityFilter (the destination has an `else if` that moves its filter
     // onto rt; the source has no such branch), so hinting from a filter that never reaches the WHERE clause
     // would drive the plan off a predicate the query does not contain.
     final boolean sourcePinnedToOneUrn = sourceTableName != null
-        ? isDirectSingleUrnLeaf(sourceEntityFilter, URN_FIELD)
-        : isDirectSingleUrnLeaf(relationshipFilter, SOURCE_FIELD);
+        ? pinsUrnFieldToOneValue(sourceEntityFilter, URN_FIELD)
+        : pinsUrnFieldToOneValue(relationshipFilter, SOURCE_FIELD);
 
     // Only one FORCE INDEX can be emitted, so a query pinning both sides has to pick. Destination wins:
     // it is the path already validated in production, so every currently hinted query stays byte identical.
@@ -1409,17 +1412,69 @@ public class EbeanLocalRelationshipQueryDAO {
   }
 
   /**
-   * Whether {@code filter} is a single, direct, non-negated urn leaf pinning exactly one value
-   * ({@code urn EQUAL '<value>'} as a scalar string, or {@code urn IN ('<value>')} as a one-element
-   * array), eligible for the {@code idx_destination_deleted_ts} (META-24159) or
-   * {@code idx_source_deleted_ts} (META-24386) hint. Any {@code AND}/{@code OR}/{@code NOT} wrapper,
-   * extra criteria, a non-urn field, a scalar {@code IN}, or a multi-value (or non-scalar
-   * {@code EQUAL}) value is ineligible. The urn field must be named {@code expectedUrnFieldName}
-   * ({@code "destination"} or {@code "source"} for the relationship filter, else {@code "urn"}).
+   * Whether {@code filter} constrains {@code expectedUrnFieldName} to exactly one urn value, making the
+   * {@code idx_destination_deleted_ts} (META-24159) or {@code idx_source_deleted_ts} (META-24386) hint
+   * safe to emit.
+   *
+   * <p>A bare urn leaf qualifies, and so does a urn leaf nested anywhere inside a tree of {@code AND}
+   * groups: every conjunct has to hold, so one conjunct pinning the urn pins it for the whole expression
+   * and the remaining conjuncts only narrow the row set further. A lineage read that also filters on
+   * relationship type arrives in exactly that shape.</p>
+   *
+   * <p>{@code OR}, {@code NOT} and unspecified operators are not descended into. A row can satisfy an
+   * {@code OR} without matching the urn predicate at all, so the index would no longer cover the query,
+   * and a negated predicate pins nothing.</p>
+   *
+   * <p>{@code expectedUrnFieldName} is {@code "destination"} or {@code "source"} for the relationship
+   * filter, and {@code "urn"} for an entity filter rendered against a joined table.</p>
    */
-  private boolean isDirectSingleUrnLeaf(@Nullable final LocalRelationshipFilter filter,
+  private boolean pinsUrnFieldToOneValue(@Nullable final LocalRelationshipFilter filter,
       @Nonnull final String expectedUrnFieldName) {
-    final LocalRelationshipCriterion leaf = topLevelDirectCriterion(filter);
+    if (filter == null || !filter.hasLogicalExpressionCriteria()
+        || filter.getLogicalExpressionCriteria() == null) {
+      return false;
+    }
+    return pinsUrnFieldToOneValue(filter.getLogicalExpressionCriteria(), expectedUrnFieldName, 0);
+  }
+
+  private boolean pinsUrnFieldToOneValue(@Nonnull final LogicalExpressionLocalRelationshipCriterion node,
+      @Nonnull final String expectedUrnFieldName, final int depth) {
+    if (depth > MAX_HINT_FILTER_DEPTH || !node.hasExpr()) {
+      return false;
+    }
+
+    final LogicalExpressionLocalRelationshipCriterion.Expr expr = node.getExpr();
+    if (expr.isCriterion()) {
+      return isSingleUrnLeafCriterion(expr.getCriterion(), expectedUrnFieldName);
+    }
+
+    if (!expr.isLogical()) {
+      return false;
+    }
+
+    final LogicalOperation operation = expr.getLogical();
+    if (operation.getOp() != Operator.AND || operation.getExpressions() == null) {
+      return false;
+    }
+
+    for (LogicalExpressionLocalRelationshipCriterion child : operation.getExpressions()) {
+      if (pinsUrnFieldToOneValue(child, expectedUrnFieldName, depth + 1)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Whether {@code leaf} is a urn criterion named {@code expectedUrnFieldName} that pins it to exactly one
+   * value ({@code urn EQUAL '<value>'} as a scalar string, or {@code urn IN ('<value>')} as a one-element
+   * array). A non-urn field, a differently named urn field, a multi-value {@code IN}, a scalar {@code IN},
+   * a non-scalar {@code EQUAL}, or any other condition is ineligible. Pinning to one value is what lets the
+   * composite index also satisfy {@code ORDER BY rt.id ASC}, since the id suffix is ordered only within a
+   * single leading-column value.
+   */
+  private boolean isSingleUrnLeafCriterion(@Nullable final LocalRelationshipCriterion leaf,
+      @Nonnull final String expectedUrnFieldName) {
     if (leaf == null || !leaf.hasField() || !leaf.getField().isUrnField()) {
       return false;
     }
@@ -1441,31 +1496,6 @@ public class EbeanLocalRelationshipQueryDAO {
       default:
         return false;
     }
-  }
-
-  /**
-   * Returns the single top-level {@link LocalRelationshipCriterion} of {@code filter}, or
-   * {@code null} when it is empty, has more than one criterion, or wraps its criterion in any logical
-   * operation ({@code AND}/{@code OR}/{@code NOT}). The logical tree is intentionally not flattened,
-   * so negated or grouped filters stay ineligible for the single-destination hint.
-   */
-  @Nullable
-  private LocalRelationshipCriterion topLevelDirectCriterion(@Nullable final LocalRelationshipFilter filter) {
-    if (filter == null) {
-      return null;
-    }
-
-    if (filter.hasLogicalExpressionCriteria() && filter.getLogicalExpressionCriteria() != null) {
-      final LogicalExpressionLocalRelationshipCriterion node = filter.getLogicalExpressionCriteria();
-      if (node.hasExpr() && node.getExpr().isCriterion()) {
-        return node.getExpr().getCriterion();
-      }
-      return null;
-    }
-
-    // The only caller normalizes the filter first, which either moves `criteria` into
-    // `logicalExpressionCriteria` or leaves it empty, so a populated `criteria` never reaches here.
-    return null;
   }
 
   /**

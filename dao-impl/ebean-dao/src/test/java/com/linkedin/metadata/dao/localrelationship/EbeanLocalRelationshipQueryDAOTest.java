@@ -3145,6 +3145,16 @@ public class EbeanLocalRelationshipQueryDAOTest {
     return new LocalRelationshipFilter().setLogicalExpressionCriteria(buildLogicalGroup(op, array));
   }
 
+  /** Builds a group whose children are themselves expressions, so filters can nest more than one level. */
+  private static LogicalExpressionLocalRelationshipCriterion nestedGroup(Operator op,
+      LogicalExpressionLocalRelationshipCriterion... children) {
+    LogicalExpressionLocalRelationshipCriterionArray array = new LogicalExpressionLocalRelationshipCriterionArray();
+    for (LogicalExpressionLocalRelationshipCriterion child : children) {
+      array.add(child);
+    }
+    return buildLogicalGroup(op, array);
+  }
+
   private static void assertForceIndexHint(String sql, boolean expected) {
     if (expected) {
       assertTrue(sql.contains("FORCE INDEX (" + IDX_DESTINATION_DELETED_TS + ")"), sql);
@@ -3399,8 +3409,33 @@ public class EbeanLocalRelationshipQueryDAOTest {
   }
 
   /**
-   * Only one FORCE INDEX can be emitted. Destination wins so every query hinted before META-24386 keeps
-   * exactly the plan it had.
+   * A relationship filter that pins one side inside an AND group is still pinned: every conjunct holds, so
+   * the extra predicates only narrow the row set. This is the shape a lineage read takes when the caller
+   * also filters on relationship type, and it is the query observed running unhinted in production.
+   */
+  @Test
+  public void testKeysetSqlHintsUrnPinnedInsideAndGroup() {
+    LocalRelationshipCriterion typeCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(
+        LocalRelationshipValue.create("COPY"), Condition.EQUAL, new RelationshipField().setPath("/type"));
+
+    String destinationPinned = daoWithMockedIndexes(true, false).buildFindRelationshipKeysetCurrentSQL(
+        TEST_RELATIONSHIP_TABLE,
+        groupFilter(Operator.AND, urnEqual("urn:li:foo:1", "destination"), typeCriterion),
+        null, null, null, null, 10, 5, 20);
+
+    assertHintIndex(destinationPinned, IDX_DESTINATION_DELETED_TS);
+
+    String sourcePinned = daoWithMockedIndexes(false, true).buildFindRelationshipKeysetCurrentSQL(
+        TEST_RELATIONSHIP_TABLE,
+        groupFilter(Operator.AND, urnEqual("urn:li:foo:1", "source"), typeCriterion),
+        null, null, null, null, 10, 5, 20);
+
+    assertHintIndex(sourcePinned, IDX_SOURCE_DELETED_TS);
+  }
+
+  /**
+   * Only one FORCE INDEX can be emitted, so a query pinning both sides has to choose, and the destination
+   * hint is the one emitted.
    */
   @Test
   public void testKeysetSqlDestinationWinsWhenBothSidesPinned() {
@@ -3409,8 +3444,9 @@ public class EbeanLocalRelationshipQueryDAOTest {
         groupFilter(Operator.AND, urnEqual("urn:li:foo:1", "destination"), urnEqual("urn:li:foo:2", "source")),
         null, null, null, null, 10, 5, 20);
 
-    // An AND group is not a direct single leaf, so neither side is eligible through the relationship filter.
-    assertHintIndex(sql, null);
+    // Both conjuncts pin their side, so both are eligible and the destination hint wins.
+    assertHintIndex(sql, IDX_DESTINATION_DELETED_TS);
+    assertFalse(sql.contains(IDX_SOURCE_DELETED_TS), sql);
 
     // Pin the destination through the relationship filter and the source through the entity join: both are
     // eligible, and the destination hint is the one emitted.
@@ -3437,9 +3473,8 @@ public class EbeanLocalRelationshipQueryDAOTest {
   }
 
   // --------------------------------------------------------------------------------------------
-  // Legacy (offset) builder: the same destination-then-source hint chain. #637 added the
-  // destination hint here without covering it, and META-24386 adds the source arm beside it, so
-  // both are exercised together below.
+  // Legacy (offset) builder: the same destination-then-source hint chain as the keyset builder, with
+  // destination taking precedence and source acting as the fallback.
   // --------------------------------------------------------------------------------------------
 
   // The legacy hint branch is reached only when no destination entity table and no destination
@@ -3547,5 +3582,53 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     assertTrue(sql.contains("FORCE INDEX (" + IDX_SOURCE_DELETED_TS + ")"), sql);
     assertFalse(sql.contains(IDX_DESTINATION_DELETED_TS), sql);
+  }
+
+  /**
+   * An AND nested inside an AND still pins, since both levels must hold.
+   */
+  @Test
+  public void testKeysetSqlHintsUrnPinnedInNestedAndGroup() {
+    LocalRelationshipCriterion typeCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(
+        LocalRelationshipValue.create("COPY"), Condition.EQUAL, new RelationshipField().setPath("/type"));
+    LocalRelationshipCriterion actorCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(
+        LocalRelationshipValue.create("urn:li:corpuser:tester"), Condition.EQUAL,
+        new RelationshipField().setPath("/auditStampActor"));
+
+    // The inner group needs two children: buildLogicalGroup collapses a single-child non-NOT group,
+    // which would flatten this back into the one-level case.
+    LocalRelationshipFilter nested = new LocalRelationshipFilter()
+        .setLogicalExpressionCriteria(nestedGroup(Operator.AND,
+            wrapCriterionAsLogicalExpression(typeCriterion),
+            nestedGroup(Operator.AND,
+                wrapCriterionAsLogicalExpression(urnEqual("urn:li:foo:1", "source")),
+                wrapCriterionAsLogicalExpression(actorCriterion))));
+
+    String sql = daoWithMockedIndexes(false, true).buildFindRelationshipKeysetCurrentSQL(
+        TEST_RELATIONSHIP_TABLE, nested, null, null, null, null, 10, 5, 20);
+
+    assertHintIndex(sql, IDX_SOURCE_DELETED_TS);
+  }
+
+  /**
+   * An OR nested inside an AND must not be treated as pinning. Rows can satisfy the OR through the other
+   * branch, so the urn predicate does not hold for every row the index would be steered onto.
+   */
+  @Test
+  public void testKeysetSqlNoHintWhenUrnIsOnlyPinnedInsideNestedOr() {
+    LocalRelationshipCriterion typeCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(
+        LocalRelationshipValue.create("COPY"), Condition.EQUAL, new RelationshipField().setPath("/type"));
+
+    LocalRelationshipFilter nested = new LocalRelationshipFilter()
+        .setLogicalExpressionCriteria(nestedGroup(Operator.AND,
+            wrapCriterionAsLogicalExpression(typeCriterion),
+            nestedGroup(Operator.OR,
+                wrapCriterionAsLogicalExpression(urnEqual("urn:li:foo:1", "source")),
+                wrapCriterionAsLogicalExpression(urnEqual("urn:li:foo:2", "source")))));
+
+    String sql = daoWithMockedIndexes(false, true).buildFindRelationshipKeysetCurrentSQL(
+        TEST_RELATIONSHIP_TABLE, nested, null, null, null, null, 10, 5, 20);
+
+    assertHintIndex(sql, null);
   }
 }
