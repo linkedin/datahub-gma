@@ -1156,8 +1156,9 @@ public class EbeanLocalRelationshipQueryDAO {
         // directly after "FROM <table> rt" and ahead of the source join added below.
         final LocalRelationshipCriterionArray relationshipCriteria =
             flattenLogicalExpressionLocalRelationshipCriterion(relationshipFilter.getLogicalExpressionCriteria());
-        // Destination is checked first and short-circuits, so a destination-filtered query keeps exactly the
-        // plan it had before META-24386 added the source arm.
+        // Destination is checked first, so a destination-filtered query keeps the plan it had before
+        // META-24386 added the source arm. The source arm is reached when the destination is not pinned,
+        // or is pinned but its index is absent, matching the keyset builder's else-if.
         if (!appendUrnFieldIndexHint(sqlBuilder, relationshipCriteria, relationshipTableName, DESTINATION_FIELD,
             IDX_DESTINATION_DELETED_TS, FORCE_IDX_ON_DESTINATION)) {
           appendUrnFieldIndexHint(sqlBuilder, relationshipCriteria, relationshipTableName, SOURCE_FIELD,
@@ -1386,10 +1387,9 @@ public class EbeanLocalRelationshipQueryDAO {
    * Appends {@code forceIndexClause} to {@code sqlBuilder} when {@code criteria} contains a urn leaf named
    * {@code urnFieldName} and {@code indexName} exists on {@code relationshipTableName}.
    *
-   * <p>Returns whether such a leaf was found, independently of whether the hint was appended. A caller
-   * chaining destination then source uses that to stop after the first side the query filters on, so a
-   * destination-filtered query is never additionally considered for the source hint even when the
-   * destination index is absent.</p>
+   * <p>Returns whether the clause was appended, so a caller chaining destination then source falls through
+   * to the source arm when the destination index is absent. That matches the keyset builder, where the
+   * equivalent {@code else if} is reached for the same reason.</p>
    */
   private boolean appendUrnFieldIndexHint(@Nonnull final StringBuilder sqlBuilder,
       @Nonnull final LocalRelationshipCriterionArray criteria, @Nonnull final String relationshipTableName,
@@ -1400,8 +1400,9 @@ public class EbeanLocalRelationshipQueryDAO {
       if (field.getUrnField() != null && urnFieldName.equals(field.getUrnField().getName())) {
         if (_schemaValidatorUtil.indexExists(relationshipTableName, indexName)) {
           sqlBuilder.append(forceIndexClause);
+          return true;
         }
-        return true;
+        return false;
       }
     }
     return false;

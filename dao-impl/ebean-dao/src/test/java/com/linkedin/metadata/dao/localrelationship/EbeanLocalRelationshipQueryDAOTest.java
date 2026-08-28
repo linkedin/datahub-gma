@@ -3432,4 +3432,96 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     assertHintIndex(sql, IDX_SOURCE_DELETED_TS);
   }
+
+  // --------------------------------------------------------------------------------------------
+  // Legacy (offset) builder: the same destination-then-source hint chain. #637 added the
+  // destination hint here without covering it, and META-24386 adds the source arm beside it, so
+  // both are exercised together below.
+  // --------------------------------------------------------------------------------------------
+
+  // The legacy hint branch is reached only when no destination entity table and no destination
+  // entity filter are supplied, so the relationship filter is what pins a side.
+  private String legacySqlWithRelationshipFilter(EbeanLocalRelationshipQueryDAO dao,
+      LocalRelationshipFilter relationshipFilter) {
+    return dao.buildFindRelationshipSQL(TEST_RELATIONSHIP_TABLE, relationshipFilter,
+        null, null, null, null, -1, -1, new RelationshipLookUpContext());
+  }
+
+  @DataProvider(name = "legacyRelationshipFilterHintCases")
+  public Object[][] legacyRelationshipFilterHintCases() {
+    return new Object[][]{
+        // desc, filter, destIndexPresent, sourceIndexPresent, expectedIndex (null = no hint)
+        {"destination pinned, its index present", leafFilter(urnEqual("urn:li:foo:1", "destination")),
+            true, true, IDX_DESTINATION_DELETED_TS},
+        {"source pinned, its index present", leafFilter(urnEqual("urn:li:foo:1", "source")),
+            true, true, IDX_SOURCE_DELETED_TS},
+        {"destination pinned but its index missing, no source leaf", leafFilter(urnEqual("urn:li:foo:1", "destination")),
+            false, true, null},
+        {"source pinned but its index missing", leafFilter(urnEqual("urn:li:foo:1", "source")),
+            true, false, null},
+        {"neither side pinned", leafFilter(urnEqual("urn:li:foo:1", null)), true, true, null}
+    };
+  }
+
+  /**
+   * Unlike the keyset builder, the legacy builder flattens the logical tree, so it hints on any urn
+   * leaf naming the side rather than requiring a single direct leaf.
+   */
+  @Test(dataProvider = "legacyRelationshipFilterHintCases")
+  public void testLegacySqlRelationshipFilterHint(String desc, LocalRelationshipFilter relationshipFilter,
+      boolean destIndexPresent, boolean sourceIndexPresent, String expectedIndex) {
+    String sql = legacySqlWithRelationshipFilter(
+        daoWithMockedIndexes(destIndexPresent, sourceIndexPresent), relationshipFilter);
+
+    if (expectedIndex == null) {
+      assertFalse(sql.contains("FORCE INDEX"), desc + ": " + sql);
+    } else {
+      assertTrue(sql.contains("FORCE INDEX (" + expectedIndex + ")"), desc + ": " + sql);
+      assertTrue(sql.indexOf("FROM " + TEST_RELATIONSHIP_TABLE + " rt") < sql.indexOf("FORCE INDEX"),
+          desc + ": " + sql);
+    }
+  }
+
+  /**
+   * Both builders fall through to the source arm when the destination is pinned but its index is
+   * absent, rather than emitting no hint at all. Mirrors
+   * {@code testKeysetSqlFallsThroughToSourceWhenDestinationIndexMissing}.
+   */
+  @Test
+  public void testLegacySqlFallsThroughToSourceWhenDestinationIndexMissing() {
+    String sql = legacySqlWithRelationshipFilter(daoWithMockedIndexes(false, true),
+        groupFilter(Operator.AND, urnEqual("urn:li:foo:1", "destination"), urnEqual("urn:li:foo:2", "source")));
+
+    assertTrue(sql.contains("FORCE INDEX (" + IDX_SOURCE_DELETED_TS + ")"), sql);
+    assertFalse(sql.contains(IDX_DESTINATION_DELETED_TS), sql);
+  }
+
+  /**
+   * Destination takes precedence in the legacy builder too, so the two builders agree on which hint
+   * a both-pinned query gets.
+   */
+  @Test
+  public void testLegacySqlDestinationWinsWhenBothSidesPinned() {
+    String sql = legacySqlWithRelationshipFilter(daoWithMockedIndexes(true, true),
+        groupFilter(Operator.AND, urnEqual("urn:li:foo:1", "destination"), urnEqual("urn:li:foo:2", "source")));
+
+    assertTrue(sql.contains("FORCE INDEX (" + IDX_DESTINATION_DELETED_TS + ")"), sql);
+    assertFalse(sql.contains(IDX_SOURCE_DELETED_TS), sql);
+  }
+
+  /**
+   * The source join is still appended after the hint, and the hint sits between the table and the
+   * join so the emitted SQL stays valid.
+   */
+  @Test
+  public void testLegacySqlSourceHintPrecedesSourceJoin() {
+    String sql = daoWithMockedIndexes(false, true).buildFindRelationshipSQL(TEST_RELATIONSHIP_TABLE,
+        leafFilter(urnEqual("urn:li:foo:1", "source")), "metadata_entity_foo", null, null, null,
+        -1, -1, new RelationshipLookUpContext());
+
+    String join = "INNER JOIN metadata_entity_foo st ON st.urn=rt.source";
+    assertTrue(sql.contains(join), sql);
+    assertTrue(sql.contains("FORCE INDEX (" + IDX_SOURCE_DELETED_TS + ")"), sql);
+    assertTrue(sql.indexOf("FORCE INDEX") < sql.indexOf(join), sql);
+  }
 }
