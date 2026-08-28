@@ -3569,8 +3569,9 @@ public class EbeanLocalRelationshipQueryDAOTest {
    *
    * <p>This is the shape production actually sends: a caller that passes a lineage type gets a
    * relationship filter carrying both a source urn and a relationship-field predicate on the
-   * relationship's own type. Note the divergence from the keyset builder, which declines to hint a
-   * multi-criterion group at all -- see {@code testKeysetSqlDestinationWinsWhenBothSidesPinned}.
+   * relationship's own type. Both builders hint it, by different routes: this one flattens the whole
+   * logical tree, while the keyset builder descends only through {@code AND} groups -- see
+   * {@code pinsUrnFieldToOneValue}.
    */
   @Test
   public void testLegacySqlSkipsNonUrnCriterionWhenLocatingSourceUrn() {
