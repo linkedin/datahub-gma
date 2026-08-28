@@ -3634,6 +3634,26 @@ public class EbeanLocalRelationshipQueryDAOTest {
   }
 
   /**
+   * The legacy {@code criteria} field is not hint-eligible. Eligibility is decided before the filter is
+   * normalized into a logical expression, so a caller still using {@code criteria} gets its predicate
+   * rendered but no hint.
+   */
+  @Test
+  public void testKeysetSqlNoHintWhenFilterUsesLegacyCriteriaField() {
+    LocalRelationshipFilter legacy = new LocalRelationshipFilter()
+        .setCriteria(new LocalRelationshipCriterionArray(urnEqual("urn:li:foo:1", "source")))
+        .setDirection(RelationshipDirection.OUTGOING);
+
+    String sql = daoWithMockedIndexes(false, true).buildFindRelationshipKeysetCurrentSQL(
+        TEST_RELATIONSHIP_TABLE, legacy, null, null, null, null, 10, 5, 20);
+
+    assertHintIndex(sql, null);
+    // The predicate is still rendered, so the missing hint is the eligibility rule rather than a
+    // filter that was dropped.
+    assertTrue(sql.contains("rt.source") && sql.contains("urn:li:foo:1"), sql);
+  }
+
+  /**
    * Only EQUAL and single-value IN pin a urn to one value. An inequality matches a range, which the
    * composite index cannot also order by id, so it is ineligible even though the SQL layer supports it.
    */
