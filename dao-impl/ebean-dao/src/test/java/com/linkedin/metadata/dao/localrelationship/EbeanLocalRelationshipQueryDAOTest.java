@@ -3634,12 +3634,12 @@ public class EbeanLocalRelationshipQueryDAOTest {
   }
 
   /**
-   * The legacy {@code criteria} field is not hint-eligible. Eligibility is decided before the filter is
-   * normalized into a logical expression, so a caller still using {@code criteria} gets its predicate
-   * rendered but no hint.
+   * A filter still using the legacy {@code criteria} field is hint-eligible, because the builder
+   * normalizes all three filters into logical expressions before deciding eligibility. Both filter
+   * shapes therefore behave the same way.
    */
   @Test
-  public void testKeysetSqlNoHintWhenFilterUsesLegacyCriteriaField() {
+  public void testKeysetSqlHintsFilterUsingLegacyCriteriaField() {
     LocalRelationshipFilter legacy = new LocalRelationshipFilter()
         .setCriteria(new LocalRelationshipCriterionArray(urnEqual("urn:li:foo:1", "source")))
         .setDirection(RelationshipDirection.OUTGOING);
@@ -3647,10 +3647,22 @@ public class EbeanLocalRelationshipQueryDAOTest {
     String sql = daoWithMockedIndexes(false, true).buildFindRelationshipKeysetCurrentSQL(
         TEST_RELATIONSHIP_TABLE, legacy, null, null, null, null, 10, 5, 20);
 
-    assertHintIndex(sql, null);
-    // The predicate is still rendered, so the missing hint is the eligibility rule rather than a
-    // filter that was dropped.
+    assertHintIndex(sql, IDX_SOURCE_DELETED_TS);
     assertTrue(sql.contains("rt.source") && sql.contains("urn:li:foo:1"), sql);
+  }
+
+  /**
+   * A filter carrying neither criteria field pins nothing. Normalization leaves an empty filter
+   * untouched, so eligibility sees no logical expression to walk and no hint is emitted.
+   */
+  @Test
+  public void testKeysetSqlNoHintWhenFilterHasNeitherCriteriaField() {
+    String sql = daoWithMockedIndexes(true, true).buildFindRelationshipKeysetCurrentSQL(
+        TEST_RELATIONSHIP_TABLE,
+        new LocalRelationshipFilter().setDirection(RelationshipDirection.OUTGOING),
+        null, null, null, null, 10, 5, 20);
+
+    assertHintIndex(sql, null);
   }
 
   /**
