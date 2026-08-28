@@ -3097,6 +3097,9 @@ public class EbeanLocalRelationshipQueryDAOTest {
         .thenReturn(destinationIndexPresent);
     when(mockValidator.indexExists(eq(TEST_RELATIONSHIP_TABLE), eq(IDX_SOURCE_DELETED_TS)))
         .thenReturn(sourceIndexPresent);
+    // A non-urn criterion resolves to a virtual column before it can be rendered. Report every
+    // column on the test table as present so such a filter emits SQL instead of failing resolution.
+    when(mockValidator.columnExists(eq(TEST_RELATIONSHIP_TABLE), anyString())).thenReturn(true);
     EbeanLocalRelationshipQueryDAO dao =
         new EbeanLocalRelationshipQueryDAO(_server, _eBeanDAOConfig, mockValidator);
     dao.setSchemaConfig(EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY);
@@ -3523,5 +3526,26 @@ public class EbeanLocalRelationshipQueryDAOTest {
     assertTrue(sql.contains(join), sql);
     assertTrue(sql.contains("FORCE INDEX (" + IDX_SOURCE_DELETED_TS + ")"), sql);
     assertTrue(sql.indexOf("FORCE INDEX") < sql.indexOf(join), sql);
+  }
+
+  /**
+   * A criterion that is not a urn field is skipped while scanning for a urn leaf rather than being
+   * mistaken for one, so a source urn sitting alongside it is still found and hinted.
+   *
+   * <p>This is the shape production actually sends: a caller that passes a lineage type gets a
+   * relationship filter carrying both a source urn and a relationship-field predicate on the
+   * relationship's own type. Note the divergence from the keyset builder, which declines to hint a
+   * multi-criterion group at all -- see {@code testKeysetSqlDestinationWinsWhenBothSidesPinned}.
+   */
+  @Test
+  public void testLegacySqlSkipsNonUrnCriterionWhenLocatingSourceUrn() {
+    LocalRelationshipCriterion relationshipTypeCriterion = EBeanDAOUtils.buildRelationshipFieldCriterion(
+        LocalRelationshipValue.create("TRANSFORMED"), Condition.EQUAL, new RelationshipField().setPath("/type"));
+
+    String sql = legacySqlWithRelationshipFilter(daoWithMockedIndexes(false, true),
+        groupFilter(Operator.AND, relationshipTypeCriterion, urnEqual("urn:li:foo:1", "source")));
+
+    assertTrue(sql.contains("FORCE INDEX (" + IDX_SOURCE_DELETED_TS + ")"), sql);
+    assertFalse(sql.contains(IDX_DESTINATION_DELETED_TS), sql);
   }
 }
