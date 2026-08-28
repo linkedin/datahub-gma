@@ -3632,4 +3632,48 @@ public class EbeanLocalRelationshipQueryDAOTest {
 
     assertHintIndex(sql, null);
   }
+
+  /**
+   * Only EQUAL and single-value IN pin a urn to one value. An inequality matches a range, which the
+   * composite index cannot also order by id, so it is ineligible even though the SQL layer supports it.
+   */
+  @Test
+  public void testKeysetSqlNoHintForConditionOtherThanEqualOrIn() {
+    LocalRelationshipCriterion greaterThan = EBeanDAOUtils.buildRelationshipFieldCriterion(
+        LocalRelationshipValue.create("urn:li:foo:1"), Condition.GREATER_THAN, urnField("source"));
+
+    String sql = daoWithMockedIndexes(false, true).buildFindRelationshipKeysetCurrentSQL(
+        TEST_RELATIONSHIP_TABLE, leafFilter(greaterThan), null, null, null, null, 10, 5, 20);
+
+    assertHintIndex(sql, null);
+    // The criterion really is in the query, so the missing hint is the eligibility rule rather than a
+    // filter that was silently dropped.
+    assertTrue(sql.contains("rt.source") && sql.contains("urn:li:foo:1"), sql);
+  }
+
+  /**
+   * The walk stops descending past {@code MAX_HINT_FILTER_DEPTH} so a pathologically nested filter
+   * cannot turn hint selection into deep recursion. Dropping the hint is the safe outcome: the query
+   * still runs, just without a forced plan.
+   */
+  @Test
+  public void testKeysetSqlNoHintWhenFilterNestingExceedsDepthLimit() {
+    // One AND level beyond the limit, with two children per level so buildLogicalGroup's
+    // single-child collapse cannot flatten the tree back under it.
+    LocalRelationshipCriterion filler = EBeanDAOUtils.buildRelationshipFieldCriterion(
+        LocalRelationshipValue.create("COPY"), Condition.EQUAL, new RelationshipField().setPath("/type"));
+
+    LogicalExpressionLocalRelationshipCriterion node =
+        wrapCriterionAsLogicalExpression(urnEqual("urn:li:foo:1", "source"));
+    for (int i = 0; i < 18; i++) {
+      node = nestedGroup(Operator.AND, wrapCriterionAsLogicalExpression(filler), node);
+    }
+
+    String sql = daoWithMockedIndexes(false, true).buildFindRelationshipKeysetCurrentSQL(
+        TEST_RELATIONSHIP_TABLE,
+        new LocalRelationshipFilter().setLogicalExpressionCriteria(node),
+        null, null, null, null, 10, 5, 20);
+
+    assertHintIndex(sql, null);
+  }
 }

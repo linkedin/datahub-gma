@@ -1430,8 +1430,7 @@ public class EbeanLocalRelationshipQueryDAO {
    */
   private boolean pinsUrnFieldToOneValue(@Nullable final LocalRelationshipFilter filter,
       @Nonnull final String expectedUrnFieldName) {
-    if (filter == null || !filter.hasLogicalExpressionCriteria()
-        || filter.getLogicalExpressionCriteria() == null) {
+    if (filter == null || !filter.hasLogicalExpressionCriteria()) {
       return false;
     }
     return pinsUrnFieldToOneValue(filter.getLogicalExpressionCriteria(), expectedUrnFieldName, 0);
@@ -1448,12 +1447,10 @@ public class EbeanLocalRelationshipQueryDAO {
       return isSingleUrnLeafCriterion(expr.getCriterion(), expectedUrnFieldName);
     }
 
-    if (!expr.isLogical()) {
-      return false;
-    }
-
+    // The expr union has exactly two members, so anything that is not a criterion is a logical
+    // operation. Flattening and where-clause construction make the same assumption.
     final LogicalOperation operation = expr.getLogical();
-    if (operation.getOp() != Operator.AND || operation.getExpressions() == null) {
+    if (operation.getOp() != Operator.AND) {
       return false;
     }
 
@@ -1473,9 +1470,9 @@ public class EbeanLocalRelationshipQueryDAO {
    * composite index also satisfy {@code ORDER BY rt.id ASC}, since the id suffix is ordered only within a
    * single leading-column value.
    */
-  private boolean isSingleUrnLeafCriterion(@Nullable final LocalRelationshipCriterion leaf,
+  private boolean isSingleUrnLeafCriterion(@Nonnull final LocalRelationshipCriterion leaf,
       @Nonnull final String expectedUrnFieldName) {
-    if (leaf == null || !leaf.hasField() || !leaf.getField().isUrnField()) {
+    if (!leaf.getField().isUrnField()) {
       return false;
     }
 
@@ -1484,10 +1481,6 @@ public class EbeanLocalRelationshipQueryDAO {
     }
 
     final LocalRelationshipValue value = leaf.getValue();
-    if (value == null) {
-      return false;
-    }
-
     switch (leaf.getCondition()) {
       case EQUAL:
         return value.isString();
