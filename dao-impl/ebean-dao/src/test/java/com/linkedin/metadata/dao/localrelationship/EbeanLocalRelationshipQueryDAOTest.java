@@ -3666,6 +3666,37 @@ public class EbeanLocalRelationshipQueryDAOTest {
   }
 
   /**
+   * The non-MG destination case: with no destination entity class the destination filter is moved onto
+   * {@code rt}, so it pins the destination directly and is hint-eligible without a join.
+   */
+  @Test
+  public void testKeysetSqlHintsDestinationEntityFilterRenderedOnRelationshipTable() {
+    String sql = daoWithMockedIndexes(true, false).buildFindRelationshipKeysetCurrentSQL(
+        TEST_RELATIONSHIP_TABLE, emptyLogicalRelationshipFilter(), null, null,
+        null, leafFilter(urnEqual("urn:li:foo:1", "destination")), 10, 5, 20);
+
+    assertHintIndex(sql, IDX_DESTINATION_DELETED_TS);
+    assertFalse(sql.contains(" dt "), sql);
+    assertTrue(sql.contains("rt.destination='urn:li:foo:1'"), sql);
+  }
+
+  /**
+   * IN paired with a scalar rather than an array pins nothing, so no hint is emitted. The SQL layer
+   * rejects that pairing outright, which is what makes the shape unusable rather than merely unhinted.
+   */
+  @Test
+  public void testKeysetSqlRejectsInPairedWithScalarValue() {
+    LocalRelationshipCriterion scalarIn = EBeanDAOUtils.buildRelationshipFieldCriterion(
+        LocalRelationshipValue.create("urn:li:foo:1"), Condition.IN, urnField("source"));
+
+    IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+        daoWithMockedIndexes(false, true).buildFindRelationshipKeysetCurrentSQL(
+            TEST_RELATIONSHIP_TABLE, leafFilter(scalarIn), null, null, null, null, 10, 5, 20));
+
+    assertTrue(e.getMessage().contains("IN condition must be paired with array value"), e.getMessage());
+  }
+
+  /**
    * Only EQUAL and single-value IN pin a urn to one value. An inequality matches a range, which the
    * composite index cannot also order by id, so it is ineligible even though the SQL layer supports it.
    */
