@@ -1447,8 +1447,13 @@ public class EbeanLocalRelationshipQueryDAO {
       return isSingleUrnLeafCriterion(expr.getCriterion(), expectedUrnFieldName);
     }
 
-    // The expr union has exactly two members, so anything that is not a criterion is a logical
-    // operation. Flattening and where-clause construction make the same assumption.
+    // An expr union with neither member set is representable, and getLogical() returns null for it,
+    // so this cannot be inferred from isCriterion() alone. Flattening skips such a node rather than
+    // failing, so the filter reaches here and must be treated as pinning nothing.
+    if (!expr.isLogical()) {
+      return false;
+    }
+
     final LogicalOperation operation = expr.getLogical();
     if (operation.getOp() != Operator.AND) {
       return false;

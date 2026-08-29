@@ -3697,6 +3697,24 @@ public class EbeanLocalRelationshipQueryDAOTest {
   }
 
   /**
+   * An expr union with neither member set pins nothing. Flattening skips such a node instead of
+   * failing, so the filter is not rejected earlier and eligibility has to handle it rather than
+   * assuming anything that is not a criterion is a logical operation.
+   */
+  @Test
+  public void testKeysetSqlNoHintWhenExpressionIsNeitherCriterionNorLogical() {
+    String sql = daoWithMockedIndexes(true, true).buildFindRelationshipKeysetCurrentSQL(
+        TEST_RELATIONSHIP_TABLE,
+        new LocalRelationshipFilter()
+            .setLogicalExpressionCriteria(new LogicalExpressionLocalRelationshipCriterion()
+                .setExpr(new LogicalExpressionLocalRelationshipCriterion.Expr()))
+            .setDirection(RelationshipDirection.OUTGOING),
+        null, null, null, null, 10, 5, 20);
+
+    assertHintIndex(sql, null);
+  }
+
+  /**
    * Only EQUAL and single-value IN pin a urn to one value. An inequality matches a range, which the
    * composite index cannot also order by id, so it is ineligible even though the SQL layer supports it.
    */
