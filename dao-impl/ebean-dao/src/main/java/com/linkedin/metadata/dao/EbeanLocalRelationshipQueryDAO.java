@@ -306,8 +306,10 @@ public class EbeanLocalRelationshipQueryDAO {
    * LocalRelationshipFilter, int, int)} that walks the matching set in bounded pages. Ranked/
    * non-current pagination is unsupported because it could not bound the per-page DB work.
    *
-   * <p>First page: pass {@code cursor = null}; the DAO captures {@code maxId}, the largest
-   * relationship row id when paging starts ({@code COALESCE(MAX(id), 0)}), and returns rows with
+   * <p>First page: pass {@code cursor = null}. A result that fits inside one page is read with a
+   * single statement and reports {@code maxId} as the largest id it returned. Otherwise the DAO
+   * captures {@code maxId}, the largest relationship row id when paging starts
+   * ({@code COALESCE(MAX(id), 0)}), and returns rows with
    * {@code 0 < rt.id <= maxId} ordered by id, up to {@code pageSize}. Later inserts get larger ids
    * and are excluded, keeping the scan finite. Continuation: pass the next cursor from the previous
    * {@link RelationshipKeysetPage}. The cursor also carries a database scan-start timestamp. Later
@@ -372,8 +374,10 @@ public class EbeanLocalRelationshipQueryDAO {
    * Validates V4 logical-expression filters and the {@code wrapOptions} contract. Ranked/non-current
    * pagination is unsupported because it could not bound the per-page DB work.
    *
-   * <p>First page: pass {@code cursor = null}; the DAO captures {@code maxId}, the largest
-   * relationship row id when paging starts ({@code COALESCE(MAX(id), 0)}), and returns rows with
+   * <p>First page: pass {@code cursor = null}. A result that fits inside one page is read with a
+   * single statement and reports {@code maxId} as the largest id it returned. Otherwise the DAO
+   * captures {@code maxId}, the largest relationship row id when paging starts
+   * ({@code COALESCE(MAX(id), 0)}), and returns rows with
    * {@code 0 < rt.id <= maxId} ordered by id, up to {@code pageSize}. Continuation: pass the next
    * cursor from the previous {@link RelationshipKeysetPage}. The cursor also carries a database
    * scan-start timestamp. Later pages include rows that were current at scan start even if they were
@@ -453,6 +457,20 @@ public class EbeanLocalRelationshipQueryDAO {
           "Keyset pagination is only supported in NEW_SCHEMA_ONLY mode; OLD_SCHEMA_ONLY and DUAL_SCHEMA "
               + "(deprecated) are rejected.");
     }
+
+    // META-24388: most reads return far less than one page, and paging them costs three statements
+    // (scan start, current rows, rows deleted since scan start) where an unpaged read cost one.
+    // Probe with a single statement first. A short page proves the whole result was returned, so
+    // there is no second page to stay consistent with and the other two statements are unnecessary.
+    // A full page is inconclusive (there may or may not be more), so fall through and page properly.
+    if (cursor == null) {
+      final List<SqlRow> singleStatementRows = readWholeResultInOneStatement(relationshipTableName,
+          relationshipFilter, sourceTableName, sourceEntityFilter, destTableName, destinationEntityFilter, pageSize);
+      if (singleStatementRows != null) {
+        return new KeysetScanResult(singleStatementRows, largestIdOrZero(singleStatementRows), null);
+      }
+    }
+
     final long lastId;
     final long maxId;
     final String scanStartTime;
@@ -561,6 +579,45 @@ public class EbeanLocalRelationshipQueryDAO {
   }
 
   /**
+   * Reads the entire result in one statement when it fits in a single page, or returns {@code null}
+   * when it does not and the caller must fall back to paging.
+   *
+   * <p>Bounding by {@code Long.MAX_VALUE} rather than the scan's real {@code maxId} is what avoids
+   * the scan-start query: that bound exists only to keep multiple pages consistent with each other by
+   * excluding rows inserted mid-scan, and a single statement has no second page to be consistent
+   * with. The companion query for rows soft-deleted since scan start is unnecessary for the same
+   * reason, since one statement reads one snapshot. The result is the same shape the unpaged read
+   * returned before keyset pagination was introduced.</p>
+   *
+   * <p>A full page is treated as inconclusive rather than complete. The row count alone cannot
+   * distinguish a result that is exactly one page long from one that is longer. Reading
+   * {@code pageSize + 1} rows would tell them apart, but only below the maximum page size, since at
+   * the maximum it exceeds the bound the SQL builder enforces. Rather than have the fast path work
+   * for some page sizes and not others, the ambiguous case pages instead. Guessing wrong here would
+   * silently drop rows, and an exactly-full page is the rare case.</p>
+   *
+   * @return the complete result, or {@code null} when it did not fit in one page
+   */
+  @Nullable
+  private List<SqlRow> readWholeResultInOneStatement(@Nonnull final String relationshipTableName,
+      @Nonnull final LocalRelationshipFilter relationshipFilter, @Nullable final String sourceTableName,
+      @Nullable final LocalRelationshipFilter sourceEntityFilter, @Nullable final String destTableName,
+      @Nullable final LocalRelationshipFilter destinationEntityFilter, final int pageSize) {
+    final String sql = buildFindRelationshipKeysetCurrentSQL(relationshipTableName, relationshipFilter,
+        sourceTableName, sourceEntityFilter, destTableName, destinationEntityFilter, pageSize, 0L, Long.MAX_VALUE);
+    final List<SqlRow> rows = executeSqlWithIndexCheck(sql, relationshipTableName);
+    return rows.size() < pageSize ? rows : null;
+  }
+
+  /**
+   * Largest {@code id} among {@code rows}, which are in ascending id order, or 0 when empty. Used as
+   * the reported {@code maxId} for a single-statement read, where no separate scan-start query ran.
+   */
+  private static long largestIdOrZero(@Nonnull final List<SqlRow> rows) {
+    return rows.isEmpty() ? 0L : rows.get(rows.size() - 1).getLong("id");
+  }
+
+  /**
    * Immutable holder for one keyset scan's largest row id and database start time.
    */
   private static final class KeysetScanStart {
@@ -624,6 +681,7 @@ public class EbeanLocalRelationshipQueryDAO {
     final String sql =
         "SELECT COALESCE(MAX(id), 0) AS max_id, DATE_FORMAT(NOW(6), '%Y-%m-%d %H:%i:%s.%f') AS scan_start_time FROM "
             + relationshipTableName;
+    beforeRelationshipQueryExecuted(sql);
     // Aggregate without GROUP BY, so this always yields exactly one row.
     final SqlRow row = _server.createSqlQuery(sql).findOne();
     return new KeysetScanStart(row.getLong("max_id"), row.getString("scan_start_time"));
@@ -1438,7 +1496,19 @@ public class EbeanLocalRelationshipQueryDAO {
     return _mgEntityTypeNameSet;
   }
 
+  /**
+   * Invoked immediately before each relationship read is sent to the database. A no-op in
+   * production; tests override it to count how many reads a call actually costs, which is a
+   * behaviour worth pinning because the point of the single-statement fast path is to reduce that
+   * count. Counting SQL construction instead would miss reads whose SQL is not built by the
+   * relationship SQL builders, such as the keyset scan-start query.
+   */
+  protected void beforeRelationshipQueryExecuted(@Nonnull String sql) {
+    // No-op seam.
+  }
+
   private List<SqlRow> executeSqlWithIndexCheck(String sql, String relationshipTableName) {
+    beforeRelationshipQueryExecuted(sql);
     try {
       return _server.createSqlQuery(sql).findList();
     } catch (PersistenceException e) {
@@ -1449,6 +1519,7 @@ public class EbeanLocalRelationshipQueryDAO {
 
   private List<SqlRow> executeSqlWithIndexCheck(String sql, String relationshipTableName,
       @Nonnull String scanStartTime) {
+    beforeRelationshipQueryExecuted(sql);
     try {
       SqlQuery query = _server.createSqlQuery(sql);
       query.setParameter("scanStartTime", scanStartTime);
