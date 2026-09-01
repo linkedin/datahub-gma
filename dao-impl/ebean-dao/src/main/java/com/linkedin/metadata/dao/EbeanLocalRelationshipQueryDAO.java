@@ -306,8 +306,10 @@ public class EbeanLocalRelationshipQueryDAO {
    * LocalRelationshipFilter, int, int)} that walks the matching set in bounded pages. Ranked/
    * non-current pagination is unsupported because it could not bound the per-page DB work.
    *
-   * <p>First page: pass {@code cursor = null}; the DAO captures {@code maxId}, the largest
-   * relationship row id when paging starts ({@code COALESCE(MAX(id), 0)}), and returns rows with
+   * <p>First page: pass {@code cursor = null}. A result that fits inside one page is read with a
+   * single statement and reports {@code maxId} as the largest id it returned. Otherwise the DAO
+   * captures {@code maxId}, the largest relationship row id when paging starts
+   * ({@code COALESCE(MAX(id), 0)}), and returns rows with
    * {@code 0 < rt.id <= maxId} ordered by id, up to {@code pageSize}. Later inserts get larger ids
    * and are excluded, keeping the scan finite. Continuation: pass the next cursor from the previous
    * {@link RelationshipKeysetPage}. The cursor also carries a database scan-start timestamp. Later
@@ -372,8 +374,10 @@ public class EbeanLocalRelationshipQueryDAO {
    * Validates V4 logical-expression filters and the {@code wrapOptions} contract. Ranked/non-current
    * pagination is unsupported because it could not bound the per-page DB work.
    *
-   * <p>First page: pass {@code cursor = null}; the DAO captures {@code maxId}, the largest
-   * relationship row id when paging starts ({@code COALESCE(MAX(id), 0)}), and returns rows with
+   * <p>First page: pass {@code cursor = null}. A result that fits inside one page is read with a
+   * single statement and reports {@code maxId} as the largest id it returned. Otherwise the DAO
+   * captures {@code maxId}, the largest relationship row id when paging starts
+   * ({@code COALESCE(MAX(id), 0)}), and returns rows with
    * {@code 0 < rt.id <= maxId} ordered by id, up to {@code pageSize}. Continuation: pass the next
    * cursor from the previous {@link RelationshipKeysetPage}. The cursor also carries a database
    * scan-start timestamp. Later pages include rows that were current at scan start even if they were
@@ -586,9 +590,11 @@ public class EbeanLocalRelationshipQueryDAO {
    * returned before keyset pagination was introduced.</p>
    *
    * <p>A full page is treated as inconclusive rather than complete. The row count alone cannot
-   * distinguish a result that is exactly one page long from one that is longer, and reading
-   * {@code pageSize + 1} rows to tell them apart would exceed the page-size bound the SQL builder
-   * enforces. Guessing wrong here would silently drop rows, so the ambiguous case pages instead.</p>
+   * distinguish a result that is exactly one page long from one that is longer. Reading
+   * {@code pageSize + 1} rows would tell them apart, but only below the maximum page size, since at
+   * the maximum it exceeds the bound the SQL builder enforces. Rather than have the fast path work
+   * for some page sizes and not others, the ambiguous case pages instead. Guessing wrong here would
+   * silently drop rows, and an exactly-full page is the rare case.</p>
    *
    * @return the complete result, or {@code null} when it did not fit in one page
    */

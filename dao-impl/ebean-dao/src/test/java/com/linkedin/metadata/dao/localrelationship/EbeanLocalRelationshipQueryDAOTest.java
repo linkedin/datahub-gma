@@ -2814,7 +2814,10 @@ public class EbeanLocalRelationshipQueryDAOTest {
         .findOne();
     assertEquals(liveRow.getLong("live_count").longValue(), 1L);
 
-    List<ReportsTo> drained = drainKeyset(10);
+    // Page size 1 rather than something larger: a result that fits inside one page is read with a
+    // single statement, and Query B never runs, so the guard this test provides for the scan-start
+    // timestamp would be lost.
+    List<ReportsTo> drained = drainKeyset(1);
     assertEquals(drained.size(), 1);
     assertEquals(makeFooUrn(drained.get(0).getSource().toString()), source);
   }
