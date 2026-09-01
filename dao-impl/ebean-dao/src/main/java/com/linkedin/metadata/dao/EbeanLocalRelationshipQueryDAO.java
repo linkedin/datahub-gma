@@ -453,6 +453,20 @@ public class EbeanLocalRelationshipQueryDAO {
           "Keyset pagination is only supported in NEW_SCHEMA_ONLY mode; OLD_SCHEMA_ONLY and DUAL_SCHEMA "
               + "(deprecated) are rejected.");
     }
+
+    // META-24388: most reads return far less than one page, and paging them costs three statements
+    // (scan start, current rows, rows deleted since scan start) where an unpaged read cost one.
+    // Probe with a single statement first. A short page proves the whole result was returned, so
+    // there is no second page to stay consistent with and the other two statements are unnecessary.
+    // A full page is inconclusive (there may or may not be more), so fall through and page properly.
+    if (cursor == null) {
+      final List<SqlRow> singleStatementRows = readWholeResultInOneStatement(relationshipTableName,
+          relationshipFilter, sourceTableName, sourceEntityFilter, destTableName, destinationEntityFilter, pageSize);
+      if (singleStatementRows != null) {
+        return new KeysetScanResult(singleStatementRows, largestIdOrZero(singleStatementRows), null);
+      }
+    }
+
     final long lastId;
     final long maxId;
     final String scanStartTime;
@@ -558,6 +572,43 @@ public class EbeanLocalRelationshipQueryDAO {
   protected void afterKeysetCurrentRowsFetched(@Nonnull String relationshipTableName,
       @Nonnull List<SqlRow> currentRows) {
     // Test seam for deterministic simulation of a soft-delete between Query A and Query B.
+  }
+
+  /**
+   * Reads the entire result in one statement when it fits in a single page, or returns {@code null}
+   * when it does not and the caller must fall back to paging.
+   *
+   * <p>Bounding by {@code Long.MAX_VALUE} rather than the scan's real {@code maxId} is what avoids
+   * the scan-start query: that bound exists only to keep multiple pages consistent with each other by
+   * excluding rows inserted mid-scan, and a single statement has no second page to be consistent
+   * with. The companion query for rows soft-deleted since scan start is unnecessary for the same
+   * reason, since one statement reads one snapshot. The result is the same shape the unpaged read
+   * returned before keyset pagination was introduced.</p>
+   *
+   * <p>A full page is treated as inconclusive rather than complete. The row count alone cannot
+   * distinguish a result that is exactly one page long from one that is longer, and reading
+   * {@code pageSize + 1} rows to tell them apart would exceed the page-size bound the SQL builder
+   * enforces. Guessing wrong here would silently drop rows, so the ambiguous case pages instead.</p>
+   *
+   * @return the complete result, or {@code null} when it did not fit in one page
+   */
+  @Nullable
+  private List<SqlRow> readWholeResultInOneStatement(@Nonnull final String relationshipTableName,
+      @Nonnull final LocalRelationshipFilter relationshipFilter, @Nullable final String sourceTableName,
+      @Nullable final LocalRelationshipFilter sourceEntityFilter, @Nullable final String destTableName,
+      @Nullable final LocalRelationshipFilter destinationEntityFilter, final int pageSize) {
+    final String sql = buildFindRelationshipKeysetCurrentSQL(relationshipTableName, relationshipFilter,
+        sourceTableName, sourceEntityFilter, destTableName, destinationEntityFilter, pageSize, 0L, Long.MAX_VALUE);
+    final List<SqlRow> rows = executeSqlWithIndexCheck(sql, relationshipTableName);
+    return rows.size() < pageSize ? rows : null;
+  }
+
+  /**
+   * Largest {@code id} among {@code rows}, which are in ascending id order, or 0 when empty. Used as
+   * the reported {@code maxId} for a single-statement read, where no separate scan-start query ran.
+   */
+  private static long largestIdOrZero(@Nonnull final List<SqlRow> rows) {
+    return rows.isEmpty() ? 0L : rows.get(rows.size() - 1).getLong("id");
   }
 
   /**

@@ -2670,6 +2670,96 @@ public class EbeanLocalRelationshipQueryDAOTest {
     assertEquals(actual, ImmutableSet.of(a, b, c, d));
   }
 
+  /**
+   * META-24388: a result that fits inside one page is read with a single statement, not the three
+   * the paged path uses (scan start, current rows, rows deleted since scan start). Counted directly,
+   * because the saving is the point of the fast path and a row-count assertion would not notice it.
+   */
+  @Test
+  public void testFindRelationshipsByKeysetReadsShortResultInOneStatement() throws URISyntaxException {
+    addReportsToChain(2, new FooUrn(1));
+
+    List<String> executed = new ArrayList<>();
+    EbeanLocalRelationshipQueryDAO countingQueryDAO = countingQueryDAO(executed);
+
+    RelationshipKeysetPage<ReportsTo> page = countingQueryDAO.findRelationshipsByKeyset(
+        null, emptyFilter(), null, emptyFilter(), ReportsTo.class, outgoingEmptyFilter(), 5, null);
+
+    assertEquals(page.getRelationships().size(), 2);
+    assertNull(page.getNextCursor());
+    assertEquals(executed.size(), 1, executed.toString());
+    // The single statement is the ordinary current-rows query, so it keeps whatever index hint the
+    // builder would have emitted for a paged read.
+    assertTrue(executed.get(0).contains("deleted_ts is NULL"), executed.get(0));
+  }
+
+  /**
+   * A full page is inconclusive, since the row count cannot distinguish a result that is exactly one
+   * page long from a longer one. That case pages normally rather than risk truncating the result.
+   */
+  @Test
+  public void testFindRelationshipsByKeysetFullFirstPageStillPages() throws URISyntaxException {
+    addReportsToChain(4, new FooUrn(1));
+
+    List<String> executed = new ArrayList<>();
+    EbeanLocalRelationshipQueryDAO countingQueryDAO = countingQueryDAO(executed);
+
+    RelationshipKeysetPage<ReportsTo> page = countingQueryDAO.findRelationshipsByKeyset(
+        null, emptyFilter(), null, emptyFilter(), ReportsTo.class, outgoingEmptyFilter(), 2, null);
+
+    assertEquals(page.getRelationships().size(), 2);
+    assertNotNull(page.getNextCursor());
+    assertEquals(page.getMaxId(), 4L);
+    // One inconclusive single-statement read, then the paged path's own current and deleted-since
+    // queries. The scan-start query is a fourth read but does not go through either builder, so it
+    // is not counted here.
+    assertEquals(executed.size(), 3, executed.toString());
+  }
+
+  /**
+   * The whole result is still returned when it spans several pages, so the added probe cannot drop
+   * rows on the path it does not short-circuit.
+   */
+  @Test
+  public void testFindRelationshipsByKeysetMultiPageStillCompleteWithFastPath() throws URISyntaxException {
+    Set<FooUrn> expected = new java.util.HashSet<>(addReportsToChain(7, new FooUrn(1)));
+
+    List<ReportsTo> drained = drainKeyset(2);
+
+    assertEquals(drained.size(), 7);
+    assertEquals(drained.stream().map(r -> makeFooUrn(r.getSource().toString())).collect(Collectors.toSet()),
+        expected);
+  }
+
+  /** Records every statement the DAO executes so a test can assert how many reads a call costs. */
+  private EbeanLocalRelationshipQueryDAO countingQueryDAO(List<String> executed) {
+    return new EbeanLocalRelationshipQueryDAO(_server, _eBeanDAOConfig) {
+      @Override
+      public String buildFindRelationshipKeysetCurrentSQL(String relationshipTableName,
+          LocalRelationshipFilter relationshipFilter, String sourceTableName,
+          LocalRelationshipFilter sourceEntityFilter, String destTableName,
+          LocalRelationshipFilter destinationEntityFilter, int pageSize, long lastId, long maxId) {
+        String sql = super.buildFindRelationshipKeysetCurrentSQL(relationshipTableName, relationshipFilter,
+            sourceTableName, sourceEntityFilter, destTableName, destinationEntityFilter, pageSize, lastId, maxId);
+        executed.add(sql);
+        return sql;
+      }
+
+      @Override
+      public String buildFindRelationshipKeysetDeletedSinceScanStartSQL(String relationshipTableName,
+          LocalRelationshipFilter relationshipFilter, String sourceTableName,
+          LocalRelationshipFilter sourceEntityFilter, String destTableName,
+          LocalRelationshipFilter destinationEntityFilter, int pageSize, long lastId, long maxId,
+          String scanStartTime) {
+        String sql = super.buildFindRelationshipKeysetDeletedSinceScanStartSQL(relationshipTableName,
+            relationshipFilter, sourceTableName, sourceEntityFilter, destTableName, destinationEntityFilter,
+            pageSize, lastId, maxId, scanStartTime);
+        executed.add(sql);
+        return sql;
+      }
+    };
+  }
+
   @Test
   public void testFindRelationshipsByKeysetDedupsRowDeletedBetweenCurrentAndDeletedQueries()
       throws URISyntaxException {
@@ -2694,8 +2784,10 @@ public class EbeanLocalRelationshipQueryDAOTest {
       }
     };
 
+    // Page size 1 rather than something larger: this test needs the two-statement path, and a
+    // result that fits inside one page is read in a single statement where no such race exists.
     RelationshipKeysetPage<ReportsTo> page = racyQueryDAO.findRelationshipsByKeyset(
-        null, emptyFilter(), null, emptyFilter(), ReportsTo.class, outgoingEmptyFilter(), 10, null);
+        null, emptyFilter(), null, emptyFilter(), ReportsTo.class, outgoingEmptyFilter(), 1, null);
 
     assertTrue(injected[0]);
     assertEquals(page.getRelationships().size(), 1);
