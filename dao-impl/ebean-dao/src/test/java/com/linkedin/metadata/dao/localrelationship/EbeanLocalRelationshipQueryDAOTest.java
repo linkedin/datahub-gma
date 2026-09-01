@@ -2710,10 +2710,9 @@ public class EbeanLocalRelationshipQueryDAOTest {
     assertEquals(page.getRelationships().size(), 2);
     assertNotNull(page.getNextCursor());
     assertEquals(page.getMaxId(), 4L);
-    // One inconclusive single-statement read, then the paged path's own current and deleted-since
-    // queries. The scan-start query is a fourth read but does not go through either builder, so it
-    // is not counted here.
-    assertEquals(executed.size(), 3, executed.toString());
+    // The inconclusive single-statement read, then the three the paged path needs: the scan-start
+    // query, the current-rows query and the query for rows deleted since scan start.
+    assertEquals(executed.size(), 4, executed.toString());
   }
 
   /**
@@ -2731,31 +2730,12 @@ public class EbeanLocalRelationshipQueryDAOTest {
         expected);
   }
 
-  /** Records every statement the DAO executes so a test can assert how many reads a call costs. */
+  /** Records every relationship read the DAO executes so a test can assert how many a call costs. */
   private EbeanLocalRelationshipQueryDAO countingQueryDAO(List<String> executed) {
     return new EbeanLocalRelationshipQueryDAO(_server, _eBeanDAOConfig) {
       @Override
-      public String buildFindRelationshipKeysetCurrentSQL(String relationshipTableName,
-          LocalRelationshipFilter relationshipFilter, String sourceTableName,
-          LocalRelationshipFilter sourceEntityFilter, String destTableName,
-          LocalRelationshipFilter destinationEntityFilter, int pageSize, long lastId, long maxId) {
-        String sql = super.buildFindRelationshipKeysetCurrentSQL(relationshipTableName, relationshipFilter,
-            sourceTableName, sourceEntityFilter, destTableName, destinationEntityFilter, pageSize, lastId, maxId);
+      protected void beforeRelationshipQueryExecuted(String sql) {
         executed.add(sql);
-        return sql;
-      }
-
-      @Override
-      public String buildFindRelationshipKeysetDeletedSinceScanStartSQL(String relationshipTableName,
-          LocalRelationshipFilter relationshipFilter, String sourceTableName,
-          LocalRelationshipFilter sourceEntityFilter, String destTableName,
-          LocalRelationshipFilter destinationEntityFilter, int pageSize, long lastId, long maxId,
-          String scanStartTime) {
-        String sql = super.buildFindRelationshipKeysetDeletedSinceScanStartSQL(relationshipTableName,
-            relationshipFilter, sourceTableName, sourceEntityFilter, destTableName, destinationEntityFilter,
-            pageSize, lastId, maxId, scanStartTime);
-        executed.add(sql);
-        return sql;
       }
     };
   }

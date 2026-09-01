@@ -681,6 +681,7 @@ public class EbeanLocalRelationshipQueryDAO {
     final String sql =
         "SELECT COALESCE(MAX(id), 0) AS max_id, DATE_FORMAT(NOW(6), '%Y-%m-%d %H:%i:%s.%f') AS scan_start_time FROM "
             + relationshipTableName;
+    beforeRelationshipQueryExecuted(sql);
     // Aggregate without GROUP BY, so this always yields exactly one row.
     final SqlRow row = _server.createSqlQuery(sql).findOne();
     return new KeysetScanStart(row.getLong("max_id"), row.getString("scan_start_time"));
@@ -1495,7 +1496,19 @@ public class EbeanLocalRelationshipQueryDAO {
     return _mgEntityTypeNameSet;
   }
 
+  /**
+   * Invoked immediately before each relationship read is sent to the database. A no-op in
+   * production; tests override it to count how many reads a call actually costs, which is a
+   * behaviour worth pinning because the point of the single-statement fast path is to reduce that
+   * count. Counting SQL construction instead would miss reads whose SQL is not built by the
+   * relationship SQL builders, such as the keyset scan-start query.
+   */
+  protected void beforeRelationshipQueryExecuted(@Nonnull String sql) {
+    // No-op seam.
+  }
+
   private List<SqlRow> executeSqlWithIndexCheck(String sql, String relationshipTableName) {
+    beforeRelationshipQueryExecuted(sql);
     try {
       return _server.createSqlQuery(sql).findList();
     } catch (PersistenceException e) {
@@ -1506,6 +1519,7 @@ public class EbeanLocalRelationshipQueryDAO {
 
   private List<SqlRow> executeSqlWithIndexCheck(String sql, String relationshipTableName,
       @Nonnull String scanStartTime) {
+    beforeRelationshipQueryExecuted(sql);
     try {
       SqlQuery query = _server.createSqlQuery(sql);
       query.setParameter("scanStartTime", scanStartTime);
