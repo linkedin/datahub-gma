@@ -41,6 +41,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
@@ -457,14 +458,21 @@ public class EbeanLocalAccessTest {
     FooUrn fooUrn = makeFooUrn(0);
     _ebeanLocalAccessFoo.add(fooUrn, null, AspectFoo.class, makeAuditStamp("foo", System.currentTimeMillis()), null, false);
     AspectKey<FooUrn, AspectFoo> aspectKey = new AspectKey(AspectFoo.class, fooUrn, 0L);
+
+    // With includeSoftDeleted=false: the row is still returned (gma_deleted check moved to Java),
+    // but the aspect is marked as soft-deleted. The upstream EbeanLocalDAO.toRecordTemplate() filters it
+    // to Optional.empty(). At batchGetUnion level, we get 1 result with soft-delete metadata.
     List<EbeanMetadataAspect> ebeanMetadataAspectList =
         _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0, false, false);
-    assertEquals(0, ebeanMetadataAspectList.size());
+    assertEquals(1, ebeanMetadataAspectList.size());
+    assertTrue(EBeanDAOUtils.isSoftDeletedMetadata(ebeanMetadataAspectList.get(0).getMetadata()));
 
+    // With includeSoftDeleted=true: same result — soft-deleted marker is returned
     ebeanMetadataAspectList =
         _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0, true, false);
-    assertFalse(ebeanMetadataAspectList.isEmpty());
+    assertEquals(1, ebeanMetadataAspectList.size());
     assertEquals(fooUrn.toString(), ebeanMetadataAspectList.get(0).getKey().getUrn());
+    assertTrue(EBeanDAOUtils.isSoftDeletedMetadata(ebeanMetadataAspectList.get(0).getMetadata()));
   }
 
   @Test
@@ -617,6 +625,363 @@ public class EbeanLocalAccessTest {
     assertEquals("{\"value\":\"single\"}", results.get(0).getMetadata());
     assertEquals(fooUrn.toString(), results.get(0).getKey().getUrn());
     assertEquals(AspectFoo.class.getCanonicalName(), results.get(0).getKey().getAspect());
+  }
+
+  @Test
+  public void testBatchGetUnionMultiAspectReturnsCorrectResults() {
+    // Write two different aspects for the same URN, verify both returned correctly
+    FooUrn fooUrn = makeFooUrn(400);
+    AspectFoo foo = new AspectFoo().setValue("multi_foo");
+    AspectBar bar = new AspectBar().setValue("multi_bar");
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+    _ebeanLocalAccessFoo.add(fooUrn, foo, AspectFoo.class, auditStamp, null, false);
+    _ebeanLocalAccessFoo.add(fooUrn, bar, AspectBar.class, auditStamp, null, false);
+
+    // Fetch both aspects in a single batchGetUnion call
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys = Arrays.asList(
+        new AspectKey<>(AspectFoo.class, fooUrn, 0L),
+        new AspectKey<>(AspectBar.class, fooUrn, 0L)
+    );
+    List<EbeanMetadataAspect> results = _ebeanLocalAccessFoo.batchGetUnion(keys, 1000, 0, false, false);
+
+    assertEquals(2, results.size());
+    // Verify both aspects are returned with correct metadata
+    Map<String, String> aspectToValue = results.stream()
+        .collect(Collectors.toMap(r -> r.getKey().getAspect(), EbeanMetadataAspect::getMetadata));
+    assertEquals("{\"value\":\"multi_foo\"}", aspectToValue.get(AspectFoo.class.getCanonicalName()));
+    assertEquals("{\"value\":\"multi_bar\"}", aspectToValue.get(AspectBar.class.getCanonicalName()));
+  }
+
+  @Test
+  public void testBatchGetUnionMultiAspectWithNullAspect() {
+    // Write only one aspect, request two — one should be null
+    FooUrn fooUrn = makeFooUrn(401);
+    AspectFoo foo = new AspectFoo().setValue("only_foo");
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+    _ebeanLocalAccessFoo.add(fooUrn, foo, AspectFoo.class, auditStamp, null, false);
+
+    // Request both AspectFoo (present) and AspectBar (never written, null column)
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys = Arrays.asList(
+        new AspectKey<>(AspectFoo.class, fooUrn, 0L),
+        new AspectKey<>(AspectBar.class, fooUrn, 0L)
+    );
+    List<EbeanMetadataAspect> results = _ebeanLocalAccessFoo.batchGetUnion(keys, 1000, 0, false, false);
+
+    // Only AspectFoo should be returned — AspectBar is null
+    assertEquals(1, results.size());
+    assertEquals(AspectFoo.class.getCanonicalName(), results.get(0).getKey().getAspect());
+    assertEquals("{\"value\":\"only_foo\"}", results.get(0).getMetadata());
+  }
+
+  @Test
+  public void testBatchGetUnionMultiAspectWithSoftDeletedAspect() {
+    // Write two aspects, then soft-delete one
+    FooUrn fooUrn = makeFooUrn(402);
+    AspectFoo foo = new AspectFoo().setValue("present_foo");
+    AspectBar bar = new AspectBar().setValue("will_delete_bar");
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+    _ebeanLocalAccessFoo.add(fooUrn, foo, AspectFoo.class, auditStamp, null, false);
+    _ebeanLocalAccessFoo.add(fooUrn, bar, AspectBar.class, auditStamp, null, false);
+
+    // Soft-delete AspectBar
+    _ebeanLocalAccessFoo.add(fooUrn, null, AspectBar.class, auditStamp, null, false);
+
+    // Request both — AspectFoo should be present, AspectBar should be soft-deleted marker
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys = Arrays.asList(
+        new AspectKey<>(AspectFoo.class, fooUrn, 0L),
+        new AspectKey<>(AspectBar.class, fooUrn, 0L)
+    );
+    List<EbeanMetadataAspect> results = _ebeanLocalAccessFoo.batchGetUnion(keys, 1000, 0, false, false);
+
+    assertEquals(2, results.size());
+    Map<String, EbeanMetadataAspect> aspectMap = results.stream()
+        .collect(Collectors.toMap(r -> r.getKey().getAspect(), r -> r));
+
+    // AspectFoo: present with correct value
+    assertFalse(EBeanDAOUtils.isSoftDeletedMetadata(aspectMap.get(AspectFoo.class.getCanonicalName()).getMetadata()));
+    assertEquals("{\"value\":\"present_foo\"}", aspectMap.get(AspectFoo.class.getCanonicalName()).getMetadata());
+
+    // AspectBar: soft-deleted
+    assertTrue(EBeanDAOUtils.isSoftDeletedMetadata(aspectMap.get(AspectBar.class.getCanonicalName()).getMetadata()));
+  }
+
+  @Test
+  public void testBatchGetUnionMultipleUrnsMultipleAspects() {
+    // Write 2 aspects for 2 different URNs
+    FooUrn urn1 = makeFooUrn(500);
+    FooUrn urn2 = makeFooUrn(501);
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+    _ebeanLocalAccessFoo.add(urn1, new AspectFoo().setValue("urn1_foo"), AspectFoo.class, auditStamp, null, false);
+    _ebeanLocalAccessFoo.add(urn1, new AspectBar().setValue("urn1_bar"), AspectBar.class, auditStamp, null, false);
+    _ebeanLocalAccessFoo.add(urn2, new AspectFoo().setValue("urn2_foo"), AspectFoo.class, auditStamp, null, false);
+    _ebeanLocalAccessFoo.add(urn2, new AspectBar().setValue("urn2_bar"), AspectBar.class, auditStamp, null, false);
+
+    // Request 2 aspects for 2 URNs = 4 keys — should be 1 SQL query
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys = Arrays.asList(
+        new AspectKey<>(AspectFoo.class, urn1, 0L),
+        new AspectKey<>(AspectBar.class, urn1, 0L),
+        new AspectKey<>(AspectFoo.class, urn2, 0L),
+        new AspectKey<>(AspectBar.class, urn2, 0L)
+    );
+    List<EbeanMetadataAspect> results = _ebeanLocalAccessFoo.batchGetUnion(keys, 1000, 0, false, false);
+
+    assertEquals(4, results.size());
+    Map<String, String> resultMap = results.stream()
+        .collect(Collectors.toMap(
+            r -> r.getKey().getUrn() + ":" + r.getKey().getAspect(),
+            EbeanMetadataAspect::getMetadata));
+    assertEquals("{\"value\":\"urn1_foo\"}", resultMap.get(urn1.toString() + ":" + AspectFoo.class.getCanonicalName()));
+    assertEquals("{\"value\":\"urn1_bar\"}", resultMap.get(urn1.toString() + ":" + AspectBar.class.getCanonicalName()));
+    assertEquals("{\"value\":\"urn2_foo\"}", resultMap.get(urn2.toString() + ":" + AspectFoo.class.getCanonicalName()));
+    assertEquals("{\"value\":\"urn2_bar\"}", resultMap.get(urn2.toString() + ":" + AspectBar.class.getCanonicalName()));
+  }
+
+  @Test
+  public void testBatchGetUnionAsymmetricKeysReturnsCrossProduct() {
+    // Cross-product semantics: caller passes [(urn1, AspectFoo), (urn2, AspectBar)] but both URNs
+    // have both aspects populated. The method collects {AspectFoo, AspectBar} columns and {urn1, urn2}
+    // URNs, then issues SELECT urn, a_aspectfoo, a_aspectbar WHERE urn IN (urn1, urn2). This returns
+    // 4 EbeanMetadataAspect entries, not the 2 the caller "asked for". Callers that pass heterogeneous
+    // (urn, aspect) pairs are responsible for filtering — EbeanLocalDAO.get does this via matchKeys.
+    FooUrn urn1 = makeFooUrn(560);
+    FooUrn urn2 = makeFooUrn(561);
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+    _ebeanLocalAccessFoo.add(urn1, new AspectFoo().setValue("urn1_foo"), AspectFoo.class, auditStamp, null, false);
+    _ebeanLocalAccessFoo.add(urn1, new AspectBar().setValue("urn1_bar"), AspectBar.class, auditStamp, null, false);
+    _ebeanLocalAccessFoo.add(urn2, new AspectFoo().setValue("urn2_foo"), AspectFoo.class, auditStamp, null, false);
+    _ebeanLocalAccessFoo.add(urn2, new AspectBar().setValue("urn2_bar"), AspectBar.class, auditStamp, null, false);
+
+    // Heterogeneous keys: only urn1.AspectFoo and urn2.AspectBar requested
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys = Arrays.asList(
+        new AspectKey<>(AspectFoo.class, urn1, 0L),
+        new AspectKey<>(AspectBar.class, urn2, 0L)
+    );
+    List<EbeanMetadataAspect> results = _ebeanLocalAccessFoo.batchGetUnion(keys, 1000, 0, false, false);
+
+    // Returns 4 (urn1.foo, urn1.bar, urn2.foo, urn2.bar) due to cross-product semantics — documented in
+    // IEbeanLocalAccess.batchGetUnion Javadoc. Callers must filter to requested (urn, aspect) pairs.
+    assertEquals(4, results.size());
+  }
+
+  @Test
+  public void testBatchGetUnionMultipleUrnsSameAspect() {
+    // Write same aspect for 3 different URNs
+    FooUrn urn1 = makeFooUrn(510);
+    FooUrn urn2 = makeFooUrn(511);
+    FooUrn urn3 = makeFooUrn(512);
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+    _ebeanLocalAccessFoo.add(urn1, new AspectFoo().setValue("val1"), AspectFoo.class, auditStamp, null, false);
+    _ebeanLocalAccessFoo.add(urn2, new AspectFoo().setValue("val2"), AspectFoo.class, auditStamp, null, false);
+    _ebeanLocalAccessFoo.add(urn3, new AspectFoo().setValue("val3"), AspectFoo.class, auditStamp, null, false);
+
+    // Request same aspect for 3 URNs — 1 SQL, 3 rows returned
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys = Arrays.asList(
+        new AspectKey<>(AspectFoo.class, urn1, 0L),
+        new AspectKey<>(AspectFoo.class, urn2, 0L),
+        new AspectKey<>(AspectFoo.class, urn3, 0L)
+    );
+    List<EbeanMetadataAspect> results = _ebeanLocalAccessFoo.batchGetUnion(keys, 1000, 0, false, false);
+
+    assertEquals(3, results.size());
+    Map<String, String> urnToValue = results.stream()
+        .collect(Collectors.toMap(r -> r.getKey().getUrn(), EbeanMetadataAspect::getMetadata));
+    assertEquals("{\"value\":\"val1\"}", urnToValue.get(urn1.toString()));
+    assertEquals("{\"value\":\"val2\"}", urnToValue.get(urn2.toString()));
+    assertEquals("{\"value\":\"val3\"}", urnToValue.get(urn3.toString()));
+  }
+
+  @Test
+  public void testBatchGetUnionSingleUrnSingleAspect() {
+    // Simplest case: 1 URN, 1 aspect
+    FooUrn fooUrn = makeFooUrn(520);
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+    _ebeanLocalAccessFoo.add(fooUrn, new AspectFoo().setValue("single"), AspectFoo.class, auditStamp, null, false);
+
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys = Collections.singletonList(
+        new AspectKey<>(AspectFoo.class, fooUrn, 0L)
+    );
+    List<EbeanMetadataAspect> results = _ebeanLocalAccessFoo.batchGetUnion(keys, 1000, 0, false, false);
+
+    assertEquals(1, results.size());
+    assertEquals("{\"value\":\"single\"}", results.get(0).getMetadata());
+    assertEquals(fooUrn.toString(), results.get(0).getKey().getUrn());
+  }
+
+  @Test
+  public void testBatchGetUnionSoftDeletedAspectsExcludedByCallers() {
+    // Write 3 aspects, soft-delete 1, verify the DAO-level toRecordTemplate filters it
+    FooUrn fooUrn = makeFooUrn(530);
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+    _ebeanLocalAccessFoo.add(fooUrn, new AspectFoo().setValue("keep_foo"), AspectFoo.class, auditStamp, null, false);
+    _ebeanLocalAccessFoo.add(fooUrn, new AspectBar().setValue("delete_bar"), AspectBar.class, auditStamp, null, false);
+
+    // Soft-delete AspectBar
+    _ebeanLocalAccessFoo.add(fooUrn, null, AspectBar.class, auditStamp, null, false);
+
+    // batchGetUnion with includeSoftDeleted=false returns soft-deleted marker
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys = Arrays.asList(
+        new AspectKey<>(AspectFoo.class, fooUrn, 0L),
+        new AspectKey<>(AspectBar.class, fooUrn, 0L)
+    );
+    List<EbeanMetadataAspect> results = _ebeanLocalAccessFoo.batchGetUnion(keys, 1000, 0, false, false);
+
+    // Both returned: 1 normal + 1 soft-deleted marker
+    assertEquals(2, results.size());
+
+    // Simulate what EbeanLocalDAO.toRecordTemplate does: filter out soft-deleted
+    long nonDeletedCount = results.stream()
+        .filter(r -> !EBeanDAOUtils.isSoftDeletedMetadata(r.getMetadata()))
+        .count();
+    assertEquals(1, nonDeletedCount);
+
+    // The non-deleted one should be AspectFoo
+    EbeanMetadataAspect kept = results.stream()
+        .filter(r -> !EBeanDAOUtils.isSoftDeletedMetadata(r.getMetadata()))
+        .findFirst().get();
+    assertEquals(AspectFoo.class.getCanonicalName(), kept.getKey().getAspect());
+    assertEquals("{\"value\":\"keep_foo\"}", kept.getMetadata());
+  }
+
+  @Test
+  public void testBatchGetUnionAllKeysPassedWhenKeysCountExceedsTotal() {
+    // Verify behavior when keysCount > total keys (all processed in 1 call)
+    FooUrn urn1 = makeFooUrn(540);
+    FooUrn urn2 = makeFooUrn(541);
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+    _ebeanLocalAccessFoo.add(urn1, new AspectFoo().setValue("a"), AspectFoo.class, auditStamp, null, false);
+    _ebeanLocalAccessFoo.add(urn1, new AspectBar().setValue("b"), AspectBar.class, auditStamp, null, false);
+    _ebeanLocalAccessFoo.add(urn2, new AspectFoo().setValue("c"), AspectFoo.class, auditStamp, null, false);
+
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys = Arrays.asList(
+        new AspectKey<>(AspectFoo.class, urn1, 0L),
+        new AspectKey<>(AspectBar.class, urn1, 0L),
+        new AspectKey<>(AspectFoo.class, urn2, 0L)
+    );
+    // keysCount=1000 >> 3 keys, position=0 — all processed in one shot
+    List<EbeanMetadataAspect> results = _ebeanLocalAccessFoo.batchGetUnion(keys, 1000, 0, false, false);
+    assertEquals(3, results.size());
+  }
+
+  @Test
+  public void testBatchGetUnionNonExistentUrnReturnsEmpty() {
+    FooUrn nonExistent = makeFooUrn(999);
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys = Collections.singletonList(
+        new AspectKey<>(AspectFoo.class, nonExistent, 0L)
+    );
+    List<EbeanMetadataAspect> results = _ebeanLocalAccessFoo.batchGetUnion(keys, 1000, 0, false, false);
+    assertEquals(0, results.size());
+  }
+
+  @Test
+  public void testBatchGetUnionMixOfExistingAndNonExistingUrns() {
+    FooUrn existing = makeFooUrn(550);
+    FooUrn nonExisting = makeFooUrn(551);
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+    _ebeanLocalAccessFoo.add(existing, new AspectFoo().setValue("exists"), AspectFoo.class, auditStamp, null, false);
+
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys = Arrays.asList(
+        new AspectKey<>(AspectFoo.class, existing, 0L),
+        new AspectKey<>(AspectFoo.class, nonExisting, 0L)
+    );
+    List<EbeanMetadataAspect> results = _ebeanLocalAccessFoo.batchGetUnion(keys, 1000, 0, false, false);
+
+    // Only the existing URN should return data
+    assertEquals(1, results.size());
+    assertEquals(existing.toString(), results.get(0).getKey().getUrn());
+    assertEquals("{\"value\":\"exists\"}", results.get(0).getMetadata());
+  }
+
+  @Test
+  public void testBatchGetUnionUrnChunkingOver100Urns() {
+    // Write AspectFoo for 120 URNs — exceeds MAX_URNS_PER_QUERY (100).
+    // batchGetUnion should internally chunk into 2 queries (100 + 20) and combine results.
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+    int urnStart = 600;
+    int urnCount = 120;
+    for (int i = 0; i < urnCount; i++) {
+      FooUrn urn = makeFooUrn(urnStart + i);
+      _ebeanLocalAccessFoo.add(urn, new AspectFoo().setValue("val_" + i), AspectFoo.class, auditStamp, null, false);
+    }
+
+    // Build keys for all 120 URNs × 1 aspect
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys = new ArrayList<>();
+    for (int i = 0; i < urnCount; i++) {
+      keys.add(new AspectKey<>(AspectFoo.class, makeFooUrn(urnStart + i), 0L));
+    }
+
+    List<EbeanMetadataAspect> results = _ebeanLocalAccessFoo.batchGetUnion(keys, keys.size(), 0, false, false);
+
+    // All 120 URNs should return results
+    assertEquals(urnCount, results.size());
+
+    // Verify each URN has correct data
+    Map<String, String> urnToMetadata = results.stream()
+        .collect(Collectors.toMap(r -> r.getKey().getUrn(), EbeanMetadataAspect::getMetadata));
+    for (int i = 0; i < urnCount; i++) {
+      String urn = makeFooUrn(urnStart + i).toString();
+      assertEquals("{\"value\":\"val_" + i + "\"}", urnToMetadata.get(urn),
+          "Mismatch for URN " + urn);
+    }
+  }
+
+  @Test
+  public void testBatchGetUnionUrnChunkingMultipleAspects() {
+    // 120 URNs × 2 aspects — verifies chunking works with multiple aspect columns
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+    int urnStart = 800;
+    int urnCount = 120;
+    for (int i = 0; i < urnCount; i++) {
+      FooUrn urn = makeFooUrn(urnStart + i);
+      _ebeanLocalAccessFoo.add(urn, new AspectFoo().setValue("foo_" + i), AspectFoo.class, auditStamp, null, false);
+      _ebeanLocalAccessFoo.add(urn, new AspectBar().setValue("bar_" + i), AspectBar.class, auditStamp, null, false);
+    }
+
+    // Build keys for all 120 URNs × 2 aspects = 240 keys
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys = new ArrayList<>();
+    for (int i = 0; i < urnCount; i++) {
+      FooUrn urn = makeFooUrn(urnStart + i);
+      keys.add(new AspectKey<>(AspectFoo.class, urn, 0L));
+      keys.add(new AspectKey<>(AspectBar.class, urn, 0L));
+    }
+
+    List<EbeanMetadataAspect> results = _ebeanLocalAccessFoo.batchGetUnion(keys, keys.size(), 0, false, false);
+
+    // 120 URNs × 2 aspects = 240 results
+    assertEquals(urnCount * 2, results.size());
+  }
+
+  @Test
+  public void testBatchGetUnionUrnChunkingBoundary() {
+    // Test boundary at MAX_URNS_PER_QUERY (100): 99 (single query), 100 (single query), 101 (2 queries)
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+
+    // Write AspectFoo for 101 URNs (covers all boundary cases)
+    int urnStart = 1000;
+    for (int i = 0; i < 101; i++) {
+      _ebeanLocalAccessFoo.add(makeFooUrn(urnStart + i),
+          new AspectFoo().setValue("b_" + i), AspectFoo.class, auditStamp, null, false);
+    }
+
+    // 99 URNs — should use single query path (<=100)
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys99 = new ArrayList<>();
+    for (int i = 0; i < 99; i++) {
+      keys99.add(new AspectKey<>(AspectFoo.class, makeFooUrn(urnStart + i), 0L));
+    }
+    assertEquals(99, _ebeanLocalAccessFoo.batchGetUnion(keys99, keys99.size(), 0, false, false).size());
+
+    // 100 URNs — should use single query path (<=100)
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys100 = new ArrayList<>();
+    for (int i = 0; i < 100; i++) {
+      keys100.add(new AspectKey<>(AspectFoo.class, makeFooUrn(urnStart + i), 0L));
+    }
+    assertEquals(100, _ebeanLocalAccessFoo.batchGetUnion(keys100, keys100.size(), 0, false, false).size());
+
+    // 101 URNs — should use chunked path (>100): 100 + 1
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys101 = new ArrayList<>();
+    for (int i = 0; i < 101; i++) {
+      keys101.add(new AspectKey<>(AspectFoo.class, makeFooUrn(urnStart + i), 0L));
+    }
+    assertEquals(101, _ebeanLocalAccessFoo.batchGetUnion(keys101, keys101.size(), 0, false, false).size());
   }
 
   @Test(expectedExceptions = NullPointerException.class)
