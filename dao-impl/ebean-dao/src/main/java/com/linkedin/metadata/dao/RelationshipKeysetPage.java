@@ -31,9 +31,12 @@ public final class RelationshipKeysetPage<R extends RecordTemplate> {
    *
    * @param relationships the relationships in this page, in ascending {@code id} order. Copied
    *                      defensively and exposed as an unmodifiable list.
-   * @param maxId the largest relationship row {@code id} at the time paging started, captured on
-   *              the first page. Bounds the scan so rows inserted mid-scan are excluded. Must be
-   *              non-negative.
+   * @param maxId the largest relationship row {@code id} this page may draw from. When the scan is
+   *              paged this is the largest id in the table at the time paging started, captured on
+   *              the first page, which bounds the scan so rows inserted mid-scan are excluded. When
+   *              the whole result was read in one statement there is no such bound and no second
+   *              page to exclude anything from, so it is the largest id returned, or 0 when the
+   *              result is empty. Must be non-negative.
    * @param nextCursor cursor to fetch the next page, or {@code null} if this is the last page.
    *                   When non-null its own {@code maxId} must equal this page's {@code maxId}.
    */

@@ -2670,6 +2670,76 @@ public class EbeanLocalRelationshipQueryDAOTest {
     assertEquals(actual, ImmutableSet.of(a, b, c, d));
   }
 
+  /**
+   * META-24388: a result that fits inside one page is read with a single statement, not the three
+   * the paged path uses (scan start, current rows, rows deleted since scan start). Counted directly,
+   * because the saving is the point of the fast path and a row-count assertion would not notice it.
+   */
+  @Test
+  public void testFindRelationshipsByKeysetReadsShortResultInOneStatement() throws URISyntaxException {
+    addReportsToChain(2, new FooUrn(1));
+
+    List<String> executed = new ArrayList<>();
+    EbeanLocalRelationshipQueryDAO countingQueryDAO = countingQueryDAO(executed);
+
+    RelationshipKeysetPage<ReportsTo> page = countingQueryDAO.findRelationshipsByKeyset(
+        null, emptyFilter(), null, emptyFilter(), ReportsTo.class, outgoingEmptyFilter(), 5, null);
+
+    assertEquals(page.getRelationships().size(), 2);
+    assertNull(page.getNextCursor());
+    assertEquals(executed.size(), 1, executed.toString());
+    // The single statement is the ordinary current-rows query, so it keeps whatever index hint the
+    // builder would have emitted for a paged read.
+    assertTrue(executed.get(0).contains("deleted_ts is NULL"), executed.get(0));
+  }
+
+  /**
+   * A full page is inconclusive, since the row count cannot distinguish a result that is exactly one
+   * page long from a longer one. That case pages normally rather than risk truncating the result.
+   */
+  @Test
+  public void testFindRelationshipsByKeysetFullFirstPageStillPages() throws URISyntaxException {
+    addReportsToChain(4, new FooUrn(1));
+
+    List<String> executed = new ArrayList<>();
+    EbeanLocalRelationshipQueryDAO countingQueryDAO = countingQueryDAO(executed);
+
+    RelationshipKeysetPage<ReportsTo> page = countingQueryDAO.findRelationshipsByKeyset(
+        null, emptyFilter(), null, emptyFilter(), ReportsTo.class, outgoingEmptyFilter(), 2, null);
+
+    assertEquals(page.getRelationships().size(), 2);
+    assertNotNull(page.getNextCursor());
+    assertEquals(page.getMaxId(), 4L);
+    // The inconclusive single-statement read, then the three the paged path needs: the scan-start
+    // query, the current-rows query and the query for rows deleted since scan start.
+    assertEquals(executed.size(), 4, executed.toString());
+  }
+
+  /**
+   * The whole result is still returned when it spans several pages, so the added probe cannot drop
+   * rows on the path it does not short-circuit.
+   */
+  @Test
+  public void testFindRelationshipsByKeysetMultiPageStillCompleteWithFastPath() throws URISyntaxException {
+    Set<FooUrn> expected = new java.util.HashSet<>(addReportsToChain(7, new FooUrn(1)));
+
+    List<ReportsTo> drained = drainKeyset(2);
+
+    assertEquals(drained.size(), 7);
+    assertEquals(drained.stream().map(r -> makeFooUrn(r.getSource().toString())).collect(Collectors.toSet()),
+        expected);
+  }
+
+  /** Records every relationship read the DAO executes so a test can assert how many a call costs. */
+  private EbeanLocalRelationshipQueryDAO countingQueryDAO(List<String> executed) {
+    return new EbeanLocalRelationshipQueryDAO(_server, _eBeanDAOConfig) {
+      @Override
+      protected void beforeRelationshipQueryExecuted(String sql) {
+        executed.add(sql);
+      }
+    };
+  }
+
   @Test
   public void testFindRelationshipsByKeysetDedupsRowDeletedBetweenCurrentAndDeletedQueries()
       throws URISyntaxException {
@@ -2694,8 +2764,10 @@ public class EbeanLocalRelationshipQueryDAOTest {
       }
     };
 
+    // Page size 1 rather than something larger: this test needs the two-statement path, and a
+    // result that fits inside one page is read in a single statement where no such race exists.
     RelationshipKeysetPage<ReportsTo> page = racyQueryDAO.findRelationshipsByKeyset(
-        null, emptyFilter(), null, emptyFilter(), ReportsTo.class, outgoingEmptyFilter(), 10, null);
+        null, emptyFilter(), null, emptyFilter(), ReportsTo.class, outgoingEmptyFilter(), 1, null);
 
     assertTrue(injected[0]);
     assertEquals(page.getRelationships().size(), 1);
@@ -2722,7 +2794,10 @@ public class EbeanLocalRelationshipQueryDAOTest {
         .findOne();
     assertEquals(liveRow.getLong("live_count").longValue(), 1L);
 
-    List<ReportsTo> drained = drainKeyset(10);
+    // Page size 1 rather than something larger: a result that fits inside one page is read with a
+    // single statement, and Query B never runs, so the guard this test provides for the scan-start
+    // timestamp would be lost.
+    List<ReportsTo> drained = drainKeyset(1);
     assertEquals(drained.size(), 1);
     assertEquals(makeFooUrn(drained.get(0).getSource().toString()), source);
   }
