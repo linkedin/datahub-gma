@@ -3755,6 +3755,23 @@ public class EbeanLocalRelationshipQueryDAOTest {
   }
 
   /**
+   * An entity filter names its urn field after the entity, not the relationship column, which is the
+   * shape a caller filtering an asset on urn produces. Rendering it verbatim against rt would emit
+   * rt.urn, a column relationship tables do not have, so the field is renamed to the column that
+   * holds that urn.
+   */
+  @Test
+  public void testKeysetSqlRewritesUrnNamedSourceEntityFilterOntoSourceColumn() {
+    String sql = daoWithMockedIndexes(false, true).buildFindRelationshipKeysetCurrentSQL(
+        TEST_RELATIONSHIP_TABLE, emptyLogicalRelationshipFilter(), null,
+        leafFilter(urnEqual("urn:li:foo:1", null)), null, null, 10, 5, 20);
+
+    assertTrue(sql.contains("rt.source='urn:li:foo:1'"), sql);
+    assertFalse(sql.contains("rt.urn"), sql);
+    assertHintIndex(sql, IDX_SOURCE_DELETED_TS);
+  }
+
+  /**
    * An empty source entity filter with no source entity class is skipped rather than validated. It
    * contributes nothing to the WHERE clause, and the validation that arm runs reads the first
    * criterion without a size check, so an empty logical-expression filter must not reach it.

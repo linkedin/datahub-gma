@@ -22,6 +22,7 @@ import com.linkedin.metadata.query.LocalRelationshipCriterionArray;
 import com.linkedin.metadata.query.LocalRelationshipFilter;
 import com.linkedin.metadata.query.LocalRelationshipValue;
 import com.linkedin.metadata.query.RelationshipDirection;
+import com.linkedin.metadata.query.UrnField;
 import io.ebean.EbeanServer;
 import io.ebean.SqlQuery;
 import io.ebean.SqlRow;
@@ -563,6 +564,37 @@ public class EbeanLocalRelationshipQueryDAO {
   protected void afterKeysetCurrentRowsFetched(@Nonnull String relationshipTableName,
       @Nonnull List<SqlRow> currentRows) {
     // Test seam for deterministic simulation of a soft-delete between Query A and Query B.
+  }
+
+  /**
+   * Rewrites an entity filter so it can be applied to the relationship table when the entity has no
+   * table of its own to join against.
+   *
+   * <p>An entity filter constrains the entity, and names its urn field after the entity rather than
+   * after the relationship column, so a caller filtering an asset on {@code urn} produces a criterion
+   * named {@code urn}. Applied verbatim to {@code rt} that renders {@code rt.urn}, which relationship
+   * tables do not have. The equivalent constraint on the relationship row is the column holding that
+   * urn, so the field is renamed to {@code relationshipColumn} and the condition and value are kept.</p>
+   *
+   * <p>Only ever called after {@link #validateEntityFilterOnlyOneUrn}, which guarantees a single
+   * criterion on a urn field.</p>
+   */
+  @Nonnull
+  private LocalRelationshipFilter entityFilterOnRelationshipColumn(
+      @Nonnull final LocalRelationshipFilter entityFilter, @Nonnull final String relationshipColumn) {
+    final LocalRelationshipCriterion urnCriterion =
+        flattenLogicalExpressionLocalRelationshipCriterion(entityFilter.getLogicalExpressionCriteria()).get(0);
+
+    final LocalRelationshipCriterion.Field renamedField = new LocalRelationshipCriterion.Field();
+    renamedField.setUrnField(new UrnField().setName(relationshipColumn));
+
+    final LocalRelationshipCriterion renamed = new LocalRelationshipCriterion()
+        .setField(renamedField)
+        .setValue(urnCriterion.getValue())
+        .setCondition(urnCriterion.getCondition());
+
+    return new LocalRelationshipFilter()
+        .setLogicalExpressionCriteria(wrapCriterionAsLogicalExpression(renamed));
   }
 
   /**
@@ -1182,7 +1214,8 @@ public class EbeanLocalRelationshipQueryDAO {
         validateEntityFilterOnlyOneUrn(sourceEntityFilter);
         // non-mg entity case, applying source filter on relationship table. See the keyset builder
         // for why this is gated on non-empty criteria rather than non-null.
-        filters.add(new Triplet<>(sourceEntityFilter, "rt", relationshipTableName));
+        filters.add(new Triplet<>(entityFilterOnRelationshipColumn(sourceEntityFilter, SOURCE_FIELD),
+            "rt", relationshipTableName));
       }
 
       if (!includeNonCurrentRelationships) {
@@ -1333,10 +1366,13 @@ public class EbeanLocalRelationshipQueryDAO {
     // index keeps them off the PRIMARY scan this hint exists to avoid.
     //
     // The same three shapes the destination has. When sourceTableName is null the source entity filter is
-    // rendered against rt, so it pins the source there just as the relationship filter does.
+    // rendered against rt, so it pins the source there just as the relationship filter does. An entity
+    // filter names its urn field after the entity rather than the relationship column, so either name
+    // qualifies; entityFilterOnRelationshipColumn renames it when the predicate is rendered.
     final boolean sourcePinnedToOneUrn = sourceTableName != null
         ? pinsUrnFieldToOneValue(sourceEntityFilter, URN_FIELD)
         : pinsUrnFieldToOneValue(sourceEntityFilter, SOURCE_FIELD)
+            || pinsUrnFieldToOneValue(sourceEntityFilter, URN_FIELD)
             || pinsUrnFieldToOneValue(relationshipFilter, SOURCE_FIELD);
 
     // Only one FORCE INDEX can be emitted, so a query pinning both sides has to pick. Destination wins:
@@ -1373,11 +1409,12 @@ public class EbeanLocalRelationshipQueryDAO {
       } else if (filterHasNonEmptyCriteria(sourceEntityFilter)) {
         validateEntityFilterOnlyOneUrn(sourceEntityFilter);
         // non-mg entity case, applying source filter on relationship table. Gated on non-empty
-        // criteria rather than non-null: an empty filter contributes nothing to the WHERE clause,
-        // and validateEntityFilterOnlyOneUrn reads criteria.get(0) without a size check, so an
-        // empty logical-expression filter would fail there. The destination arm above predates this
-        // and is left as it is.
-        filters.add(new Triplet<>(sourceEntityFilter, "rt", relationshipTableName));
+        // criteria rather than non-null because validateEntityFilterOnlyOneUrn reads the first
+        // criterion without a size check, so an empty logical-expression filter would fail there,
+        // and an empty filter contributes nothing to the WHERE clause in any case. The destination
+        // arm above gates on non-null and carries that hazard.
+        filters.add(new Triplet<>(entityFilterOnRelationshipColumn(sourceEntityFilter, SOURCE_FIELD),
+            "rt", relationshipTableName));
       }
 
       filters.add(new Triplet<>(relationshipFilter, "rt", relationshipTableName));
