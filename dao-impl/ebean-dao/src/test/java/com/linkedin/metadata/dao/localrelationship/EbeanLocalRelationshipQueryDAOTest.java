@@ -3391,24 +3391,6 @@ public class EbeanLocalRelationshipQueryDAOTest {
   }
 
   /**
-   * The source side has only two pinning shapes where the destination has three. With no source entity
-   * class the builder never renders sourceEntityFilter at all (the destination has an `else if` that moves
-   * its filter onto rt; the source has no such branch), so an otherwise hint-eligible source entity filter
-   * must not produce a hint here. Hinting would drive the plan off a predicate absent from the WHERE clause.
-   */
-  @Test
-  public void testKeysetSqlNoSourceHintWhenSourceEntityFilterIsNotRendered() {
-    String sql = daoWithMockedIndexes(false, true).buildFindRelationshipKeysetCurrentSQL(
-        TEST_RELATIONSHIP_TABLE, emptyLogicalRelationshipFilter(), null,
-        leafFilter(urnEqual("urn:li:foo:1", "source")), null, null, 10, 5, 20);
-
-    assertHintIndex(sql, null);
-    assertFalse(sql.contains(" st "), sql);
-    // The filter really is absent from the query, which is what makes the hint unsound.
-    assertFalse(sql.contains("urn:li:foo:1"), sql);
-  }
-
-  /**
    * A relationship filter that pins one side inside an AND group is still pinned: every conjunct holds, so
    * the extra predicates only narrow the row set. This is the shape a lineage read takes when the caller
    * also filters on relationship type, and it is the query observed running unhinted in production.
@@ -3733,17 +3715,15 @@ public class EbeanLocalRelationshipQueryDAOTest {
   }
 
   /**
-   * The walk stops descending past {@code MAX_HINT_FILTER_DEPTH} so a pathologically nested filter
-   * cannot turn hint selection into deep recursion. Dropping the hint is the safe outcome: the query
-   * still runs, just without a forced plan.
+   * A urn pinned deep inside a chain of AND groups is still pinned. There is no depth limit on the
+   * walk, because the same tree is recursed again without one when the WHERE clause is built.
    */
   @Test
-  public void testKeysetSqlNoHintWhenFilterNestingExceedsDepthLimit() {
-    // One AND level beyond the limit, with two children per level so buildLogicalGroup's
-    // single-child collapse cannot flatten the tree back under it.
+  public void testKeysetSqlHintsUrnPinnedDeepInsideAndChain() {
     LocalRelationshipCriterion filler = EBeanDAOUtils.buildRelationshipFieldCriterion(
         LocalRelationshipValue.create("COPY"), Condition.EQUAL, new RelationshipField().setPath("/type"));
 
+    // Two children per level so buildLogicalGroup's single-child collapse cannot flatten the tree.
     LogicalExpressionLocalRelationshipCriterion node =
         wrapCriterionAsLogicalExpression(urnEqual("urn:li:foo:1", "source"));
     for (int i = 0; i < 18; i++) {
@@ -3755,6 +3735,57 @@ public class EbeanLocalRelationshipQueryDAOTest {
         new LocalRelationshipFilter().setLogicalExpressionCriteria(node),
         null, null, null, null, 10, 5, 20);
 
-    assertHintIndex(sql, null);
+    assertHintIndex(sql, IDX_SOURCE_DELETED_TS);
+  }
+
+  /**
+   * With no source entity class the source entity filter is rendered against {@code rt} rather than
+   * dropped, so a caller filtering on a non-MG source gets the rows it asked for. It also pins the
+   * source there, so the query is hint-eligible through that filter.
+   */
+  @Test
+  public void testKeysetSqlRendersAndHintsSourceEntityFilterWhenSourceTableIsAbsent() {
+    String sql = daoWithMockedIndexes(false, true).buildFindRelationshipKeysetCurrentSQL(
+        TEST_RELATIONSHIP_TABLE, emptyLogicalRelationshipFilter(), null,
+        leafFilter(urnEqual("urn:li:foo:1", "source")), null, null, 10, 5, 20);
+
+    assertTrue(sql.contains("rt.source='urn:li:foo:1'"), sql);
+    assertFalse(sql.contains(" st "), sql);
+    assertHintIndex(sql, IDX_SOURCE_DELETED_TS);
+  }
+
+  /**
+   * An empty source entity filter with no source entity class is skipped rather than validated. It
+   * contributes nothing to the WHERE clause, and the validation that arm runs reads the first
+   * criterion without a size check, so an empty logical-expression filter must not reach it.
+   */
+  @Test
+  public void testKeysetSqlIgnoresEmptySourceEntityFilterWhenSourceTableIsAbsent() {
+    String sql = daoWithMockedIndexes(false, true).buildFindRelationshipKeysetCurrentSQL(
+        TEST_RELATIONSHIP_TABLE, leafFilter(urnEqual("urn:li:foo:1", "source")), null,
+        emptyLogicalRelationshipFilter(), null, null, 10, 5, 20);
+
+    assertHintIndex(sql, IDX_SOURCE_DELETED_TS);
+    assertTrue(sql.contains("rt.source='urn:li:foo:1'"), sql);
+  }
+
+  /**
+   * The legacy builder's source arm uses the same eligibility rule as the keyset builder, so shapes
+   * that do not pin the source to one value are not hinted there either.
+   */
+  @Test
+  public void testLegacySqlNoSourceHintForShapesThatDoNotPinOneValue() {
+    String notWrapped = legacySqlWithRelationshipFilter(daoWithMockedIndexes(false, true),
+        groupFilter(Operator.NOT, urnEqual("urn:li:foo:1", "source")));
+    assertFalse(notWrapped.contains(IDX_SOURCE_DELETED_TS), notWrapped);
+
+    String multiValueIn = legacySqlWithRelationshipFilter(daoWithMockedIndexes(false, true),
+        leafFilter(urnIn("source", "urn:li:foo:1", "urn:li:foo:2")));
+    assertFalse(multiValueIn.contains(IDX_SOURCE_DELETED_TS), multiValueIn);
+
+    // The eligible shape is still hinted, so the stricter rule did not disable the arm outright.
+    String eligible = legacySqlWithRelationshipFilter(daoWithMockedIndexes(false, true),
+        leafFilter(urnEqual("urn:li:foo:1", "source")));
+    assertTrue(eligible.contains("FORCE INDEX (" + IDX_SOURCE_DELETED_TS + ")"), eligible);
   }
 }

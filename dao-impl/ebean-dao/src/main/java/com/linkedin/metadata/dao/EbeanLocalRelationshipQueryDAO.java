@@ -70,9 +70,6 @@ public class EbeanLocalRelationshipQueryDAO {
   private static final String SOURCE_FIELD = "source";
   // Default UrnField.name (see UrnField.pdl); a destination entity filter joined on dt.urn carries it.
   private static final String URN_FIELD = "urn";
-  // Bounds the AND-tree walk that decides index-hint eligibility, so a pathologically nested filter
-  // cannot turn hint selection into deep recursion. Real filters nest one or two levels.
-  private static final int MAX_HINT_FILTER_DEPTH = 16;
   private final EbeanServer _server;
   private final MultiHopsTraversalSqlGenerator _sqlGenerator;
 
@@ -1162,10 +1159,16 @@ public class EbeanLocalRelationshipQueryDAO {
         // Destination takes precedence, so a query pinning both sides is hinted on the destination.
         // The source arm is reached when the destination is not pinned, or is pinned but its index is
         // absent, matching the keyset builder's else-if.
+        //
+        // The destination arm matches on field name alone, which also hints shapes that do not pin the
+        // column to one value, such as a negated or multi-value leaf. That predates this method and is
+        // left alone so currently hinted queries keep their plan. The source arm is new, so it uses the
+        // stricter rule the keyset builder applies rather than inheriting that looseness.
         if (!appendUrnFieldIndexHint(sqlBuilder, relationshipCriteria, relationshipTableName, DESTINATION_FIELD,
-            IDX_DESTINATION_DELETED_TS, FORCE_IDX_ON_DESTINATION)) {
-          appendUrnFieldIndexHint(sqlBuilder, relationshipCriteria, relationshipTableName, SOURCE_FIELD,
-              IDX_SOURCE_DELETED_TS, FORCE_IDX_ON_SOURCE);
+            IDX_DESTINATION_DELETED_TS, FORCE_IDX_ON_DESTINATION)
+            && pinsUrnFieldToOneValue(relationshipFilter, SOURCE_FIELD)
+            && _schemaValidatorUtil.indexExists(relationshipTableName, IDX_SOURCE_DELETED_TS)) {
+          sqlBuilder.append(FORCE_IDX_ON_SOURCE);
         }
       }
 
@@ -1175,6 +1178,11 @@ public class EbeanLocalRelationshipQueryDAO {
         if (sourceEntityFilter != null) {
           filters.add(new Triplet<>(sourceEntityFilter, "st", sourceTableName));
         }
+      } else if (filterHasNonEmptyCriteria(sourceEntityFilter)) {
+        validateEntityFilterOnlyOneUrn(sourceEntityFilter);
+        // non-mg entity case, applying source filter on relationship table. See the keyset builder
+        // for why this is gated on non-empty criteria rather than non-null.
+        filters.add(new Triplet<>(sourceEntityFilter, "rt", relationshipTableName));
       }
 
       if (!includeNonCurrentRelationships) {
@@ -1324,13 +1332,12 @@ public class EbeanLocalRelationshipQueryDAO {
     // META-24386: the mirror image on the source side. Forward-lineage reads pin rt.source, and the source
     // index keeps them off the PRIMARY scan this hint exists to avoid.
     //
-    // Two shapes can pin the source, not the three the destination has. When sourceTableName is null the
-    // builder below never renders sourceEntityFilter (the destination has an `else if` that moves its filter
-    // onto rt; the source has no such branch), so hinting from a filter that never reaches the WHERE clause
-    // would drive the plan off a predicate the query does not contain.
+    // The same three shapes the destination has. When sourceTableName is null the source entity filter is
+    // rendered against rt, so it pins the source there just as the relationship filter does.
     final boolean sourcePinnedToOneUrn = sourceTableName != null
         ? pinsUrnFieldToOneValue(sourceEntityFilter, URN_FIELD)
-        : pinsUrnFieldToOneValue(relationshipFilter, SOURCE_FIELD);
+        : pinsUrnFieldToOneValue(sourceEntityFilter, SOURCE_FIELD)
+            || pinsUrnFieldToOneValue(relationshipFilter, SOURCE_FIELD);
 
     // Only one FORCE INDEX can be emitted, so a query pinning both sides has to pick. Destination wins:
     // it is the path already validated in production, so every currently hinted query stays byte identical.
@@ -1363,6 +1370,14 @@ public class EbeanLocalRelationshipQueryDAO {
         if (sourceEntityFilter != null) {
           filters.add(new Triplet<>(sourceEntityFilter, "st", sourceTableName));
         }
+      } else if (filterHasNonEmptyCriteria(sourceEntityFilter)) {
+        validateEntityFilterOnlyOneUrn(sourceEntityFilter);
+        // non-mg entity case, applying source filter on relationship table. Gated on non-empty
+        // criteria rather than non-null: an empty filter contributes nothing to the WHERE clause,
+        // and validateEntityFilterOnlyOneUrn reads criteria.get(0) without a size check, so an
+        // empty logical-expression filter would fail there. The destination arm above predates this
+        // and is left as it is.
+        filters.add(new Triplet<>(sourceEntityFilter, "rt", relationshipTableName));
       }
 
       filters.add(new Triplet<>(relationshipFilter, "rt", relationshipTableName));
@@ -1433,12 +1448,12 @@ public class EbeanLocalRelationshipQueryDAO {
     if (filter == null || !filter.hasLogicalExpressionCriteria()) {
       return false;
     }
-    return pinsUrnFieldToOneValue(filter.getLogicalExpressionCriteria(), expectedUrnFieldName, 0);
+    return pinsUrnFieldToOneValue(filter.getLogicalExpressionCriteria(), expectedUrnFieldName);
   }
 
   private boolean pinsUrnFieldToOneValue(@Nonnull final LogicalExpressionLocalRelationshipCriterion node,
-      @Nonnull final String expectedUrnFieldName, final int depth) {
-    if (depth > MAX_HINT_FILTER_DEPTH || !node.hasExpr()) {
+      @Nonnull final String expectedUrnFieldName) {
+    if (!node.hasExpr()) {
       return false;
     }
 
@@ -1460,7 +1475,7 @@ public class EbeanLocalRelationshipQueryDAO {
     }
 
     for (LogicalExpressionLocalRelationshipCriterion child : operation.getExpressions()) {
-      if (pinsUrnFieldToOneValue(child, expectedUrnFieldName, depth + 1)) {
+      if (pinsUrnFieldToOneValue(child, expectedUrnFieldName)) {
         return true;
       }
     }
