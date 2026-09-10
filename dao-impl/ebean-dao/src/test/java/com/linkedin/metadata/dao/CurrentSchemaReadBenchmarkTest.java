@@ -60,7 +60,42 @@ import static com.linkedin.testing.TestUtils.*;
 public class CurrentSchemaReadBenchmarkTest {
 
   private static final int NUM_ASPECTS = 73;   // aspect columns per entity (matches PR #622's Dataset example)
-  private static final int NUM_URNS = 50;      // URNs in the batch
+
+  // Real production dataset URNs (metadata identifiers only) used as the read batch so the
+  // issued queries and logs mirror real-world URN shapes. Data volume is still synthetic.
+  private static final String[] REAL_URN_STRINGS = {
+      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/ha_embedding_dimension_statistics,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/onboarded_to_spv_skipped_validation,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/crt_target_state_audit_metrics,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/commute_preference,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/agg_lil_royalty_subscriber,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/hourly/ump_v2/metrics_metadata/trusted_graph_funnel,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/eg_monthly_company_metrics_positions,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/lms_baseline_monthly_org,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/job_alert_dropped_reason,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/job_alert_coverage_v2_7_day_window,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/job_application_value_v2,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/agg_mktg_member_email_event,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/ip_graph_featurized_request_stats_weekly,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/quality_member_delta,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/abuse_damage_private_content,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/voyager_web_warm_build_metrics,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/cascading_backfill_notification,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/lls_web_traffic,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/predicted_confirmed_hires_applicant_he_3d,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/eg_upshot_lmi,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/instant_job_alert_job_interaction_3d,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/lil_consumer_usage,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/code_push_steps,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/lss_spc_gam_contract,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/ump_platform_benchmark_test_two,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/agg_mktg_app_activation_gold,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/proxy_user_example,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/aims_dataset_slo,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/eqm_aggregate,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/agg_mktg_seo_pageurl,PROD)"
+  };
+  private static final int NUM_URNS = REAL_URN_STRINGS.length;   // URNs in the batch (real dataset URNs)
   private static final int WARMUP = 20;        // warmup iterations (JIT + connection pool priming)
   private static final int ITERATIONS = 200;   // measured iterations
 
@@ -91,6 +126,8 @@ public class CurrentSchemaReadBenchmarkTest {
         Resources.toString(Resources.getResource("ebean-local-access-create-all.sql"), StandardCharsets.UTF_8)));
     log("=== SCHEMA SETUP ===");
     log("Base table created from ebean-local-access-create-all.sql: " + TABLE);
+    // Real dataset URNs exceed the test schema's VARCHAR(100) urn column; widen to match prod-scale urn lengths.
+    _server.execute(Ebean.createSqlUpdate("ALTER TABLE " + TABLE + " MODIFY urn VARCHAR(512) NOT NULL"));
     for (int a = 0; a < NUM_ASPECTS; a++) {
       final String ddl = "ALTER TABLE " + TABLE + " ADD COLUMN " + COLUMN_PREFIX + a + " JSON";
       _server.execute(Ebean.createSqlUpdate(ddl));
@@ -103,11 +140,11 @@ public class CurrentSchemaReadBenchmarkTest {
           .collect(Collectors.joining(", "));
       _server.execute(Ebean.createSqlUpdate(
           "INSERT INTO " + TABLE + " (urn, lastmodifiedon, lastmodifiedby, " + colList + ") VALUES ('"
-              + makeFooUrn(i) + "', NOW(), 'actor', " + values + ")"));
+              + benchUrn(i) + "', NOW(), 'actor', " + values + ")"));
     }
     log("Seeded " + NUM_URNS + " rows. URNs:");
     for (int i = 0; i < NUM_URNS; i++) {
-      log("  [" + i + "] " + makeFooUrn(i));
+      log("  [" + i + "] " + benchUrn(i));
     }
   }
 
@@ -120,7 +157,7 @@ public class CurrentSchemaReadBenchmarkTest {
     final Set<String> aspectColumns = new LinkedHashSet<>(aspectColumns());
     final Set<Urn> urns = new LinkedHashSet<>();
     for (int i = 0; i < NUM_URNS; i++) {
-      urns.add(makeFooUrn(i));
+      urns.add(benchUrn(i));
     }
 
     final List<String> currentSqls = buildCurrentPerAspectSqls(aspectColumns, urns);
@@ -232,6 +269,14 @@ public class CurrentSchemaReadBenchmarkTest {
     }
     Arrays.sort(samples);
     return samples;
+  }
+
+  private static Urn benchUrn(int i) {
+    try {
+      return Urn.createFromString(REAL_URN_STRINGS[i]);
+    } catch (java.net.URISyntaxException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   private static List<String> aspectColumns() {
