@@ -1,15 +1,15 @@
 # Current-master multi-aspect read baseline (META-24100)
 
-Baseline latency + query-count for a `batchGetUnion`-style multi-aspect read using **only the
-code on `master` today** (i.e. before the [PR #622](https://github.com/linkedin/datahub-gma/pull/622)
-single-query optimization). This is the current-state number, not an old-vs-new comparison.
+Baseline latency + query-count for a `batchGetUnion`-style multi-aspect read using **only the code on `master` today**
+(i.e. before the [PR #622](https://github.com/linkedin/datahub-gma/pull/622) single-query optimization). This is the
+current-state number, not an old-vs-new comparison.
 
 ## What it measures
 
-`CurrentSchemaReadBenchmarkTest` provisions a synthetic entity table (`metadata_entity_foo`) with
-73 JSON aspect columns and 50 seeded URN rows, then issues master's current read shape: **one
-`SELECT` per aspect column** with the `JSON_EXTRACT(col, '$.gma_deleted') IS NULL` soft-delete
-filter (exactly as `SQLStatementUtils.createAspectReadSql` emits) => 73 round-trips per logical read.
+`CurrentSchemaReadBenchmarkTest` provisions a synthetic entity table (`metadata_entity_foo`) with 73 JSON aspect columns
+and 50 seeded URN rows, then issues master's current read shape: **one `SELECT` per aspect column** with the
+`JSON_EXTRACT(col, '$.gma_deleted') IS NULL` soft-delete filter (exactly as `SQLStatementUtils.createAspectReadSql`
+emits) => 73 round-trips per logical read.
 
 - **DB SELECT count** — MariaDB `Com_select` session-status delta (connection pinned in a txn).
 - **Latency** — p50 / p90 / max over 200 iterations (20 warmup).
@@ -22,13 +22,13 @@ path     | DB SELECTs/read  | p50 ms    | p90 ms    | max ms
 current  | 73               | 28.671    | 32.456    | 42.806
 ```
 
-| Path | DB SELECTs / read | p50 | p90 | max |
-|------|-------------------|-----|-----|-----|
-| current (master) | **73** | 28.671 ms | 32.456 ms | 42.806 ms |
+| Path             | DB SELECTs / read | p50       | p90       | max       |
+| ---------------- | ----------------- | --------- | --------- | --------- |
+| current (master) | **73**            | 28.671 ms | 32.456 ms | 42.806 ms |
 
-Absolute latency is not prod-representative (in-process DB, no network); the meaningful takeaway is
-today's per-read query count (**73 SELECTs** for a 73-aspect entity) and its latency, which is the
-baseline PR #622 aims to collapse to 1 SELECT.
+Absolute latency is not prod-representative (in-process DB, no network); the meaningful takeaway is today's per-read
+query count (**73 SELECTs** for a 73-aspect entity) and its latency, which is the baseline PR #622 aims to collapse to 1
+SELECT.
 
 ## How to run
 
@@ -37,6 +37,6 @@ export JAVA_HOME=$(/usr/libexec/java_home -v 11.0.21)
 ./gradlew :dao-impl:ebean-dao:test --tests '*CurrentSchemaReadBenchmarkTest*' -Dgma.benchmark=true
 ```
 
-> On Apple Silicon, enable the 3 documented `configurationBuilder` lines in `EmbeddedMariaInstance`
-> (points MariaDB4j at a Homebrew `mariadb` install) since the bundled x86_64 MariaDB 10.2.11 needs
-> OpenSSL 1.0. This is a local-only test harness tweak and is not committed.
+> On Apple Silicon, enable the 3 documented `configurationBuilder` lines in `EmbeddedMariaInstance` (points MariaDB4j at
+> a Homebrew `mariadb` install) since the bundled x86_64 MariaDB 10.2.11 needs OpenSSL 1.0. This is a local-only test
+> harness tweak and is not committed.
