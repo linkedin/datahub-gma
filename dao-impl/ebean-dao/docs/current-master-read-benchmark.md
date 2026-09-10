@@ -13,8 +13,7 @@ emits) => 73 round-trips per logical read.
 
 The read batch URNs are **not hardcoded** — they are loaded dynamically at runtime from the classpath resource
 `dao-impl/ebean-dao/src/test/resources/benchmark-urns.txt` (one URN per line; blank lines and `#` comments ignored), so
-the URN set can be edited without recompiling the test. Override the resource with
-`-Dgma.benchmark.urnFile=<name>`.
+the URN set can be edited without recompiling the test. Override the resource with `-Dgma.benchmark.urnFile=<name>`.
 
 > **This benchmark runs entirely against a local, in-process database.** It uses an embedded MariaDB (MariaDB4j) started
 > inside the test JVM — no shared/remote database and no network hop. Absolute latencies therefore reflect a local
