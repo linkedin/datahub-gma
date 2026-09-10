@@ -114,6 +114,9 @@ subprojects { sp ->
 
     tasks.withType(Test) {
       useTestNG()
+      if (System.getProperty('gma.benchmark') != null) {
+        systemProperty 'gma.benchmark', System.getProperty('gma.benchmark')
+      }
     }
 
     test {
