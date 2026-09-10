@@ -7,9 +7,18 @@ current-state number, not an old-vs-new comparison.
 ## What it measures
 
 `CurrentSchemaReadBenchmarkTest` provisions a synthetic entity table (`metadata_entity_foo`) with 73 JSON aspect columns
-and 50 seeded URN rows, then issues master's current read shape: **one `SELECT` per aspect column** with the
+and one seeded row per URN, then issues master's current read shape: **one `SELECT` per aspect column** with the
 `JSON_EXTRACT(col, '$.gma_deleted') IS NULL` soft-delete filter (exactly as `SQLStatementUtils.createAspectReadSql`
 emits) => 73 round-trips per logical read.
+
+The read batch URNs are **not hardcoded** — they are loaded dynamically at runtime from the classpath resource
+`dao-impl/ebean-dao/src/test/resources/benchmark-urns.txt` (one URN per line; blank lines and `#` comments ignored), so
+the URN set can be edited without recompiling the test. Override the resource with
+`-Dgma.benchmark.urnFile=<name>`.
+
+> **This benchmark runs entirely against a local, in-process database.** It uses an embedded MariaDB (MariaDB4j) started
+> inside the test JVM — no shared/remote database and no network hop. Absolute latencies therefore reflect a local
+> single-node DB and are **not** prod-representative; the meaningful takeaway is the per-read query count.
 
 - **DB SELECT count** — MariaDB `Com_select` session-status delta (connection pinned in a txn).
 - **Latency** — p50 / p90 / max over 200 iterations (20 warmup).

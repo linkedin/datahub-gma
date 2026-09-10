@@ -61,40 +61,15 @@ public class CurrentSchemaReadBenchmarkTest {
 
   private static final int NUM_ASPECTS = 73;   // aspect columns per entity (matches PR #622's Dataset example)
 
-  // Real production dataset URNs (metadata identifiers only) used as the read batch so the
+  // Classpath resource holding the read batch URNs (one per line; blank lines and '#' comments
+  // ignored). Externalized so the URN set can be edited without recompiling the test. Override the
+  // resource name with -Dgma.benchmark.urnFile=<name>.
+  private static final String URN_RESOURCE =
+      System.getProperty("gma.benchmark.urnFile", "benchmark-urns.txt");
+
+  // Real production dataset URNs (metadata identifiers only) loaded dynamically at runtime so the
   // issued queries and logs mirror real-world URN shapes. Data volume is still synthetic.
-  private static final String[] REAL_URN_STRINGS = {
-      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/ha_embedding_dimension_statistics,PROD)",
-      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/onboarded_to_spv_skipped_validation,PROD)",
-      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/crt_target_state_audit_metrics,PROD)",
-      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/commute_preference,PROD)",
-      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/agg_lil_royalty_subscriber,PROD)",
-      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/hourly/ump_v2/metrics_metadata/trusted_graph_funnel,PROD)",
-      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/eg_monthly_company_metrics_positions,PROD)",
-      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/lms_baseline_monthly_org,PROD)",
-      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/job_alert_dropped_reason,PROD)",
-      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/job_alert_coverage_v2_7_day_window,PROD)",
-      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/job_application_value_v2,PROD)",
-      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/agg_mktg_member_email_event,PROD)",
-      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/ip_graph_featurized_request_stats_weekly,PROD)",
-      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/quality_member_delta,PROD)",
-      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/abuse_damage_private_content,PROD)",
-      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/voyager_web_warm_build_metrics,PROD)",
-      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/cascading_backfill_notification,PROD)",
-      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/lls_web_traffic,PROD)",
-      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/predicted_confirmed_hires_applicant_he_3d,PROD)",
-      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/eg_upshot_lmi,PROD)",
-      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/instant_job_alert_job_interaction_3d,PROD)",
-      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/lil_consumer_usage,PROD)",
-      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/code_push_steps,PROD)",
-      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/lss_spc_gam_contract,PROD)",
-      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/ump_platform_benchmark_test_two,PROD)",
-      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/agg_mktg_app_activation_gold,PROD)",
-      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/proxy_user_example,PROD)",
-      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/aims_dataset_slo,PROD)",
-      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/eqm_aggregate,PROD)",
-      "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/agg_mktg_seo_pageurl,PROD)"
-  };
+  private static final String[] REAL_URN_STRINGS = loadUrnStrings(URN_RESOURCE);
   private static final int NUM_URNS = REAL_URN_STRINGS.length;   // URNs in the batch (real dataset URNs)
   private static final int WARMUP = 20;        // warmup iterations (JIT + connection pool priming)
   private static final int ITERATIONS = 200;   // measured iterations
@@ -276,6 +251,26 @@ public class CurrentSchemaReadBenchmarkTest {
       return Urn.createFromString(REAL_URN_STRINGS[i]);
     } catch (java.net.URISyntaxException e) {
       throw new RuntimeException(e);
+    }
+  }
+
+  /**
+   * Loads the read-batch URNs from a classpath resource at runtime (one URN per line; blank lines
+   * and lines starting with {@code #} are ignored) so the URN set is editable without recompiling.
+   */
+  private static String[] loadUrnStrings(String resourceName) {
+    try {
+      final List<String> lines = Resources.readLines(Resources.getResource(resourceName), StandardCharsets.UTF_8);
+      final List<String> urns = lines.stream()
+          .map(String::trim)
+          .filter(l -> !l.isEmpty() && !l.startsWith("#"))
+          .collect(Collectors.toList());
+      if (urns.isEmpty()) {
+        throw new IllegalStateException("No URNs found in benchmark URN resource: " + resourceName);
+      }
+      return urns.toArray(new String[0]);
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to read benchmark URN resource: " + resourceName, e);
     }
   }
 
