@@ -7,13 +7,22 @@ import com.linkedin.metadata.dao.utils.SQLStatementUtils;
 import io.ebean.Ebean;
 import io.ebean.EbeanServer;
 import io.ebean.SqlRow;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -59,19 +68,34 @@ public class CurrentSchemaReadBenchmarkTest {
   private static final String COLUMN_PREFIX = "a_bench";
 
   private static EbeanServer _server;
+  private static PrintWriter _log;
+  private static Path _logPath;
 
   @BeforeClass
   public void init() {
     _server = EmbeddedMariaInstance.getServer(CurrentSchemaReadBenchmarkTest.class.getSimpleName());
+    openLog();
+  }
+
+  @AfterClass
+  public void tearDown() {
+    if (_log != null) {
+      _log.flush();
+      _log.close();
+    }
   }
 
   @BeforeMethod
   public void setup() throws Exception {
     _server.execute(Ebean.createSqlUpdate(
         Resources.toString(Resources.getResource("ebean-local-access-create-all.sql"), StandardCharsets.UTF_8)));
+    log("=== SCHEMA SETUP ===");
+    log("Base table created from ebean-local-access-create-all.sql: " + TABLE);
     for (int a = 0; a < NUM_ASPECTS; a++) {
-      _server.execute(Ebean.createSqlUpdate("ALTER TABLE " + TABLE + " ADD COLUMN " + COLUMN_PREFIX + a + " JSON"));
+      final String ddl = "ALTER TABLE " + TABLE + " ADD COLUMN " + COLUMN_PREFIX + a + " JSON";
+      _server.execute(Ebean.createSqlUpdate(ddl));
     }
+    log("Added " + NUM_ASPECTS + " JSON aspect columns: " + COLUMN_PREFIX + "0 .. " + COLUMN_PREFIX + (NUM_ASPECTS - 1));
     final String colList = String.join(", ", aspectColumns());
     for (int i = 0; i < NUM_URNS; i++) {
       final String values = aspectColumns().stream()
@@ -80,6 +104,10 @@ public class CurrentSchemaReadBenchmarkTest {
       _server.execute(Ebean.createSqlUpdate(
           "INSERT INTO " + TABLE + " (urn, lastmodifiedon, lastmodifiedby, " + colList + ") VALUES ('"
               + makeFooUrn(i) + "', NOW(), 'actor', " + values + ")"));
+    }
+    log("Seeded " + NUM_URNS + " rows. URNs:");
+    for (int i = 0; i < NUM_URNS; i++) {
+      log("  [" + i + "] " + makeFooUrn(i));
     }
   }
 
@@ -97,6 +125,24 @@ public class CurrentSchemaReadBenchmarkTest {
 
     final List<String> currentSqls = buildCurrentPerAspectSqls(aspectColumns, urns);
 
+    // Log every SQL query issued for one logical read (one SELECT per aspect column).
+    log("");
+    log("=== QUERIES (one logical read = " + currentSqls.size() + " SELECTs) ===");
+    for (int q = 0; q < currentSqls.size(); q++) {
+      log("Q" + q + ": " + currentSqls.get(q));
+    }
+
+    // Log the actual rows returned by the first query as a sample of "what result we are getting".
+    log("");
+    log("=== SAMPLE RESULT (rows returned by Q0) ===");
+    final List<SqlRow> sample = _server.createSqlQuery(currentSqls.get(0)).findList();
+    log("Q0 returned " + sample.size() + " rows. First up to 5:");
+    for (int r = 0; r < Math.min(5, sample.size()); r++) {
+      final SqlRow row = sample.get(r);
+      log("  row[" + r + "] urn=" + row.getString("urn") + "  " + COLUMN_PREFIX + "0=" + row.getString(COLUMN_PREFIX + "0")
+          + "  lastmodifiedon=" + row.get("lastmodifiedon"));
+    }
+
     for (int w = 0; w < WARMUP; w++) {
       runCurrentPath(currentSqls);
     }
@@ -111,14 +157,47 @@ public class CurrentSchemaReadBenchmarkTest {
 
     final long[] currentNanos = time(() -> runCurrentPath(currentSqls));
 
-    System.out.println("============ current master multi-aspect read benchmark ============");
-    System.out.printf("URNs=%d aspectsPerUrn=%d totalKeys=%d  (over %d iters)%n",
+    final String header = "============ current master multi-aspect read benchmark ============";
+    final String line1 = String.format("URNs=%d aspectsPerUrn=%d totalKeys=%d  (over %d iters)",
         NUM_URNS, NUM_ASPECTS, NUM_URNS * NUM_ASPECTS, ITERATIONS);
-    System.out.printf("%-8s | %-16s | %-9s | %-9s | %-9s%n", "path", "DB SELECTs/read", "p50 ms", "p90 ms", "max ms");
-    System.out.printf("%-8s | %-16d | %-9.3f | %-9.3f | %-9.3f%n",
+    final String colHdr = String.format("%-8s | %-16s | %-9s | %-9s | %-9s", "path", "DB SELECTs/read", "p50 ms", "p90 ms", "max ms");
+    final String dataRow = String.format("%-8s | %-16d | %-9.3f | %-9.3f | %-9.3f",
         "current", currentSelects, toMs(pct(currentNanos, 0.50)), toMs(pct(currentNanos, 0.90)),
         toMs(currentNanos[ITERATIONS - 1]));
-    System.out.println("====================================================================");
+    final String footer = "====================================================================";
+
+    log("");
+    log("=== BENCHMARK RESULT ===");
+    for (String s : new String[] {header, line1, colHdr, dataRow, footer}) {
+      System.out.println(s);
+      log(s);
+    }
+    if (_logPath != null) {
+      System.out.println("Full run log written to: " + _logPath.toAbsolutePath());
+    }
+  }
+
+  /**
+   * Opens a per-run log file under the (git-ignored) Gradle {@code build/} directory.
+   */
+  private static void openLog() {
+    try {
+      final Path dir = Paths.get("build", "benchmark-logs");
+      Files.createDirectories(dir);
+      final String ts = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+      _logPath = dir.resolve("current-master-read-benchmark-" + ts + ".log");
+      _log = new PrintWriter(Files.newBufferedWriter(_logPath, StandardCharsets.UTF_8));
+      log("current-master-read-benchmark run @ " + LocalDateTime.now());
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  private static void log(String msg) {
+    if (_log != null) {
+      _log.println(msg);
+      _log.flush();
+    }
   }
 
   /**

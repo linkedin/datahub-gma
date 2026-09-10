@@ -33,3 +33,7 @@ MANIFEST
 
 # Mac OS
 **/.DS_Store
+
+# Benchmark run logs (local only, never commit)
+**/benchmark-logs/
+*.benchmark.log
