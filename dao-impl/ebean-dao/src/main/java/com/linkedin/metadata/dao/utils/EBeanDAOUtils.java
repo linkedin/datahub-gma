@@ -364,6 +364,20 @@ public class EBeanDAOUtils {
   }
 
   /**
+   * Map a single aspect column of a (possibly multi-aspect) {@link SqlRow} into an
+   * {@link EbeanMetadataAspect}. Used by the multi-aspect read path where one row carries many aspect
+   * columns and each requested (urn, aspect) pair is mapped individually.
+   * @param sqlRow {@link SqlRow} containing the aspect column
+   * @param aspectClass aspect class to read
+   * @param <ASPECT> aspect type
+   * @return {@link EbeanMetadataAspect}
+   */
+  public static <ASPECT extends RecordTemplate> EbeanMetadataAspect readSqlRowForAspect(@Nonnull SqlRow sqlRow,
+      @Nonnull Class<ASPECT> aspectClass) {
+    return readSqlRow(sqlRow, aspectClass);
+  }
+
+  /**
    * Read EbeanMetadataAspect from {@link SqlRow}.
    * @param sqlRow {@link SqlRow}
    * @param aspectClass aspect class
@@ -372,7 +386,6 @@ public class EBeanDAOUtils {
    */
   private static <ASPECT extends RecordTemplate> EbeanMetadataAspect readSqlRow(SqlRow sqlRow,
       Class<ASPECT> aspectClass) {
-
     final EbeanMetadataAspect ebeanMetadataAspect = new EbeanMetadataAspect();
     final String urn = sqlRow.getString("urn");
     EbeanMetadataAspect.PrimaryKey primaryKey;

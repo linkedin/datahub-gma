@@ -162,6 +162,15 @@ public class EbeanLocalAccessTest {
     assertTrue("Expected empty result when aspect column is missing", result.isEmpty());
   }
 
+  @Test(expectedExceptions = UnsupportedOperationException.class)
+  public void testBatchGetUnionMultiAspectMatchesPerAspect() {
+    // Surface PR: batchGetUnionMultiAspect is declared but not implemented yet, so it must throw.
+    FooUrn fooUrn = makeFooUrn(400);
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys =
+        Arrays.asList(new AspectKey<>(AspectFoo.class, fooUrn, 0L));
+    _ebeanLocalAccessFoo.batchGetUnionMultiAspect((List) keys, keys.size(), 0, false, false);
+  }
+
   @Test
   public void testListUrnsWithOffset() {
 

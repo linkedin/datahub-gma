@@ -102,12 +102,24 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
   private EbeanLocalRelationshipWriterDAO _localRelationshipWriterDAO;
   private LocalRelationshipBuilderRegistry _localRelationshipBuilderRegistry = null;
   private SchemaConfig _schemaConfig = SchemaConfig.OLD_SCHEMA_ONLY;
+  // Read strategy within NEW_SCHEMA_ONLY: whether to issue one SELECT per aspect (default, safe) or a
+  // single bundled multi-aspect SELECT per entity table (optimized). DUAL runs both and compares.
+  private AspectReadStrategy _aspectReadStrategy = AspectReadStrategy.PER_ASPECT;
   private final EBeanDAOConfig _eBeanDAOConfig = new EBeanDAOConfig();
 
   public enum SchemaConfig {
     OLD_SCHEMA_ONLY, // Default: read from and write to the old schema table
     NEW_SCHEMA_ONLY, // Read from and write to the new schema tables
     DUAL_SCHEMA // Write to both the old and new tables and perform a comparison between values when reading
+  }
+
+  /**
+   * Controls how multi-aspect batch reads are executed in {@code NEW_SCHEMA_ONLY} mode.
+   */
+  public enum AspectReadStrategy {
+    PER_ASPECT,   // Default: one SELECT per aspect class (legacy behavior)
+    MULTI_ASPECT, // Single bundled SELECT per entity table (optimized)
+    DUAL          // Run both paths and compare results; returns the per-aspect (safe) result
   }
 
   // TODO: clean up once AIM is no longer using existing local relationships - they should make new relationship tables with the aspect column
@@ -582,6 +594,24 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
    */
   void setSchemaConfig(SchemaConfig schemaConfig) {
     _schemaConfig = schemaConfig;
+  }
+
+  /**
+   * Getter for the multi-aspect read strategy this DAO uses in NEW_SCHEMA_ONLY mode.
+   * @return _aspectReadStrategy
+   */
+  public AspectReadStrategy getAspectReadStrategy() {
+    return _aspectReadStrategy;
+  }
+
+  /**
+   * Configure how new-schema batch reads are executed: {@code PER_ASPECT} (default, one SELECT per
+   * aspect), {@code MULTI_ASPECT} (single bundled SELECT per table), or {@code DUAL} (run both and
+   * compare). Only takes effect in {@code NEW_SCHEMA_ONLY} mode.
+   * @param aspectReadStrategy read strategy to use
+   */
+  public void setAspectReadStrategy(@Nonnull AspectReadStrategy aspectReadStrategy) {
+    _aspectReadStrategy = aspectReadStrategy;
   }
 
   /**
@@ -1461,20 +1491,42 @@ public class EbeanLocalDAO<ASPECT_UNION extends UnionTemplate, URN extends Urn>
     }
 
     if (_schemaConfig == SchemaConfig.NEW_SCHEMA_ONLY) {
-      return _localAccess.batchGetUnion(keys, keysCount, position, false, false);
+      return newSchemaBatchGet(keys, keysCount, position);
     }
 
     if (_schemaConfig == SchemaConfig.DUAL_SCHEMA) {
       // Compare results from both new and old schemas
       final List<EbeanMetadataAspect> resultsOldSchema = batchGetUnion(keys, keysCount, position);
-      final List<EbeanMetadataAspect> resultsNewSchema =
-          _localAccess.batchGetUnion(keys, keysCount, position, false, false);
+      final List<EbeanMetadataAspect> resultsNewSchema = newSchemaBatchGet(keys, keysCount, position);
       EBeanDAOUtils.compareResults(resultsOldSchema, resultsNewSchema, "batchGet");
       return resultsOldSchema;
     }
 
     log.error("Please check that the SchemaConfig supplied to EbeanLocalDAO constructor is valid.");
     return Collections.emptyList();
+  }
+
+  /**
+   * Executes a new-schema batch read using the configured {@link AspectReadStrategy}: per-aspect
+   * (one SELECT per aspect), multi-aspect (one bundled SELECT per table), or dual (run both and compare,
+   * returning the per-aspect result as the safe source of truth).
+   */
+  private List<EbeanMetadataAspect> newSchemaBatchGet(@Nonnull List<AspectKey<URN, ? extends RecordTemplate>> keys,
+      int keysCount, int position) {
+    switch (_aspectReadStrategy) {
+      case MULTI_ASPECT:
+        return _localAccess.batchGetUnionMultiAspect(keys, keysCount, position, false, false);
+      case DUAL:
+        final List<EbeanMetadataAspect> perAspect =
+            _localAccess.batchGetUnion(keys, keysCount, position, false, false);
+        final List<EbeanMetadataAspect> multiAspect =
+            _localAccess.batchGetUnionMultiAspect(keys, keysCount, position, false, false);
+        EBeanDAOUtils.compareResults(perAspect, multiAspect, "batchGetMultiAspect");
+        return perAspect;
+      case PER_ASPECT:
+      default:
+        return _localAccess.batchGetUnion(keys, keysCount, position, false, false);
+    }
   }
 
   /**
