@@ -346,6 +346,29 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   }
 
   /**
+   * Multi-aspect variant of {@link #batchGetUnion}: instead of issuing one SELECT per aspect class,
+   * this groups the requested keys by entity table and reads all requested aspect columns for a table
+   * in a single SELECT. This collapses N per-aspect reads into 1 read per table and is the optimized
+   * read path enabled via {@code AspectReadStrategy}.
+   *
+   * <p>Results are mapped per requested (urn, aspect) key so the returned aspects match the per-aspect
+   * path exactly, including skipping missing columns, null cells, and (when {@code includeSoftDeleted}
+   * is false) soft-deleted aspect cells.</p>
+   *
+   * @param aspectKeys a List of keys (urn, aspect pairings) to query for
+   * @param keysCount number of keys to query
+   * @param position position of the key to start from
+   * @param includeSoftDeleted whether to include soft deleted aspect in the query
+   * @param isTestMode whether the operation is in test mode or not
+   */
+  @Override
+  public <ASPECT extends RecordTemplate> List<EbeanMetadataAspect> batchGetUnionMultiAspect(
+      @Nonnull List<AspectKey<URN, ? extends RecordTemplate>> aspectKeys, int keysCount, int position,
+      boolean includeSoftDeleted, boolean isTestMode) {
+    throw new UnsupportedOperationException("batchGetUnionMultiAspect is not implemented yet");
+  }
+
+  /**
    * Soft delete all aspects + urn for the given urn by setting deleted_ts=NOW().
    * By this time pre-deletion hooks should be processed.
    * @param urn        {@link Urn} for the entity

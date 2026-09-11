@@ -364,6 +364,25 @@ public class EBeanDAOUtils {
   }
 
   /**
+   * Map a single aspect column of a (possibly multi-aspect) {@link SqlRow} into an
+   * {@link EbeanMetadataAspect}. Used by the multi-aspect read path where one row carries many aspect
+   * columns and each requested (urn, aspect) pair is mapped individually.
+   *
+   * <p>TODO: reuse this multi-aspect mapping to also collapse per-aspect reads on the filter/index
+   * read path ({@code listUrns}/{@code list} with filters), which is the other major use case hurt by
+   * single-aspect reads. Tracked as a follow-up so it can be rolled out and benchmarked on its own.</p>
+   *
+   * @param sqlRow {@link SqlRow} containing the aspect column
+   * @param aspectClass aspect class to read
+   * @param <ASPECT> aspect type
+   * @return {@link EbeanMetadataAspect}
+   */
+  public static <ASPECT extends RecordTemplate> EbeanMetadataAspect readSqlRowForAspect(@Nonnull SqlRow sqlRow,
+      @Nonnull Class<ASPECT> aspectClass) {
+    return readSqlRow(sqlRow, aspectClass);
+  }
+
+  /**
    * Read EbeanMetadataAspect from {@link SqlRow}.
    * @param sqlRow {@link SqlRow}
    * @param aspectClass aspect class
