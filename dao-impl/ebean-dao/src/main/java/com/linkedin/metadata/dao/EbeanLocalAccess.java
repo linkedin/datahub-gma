@@ -39,6 +39,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -365,7 +366,55 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   public <ASPECT extends RecordTemplate> List<EbeanMetadataAspect> batchGetUnionMultiAspect(
       @Nonnull List<AspectKey<URN, ? extends RecordTemplate>> aspectKeys, int keysCount, int position,
       boolean includeSoftDeleted, boolean isTestMode) {
-    throw new UnsupportedOperationException("batchGetUnionMultiAspect is not implemented yet");
+
+    final int end = Math.min(aspectKeys.size(), position + keysCount);
+
+    // Group requested keys by entity table so each table is read with a single multi-aspect statement.
+    final Map<String, Set<Urn>> tableToUrns = new LinkedHashMap<>();
+    final Map<String, Set<String>> tableToColumns = new LinkedHashMap<>();
+    for (int index = position; index < end; index++) {
+      final Urn entityUrn = aspectKeys.get(index).getUrn();
+      final Class<ASPECT> aspectClass = (Class<ASPECT>) aspectKeys.get(index).getAspectClass();
+      final String tableName = isTestMode ? getTestTableName(entityUrn) : getTableName(entityUrn);
+      final String columnName = getAspectColumnName(entityUrn.getEntityType(), aspectClass);
+      if (!validator.columnExists(tableName, columnName)) {
+        continue;
+      }
+      tableToUrns.computeIfAbsent(tableName, unused -> new LinkedHashSet<>()).add(entityUrn);
+      tableToColumns.computeIfAbsent(tableName, unused -> new LinkedHashSet<>()).add(columnName);
+    }
+
+    // Execute one statement per table and index the returned rows by urn.
+    final Map<String, SqlRow> urnToRow = new HashMap<>();
+    for (Map.Entry<String, Set<Urn>> entry : tableToUrns.entrySet()) {
+      final List<String> columns = new ArrayList<>(tableToColumns.get(entry.getKey()));
+      final String sql =
+          SQLStatementUtils.createMultiAspectReadSql(entry.getValue(), columns, includeSoftDeleted, isTestMode);
+      for (SqlRow sqlRow : _server.createSqlQuery(sql).findList()) {
+        urnToRow.put(sqlRow.getString("urn"), sqlRow);
+      }
+    }
+
+    // Map each requested (urn, aspect) key against its row, preserving per-aspect read semantics.
+    final List<EbeanMetadataAspect> results = new ArrayList<>();
+    for (int index = position; index < end; index++) {
+      final Urn entityUrn = aspectKeys.get(index).getUrn();
+      final Class<ASPECT> aspectClass = (Class<ASPECT>) aspectKeys.get(index).getAspectClass();
+      final String tableName = isTestMode ? getTestTableName(entityUrn) : getTableName(entityUrn);
+      final String columnName = getAspectColumnName(entityUrn.getEntityType(), aspectClass);
+      if (!validator.columnExists(tableName, columnName)) {
+        continue;
+      }
+      final SqlRow sqlRow = urnToRow.get(entityUrn.toString());
+      if (sqlRow == null || sqlRow.get(columnName) == null) {
+        continue;
+      }
+      if (!includeSoftDeleted && EBeanDAOUtils.isSoftDeletedAspect(sqlRow, columnName)) {
+        continue;
+      }
+      results.add(EBeanDAOUtils.readSqlRowForAspect(sqlRow, aspectClass));
+    }
+    return results;
   }
 
   /**

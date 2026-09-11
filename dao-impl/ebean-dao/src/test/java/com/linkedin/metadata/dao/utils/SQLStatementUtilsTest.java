@@ -154,9 +154,8 @@ public class SQLStatementUtilsTest {
     assertEquals(SQLStatementUtils.createAspectReadSql(AspectFoo.class, set, true, false), expectedSql);
   }
 
-  @Test(expectedExceptions = UnsupportedOperationException.class)
+  @Test
   public void testCreateMultiAspectReadSql() throws URISyntaxException {
-    // Surface PR: createMultiAspectReadSql is declared but not implemented yet, so it must throw.
     // Real production dataset URNs (from the read benchmark in PR #640) to mirror real-world URN shapes.
     Set<Urn> urns = new java.util.LinkedHashSet<>();
     urns.add(Urn.createFromString(
@@ -164,7 +163,25 @@ public class SQLStatementUtilsTest {
     urns.add(Urn.createFromString(
         "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/code_push_steps,PROD)"));
     List<String> columns = java.util.Arrays.asList("a_datasetproperties", "a_status");
-    SQLStatementUtils.createMultiAspectReadSql(urns, columns, false, false);
+
+    // includeSoftDeleted=false: one bundled SELECT over all columns, row-level deleted_ts filter only.
+    String expectedSql =
+        "SELECT urn, a_datasetproperties, a_status, lastmodifiedon, lastmodifiedby "
+            + "FROM metadata_entity_dataset "
+            + "WHERE urn IN ("
+            + "'urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/commute_preference,PROD)', "
+            + "'urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/code_push_steps,PROD)') "
+            + "AND deleted_ts IS NULL";
+    assertEquals(SQLStatementUtils.createMultiAspectReadSql(urns, columns, false, false), expectedSql);
+
+    // includeSoftDeleted=true: also SELECT deleted_ts and drop the deleted_ts filter.
+    expectedSql =
+        "SELECT urn, a_datasetproperties, a_status, lastmodifiedon, lastmodifiedby, deleted_ts "
+            + "FROM metadata_entity_dataset "
+            + "WHERE urn IN ("
+            + "'urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/commute_preference,PROD)', "
+            + "'urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/code_push_steps,PROD)')";
+    assertEquals(SQLStatementUtils.createMultiAspectReadSql(urns, columns, true, false), expectedSql);
   }
 
   @Test

@@ -165,7 +165,13 @@ public class UsageTrackingEbeanLocalAccess<URN extends Urn> implements IEbeanLoc
   public <ASPECT extends RecordTemplate> List<EbeanMetadataAspect> batchGetUnionMultiAspect(
       @Nonnull List<AspectKey<URN, ? extends RecordTemplate>> keys, int keysCount, int position,
       boolean includeSoftDeleted, boolean isTestMode) {
-    throw new UnsupportedOperationException("batchGetUnionMultiAspect is not implemented yet");
+    final List<EbeanMetadataAspect> result =
+        _delegate.batchGetUnionMultiAspect(keys, keysCount, position, includeSoftDeleted, isTestMode);
+    if (emissionEnabled() && !isTestMode && !DaoReadContext.isInternalRead()) {
+      emitRead("batchGetUnionMultiAspect", () -> entityTypeFromKeys(keys, keysCount, position),
+          () -> targetsFromKeys(keys, keysCount, position));
+    }
+    return result;
   }
 
   @Nonnull

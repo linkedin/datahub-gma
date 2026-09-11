@@ -261,7 +261,30 @@ public class SQLStatementUtils {
    */
   public static String createMultiAspectReadSql(@Nonnull Set<Urn> urns, @Nonnull List<String> aspectColumns,
       boolean includeSoftDeleted, boolean isTestMode) {
-    throw new UnsupportedOperationException("createMultiAspectReadSql is not implemented yet");
+    if (urns.isEmpty()) {
+      throw new IllegalArgumentException("Need at least 1 urn to query.");
+    }
+    if (aspectColumns.isEmpty()) {
+      throw new IllegalArgumentException("Need at least 1 aspect column to query.");
+    }
+
+    final Urn firstUrn = urns.iterator().next();
+    final String tableName = isTestMode ? getTestTableName(firstUrn) : getTableName(firstUrn);
+    final String columnList = String.join(", ", aspectColumns);
+    final String urnList = urns.stream()
+        .map(urn -> "'" + escapeReservedCharInUrn(urn.toString()) + "'")
+        .collect(Collectors.joining(", "));
+
+    final StringBuilder stringBuilder = new StringBuilder();
+    stringBuilder.append("SELECT urn, ").append(columnList).append(", lastmodifiedon, lastmodifiedby");
+    if (includeSoftDeleted) {
+      stringBuilder.append(", deleted_ts");
+    }
+    stringBuilder.append(" FROM ").append(tableName).append(" WHERE urn IN (").append(urnList).append(RIGHT_PARENTHESIS);
+    if (!includeSoftDeleted) {
+      stringBuilder.append(" AND ").append(DELETED_TS_IS_NULL_CHECK);
+    }
+    return stringBuilder.toString();
   }
 
   /**
