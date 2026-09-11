@@ -154,6 +154,19 @@ public class SQLStatementUtilsTest {
     assertEquals(SQLStatementUtils.createAspectReadSql(AspectFoo.class, set, true, false), expectedSql);
   }
 
+  @Test(expectedExceptions = UnsupportedOperationException.class)
+  public void testCreateMultiAspectReadSql() throws URISyntaxException {
+    // Surface PR: createMultiAspectReadSql is declared but not implemented yet, so it must throw.
+    // Real production dataset URNs (from the read benchmark in PR #640) to mirror real-world URN shapes.
+    Set<Urn> urns = new java.util.LinkedHashSet<>();
+    urns.add(Urn.createFromString(
+        "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/commute_preference,PROD)"));
+    urns.add(Urn.createFromString(
+        "urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/code_push_steps,PROD)"));
+    List<String> columns = java.util.Arrays.asList("a_datasetproperties", "a_status");
+    SQLStatementUtils.createMultiAspectReadSql(urns, columns, false, false);
+  }
+
   @Test
   public void testCreateFilterSql() {
 

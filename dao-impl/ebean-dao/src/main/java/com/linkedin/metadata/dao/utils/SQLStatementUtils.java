@@ -239,6 +239,32 @@ public class SQLStatementUtils {
   }
 
   /**
+   * Construct a single SQL statement that reads multiple aspect columns for a set of urns in one query,
+   * instead of issuing one statement per aspect. This collapses N per-aspect reads into 1 read.
+   *
+   * <p>Example:
+   * SELECT urn, a_aspect1, a_aspect2, lastmodifiedon, lastmodifiedby FROM metadata_entity_foo
+   * WHERE urn IN ('urn:1', 'urn:2') AND deleted_ts IS NULL
+   * </p>
+   *
+   * <p>Note on soft deletes: unlike {@link #createAspectReadSql}, this statement does NOT filter
+   * individual soft-deleted aspects in the WHERE clause (a per-column check would incorrectly drop a
+   * whole row when any single aspect is soft deleted). Only the row-level {@code deleted_ts IS NULL}
+   * check is applied here; soft-deleted aspect cells must be filtered out during row-to-aspect mapping
+   * (see {@link EBeanDAOUtils#isSoftDeletedAspect}).</p>
+   *
+   * @param urns a Set of Urns to query for (must be non-empty and share the same entity table)
+   * @param aspectColumns resolved aspect column names (e.g. from {@code getAspectColumnName}) to select
+   * @param includeSoftDeleted a flag to include soft deleted records (also selects {@code deleted_ts})
+   * @param isTestMode whether the operation is in test mode or not
+   * @return a single multi-aspect read sql statement
+   */
+  public static String createMultiAspectReadSql(@Nonnull Set<Urn> urns, @Nonnull List<String> aspectColumns,
+      boolean includeSoftDeleted, boolean isTestMode) {
+    throw new UnsupportedOperationException("createMultiAspectReadSql is not implemented yet");
+  }
+
+  /**
    * List all the aspect record (0 or 1) for a given entity urn and aspect type.
    * @param aspectClass aspect type
    * @param urn entity urn
