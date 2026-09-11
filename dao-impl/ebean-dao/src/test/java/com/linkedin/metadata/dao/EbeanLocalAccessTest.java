@@ -39,8 +39,10 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
@@ -162,13 +164,106 @@ public class EbeanLocalAccessTest {
     assertTrue("Expected empty result when aspect column is missing", result.isEmpty());
   }
 
-  @Test(expectedExceptions = UnsupportedOperationException.class)
+  @Test
   public void testBatchGetUnionMultiAspectMatchesPerAspect() {
-    // Surface PR: batchGetUnionMultiAspect is declared but not implemented yet, so it must throw.
+    // Given: an entity with two aspects written (foo + bar), forcing the per-aspect path to issue 2 SELECTs
     FooUrn fooUrn = makeFooUrn(400);
-    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys =
-        Arrays.asList(new AspectKey<>(AspectFoo.class, fooUrn, 0L));
-    _ebeanLocalAccessFoo.batchGetUnionMultiAspect((List) keys, keys.size(), 0, false, false);
+    AspectFoo foo = new AspectFoo().setValue("foo_400");
+    AspectBar bar = new AspectBar().setValue("bar_400");
+    List<BaseLocalDAO.AspectUpdateContext<RecordTemplate>> updateContexts = Arrays.asList(
+        new BaseLocalDAO.AspectUpdateContext<>(null, foo, new BaseLocalDAO.AspectUpdateLambda<>(foo)),
+        new BaseLocalDAO.AspectUpdateContext<>(null, bar, new BaseLocalDAO.AspectUpdateLambda<>(bar))
+    );
+    _ebeanLocalAccessFoo.batchUpsert(fooUrn, updateContexts, makeAuditStamp("actor", _now), null, false);
+
+    // Also include a non-existent urn and a missing-column aspect to exercise skip semantics.
+    FooUrn nonExistUrn = makeFooUrn(9998);
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys = Arrays.asList(
+        new AspectKey<>(AspectFoo.class, fooUrn, 0L),
+        new AspectKey<>(AspectBar.class, fooUrn, 0L),
+        new AspectKey<>(AspectBaz.class, fooUrn, 0L),   // column does not exist -> skipped
+        new AspectKey<>(AspectFoo.class, nonExistUrn, 0L) // no row -> skipped
+    );
+
+    // When: reading via the per-aspect path and the multi-aspect path
+    List<EbeanMetadataAspect> perAspect =
+        _ebeanLocalAccessFoo.batchGetUnion((List) keys, keys.size(), 0, false, false);
+    List<EbeanMetadataAspect> multiAspect =
+        _ebeanLocalAccessFoo.batchGetUnionMultiAspect((List) keys, keys.size(), 0, false, false);
+
+    // Then: both paths return the same set of aspects
+    assertEquals(normalize(multiAspect), normalize(perAspect));
+    assertEquals(2, multiAspect.size());
+  }
+
+  private static Set<String> normalize(List<EbeanMetadataAspect> aspects) {
+    Set<String> normalized = new HashSet<>();
+    for (EbeanMetadataAspect a : aspects) {
+      normalized.add(a.getKey().getUrn() + "|" + a.getKey().getAspect() + "|" + a.getMetadata());
+    }
+    return normalized;
+  }
+
+  @Test
+  public void testBatchGetUnionMultiAspectExcludesSoftDeletedAspect() {
+    // Given: an entity with foo + bar, then foo is soft-deleted at the aspect level (gma_deleted marker)
+    FooUrn fooUrn = makeFooUrn(410);
+    AspectFoo foo = new AspectFoo().setValue("foo_410");
+    AspectBar bar = new AspectBar().setValue("bar_410");
+    AuditStamp auditStamp = makeAuditStamp("actor", _now);
+    _ebeanLocalAccessFoo.add(fooUrn, foo, AspectFoo.class, auditStamp, null, false);
+    _ebeanLocalAccessFoo.add(fooUrn, bar, AspectBar.class, auditStamp, null, false);
+    _ebeanLocalAccessFoo.add(fooUrn, null, AspectFoo.class, auditStamp, null, false); // soft-delete foo aspect
+
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys = Arrays.asList(
+        new AspectKey<>(AspectFoo.class, fooUrn, 0L),
+        new AspectKey<>(AspectBar.class, fooUrn, 0L)
+    );
+
+    // includeSoftDeleted=false: the soft-deleted foo aspect must be excluded, matching the per-aspect path
+    List<EbeanMetadataAspect> perAspect =
+        _ebeanLocalAccessFoo.batchGetUnion((List) keys, keys.size(), 0, false, false);
+    List<EbeanMetadataAspect> multiAspect =
+        _ebeanLocalAccessFoo.batchGetUnionMultiAspect((List) keys, keys.size(), 0, false, false);
+    assertEquals(normalize(multiAspect), normalize(perAspect));
+    assertEquals(1, multiAspect.size());
+    assertEquals(AspectBar.class.getCanonicalName(), multiAspect.get(0).getKey().getAspect());
+
+    // includeSoftDeleted=true: the soft-deleted foo aspect must be returned (and flagged soft-deleted),
+    // again matching the per-aspect path exactly
+    List<EbeanMetadataAspect> perAspectAll =
+        _ebeanLocalAccessFoo.batchGetUnion((List) keys, keys.size(), 0, true, false);
+    List<EbeanMetadataAspect> multiAspectAll =
+        _ebeanLocalAccessFoo.batchGetUnionMultiAspect((List) keys, keys.size(), 0, true, false);
+    assertEquals(normalize(multiAspectAll), normalize(perAspectAll));
+    assertEquals(2, multiAspectAll.size());
+    boolean fooSoftDeleted = multiAspectAll.stream()
+        .filter(a -> a.getKey().getAspect().equals(AspectFoo.class.getCanonicalName()))
+        .anyMatch(a -> EBeanDAOUtils.isSoftDeletedMetadata(a.getMetadata()));
+    assertTrue("Expected soft-deleted foo aspect to be flagged when includeSoftDeleted=true", fooSoftDeleted);
+  }
+
+  @Test
+  public void testBatchGetUnionMultiAspectDeduplicatesRepeatedKeys() {
+    // Given: a single entity with one aspect
+    FooUrn fooUrn = makeFooUrn(420);
+    AspectFoo foo = new AspectFoo().setValue("foo_420");
+    _ebeanLocalAccessFoo.add(fooUrn, foo, AspectFoo.class, makeAuditStamp("actor", _now), null, false);
+
+    // When: the same (urn, aspect) key is requested twice
+    List<AspectKey<FooUrn, ? extends RecordTemplate>> keys = Arrays.asList(
+        new AspectKey<>(AspectFoo.class, fooUrn, 0L),
+        new AspectKey<>(AspectFoo.class, fooUrn, 0L)
+    );
+    List<EbeanMetadataAspect> perAspect =
+        _ebeanLocalAccessFoo.batchGetUnion((List) keys, keys.size(), 0, false, false);
+    List<EbeanMetadataAspect> multiAspect =
+        _ebeanLocalAccessFoo.batchGetUnionMultiAspect((List) keys, keys.size(), 0, false, false);
+
+    // Then: multi-aspect collapses duplicate keys just like the per-aspect (Set-based) path
+    assertEquals(1, perAspect.size());
+    assertEquals(1, multiAspect.size());
+    assertEquals(normalize(multiAspect), normalize(perAspect));
   }
 
   @Test

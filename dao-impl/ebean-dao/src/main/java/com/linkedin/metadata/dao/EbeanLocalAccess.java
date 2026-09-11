@@ -39,7 +39,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -365,7 +367,87 @@ public class EbeanLocalAccess<URN extends Urn> implements IEbeanLocalAccess<URN>
   public <ASPECT extends RecordTemplate> List<EbeanMetadataAspect> batchGetUnionMultiAspect(
       @Nonnull List<AspectKey<URN, ? extends RecordTemplate>> aspectKeys, int keysCount, int position,
       boolean includeSoftDeleted, boolean isTestMode) {
-    throw new UnsupportedOperationException("batchGetUnionMultiAspect is not implemented yet");
+
+    final int end = Math.min(aspectKeys.size(), position + keysCount);
+
+    // Group requested keys by entity table so each table is read with a single multi-aspect statement.
+    // tableToUrns drives the IN clause; tableToColumnToClass drives the SELECT columns and the
+    // column -> aspect-class mapping; requestedPairs records exactly which (urn, aspect) pairs were
+    // asked for, deduplicated and keyed case-insensitively on the urn to tolerate canonical-urn storage.
+    final Map<String, Set<Urn>> tableToUrns = new LinkedHashMap<>();
+    final Map<String, Map<String, Class<ASPECT>>> tableToColumnToClass = new LinkedHashMap<>();
+    final Set<String> requestedPairs = new HashSet<>();
+    for (int index = position; index < end; index++) {
+      final Urn entityUrn = aspectKeys.get(index).getUrn();
+      final Class<ASPECT> aspectClass = (Class<ASPECT>) aspectKeys.get(index).getAspectClass();
+      final String tableName = isTestMode ? getTestTableName(entityUrn) : getTableName(entityUrn);
+      final String columnName = getAspectColumnName(entityUrn.getEntityType(), aspectClass);
+      if (!validator.columnExists(tableName, columnName)) {
+        continue;
+      }
+      tableToUrns.computeIfAbsent(tableName, unused -> new LinkedHashSet<>()).add(entityUrn);
+      tableToColumnToClass.computeIfAbsent(tableName, unused -> new LinkedHashMap<>()).put(columnName, aspectClass);
+      requestedPairs.add(matchKey(entityUrn.toString(), columnName));
+    }
+
+    // Execute one statement per table and map each returned row directly into aspects (row-driven, like
+    // the per-aspect path): the aspect urn derives from the row, matching against requestedPairs is
+    // case-insensitive, and duplicate (urn, aspect) keys collapse naturally via the requestedPairs set.
+    final List<EbeanMetadataAspect> results = new ArrayList<>();
+    for (Map.Entry<String, Map<String, Class<ASPECT>>> entry : tableToColumnToClass.entrySet()) {
+      final String tableName = entry.getKey();
+      final Map<String, Class<ASPECT>> columnToClass = entry.getValue();
+      final List<String> columns = new ArrayList<>(columnToClass.keySet());
+      final String sql =
+          SQLStatementUtils.createMultiAspectReadSql(tableToUrns.get(tableName), columns, includeSoftDeleted, isTestMode);
+      if (log.isDebugEnabled()) {
+        log.debug("Executing multi-aspect batch read on table {} for {} urn(s), columns {}. Sql: {}",
+            tableName, tableToUrns.get(tableName).size(), columns, sql);
+      }
+      final List<SqlRow> sqlRows;
+      try {
+        sqlRows = _server.createSqlQuery(sql).findList();
+      } catch (PersistenceException pe) {
+        log.error("SQL execution failure during multi-aspect batch read on table {}. Sql: {}, error message: {}",
+            tableName, sql, pe.getMessage());
+        throw new RuntimeException(
+            String.format("Failed to execute multi-aspect batch read on table %s. Sql: %s", tableName, sql), pe);
+      }
+      for (SqlRow sqlRow : sqlRows) {
+        final String rowUrn = sqlRow.getString("urn");
+        for (Map.Entry<String, Class<ASPECT>> columnEntry : columnToClass.entrySet()) {
+          final String columnName = columnEntry.getKey();
+          // remove() both restricts to requested (urn, aspect) pairs and deduplicates repeated keys.
+          if (!requestedPairs.remove(matchKey(rowUrn, columnName))) {
+            continue;
+          }
+          if (sqlRow.get(columnName) == null) {
+            continue;
+          }
+          if (!includeSoftDeleted && EBeanDAOUtils.isSoftDeletedAspect(sqlRow, columnName)) {
+            continue;
+          }
+          try {
+            results.add(EBeanDAOUtils.readSqlRowForAspect(sqlRow, columnEntry.getValue()));
+          } catch (RuntimeException re) {
+            log.error("Failed to map multi-aspect row to aspect on table {}, urn {}, column {}. Sql: {}, error message: {}",
+                tableName, rowUrn, columnName, sql, re.getMessage());
+            throw new RuntimeException(
+                String.format("Failed to map multi-aspect row to aspect on table %s, urn %s, column %s. Sql: %s",
+                    tableName, rowUrn, columnName, sql), re);
+          }
+        }
+      }
+    }
+    return results;
+  }
+
+  /**
+   * Build a case-insensitive lookup key for a (urn, aspect column) pair. The urn is lower-cased so a
+   * requested urn matches its stored row even when the two differ only by canonical-urn casing.
+   */
+  private static String matchKey(@Nonnull String urn, @Nonnull String columnName) {
+    return urn.toLowerCase(Locale.ROOT) + '\u0000' + columnName;
   }
 
   /**
