@@ -20,12 +20,13 @@ import static org.testng.AssertJUnit.*;
 
 
 /**
- * Index hint coverage for the legacy (non-keyset) builder, {@code buildFindRelationshipSQL}.
+ * Index hint coverage for both relationship SQL builders, {@code buildFindRelationshipSQL} (legacy) and
+ * {@code buildFindRelationshipKeysetCurrentSQL} (keyset).
  *
  * <p>No database: the builder is called directly with a mocked {@link SchemaValidatorUtil}, so these run
  * locally as well as in CI. The index gate is stubbed present, which is the state these cases are about.</p>
  */
-public class LegacyBuilderIndexHintTest {
+public class RelationshipIndexHintTest {
 
   private static final String REL_TABLE = "metadata_relationship_downstreamof";
   private static final String ENTITY_TABLE = "metadata_entity_dataset";
@@ -104,6 +105,24 @@ public class LegacyBuilderIndexHintTest {
     assertHintPrecedesJoins(sql, SOURCE_HINT);
   }
 
+  /**
+   * A source entity table may be joined purely to filter on other entity columns while the source urn
+   * itself is pinned through the relationship filter. The relationship filter is rendered against rt in
+   * that shape too, so it still pins rt.source and the hint still applies.
+   */
+  @Test
+  public void testSourceJoinIsHintedFromRelationshipFilter() {
+    String sql = build(relationshipUrnFilter("source"), ENTITY_TABLE, null, null, null);
+    assertHintPrecedesJoins(sql, SOURCE_HINT);
+  }
+
+  /** The same shape with an entity filter present but pinning nothing on its own. */
+  @Test
+  public void testSourceJoinWithEmptyEntityFilterIsHintedFromRelationshipFilter() {
+    String sql = build(relationshipUrnFilter("source"), ENTITY_TABLE, emptyFilter(), null, null);
+    assertHintPrecedesJoins(sql, SOURCE_HINT);
+  }
+
   /** Destination wins when both sides are pinned, matching the keyset builder. */
   @Test
   public void testDestinationTakesPrecedenceOverSource() {
@@ -149,5 +168,45 @@ public class LegacyBuilderIndexHintTest {
 
     assertFalse(sql.contains(SOURCE_HINT));
     assertFalse(sql.contains(DEST_HINT));
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Keyset builder. Both builders decide source pinning through the same helper, so the shapes below
+  // mirror the legacy cases above and keep the two from drifting apart.
+  // ---------------------------------------------------------------------------------------------
+
+  private String buildKeyset(LocalRelationshipFilter relationshipFilter, String sourceTableName,
+      LocalRelationshipFilter sourceEntityFilter, String destTableName,
+      LocalRelationshipFilter destinationEntityFilter) {
+    return dao().buildFindRelationshipKeysetCurrentSQL(REL_TABLE, relationshipFilter, sourceTableName,
+        sourceEntityFilter, destTableName, destinationEntityFilter, 1000, 0L, Long.MAX_VALUE);
+  }
+
+  /** A joined source entity table pins the source through the entity filter's "urn" field. */
+  @Test
+  public void testKeysetSourceJoinIsHintedFromEntityFilter() {
+    assertHintPrecedesJoins(buildKeyset(emptyFilter(), ENTITY_TABLE, entityUrnFilter(), null, null),
+        SOURCE_HINT);
+  }
+
+  /** A joined source entity table does not stop the relationship filter from pinning rt.source. */
+  @Test
+  public void testKeysetSourceJoinIsHintedFromRelationshipFilter() {
+    assertHintPrecedesJoins(buildKeyset(relationshipUrnFilter("source"), ENTITY_TABLE, null, null, null),
+        SOURCE_HINT);
+  }
+
+  /** With no join at all the relationship filter is the only thing that can pin the source. */
+  @Test
+  public void testKeysetSourcePinnedByRelationshipFilterWithoutJoin() {
+    assertTrue(buildKeyset(relationshipUrnFilter("source"), null, null, null, null).contains(SOURCE_HINT));
+  }
+
+  /** Destination precedence holds in the keyset builder too. */
+  @Test
+  public void testKeysetDestinationTakesPrecedenceOverSource() {
+    String sql = buildKeyset(emptyFilter(), ENTITY_TABLE, entityUrnFilter(), ENTITY_TABLE, entityUrnFilter());
+    assertHintPrecedesJoins(sql, DEST_HINT);
+    assertFalse(sql.contains(SOURCE_HINT));
   }
 }
