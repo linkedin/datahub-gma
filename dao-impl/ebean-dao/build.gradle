@@ -26,6 +26,7 @@ dependencies {
   testCompile project(':testing:test-models')
   testCompile externalDependency.mysql
   testCompile externalDependency.h2
+  testCompile externalDependency.log4jCore
   testCompile externalDependency.mockito
   testCompile externalDependency.mockitoInline
   testCompile externalDependency.maria4j

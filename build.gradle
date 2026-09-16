@@ -56,6 +56,7 @@ project.ext.externalDependency = [
     'junitJupiterEngine': "org.junit.jupiter:junit-jupiter-engine:$junitJupiterVersion",
     'junitVintageEngine': "org.junit.vintage:junit-vintage-engine:$junitJupiterVersion",
     'log4j': 'org.apache.logging.log4j:log4j-slf4j-impl:2.18.0',
+    'log4jCore': 'org.apache.logging.log4j:log4j-core:2.18.0',
     'lombok': 'org.projectlombok:lombok:1.18.30',
     'lombokAnnotationProcessor': 'org.projectlombok:lombok:1.18.30',
     'maria4j': 'ch.vorburger.mariaDB4j:mariaDB4j:2.5.3',

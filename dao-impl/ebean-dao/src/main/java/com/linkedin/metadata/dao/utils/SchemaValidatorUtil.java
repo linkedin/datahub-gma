@@ -256,7 +256,32 @@ public class SchemaValidatorUtil {
     for (SqlRow row : rows) {
       indexes.add(row.getString("INDEX_NAME").toLowerCase());
     }
+    warnIfNoIndexMetadata(tableName, indexes);
     return indexes;
+  }
+
+  /**
+   * Warns when {@code information_schema.STATISTICS} yielded no index metadata for a table the DAO is
+   * actively querying.
+   *
+   * <p>Every InnoDB table has at least a {@code PRIMARY} entry in {@code STATISTICS}, so an empty result
+   * is never legitimate for a table that exists. It means this connection cannot see the table's index
+   * metadata, which is not the same thing as the table having no indexes, yet both produce an empty set.
+   * Without this warning the two are indistinguishable and every {@code FORCE INDEX} hint is dropped
+   * silently: the query still returns correct rows, just without the index the hint was meant to pin, so
+   * the only symptom is a slow query with no accompanying error or log.</p>
+   *
+   * <p>Logged from the cache loader rather than from {@code indexExists}, so the volume is bounded by
+   * cache misses (one per table per cache expiry) rather than by query rate.</p>
+   */
+  static void warnIfNoIndexMetadata(@Nonnull String tableName, @Nonnull Set<String> indexes) {
+    if (indexes.isEmpty()) {
+      log.warn("No index metadata returned for table '{}'. Index hints such as FORCE INDEX will be skipped "
+          + "for this table. Every existing InnoDB table reports at least a PRIMARY index, so an empty result "
+          + "usually means this database connection cannot read index metadata for the table rather than that "
+          + "the table has no indexes. Verify that the table exists in the schema returned by database() and "
+          + "that the connecting account can read information_schema.STATISTICS for it.", tableName);
+    }
   }
 
   /**

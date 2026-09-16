@@ -185,6 +185,7 @@ public class SharedSchemaCache {
     for (SqlRow row : rows) {
       indexes.add(row.getString("INDEX_NAME").toLowerCase());
     }
+    SchemaValidatorUtil.warnIfNoIndexMetadata(tableName, indexes);
     return indexes;
   }
 
