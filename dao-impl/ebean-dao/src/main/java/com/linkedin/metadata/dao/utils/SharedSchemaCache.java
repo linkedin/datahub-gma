@@ -185,7 +185,10 @@ public class SharedSchemaCache {
     for (SqlRow row : rows) {
       indexes.add(row.getString("INDEX_NAME").toLowerCase());
     }
-    SchemaValidatorUtil.warnIfNoIndexMetadata(tableName, indexes);
+    if (indexes.isEmpty()) {
+      // refreshTable loads columns before indexes, so this reads an already warm cache.
+      SchemaValidatorUtil.warnIfIndexMetadataMissing(tableName, getColumns(tableName));
+    }
     return indexes;
   }
 

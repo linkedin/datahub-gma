@@ -67,8 +67,12 @@ public class SchemaValidatorUtilWarningTest {
   }
 
   @Test
-  public void testWarnsWhenNoIndexMetadataIsVisible() {
-    SchemaValidatorUtil.warnIfNoIndexMetadata("metadata_relationship_downstreamof", Collections.emptySet());
+  public void testWarnsWhenTableExistsButReportsNoIndexes() {
+    Set<String> columns = new HashSet<>();
+    columns.add("urn");
+    columns.add("deleted_ts");
+
+    SchemaValidatorUtil.warnIfIndexMetadataMissing("metadata_relationship_downstreamof", columns);
 
     assertEquals(1, _appender._warnings.size());
     String warning = _appender._warnings.get(0);
@@ -76,19 +80,19 @@ public class SchemaValidatorUtilWarningTest {
     assertTrue(warning.contains("metadata_relationship_downstreamof"));
     // Name the consequence, so the log explains why queries got slower rather than only what was missing.
     assertTrue(warning.contains("FORCE INDEX"));
+    // Reporting the column count shows why the table is believed to exist.
+    assertTrue(warning.contains("2 column"));
   }
 
   /**
-   * A table that reports any index at all is healthy. Every existing InnoDB table reports at least
-   * PRIMARY, so a non-empty set never warrants the warning and would otherwise be constant noise on
-   * every cache refresh.
+   * Callers pre-warm the schema cache in their constructor, before schema evolution creates the tables,
+   * so on a fresh database every table is briefly absent. An absent table reports no columns, which is
+   * how that expected startup state is told apart from index metadata that cannot be read.
    */
   @Test
-  public void testDoesNotWarnWhenIndexMetadataIsPresent() {
-    Set<String> indexes = new HashSet<>();
-    indexes.add("primary");
-
-    SchemaValidatorUtil.warnIfNoIndexMetadata("metadata_relationship_downstreamof", indexes);
+  public void testStaysQuietWhenTableDoesNotExistYet() {
+    SchemaValidatorUtil.warnIfIndexMetadataMissing("metadata_relationship_downstreamof",
+        Collections.emptySet());
 
     assertTrue(_appender._warnings.isEmpty());
   }
