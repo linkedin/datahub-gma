@@ -1227,6 +1227,14 @@ public class EbeanLocalRelationshipQueryDAO {
 
     sqlBuilder.append(" FROM ").append(relationshipTableName).append(" rt ");
 
+    // The hint has to land directly after "FROM <table> rt" and ahead of every join, so it is decided here
+    // rather than inside the join chain below. It previously sat in the third arm of that chain, which made
+    // it unreachable whenever a destination join was appended (META-24386).
+    if (_schemaConfig == EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY || _schemaConfig == EbeanLocalDAO.SchemaConfig.DUAL_SCHEMA) {
+      appendRelationshipIndexHint(sqlBuilder, relationshipTableName, relationshipFilter, sourceTableName,
+          sourceEntityFilter, destTableName, destinationEntityFilter);
+    }
+
     List<Triplet<LocalRelationshipFilter, String, String>> filters = new ArrayList<>();
 
     if (_schemaConfig == EbeanLocalDAO.SchemaConfig.NEW_SCHEMA_ONLY || _schemaConfig == EbeanLocalDAO.SchemaConfig.DUAL_SCHEMA) {
@@ -1240,26 +1248,6 @@ public class EbeanLocalRelationshipQueryDAO {
         validateEntityFilterOnlyOneUrn(destinationEntityFilter);
         // non-mg entity case, applying dest filter on relationship table
         filters.add(new Triplet<>(destinationEntityFilter, "rt", relationshipTableName));
-      } else if (filterHasNonEmptyCriteria(relationshipFilter)) {
-        // Apply FORCE INDEX if the destination or source field is being filtered, and the index exists.
-        // This branch is reached only when no destination entity join was appended, so the hint still lands
-        // directly after "FROM <table> rt" and ahead of the source join added below.
-        final LocalRelationshipCriterionArray relationshipCriteria =
-            flattenLogicalExpressionLocalRelationshipCriterion(relationshipFilter.getLogicalExpressionCriteria());
-        // Destination takes precedence, so a query pinning both sides is hinted on the destination.
-        // The source arm is reached when the destination is not pinned, or is pinned but its index is
-        // absent, matching the keyset builder's else-if.
-        //
-        // The destination arm matches on field name alone, which also hints shapes that do not pin the
-        // column to one value, such as a negated or multi-value leaf. That predates this method and is
-        // left alone so currently hinted queries keep their plan. The source arm is new, so it uses the
-        // stricter rule the keyset builder applies rather than inheriting that looseness.
-        if (!appendUrnFieldIndexHint(sqlBuilder, relationshipCriteria, relationshipTableName, DESTINATION_FIELD,
-            IDX_DESTINATION_DELETED_TS, FORCE_IDX_ON_DESTINATION)
-            && pinsUrnFieldToOneValue(relationshipFilter, SOURCE_FIELD)
-            && _schemaValidatorUtil.indexExists(relationshipTableName, IDX_SOURCE_DELETED_TS)) {
-          sqlBuilder.append(FORCE_IDX_ON_SOURCE);
-        }
       }
 
       if (sourceTableName != null) {
@@ -1494,6 +1482,64 @@ public class EbeanLocalRelationshipQueryDAO {
     sqlBuilder.append(" ORDER BY rt.id ASC LIMIT ").append(pageSize);
 
     return sqlBuilder.toString();
+  }
+
+  /**
+   * Appends at most one {@code FORCE INDEX} hint for the legacy builder, immediately after
+   * {@code FROM <table> rt} and before any join.
+   *
+   * <p>Destination takes precedence, so a query pinning both sides is hinted on the destination and the
+   * source arm is reached only when the destination is not pinned, or is pinned but its index is absent.
+   * That mirrors the keyset builder's {@code else if}.</p>
+   *
+   * <p>Two rules differ by shape, deliberately. When the destination is expressed through the relationship
+   * filter the match is on field name alone, which also hints shapes that do not pin the column to one
+   * value such as a negated or multi-value leaf. That predates META-24386 and is preserved so currently
+   * hinted queries keep their plan. Every other arm uses {@link #pinsUrnFieldToOneValue}, the stricter rule
+   * the keyset builder applies.</p>
+   *
+   * <p>The source arm considers the source entity filter as well as the relationship filter. Callers that
+   * join an entity table pin the source through {@code st.urn}, not through the relationship filter, so
+   * consulting only the latter meant the source hint could never fire for them.</p>
+   */
+  private void appendRelationshipIndexHint(@Nonnull final StringBuilder sqlBuilder,
+      @Nonnull final String relationshipTableName, @Nullable final LocalRelationshipFilter relationshipFilter,
+      @Nullable final String sourceTableName, @Nullable final LocalRelationshipFilter sourceEntityFilter,
+      @Nullable final String destTableName, @Nullable final LocalRelationshipFilter destinationEntityFilter) {
+
+    if (destTableName != null) {
+      // Joined destination entity table: the urn is pinned on dt, so the entity filter names it "urn".
+      if (pinsUrnFieldToOneValue(destinationEntityFilter, URN_FIELD)
+          && _schemaValidatorUtil.indexExists(relationshipTableName, IDX_DESTINATION_DELETED_TS)) {
+        sqlBuilder.append(FORCE_IDX_ON_DESTINATION);
+        return;
+      }
+    } else if (destinationEntityFilter != null) {
+      // Non-MG entity: the destination filter is rendered against rt, so it names the relationship column.
+      if (pinsUrnFieldToOneValue(destinationEntityFilter, DESTINATION_FIELD)
+          && _schemaValidatorUtil.indexExists(relationshipTableName, IDX_DESTINATION_DELETED_TS)) {
+        sqlBuilder.append(FORCE_IDX_ON_DESTINATION);
+        return;
+      }
+    } else if (relationshipFilter != null && filterHasNonEmptyCriteria(relationshipFilter)) {
+      final LocalRelationshipCriterionArray relationshipCriteria =
+          flattenLogicalExpressionLocalRelationshipCriterion(relationshipFilter.getLogicalExpressionCriteria());
+      if (appendUrnFieldIndexHint(sqlBuilder, relationshipCriteria, relationshipTableName, DESTINATION_FIELD,
+          IDX_DESTINATION_DELETED_TS, FORCE_IDX_ON_DESTINATION)) {
+        return;
+      }
+    }
+
+    final boolean sourcePinnedToOneUrn = sourceTableName != null
+        ? pinsUrnFieldToOneValue(sourceEntityFilter, URN_FIELD)
+        : pinsUrnFieldToOneValue(sourceEntityFilter, SOURCE_FIELD)
+            || pinsUrnFieldToOneValue(sourceEntityFilter, URN_FIELD)
+            || pinsUrnFieldToOneValue(relationshipFilter, SOURCE_FIELD);
+
+    if (sourcePinnedToOneUrn
+        && _schemaValidatorUtil.indexExists(relationshipTableName, IDX_SOURCE_DELETED_TS)) {
+      sqlBuilder.append(FORCE_IDX_ON_SOURCE);
+    }
   }
 
   /**
