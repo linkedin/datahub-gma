@@ -256,7 +256,41 @@ public class SchemaValidatorUtil {
     for (SqlRow row : rows) {
       indexes.add(row.getString("INDEX_NAME").toLowerCase());
     }
+    if (indexes.isEmpty()) {
+      // Resolving columns is only worth it on this rare path, where it distinguishes a table that is
+      // not there yet from one whose index metadata cannot be read.
+      warnIfIndexMetadataMissing(tableName, getColumns(tableName));
+    }
     return indexes;
+  }
+
+  /**
+   * Warns when a table that exists reports no index metadata.
+   *
+   * <p>An empty index set is indistinguishable from a table genuinely having no indexes, and an empty
+   * result from {@code information_schema.STATISTICS} is a successful query, so nothing surfaces on its
+   * own. When it happens {@link #indexExists} returns false for every index on the table and each
+   * {@code FORCE INDEX} hint is dropped. Nothing fails: the query still returns correct rows, just
+   * without the index the hint was meant to pin, so the only symptom is a slow query.</p>
+   *
+   * <p>The column set separates the two causes. A table that is absent reports no columns either, which
+   * is the normal state during the pre-warm that runs before schema evolution creates the tables, so
+   * that case stays quiet. A table that reports columns exists, and every existing InnoDB table reports
+   * at least a {@code PRIMARY} index, so an empty index set there means this connection cannot read the
+   * table's index metadata.</p>
+   *
+   * <p>Called from the cache loader rather than from {@link #indexExists}, so the volume is bounded by
+   * cache misses rather than by query rate.</p>
+   */
+  static void warnIfIndexMetadataMissing(@Nonnull String tableName, @Nonnull Set<String> columns) {
+    if (columns.isEmpty()) {
+      return;
+    }
+    log.warn("No index metadata returned for table '{}', which reports {} column(s). Index hints such as "
+        + "FORCE INDEX will be skipped for this table. Every existing InnoDB table reports at least a "
+        + "PRIMARY index, so an empty result for a table that exists usually means this database "
+        + "connection cannot read index metadata for it. Verify that the connecting account can read "
+        + "information_schema.STATISTICS for this table.", tableName, columns.size());
   }
 
   /**
