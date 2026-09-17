@@ -3,6 +3,7 @@ package com.linkedin.metadata.dao;
 import com.google.common.io.Resources;
 import com.linkedin.common.AuditStamp;
 import com.linkedin.metadata.dao.urnpath.EmptyPathExtractor;
+import com.linkedin.metadata.dao.utils.EBeanDAOUtils;
 import com.linkedin.metadata.dao.utils.EmbeddedMariaInstance;
 import com.linkedin.metadata.dao.utils.SchemaValidatorUtil;
 import java.lang.reflect.Field;
@@ -408,11 +409,15 @@ public class EbeanLocalAccessTestWithoutServiceIdentifier {
     AspectKey<FooUrn, AspectFoo> aspectKey = new AspectKey(AspectFoo.class, fooUrn, 0L);
     List<EbeanMetadataAspect> ebeanMetadataAspectList =
         _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0, false, false);
-    assertEquals(0, ebeanMetadataAspectList.size());
+    // batchGetUnion now returns soft-deleted aspects with gma_deleted marker (filtering moved from SQL to Java)
+    assertEquals(1, ebeanMetadataAspectList.size());
+    assertTrue(EBeanDAOUtils.isSoftDeletedMetadata(ebeanMetadataAspectList.get(0).getMetadata()));
 
+    // With includeSoftDeleted=true: same result — soft-deleted marker is returned
     ebeanMetadataAspectList =
         _ebeanLocalAccessFoo.batchGetUnion(Collections.singletonList(aspectKey), 1000, 0, true, false);
-    assertFalse(ebeanMetadataAspectList.isEmpty());
+    assertEquals(1, ebeanMetadataAspectList.size());
     assertEquals(fooUrn.toString(), ebeanMetadataAspectList.get(0).getKey().getUrn());
+    assertTrue(EBeanDAOUtils.isSoftDeletedMetadata(ebeanMetadataAspectList.get(0).getMetadata()));
   }
 }
