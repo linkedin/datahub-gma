@@ -1,7 +1,7 @@
 # Real production dataset URNs (metadata identifiers only) used as the read batch for
-# CurrentSchemaReadBenchmarkTest so the issued queries and logs mirror real-world URN shapes.
-# Data volume is still synthetic. One URN per line; blank lines and lines starting with '#'
-# are ignored.
+# CurrentSchemaReadBenchmarkTest and MultiAspectReadBenchmarkTest so the issued queries and logs
+# mirror real-world URN shapes. Data volume is still synthetic. One URN per line; blank lines and
+# lines starting with '#' are ignored.
 urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/ha_embedding_dimension_statistics,PROD)
 urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/onboarded_to_spv_skipped_validation,PROD)
 urn:li:dataset:(urn:li:dataPlatform:hdfs,/jobs/metrics/ump_v2/metrics_metadata/crt_target_state_audit_metrics,PROD)
