@@ -15,6 +15,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import lombok.extern.slf4j.Slf4j;
@@ -98,25 +99,45 @@ public class SharedSchemaCache {
   // ── cache access ─────────────────────────────────────────────────────────────
 
   public boolean columnExists(@Nonnull String tableName, @Nonnull String columnName) {
-    return columnCache.get(tableName.toLowerCase(), tbl -> {
-      log.info("Inline schema cache miss: loading columns for table '{}'", tbl);
-      return loadColumns(tbl);
-    }).contains(columnName.toLowerCase());
+    return getCachingNonEmpty(columnCache, tableName.toLowerCase(), "columns", this::loadColumns)
+        .contains(columnName.toLowerCase());
   }
 
   @Nonnull
   public Set<String> getColumns(@Nonnull String tableName) {
-    return columnCache.get(tableName.toLowerCase(), tbl -> {
-      log.info("Inline schema cache miss: loading columns for table '{}'", tbl);
-      return loadColumns(tbl);
-    });
+    return getCachingNonEmpty(columnCache, tableName.toLowerCase(), "columns", this::loadColumns);
   }
 
   public boolean indexExists(@Nonnull String tableName, @Nonnull String indexName) {
-    return indexCache.get(tableName.toLowerCase(), tbl -> {
-      log.info("Inline schema cache miss: loading indexes for table '{}'", tbl);
-      return loadIndexes(tbl);
-    }).contains(indexName.toLowerCase());
+    return getCachingNonEmpty(indexCache, tableName.toLowerCase(), "indexes", this::loadIndexes)
+        .contains(indexName.toLowerCase());
+  }
+
+  /**
+   * Returns the cached metadata for {@code lowerTable}, loading it on a cache miss. A non-empty
+   * result is cached; an <em>empty</em> result is deliberately NOT cached. For columns and indexes
+   * an empty result means the table does not exist yet — e.g. the pre-warm in the
+   * {@link com.linkedin.metadata.dao.EbeanLocalAccess} constructor ran before schema migration
+   * created the table. Caching that empty set would pin a stale "table has nothing" view for the
+   * full {@value #CACHE_TTL_MINUTES}-minute TTL, so every later {@code columnExists()} returns false
+   * and {@code EbeanLocalAccess.batchGetUnion} drops the aspect from its query — surfacing as 404s
+   * on aspect reads, wrong autofill defaults, lost writes and wrong row counts (regression #618).
+   * Not caching the empty result lets a later call re-resolve once the schema is in place; for a
+   * genuinely absent table the extra information_schema query is cheap and self-correcting.
+   */
+  @Nonnull
+  private static Set<String> getCachingNonEmpty(@Nonnull Cache<String, Set<String>> cache,
+      @Nonnull String lowerTable, @Nonnull String what, @Nonnull Function<String, Set<String>> loader) {
+    Set<String> cached = cache.getIfPresent(lowerTable);
+    if (cached != null) {
+      return cached;
+    }
+    log.info("Inline schema cache miss: loading {} for table '{}'", what, lowerTable);
+    Set<String> loaded = loader.apply(lowerTable);
+    if (!loaded.isEmpty()) {
+      cache.put(lowerTable, loaded);
+    }
+    return loaded;
   }
 
   @Nullable
@@ -159,12 +180,26 @@ public class SharedSchemaCache {
 
   private void refreshTable(String tableName) {
     try {
-      columnCache.put(tableName, loadColumns(tableName));
-      indexCache.put(tableName, loadIndexes(tableName));
+      // Only cache non-empty column/index metadata: an empty result means the table does not exist
+      // yet (e.g. pre-warm runs before schema migration), and pinning that stale view for the TTL is
+      // the #618 regression. Index expressions may be legitimately empty (a table with no expression
+      // indexes), so they are cached as-is.
+      putIfNonEmpty(columnCache, tableName, loadColumns(tableName));
+      putIfNonEmpty(indexCache, tableName, loadIndexes(tableName));
       indexExpressionCache.put(tableName, loadIndexesAndExpressions(tableName));
       log.info("Schema cache refreshed for table '{}'", tableName);
     } catch (Exception e) {
       log.warn("Schema cache refresh failed for table '{}': {}", tableName, e.getMessage());
+    }
+  }
+
+  private static void putIfNonEmpty(@Nonnull Cache<String, Set<String>> cache, @Nonnull String tableName,
+      @Nonnull Set<String> value) {
+    if (value.isEmpty()) {
+      // Drop any previously-cached empty/absent entry so the next access re-resolves.
+      cache.invalidate(tableName);
+    } else {
+      cache.put(tableName, value);
     }
   }
 

@@ -119,15 +119,8 @@ public class SchemaValidatorUtil {
     if (sharedCache != null) {
       return sharedCache.columnExists(tableName, columnName);
     }
-    String lowerTable = tableName.toLowerCase();
-    String lowerColumn = columnName.toLowerCase();
-
-    Set<String> columns = columnCache.get(lowerTable, tbl -> {
-      log.info("Refreshing column cache for table '{}'", tbl);
-      return loadColumns(tbl);
-    });
-
-    return columns.contains(lowerColumn);
+    return getCachingNonEmpty(columnCache, tableName.toLowerCase(), "column", this::loadColumns)
+        .contains(columnName.toLowerCase());
   }
 
   /**
@@ -141,11 +134,7 @@ public class SchemaValidatorUtil {
     if (sharedCache != null) {
       return sharedCache.getColumns(tableName);
     }
-    String lowerTable = tableName.toLowerCase();
-    return columnCache.get(lowerTable, tbl -> {
-      log.info("Refreshing column cache for table '{}'", tbl);
-      return loadColumns(tbl);
-    });
+    return getCachingNonEmpty(columnCache, tableName.toLowerCase(), "column", this::loadColumns);
   }
 
   /**
@@ -159,15 +148,31 @@ public class SchemaValidatorUtil {
     if (sharedCache != null) {
       return sharedCache.indexExists(tableName, indexName);
     }
-    String lowerTable = tableName.toLowerCase();
-    String lowerIndex = indexName.toLowerCase();
+    return getCachingNonEmpty(indexCache, tableName.toLowerCase(), "index", this::loadIndexes)
+        .contains(indexName.toLowerCase());
+  }
 
-    Set<String> indexes = indexCache.get(lowerTable, tbl -> {
-      log.info("Refreshing index cache for table '{}'", tbl);
-      return loadIndexes(tbl);
-    });
-
-    return indexes.contains(lowerIndex);
+  /**
+   * Returns the cached set for {@code lowerTable}, loading it on a cache miss. A non-empty result is
+   * cached; an empty result is NOT cached. For columns and indexes an empty result means the table
+   * is not present yet (e.g. schema not migrated when this ran), so pinning it for the TTL would
+   * make {@code columnExists()}/{@code indexExists()} report false for entries that do exist. Not
+   * caching it lets a later call re-resolve. Mirrors the fix in {@link SharedSchemaCache} for the
+   * same regression (#618).
+   */
+  @Nonnull
+  private Set<String> getCachingNonEmpty(@Nonnull Cache<String, Set<String>> cache, @Nonnull String lowerTable,
+      @Nonnull String what, @Nonnull java.util.function.Function<String, Set<String>> loader) {
+    Set<String> cached = cache.getIfPresent(lowerTable);
+    if (cached != null) {
+      return cached;
+    }
+    log.info("Refreshing {} cache for table '{}'", what, lowerTable);
+    Set<String> loaded = loader.apply(lowerTable);
+    if (!loaded.isEmpty()) {
+      cache.put(lowerTable, loaded);
+    }
+    return loaded;
   }
 
 
