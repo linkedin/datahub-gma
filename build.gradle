@@ -118,6 +118,9 @@ subprojects { sp ->
       if (System.getProperty('gma.benchmark') != null) {
         systemProperty 'gma.benchmark', System.getProperty('gma.benchmark')
       }
+      if (System.getProperty('gma.benchmark.urnFile') != null) {
+        systemProperty 'gma.benchmark.urnFile', System.getProperty('gma.benchmark.urnFile')
+      }
     }
 
     test {
