@@ -126,6 +126,64 @@ public class SharedSchemaCacheTest {
   }
 
   /**
+   * Regression test for #618 (datahub-gma 0.6.185): the SharedSchemaCache pre-warm was moved into
+   * the EbeanLocalAccess constructor so it always runs at startup. For consumers that run schema
+   * migrations as a separate job (LinkedIn's prod pattern) or in integration tests, the
+   * constructor — and therefore the pre-warm — can execute BEFORE the entity table is migrated
+   * into existence. loadColumns() then returns an empty set, and caching that empty set pinned a
+   * stale "table has no columns" view for the full TTL: every later columnExists() returned false,
+   * so EbeanLocalAccess.batchGetUnion dropped the aspect from its query and reads silently returned
+   * nothing (404 / wrong autofill defaults / lost writes / wrong counts).
+   *
+   * <p>An empty column load means "table not present yet" and must NOT be cached, so a later access
+   * re-resolves once the schema is in place.</p>
+   */
+  @Test
+  public void testPreWarmBeforeTableCreatedDoesNotPoisonColumnCache() {
+    final String table = "metadata_entity_prewarm_regression";
+    server.execute(Ebean.createSqlUpdate("DROP TABLE IF EXISTS " + table));
+
+    // Pre-warm while the table does NOT yet exist (mimics constructor pre-warm before migration).
+    cache.registerAndPreWarm(table);
+    assertFalse(cache.columnExists(table, "a_aspectfoo"));
+
+    // Schema migration runs AFTER construction: the table + aspect column now exist.
+    server.execute(Ebean.createSqlUpdate(
+        "CREATE TABLE " + table + " (urn VARCHAR(100) NOT NULL, a_aspectfoo JSON, "
+            + "CONSTRAINT pk_" + table + " PRIMARY KEY (urn))"));
+
+    // The column added after pre-warm must now be visible — the empty pre-warm result must not be
+    // pinned. Before the fix this returned false because the empty set was cached for the TTL.
+    assertTrue("column added after pre-warm must be visible; empty pre-warm load must not be cached (regression #618)",
+        cache.columnExists(table, "a_aspectfoo"));
+
+    server.execute(Ebean.createSqlUpdate("DROP TABLE IF EXISTS " + table));
+  }
+
+  /**
+   * Same #618 regression as {@link #testPreWarmBeforeTableCreatedDoesNotPoisonColumnCache} but via
+   * the lazy (cache-miss) read path rather than registerAndPreWarm: a columnExists() call issued
+   * before the table exists must not pin an empty result.
+   */
+  @Test
+  public void testLazyReadBeforeTableCreatedDoesNotPoisonColumnCache() {
+    final String table = "metadata_entity_lazy_regression";
+    server.execute(Ebean.createSqlUpdate("DROP TABLE IF EXISTS " + table));
+
+    // Lazy read while the table does NOT yet exist.
+    assertFalse(cache.columnExists(table, "a_aspectfoo"));
+
+    server.execute(Ebean.createSqlUpdate(
+        "CREATE TABLE " + table + " (urn VARCHAR(100) NOT NULL, a_aspectfoo JSON, "
+            + "CONSTRAINT pk_" + table + " PRIMARY KEY (urn))"));
+
+    assertTrue("column visible after table creation; prior empty read must not be cached (regression #618)",
+        cache.columnExists(table, "a_aspectfoo"));
+
+    server.execute(Ebean.createSqlUpdate("DROP TABLE IF EXISTS " + table));
+  }
+
+  /**
    * MariaDB does not support the EXPRESSION column in information_schema.STATISTICS, so we mock
    * the DB response to exercise the getIndexExpression happy path.
    */
