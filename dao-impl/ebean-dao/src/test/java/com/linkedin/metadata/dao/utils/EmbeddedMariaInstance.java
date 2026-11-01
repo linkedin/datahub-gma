@@ -42,7 +42,7 @@ public class EmbeddedMariaInstance {
     DataSourceConfig dataSourceConfig = new DataSourceConfig();
     dataSourceConfig.setUsername(DB_USER);
     dataSourceConfig.setPassword(DB_PASS);
-    dataSourceConfig.setUrl(String.format("jdbc:mysql://localhost:%s/%s?allowMultiQueries=true", PORT, dbSchema));
+    dataSourceConfig.setUrl(String.format("jdbc:mysql://localhost:%s/%s?allowMultiQueries=true&serverTimezone=UTC", PORT, dbSchema));
     dataSourceConfig.setDriver("com.mysql.cj.jdbc.Driver");
 
     ServerConfig serverConfig = new ServerConfig();
@@ -66,7 +66,7 @@ public class EmbeddedMariaInstance {
     DataSourceConfig dataSourceConfig = new DataSourceConfig();
     dataSourceConfig.setUsername(DB_USER);
     dataSourceConfig.setPassword(DB_PASS);
-    dataSourceConfig.setUrl(String.format("jdbc:mysql://localhost:%s/%s?allowMultiQueries=true", PORT, dbSchema));
+    dataSourceConfig.setUrl(String.format("jdbc:mysql://localhost:%s/%s?allowMultiQueries=true&serverTimezone=UTC", PORT, dbSchema));
     dataSourceConfig.setDriver("com.mysql.cj.jdbc.Driver");
 
     ServerConfig serverConfig = new ServerConfig();
@@ -87,6 +87,7 @@ public class EmbeddedMariaInstance {
           String baseDbDir = getBaseDbDir();
           configurationBuilder.setDataDir(baseDbDir + File.separator + "data");
           configurationBuilder.setBaseDir(baseDbDir + File.separator + "base");
+          configurationBuilder.addArg("--default-time-zone=+00:00");
 
           /*
            * Add below 3 lines of code if building datahub-gma on a M1 / M2 chip Apple computer.
